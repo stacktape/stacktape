@@ -2,7 +2,7 @@
   "pageId": "local-development__debugging-lambda-functions",
   "pageRoute": "local-development/debugging-lambda-functions",
   "startedAt": "2026-05-17T19:16:45.282Z",
-  "updatedAt": "2026-05-17T19:39:23.184Z",
+  "updatedAt": "2026-05-22T06:58:23.236Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1115,6 +1115,582 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/local-development__debugging-lambda-functions/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All CLI commands appear in separate, single-command fenced blocks — no copy-trap violations anywhere on the page",
+            "Stacktape config example correctly uses <CodeBlock intellisense tabs={[...]} /> with TypeScript class-based resources and hidden imports — fully compliant",
+            "Source-grounded throughout: CLI flags (--resources, --skipResources, --devMode, --agent, --agentPort default 7331, --noTunnel), TUI commands (rs, rs <name>, c/clear, q/quit), debug:logs flags (--filter, --query, --limit 100 default, --startTime relative values h/m/d/s, --endTime, --raw) all confirmed in the provided source files",
+            "Normal vs legacy dev mode FeatureComparisonTable gives a concrete decision matrix — reader can scan and decide without reading prose",
+            "Debugging strategies section includes a realistic, copyable Lambda handler with structured JSON logging, not a toy snippet",
+            "Environment cleanup section explicitly lists what runs on clean exit vs unexpected exit — directly useful for first-time users who might Ctrl+C mid-session and wonder about leftover state",
+            "Local-development section instructions are respected: dev-mode-only behaviors are consistently separated from deployed-stack behaviors across every section",
+            "FAQ volume (10 entries) is appropriate and covers both basic usage and meaningful tradeoffs"
+          ],
+          "problems": [
+            "H2 heading 'How dev mode runs Lambda functions' reads like a complete sentence rather than a compact noun-form label — violates the 1-5 word noun-form H2 rule; scannability must be penalized by at least 1 point and a mandatory fix applied",
+            "FAQ category mix is lopsided: nearly all 10 questions are Stacktape-specific; the required three-category mix is missing AWS Lambda service questions (cold start behavior, timeout limits, concurrency, pricing model) and strong choosing/comparison questions — the one cost question briefly mentions the free tier but doesn't address Lambda-specific concerns a developer would search for",
+            "<FlowDiagram steps={[...]} /> is used but this component does not appear in the documented MDX palette — if it is not a real rendered component it silently removes the only structural overview of the dev mode flow, which is the first substantive element after the opening paragraph",
+            "'Rebuilding functions in the dev TUI' is a 7-word verb-phrase H2 — like 'How dev mode runs Lambda functions', it reads more like a sentence fragment than a compact label, contributing to the heading-form inconsistency"
+          ],
+          "mandatoryFixes": [
+            "Shorten H2 'How dev mode runs Lambda functions' to a compact noun-form label (e.g., 'Dev mode internals', 'How it works', or 'Lambda execution'). Also shorten 'Rebuilding functions in the dev TUI' (7-word verb phrase) to something like 'Rebuilds' or 'TUI commands'. Per the style rule, overly long H2s that read like full sentences require a scannability penalty of at least 1 point."
+          ],
+          "optionalImprovements": [
+            "Add 2-3 AWS Lambda service FAQ questions to hit the required three-category FAQ mix — e.g., 'How does Lambda cold start affect dev mode?', 'What are the Lambda timeout limits?', 'How does Lambda handle concurrent invocations in dev mode?' These are high-intent searches that bring readers to this page from outside Stacktape docs",
+            "Verify that <FlowDiagram steps={[...]} /> is a real, rendered MDX component in the Stacktape docs framework. If it is not, replace with a numbered list or short prose overview — the 6-step flow content is genuinely useful orientation for first-time users and should not be silently dropped",
+            "Consider moving the 'How it works' / flow diagram section after 'Starting dev mode' so first-time readers get a runnable command before the conceptual explanation — the typical new-user mental model is 'show me how to start, then explain what happened under the hood'",
+            "The key distinction that Lambda functions run on real AWS while containers run locally on the developer's machine is the most consequential behavioral difference from other dev tools — it deserves a prominent callout or explicit sentence in the opening paragraph, not just a mention inside the second H2 section and a late FAQ entry",
+            "The 'Narrowing the feedback loop' sub-section in Debugging strategies repeats --resources flag guidance already covered in 'Starting dev mode'; consider trimming to a cross-reference or a <Tip> callout to reduce page length without losing the insight"
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Excellent source grounding throughout — every behavioral claim (default 100-event limit, 1-hour default window, `rs`/`rs <name>`/`c`/`q` TUI commands, port 7331 default, `noTunnel` flag behavior, `beforeDev` hooks, legacy mode error on missing stack, all cleanup hooks) maps directly to the provided source files.",
+            "Shell command blocks are each exactly one command with no inline `#` explanation comments — clean and copy-safe.",
+            "The CodeBlock for the Stacktape config example is correct: `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'`, `defineConfig`, class-based `LambdaFunction` + `StacktapeLambdaBuildpackPackaging`, imports hidden behind focus markers.",
+            "The 'Injecting environment' step — running even when `--noTunnel` is set — is source-confirmed and accurately documented. This is exactly the kind of gotcha a production user needs.",
+            "The Normal vs Legacy dev mode comparison table is well-structured and accurate. The pros and cons are grounded in source behavior (legacy skips local emulation, normal deploys a dev stack).",
+            "The 'Connecting to local databases' section correctly explains that Lambda functions deployed to AWS cannot reach `localhost` and how tunnels solve it — a real-world gotcha that saves debugging time.",
+            "FAQ section covers 10 well-distributed questions across Stacktape-specific, AWS-service, and comparison categories. Each answer is 2-4 sentences, self-contained, and practically actionable.",
+            "Cleanup hook inventory is accurate and complete against the source (credentials, local resources, health monitor, dev server, tunnels, Lambda env, named proxy)."
+          ],
+          "problems": [
+            "The `<FlowDiagram>` component is not part of the documented Stacktape MDX component palette. The style guide enumerates `<Info>`, `<Warning>`, `<Tip>`, `<CodeBlock>`, `<ApiReference>`, `<ReferenceableParams>`, `<FeatureComparisonTable>` — `<FlowDiagram>` does not appear in any of these. If the component is undefined in the docs renderer, this section will silently disappear or throw a build error, leaving an unexplained gap in the 'How dev mode runs Lambda functions' section.",
+            "The page does not mention that hosting buckets only appear as dev-compatible resources if they have a `dev` property configured in the config (source: `.filter((b) => b.dev)`). The FAQ answer about container workloads mentions SSR frontends and hosting buckets but doesn't include this important qualifier — a reader could be confused when their hosting bucket doesn't show up in the picker.",
+            "The 'How dev mode runs Lambda functions' section opens with a `<FlowDiagram>` as the primary structural element of the section. If that component doesn't render, the section loses its substantive content and reads as two paragraphs with no visual grounding. The flow logic should have a prose fallback (e.g., an ordered list) that works even if the component is absent.",
+            "The page describes `dev:stop` as a CLI command for agent mode but does not link it to `/cli/dev-stop` consistently — the first mention in the 'Environment cleanup' section links it, but the agent mode section (`stacktape dev:stop --agentPort 7331` code block) has no link in surrounding prose."
+          ],
+          "mandatoryFixes": [
+            "Replace or supplement `<FlowDiagram>` with a documented MDX component or a plain ordered list. `<FlowDiagram>` is not in the Stacktape docs component palette and risks silent non-rendering or a build error. If the component is valid in the production renderer, add a note to the style guide; otherwise convert to a numbered prose list or use `<Info>` callouts for each step."
+          ],
+          "optionalImprovements": [
+            "Add the hosting bucket `dev` config qualifier to the FAQ answer about container workloads: 'Hosting buckets appear in the picker only if they have a `dev` property configured in their resource definition.' This prevents a real-world 'my hosting bucket doesn't show up' confusion.",
+            "In the 'Rebuilding functions' section, add a one-sentence note that there is no file-watching / auto-rebuild mode — rebuilds are always manual. This is implicit from the source but a reader coming from other tools (nodemon, Air, vite) will expect auto-rebuild and benefit from the explicit statement. The FAQ already mentions this but the section itself doesn't.",
+            "The 'Starting dev mode' subsection 'First-time setup' mentions that dev mode checks `isDevStack` metadata and auto-recovers failed dev stacks matching `isProbablyDevStage` heuristics. This is a non-obvious behavior (it deletes the old stack automatically in some cases) that production users would want to know about — consider a brief mention or `<Warning>` that under specific conditions a failed stack on a stage named `dev*`/`local*` may be automatically deleted and redeployed.",
+            "The CloudWatch Logs Insights `--query` example in the shell block uses a very long single-line query that will wrap badly on narrow terminals. Consider shortening the example or breaking it with shell continuation (`\\`) for readability.",
+            "The 'Debugging strategies > Testing HTTP-triggered functions' and 'Narrowing the feedback loop' paragraphs are useful but feel like appendices rather than a structured section. They could be reformatted as a small sub-list or given brief H3 headings to match the structured feel of the rest of the page."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong answer-first opening and clear separation between dev mode and deployed-stack log viewing.",
+            "The page is scannable: short H2s, comparison table, FAQ, and one-command shell blocks are mostly easy to use.",
+            "Stacktape config example uses the required class-based `defineConfig` form inside `<CodeBlock intellisense>` with the correct `TypeScript` tab.",
+            "The normal vs legacy dev mode section is useful and grounded in the command source: normal deploys a dev stack, legacy requires an existing deployed stack, and local databases are skipped in legacy mode."
+          ],
+          "problems": [
+            "Several high-confidence claims are broader than the provided source supports, especially that Lambda functions run with real IAM permissions, real event sources, service integrations, runtime limits, memory limits, timeout constraints, network configuration, cold start behavior, and permission failures surfacing in dev mode.",
+            "The local database section uses an unsupported concrete env var example: `STP_DB_CONNECTION_STRING`. The required pattern is `STP_[RESOURCE_NAME]_[PARAM]`, and no example resource named `db` is established.",
+            "The page claims the same environment variable names are used regardless of whether a database is local or AWS-deployed. The source only shows that an `env-inject` setup step is registered when selected local resources exist; it does not document exact variable naming or parity semantics.",
+            "The cleanup section overstates behavior. The source registers cleanup hooks and prints stopping messages for workloads, local resources, and tunnels, but it does not show a user-facing summary for Lambda environment restoration or credential cleanup.",
+            "The Agent mode section goes beyond the provided source by claiming AI agents can read logs and inspect workload state programmatically through an HTTP API and by describing exposed API capabilities. The source shows agent server startup and state updates, but not documented endpoints or API behavior.",
+            "The FAQ repeats unsupported details, including no file-watching flag, unselected functions remaining on the last deployed version, event-source coverage, and AWS Lambda free-tier quantities not present in the source files.",
+            "Some paragraphs are too absolute for a local-development page with thin source. Phrases like “the dev stack deploys real event source mappings” and “function’s URL is live and routable” need narrower wording or supporting source.",
+            "The first paragraph is useful but slightly under the requested 40-75 word target depending on tokenization, and it includes claims about IAM permissions and event sources that are not grounded in the source."
+          ],
+          "mandatoryFixes": [
+            "Replace `STP_DB_CONNECTION_STRING` with a resource-name-dependent example such as `STP_MAIN_DATABASE_CONNECTION_STRING`, but only if the page includes a config example with a database resource named `mainDatabase`; otherwise use only the generic pattern `STP_[RESOURCE_NAME]_[PARAM]`.",
+            "Remove or narrow unsupported claims about IAM permissions, event sources, service integrations, runtime limits, memory limits, timeout constraints, network configuration, cold starts, and permission errors unless additional source files explicitly support them.",
+            "Rewrite the local database environment-variable explanation to match the source: selected local resources add `Lambda tunnels` unless `--noTunnel` is set, and add an `Injecting environment` setup step. Do not claim exact env-var names or full routing parity from the provided source.",
+            "Revise cleanup behavior to only claim what the source shows: cleanup hooks are registered, the dev TUI stops first, and the process prints stopping messages for running/error/starting workloads, running/error local resources, and active tunnels. Avoid claiming visible credential cleanup or Lambda env restoration summaries unless sourced.",
+            "Remove or source the detailed Agent mode HTTP API claims. The provided source supports `--agent`, default port `7331`, available-port fallback through `7430`, lock/startup messages, state updates, rebuild function wiring, and `stacktape dev:stop --agentPort <port>` guidance, but not endpoint-level API documentation.",
+            "Fix FAQ answers that introduce unsupported behavior: file-watching absence, event-source mapping coverage, selected vs unselected function effects, Lambda free-tier quantities, and exact local database cost statements."
+          ],
+          "optionalImprovements": [
+            "Add a compact “Supported dev resources” table grounded in `getDevCompatibleResources`: functions, container workloads, hosting buckets with `dev`, Next.js web, and SSR web resources for Astro, Nuxt, SvelteKit, SolidStart, TanStack, and Remix.",
+            "Add a short “Flags” table for `--resources`, `--skipResources`, `--devMode`, `--noTunnel`, `--agent`, and `--agentPort`, using only behavior visible in the command source.",
+            "Make the opening paragraph more extractable by keeping it to one grounded idea: Stacktape dev mode can select Lambda functions, deploy or reuse a dev stack in normal mode, stream logs in the dev TUI, and rebuild workloads with `rs`.",
+            "Tone down broad performance language like “fast” and “significantly faster” unless the page can ground it in specific behavior such as “rebuilds a workload without restarting the entire dev command.”",
+            "Consider moving the detailed structured logging handler lower or shortening it; the page is already long, and the most source-grounded content is the dev command behavior, resource selection, rebuild commands, logs command, and normal vs legacy comparison."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided dev-mode and debug-logs sources, and it avoids the major config-example anti-patterns. The main issues are a few over-broad CLI/runtime claims where the source shows narrower behavior, especially around `debug:logs --limit`, agent port selection, cleanup on `q`, and normal-vs-legacy dev mode scoping.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Use `--limit` to control how many log events are returned.” This appears in the same paragraph that discusses both standard log fetching and `--query` Logs Insights queries.",
+              "reason": "The source applies `limit` only to the standard log-fetching path. When `--query` is provided, the command calls `runLogsInsightsQuery` without passing `limit`; users need to put a `limit` clause inside the Logs Insights query string instead.",
+              "suggestedFix": "Narrow the wording: “For standard log fetching, use `--limit` to control how many events are returned. For `--query`, include `limit ...` inside the CloudWatch Logs Insights query.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-logs/index.ts",
+                  "quote": "const { resourceName, raw, filter, container, query, limit = 100 } = args;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-logs/index.ts",
+                  "quote": "if (query) {\n    const result = await awsSdkManager.runLogsInsightsQuery({\n      logGroupName,\n      query,\n      startTime,\n      endTime\n    });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-logs/index.ts",
+                  "quote": "const limitedEvents = events.slice(0, limit);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“The agent daemon runs on port 7331 by default. Specify a different port with `--agentPort`.”",
+              "reason": "The source tries port 7331 by default but automatically searches for another available port if needed. The draft should not imply that 7331 is always the actual port unless the user overrides it.",
+              "suggestedFix": "Write: “Agent mode starts by trying port 7331. If that port is unavailable, Stacktape picks another available port; use `--agentPort` to require a specific port.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "const defaultAgentPort = 7331;\n    const agentPort = agentPortArg ?? (await findAvailablePort(defaultAgentPort));"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "hint: 'Specify a port with --agentPort or free up ports in that range.'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When the dev mode process exits (via `Ctrl+C`, the `q` TUI command, or `stacktape dev:stop` for agent mode), Stacktape runs registered cleanup hooks.” The FAQ repeats that cleanup hooks run on `q`.",
+              "reason": "The provided source clearly wires `SIGINT` and `SIGTERM` through `applicationManager.handleExitSignal`, but the `q` command only stops the dev TUI and calls `process.exit(0)`. The provided source does not support promising the same cleanup-hook path for `q`.",
+              "suggestedFix": "Limit the guarantee to the paths shown in source, or rephrase cautiously: “On normal signal-based shutdown, Stacktape runs registered cleanup hooks. The `q` command stops the dev TUI and exits.” If another source confirms cleanup on `q`, include that source in the page’s source set.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "process.on('SIGINT', cleanup);\n    process.on('SIGTERM', cleanup);"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "if (command === 'q' || command === 'quit') {\n    await devTuiManager.stop();\n    process.exit(0);\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The “Dev mode vs deployed-stack debugging” table labels `stacktape dev` as using a “Lightweight dev stack” and “Local databases via tunnels.”",
+              "reason": "That is accurate for normal dev mode, but the same page documents legacy dev mode. In the source, legacy dev mode requires an existing deployed stack and disables local database emulation. The comparison table should scope its dev-mode column to normal dev mode or add a legacy-mode caveat.",
+              "suggestedFix": "Rename the column to “Normal dev mode (`stacktape dev --devMode normal`)” and add a sentence after the table: “Legacy dev mode uses an existing deployed stack and does not offer local database emulation.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "const allEmulateableResources = isLegacy ? [] : getLocalEmulateableResources();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "// Legacy mode: require existing deployed stack\n    if (!stackManager.existingStackDetails) {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "“When you run databases locally in dev mode (Postgres, MySQL, Redis, DynamoDB, OpenSearch)…”",
+              "reason": "The list omits MariaDB even though the source maps MariaDB as a local relational database resource type. If the parenthetical is intended as an exhaustive list, it is incomplete.",
+              "suggestedFix": "Change the parenthetical to “Postgres, MySQL, MariaDB, Redis, DynamoDB, OpenSearch” or use “relational databases such as Postgres, MySQL, and MariaDB, plus Redis, DynamoDB, and OpenSearch.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "if (engineType === 'mysql' || engineType?.includes('mysql')) return 'mysql';\n    if (engineType === 'mariadb') return 'mariadb';\n    return 'postgres';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses the documented `stacktape debug:logs` command and links it to `/cli/debug-logs`; it does not invent `stacktape logs`.",
+            "The resource picker behavior, comma-separated `--resources` / `--skipResources` handling, default pre-selection, and fuzzy-name suggestions are grounded in `src/commands/dev/index.ts`.",
+            "The `debug:logs` defaults for one-hour `startTime` and 100 standard log events match `src/commands/debug-logs/index.ts`.",
+            "The Stacktape configuration example uses `<CodeBlock intellisense>` with a `TypeScript` tab and `defineConfig`, and does not include hand-authored YAML or `StacktapeConfig` typed-object style."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided dev-mode and debug-logs sources. The main factual risks are around claims that unselected resources remain deployed, agent-mode endpoint behavior, and cleanup details that the provided source does not support as strongly as the draft states.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Unselected functions are not affected — they remain on whatever version was last deployed to that stage.”",
+              "reason": "The provided dev command source only filters selected resources into the dev-compatible workload list that is run. It does not establish that unselected functions remain available on a previously deployed version in the same stage, especially in normal dev mode where a dev stack may be deployed for that stage.",
+              "suggestedFix": "Narrow the claim to what the source supports: selected resource names determine which workloads dev mode starts/renders. Avoid saying unselected functions remain on the last deployed version unless source code for dev-stack synthesis confirms that behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "const devCompatibleResources = allWorkloads.filter((r) => selectedResourceNames.has(r.name));"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "for (const resource of devCompatibleResources) {\n    devTuiManager.addWorkload({\n      name: resource.name,\n      type: resource.category,\n      hostingContentType: resource.hostingContentType\n    });\n  }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "await runParallelWorkloads(devCompatibleResources, selectedLocalResourceNames);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The agent exposes workload status (name, type, status, URL, port), local resource state, and log output. It can also trigger rebuilds of individual workloads or all workloads at once.”",
+              "reason": "The provided source shows agent state synchronization and rebuild function registration, but it does not include the HTTP API route definitions or prove which data and actions are exposed to external clients. The claim is likely true, but it is broader than the visible source supports.",
+              "suggestedFix": "Write cautiously from the visible source: agent mode starts a daemon HTTP server, records workload/local-resource state internally, and wires rebuild handlers for agent mode. Link to the agent-mode page for endpoint details instead of listing exposed API capabilities here.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "await startAgentServer(agentPort, join(globalStateManager.workingDir, '.stacktape', 'dev-agent')); "
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "setRebuildFunctions(rebuildWorkload, rebuildAllWorkloads);"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "updateAgentState({\n        phase: state.isQuitting ? 'stopping' : state.phase === 'running' ? 'ready' : 'starting',\n        workloads: state.workloads.map((workload) => ({\n          name: workload.name,\n          type: workload.type,\n          status: workload.status,\n          url: workload.url,\n          port: workload.port,\n          error: workload.error,\n          size: workload.size\n        })),\n        localResources: state.localResources.map((resource) => ({\n          name: resource.name,\n          type: resource.type,\n          status: resource.status,\n          port: resource.port,\n          error: resource.error\n        }))\n      });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“These hooks handle: Stopping dev workloads — running containers and function processes are shut down; Stopping local databases — Docker containers for local databases are stopped; Lambda environment cleanup — dev mode registers a Lambda environment cleanup hook; Cleaning up credentials — temporary credentials used during the dev session are removed.”",
+              "reason": "The visible cleanup source supports registering cleanup hooks and printing cleanup progress for workloads, local resources, and tunnels. It does not show the actual behavior of each hook, and there are no “function processes” for AWS Lambda functions in this source. The wording presents implementation details as confirmed outcomes.",
+              "suggestedFix": "Separate what is visible from what is inferred. Say dev mode registers cleanup hooks for credentials, local resources, health monitoring, dev server, tunnels, Lambda environment handling, and named proxies; the TUI prints cleanup progress for workloads, local resources, and tunnels when present.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "registerCredentialCleanupHook();\n  registerLocalResourceCleanupHook();\n  registerHealthMonitorCleanupHook();\n  registerDevServerCleanupHook();\n  registerTunnelCleanupHook();\n  registerLambdaEnvCleanupHook();\n  registerNamedProxyCleanupHook();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "cleanupLines.push('Stopping dev workloads...');"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "cleanupLines.push('Stopping local resources...');"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "cleanupLines.push('Stopping tunnels...');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Coding assistants and AI agents can trigger rebuilds, read logs, and inspect workload state programmatically through this API.”",
+              "reason": "The provided source confirms that agent mode starts an agent server and synchronizes state/logs internally, but it does not show API endpoints or prove that external clients can read logs and inspect workload state through the API.",
+              "suggestedFix": "Narrow the statement to: agent mode starts a background daemon with an HTTP server for AI-assisted workflows; the visible source wires workload state, local-resource state, logs, and rebuild handlers into that daemon. Refer readers to the dedicated agent-mode page for endpoint-level behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "await startAgentServer(agentPort, join(globalStateManager.workingDir, '.stacktape', 'dev-agent')); "
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "const newLogs = state.logs.filter((log) => log.timestamp > agentLogCursor);\n      for (const log of newLogs) {\n        agentLog(log.source, log.message, mapLogLevel(log.level));\n      }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "setRebuildFunctions(rebuildWorkload, rebuildAllWorkloads);"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like SQS, or wait for schedules — and watch the function process events live in the dev TUI.”",
+              "reason": "The provided sources support that functions are dev-compatible workloads and that normal dev mode can deploy a dev stack, but they do not show trigger synthesis or event-source behavior for selected functions. The generated LLM docs make similar claims, so this is not clearly wrong, but the source visible here is thin for the full trigger claim.",
+              "suggestedFix": "Keep the HTTP/SQS/schedule examples, but qualify them as configured triggers on the dev stack rather than implying all event-source paths are proven by this page’s source. For example: “For triggers present in the dev stack, invoke the configured source and watch logs in the TUI.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The dev TUI streams logs from running Lambda functions as they execute” and “logs stream into the dev TUI as the function executes.”",
+              "reason": "The generated page states this, but the provided dev command source does not show the log-streaming implementation for Lambda functions. The claim is plausible and central to the page, but the direct source evidence is not included beyond secondary generated prose.",
+              "suggestedFix": "No major rewrite is required, but if stricter grounding is needed, cite or include the source file that implements Lambda log streaming in dev mode. Otherwise keep the wording aligned with the generated source and avoid extra details about timing guarantees.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The `stacktape debug:logs` command details are well grounded: required `--resourceName`, default one-hour start time, default `limit = 100`, relative `--startTime` parsing, `--filter`, `--query`, `--endTime`, and `--raw` behavior all match `src/commands/debug-logs/index.ts`.",
+            "The `stacktape dev` resource-selection behavior is accurately described: `--resources all`, comma-separated names, `--skipResources`, fuzzy suggestions, and the default multi-select picker with all resources preselected match `src/commands/dev/index.ts`.",
+            "The TypeScript Stacktape config example uses `<CodeBlock intellisense>` with `label: 'TypeScript'`, `defineConfig`, and class-based resources, avoiding the forbidden YAML and `StacktapeConfig` patterns.",
+            "The draft correctly separates dev-mode behavior from deployed-stack log viewing and links the first `stacktape debug:logs` mention to `/cli/debug-logs`."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/local-development__debugging-lambda-functions/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All CLI commands appear in separate, single-command fenced blocks — no copy-trap violations anywhere on the page",
+            "Stacktape config example correctly uses <CodeBlock intellisense tabs={[...]} /> with TypeScript class-based resources and hidden imports — fully compliant",
+            "Source-grounded throughout: CLI flags (--resources, --skipResources, --devMode, --agent, --agentPort default 7331, --noTunnel), TUI commands (rs, rs <name>, c/clear, q/quit), debug:logs flags (--filter, --query, --limit 100 default, --startTime relative values h/m/d/s, --endTime, --raw) all confirmed in the provided source files",
+            "Normal vs legacy dev mode FeatureComparisonTable gives a concrete decision matrix — reader can scan and decide without reading prose",
+            "Debugging strategies section includes a realistic, copyable Lambda handler with structured JSON logging, not a toy snippet",
+            "Environment cleanup section explicitly lists what runs on clean exit vs unexpected exit — directly useful for first-time users who might Ctrl+C mid-session and wonder about leftover state",
+            "Local-development section instructions are respected: dev-mode-only behaviors are consistently separated from deployed-stack behaviors across every section",
+            "FAQ volume (10 entries) is appropriate and covers both basic usage and meaningful tradeoffs"
+          ],
+          "problems": [
+            "H2 heading 'How dev mode runs Lambda functions' reads like a complete sentence rather than a compact noun-form label — violates the 1-5 word noun-form H2 rule; scannability must be penalized by at least 1 point and a mandatory fix applied",
+            "FAQ category mix is lopsided: nearly all 10 questions are Stacktape-specific; the required three-category mix is missing AWS Lambda service questions (cold start behavior, timeout limits, concurrency, pricing model) and strong choosing/comparison questions — the one cost question briefly mentions the free tier but doesn't address Lambda-specific concerns a developer would search for",
+            "<FlowDiagram steps={[...]} /> is used but this component does not appear in the documented MDX palette — if it is not a real rendered component it silently removes the only structural overview of the dev mode flow, which is the first substantive element after the opening paragraph",
+            "'Rebuilding functions in the dev TUI' is a 7-word verb-phrase H2 — like 'How dev mode runs Lambda functions', it reads more like a sentence fragment than a compact label, contributing to the heading-form inconsistency"
+          ],
+          "mandatoryFixes": [
+            "Shorten H2 'How dev mode runs Lambda functions' to a compact noun-form label (e.g., 'Dev mode internals', 'How it works', or 'Lambda execution'). Also shorten 'Rebuilding functions in the dev TUI' (7-word verb phrase) to something like 'Rebuilds' or 'TUI commands'. Per the style rule, overly long H2s that read like full sentences require a scannability penalty of at least 1 point."
+          ],
+          "optionalImprovements": [
+            "Add 2-3 AWS Lambda service FAQ questions to hit the required three-category FAQ mix — e.g., 'How does Lambda cold start affect dev mode?', 'What are the Lambda timeout limits?', 'How does Lambda handle concurrent invocations in dev mode?' These are high-intent searches that bring readers to this page from outside Stacktape docs",
+            "Verify that <FlowDiagram steps={[...]} /> is a real, rendered MDX component in the Stacktape docs framework. If it is not, replace with a numbered list or short prose overview — the 6-step flow content is genuinely useful orientation for first-time users and should not be silently dropped",
+            "Consider moving the 'How it works' / flow diagram section after 'Starting dev mode' so first-time readers get a runnable command before the conceptual explanation — the typical new-user mental model is 'show me how to start, then explain what happened under the hood'",
+            "The key distinction that Lambda functions run on real AWS while containers run locally on the developer's machine is the most consequential behavioral difference from other dev tools — it deserves a prominent callout or explicit sentence in the opening paragraph, not just a mention inside the second H2 section and a late FAQ entry",
+            "The 'Narrowing the feedback loop' sub-section in Debugging strategies repeats --resources flag guidance already covered in 'Starting dev mode'; consider trimming to a cross-reference or a <Tip> callout to reduce page length without losing the insight"
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Excellent source grounding throughout — every behavioral claim (default 100-event limit, 1-hour default window, `rs`/`rs <name>`/`c`/`q` TUI commands, port 7331 default, `noTunnel` flag behavior, `beforeDev` hooks, legacy mode error on missing stack, all cleanup hooks) maps directly to the provided source files.",
+            "Shell command blocks are each exactly one command with no inline `#` explanation comments — clean and copy-safe.",
+            "The CodeBlock for the Stacktape config example is correct: `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'`, `defineConfig`, class-based `LambdaFunction` + `StacktapeLambdaBuildpackPackaging`, imports hidden behind focus markers.",
+            "The 'Injecting environment' step — running even when `--noTunnel` is set — is source-confirmed and accurately documented. This is exactly the kind of gotcha a production user needs.",
+            "The Normal vs Legacy dev mode comparison table is well-structured and accurate. The pros and cons are grounded in source behavior (legacy skips local emulation, normal deploys a dev stack).",
+            "The 'Connecting to local databases' section correctly explains that Lambda functions deployed to AWS cannot reach `localhost` and how tunnels solve it — a real-world gotcha that saves debugging time.",
+            "FAQ section covers 10 well-distributed questions across Stacktape-specific, AWS-service, and comparison categories. Each answer is 2-4 sentences, self-contained, and practically actionable.",
+            "Cleanup hook inventory is accurate and complete against the source (credentials, local resources, health monitor, dev server, tunnels, Lambda env, named proxy)."
+          ],
+          "problems": [
+            "The `<FlowDiagram>` component is not part of the documented Stacktape MDX component palette. The style guide enumerates `<Info>`, `<Warning>`, `<Tip>`, `<CodeBlock>`, `<ApiReference>`, `<ReferenceableParams>`, `<FeatureComparisonTable>` — `<FlowDiagram>` does not appear in any of these. If the component is undefined in the docs renderer, this section will silently disappear or throw a build error, leaving an unexplained gap in the 'How dev mode runs Lambda functions' section.",
+            "The page does not mention that hosting buckets only appear as dev-compatible resources if they have a `dev` property configured in the config (source: `.filter((b) => b.dev)`). The FAQ answer about container workloads mentions SSR frontends and hosting buckets but doesn't include this important qualifier — a reader could be confused when their hosting bucket doesn't show up in the picker.",
+            "The 'How dev mode runs Lambda functions' section opens with a `<FlowDiagram>` as the primary structural element of the section. If that component doesn't render, the section loses its substantive content and reads as two paragraphs with no visual grounding. The flow logic should have a prose fallback (e.g., an ordered list) that works even if the component is absent.",
+            "The page describes `dev:stop` as a CLI command for agent mode but does not link it to `/cli/dev-stop` consistently — the first mention in the 'Environment cleanup' section links it, but the agent mode section (`stacktape dev:stop --agentPort 7331` code block) has no link in surrounding prose."
+          ],
+          "mandatoryFixes": [
+            "Replace or supplement `<FlowDiagram>` with a documented MDX component or a plain ordered list. `<FlowDiagram>` is not in the Stacktape docs component palette and risks silent non-rendering or a build error. If the component is valid in the production renderer, add a note to the style guide; otherwise convert to a numbered prose list or use `<Info>` callouts for each step."
+          ],
+          "optionalImprovements": [
+            "Add the hosting bucket `dev` config qualifier to the FAQ answer about container workloads: 'Hosting buckets appear in the picker only if they have a `dev` property configured in their resource definition.' This prevents a real-world 'my hosting bucket doesn't show up' confusion.",
+            "In the 'Rebuilding functions' section, add a one-sentence note that there is no file-watching / auto-rebuild mode — rebuilds are always manual. This is implicit from the source but a reader coming from other tools (nodemon, Air, vite) will expect auto-rebuild and benefit from the explicit statement. The FAQ already mentions this but the section itself doesn't.",
+            "The 'Starting dev mode' subsection 'First-time setup' mentions that dev mode checks `isDevStack` metadata and auto-recovers failed dev stacks matching `isProbablyDevStage` heuristics. This is a non-obvious behavior (it deletes the old stack automatically in some cases) that production users would want to know about — consider a brief mention or `<Warning>` that under specific conditions a failed stack on a stage named `dev*`/`local*` may be automatically deleted and redeployed.",
+            "The CloudWatch Logs Insights `--query` example in the shell block uses a very long single-line query that will wrap badly on narrow terminals. Consider shortening the example or breaking it with shell continuation (`\\`) for readability.",
+            "The 'Debugging strategies > Testing HTTP-triggered functions' and 'Narrowing the feedback loop' paragraphs are useful but feel like appendices rather than a structured section. They could be reformatted as a small sub-list or given brief H3 headings to match the structured feel of the rest of the page."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong answer-first opening and clear separation between dev mode and deployed-stack log viewing.",
+            "The page is scannable: short H2s, comparison table, FAQ, and one-command shell blocks are mostly easy to use.",
+            "Stacktape config example uses the required class-based `defineConfig` form inside `<CodeBlock intellisense>` with the correct `TypeScript` tab.",
+            "The normal vs legacy dev mode section is useful and grounded in the command source: normal deploys a dev stack, legacy requires an existing deployed stack, and local databases are skipped in legacy mode."
+          ],
+          "problems": [
+            "Several high-confidence claims are broader than the provided source supports, especially that Lambda functions run with real IAM permissions, real event sources, service integrations, runtime limits, memory limits, timeout constraints, network configuration, cold start behavior, and permission failures surfacing in dev mode.",
+            "The local database section uses an unsupported concrete env var example: `STP_DB_CONNECTION_STRING`. The required pattern is `STP_[RESOURCE_NAME]_[PARAM]`, and no example resource named `db` is established.",
+            "The page claims the same environment variable names are used regardless of whether a database is local or AWS-deployed. The source only shows that an `env-inject` setup step is registered when selected local resources exist; it does not document exact variable naming or parity semantics.",
+            "The cleanup section overstates behavior. The source registers cleanup hooks and prints stopping messages for workloads, local resources, and tunnels, but it does not show a user-facing summary for Lambda environment restoration or credential cleanup.",
+            "The Agent mode section goes beyond the provided source by claiming AI agents can read logs and inspect workload state programmatically through an HTTP API and by describing exposed API capabilities. The source shows agent server startup and state updates, but not documented endpoints or API behavior.",
+            "The FAQ repeats unsupported details, including no file-watching flag, unselected functions remaining on the last deployed version, event-source coverage, and AWS Lambda free-tier quantities not present in the source files.",
+            "Some paragraphs are too absolute for a local-development page with thin source. Phrases like “the dev stack deploys real event source mappings” and “function’s URL is live and routable” need narrower wording or supporting source.",
+            "The first paragraph is useful but slightly under the requested 40-75 word target depending on tokenization, and it includes claims about IAM permissions and event sources that are not grounded in the source."
+          ],
+          "mandatoryFixes": [
+            "Replace `STP_DB_CONNECTION_STRING` with a resource-name-dependent example such as `STP_MAIN_DATABASE_CONNECTION_STRING`, but only if the page includes a config example with a database resource named `mainDatabase`; otherwise use only the generic pattern `STP_[RESOURCE_NAME]_[PARAM]`.",
+            "Remove or narrow unsupported claims about IAM permissions, event sources, service integrations, runtime limits, memory limits, timeout constraints, network configuration, cold starts, and permission errors unless additional source files explicitly support them.",
+            "Rewrite the local database environment-variable explanation to match the source: selected local resources add `Lambda tunnels` unless `--noTunnel` is set, and add an `Injecting environment` setup step. Do not claim exact env-var names or full routing parity from the provided source.",
+            "Revise cleanup behavior to only claim what the source shows: cleanup hooks are registered, the dev TUI stops first, and the process prints stopping messages for running/error/starting workloads, running/error local resources, and active tunnels. Avoid claiming visible credential cleanup or Lambda env restoration summaries unless sourced.",
+            "Remove or source the detailed Agent mode HTTP API claims. The provided source supports `--agent`, default port `7331`, available-port fallback through `7430`, lock/startup messages, state updates, rebuild function wiring, and `stacktape dev:stop --agentPort <port>` guidance, but not endpoint-level API documentation.",
+            "Fix FAQ answers that introduce unsupported behavior: file-watching absence, event-source mapping coverage, selected vs unselected function effects, Lambda free-tier quantities, and exact local database cost statements."
+          ],
+          "optionalImprovements": [
+            "Add a compact “Supported dev resources” table grounded in `getDevCompatibleResources`: functions, container workloads, hosting buckets with `dev`, Next.js web, and SSR web resources for Astro, Nuxt, SvelteKit, SolidStart, TanStack, and Remix.",
+            "Add a short “Flags” table for `--resources`, `--skipResources`, `--devMode`, `--noTunnel`, `--agent`, and `--agentPort`, using only behavior visible in the command source.",
+            "Make the opening paragraph more extractable by keeping it to one grounded idea: Stacktape dev mode can select Lambda functions, deploy or reuse a dev stack in normal mode, stream logs in the dev TUI, and rebuild workloads with `rs`.",
+            "Tone down broad performance language like “fast” and “significantly faster” unless the page can ground it in specific behavior such as “rebuilds a workload without restarting the entire dev command.”",
+            "Consider moving the detailed structured logging handler lower or shortening it; the page is already long, and the most source-grounded content is the dev command behavior, resource selection, rebuild commands, logs command, and normal vs legacy comparison."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided dev-mode and debug-logs sources. The main factual risks are a few over-broad statements about what unselected resources are affected, cleanup behavior on all exit paths, and the agent port default.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Only the selected resources are started and rendered in the dev TUI during the session — unselected resources are not touched by the dev command.”",
+              "reason": "The source supports that selected resources are filtered for workload/local-resource execution and TUI rendering, but it does not support the stronger claim that unselected resources are not touched at all. In normal mode, the command may still deploy or reuse a dev stack, and the provided source does not show that dev-stack deployment is scoped only to selected resources.",
+              "suggestedFix": "Change this to: “Only selected resources are started and rendered in the dev TUI during the session.” Avoid claiming unselected resources are untouched unless `deployDevStack` source proves that behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "const devCompatibleResources = allWorkloads.filter((r) => selectedResourceNames.has(r.name));\n  const emulateableResources = allEmulateableResources.filter((r) => selectedResourceNames.has(r.name));"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "await deployDevStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When the dev mode process exits (via `Ctrl+C`, the `q` TUI command, or [`stacktape dev:stop`](/cli/dev-stop) for agent mode), Stacktape runs registered cleanup hooks.”",
+              "reason": "The provided `dev` command source explicitly routes SIGINT/SIGTERM through `applicationManager.handleExitSignal`, but the `q` command path only stops the dev TUI and calls `process.exit(0)`. The `dev:stop` command source is not provided, so the cleanup behavior for that path is also not grounded here.",
+              "suggestedFix": "Narrow the statement to the source-backed behavior: cleanup hooks are registered for dev sessions, and the provided source shows SIGINT/SIGTERM handling. Do not claim `q` or `dev:stop` run all cleanup hooks unless their source confirms it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "process.on('SIGINT', cleanup);\n    process.on('SIGTERM', cleanup);"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "if (command === 'q' || command === 'quit') {\n    await devTuiManager.stop();\n    process.exit(0);\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“The agent daemon runs on port 7331 by default. Specify a different port with `--agentPort`.”",
+              "reason": "The source shows 7331 is the starting default, but if no `--agentPort` is provided Stacktape searches for an available port starting at 7331 and reports failure only after trying a range. The draft implies the default port is always 7331.",
+              "suggestedFix": "Write: “The agent daemon starts on port 7331 when available. If you do not pass `--agentPort`, Stacktape looks for an available port starting at 7331; pass `--agentPort` when an integration expects a fixed port.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "const defaultAgentPort = 7331;\n    const agentPort = agentPortArg ?? (await findAvailablePort(defaultAgentPort));"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "message: `Could not find available port for agent server (tried ${defaultAgentPort}-${defaultAgentPort + 99}).`"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“There is no file-watching flag — rebuilds are triggered manually from the TUI.”",
+              "reason": "The provided `dev` source clearly documents manual rebuild commands through `rs` and `rs <name>`, but the CLI command-definition source is not included here. The negative claim that no file-watching flag exists is not fully verifiable from the provided source list.",
+              "suggestedFix": "Remove the negative claim and keep the grounded behavior: “Rebuilds are triggered from the dev TUI with `rs` or `rs <functionName>`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "if (command === 'rs') {\n    devTuiManager.systemLog('Rebuilding all workloads...');\n    await rebuildAllWorkloads();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "if (command.startsWith('rs ')) {\n    const workloadName = command.slice(3).trim();"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "“When you run databases locally in dev mode (Postgres, MySQL, Redis, DynamoDB, OpenSearch)…”",
+              "reason": "The parenthetical reads like a complete list, but the source maps MariaDB as a local relational database engine type too. This is minor, but adding MariaDB avoids under-documenting a supported local database path.",
+              "suggestedFix": "Change the parenthetical to include MariaDB, or phrase it as “relational databases such as Postgres, MySQL, and MariaDB, plus Redis, DynamoDB, and OpenSearch.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "if (engineType === 'mariadb') return 'mariadb';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration example uses `<CodeBlock intellisense>` with a `TypeScript` tab and avoids forbidden hand-authored YAML or `StacktapeConfig` style.",
+            "The `stacktape debug:logs` defaults for one-hour start time and 100-event limit match `src/commands/debug-logs/index.ts`.",
+            "The resource picker behavior, comma-separated `--resources` / `--skipResources`, default preselection, and fuzzy-name suggestions are grounded in `src/commands/dev/index.ts`.",
+            "The normal-vs-legacy distinction is mostly source-backed: normal mode deploys a dev stack and can include local resources, while legacy mode requires an existing stack and excludes local database emulation."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -1127,8 +1703,15 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\local-development\\debugging-lambda-functions.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.8, hard blockers 7, advisory high 0, verifier medium 13"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/local-development/debugging-lambda-functions.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T06:58:23.236Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/src/commands/debug-logs/index.ts": "1ab4e4e2be1de836ed2c35fb94de3a74fa7c2890",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts": "da7c0365580dc32d67916e5ae60a41cd93b89586",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/debugging-lambda-functions.md": "fa01426966d588b43ff9180129dce3b430b29494"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

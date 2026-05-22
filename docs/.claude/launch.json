@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "docs",
-      "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd /Users/congy/Desktop/projects/stacktape/docs && /Users/congy/.bun/bin/bun run dev:next"],
       "port": 9001
     }
   ]

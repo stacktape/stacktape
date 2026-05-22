@@ -1,10 +1,10 @@
 import { arch } from 'node:os';
 import { basename, join } from 'node:path';
 import {
-  AI_DOCS_FOLDER_PATH,
   COMPLETIONS_SCRIPTS_PATH,
   CONFIG_SCHEMA_PATH,
   DIST_FOLDER_PATH,
+  LLM_DOCS_FOLDER_PATH,
   SCRIPTS_ASSETS_PATH,
   SOURCE_MAP_INSTALL_FILE_NAME
 } from '@shared/naming/project-fs-paths';
@@ -416,12 +416,12 @@ export const copyHelperLambdas = async ({ distFolderPath }: { distFolderPath?: s
   logSuccess('Helper lambdas copied successfully.');
 };
 
-export const copyAiDocs = async ({ distFolderPath }: { distFolderPath?: string }) => {
-  logInfo('Copying AI docs...');
-  const sourcePath = AI_DOCS_FOLDER_PATH;
-  const destPath = join(distFolderPath, 'ai-docs');
+export const copyLlmDocs = async ({ distFolderPath }: { distFolderPath?: string }) => {
+  logInfo('Copying LLM docs...');
+  const sourcePath = LLM_DOCS_FOLDER_PATH;
+  const destPath = join(distFolderPath, 'llm-docs');
   await copy(sourcePath, destPath);
-  logSuccess('AI docs copied successfully.');
+  logSuccess('LLM docs copied successfully.');
 };
 
 export const createReleaseDataFile = async ({

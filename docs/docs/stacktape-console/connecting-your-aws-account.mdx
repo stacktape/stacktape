@@ -4,7 +4,7 @@ order: 122
 seoTitle: 'Connect Your AWS Account to Stacktape | Stacktape Docs'
 seoDescription: 'Connect your AWS account to Stacktape using a secure cross-account IAM role. No access keys needed — deploy to any AWS region with automatic credential management.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.9, hard blockers 1, advisory high 0, verifier medium 13'
+pipelineReviewSummary: 'reviewer-avg 7.9, hard blockers 1, advisory high 0, verifier medium 4'
 ---
 
 # Connecting Your AWS Account
@@ -27,7 +27,7 @@ You need the `org:manage-aws-accounts` permission in your Stacktape organization
   { title: "Open the modal", description: "In the Stacktape Console, navigate to AWS Accounts and click Connect AWS account." },
   { title: "Name the account", description: "Enter a label for the connection (e.g. \"production\" or \"dev-account\"). This name is for your reference only — the Console pre-fills a default like aws-account-1." },
   { title: "Create the connection stack in AWS", description: "Click Connect account in AWS console. This opens the generated AWS connection link in a new tab. The modal shows an image of the AWS-side steps to follow." },
-  { title: "Wait for activation", description: "Return to the Stacktape Console. The account shows as PENDING while the CloudFormation stack is being created. The Console polls every two seconds and transitions the account to ACTIVE once the stack completes." }
+  { title: "Wait for activation", description: "Return to the Stacktape Console. The account shows as PENDING until the backend reports it as ACTIVE. While a PENDING account exists, the Console refetches connected account status every two seconds and updates the table when the state changes." }
 ]} />
 
 <Warning>The connection CloudFormation stack must be created in the **eu-west-1** region. The generated link opens in the correct region. After connection, your projects and stacks can be deployed to **any** region.</Warning>
@@ -44,7 +44,7 @@ Each connected AWS account has one of three states:
 | **PENDING** (orange) | The connection link was generated but the CloudFormation stack hasn't finished creating. | Use the "Finish the account connection" link shown in the Note column to complete stack creation in AWS. |
 | **BLOCKED** (red) | The connection failed or was revoked. The status reason explains why. | Check the status reason in the Note column, fix the issue in AWS, and reconnect if needed. |
 
-The Console polls for status changes every two seconds while a PENDING account exists. The transition to ACTIVE appears within seconds of the CloudFormation stack completing.
+The Console refetches connected account status every two seconds while a PENDING account exists. When the backend reports the account as ACTIVE, the table updates.
 
 ## How the Connection Works
 
@@ -132,7 +132,7 @@ This is the Stacktape organization permission required to connect, disconnect, o
 
 ### What does the PENDING state mean?
 
-PENDING means the connection link was generated in Stacktape but the CloudFormation stack in AWS has not yet finished creating. The Console polls every two seconds and automatically transitions the account to ACTIVE once the stack completes. If the account stays PENDING, use the "Finish the account connection" link in the Note column to complete the stack creation in AWS.
+PENDING means the connection link was generated in Stacktape but the backend has not yet reported the account as ACTIVE. While a PENDING account exists, the Console refetches connected account status every two seconds and updates the table when the state changes. If the account stays PENDING, use the "Finish the account connection" link in the Note column to complete the stack creation in AWS.
 
 ### How does cross-account AssumeRole work?
 

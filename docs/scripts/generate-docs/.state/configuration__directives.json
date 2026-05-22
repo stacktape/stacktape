@@ -2,7 +2,7 @@
   "pageId": "configuration__directives",
   "pageRoute": "configuration/directives",
   "startedAt": "2026-05-16T16:38:46.466Z",
-  "updatedAt": "2026-05-16T17:07:31.944Z",
+  "updatedAt": "2026-05-22T01:51:37.088Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1134,14 +1134,556 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__directives/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The 'Why directives exist' section is excellent motivating content — it names four concrete dynamic-value problems before introducing any API, which is exactly what a first-timer needs.",
+            "The Local vs Runtime table at the top of the page gives immediate orientation and anchors the rest of the reference sections.",
+            "The 'Complete directive summary' table and the 'When to use directives vs alternatives' table together make the page genuinely useful as a reference after the first read.",
+            "The Warning about runtime directive placement restriction (only in resources/scripts sections) is critical behavior and is surfaced prominently where a first-timer will see it before the reference sections.",
+            "The FAQ covers real, high-signal questions across all three required categories (Stacktape-specific, AWS-service-level, and comparison/choosing), and the answers are the right length to stand alone as snippets.",
+            "The opening comprehensive code example shows $Secret, $ResourceParam, $Stage, and $Region working together in a realistic pattern — immediately grounding the concept before diving into individual reference sections.",
+            "No mandatory style violations detected: all Stacktape config examples use <CodeBlock intellisense>, no fenced YAML Stacktape config blocks, no StacktapeConfig plain-object pattern, no marketing language."
+          ],
+          "problems": [
+            "The $StackOutput section has no TypeScript <CodeBlock intellisense> example, despite being one of the more important cross-stack directives and despite $GitInfo and $CliArgs (less commonly used) having full TypeScript examples. This inconsistency leaves a first-timer without a copyable starting point for a directive they will likely need.",
+            "The prose introduction to 'Runtime directives reference' says they 'produce CloudFormation intrinsic functions under the hood.' This is imprecise: $Secret and $SsmParam produce CloudFormation dynamic references ({{resolve:secretsmanager:...}} and {{resolve:ssm:...}}), while $CfFormat produces Fn::Sub and $CfStackOutput produces ImportValue. Calling all of them 'intrinsic functions' conflates two different CloudFormation mechanisms.",
+            "The $Format(), $Var(), and $File() sections spend more prose explaining why TypeScript users don't need them than explaining what the directives actually do. A first-timer reading these sections in sequence won't know which directives appear on the 'importable from stacktape' list and which don't — the distinction between YAML-only and TypeScript-importable directives is scattered rather than stated once clearly.",
+            "$Profile, $AwsAccountId, and $This each consist of a single sentence with no example and no use-case context. A reader cannot tell from the section alone when they would reach for these vs. a simpler alternative. This is especially jarring next to $GitInfo and $CliArgs, which have full <CodeBlock> examples and clear use-case guidance."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a TypeScript <CodeBlock intellisense> example to the $StackOutput section, showing it called as part of a defineConfig callback (it is a local directive and returns a value you assign to an environment variable). This brings it in line with every other cross-stack or external-data directive on the page.",
+            "Correct the 'Runtime directives resolve during CloudFormation deployment. They produce CloudFormation intrinsic functions under the hood' claim: say instead that they are converted into CloudFormation dynamic references ($Secret, $SsmParam) or CloudFormation intrinsic functions ($CfFormat → Fn::Sub, $CfStackOutput → ImportValue). One sentence of precision here eliminates a confusing inaccuracy.",
+            "Add a single sentence near the top of the 'Local directives reference' section that lists which directives from this group are importable from the stacktape TypeScript package vs. which are YAML-only. Then the $Format, $Var, $File sections can drop their repetitive 'you don't need this in TypeScript' disclaimers and simply note the TypeScript-native alternative in one line.",
+            "Add a one-sentence concrete use case to $Profile, $AwsAccountId, and $This — even something like 'Use $AwsAccountId when constructing an ARN that requires the account number.' Without this, a first-timer will skip these sections and not know whether they've missed something important.",
+            "The $File() TypeScript example shows manual .env parsing with readFileSync rather than the $File() directive itself. Consider replacing it with a direct import of the parsed object (import envVars from './.env') or, if YAML is the right home for $File(), note clearly in a one-line sentence that this section's example demonstrates the TypeScript equivalent rather than the directive itself.",
+            "The $CliArgs section's bash example is one clean block — good. But the following prose references $CliArgs('featureFlag') without a <CodeBlock intellisense> TypeScript example showing it inside defineConfig. Add a short one to match the pattern used for $GitInfo and $Region.",
+            "Consider collapsing the three very thin sections ($Profile, $AwsAccountId, $This) into a single 'Utility directives' subsection rather than three separate H3s. Three separate headings imply three features of equal importance to $Secret or $ResourceParam, which inflates the apparent complexity of the page."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent local vs runtime categorization table up front — gives readers an immediate mental model before diving into individual directives",
+            "Complete directive summary table at the end is a strong quick-reference artifact that engineers will bookmark",
+            "The $StackOutput vs $CfStackOutput comparison table is a precise decision aid — it directly answers the question a production engineer would ask about deletion protection tradeoffs",
+            "FAQ section covers all three required question categories (Stacktape-specific, AWS-behavioral, comparison) with concrete, actionable answers",
+            "'When to use directives vs alternatives' table steers readers to `connectTo` when it's the right tool, preventing overuse of directives",
+            "No forbidden patterns: no hand-authored YAML Stacktape configs, no StacktapeConfig type, no fenced TypeScript blocks with defineConfig — all config examples are in <CodeBlock intellisense>",
+            "Source-grounded coverage of $SsmParam type-detection behavior (SecureString vs String path selection) is accurate and concrete"
+          ],
+          "problems": [
+            "Critical production gotcha missing: $Secret() pins the secret version ID into the CloudFormation template at deploy time (the source code emits `{{resolve:secretsmanager:name:SecretString:key::VersionId}}`). If a secret is rotated or updated in Secrets Manager, the stack keeps using the old version until it is redeployed. Engineers rotating credentials without knowing this will have incidents.",
+            "The nesting depth limit (2 levels, documented in the curated source with explicit valid/invalid examples and a $Var workaround) is absent from the 'Directive nesting' section. The section only addresses runtime-vs-local nesting rules, not the depth constraint users will actually hit.",
+            "The $Format() section's TypeScript example does not use $Format() at all — it uses native template literals and doesn't import or call the function. A reader navigating to that section specifically to learn how to use $Format() in TypeScript finds a misleading example that sidesteps the directive entirely. Either show $Format() being called or restructure the section to clearly separate 'YAML only' from 'TypeScript equivalent'.",
+            "$Var() and $This() are described with TypeScript method-call chaining syntax (`$Var().myProperty.nested`, `$This().resources.myApi`), but these are YAML-only directives whose dot-notation property access is handled by the YAML directive resolver, not by TypeScript method chaining. In TypeScript configs, $Var and $This are not importable functions from the stacktape package — the directive description is actively misleading for the TypeScript audience this page targets."
+          ],
+          "mandatoryFixes": [
+            "Add a callout or note in the $Secret() section describing version-pinning behavior: the secret's VersionId is baked into the CloudFormation template at deploy time (visible in the source: `{{resolve:secretsmanager:${secretName}:SecretString:${jsonKey || ''}::${secret.VersionId}}}`). Updating a secret in Secrets Manager does not take effect until the stack is redeployed. This is a production-critical behavior that changes how engineers handle secret rotation.",
+            "Add the 2-level nesting depth limit to the 'Directive nesting' section. The curated source explicitly documents this constraint with a $Var workaround for 3-level cases. Include the valid/invalid examples and the $Var workaround pattern so engineers know how to structure complex configs before they hit the error.",
+            "Rewrite the $Format() TypeScript section. The current example uses template literals and no $Format() call, under a heading that says '$Format()'. Either: (a) show a TypeScript example that actually calls $Format() with {} placeholders, or (b) add a clear upfront statement that $Format() is YAML-only and the TypeScript equivalent is a template literal — then show only a template literal example without framing it as a $Format() illustration.",
+            "Remove or correct the $Var() and $This() descriptions that claim TypeScript dot-notation usage (e.g. `$Var().myProperty.nested`). These directives operate inside the YAML directive resolver. In TypeScript, the equivalent is a plain JavaScript variable. Describe them as YAML-only utilities with their TypeScript replacement (a regular JS variable/object reference), not as importable TypeScript functions with chaining syntax."
+          ],
+          "optionalImprovements": [
+            "In the $SsmParam() section, add an explicit note that the referenced SSM parameter must exist before deployment — the source shows the directive tries to fetch the parameter eagerly and throws an ExpectedError if it fails. This is symmetric with the $Secret() error note already on the page.",
+            "The $CfResourceParam() section says the attribute can be a 'Ref attribute' but the source checks `RefAttributes.includes(property)` and returns `Ref(resourceName)` — meaning the attribute name is a label for what the Ref resolves to, not the literal string 'Ref'. Clarify that for Ref-type attributes, any name in the Ref list resolves to the resource's primary identifier (the result of CloudFormation Ref).",
+            "Consider noting that $GitInfo() has `lazyLoad: true` (visible in source), which means it is evaluated after most other directives. This ordering detail is niche but could matter if $GitInfo is used in a context that depends on evaluation order.",
+            "The $StackOutput() FAQ entry and the main directive section both say the stack name is 'formatted as projectName-stage', but this is an implementation detail that may be confusing — consider linking to info:stack docs once rather than repeating the formatting note in both places."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening paragraph — 55 words, self-contained, directly answers 'what and why' in a form AI Overviews can extract verbatim.",
+            "The local-vs-runtime comparison table near the top is well-structured and extractable as a standalone snippet.",
+            "Comprehensive directive summary table covering all 17 directives with category, arguments, and description is outstanding for quick reference and citation engines.",
+            "The '$StackOutput vs $CfStackOutput' comparison table with deletion-protection distinction is concrete and decision-supporting — exactly the tradeoff a reader needs.",
+            "'When to use directives vs alternatives' decision table cleanly maps reader needs to the right tool, including the connectTo shortcut.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]}> with a TypeScript tab — no forbidden YAML blocks or plain fenced TypeScript.",
+            "Source-grounded throughout: $StackOutput is correctly documented as 2-arg (stackName, outputName) based on source code, not the 3-arg curated-doc error.",
+            "FAQ has 10 questions with substantive 2-4 sentence answers that cover common error cases (missing secret, missing export) and behavioral questions (how CfStackOutput prevents deletion)."
+          ],
+          "problems": [
+            "FAQ is entirely Stacktape-specific (all 10 questions). The guidelines require questions from three categories: (1) Stacktape-specific, (2) use-case questions about the underlying AWS services, and (3) choosing/comparison questions. Missing examples: 'What is the cost difference between Secrets Manager and SSM Parameter Store?', 'Secrets Manager vs SSM Parameter Store — which should I use for API keys?', 'When should I use directives vs connectTo?', 'Can $ResourceParam replace all uses of connectTo?'. A Stacktape-only FAQ misses the high-intent searches that bring readers in.",
+            "The directive nesting depth limit (2 levels maximum, documented in the curated source) is absent from the '## Directive nesting' section. Readers learn that nesting is valid but not when it fails — a practical gap.",
+            "$StackOutput() and $Var() directives have no code examples. Every other significant directive has a <CodeBlock intellisense> example. $StackOutput cross-stack import is a common pattern that warrants a concrete example.",
+            "The '## When to use directives vs alternatives' heading is 8 words — above the 1-5 word noun-form target for H2s. 'Directives vs alternatives' or 'Choosing directives' would scan better.",
+            "$FileRaw(), $Profile(), $AwsAccountId(), and $This() are each documented with 1-2 sentences and no code example. For $FileRaw in particular, an inline use case (embedding a JSON config as a string env var) is mentioned in prose but not shown."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add 3-4 FAQ entries covering AWS use-case and comparison questions: 'Secrets Manager vs SSM Parameter Store — which should I use?', 'How much does AWS Secrets Manager cost?', 'When should I use $ResourceParam instead of connectTo?', 'Can I use directives with non-Stacktape CloudFormation resources?' These categories bring readers from Google/ChatGPT searches about the underlying AWS services.",
+            "Add the 2-level nesting depth limit to '## Directive nesting': 'Directives can be nested up to 2 levels deep. A third level of nesting causes a config resolution error — use $Var() in YAML or a JavaScript variable in TypeScript to break the chain.' Include the workaround example from the curated source.",
+            "Add a <CodeBlock intellisense> example for $StackOutput() showing a real cross-stack import pattern (e.g., a shared VPC stack exporting a subnet ID consumed by an application stack). Currently it's the only significant directive without a code illustration.",
+            "Shorten '## When to use directives vs alternatives' to '## Directives vs alternatives' to stay within the 1-5 word noun-form guideline.",
+            "For $Var(), explain with a concrete TypeScript note that since $Var() only gives access to the variables section, TypeScript configs should prefer JavaScript const declarations — but include a one-liner showing a YAML analog so readers who also maintain YAML configs understand the mapping.",
+            "The '## Why directives exist' body uses a bullet list of 4 reasons immediately after one sentence — consider converting to two short prose paragraphs so AI engines can extract a coherent standalone snippet rather than a list fragment.",
+            "Consider noting in the $SsmParam section that SSM Parameter Store parameter versions are pinned at deploy time (confirmed from source: paramVersion stored as stack output), which means deployed resources use the parameter version current at deploy time, not the always-latest value."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided directive implementation and avoids the forbidden YAML/StacktapeConfig/fenced-config patterns. The main problems are a few Stacktape-specific claims that overstate TypeScript exports, directive scope, and cross-stack/import behavior beyond what the authoritative implementation shows.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The following directive functions are importable from the `stacktape` package: `$Secret`, `$SsmParam`, `$ResourceParam`, `$CfResourceParam`, `$CfFormat`, `$CfStackOutput`, `$GitInfo`, `$Stage`, `$Region`.",
+              "reason": "The draft later documents `$Format`, `$Var`, `$File`, `$FileRaw`, `$CliArgs`, `$StackOutput`, `$Profile`, `$AwsAccountId`, and `$This`, but this sentence presents only a partial importable list without explaining that other built-in directives also exist. The authoritative directive registry defines all of these as built-in directives, so the wording can mislead readers into thinking the list is complete.",
+              "suggestedFix": "Either remove the sentence or explicitly say it lists only the runtime directives and the local directives commonly used from TypeScript. If claiming a complete built-in directive list, include all names from the builtInDirectives registry.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "export const builtInDirectives: Directive[] = ["
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "name: 'File'"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "name: 'StackOutput'"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "name: 'Profile'"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "name: 'AwsAccountId'"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Arguments: `$StackOutput('stackName', 'outputName')` ... The `stackName` is the full CloudFormation stack name (formatted as `projectName-stage`).",
+              "reason": "The code describes full stack names as `{stackName}-{stage}`, not `projectName-stage`. This matters because users need to pass the exact CloudFormation stack name.",
+              "suggestedFix": "Change the formatting description to `{stackName}-{stage}` or avoid naming the project/stage convention if the page cannot ground it more precisely.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "Make sure the stack is deployed and correctly spelled (full stack names are formatted as {stackName}-{stage})"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Arguments: `$CfStackOutput('stackName', 'outputName', region?)`. The stack name is the full CloudFormation stack name (formatted as `projectName-stage`).",
+              "reason": "Same stack-name formatting issue as `$StackOutput`: the authoritative error hint says full stack names are formatted as `{stackName}-{stage}`.",
+              "suggestedFix": "Use `{stackName}-{stage}` for the full stack-name format, or narrow the wording to “the full CloudFormation stack name” without a format example.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "Make sure the stack is deployed and correctly spelled (full stack names are formatted as {stackName}-{stage})"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The distinction matters because runtime directives can only appear in the `resources` and `scripts` sections of your config. Local directives work anywhere — including `variables`, top-level settings, and conditional logic.",
+              "reason": "The provided runtime implementation marks directives with `isRuntime: true`, but the source code shown does not define or enforce the exact allowed config sections. The curated docs contain this claim, but the authoritative runtime validator or config resolver enforcing it is not provided.",
+              "suggestedFix": "Keep the guidance but make it source-cautious: “Runtime directives are documented for use in `resources` and `scripts`; avoid using them in locally resolved sections such as `variables`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "name: 'ResourceParam',\n    requiredParams: { resourceReference: 'string', property: 'string' },\n    isRuntime: true"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "name: 'Secret',\n    requiredParams: { resourceName: 'string' },\n    isRuntime: true"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The optional `region` argument allows importing outputs from a stack deployed in a different AWS region.",
+              "reason": "Both `$StackOutput` and `$CfStackOutput` pass the optional `region` to `resolveStackOutput`, but `resolveStackOutput` returns `ImportValue(result.ExportName)` for `$CfStackOutput`. The provided source does not show any cross-region import mechanism for CloudFormation `ImportValue`, so the claim that `$CfStackOutput` imports cross-region outputs is not grounded by the implementation shown.",
+              "suggestedFix": "For `$CfStackOutput`, say the third argument is accepted by the directive signature, but avoid claiming cross-region CloudFormation import behavior unless another source proves it. The safer wording is “The optional `region` argument is passed when Stacktape looks up the referenced stack output.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "resolveFunction: () => async (stackName: string, outputName: string, region?: AWSRegion) => {\n      return resolveStackOutput({ directive: 'CfStackOutput', outputName, stackName, region });\n    }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "return directive === 'StackOutput' ? result.OutputValue : ImportValue(result.ExportName);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "`$CfResourceParam('mySnsTopic', 'TopicArn')` in the raw CloudFormation SNS topic example.",
+              "reason": "The curated source’s `$CfResourceParam` example uses `Arn` for `AWS::SNS::Topic`, while the authoritative implementation only accepts attributes present in `referenceableTypes` or `Ref` attributes. The provided sources do not support `TopicArn` for SNS topics, so this example is risky and may fail validation.",
+              "suggestedFix": "Change the example to `$CfResourceParam('mySnsTopic', 'Arn')`, matching the provided curated example and the common CloudFormation `GetAtt` name for SNS topic ARN.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/directives.mdx",
+                  "quote": "value: $CfResourceParam('mySnsTopic', 'Arn')"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "if (GetAttAttributes.includes(property)) {\n        intrinsicFn = GetAtt(resourceName, property);\n      } else if (RefAttributes.includes(property)) {\n        intrinsicFn = Ref(resourceName);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`$ResourceParam('database', 'dbName')` in the `$CfFormat()` JDBC URL example.",
+              "reason": "The provided curated docs list the relational database parameter as `name`, not `dbName`. The authoritative directive code validates the requested property against `resource.referencableParams`, but the provided source list does not include a relational-database referenceable-params definition proving `dbName` exists.",
+              "suggestedFix": "Use the parameter name supported by the provided source, `$ResourceParam('database', 'name')`, or avoid the database-name example unless the page includes a source that proves `dbName` is referenceable.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/directives.mdx",
+                  "quote": "| `relational-database` | `connectionString`, `host`, `port`, `name`, `arn` |"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "if (resource.referencableParams?.[property] === undefined) {\n        throw getReferencableParamsError({\n          resourceName: resourceReference,\n          referencedParam: property,\n          referencableParams: Object.keys(resource.referencableParams || {}),\n          directiveType: '$ResourceParam'\n        });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Deployment fails with an error identifying the missing secret and suggesting you create it with `stacktape secret:create`. The same applies to `$SsmParam` — if the referenced SSM parameter doesn't exist, Stacktape reports the error before the deployment can proceed.",
+              "reason": "The source supports the secret-create hint for `$Secret`, but the `$SsmParam` error hint tells users to create the parameter in the Stacktape Console, not with `stacktape secret:create`. The wording “the same applies” can incorrectly imply the same CLI remedy applies to SSM parameters.",
+              "suggestedFix": "Split the two cases: `$Secret` failures suggest `secret:create`; `$SsmParam` failures identify the parameter error and point to creating the parameter in the Stacktape Console.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "`If you did not create the secret yet, create it using ${tuiManager.prettyCommand('secret:create')}`"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "`If you did not create the parameter yet, create it in the Stacktape console: ${linksMap.ssmParams}`"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` for Stacktape configuration examples and does not hand-author Stacktape YAML examples.",
+            "The draft correctly distinguishes local directives from runtime directives and maps directive resolution to the `isRuntime` split in the implementation.",
+            "The draft’s `$Secret`, `$SsmParam`, `$ResourceParam`, `$CfFormat`, and `$CfStackOutput` descriptions generally match the implementation behavior in `built-in-directives.ts`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 3: '\"stacktape\"' has no exported member named 'RdsEnginePostgresql'. Did you mean 'RdsEnginePostgres'?",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 26, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 27, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 28, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): `new RdsEnginePostgresql(...)` references an unknown class.",
+              "reason": "`RdsEnginePostgresql` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `RdsEnginePostgresql` is meant to be a custom class, define it in the example or remove the example."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 11, col 19: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 15, col 5: Type '{ name: string; value: string; }[]' is not assignable to type '{ [envVarName: string]: string | number | boolean; }'.\n  Index signature for type 'string' is missing in type '{ name: string; value: string; }[]'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 12, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 12, col 45: Expected 0 arguments, but got 1.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 13, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 13, col 45: Expected 0 arguments, but got 1.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 8, col 45: Expected 0 arguments, but got 1.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 8, col 79: Expected 0 arguments, but got 1.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): TypeScript type error.",
+              "reason": "line 1, col 44: '\"stacktape\"' has no exported member named 'RdsEnginePostgresql'. Did you mean 'RdsEnginePostgres'?",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): `new RdsEnginePostgresql(...)` references an unknown class.",
+              "reason": "`RdsEnginePostgresql` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `RdsEnginePostgresql` is meant to be a custom class, define it in the example or remove the example."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript type error.",
+              "reason": "line 12, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript type error.",
+              "reason": "line 13, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): TypeScript type error.",
+              "reason": "line 12, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): TypeScript type error.",
+              "reason": "line 13, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #10 (TypeScript): TypeScript type error.",
+              "reason": "line 14, col 19: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #11 (TypeScript): TypeScript type error.",
+              "reason": "line 11, col 19: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #12 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 3: '\"stacktape\"' has no exported member named 'RdsEnginePostgresql'. Did you mean 'RdsEnginePostgres'?",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #12 (TypeScript): TypeScript type error.",
+              "reason": "line 25, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #12 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #12 (TypeScript): `new RdsEnginePostgresql(...)` references an unknown class.",
+              "reason": "`RdsEnginePostgresql` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `RdsEnginePostgresql` is meant to be a custom class, define it in the example or remove the example."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #13 (TypeScript): TypeScript type error.",
+              "reason": "line 12, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #14 (TypeScript): TypeScript type error.",
+              "reason": "line 13, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #14 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 8, col 57: Cannot find name '$ResourceParam'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
@@ -1149,5 +1691,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\directives.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.8, hard blockers 1, advisory high 0, verifier medium 25"
+  "pipelineReviewSummary": "reviewer-avg 7.8, hard blockers 1, advisory high 0, verifier medium 25",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

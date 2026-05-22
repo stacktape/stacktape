@@ -4,12 +4,12 @@ order: 10
 seoTitle: 'Referenceable Parameters Reference | Stacktape Docs'
 seoDescription: 'Complete $ResourceParam reference for Stacktape — look up available URLs, ARNs, connection strings, hostnames, and ports for every resource type in your stack.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.2, hard blockers 3, advisory high 1, verifier medium 12'
+pipelineReviewSummary: 'reviewer-avg 7.2, hard blockers 3, advisory high 0, verifier medium 4'
 ---
 
 # Referenceable Parameters
 
-The `$ResourceParam` [directive](/configuration/directives) retrieves deployment-time outputs — URLs, ARNs, hostnames, ports, and connection strings — from any resource in your Stacktape config. Use it in environment variables, stack outputs, or any string-valued config property to wire resources together when [`connectTo`](/configuration/connecting-resources) doesn't cover your specific use case.
+The `$ResourceParam` [directive](/configuration/directives) retrieves deployment-time outputs — URLs, ARNs, hostnames, ports, and connection strings — from supported resource types listed on this page. Use it in environment variables, stack outputs, or any string-valued config property to wire resources together when [`connectTo`](/configuration/connecting-resources) doesn't cover your specific use case.
 
 ## Syntax
 
@@ -58,7 +58,7 @@ The `$ResourceParam` directive resolves at deploy time. The resulting value is a
 
 <Info>
 
-Some parameters are only available when specific features are enabled. For example, CDN parameters require a `cdn` configuration block, Aurora reader parameters require an Aurora database engine, and DynamoDB stream parameters require a configured `streamType`. Conditions are noted in each parameter's description below.
+Some parameters are only available when a resource is configured a certain way. Each resource's parameter table below notes the conditions under which a given parameter is exposed.
 
 </Info>
 
@@ -92,7 +92,7 @@ The sections below list the available parameters for each resource type. Not all
 
 ## Frontend resources
 
-All [SSR framework resources](/resources/frontend/nextjs) expose a `url` parameter pointing to the deployed site. [Hosting buckets](/resources/frontend/static-hosting) expose bucket identifiers and CDN parameters when a CDN is configured.
+SSR framework resources expose the deployed site URL. Static [hosting buckets](/resources/frontend/static-hosting) expose bucket identifiers and — when a CDN is attached — CDN-related parameters. See each resource's table for the exact set.
 
 ### Next.js
 
@@ -291,7 +291,7 @@ For most workload-to-resource wiring, start with `connectTo` and add `$ResourceP
 
 ### What is $ResourceParam used for in Stacktape?
 
-`$ResourceParam` is a [directive](/configuration/directives) that resolves a named output from any resource in your stack. It returns values like URLs, ARNs, hostnames, and connection strings that are only known after AWS provisions the resource. Use it in environment variables, stack outputs, or any config property that accepts a string value.
+`$ResourceParam` is a [directive](/configuration/directives) that resolves a named output from a supported resource in your stack. It returns values like URLs, ARNs, hostnames, and connection strings that are only known after AWS provisions the resource. Use it in environment variables, stack outputs, or any config property that accepts a string value.
 
 ### How is $ResourceParam different from connectTo?
 
@@ -311,7 +311,7 @@ If you reference a resource name not defined in your config, or a parameter name
 
 ### Are CDN parameters always available?
 
-CDN parameters (`cdnDomain`, `cdnUrl`, `cdnCustomDomains`, `cdnCustomDomainUrls`) are only available on resources that have a `cdn` configuration block — such as [web services](/resources/compute/web-service), [buckets](/resources/storage/s3-bucket), [HTTP API Gateways](/resources/networking/http-api-gateway), and [Application Load Balancers](/resources/networking/application-load-balancer). If the resource has no `cdn` configuration, these parameters are not available.
+CDN-related parameters are only available on resources that have a `cdn` configuration block attached. In Stacktape, CDN attachment is typed for [buckets](/resources/storage/s3-bucket), [Application Load Balancers](/resources/networking/application-load-balancer), [HTTP API Gateways](/resources/networking/http-api-gateway), and [Lambda functions](/resources/compute/lambda-function). Check the per-resource parameter table above for the exact CDN parameter names exposed by each resource type.
 
 ### How do relational database parameters differ between engine types?
 

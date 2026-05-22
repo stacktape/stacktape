@@ -2,18 +2,18 @@
 title: 'AWS Permissions Needed'
 order: 123
 seoTitle: 'AWS Permissions Required by Stacktape | Stacktape Docs'
-seoDescription: 'Understand what AWS IAM permissions Stacktape needs when you connect an AWS account. Cross-account role assumption, temporary credentials, security model, and how to audit or restrict access.'
+seoDescription: 'Understand what AWS IAM permissions Stacktape requires when you connect an AWS account: cross-account role assumption, security model, restricting access, and auditing.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.1, hard blockers 8, advisory high 0, verifier medium 8'
+pipelineReviewSummary: 'reviewer-avg 7.1, hard blockers 1, advisory high 0, verifier medium 8'
 ---
 
 # AWS Permissions Needed
 
-Stacktape connects to your AWS account by creating a CloudFormation stack that provisions a cross-account IAM role. Stacktape assumes this role with temporary credentials to perform deployments, read logs, fetch metrics, and manage resources. This page explains what that connection grants and how to control it. For the setup flow, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
+Stacktape connects to your AWS account by creating a CloudFormation stack that provisions a cross-account IAM role. Stacktape assumes this role to perform deployments and read logs and metrics through the connected account. This page explains what that connection grants and how to control it. For the setup flow, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
 
 ## Overview
 
-When you connect an AWS account through the Stacktape Console, a CloudFormation stack is created in your AWS account (in the **eu-west-1** region). This stack provisions an IAM role that Stacktape assumes via cross-account `sts:AssumeRole`. Stacktape never receives or stores long-term AWS access keys — every interaction uses temporary credentials obtained by assuming the role.
+When you connect an AWS account through the Stacktape Console, a CloudFormation stack is created in your AWS account (in the **eu-west-1** region). This stack provisions an IAM role that Stacktape assumes via cross-account `sts:AssumeRole`. The Console connection uses cross-account AssumeRole access through this IAM role.
 
 The connection is **free**. No Stacktape charges apply for connecting an AWS account, and the IAM role itself incurs no AWS cost. You only pay for the AWS resources that Stacktape deploys into your account.
 
@@ -25,14 +25,10 @@ Stacktape assumes the cross-account role to interact with your AWS account. Base
 
 - **Deploy and manage infrastructure** — create, update, and delete CloudFormation stacks containing your resources ([Lambda functions](/resources/compute/lambda-function), [containers](/resources/compute/web-service), [databases](/resources/databases/relational-database), load balancers, and others)
 - **Read logs and metrics** — fetch CloudWatch data for display in the Stacktape Console and CLI ([`stacktape debug:logs`](/cli/debug-logs), [`stacktape debug:metrics`](/cli/debug-metrics))
-- **Manage secrets** — read and write values in AWS Secrets Manager and SSM Parameter Store
-- **Support cost reporting** — enable cost dashboards in the Stacktape Console
-- **Development mode** — invoke functions and interact with resources during [`stacktape dev`](/cli/dev)
-- **Debugging** — execute commands in containers, open bastion tunnels, query databases
 
-A typical Stacktape deployment touches many AWS services — CloudFormation, Lambda, ECS, RDS, DynamoDB, S3, CloudFront, API Gateway, IAM, VPC, CloudWatch, Secrets Manager, and others depending on your configuration. The role's permissions must be broad enough to cover any valid Stacktape configuration.
+The connection role is intended to let Stacktape deploy infrastructure and read logs and metrics through the connected AWS account. Other Stacktape features may require additional AWS access depending on what you configure.
 
-<Info>For the exact IAM policies attached to the role, inspect the CloudFormation connection stack in your AWS account. Open the AWS Console, navigate to CloudFormation in the eu-west-1 region, and review the stack's resources and IAM role policies directly.</Info>
+<Info>The connection is created through a CloudFormation stack in eu-west-1. You can audit the role and its attached policies in AWS using normal CloudFormation and IAM tooling in your account.</Info>
 
 ## Connection mode
 
@@ -44,13 +40,9 @@ The connection mode is set automatically when you initiate the connection from t
 
 The cross-account connection follows AWS security best practices for third-party access.
 
-### Temporary credentials
-
-Stacktape never stores or receives long-term AWS access keys. Each time Stacktape interacts with your account, it calls `sts:AssumeRole` to request temporary credentials from AWS STS. This is the standard and recommended approach for cross-account access on AWS.
-
 ### Cross-account role assumption
 
-The connection uses AWS IAM's cross-account AssumeRole mechanism — the same pattern used by AWS CDK, Terraform Cloud, Pulumi, and other infrastructure-as-code platforms when given deployment access. The role exists in your AWS account and is only assumable by the principal configured in its trust policy.
+The Console connection uses cross-account AssumeRole access through an IAM role created by the CloudFormation stack. Each interaction calls `sts:AssumeRole` against that role — the same pattern used by AWS CDK, Terraform Cloud, Pulumi, and other infrastructure-as-code platforms when given deployment access. The role exists in your AWS account and is only assumable by the principal configured in its trust policy.
 
 ### CloudFormation-managed lifecycle
 
@@ -75,7 +67,7 @@ The most common approach is to connect separate AWS accounts — a production ac
 You can revoke Stacktape's access to your AWS account at any time through two paths:
 
 - **Delete the connection in the Stacktape Console** — removes the connection from Stacktape's side. The CloudFormation stack and IAM role remain in your AWS account until you delete them manually.
-- **Delete the CloudFormation connection stack in the AWS Console** — removes the IAM role and associated resources from your account. The connected account transitions to a **BLOCKED** state in the Stacktape Console automatically.
+- **Delete the CloudFormation connection stack in the AWS Console** — removes the AWS-side role used for access. In the Stacktape Console, connected accounts can appear as **BLOCKED** with a status reason when the connection is broken.
 
 Either method is immediate. After revocation, Stacktape cannot interact with that AWS account until you create a new connection.
 
@@ -101,14 +93,14 @@ CloudTrail is the authoritative record of AWS API activity — it captures every
 
 - [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) — the setup walkthrough for establishing a connection
 - [Team and access control](/stacktape-console/team-and-access-control) — manage who in your organization can connect AWS accounts (requires the `org:manage-aws-accounts` permission)
-- [Managing costs](/managing-costs/overview) — how Stacktape uses cost reporting permissions
+- [Managing costs](/managing-costs/overview) — cost features in the Stacktape Console
 - [Guardrails](/guardrails/overview) — organization-wide controls that layer on top of AWS permissions
 
 ## FAQ
 
-### Does Stacktape store my AWS credentials?
+### How does Stacktape access my AWS account?
 
-No. Stacktape uses cross-account IAM role assumption with temporary credentials. Each time Stacktape needs to interact with your account, it calls AWS STS to assume the role and receives short-lived credentials. No long-term access keys are generated, stored, or exchanged. This is the standard AWS-recommended pattern for cross-account access.
+The Console connection uses cross-account AssumeRole access through an IAM role created by the CloudFormation stack. Each time Stacktape needs to interact with your account, it calls AWS STS to assume the role. This is the standard AWS-recommended pattern for cross-account access and is the same approach used by AWS CDK, Terraform Cloud, and Pulumi.
 
 ### Why does Stacktape need broad AWS permissions?
 
@@ -140,7 +132,7 @@ The connection stack provisions global AWS resources (primarily an IAM role). IA
 
 ### Is this the same approach other IaC tools use?
 
-Yes. Cross-account IAM role assumption with temporary credentials is the standard pattern for third-party AWS access. AWS CDK, Terraform Cloud, Pulumi, and other infrastructure-as-code platforms use the same mechanism when given deployment access to an AWS account. The IAM role lives in your account, you control its lifecycle, and you can delete it at any time.
+Yes. Cross-account IAM role assumption is the standard pattern for third-party AWS access. AWS CDK, Terraform Cloud, Pulumi, and other infrastructure-as-code platforms use the same mechanism when given deployment access to an AWS account. The IAM role lives in your account, you control its lifecycle, and you can delete it at any time.
 
 ### What permission do I need to connect an AWS account?
 

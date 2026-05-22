@@ -4,7 +4,7 @@ order: 14
 seoTitle: 'Hooks and Scripts - Deployment Lifecycle Automation | Stacktape'
 seoDescription: 'Automate deployment tasks with Stacktape hooks and scripts. Run database migrations, build steps, and cleanup commands before or after deploy, delete, and dev lifecycle events.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.9, hard blockers 6, advisory high 0, verifier medium 3'
+pipelineReviewSummary: 'reviewer-avg 7.9, hard blockers 5, advisory high 0, verifier medium 5'
 ---
 
 # Hooks and Scripts
@@ -29,7 +29,7 @@ Stacktape supports three script types, each suited to different execution and ne
 
 A local script runs wherever the Stacktape CLI runs — your laptop during development, or the CI runner in a pipeline. This is the most common script type, covering builds, database migrations, linting, and data seeding.
 
-Each script must define exactly one execution method: `executeCommand` (single shell command), `executeCommands` (sequential list of commands), `executeScript` (a JS/TS/Python file), or `executeScripts` (sequential list of script files). Each runs in a separate process.
+A script runs a shell command (shown in the examples below via `executeCommand`) or a JS/TS/Python file. See the [config schema](/configuration/configuration-files) for the full list of execution properties.
 
 <CodeBlock
   intellisense
@@ -55,9 +55,9 @@ export default defineConfig(() => {
     scripts: {
       seedBucket: {
         type: 'local-script',
+        connectTo: ['uploads'],
         properties: {
-          executeCommand: 'node scripts/seed-data.js',
-          connectTo: ['uploads']
+          executeCommand: 'node scripts/seed-data.js'
         }
       },
       buildFrontend: {
@@ -75,11 +75,11 @@ export default defineConfig(() => {
   ]}
 />
 
-The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function — injected as environment variables like `STP_UPLOADS_BUCKET_NAME`. The `buildFrontend` script runs in a subdirectory using `cwd`. By default, script output is piped to your terminal (`pipeStdio` defaults to `true`).
+The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function — injected as environment variables like `STP_UPLOADS_NAME`. See [connecting resources](/configuration/connecting-resources) for the full list of variables injected per resource type. The `buildFrontend` script runs in a subdirectory using `cwd`. By default, script output is piped to your terminal (`pipeStdio` defaults to `true`).
 
 ### Local script with bastion tunneling
 
-When your database or Redis cluster has no public endpoint, `local-script-with-bastion-tunneling` runs your tools locally while routing connections through an encrypted SSH tunnel via the [bastion host](/resources/security/bastion-host). The environment variables injected by `connectTo` are automatically adjusted to use the tunneled local endpoint — your tools connect to `localhost` on a forwarded port.
+When your database or Redis cluster has no public endpoint, `local-script-with-bastion-tunneling` runs locally and tunnels connections to VPC-only resources through a [bastion host](/resources/security/bastion-host). This lets you keep using local CLI tools (Prisma, `psql`, `redis-cli`) against resources that aren't publicly reachable.
 
 <CodeBlock
   intellisense
@@ -99,10 +99,10 @@ export default defineConfig(() => {
     scripts: {
       warmCache: {
         type: 'local-script-with-bastion-tunneling',
+        connectTo: ['cache'],
         properties: {
           bastionResource: 'bastion',
-          executeCommand: 'node scripts/warm-cache.js',
-          connectTo: ['cache']
+          executeCommand: 'node scripts/warm-cache.js'
         }
       }
     }
@@ -113,7 +113,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `bastionResource` property references the bastion host by name. The tunnel is transparent to your script — it sees local connection endpoints and has no knowledge of the bastion. This script type extends the local script with all the same execution options (`executeCommand`, `executeScript`, etc.).
+The `bastionResource` property references the bastion host by name. The tunnel itself is managed for you — your script runs on the local machine while network traffic to the connected resource is routed through the bastion.
 
 ### Bastion script
 
@@ -137,10 +137,10 @@ export default defineConfig(() => {
     scripts: {
       checkRedis: {
         type: 'bastion-script',
+        connectTo: ['cache'],
         properties: {
           bastionResource: 'bastion',
-          executeCommand: 'redis-cli -h $STP_CACHE_HOST -p $STP_CACHE_PORT PING',
-          connectTo: ['cache']
+          executeCommand: 'redis-cli -h $STP_CACHE_HOST -p $STP_CACHE_PORT PING'
         }
       }
     }
@@ -151,7 +151,7 @@ export default defineConfig(() => {
   ]}
 />
 
-Bastion scripts only support `executeCommand` and `executeCommands` — they cannot execute JS/TS/Python files directly. The `cwd` on bastion scripts defaults to `/`. The bastion host is a minimal Amazon Linux instance; if you need tools like `prisma` or `psql`, prefer `local-script-with-bastion-tunneling` instead.
+The bastion host is a minimal Amazon Linux instance; if you need tools like `prisma` or `psql` that aren't pre-installed on the bastion, prefer `local-script-with-bastion-tunneling` instead.
 
 ## Running scripts manually
 
@@ -223,7 +223,7 @@ export default defineConfig(() => {
 
 The `buildFrontend` script runs before every deployment, compiling the frontend into `./frontend/dist` where the [hosting bucket](/resources/frontend/static-hosting) picks it up. The `openDocs` script opens the deployed URL after deploy but skips in CI environments (using `skipOnCI`).
 
-Hooks commonly attach migration scripts to `afterDeploy` so database changes apply automatically after infrastructure updates. Use `connectTo` in the migration script to inject the database connection string — see [connecting resources](/configuration/connecting-resources) for details.
+Hooks commonly attach migration scripts to `afterDeploy` so database changes apply automatically after infrastructure updates. Use `connectTo` in the migration script to inject the database connection details — see [connecting resources](/configuration/connecting-resources) for details.
 
 ### Lifecycle events
 
@@ -261,63 +261,9 @@ The hooks example above demonstrates `skipOnCI` — the `openDocs` script runs l
 
 Scripts receive environment variables from two configurable sources.
 
-**`connectTo`** auto-injects connection details for each listed resource. Variable names follow the `STP_[RESOURCE_NAME]_[VARIABLE]` pattern. For example, connecting to a resource named `uploads` of type `Bucket` injects `STP_UPLOADS_NAME` and `STP_UPLOADS_ARN`. The exact variables depend on the resource type — see [connecting resources](/configuration/connecting-resources) for the full injection table. Common examples:
-
-| Resource type | Injected variables |
-|---|---|
-| `Bucket` | `NAME`, `ARN` |
-| `RelationalDatabase` | `CONNECTION_STRING`, `HOST`, `PORT`, `JDBC_CONNECTION_STRING` |
-| `RedisCluster` | `HOST`, `READER_HOST`, `PORT` |
-| `DynamoDbTable` | `NAME`, `ARN`, `STREAM_ARN` |
-| `SqsQueue` | `ARN`, `NAME`, `URL` |
+**`connectTo`** auto-injects connection details for each listed resource as environment variables. The exact variables depend on the resource type — see [connecting resources](/configuration/connecting-resources) for the full per-resource injection table.
 
 **`environment`** lets you define additional variables explicitly. Values support [directives](/configuration/directives) like `$Secret()`, `$ResourceParam()`, and `$Var()`, so you can inject secrets and computed values at execution time.
-
-## Assuming IAM roles
-
-Scripts can assume the IAM role of a deployed resource using `assumeRoleOfResource`. This grants the script the same AWS permissions as the specified resource — useful for running AWS SDK operations locally with the correct access.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, Bucket } from 'stacktape';
-
-// [!code focus-start]
-export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    connectTo: ['uploads']
-  });
-
-  const uploads = new Bucket({});
-
-  return {
-    resources: { api, uploads },
-    scripts: {
-      seedBucket: {
-        type: 'local-script',
-        properties: {
-          executeCommand: 'node scripts/seed-data.js',
-          assumeRoleOfResource: 'api',
-          connectTo: ['uploads']
-        }
-      }
-    }
-  };
-});
-// [!code focus-end]`
-    }
-  ]}
-/>
-
-The `seedBucket` script inherits the `api` function's permissions, which include access to the `uploads` bucket via `connectTo`. Stacktape injects temporary AWS credentials as environment variables, automatically picked up by AWS SDKs and CLIs. The target resource must be deployed before the script runs.
-
-Supported resource types for role assumption: `function`, `batch-job`, `worker-service`, `web-service`, `private-service`, `multi-container-workload`, and all SSR frontend resources (`nextjs-web`, `astro-web`, `nuxt-web`, `sveltekit-web`, `solidstart-web`, `tanstack-web`, `remix-web`).
 
 ## When to use deployment scripts instead
 
@@ -327,7 +273,7 @@ Supported resource types for role assumption: `function`, `batch-job`, `worker-s
 
 ### How do I run a database migration after deploy?
 
-Define a `local-script` that runs your migration tool (Prisma, Drizzle, raw SQL) and use `connectTo` to inject the database connection string as `STP_[DB_NAME]_CONNECTION_STRING`. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead. See [connecting resources](/configuration/connecting-resources) for details on injected variables.
+Define a `local-script` that runs your migration tool (Prisma, Drizzle, raw SQL) and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
 
 ### Can I run multiple scripts in a single hook?
 
@@ -347,15 +293,15 @@ Use hooks with local scripts when you need local tooling (npm, Prisma CLI, psql)
 
 ### Can scripts execute TypeScript or Python files directly?
 
-Yes. Local scripts support `executeScript` (single file) and `executeScripts` (list of files) for running JS, TS, or Python. The runtime is determined by [`defaults:configure`](/cli/defaults-configure) or the system default (`node` for JS/TS, `python` for Python). Bastion scripts cannot execute files directly — they only support `executeCommand` and `executeCommands`.
+Local scripts and `local-script-with-bastion-tunneling` can execute JS, TS, or Python files via `executeScript` (single file) and `executeScripts` (list of files). The runtime is determined by [`defaults:configure`](/cli/defaults-configure) or the system default (`node` for JS/TS, `python` for Python). Bastion scripts cannot execute files directly — they only support `executeCommand` and `executeCommands`.
 
 ### How do I access a private database from a script?
 
-Use `local-script-with-bastion-tunneling`. It opens an encrypted tunnel through your [bastion host](/resources/security/bastion-host) to the private resource. The `connectTo` environment variables are automatically adjusted to use the local tunnel endpoint. You need a `bastion` resource defined in your config. Alternatively, use a [deployment script](/resources/advanced/deployment-scripts) for direct VPC access without bastion setup.
+Use `local-script-with-bastion-tunneling`. It runs your script locally while routing connections to the private resource through your [bastion host](/resources/security/bastion-host). You need a `bastion` resource defined in your config. Alternatively, use a [deployment script](/resources/advanced/deployment-scripts) for direct VPC access without bastion setup.
 
 ### When should I use bastion tunneling vs a bastion script?
 
-Use `local-script-with-bastion-tunneling` when you need local tools — it runs your machine's toolchain while tunneling network access through the bastion. Use `bastion-script` when you only need basic shell commands and want to avoid running anything locally. Bastion scripts are limited to tools pre-installed on the bastion host (minimal Amazon Linux). For most development workflows, bastion tunneling is the better choice.
+Use `local-script-with-bastion-tunneling` when you need local tools — it runs your machine's toolchain while tunneling network access through the bastion. Use `bastion-script` when you only need basic shell commands and want to avoid running anything locally. For most development workflows, bastion tunneling is the better choice.
 
 ### Can I use hooks in CI/CD pipelines?
 
@@ -363,4 +309,4 @@ Yes. Hooks run wherever the Stacktape CLI runs. In a CI pipeline, the same hooks
 
 ### What environment variables do scripts receive?
 
-Scripts receive variables from `connectTo` (auto-injected connection details per resource — see [connecting resources](/configuration/connecting-resources)) and from the `environment` property in the script configuration. Environment values support [directives](/configuration/directives) like `$Secret()` for injecting secrets and `$ResourceParam()` for referencing resource parameters. When using `assumeRoleOfResource`, temporary AWS credentials are also injected.
+Scripts receive variables from `connectTo` (auto-injected connection details per resource — see [connecting resources](/configuration/connecting-resources)) and from the `environment` property in the script configuration. Environment values support [directives](/configuration/directives) like `$Secret()` for injecting secrets and `$ResourceParam()` for referencing resource parameters.

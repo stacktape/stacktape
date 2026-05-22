@@ -7,11 +7,18 @@ import {
   validateShellCommandBlocks,
   validateStacktapeConfigExamples
 } from './code-validator';
-import { buildPageAuditorPrompt, buildReviewerPrompt, buildVerifierPrompt, buildWriterPrompt } from './prompts';
+import {
+  buildPageAuditorPrompt,
+  buildRefinementWriterPrompt,
+  buildReviewerPrompt,
+  buildVerifierPrompt,
+  buildWriterPrompt
+} from './prompts';
+import { computeProseSimilarity } from './prose-similarity';
 import { callClaudeJson, callCodexJson } from './providers';
 import { reviewerSchema, verifierSchema, writerSchema } from './schemas';
 import { computeInputHashes } from './staleness';
-import { loadState, saveIterationDraft, saveState } from './state';
+import { getIterationDraftPath, loadState, saveIterationDraft, saveState } from './state';
 import type {
   AgentModelConfig,
   AgentModelKey,
@@ -813,6 +820,503 @@ export const runPagePipeline = async ({
   }
 
   return { passed: false, outcome: 'failed' as const, outputPath: page.outputPath, iterations: currentState.iterations.length };
+};
+
+// Prose-similarity threshold below which we run reviewers on the refined draft. Above this,
+// the patch is small enough that reviewer feedback would mostly noise; below, we treat the
+// change as a partial rewrite and re-check for prose regression.
+const REFINEMENT_REVIEWER_TRIGGER_SIMILARITY = 0.7;
+
+// Collect verifier issues that count as hard blockers under the current gate logic, paired
+// with the verifier that produced them so we know which to re-run after the patch.
+const collectHardBlockerIssues = (verifierResults: VerifierResult[]) => {
+  const sourceGroundingHard = sourceGroundingHasHardFactualIssue(verifierResults);
+  const out: Array<{ verifierId: string; issue: VerifierIssue }> = [];
+  for (const verifier of verifierResults) {
+    for (const issue of verifier.issues) {
+      if (isHardBlockingVerifierIssue({ verifier, issue, sourceGroundingHasHardFactualIssue: sourceGroundingHard })) {
+        out.push({ verifierId: verifier.verifierId, issue });
+      }
+    }
+  }
+  return out;
+};
+
+// Collect advisory-high issues — high-severity but not hard-blocking. Refinement addresses
+// these opportunistically when the fix is small and local.
+const collectAdvisoryHighIssues = (verifierResults: VerifierResult[]) => {
+  const sourceGroundingHard = sourceGroundingHasHardFactualIssue(verifierResults);
+  const out: Array<{ verifierId: string; issue: VerifierIssue }> = [];
+  for (const verifier of verifierResults) {
+    for (const issue of verifier.issues) {
+      if (
+        issue.severity === 'high' &&
+        !isHardBlockingVerifierIssue({ verifier, issue, sourceGroundingHasHardFactualIssue: sourceGroundingHard })
+      ) {
+        out.push({ verifierId: verifier.verifierId, issue });
+      }
+    }
+  }
+  return out;
+};
+
+const targetedModelVerifierKey: Record<string, AgentModelKey | undefined> = {
+  [AGENT_IDS.factualAccuracyVerifier]: 'factualAccuracyVerifier',
+  [AGENT_IDS.sourceGroundingVerifier]: 'sourceGroundingVerifier',
+  [AGENT_IDS.apiCompletenessAuditor]: 'apiCompletenessAuditor'
+};
+
+// Re-runs only the model verifiers whose IDs are in `verifierIds`. Returns the deterministic
+// validator unconditionally because it's free and catches code-block regressions.
+const runTargetedVerifiers = async ({
+  contextPack,
+  draft,
+  page,
+  verifierIds,
+  agentModels
+}: {
+  contextPack: ContextPack;
+  draft: string;
+  page: PageDefinition;
+  verifierIds: Set<string>;
+  agentModels: AgentModelConfig;
+}): Promise<VerifierResult[]> => {
+  const verifierPrompt = buildVerifierPrompt({ contextPack, draft });
+  const auditorPrompt = buildPageAuditorPrompt({ contextPack, draft });
+  const tasks: Array<Promise<VerifierResult | null>> = [];
+
+  if (verifierIds.has(AGENT_IDS.factualAccuracyVerifier)) {
+    const model = resolveAgentModel({ agentModels, key: 'factualAccuracyVerifier' });
+    tasks.push(
+      callJsonWithProvider<Omit<VerifierResult, 'verifierId' | 'modelProvider'>>({
+        provider: model.provider,
+        prompt: verifierPrompt,
+        jsonSchema: verifierSchema,
+        model: model.model
+      }).then((result) => ({
+        verifierId: AGENT_IDS.factualAccuracyVerifier,
+        modelProvider: model.provider,
+        modelName: getModelNameForDisplay(model.model),
+        ...result
+      }))
+    );
+  }
+
+  if (verifierIds.has(AGENT_IDS.sourceGroundingVerifier)) {
+    const model = resolveAgentModel({ agentModels, key: 'sourceGroundingVerifier' });
+    tasks.push(
+      callJsonWithProvider<Omit<VerifierResult, 'verifierId' | 'modelProvider'>>({
+        provider: model.provider,
+        prompt: verifierPrompt,
+        jsonSchema: verifierSchema,
+        model: model.model
+      })
+        .then((result) => ({
+          verifierId: AGENT_IDS.sourceGroundingVerifier,
+          modelProvider: model.provider,
+          modelName: getModelNameForDisplay(model.model),
+          ...result
+        }))
+        .catch(async (error): Promise<VerifierResult | null> => {
+          if (model.provider === 'codex' && isProviderAvailabilityError(error)) {
+            console.warn(
+              `    ${AGENT_IDS.sourceGroundingVerifier} unavailable via Codex; falling back to Claude: ${
+                error instanceof Error ? error.message.slice(0, 120) : String(error).slice(0, 120)
+              }`
+            );
+            const fallback = await callClaudeJson<Omit<VerifierResult, 'verifierId' | 'modelProvider'>>({
+              prompt: verifierPrompt,
+              jsonSchema: verifierSchema
+            });
+            return {
+              verifierId: AGENT_IDS.sourceGroundingVerifier,
+              modelProvider: 'claude',
+              modelName: `${getModelNameForDisplay(undefined)} fallback`,
+              ...fallback
+            };
+          }
+          throw error;
+        })
+    );
+  }
+
+  if (verifierIds.has(AGENT_IDS.apiCompletenessAuditor)) {
+    const model = resolveAgentModel({ agentModels, key: 'apiCompletenessAuditor' });
+    tasks.push(
+      callJsonWithProvider<Omit<VerifierResult, 'verifierId' | 'modelProvider'>>({
+        provider: model.provider,
+        prompt: auditorPrompt,
+        jsonSchema: verifierSchema,
+        model: model.model
+      })
+        .then((result) => ({
+          verifierId: AGENT_IDS.apiCompletenessAuditor,
+          modelProvider: model.provider,
+          modelName: getModelNameForDisplay(model.model),
+          ...result
+        }))
+        .catch((error): VerifierResult | null => {
+          if (isProviderAvailabilityError(error)) {
+            console.warn(
+              `    ${AGENT_IDS.apiCompletenessAuditor} unavailable; skipping: ${
+                error instanceof Error ? error.message.slice(0, 120) : String(error).slice(0, 120)
+              }`
+            );
+            return null;
+          }
+          throw error;
+        })
+    );
+  }
+
+  const settled = await Promise.all(tasks);
+  const modelResults = settled.filter((result): result is VerifierResult => result !== null);
+  const deterministicResults = await runDeterministicValidators({ draft, page });
+  return [...modelResults, ...deterministicResults];
+};
+
+// Summary of a page's last-iteration state for refinement prioritization. Used by the CLI to
+// pick the "worst" needs-human-review pages first and skip pages whose draft is too rough to
+// patch (reviewer-avg below the soft-route threshold).
+export type RefinementCandidateSummary = {
+  refinementAttempts: number;
+  refinementStalled: boolean;
+  outcome?: PipelineOutcome;
+  hardBlockers: number;
+  reviewerAvg: number;
+};
+
+export const summarizeRefinementCandidate = (state: PipelineState): RefinementCandidateSummary | null => {
+  const lastIteration = state.iterations.at(-1);
+  if (!lastIteration) return null;
+  return {
+    refinementAttempts: state.refinementAttempts ?? 0,
+    refinementStalled: state.refinementStalled === true,
+    outcome: state.outcome,
+    hardBlockers: countHardBlockingVerifierIssues(lastIteration.verifierResults),
+    reviewerAvg: getReviewerAverage(lastIteration)
+  };
+};
+
+export type RefinementOutcome = {
+  passed: boolean;
+  outcome: PipelineOutcome | 'skipped';
+  outputPath?: string;
+  reason?: string;
+  proseSimilarity?: number;
+  hardBlockersBefore?: number;
+  hardBlockersAfter?: number;
+};
+
+// Targeted patch-and-verify pass on a page already in `needs-human-review` state. Skips the
+// full reviewer round on minor patches; runs only the verifiers that flagged hard blockers
+// last time. See generate-pages.ts --refineReview for the entry point.
+export const runPageRefinement = async ({
+  page,
+  agentModels = {},
+  examplePath,
+  retryStalled = false
+}: {
+  page: PageDefinition;
+  agentModels?: AgentModelConfig;
+  examplePath?: string;
+  // When true, refine pages whose prior pass was flagged as stalled (no blocker progress).
+  // Off by default so drip-feed --refineReview runs don't repeatedly burn calls on stuck
+  // pages — but the user can opt in after a prompt or source change.
+  retryStalled?: boolean;
+}): Promise<RefinementOutcome> => {
+  const existingState = await loadState({ pageId: page.id });
+  if (!existingState) {
+    return { passed: false, outcome: 'skipped', reason: 'no-state' };
+  }
+  if (existingState.outcome !== 'needs-human-review') {
+    return { passed: false, outcome: 'skipped', reason: `outcome:${existingState.outcome ?? 'unknown'}` };
+  }
+  if (!retryStalled && existingState.refinementStalled === true) {
+    return { passed: false, outcome: 'skipped', reason: 'stalled' };
+  }
+  const lastIteration = existingState.iterations.at(-1);
+  if (!lastIteration) {
+    return { passed: false, outcome: 'skipped', reason: 'no-iterations' };
+  }
+
+  const hardBlockerEntries = collectHardBlockerIssues(lastIteration.verifierResults);
+  if (hardBlockerEntries.length === 0) {
+    return { passed: false, outcome: 'skipped', reason: 'no-hard-blockers' };
+  }
+  const advisoryHighEntries = collectAdvisoryHighIssues(lastIteration.verifierResults);
+
+  // Prefer the recorded path, but fall back to the canonical current-OS path: state files
+  // may have been written on a different machine (e.g. Windows path stored, now running on
+  // macOS). The (pageId, iteration) pair is portable; the absolute path is not.
+  let previousDraft = await readDraftIfExists(lastIteration.draftPath);
+  if (!previousDraft) {
+    const fallbackPath = getIterationDraftPath({ pageId: page.id, iteration: lastIteration.iteration });
+    if (fallbackPath !== lastIteration.draftPath) {
+      previousDraft = await readDraftIfExists(fallbackPath);
+    }
+  }
+  if (!previousDraft) {
+    return { passed: false, outcome: 'skipped', reason: 'no-prior-draft' };
+  }
+
+  const contextPack = await buildContextPack({ page, examplePath });
+  existingState.agentModelAssignments = getAgentModelAssignmentsForState(agentModels);
+
+  const writerModel = resolveAgentModel({ agentModels, key: 'writer' });
+  console.info(
+    `  Refinement — ${AGENT_IDS.writer} patching draft (${writerModel.provider}, ${getModelNameForDisplay(writerModel.model)}); ${
+      hardBlockerEntries.length
+    } hard blocker(s), ${advisoryHighEntries.length} advisory high(s).`
+  );
+
+  const refinementPrompt = buildRefinementWriterPrompt({
+    contextPack,
+    previousDraft,
+    hardBlockers: hardBlockerEntries.map((entry) => ({
+      verifierId: entry.verifierId,
+      statement: entry.issue.statement,
+      suggestedFix: entry.issue.suggestedFix,
+      evidence: entry.issue.evidence
+    })),
+    advisoryHighs: advisoryHighEntries.map((entry) => ({
+      verifierId: entry.verifierId,
+      statement: entry.issue.statement,
+      suggestedFix: entry.issue.suggestedFix,
+      evidence: entry.issue.evidence
+    }))
+  });
+
+  const draftResult = await callJsonWithProvider<{ mdx: string; seoTitle: string; seoDescription: string }>({
+    provider: writerModel.provider,
+    prompt: refinementPrompt,
+    jsonSchema: writerSchema,
+    model: writerModel.model
+  });
+
+  let draft = upsertFrontmatterFields({
+    draft: draftResult.mdx.trim(),
+    fields: {
+      seoTitle: draftResult.seoTitle,
+      seoDescription: draftResult.seoDescription
+    }
+  });
+
+  const formatResult = await autoFormatStacktapeBlocksInDraft(draft);
+  if (formatResult.formattedBlockCount > 0) {
+    console.info(`    auto-formatted ${formatResult.formattedBlockCount} Stacktape config block(s).`);
+    draft = formatResult.draft;
+  }
+
+  const iteration = existingState.iterations.length + 1;
+  const draftPath = await saveIterationDraft({ pageId: page.id, iteration, draft });
+
+  const proseSimilarity = computeProseSimilarity({ oldMdx: previousDraft, newMdx: draft });
+  console.info(`    prose similarity: ${proseSimilarity.toFixed(2)} (reviewers run if < ${REFINEMENT_REVIEWER_TRIGGER_SIMILARITY}).`);
+
+  const verifierIdsToReRun = new Set<string>();
+  for (const entry of hardBlockerEntries) {
+    if (targetedModelVerifierKey[entry.verifierId]) {
+      verifierIdsToReRun.add(entry.verifierId);
+    }
+  }
+  // Always include source-grounding when any model verifier ran on the prior iteration —
+  // it's the strictest factual lens and the cheapest way to spot a regressed claim.
+  if (
+    lastIteration.verifierResults.some((v) => v.verifierId === AGENT_IDS.sourceGroundingVerifier) &&
+    verifierIdsToReRun.size > 0
+  ) {
+    verifierIdsToReRun.add(AGENT_IDS.sourceGroundingVerifier);
+  }
+
+  console.info(
+    `  Refinement — running ${verifierIdsToReRun.size} targeted verifier(s)${
+      verifierIdsToReRun.size > 0 ? ` (${Array.from(verifierIdsToReRun).join(', ')})` : ''
+    } + deterministic validator...`
+  );
+  const verifierResults = await runTargetedVerifiers({
+    contextPack,
+    draft,
+    page,
+    verifierIds: verifierIdsToReRun,
+    agentModels
+  });
+
+  for (const v of verifierResults) {
+    const highCount = v.issues.filter((i) => i.severity === 'high').length;
+    const medCount = v.issues.filter((i) => i.severity === 'medium').length;
+    console.info(
+      `    ${v.verifierId} (${v.modelProvider}, ${v.modelName || 'n/a'}): ${v.issues.length} issue(s) (${highCount} high, ${medCount} medium)`
+    );
+  }
+
+  let reviewerResults: ReviewerResult[];
+  if (proseSimilarity < REFINEMENT_REVIEWER_TRIGGER_SIMILARITY) {
+    console.info(`  Refinement — running ${reviewerPersonas.length} reviewers (prose changed > 30%)...`);
+    reviewerResults = await Promise.all(
+      reviewerPersonas.map((reviewer) => runReviewer({ contextPack, draft, reviewer, agentModels }))
+    );
+    for (const r of reviewerResults) {
+      const scoreStr = Object.entries(r.scores)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(', ');
+      console.info(`    ${r.reviewerId} (${r.modelProvider}, ${r.modelName}): ${scoreStr}`);
+    }
+  } else {
+    // Reuse the prior iteration's reviewer scores. They reflect the prose the writer was
+    // told NOT to change. The gate logic still gets a valid summary to evaluate.
+    console.info('  Refinement — skipping reviewers (prose substantially unchanged); reusing prior reviewer scores.');
+    reviewerResults = lastIteration.reviewerResults;
+  }
+
+  const hardBlockersAfter = countHardBlockingVerifierIssues(verifierResults);
+  // For evaluation purposes, treat this as the final iteration. We're not going to loop on
+  // refinement — one pass and we accept whatever outcome the gate produces.
+  const gate = evaluateIterationGate({
+    reviewerResults,
+    verifierResults,
+    iteration,
+    maxIterations: iteration
+  });
+
+  const passed = gate.status === 'passed';
+  if (gate.status === 'failed') {
+    console.info(`    Refinement did not converge: ${gate.reasons.join(', ') || 'quality-gate'}`);
+  } else if (gate.status === 'needs-human-review') {
+    console.info(
+      `    Refinement landed in human-review: grand-avg ${gate.reviewerSummary.grandAvg.toFixed(2)}, hard blockers ${hardBlockersAfter}.`
+    );
+  } else {
+    console.info(`    Refinement cleared all blockers — PASSED.`);
+  }
+
+  existingState.iterations.push({ iteration, draftPath, reviewerResults, verifierResults, status: gate.status, passed });
+  existingState.refinementAttempts = (existingState.refinementAttempts ?? 0) + 1;
+  existingState.updatedAt = new Date().toISOString();
+
+  // Progress = blockers actually dropped, or the gate is now passing. Anything else (same
+  // count, regressed, or just-as-stuck) marks the page stalled so drip-feed runs skip it
+  // until the user explicitly opts in with --retryStalled.
+  const madeProgress = passed || hardBlockersAfter < hardBlockerEntries.length;
+  existingState.refinementStalled = madeProgress ? false : true;
+
+  // Hard-regression early-out: if the refined draft has MORE hard blockers than the prior
+  // draft and it isn't passing, the writer made the page worse. Keep the prior output on
+  // disk regardless of whether the gate evaluates to needs-human-review or failed. The
+  // iteration record + stalled flag stay in state so drip-feed skips this page until the
+  // user opts in via --retryStalled. This is more strict than the score-based regression
+  // check below (which only fires for `failed` gate status) because needs-human-review
+  // drafts with regressed blockers still got written before this guard existed.
+  if (!passed && hardBlockersAfter > hardBlockerEntries.length) {
+    console.info(
+      `    Refined draft regressed on blockers (${hardBlockerEntries.length}→${hardBlockersAfter}); keeping prior draft as output.`
+    );
+    await saveState({ state: existingState });
+    return {
+      passed: false,
+      outcome: existingState.outcome ?? 'needs-human-review',
+      outputPath: existingState.finalOutputPath,
+      reason: 'regressed-kept-prior',
+      proseSimilarity,
+      hardBlockersBefore: hardBlockerEntries.length,
+      hardBlockersAfter
+    };
+  }
+
+  if (passed) {
+    const cleanedDraft = upsertFrontmatterFields({
+      draft,
+      fields: { pipelineStatus: undefined, pipelineFailureSummary: undefined, pipelineReviewSummary: undefined }
+    });
+    await writeFile(page.outputPath, cleanedDraft);
+    const { inputHashes, styleGuideHash } = computeInputHashes(contextPack);
+    existingState.finalOutputPath = page.outputPath;
+    existingState.outcome = 'passed';
+    existingState.pipelineStatus = undefined;
+    existingState.pipelineFailureSummary = undefined;
+    existingState.pipelineReviewSummary = undefined;
+    existingState.completedAt = new Date().toISOString();
+    existingState.updatedAt = existingState.completedAt;
+    existingState.inputHashes = inputHashes;
+    existingState.styleGuideHash = styleGuideHash;
+    await saveState({ state: existingState });
+    return {
+      passed: true,
+      outcome: 'passed',
+      outputPath: page.outputPath,
+      proseSimilarity,
+      hardBlockersBefore: hardBlockerEntries.length,
+      hardBlockersAfter
+    };
+  }
+
+  if (gate.status === 'needs-human-review') {
+    const reviewSummary = buildQualitySummary({ iteration: existingState.iterations.at(-1)! });
+    const reviewDraft = upsertFrontmatterFields({
+      draft,
+      fields: {
+        pipelineStatus: 'needs-human-review',
+        pipelineFailureSummary: undefined,
+        pipelineReviewSummary: reviewSummary
+      }
+    });
+    await writeFile(page.outputPath, reviewDraft);
+    existingState.finalOutputPath = page.outputPath;
+    existingState.outcome = 'needs-human-review';
+    existingState.pipelineStatus = 'needs-human-review';
+    existingState.pipelineFailureSummary = undefined;
+    existingState.pipelineReviewSummary = reviewSummary;
+    await saveState({ state: existingState });
+    return {
+      passed: false,
+      outcome: 'needs-human-review',
+      outputPath: page.outputPath,
+      proseSimilarity,
+      hardBlockersBefore: hardBlockerEntries.length,
+      hardBlockersAfter
+    };
+  }
+
+  // failed: re-evaluate whether the prior draft (pre-refinement) was actually better and
+  // keep that one instead. The refined draft regressed; don't overwrite a salvageable output.
+  const priorScore = getIterationQualityScore(lastIteration);
+  const newIteration = existingState.iterations.at(-1)!;
+  const newScore = getIterationQualityScore(newIteration);
+  if (newScore < priorScore) {
+    console.info(`    Refined draft regressed (score ${newScore.toFixed(2)} < prior ${priorScore.toFixed(2)}); keeping prior draft as output.`);
+    // Keep existing output file untouched. State still records the attempt so we don't retry.
+    await saveState({ state: existingState });
+    return {
+      passed: false,
+      outcome: existingState.outcome ?? 'needs-human-review',
+      outputPath: existingState.finalOutputPath,
+      reason: 'regressed-kept-prior',
+      proseSimilarity,
+      hardBlockersBefore: hardBlockerEntries.length,
+      hardBlockersAfter
+    };
+  }
+
+  const summary = buildQualitySummary({ iteration: newIteration });
+  const taggedDraft = upsertFrontmatterFields({
+    draft,
+    fields: { pipelineStatus: 'did-not-pass', pipelineFailureSummary: summary, pipelineReviewSummary: undefined }
+  });
+  await writeFile(page.outputPath, taggedDraft);
+  existingState.finalOutputPath = page.outputPath;
+  existingState.outcome = 'failed';
+  existingState.pipelineStatus = 'did-not-pass';
+  existingState.pipelineFailureSummary = summary;
+  existingState.pipelineReviewSummary = undefined;
+  await saveState({ state: existingState });
+  return {
+    passed: false,
+    outcome: 'failed',
+    outputPath: page.outputPath,
+    proseSimilarity,
+    hardBlockersBefore: hardBlockerEntries.length,
+    hardBlockersAfter
+  };
 };
 
 const buildQualitySummary = ({ iteration }: { iteration: IterationResult }) => {

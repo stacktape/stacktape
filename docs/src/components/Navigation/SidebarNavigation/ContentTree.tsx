@@ -1,84 +1,44 @@
 import { useRouter } from 'next/router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { ContentTreeGroup } from './ContentTreeGroup';
-import {
-  computeExpandedState,
-  getNavigationTree,
-  NAV_STATE_STORAGE_KEY,
-  type NavUserOverrides
-} from './navigation-data';
-
-const readPersistedOverrides = (): NavUserOverrides => {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(NAV_STATE_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as NavUserOverrides;
-    }
-  } catch {
-    // Corrupt or missing storage — fall through to empty overrides.
-  }
-  return {};
-};
-
-const persistOverrides = (overrides: NavUserOverrides) => {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(NAV_STATE_STORAGE_KEY, JSON.stringify(overrides));
-  } catch {
-    // Quota or sandbox issues — ignore; UI still works for the session.
-  }
-};
+import { createExpansionStore, ExpansionStoreContext } from './expansion-store';
+import { getNavigationTree } from './navigation-data';
 
 export function ContentTree({ allDocPages }: { allDocPages: MdxPageDataForNavigation[] }) {
   const navigationTree = useMemo(() => getNavigationTree(allDocPages || []), [allDocPages]);
   const router = useRouter();
+  const pathname = router.asPath || '/';
 
-  // User overrides hydrate from localStorage on mount. SSR returns {}; client takes over after.
-  const [userOverrides, setUserOverrides] = useState<NavUserOverrides>({});
+  // The store is created exactly once per ContentTree mount. Subsequent prop changes (route,
+  // tree shape) are pushed in via setters — they trigger a recompute and notify subscribers,
+  // but the store reference itself stays stable so context consumers don't churn.
+  const storeRef = useRef<ReturnType<typeof createExpansionStore> | null>(null);
+  if (storeRef.current === null) {
+    storeRef.current = createExpansionStore({ groups: navigationTree, pathname });
+  }
+  const store = storeRef.current;
 
   useEffect(() => {
-    setUserOverrides(readPersistedOverrides());
-  }, []);
+    store.setGroups(navigationTree);
+  }, [store, navigationTree]);
 
-  // Final expanded state = defaults + active-branch auto-open + user overrides.
-  // Recomputes when route changes so newly-active branches auto-open (unless the user has
-  // explicitly closed them, in which case the override wins).
-  const expandedItems = useMemo(
-    () =>
-      computeExpandedState({
-        groups: navigationTree,
-        pathname: router.asPath || '/',
-        userOverrides
-      }),
-    [navigationTree, router.asPath, userOverrides]
-  );
+  useEffect(() => {
+    store.setPathname(pathname);
+  }, [store, pathname]);
 
-  const toggle = useCallback(
-    (key: string) => {
-      setUserOverrides((prev) => {
-        // Read the current visible state, not the prev override — toggling reflects what the user sees.
-        const currentlyExpanded =
-          computeExpandedState({
-            groups: navigationTree,
-            pathname: router.asPath || '/',
-            userOverrides: prev
-          })[key] ?? false;
-        const next = { ...prev, [key]: !currentlyExpanded };
-        persistOverrides(next);
-        return next;
-      });
-    },
-    [navigationTree, router.asPath]
-  );
+  // Hydrate user overrides from localStorage once on mount. SSR sees empty; client picks up real
+  // values right after hydration.
+  useEffect(() => {
+    store.__hydrateOverrides();
+  }, [store]);
 
   return (
-    <div css={{ width: '100%' }}>
-      {navigationTree.map((group) => (
-        <ContentTreeGroup key={group.id} group={group} expandedItems={expandedItems} toggle={toggle} />
-      ))}
-    </div>
+    <ExpansionStoreContext.Provider value={store}>
+      <div css={{ width: '100%' }}>
+        {navigationTree.map((group) => (
+          <ContentTreeGroup key={group.id} group={group} />
+        ))}
+      </div>
+    </ExpansionStoreContext.Provider>
   );
 }

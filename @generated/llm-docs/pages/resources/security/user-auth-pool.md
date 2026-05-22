@@ -1,0 +1,859 @@
+# User Authentication Pool
+
+A Stacktape user authentication pool is a managed identity provider built on Amazon Cognito that handles user sign-up, sign-in, and access control. It supports email and phone verification, multi-factor authentication, social login (Google, Facebook, Apple), enterprise SSO (SAML, OIDC), and OAuth 2.0 flows — without requiring you to build or maintain auth infrastructure.
+
+Amazon Cognito pricing is based on monthly active users (MAU), with different rates for native sign-in users and federated identities. Check current AWS Cognito pricing for exact regional rates.
+
+## When to use
+
+Use a user authentication pool when your application needs user accounts with sign-up, sign-in, and password reset flows. It is the right choice when you want a fully managed identity layer that handles token issuance, email/SMS verification, and MFA. Common scenarios include:
+
+- **Web or mobile apps with user accounts** — the pool manages the full authentication lifecycle, including token refresh and session management.
+- **Social login** — let users sign in with Google, Facebook, Apple, Amazon, or any OIDC/SAML provider without writing OAuth plumbing.
+- **Protecting API routes** — pair the pool with an [HTTP API Gateway](/resources/networking/http-api-gateway) to validate JWTs on every request, with zero custom middleware.
+- **Admin-only account creation** — set `allowOnlyAdminsToCreateAccount: true` to restrict sign-ups so only your team can create accounts (useful for internal tools and B2B apps).
+
+## When NOT to use
+
+A user authentication pool is not the right fit for every authentication scenario. Skip it when:
+
+- **You only need machine-to-machine auth.** API keys or IAM credentials are simpler. Cognito is designed for human users with sign-in flows.
+- **You already use a third-party identity provider** (Auth0, Clerk, Supabase Auth, Firebase Auth) and want to keep it. There is no benefit to migrating unless you want to consolidate on AWS.
+- **You need fine-grained authorization logic** beyond token validation. Cognito handles authentication (who is this user?) well, but complex authorization (what can this user do?) typically lives in your application code or a policy engine.
+- **Your app has no user-facing sign-in.** If all your callers are backend services or cron jobs, a user pool adds unnecessary complexity.
+
+## Basic example
+
+A user authentication pool can be declared without any properties. Stacktape creates the underlying Cognito user pool and a user pool client. In practice, most apps configure at least a verification type so that new users verify their email or phone before gaining access.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, UserAuthPool } from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code'
+    }
+  });
+
+  return {
+    resources: { auth }
+  };
+});
+```
+
+
+This creates a user pool where new users verify their email address with a one-time code. By default, users can sign in with either their email address or phone number (`allowEmailAsUserName` and `allowPhoneNumberAsUserName` both default to `true`). The `unusedAccountValidityDays` defaults to `31`.
+
+### Admin-only accounts
+
+For internal tools, B2B dashboards, or any app where you do not want public sign-ups, set `allowOnlyAdminsToCreateAccount: true`. Accounts must then be created through an admin flow (using the Cognito `AdminCreateUser` API from your backend).
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, UserAuthPool } from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code',
+      allowOnlyAdminsToCreateAccount: true,
+      unusedAccountValidityDays: 7
+    }
+  });
+
+  return {
+    resources: { auth }
+  };
+});
+```
+
+
+Use `unusedAccountValidityDays` to control how long an unused admin-created account stays valid if the user never signs in. Setting it to `7` means the temporary password and account expire after 7 days. The default is 31 days. This is separate from `passwordPolicy.temporaryPasswordValidityDays`, which controls how long a temporary password is valid before it must be changed on first sign-in.
+
+## Connecting to resources
+
+To use the user pool from a [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), or any other compute resource, add it to the resource's [`connectTo`](/configuration/connecting-resources) list. Stacktape injects environment variables with the pool's connection details and grants full control over the user pool to the connecting resource.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  UserAuthPool,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  HttpApiGateway,
+  HttpApiIntegration
+} from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code'
+    }
+  });
+
+  const gateway = new HttpApiGateway({});
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    connectTo: ['auth'],
+    triggers: [
+      new HttpApiIntegration({
+        httpApiGatewayName: 'gateway',
+        method: '*',
+        path: '/{proxy+}'
+      })
+    ]
+  });
+
+  return {
+    resources: { auth, gateway, api }
+  };
+});
+```
+
+
+For a resource named `auth`, the following environment variables are injected by `connectTo`:
+
+| Variable | Description |
+|---|---|
+| `STP_AUTH_ID` | Cognito User Pool ID |
+| `STP_AUTH_CLIENT_ID` | User Pool Client ID |
+| `STP_AUTH_ARN` | User Pool ARN |
+
+Additional values — `domain`, `providerUrl`, and `clientSecret` (when `generateClientSecret: true`) — are available as [referenceable parameters](#referenceable-parameters) via [`$ResourceParam`](/configuration/referenceable-parameters) for use in config directives, hooks, and scripts. For example, use `$ResourceParam('auth', 'providerUrl')` to reference the OAuth/OIDC provider URL or `$ResourceParam('auth', 'domain')` for the Hosted UI domain.
+
+Your application code uses the injected environment variables to interact with the Cognito API — for example, calling `AdminCreateUser`, `InitiateAuth`, or validating tokens. Most AWS SDKs and libraries (like `amazon-cognito-identity-js` or `@aws-sdk/client-cognito-identity-provider`) accept the pool ID and client ID directly.
+
+## Protecting API routes
+
+A Stacktape user authentication pool integrates with [HTTP API Gateway](/resources/networking/http-api-gateway) to protect routes using JWT validation. When you add a `cognito` authorizer to an HTTP trigger, API Gateway validates the bearer token on every request before your code runs — unauthorized requests get a `401` response automatically.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  UserAuthPool,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  HttpApiGateway,
+  HttpApiIntegration
+} from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code'
+    }
+  });
+
+  const gateway = new HttpApiGateway({});
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    connectTo: ['auth'],
+    triggers: [
+      new HttpApiIntegration({
+        httpApiGatewayName: 'gateway',
+        method: 'GET',
+        path: '/me',
+        authorizer: {
+          type: 'cognito',
+          properties: {
+            userPoolName: 'auth'
+          }
+        }
+      })
+    ]
+  });
+
+  return {
+    resources: { auth, gateway, api }
+  };
+});
+```
+
+
+The `cognito` authorizer type validates JWTs issued by the referenced user pool. Stacktape configures the API Gateway authorizer with the correct issuer URL and audience (client ID) automatically. By default, the token is read from the `Authorization` header. You can customize this with the `identitySources` property on the authorizer to read from a different header, query parameter, or stage variable using the `$request.*` syntax.
+
+Stacktape also supports a `lambda` authorizer type, where a [Lambda function](/resources/compute/lambda-function) runs custom authorization logic for each request. Use this when your auth needs go beyond simple JWT validation — for example, checking API keys, looking up permissions in a database, or integrating with a non-Cognito identity system. See [HTTP triggers](/configuration/triggers/http-triggers) for details on both authorizer types.
+
+## Verification
+
+Stacktape user authentication pools support four verification strategies that control how new users prove ownership of their contact information. Set `userVerificationType` to choose the strategy:
+
+| Strategy | Behavior |
+|---|---|
+| `email-code` | Cognito emails a short numeric code the user enters during sign-up |
+| `email-link` | Cognito emails a clickable verification link |
+| `sms` | Cognito sends a verification code via SMS to the user's phone number |
+| `none` | No verification required — users are confirmed immediately |
+
+For most web applications, `email-code` is the best default — it works without extra infrastructure and is familiar to users. Use `email-link` for a smoother UX where users just click a link instead of copying a code. Use `sms` when phone numbers are the primary identifier (ride-sharing, delivery apps). Use `none` only for internal tools where you trust all users.
+
+You can customize the email subject and body text for both code and link verification using `userVerificationMessageConfig`. To fully customize the email sender and message format, configure `emailConfiguration.sesAddressArn` with a verified SES identity. Without SES configuration, Cognito sends emails through its built-in sender, which works for standard verification flows but has lower daily sending limits.
+
+
+> **Warning:** The `requireEmailVerification` and `requirePhoneNumberVerification` properties are reserved for forward compatibility. Stacktape currently derives verification behavior from `userVerificationType`, not from those flags directly.
+
+
+## Identity providers
+
+A Stacktape user authentication pool supports six types of external identity providers, allowing users to sign in with existing accounts instead of creating new credentials:
+
+| Provider type | Use case |
+|---|---|
+| `Google` | Consumer and business apps — most widely used social login |
+| `Facebook` | Consumer apps, especially social or e-commerce |
+| `SignInWithApple` | Required for iOS apps that offer other social logins |
+| `LoginWithAmazon` | E-commerce or Alexa-integrated apps |
+| `OIDC` | Any OpenID Connect provider (Okta, Azure AD, etc.) |
+| `SAML` | Enterprise SSO (Active Directory, Ping Identity, etc.) |
+
+Each identity provider requires a `clientId` and `clientSecret`. These are required fields in the Stacktape type for all provider types. For social and OIDC providers, obtain them from the provider's developer console. For SAML providers, advanced provider-specific options can be passed through `providerDetails` (for example, your IdP metadata URL or XML). Store secrets using the [`$Secret` directive](/configuration/directives) to avoid exposing them in your config. The syntax is `$Secret('secretName')`, where the secret is created via the [`stacktape secret:create`](/cli/secret-create) command or through the [Stacktape Console](/configuration/secrets).
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, UserAuthPool } from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code',
+      enableHostedUi: true,
+      hostedUiDomainPrefix: 'myapp-login',
+      identityProviders: [
+        {
+          type: 'Google',
+          clientId: "$Secret('google-credentials.clientId')",
+          clientSecret: "$Secret('google-credentials.clientSecret')"
+        }
+      ],
+      callbackURLs: ['https://myapp.com/auth/callback'],
+      logoutURLs: ['https://myapp.com/logged-out']
+    }
+  });
+
+  return {
+    resources: { auth }
+  };
+});
+```
+
+
+When you add an identity provider, Stacktape creates separate `AWS::Cognito::UserPoolIdentityProvider` resources and registers them in the user pool client's `SupportedIdentityProviders`. If you do not specify `attributeMapping`, Stacktape defaults to mapping `email` from the provider to the Cognito `email` attribute. You can override this with the `attributeMapping` property to map additional attributes like `given_name` or `picture`.
+
+If you omit `authorizeScopes`, Cognito/AWS default behavior applies. Set `authorizeScopes` explicitly when your app needs specific provider scopes — for example, requesting access to a user's Google Calendar or Facebook friend list.
+
+To force users to sign in exclusively through external providers (disabling username/password sign-in), set `allowOnlyExternalIdentityProviders: true`. Internally, Stacktape removes `COGNITO` from the user pool client's `SupportedIdentityProviders`.
+
+## Lambda hooks
+
+Cognito triggers let you run custom logic at key points in the authentication lifecycle. The `hooks` property connects [Lambda function](/resources/compute/lambda-function) ARNs to specific trigger points. Use [`$ResourceParam`](/configuration/referenceable-parameters) to reference a Lambda function from your stack:
+
+| Hook | When it runs | Common use case |
+|---|---|---|
+| `preSignUp` | Before a new user is created | Validate input, auto-confirm trusted domains, block sign-ups |
+| `postConfirmation` | After account confirmation | Create records in your database, provision resources |
+| `preAuthentication` | Before credential validation | Block sign-in by IP, device, or user state |
+| `postAuthentication` | After successful sign-in | Update last-login timestamps, record analytics |
+| `preTokenGeneration` | Before tokens are issued | Add custom claims (roles, permissions) to JWTs |
+| `customMessage` | Before sending email/SMS | Customize message content, localize text |
+| `userMigration` | When an unknown user signs in | Import users on-the-fly from a legacy system |
+| `createAuthChallenge` | During custom auth flow | Generate a custom challenge (e.g., OTP) |
+| `defineAuthChallenge` | During custom auth flow | Decide whether a challenge is needed |
+| `verifyAuthChallengeResponse` | During custom auth flow | Validate the user's challenge response |
+
+Each hook value must be a Lambda function ARN. Stacktape handles the necessary permissions so Cognito can invoke the function.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  UserAuthPool,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const createProfile = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/create-profile.ts'
+    })
+  });
+
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code',
+      hooks: {
+        postConfirmation: "$ResourceParam('createProfile', 'arn')"
+      }
+    }
+  });
+
+  return {
+    resources: { createProfile, auth }
+  };
+});
+```
+
+
+In this example, the `createProfile` Lambda function runs after each user confirms their account — a common pattern for writing the new user to your own database. The `$ResourceParam('createProfile', 'arn')` directive resolves to the Lambda ARN at deploy time.
+
+## Multi-factor authentication
+
+MFA adds a second verification step during sign-in, making it harder for attackers to access accounts even if they know a user's password. Stacktape supports three MFA factor types:
+
+| Factor | How it works | Requirements |
+|---|---|---|
+| `SOFTWARE_TOKEN` | Time-based one-time codes from an authenticator app (Google Authenticator, Authy) | None — works without extra configuration |
+| `SMS` | One-time codes sent via text message | Requires an SNS role so Cognito can send SMS |
+| `EMAIL_OTP` | One-time codes sent via email | Requires `emailConfiguration.sesAddressArn` with a verified SES identity |
+
+The `mfaConfiguration.status` property controls enforcement: `ON` requires MFA for all users, `OPTIONAL` lets users opt in, and `OFF` disables MFA entirely. For most apps, start with `OPTIONAL` and move to `ON` once your users have enrolled their second factor.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, UserAuthPool } from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code',
+      mfaConfiguration: {
+        status: 'OPTIONAL',
+        enabledTypes: ['SOFTWARE_TOKEN']
+      }
+    }
+  });
+
+  return {
+    resources: { auth }
+  };
+});
+```
+
+
+`SOFTWARE_TOKEN` (TOTP-based authenticator apps) is the recommended default — it has no per-message cost, works globally, and does not require SES or SNS configuration. Use `SMS` only when your users might not have access to authenticator apps, keeping in mind the per-message SMS cost. Use `EMAIL_OTP` when you already have SES configured and want a low-friction second factor that does not require a separate authenticator app.
+
+## Hosted UI
+
+Cognito provides a pre-built, hosted login and registration page so you do not have to build your own auth screens. Enable it with `enableHostedUi: true`. The Hosted UI is useful when you want authentication screens outside your main app, especially when paired with OAuth callback/logout URLs and external identity providers.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, UserAuthPool } from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      enableHostedUi: true,
+      hostedUiDomainPrefix: 'myapp-auth',
+      userVerificationType: 'email-code',
+      callbackURLs: ['https://myapp.com/auth/callback'],
+      logoutURLs: ['https://myapp.com/logged-out'],
+      allowedOAuthFlows: ['code'],
+      allowedOAuthScopes: ['email', 'openid', 'profile']
+    }
+  });
+
+  return {
+    resources: { auth }
+  };
+});
+```
+
+
+The `hostedUiDomainPrefix` sets the first part of the Hosted UI URL: `https://<prefix>.auth.<region>.amazoncognito.com`. Choose a prefix that matches your project name. Use `hostedUiCSS` to override Hosted UI styling such as colors, fonts, and layouts.
+
+**When to enable the Hosted UI:** Use it when you want to ship authentication quickly without building custom UI. It is especially useful with social login providers, since the Hosted UI handles the OAuth redirect flow for you. **When to skip it:** If you need full control over the login experience (custom animations, complex form validation, branded flows), build your own UI and use the Cognito SDK directly — you still get the same underlying user pool.
+
+### Custom domain
+
+By default, the Hosted UI is served from a Cognito-managed subdomain. To use your own domain (e.g., `auth.example.com`), configure `customDomain`:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, UserAuthPool } from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      enableHostedUi: true,
+      userVerificationType: 'email-code',
+      customDomain: {
+        domainName: 'auth.example.com'
+      },
+      callbackURLs: ['https://example.com/auth/callback'],
+      logoutURLs: ['https://example.com/logged-out']
+    }
+  });
+
+  return {
+    resources: { auth }
+  };
+});
+```
+
+
+The domain must be registered and verified with a valid ACM certificate in **us-east-1** (Cognito uses CloudFront for custom domains, which requires certificates in that region). By default, Stacktape creates a DNS record pointing to the CloudFront distribution. Set `disableDnsRecordCreation: true` if you manage DNS records outside of Stacktape — for example, through Cloudflare or another DNS provider. You can also provide a specific certificate ARN with `customCertificateArn` if you need a particular certificate.
+
+## OAuth
+
+The user pool client's OAuth configuration controls which flows, scopes, and redirect URLs are allowed. Configure these explicitly when using the Hosted UI or integrating with external identity providers:
+
+- **`allowedOAuthFlows`** — which OAuth 2.0 flows the client can use: `code` (Authorization Code, recommended for web apps), `implicit` (legacy browser-only flow), or `client_credentials` (server-to-server with no end user). For most web applications, use `['code']`.
+- **`allowedOAuthScopes`** — which scopes clients can request. Common values include `email`, `openid`, and `profile`. Set these based on what user information your application needs.
+- **`callbackURLs`** — URLs where Cognito redirects users after authentication. Must exactly match the URLs configured in your application. Include `http://localhost:3000/...` during development and your production URL for deployed environments.
+- **`logoutURLs`** — URLs where Cognito redirects after sign-out. Must also be explicitly configured.
+- **`generateClientSecret`** — set to `true` when your backend can safely store a client secret (server-side apps, not SPAs). Defaults to `false`.
+
+For most web applications, use the `code` flow with `generateClientSecret: true` on the backend. For single-page applications that call Cognito directly from the browser, use the `code` flow without a client secret (PKCE is handled automatically by the Cognito SDK).
+
+## Password policy
+
+Stacktape lets you configure password strength requirements through the `passwordPolicy` property. You can set `minimumLength` and require specific character classes (`requireLowercase`, `requireUppercase`, `requireNumbers`, `requireSymbols`).
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, UserAuthPool } from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code',
+      passwordPolicy: {
+        minimumLength: 12,
+        requireNumbers: true,
+        requireUppercase: true,
+        requireLowercase: true,
+        temporaryPasswordValidityDays: 3
+      }
+    }
+  });
+
+  return {
+    resources: { auth }
+  };
+});
+```
+
+
+The `temporaryPasswordValidityDays` inside `passwordPolicy` controls how long a temporary password issued to a new user is valid before it must be changed on first sign-in. This is distinct from the top-level `unusedAccountValidityDays`, which controls when the entire unused admin-created account expires if the user never signs in at all.
+
+When `passwordPolicy` is omitted, Stacktape does not set a Stacktape-specific default; Cognito applies its own user pool password behavior. For production applications, set at least `minimumLength: 12` and enable `requireNumbers` and `requireUppercase` — this provides meaningful security without frustrating users.
+
+## Token lifetimes
+
+Stacktape lets you control how long tokens issued by the user pool remain valid. These values are passed directly to the Cognito user pool client:
+
+| Property | Controls |
+|---|---|
+| `accessTokenValiditySeconds` | How long access tokens (used for API authorization) are valid, in seconds |
+| `idTokenValiditySeconds` | How long ID tokens (containing user profile claims) are valid, in seconds |
+| `refreshTokenValidityDays` | How long refresh tokens can obtain new access/ID tokens, in days |
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, UserAuthPool } from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code',
+      accessTokenValiditySeconds: 3600,
+      idTokenValiditySeconds: 3600,
+      refreshTokenValidityDays: 30
+    }
+  });
+
+  return {
+    resources: { auth }
+  };
+});
+```
+
+
+Shorter access token lifetimes reduce the window for token theft at the cost of more frequent refresh calls. Longer refresh token lifetimes keep users signed in longer but extend the window for session hijacking. A common starting point is 3600 seconds (1 hour) for access and ID tokens and 30 days for refresh tokens. When these properties are omitted, Stacktape does not document a Stacktape-specific default; Cognito applies its own user pool client behavior.
+
+## Custom attributes
+
+The `schema` property lets you define custom attributes stored on each user record. These are useful for data like `role`, `plan`, `tenantId`, or `companyName` that you want attached to the user profile and optionally included in JWT claims (via the `preTokenGeneration` hook).
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, UserAuthPool } from 'stacktape';
+export default defineConfig(() => {
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code',
+      schema: [
+        {
+          name: 'role',
+          attributeDataType: 'String',
+          mutable: true,
+          stringMinLength: 1,
+          stringMaxLength: 50
+        },
+        {
+          name: 'tenantId',
+          attributeDataType: 'String',
+          required: true,
+          mutable: false,
+          stringMinLength: 1,
+          stringMaxLength: 128
+        },
+        {
+          name: 'loginCount',
+          attributeDataType: 'Number',
+          mutable: true
+        }
+      ]
+    }
+  });
+
+  return {
+    resources: { auth }
+  };
+});
+```
+
+
+Each attribute specifies a `name`, `attributeDataType` (e.g., `String`, `Number`), and optional constraints like `required`, `mutable`, `stringMinLength`, and `stringMaxLength`. Attributes marked `developerOnlyAttribute: true` are only accessible from backend code — they are not exposed to end users.
+
+
+> **Warning:** Custom attributes cannot be removed or renamed after the user pool is created. Plan your schema carefully before deploying to production.
+
+
+## Firewall
+
+Stacktape user authentication pools can be protected by a [web application firewall](/resources/security/web-application-firewall) that inspects requests to the Hosted UI and Cognito token endpoints. Set `useFirewall` to the name of a `WebAppFirewall` resource in your stack.
+
+The firewall must use `scope: 'regional'` — Cognito user pools require a regional WAF web ACL. Using a CDN-scoped firewall will cause a deployment error.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, UserAuthPool, WebAppFirewall } from 'stacktape';
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    properties: {
+      scope: 'regional'
+    }
+  });
+
+  const auth = new UserAuthPool({
+    properties: {
+      userVerificationType: 'email-code',
+      useFirewall: 'firewall'
+    }
+  });
+
+  return {
+    resources: { firewall, auth }
+  };
+});
+```
+
+
+**When to enable a firewall:** Use it when your Hosted UI is publicly accessible and you want to protect against credential stuffing, bot traffic, or IP-based attacks. AWS WAF charges per web ACL and per million requests inspected — typically a few dollars per month for low-traffic apps, more at scale. **When to skip it:** For internal-only apps or apps that use custom UI with backend-only Cognito API calls, the firewall adds cost without significant benefit.
+
+## Email configuration
+
+By default, Cognito sends emails (verification codes, password resets, admin invitations) through its built-in email service. This works for development but has low daily sending limits. For production, configure `emailConfiguration.sesAddressArn` with a verified SES identity to use your own sender address and get higher throughput:
+
+- **`sesAddressArn`** — ARN of a verified SES email or domain. Required for `EMAIL_OTP` MFA because Cognito must switch into `DEVELOPER` email sending mode.
+- **`from`** — the "From" address shown to recipients. Must be verified in SES.
+- **`replyToEmailAddress`** — where replies go. If not set, replies go to the `from` address or the default Cognito sender.
+
+The `inviteMessageConfig` property customizes the email and SMS sent when an administrator creates a user account. Use `{username}` and `{####}` placeholders in the message body for the username and temporary password.
+
+## API Reference
+
+
+## API Reference: `UserAuthPoolProps`
+```typescript
+import type { AttributeSchema, EmailConfiguration, IdentityProvider, InviteMessageConfig, MfaConfiguration, PasswordPolicy, UserPoolCustomDomainConfiguration, UserPoolHooks, UserVerificationMessageConfig } from 'stacktape';
+
+type UserAuthPoolProps = {
+  /** Access token lifetime */
+  accessTokenValiditySeconds?: number;
+  /** OAuth flows */
+  allowedOAuthFlows?: Array<"client_credentials" | "code" | "implicit">;
+  /** OAuth scopes */
+  allowedOAuthScopes?: Array<string>;
+  /** Allow email addresses as usernames */
+  allowEmailAsUserName?: boolean;
+  /** Restrict account creation to administrators */
+  allowOnlyAdminsToCreateAccount?: boolean;
+  /** Force external identity providers */
+  allowOnlyExternalIdentityProviders?: boolean;
+  /** Allow phone numbers as usernames */
+  allowPhoneNumberAsUserName?: boolean;
+  /** OAuth callback URLs */
+  callbackURLs?: Array<string>;
+  /** Custom Domain */
+  customDomain?: UserPoolCustomDomainConfiguration;
+  /** Email delivery settings */
+  emailConfiguration?: EmailConfiguration;
+  /** Enable the Cognito Hosted UI */
+  enableHostedUi?: boolean;
+  /** Generate a client secret */
+  generateClientSecret?: boolean;
+  /** Lambda triggers for the user pool */
+  hooks?: UserPoolHooks;
+  /** Custom CSS for the Hosted UI */
+  hostedUiCSS?: string;
+  /** Hosted UI domain prefix */
+  hostedUiDomainPrefix?: string;
+  /** External identity providers */
+  identityProviders?: Array<IdentityProvider>;
+  /** ID token lifetime */
+  idTokenValiditySeconds?: number;
+  /** Invite message overrides */
+  inviteMessageConfig?: InviteMessageConfig;
+  /** OAuth logout URLs */
+  logoutURLs?: Array<string>;
+  /** Multi-factor authentication */
+  mfaConfiguration?: MfaConfiguration;
+  /** Password strength rules */
+  passwordPolicy?: PasswordPolicy;
+  /** Refresh token lifetime */
+  refreshTokenValidityDays?: number;
+  /** (Reserved) Require verified emails */
+  requireEmailVerification?: boolean;
+  /** (Reserved) Require verified phone numbers */
+  requirePhoneNumberVerification?: boolean;
+  /** Custom attributes schema */
+  schema?: Array<AttributeSchema>;
+  /** Expire unused admin-created accounts */
+  unusedAccountValidityDays?: number;
+  /** Associate a WAF */
+  useFirewall?: string;
+  /** Verification message text */
+  userVerificationMessageConfig?: UserVerificationMessageConfig;
+  /** Verification strategy */
+  userVerificationType?: "email-code" | "email-link" | "none" | "sms";
+};
+```
+
+| Property | Required | Type | Description | Default |
+| --- | --- | --- | --- | --- |
+| `accessTokenValiditySeconds` | no | `number` | Access token lifetime Controls how long an access token issued by Cognito stays valid after login. Shorter lifetimes reduce the window
+in which a stolen token can be abused, at the cost of more frequent refreshes.
+
+This value is passed to the user pool client as `AccessTokenValidity`. | - |
+| `allowedOAuthFlows` | no | `Array<string: "client_credentials" \| "code" \| "implicit">` | OAuth flows Specifies which OAuth 2.0 flows the user pool client is allowed to use:
+
+`code`: Authorization Code flow (recommended for web apps and backends).
+`implicit`: Implicit flow (legacy browser-only flow).
+`client_credentials`: Server‑to‑server (no end user) machine credentials.
+
+These values populate `AllowedOAuthFlows` on the Cognito user pool client
+([AWS::Cognito::UserPoolClient](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cognito-userpoolclient)). | - |
+| `allowedOAuthScopes` | no | `Array<string>` | OAuth scopes Lists which scopes clients can request when using OAuth (for example `email`, `openid`, `profile`).
+Scopes control which user information and permissions your app receives in tokens.
+
+These values are passed to the user pool client as `AllowedOAuthScopes`. | - |
+| `allowEmailAsUserName` | no | `boolean` | Allow email addresses as usernames If enabled (the default), users can sign in using their email address instead of a dedicated username.
+Turning this off means emails can still be stored, but can&#39;t be used to log in directly.
+
+This is also controlled through Cognito `UsernameAttributes`. | `true` |
+| `allowOnlyAdminsToCreateAccount` | no | `boolean` | Restrict account creation to administrators If enabled, new users can&#39;t sign up themselves. Accounts must be created through an admin flow (for example from an internal admin tool or script),
+which helps prevent unwanted self-registrations.
+
+Internally this controls `AdminCreateUserConfig.AllowAdminCreateUserOnly` on the Cognito user pool
+([AWS::Cognito::UserPool](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cognito-userpool)). | `false` |
+| `allowOnlyExternalIdentityProviders` | no | `boolean` | Force external identity providers If `true`, users can&#39;t sign in with a username/password against the Cognito user directory at all.
+Instead, they must always use one of the configured external identity providers (Google, SAML, etc.).
+
+Internally this removes `COGNITO` from `SupportedIdentityProviders` on the user pool client. | `false` |
+| `allowPhoneNumberAsUserName` | no | `boolean` | Allow phone numbers as usernames If enabled (the default), users can sign in using their phone number in addition to any traditional username.
+Turning this off means phone numbers can still be stored, but can&#39;t be used to log in.
+
+This is implemented via Cognito&#39;s `UsernameAttributes` configuration. | `true` |
+| `callbackURLs` | no | `Array<string>` | OAuth callback URLs The allowed URLs where Cognito is permitted to redirect users after successful authentication.
+These must exactly match the URLs registered with your frontend / backend, otherwise the redirect will fail.
+
+Mapped into `CallbackURLs` and `DefaultRedirectURI` on the user pool client. | - |
+| `customDomain` | no | `UserPoolCustomDomainConfiguration` | Custom Domain Configures a custom domain for the Cognito Hosted UI (e.g., `auth.example.com`).
+
+When configured, Cognito creates a CloudFront distribution to serve your custom domain.
+Stacktape automatically:
+
+Configures the user pool domain with your custom domain and an ACM certificate from us-east-1
+Creates a DNS record pointing to the CloudFront distribution
+
+The domain must be registered and verified in your Stacktape account with a valid ACM certificate in us-east-1. | - |
+| `emailConfiguration` | no | `EmailConfiguration` | Email delivery settings Controls how Cognito sends emails (verification messages, password reset codes, admin invitations, etc.).
+You can either use Cognito&#39;s built-in email service or plug in your own SES identity for full control over the sender.
+
+This config is used to build the Cognito `EmailConfiguration` block
+([AWS docs](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cognito-userpool)). | - |
+| `enableHostedUi` | no | `boolean` | Enable the Cognito Hosted UI Turns on Cognito&#39;s Hosted UI – a pre-built, hosted login and registration page – so you don&#39;t have to build your own auth screens.
+This is useful when you want to get started quickly or keep authentication logic outside of your main app. | `false` |
+| `generateClientSecret` | no | `boolean` | Generate a client secret Asks Cognito to generate a secret for the user pool client. Use this when you have trusted backends (like APIs or server‑side apps)
+that can safely store a client secret and use confidential OAuth flows.
+
+This flag controls the `GenerateSecret` property on the user pool client. | `false` |
+| `hooks` | no | `UserPoolHooks` | Lambda triggers for the user pool Connects AWS Lambda functions to Cognito &quot;hooks&quot; (triggers) such as pre-sign-up, post-confirmation, or token generation.
+You can use these to enforce additional validation, enrich user profiles, migrate users from another system, and more.
+
+Internally this maps to the Cognito user pool `LambdaConfig`. | - |
+| `hostedUiCSS` | no | `string` | Custom CSS for the Hosted UI Lets you override the default Cognito Hosted UI styling with your own CSS (colors, fonts, layouts, etc.),
+so the login experience matches the rest of your application.
+
+Behind the scenes this is applied using the `AWS::Cognito::UserPoolUICustomizationAttachment` resource. | - |
+| `hostedUiDomainPrefix` | no | `string` | Hosted UI domain prefix Sets the first part of your Hosted UI URL: `https://.auth..amazoncognito.com`.
+Pick something that matches your project or company name. | - |
+| `identityProviders` | no | `Array<IdentityProvider>` | External identity providers Allows users to sign in with third‑party identity providers like Google, Facebook, Login with Amazon, OIDC, SAML, or Sign in with Apple.
+Each entry configures one external provider (client ID/secret, attribute mapping, requested scopes, and advanced provider‑specific options).
+
+Under the hood Stacktape creates separate `AWS::Cognito::UserPoolIdentityProvider` resources and registers them
+in the user pool client&#39;s `SupportedIdentityProviders`. | - |
+| `idTokenValiditySeconds` | no | `number` | ID token lifetime Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.
+
+This is set on the user pool client as `IdTokenValidity`. | - |
+| `inviteMessageConfig` | no | `InviteMessageConfig` | Invite message overrides Customizes the contents of the &quot;invitation&quot; message that users receive when an administrator creates their account
+(for example, when sending a temporary password and sign-in instructions).
+
+If you want to send custom emails through SES, you must also configure `emailConfiguration.sesAddressArn`. | - |
+| `logoutURLs` | no | `Array<string>` | OAuth logout URLs The URLs Cognito can redirect users to after they log out of the Hosted UI or end their session.
+Must also be explicitly configured so that sign-out redirects don&#39;t fail.
+
+These populate the `LogoutURLs` list on the user pool client. | - |
+| `mfaConfiguration` | no | `MfaConfiguration` | Multi-factor authentication Controls whether you use Multi‑Factor Authentication (MFA) and which second factors are allowed.
+MFA makes it much harder for attackers to access accounts even if they know a user&#39;s password.
+
+Under the hood this config drives both the `MfaConfiguration` and `EnabledMfas` properties in Cognito
+(see &quot;MFA configuration&quot; in the
+[AWS::Cognito::UserPool docs](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cognito-userpool)). | - |
+| `passwordPolicy` | no | `PasswordPolicy` | Password strength rules Defines how strong user passwords must be – minimum length and whether they must include lowercase, uppercase,
+numbers, and/or symbols – plus how long temporary passwords issued to new users remain valid.
+
+This is applied to the Cognito `Policies.PasswordPolicy` block. | - |
+| `refreshTokenValidityDays` | no | `number` | Refresh token lifetime Sets for how many days a refresh token can be used to obtain new access / ID tokens without requiring the user to sign in again.
+Longer lifetimes mean fewer re-authentications, but keep sessions alive for longer.
+
+This value is used as `RefreshTokenValidity` on the Cognito user pool client. | - |
+| `requireEmailVerification` | no | `boolean` | (Reserved) Require verified emails Present for forward compatibility. Stacktape currently derives email / phone verification behavior from `userVerificationType`,
+not from this flag directly.
+
+To require email-based verification today, use `userVerificationType: 'email-link' | 'email-code'` instead. | - |
+| `requirePhoneNumberVerification` | no | `boolean` | (Reserved) Require verified phone numbers Present for forward compatibility. Stacktape currently derives email / phone verification behavior from `userVerificationType`,
+not from this flag directly.
+
+To require SMS-based verification today, use `userVerificationType: 'sms'`. | - |
+| `schema` | no | `Array<AttributeSchema>` | Custom attributes schema Lets you define additional attributes (like `role`, `plan`, `companyId`, etc.) that are stored on each user,
+including their data type and validation constraints.
+
+These translate into the Cognito user pool `Schema` entries
+([schema docs](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cognito-userpool)). | - |
+| `unusedAccountValidityDays` | no | `number` | Expire unused admin-created accounts When an admin creates a user account, Cognito issues a temporary password. This setting controls how many days that temporary password
+(and the corresponding account) stays valid if the user never signs in.
+
+Internally this maps to `AdminCreateUserConfig.UnusedAccountValidityDays`. | `31` |
+| `useFirewall` | no | `string` | Associate a WAF Links the user pool to a `web-app-firewall` resource, so requests to the Hosted UI and token endpoints are inspected
+by AWS WAF rules you configure in Stacktape.
+
+Stacktape does this by creating a `WebACLAssociation` between the user pool and the referenced firewall. | - |
+| `userVerificationMessageConfig` | no | `UserVerificationMessageConfig` | Verification message text Lets you customize the exact email and SMS texts that Cognito sends when asking users to verify their email / phone.
+For example, you can change subjects, body text, or the message that contains the `{####}` verification code. | - |
+| `userVerificationType` | no | `string: "email-code" \| "email-link" \| "none" \| "sms"` | Verification strategy Chooses how new users prove that they own their contact information:
+
+`email-link`: Cognito emails a clickable link.
+`email-code`: Cognito emails a short numeric code.
+`sms`: Cognito sends a code via SMS to the user&#39;s phone number.
+`none`: Users aren&#39;t required to verify email or phone during sign-up.
+
+Stacktape uses this value to configure `AutoVerifiedAttributes` and `VerificationMessageTemplate`
+on the underlying Cognito user pool. | - |
+
+
+## Referenceable parameters
+
+
+## Referenceable Parameters: `user-auth-pool`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+
+| Parameter | Description | Usage |
+| --- | --- | --- |
+| `id` | Id of the userpool | `$ResourceParam("<<resource-name>>", "id")` |
+| `clientId` | Id of the userpool | `$ResourceParam("<<resource-name>>", "clientId")` |
+| `domain` | Domain of the userpool | `$ResourceParam("<<resource-name>>", "domain")` |
+
+
+User authentication pools expose the following parameters, accessible via [`$ResourceParam`](/configuration/referenceable-parameters):
+
+| Parameter | Description |
+|---|---|
+| `id` | Cognito User Pool ID |
+| `clientId` | User Pool Client ID |
+| `arn` | User Pool ARN |
+| `providerUrl` | OAuth/OIDC provider URL |
+| `domain` | Hosted UI domain (custom domain or Cognito-managed domain) |
+| `clientSecret` | Client secret (only available when `generateClientSecret: true`) |
+
+Of these, `connectTo` automatically injects `id`, `clientId`, and `arn` as environment variables. The remaining parameters (`providerUrl`, `domain`, `clientSecret`) are available through `$ResourceParam()` for use in config directives, hooks, and scripts.
+
+## FAQ
+
+### Can I use Google, Facebook, or Apple login with a Stacktape user auth pool?
+
+Yes. The `identityProviders` property supports Google, Facebook, SignInWithApple, LoginWithAmazon, OIDC, and SAML providers. Each provider requires a `clientId` and `clientSecret`. Store secrets securely using the [`$Secret` directive](/configuration/directives). Stacktape creates the necessary `AWS::Cognito::UserPoolIdentityProvider` resources and registers them in the user pool client's `SupportedIdentityProviders` automatically.
+
+### How do I protect API routes with the user pool?
+
+Add a `cognito` authorizer to your [HTTP API Gateway](/resources/networking/http-api-gateway) trigger integration. Set `authorizer.properties.userPoolName` to your user pool resource name. API Gateway validates the JWT on every request — no middleware needed. Unauthorized requests receive a `401` response before your code runs. See [HTTP triggers](/configuration/triggers/http-triggers) for the full authorizer configuration reference.
+
+### What environment variables does connectTo inject for a user auth pool?
+
+When you add a user auth pool to a resource's [`connectTo`](/configuration/connecting-resources) list, Stacktape injects three environment variables: `STP_[RESOURCE_NAME]_ID` (pool ID), `STP_[RESOURCE_NAME]_CLIENT_ID` (client ID), and `STP_[RESOURCE_NAME]_ARN` (pool ARN). The connecting resource also receives full IAM control over the user pool. Additional parameters (`providerUrl`, `domain`, `clientSecret`) are available via [`$ResourceParam`](/configuration/referenceable-parameters) but are not automatically injected as environment variables.
+
+### How much does Amazon Cognito cost?
+
+Amazon Cognito uses a pay-per-monthly-active-user (MAU) pricing model. Direct sign-in (username/password) includes a free tier, with pricing that decreases at higher volume tiers. Social login and SAML/OIDC federation have separate, higher per-MAU rates with no free tier. There are no upfront costs or minimum commitments. Check the AWS Cognito pricing page for current regional rates.
+
+### Can I migrate users from another auth system?
+
+Yes. Configure the `userMigration` Lambda hook with a function that looks up users in your legacy system. When a user tries to sign in but does not exist in Cognito, the hook fires — your function validates credentials against the old system and returns the user profile. Cognito then creates the user transparently. This lets you migrate incrementally without a big-bang cutover or requiring users to re-register.
+
+### What is the difference between email-link and email-code verification?
+
+Both verify email ownership. `email-code` sends a numeric code the user types into your app — simpler to implement and works in any context. `email-link` sends a clickable URL that confirms the email in one step — smoother UX but requires the user to check email in the same browser or device where they started sign-up. Choose based on your UX requirements; `email-code` is the more common default.
+
+### When should I use a user auth pool vs a third-party auth service like Auth0?
+
+Use a Stacktape user auth pool when you want authentication integrated with your AWS infrastructure (IAM permissions, API Gateway JWT validation, Lambda hooks) without managing another vendor. Use Auth0 or Clerk when you need advanced features like passwordless login with passkeys, pre-built UI components for multiple frameworks, or need to stay cloud-agnostic. Cognito's MAU-based pricing with a free tier makes it cost-effective for most apps.
+
+### Does the user pool support SAML for enterprise SSO?
+
+Yes. Add an identity provider with `type: 'SAML'` and configure the `providerDetails` with your SAML metadata (IdP metadata URL or XML). This lets enterprise customers sign in with their existing Active Directory, Okta, or Ping Identity accounts. Combine with `allowOnlyExternalIdentityProviders: true` to disable password-based login entirely for a fully federated experience.
+
+### How do I add custom claims to JWT tokens?
+
+Use the `preTokenGeneration` Lambda hook. Your function receives the user's attributes and can add, modify, or suppress claims in the access and ID tokens before Cognito issues them. This is how you include roles, permissions, tenant IDs, or feature flags in the JWT without storing them in a separate system. See the [Lambda hooks](#lambda-hooks) section for all available trigger points.
+
+### Can I restrict sign-ups to admin-created accounts only?
+
+Yes. Set `allowOnlyAdminsToCreateAccount: true` on the user pool properties. New users cannot self-register — accounts must be created through the Cognito `AdminCreateUser` API from your backend or the AWS Console. Use `unusedAccountValidityDays` to control how long the unused account stays valid if the user never signs in. This is the recommended pattern for internal tools, B2B dashboards, and invite-only applications.

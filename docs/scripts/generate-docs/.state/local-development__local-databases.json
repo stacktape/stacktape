@@ -2,7 +2,7 @@
   "pageId": "local-development__local-databases",
   "pageRoute": "local-development/local-databases",
   "startedAt": "2026-05-17T19:16:45.279Z",
-  "updatedAt": "2026-05-17T19:33:48.467Z",
+  "updatedAt": "2026-05-22T02:17:49.999Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1379,6 +1379,685 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/local-development__local-databases/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Formatting is clean throughout — no forbidden YAML Stacktape config blocks, no StacktapeConfig type imports, all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]}/>.",
+            "The When to use / When NOT to use pair is opinionated and concrete, giving the first-time reader a clear decision signal before any configuration details.",
+            "Aurora engine mapping table is excellent — maps each Aurora variant to its local container, explicitly calls out what is not emulated, and tells the reader exactly how to work around it.",
+            "DynamoDB section is thorough: mentions -sharedDb flag, auto-table-creation from config, readiness polling details, synthetic ARN format, and a clear Warning about unsupported features.",
+            "FAQ covers a good range of real questions (GUI access, multi-stage parallelism, Aurora Serverless, Docker missing) and answers are concise enough to be Featured Snippets.",
+            "The 'Supported databases' table at the top gives a quick visual overview of coverage before the reader digs into per-database sections — good AEO placement."
+          ],
+          "problems": [
+            "Missing the `--freshDb` CLI flag in the 'Resetting local data' section. The LLM doc and source show this flag exists (`stacktape dev --freshDb`) and is the intended ergonomic way to wipe local state — the draft instead instructs manual directory deletion, which is a worse user experience and misses a documented feature.",
+            "Missing the `--remoteResources` CLI flag. The LLM doc explicitly documents it (`stacktape dev --remoteResources mainDb`) as a runtime alternative to `dev.remote: true` in config. This is a high-value workflow for developers who don't want to modify their config file just to switch to remote mode.",
+            "Credential defaults in the 'Supported databases' table and surrounding prose are incorrect. The draft states the local username defaults to `db_master_user` (the TypeScript type default) but the LLM doc (grounded in actual Docker container initialization) says PostgreSQL defaults to `postgres` and MySQL/MariaDB to `root` locally. For a first-time developer trying to connect with a GUI tool, the wrong username is a showstopper.",
+            "The 'Resetting local data' section is vague ('delete that resource's data directory') without telling the reader where that directory lives (`.stacktape/dev-data/<stage>/<resourceName>/data/`). The draft's FAQ also lacks a question about what happens when the database version is changed in config (the LLM doc covers this, including MySQL auto-reinitialization).",
+            "The OpenSearch section is thin — no mention that the security plugin is disabled (relevant for how to connect), no JVM heap cap (512 MB, affecting whether it will OOM on constrained dev machines), and no readiness timeout (60 s, longer than other databases).",
+            "The 'How it works' section omits health monitoring: the background monitor that polls every 30 seconds, marks resources unhealthy after 2 consecutive failures, and auto-restarts up to 3 times. A first-time user who sees a container go unhealthy will not understand why.",
+            "The 'Supported databases' table omits Docker image names, default ports, and local credential rows that would help the reader connect via a GUI tool immediately after reading."
+          ],
+          "mandatoryFixes": [
+            "Add the `--freshDb` flag to the 'Resetting local data' section. The current draft only describes manual directory deletion. The section should show `stacktape dev --freshDb` as the primary ergonomic path, then describe manual deletion as the selective alternative, mirroring the LLM doc's treatment.",
+            "Add the `--remoteResources` CLI flag to the 'Using remote databases' section. Show `stacktape dev --remoteResources mainDb` and mention comma-separated values for multiple resources as an alternative to editing `dev.remote: true` in config.",
+            "Fix credential defaults. In the 'Supported databases' table and in the PostgreSQL/MySQL prose, state the actual local Docker defaults: PostgreSQL → username `postgres`, MySQL/MariaDB → username `root`, password falls back to `localdevpassword` when `$Secret()` resolves at deploy time but not locally. The current `db_master_user` claim will confuse any developer trying to connect with pgAdmin or TablePlus."
+          ],
+          "optionalImprovements": [
+            "Add a 'Port allocation' section (or subsection under 'How it works') explaining the stage-hash offset strategy. This is uniquely useful information for developers who see a port that doesn't match the database default and wonder why.",
+            "Expand the OpenSearch section to mention: security plugin disabled (so HTTP endpoints need no auth locally), JVM heap limited to 512 MB (warn if the machine is memory-constrained), and readiness timeout of 60 seconds (longer than other databases).",
+            "Add health monitoring detail to the 'How it works' numbered list: background monitor at 30-second intervals, 2-failure threshold triggers auto-restart, up to 3 restart attempts before entering failed state requiring manual intervention.",
+            "Add a FAQ entry: 'What happens when I change the database version in my config?' — covering PostgreSQL/Redis/DynamoDB/OpenSearch container recreation and the MySQL/MariaDB auto-reinitialization behavior (with data loss warning).",
+            "Expand the 'Supported databases' overview table with Docker image names, default ports, and local credential defaults — the LLM doc has this and it immediately helps GUI-tool users.",
+            "The 'Databases without local emulation' section near the bottom largely repeats the 'Supported databases' table at the top. Consider collapsing the bottom section into the top table to avoid redundancy, or lean more on the bottom section with fuller 'what to do instead' guidance to differentiate them."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 5,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations: all Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with TypeScript and class-based resources.",
+            "Good table-driven overview of supported databases with explicit unsupported cases — makes the support matrix scannable at a glance.",
+            "Accurate DynamoDB section grounded in the source (amazon/dynamodb-local, -sharedDb flag, 300ms polling, 30s timeout, synthetic ARN format).",
+            "Aurora → PostgreSQL/MySQL container mapping table is precise and actionable; explicitly calls out which Aurora-specific features are unavailable locally.",
+            "FAQ section covers all three required categories (Stacktape-specific, AWS behavior, comparison/choosing) with appropriately detailed 2-4 sentence answers.",
+            "Clear and concrete 'When NOT to use local databases' section — names specific unsupported features rather than being vague.",
+            "Correct separation of dev-mode-only vs deployed-stack behavior throughout (e.g. instanceSize ignored locally, Aurora features AWS-only)."
+          ],
+          "problems": [
+            "'Resetting local data' section omits the `--freshDb` CLI flag documented in the LLM source, telling developers to manually delete a directory whose path is never given. A developer following this section cannot act on it.",
+            "Data directory path `.stacktape/dev-data/<stage>/<resourceName>/data/` is never mentioned anywhere in the draft, making manual resets and gitignore instructions unactionable.",
+            "`--remoteResources` CLI flag (for overriding local/remote at runtime without editing config) is absent from the 'Using remote databases' section. This is a key operational feature.",
+            "OpenSearch section is thin: no example config, no mention of the Docker image (`opensearchproject/opensearch`), no JVM heap constraint (512 MB per source), no mention of security plugin being disabled. The section has two short paragraphs with less content than every other database section.",
+            "Container naming convention (`stp-<stage>-<resourceName>`) is not documented, so developers cannot inspect or manage containers manually.",
+            "Port allocation description says 'searches for an available port near the database's default port' — the LLM source describes a deterministic stage-hash-based offset strategy, which is what actually prevents collisions across developers. The vague description may lead developers to think ports are random.",
+            "MySQL/MariaDB version change behavior (automatic data directory reinitialization on incompatible version) is not mentioned, which is a data-loss gotcha developers need to know about.",
+            "Health monitoring (background 30s checks, auto-restart up to 3 attempts) is mentioned in the 'How it works' list header but the readiness timeout numbers cited there do not match what the LLM source documents per engine (PostgreSQL 30s, MySQL/MariaDB 60s, DynamoDB 30s, OpenSearch 60s).",
+            "The 'Supported databases' table omits Docker image names, default ports, and readiness timeouts — information that is present in the source and useful for developers connecting external tools."
+          ],
+          "mandatoryFixes": [
+            "Rewrite 'Resetting local data' to: (1) document the `--freshDb` CLI flag as the primary reset method, (2) provide the actual data directory path `.stacktape/dev-data/<stage>/<resourceName>/data/` for manual targeted resets, (3) note that `--freshDb` resets ALL local databases, not just one — this is a scope caveat developers need before using it. The current section sends users on a hunt for a directory they cannot find.",
+            "Add `--remoteResources` flag documentation to the 'Using remote databases' section. Show the flag usage and note it overrides at runtime without editing config. This belongs immediately after the `dev.remote: true` explanation."
+          ],
+          "optionalImprovements": [
+            "Expand the OpenSearch section: add a config example (matching depth of other database sections), name the Docker image, mention the 512 MB JVM heap limit and what it means for local use, note that the security plugin is disabled. This section currently has notably less depth than the others.",
+            "Document the container naming convention `stp-<stage>-<resourceName>` in 'How it works'. Developers who want to inspect container logs via `docker logs` or kill a stuck container need this.",
+            "Add the stage-hash-based port offset to the port allocation description. The current wording ('searches for an available port near the default') undersells the determinism of the strategy — the hash-based approach is what makes multi-developer scenarios work reliably, not luck.",
+            "Add the MySQL/MariaDB data reinitialization warning: if you change your engine version from e.g. 8.0 to 8.4, Stacktape may automatically wipe the local data directory. This is a data-loss scenario developers should know about before bumping versions.",
+            "Expand the 'Supported databases' overview table to include Docker image name and default port per engine type. Developers connecting GUI tools (TablePlus, DBeaver) immediately after reading the table need this information without hunting through subsections.",
+            "The PostgreSQL subsection says credentials come from your config's `credentials` but doesn't address the local fallback behavior (the LLM source notes a `localdevpassword` fallback). Briefly note what happens when `$Secret()` cannot be resolved in the local context.",
+            "Add a version-change FAQ entry, or at minimum a warning callout in the MySQL section, covering the automatic data directory reinit on incompatible version changes. The current FAQ entry 'What happens when I change the database version?' only appears in the LLM docs, not the draft."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page has a clear answer-first opening, compact H2s, and a useful FAQ with Stacktape-specific, AWS-service, and decision/comparison questions.",
+            "Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript tabs and class-based resources; no forbidden YAML or StacktapeConfig style appears.",
+            "The page separates local database behavior from deployed AWS behavior in several places, especially for Aurora, instanceSize, DynamoDB Local, and remote databases.",
+            "Tables for supported databases, Aurora mappings, and unsupported resources make the high-level choices easy to scan."
+          ],
+          "problems": [
+            "The opening paragraph says local databases \"mirror the deployed stack,\" which conflicts with the page's own warnings about Aurora, DynamoDB, Redis, and OpenSearch differences. This weakens precision and violates the instruction to avoid implying parity between dev mode and deployed stacks.",
+            "Several concrete dev-mode facts present in the source are omitted: the `--remoteResources` CLI override, the `--freshDb` reset flag, the `.stacktape/dev-data/<stage>/<resourceName>/data/` persistence path, and stage-based port allocation. These are practical details readers need for this page.",
+            "The reset section is under-specified. It tells readers to delete a resource's data directory but does not provide the actual documented path or the documented `stacktape dev --freshDb` command.",
+            "Some claims are broader than the source shown for the draft supports, including Docker availability error wording, OpenSearch security-plugin behavior, and local credentials/connection behavior for non-DynamoDB resources. The page should either ground these in the provided source or narrow the wording.",
+            "The `connectTo`/environment-variable wording risks overclaiming by saying referenceable parameters are injected into workloads matching deployed-stack behavior. The supplied authoritative `connectTo` guidance is more nuanced, and non-enumerated resources should not get unsupported env-var injection claims.",
+            "The remote database section is useful but too thin on tradeoffs: it mentions when to use remote databases, but not the operational cost/risk tradeoff of pointing dev mode at real AWS resources, such as shared state mutation or AWS charges.",
+            "The page has no API reference, which is probably acceptable for a local-development guide, but it also lacks a concise command section for the main user actions (`stacktape dev`, remote resources, fresh reset)."
+          ],
+          "mandatoryFixes": [
+            "Replace \"the experience mirrors the deployed stack\" with narrower wording that explicitly says dev mode preserves the same Stacktape resource connection model where supported, while local containers do not emulate every AWS feature.",
+            "Add the documented reset path and command: show `.stacktape/dev-data/<stage>/<resourceName>/data/` and a one-command fenced bash block for `stacktape dev --freshDb`.",
+            "Add the documented runtime override for remote resources with one command per fenced bash block: `stacktape dev --remoteResources mainDb` and, if included, a separate block for `stacktape dev --remoteResources mainDb,cache`.",
+            "Add or restore a Port allocation section explaining that Stacktape avoids conflicts with a stage-based offset and sequential free-port search, and that the selected port is reflected in injected connection information.",
+            "Narrow environment-variable claims to the documented resource-name-dependent pattern `STP_[RESOURCE_NAME]_[PARAM]` and avoid implying an exhaustive env-var injection table for resources where the source does not provide one.",
+            "For each unsupported or high-risk emulation claim, either ground it in the provided source wording or soften it. In particular, revisit Docker error wording, OpenSearch security-plugin behavior, and non-DynamoDB local credential defaults."
+          ],
+          "optionalImprovements": [
+            "Add a compact \"Common commands\" section near the top so readers can immediately find dev mode, remote resource, and reset workflows.",
+            "Add a short comparison table for local vs remote databases covering cost, speed, AWS fidelity, shared state, and recommended use.",
+            "Mention the DynamoDB Local details from source more precisely: `amazon/dynamodb-local`, `-sharedDb`, `-dbPath`, `ListTables` readiness polling every 300 ms, and 30-second timeout are strong concrete facts.",
+            "In code-example prose, explain that `instanceSize: 'db.t4g.micro'` is included for deployed RDS and ignored locally; this is stated once for PostgreSQL but should be consistently reinforced where repeated.",
+            "Make the SEO description less absolute by replacing \"zero AWS cost\" with wording scoped to local containers, because `dev.remote: true` intentionally uses deployed AWS resources."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided local-database sources and follows the Stacktape config-example rules. I found two concrete issues worth fixing before publication: one credential claim conflicts with the local-dev source, and one port-allocation description is narrower than the provided source supports.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“For relational databases, the local username comes from `credentials.masterUserName` (which defaults to `db_master_user`) and the password from `credentials.masterUserPassword`.” The FAQ repeats this by saying GUI clients should use the username/password from `credentials`, with username defaulting to `db_master_user`.",
+              "reason": "The provided sources disagree on local relational credentials. The type definition supports `db_master_user` as the config default, but the local-database source says local PostgreSQL defaults to `postgres`, MySQL/MariaDB defaults to `root`, and local password may fall back to `localdevpassword`. Because the runtime relational local-resource source is not included, the draft should avoid asserting the local credential mapping as if it were certain.",
+              "suggestedFix": "Narrow the wording: say the deployed config default for `credentials.masterUserName` is `db_master_user`, but for dev mode readers should use the injected connection string or the credentials shown by dev mode. If keeping concrete local defaults, align them with the local-database source: PostgreSQL `postgres`, MySQL/MariaDB `root`, and local fallback password `localdevpassword`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "* @default \"db_master_user\""
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "For PostgreSQL, the default credentials are `postgres` / `localdevpassword` (or your configured values). For MySQL/MariaDB, the defaults are `root` / `localdevpassword`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Stacktape searches for an available port near the database's default port and binds the container there.”",
+              "reason": "The local-database source describes a stage-based offset derived from the stage name before the sequential search. Saying Stacktape searches near the database default port omits the offset behavior and can make readers expect ports close to 5432, 3306, 6379, etc.",
+              "suggestedFix": "Replace with: “Stacktape derives a stage-based port offset, then searches sequentially for an available port. The selected port is shown in dev mode output and included in injected connection strings.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "Stage-based offset — a hash of your stage name produces a deterministic offset (0–4,900 in steps of 100). Two developers running different stages on the same machine get non-overlapping port ranges by default."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab; the draft does not include hand-authored YAML config or fenced TypeScript Stacktape config.",
+            "The DynamoDB section is well grounded in the runtime source: `amazon/dynamodb-local`, `-sharedDb`, persisted data mount, `ListTables` readiness polling, table creation from `primaryKey`, and synthetic local ARN format all match the provided code.",
+            "The draft correctly keeps dev-mode behavior separate from deployed-stack behavior in the major sections, especially for Aurora-specific features and `dev.remote: true`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the supplied local-development source, but several Stacktape-specific local database claims conflict with the generated local-databases source or overstate what is documented. The highest-impact problems are local relational credentials, DynamoDB env-var naming, remote database support for third-party resources, and unsupported Docker/error-message claims.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“For relational databases, the local username comes from `credentials.masterUserName` (which defaults to `db_master_user`)…” and the FAQ repeats that GUI clients should use the username/password from `credentials`, with username defaulting to `db_master_user`.",
+              "reason": "The supplied local-databases source says local PostgreSQL defaults to `postgres`, MySQL/MariaDB defaults to `root`, and the local password can fall back to `localdevpassword`. The draft’s `db_master_user` statement comes from the deployed config type default, but it is applied to local database behavior and would give readers the wrong local login.",
+              "suggestedFix": "Describe local relational credentials as engine-specific: PostgreSQL defaults to `postgres`, MySQL/MariaDB defaults to `root`, and configured credentials may override them where supported. Avoid saying the local username defaults to `db_master_user`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "For [relational databases](/resources/databases/relational-database), the local username comes from `credentials.masterUserName` (defaults to `postgres` for PostgreSQL engines, `root` for MySQL/MariaDB), and the password comes from `credentials.masterUserPassword` (falls back to `localdevpassword` locally)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "@default \"db_master_user\""
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The connection string is injected into your workloads as `STP_MAIN_DB_CONNECTION_STRING`. Injected referenceable parameters include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`.” Similar injected-env-var lists appear for MySQL/MariaDB, Redis, DynamoDB, and OpenSearch.",
+              "reason": "The page source includes referenceable parameters, but the supplied authoritative connectTo JSDoc is not in the source list. For this verifier, the provided sources do not document env-var injection lists for Redis/OpenSearch, and OpenSearch is especially risky because the prompt explicitly warns not to claim connectTo env vars for resource types not enumerated in the connectTo JSDoc. DynamoDB source documents `referencableParams`, not injected environment variable behavior.",
+              "suggestedFix": "Keep the resource parameter lists as parameters available to local resources or via referenceable params. Only claim `STP_[RESOURCE_NAME]_[PARAM]` env var injection where the source list explicitly documents it, or narrow to “when connected to a workload, Stacktape uses the same referenceable-parameter pattern described in Connecting resources.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/local-resources/dynamodb.ts",
+                  "quote": "referencableParams: {\n      name: tableName,\n      arn: `arn:aws:dynamodb:local:000000000000:table/${tableName}`,\n      endpoint\n    }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "type RelationalDatabaseReferencableParam =\n  | 'host'\n  | 'hosts'\n  | 'connectionString'\n  | 'jdbcConnectionString'\n  | 'port'\n  | 'dbName'"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The “Databases without local emulation” table says MongoDB Atlas alternative is “Use a local MongoDB container manually, or set `dev.remote: true`” and Upstash Redis alternative is “Connect to the deployed Upstash instance (third-party managed).”",
+              "reason": "The supplied local-databases source says MongoDB Atlas and Upstash Redis are third-party managed services without local emulation, but it does not document `dev.remote: true` for MongoDB Atlas or Upstash Redis. The only `dev.remote` property in the provided type source is on `RelationalDatabaseProps`. Claiming that third-party managed resources can use `dev.remote` would change how readers configure them.",
+              "suggestedFix": "For MongoDB Atlas and Upstash Redis, say Stacktape dev mode does not provide local emulation in the supplied sources. Avoid recommending `dev.remote: true` unless the relevant resource type source explicitly exposes that property.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "dev?: DevModeConfig;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "Oracle and SQL Server engines are not mapped to a local container type in Stacktape's engine mapping. MongoDB Atlas and Upstash Redis are third-party managed services without official local emulators in the dev mode resource system."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If Docker is not available, Stacktape shows a clear error message with instructions to install or start Docker.” The FAQ repeats that Stacktape detects Docker availability at startup and directs the user to install or start Docker Desktop.",
+              "reason": "The supplied source shows Docker commands are executed for local resources, but it does not show the exact user-facing error behavior or installation instructions. The generated source also contains this prose, but no CLI/dev code in the provided source list supports the wording. This is a specific UI/CLI behavior claim.",
+              "suggestedFix": "Narrow to “Docker Desktop or another Docker-compatible runtime must be running before dev mode can start local database containers.” Avoid describing the exact error message unless Docker detection/error handling source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/local-resources/dynamodb.ts",
+                  "quote": "await execDocker(buildDockerArgs(actualPort));"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The SQL interface and connection string format match the deployed behavior” for Aurora local emulation.",
+              "reason": "The source says Aurora engines are mapped to standard PostgreSQL or MySQL containers locally and Aurora-specific behavior is unavailable. Saying the connection string format “matches the deployed behavior” is too strong: the local connection string necessarily points to localhost and the mapped engine, while deployed Aurora has AWS endpoints and Aurora-specific reader behavior. The generated source uses similar wording, but the provided type source distinguishes Aurora reader endpoints and serverless features from standard local containers.",
+              "suggestedFix": "Say the local container gives application code a PostgreSQL-compatible or MySQL-compatible SQL endpoint and a Stacktape connection string, but Aurora-specific endpoints and cluster behavior are only available against a deployed database.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "type RelationalDatabaseReferencableParam =\n  | 'host'\n  | 'hosts'\n  | 'connectionString'\n  | 'jdbcConnectionString'\n  | 'port'\n  | 'dbName'\n  | 'readerHost'\n  | 'readerPort'\n  | 'readerConnectionString'"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "Aurora-specific behavior — ACU scaling, multi-AZ replication, reader endpoints, pause-after-inactivity — is only available on the deployed AWS resource."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“In dev mode, Stacktape runs a local PostgreSQL container matching the engine version in your config.” and “In dev mode, this starts a PostgreSQL container pinned to `16.6`. Similar version-matching claims are made for MySQL, MariaDB, and Redis.",
+              "reason": "The generated source supports version-derived Docker images for these resources, but the only authoritative code file provided is DynamoDB. The relational type file only says the deployed/configured engine has a `version` property; it does not prove local Docker image version pinning. This is lower than high severity because the generated local-databases source does support the general behavior, but the exact “pinned to 16.6” claim is not grounded in runtime source in the provided list.",
+              "suggestedFix": "If keeping the claim, ground it in the generated source wording: “Stacktape uses the engine version from your config for the local image where the local engine supports it.” Avoid over-emphasizing exact pinning unless the relational local-resource source is included.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "interface SharedEngineProperties {\n  /**\n   * #### Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL).\n   */\n  version: string;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "Stacktape runs the official `postgres` Docker image. The version is taken from your engine configuration (or `latest` if not specified)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The connection string is injected into your workloads the same way as in a deployed stack. Run migrations from your application code, a deployment script, or manually via a database client connected to `localhost:<port>`.”",
+              "reason": "Deployment scripts are deployed-stack lifecycle resources, and the provided sources for this local-development page do not show that deployment scripts run inside dev mode or receive local database connection strings. This could mislead readers into expecting deployment-script behavior during local dev.",
+              "suggestedFix": "For local migrations, recommend running migrations from the application workload in dev mode or from a local database client using the displayed host/port. Remove deployment scripts from this local-dev migration sentence unless a source documents that workflow.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "Run migrations from your application code, a [deployment script](/resources/advanced/deployment-scripts), or manually via a database client connected to `localhost:<port>`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Data persists between sessions” and “Data from local databases persists across dev sessions in a directory Stacktape mounts into the container,” without naming the actual `.stacktape/dev-data/<stage>/<resourceName>/data/` path or the `--freshDb` reset option.",
+              "reason": "Persistence is supported by the sources, but the draft gives a manual deletion workflow while omitting the documented `--freshDb` flag from the supplied local-databases source. This is not strictly false, but it is incomplete for a page whose goal is “which databases can run locally and how.”",
+              "suggestedFix": "Add the documented path and the `stacktape dev --freshDb` command as the primary reset workflow, with manual deletion as an advanced fallback.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft avoids forbidden hand-authored YAML and uses `<CodeBlock intellisense>` with `label: 'TypeScript'` for Stacktape config examples.",
+            "The `dev.remote: true` guidance for relational databases is grounded in `RelationalDatabaseProps.dev?: DevModeConfig` and the local-databases source.",
+            "The DynamoDB Local section is well grounded: `amazon/dynamodb-local`, `-sharedDb`, the mounted data path, table creation from `primaryKey`, ListTables readiness polling, 300 ms polling, 30-second timeout, and synthetic local ARN all match the provided `dynamodb.ts` source.",
+            "All visible markdown cross-links point to routes present in the supplied navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 1, col 44: '\"stacktape\"' has no exported member named 'RdsEnginePostgresql'. Did you mean 'RdsEnginePostgres'?",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): `new RdsEnginePostgresql(...)` references an unknown class.",
+              "reason": "`RdsEnginePostgresql` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `RdsEnginePostgresql` is meant to be a custom class, define it in the example or remove the example."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Type '\"7.2\"' is not assignable to type '\"6.0\" | \"6.2\" | \"7.0\" | \"7.1\" | undefined'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Type '\"7.2\"' is not assignable to type '\"6.0\" | \"6.2\" | \"7.0\" | \"7.1\" | undefined'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 1, col 44: '\"stacktape\"' has no exported member named 'RdsEnginePostgresql'. Did you mean 'RdsEnginePostgres'?",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): `new RdsEnginePostgresql(...)` references an unknown class.",
+              "reason": "`RdsEnginePostgresql` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `RdsEnginePostgresql` is meant to be a custom class, define it in the example or remove the example."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Unknown MDX component <PARAM> on /local-development/local-databases.",
+              "reason": "<PARAM> is not registered in the docs MDX component map used by the generator.",
+              "suggestedFix": "Use a registered MDX component or add <PARAM> to the component registry and validator allow-list."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/local-development__local-databases/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Formatting is clean throughout — no forbidden YAML Stacktape config blocks, no StacktapeConfig type imports, all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]}/>.",
+            "The When to use / When NOT to use pair is opinionated and concrete, giving the first-time reader a clear decision signal before any configuration details.",
+            "Aurora engine mapping table is excellent — maps each Aurora variant to its local container, explicitly calls out what is not emulated, and tells the reader exactly how to work around it.",
+            "DynamoDB section is thorough: mentions -sharedDb flag, auto-table-creation from config, readiness polling details, synthetic ARN format, and a clear Warning about unsupported features.",
+            "FAQ covers a good range of real questions (GUI access, multi-stage parallelism, Aurora Serverless, Docker missing) and answers are concise enough to be Featured Snippets.",
+            "The 'Supported databases' table at the top gives a quick visual overview of coverage before the reader digs into per-database sections — good AEO placement."
+          ],
+          "problems": [
+            "Missing the `--freshDb` CLI flag in the 'Resetting local data' section. The LLM doc and source show this flag exists (`stacktape dev --freshDb`) and is the intended ergonomic way to wipe local state — the draft instead instructs manual directory deletion, which is a worse user experience and misses a documented feature.",
+            "Missing the `--remoteResources` CLI flag. The LLM doc explicitly documents it (`stacktape dev --remoteResources mainDb`) as a runtime alternative to `dev.remote: true` in config. This is a high-value workflow for developers who don't want to modify their config file just to switch to remote mode.",
+            "Credential defaults in the 'Supported databases' table and surrounding prose are incorrect. The draft states the local username defaults to `db_master_user` (the TypeScript type default) but the LLM doc (grounded in actual Docker container initialization) says PostgreSQL defaults to `postgres` and MySQL/MariaDB to `root` locally. For a first-time developer trying to connect with a GUI tool, the wrong username is a showstopper.",
+            "The 'Resetting local data' section is vague ('delete that resource's data directory') without telling the reader where that directory lives (`.stacktape/dev-data/<stage>/<resourceName>/data/`). The draft's FAQ also lacks a question about what happens when the database version is changed in config (the LLM doc covers this, including MySQL auto-reinitialization).",
+            "The OpenSearch section is thin — no mention that the security plugin is disabled (relevant for how to connect), no JVM heap cap (512 MB, affecting whether it will OOM on constrained dev machines), and no readiness timeout (60 s, longer than other databases).",
+            "The 'How it works' section omits health monitoring: the background monitor that polls every 30 seconds, marks resources unhealthy after 2 consecutive failures, and auto-restarts up to 3 times. A first-time user who sees a container go unhealthy will not understand why.",
+            "The 'Supported databases' table omits Docker image names, default ports, and local credential rows that would help the reader connect via a GUI tool immediately after reading."
+          ],
+          "mandatoryFixes": [
+            "Add the `--freshDb` flag to the 'Resetting local data' section. The current draft only describes manual directory deletion. The section should show `stacktape dev --freshDb` as the primary ergonomic path, then describe manual deletion as the selective alternative, mirroring the LLM doc's treatment.",
+            "Add the `--remoteResources` CLI flag to the 'Using remote databases' section. Show `stacktape dev --remoteResources mainDb` and mention comma-separated values for multiple resources as an alternative to editing `dev.remote: true` in config.",
+            "Fix credential defaults. In the 'Supported databases' table and in the PostgreSQL/MySQL prose, state the actual local Docker defaults: PostgreSQL → username `postgres`, MySQL/MariaDB → username `root`, password falls back to `localdevpassword` when `$Secret()` resolves at deploy time but not locally. The current `db_master_user` claim will confuse any developer trying to connect with pgAdmin or TablePlus."
+          ],
+          "optionalImprovements": [
+            "Add a 'Port allocation' section (or subsection under 'How it works') explaining the stage-hash offset strategy. This is uniquely useful information for developers who see a port that doesn't match the database default and wonder why.",
+            "Expand the OpenSearch section to mention: security plugin disabled (so HTTP endpoints need no auth locally), JVM heap limited to 512 MB (warn if the machine is memory-constrained), and readiness timeout of 60 seconds (longer than other databases).",
+            "Add health monitoring detail to the 'How it works' numbered list: background monitor at 30-second intervals, 2-failure threshold triggers auto-restart, up to 3 restart attempts before entering failed state requiring manual intervention.",
+            "Add a FAQ entry: 'What happens when I change the database version in my config?' — covering PostgreSQL/Redis/DynamoDB/OpenSearch container recreation and the MySQL/MariaDB auto-reinitialization behavior (with data loss warning).",
+            "Expand the 'Supported databases' overview table with Docker image names, default ports, and local credential defaults — the LLM doc has this and it immediately helps GUI-tool users.",
+            "The 'Databases without local emulation' section near the bottom largely repeats the 'Supported databases' table at the top. Consider collapsing the bottom section into the top table to avoid redundancy, or lean more on the bottom section with fuller 'what to do instead' guidance to differentiate them."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 5,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations: all Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with TypeScript and class-based resources.",
+            "Good table-driven overview of supported databases with explicit unsupported cases — makes the support matrix scannable at a glance.",
+            "Accurate DynamoDB section grounded in the source (amazon/dynamodb-local, -sharedDb flag, 300ms polling, 30s timeout, synthetic ARN format).",
+            "Aurora → PostgreSQL/MySQL container mapping table is precise and actionable; explicitly calls out which Aurora-specific features are unavailable locally.",
+            "FAQ section covers all three required categories (Stacktape-specific, AWS behavior, comparison/choosing) with appropriately detailed 2-4 sentence answers.",
+            "Clear and concrete 'When NOT to use local databases' section — names specific unsupported features rather than being vague.",
+            "Correct separation of dev-mode-only vs deployed-stack behavior throughout (e.g. instanceSize ignored locally, Aurora features AWS-only)."
+          ],
+          "problems": [
+            "'Resetting local data' section omits the `--freshDb` CLI flag documented in the LLM source, telling developers to manually delete a directory whose path is never given. A developer following this section cannot act on it.",
+            "Data directory path `.stacktape/dev-data/<stage>/<resourceName>/data/` is never mentioned anywhere in the draft, making manual resets and gitignore instructions unactionable.",
+            "`--remoteResources` CLI flag (for overriding local/remote at runtime without editing config) is absent from the 'Using remote databases' section. This is a key operational feature.",
+            "OpenSearch section is thin: no example config, no mention of the Docker image (`opensearchproject/opensearch`), no JVM heap constraint (512 MB per source), no mention of security plugin being disabled. The section has two short paragraphs with less content than every other database section.",
+            "Container naming convention (`stp-<stage>-<resourceName>`) is not documented, so developers cannot inspect or manage containers manually.",
+            "Port allocation description says 'searches for an available port near the database's default port' — the LLM source describes a deterministic stage-hash-based offset strategy, which is what actually prevents collisions across developers. The vague description may lead developers to think ports are random.",
+            "MySQL/MariaDB version change behavior (automatic data directory reinitialization on incompatible version) is not mentioned, which is a data-loss gotcha developers need to know about.",
+            "Health monitoring (background 30s checks, auto-restart up to 3 attempts) is mentioned in the 'How it works' list header but the readiness timeout numbers cited there do not match what the LLM source documents per engine (PostgreSQL 30s, MySQL/MariaDB 60s, DynamoDB 30s, OpenSearch 60s).",
+            "The 'Supported databases' table omits Docker image names, default ports, and readiness timeouts — information that is present in the source and useful for developers connecting external tools."
+          ],
+          "mandatoryFixes": [
+            "Rewrite 'Resetting local data' to: (1) document the `--freshDb` CLI flag as the primary reset method, (2) provide the actual data directory path `.stacktape/dev-data/<stage>/<resourceName>/data/` for manual targeted resets, (3) note that `--freshDb` resets ALL local databases, not just one — this is a scope caveat developers need before using it. The current section sends users on a hunt for a directory they cannot find.",
+            "Add `--remoteResources` flag documentation to the 'Using remote databases' section. Show the flag usage and note it overrides at runtime without editing config. This belongs immediately after the `dev.remote: true` explanation."
+          ],
+          "optionalImprovements": [
+            "Expand the OpenSearch section: add a config example (matching depth of other database sections), name the Docker image, mention the 512 MB JVM heap limit and what it means for local use, note that the security plugin is disabled. This section currently has notably less depth than the others.",
+            "Document the container naming convention `stp-<stage>-<resourceName>` in 'How it works'. Developers who want to inspect container logs via `docker logs` or kill a stuck container need this.",
+            "Add the stage-hash-based port offset to the port allocation description. The current wording ('searches for an available port near the default') undersells the determinism of the strategy — the hash-based approach is what makes multi-developer scenarios work reliably, not luck.",
+            "Add the MySQL/MariaDB data reinitialization warning: if you change your engine version from e.g. 8.0 to 8.4, Stacktape may automatically wipe the local data directory. This is a data-loss scenario developers should know about before bumping versions.",
+            "Expand the 'Supported databases' overview table to include Docker image name and default port per engine type. Developers connecting GUI tools (TablePlus, DBeaver) immediately after reading the table need this information without hunting through subsections.",
+            "The PostgreSQL subsection says credentials come from your config's `credentials` but doesn't address the local fallback behavior (the LLM source notes a `localdevpassword` fallback). Briefly note what happens when `$Secret()` cannot be resolved in the local context.",
+            "Add a version-change FAQ entry, or at minimum a warning callout in the MySQL section, covering the automatic data directory reinit on incompatible version changes. The current FAQ entry 'What happens when I change the database version?' only appears in the LLM docs, not the draft."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page has a clear answer-first opening, compact H2s, and a useful FAQ with Stacktape-specific, AWS-service, and decision/comparison questions.",
+            "Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript tabs and class-based resources; no forbidden YAML or StacktapeConfig style appears.",
+            "The page separates local database behavior from deployed AWS behavior in several places, especially for Aurora, instanceSize, DynamoDB Local, and remote databases.",
+            "Tables for supported databases, Aurora mappings, and unsupported resources make the high-level choices easy to scan."
+          ],
+          "problems": [
+            "The opening paragraph says local databases \"mirror the deployed stack,\" which conflicts with the page's own warnings about Aurora, DynamoDB, Redis, and OpenSearch differences. This weakens precision and violates the instruction to avoid implying parity between dev mode and deployed stacks.",
+            "Several concrete dev-mode facts present in the source are omitted: the `--remoteResources` CLI override, the `--freshDb` reset flag, the `.stacktape/dev-data/<stage>/<resourceName>/data/` persistence path, and stage-based port allocation. These are practical details readers need for this page.",
+            "The reset section is under-specified. It tells readers to delete a resource's data directory but does not provide the actual documented path or the documented `stacktape dev --freshDb` command.",
+            "Some claims are broader than the source shown for the draft supports, including Docker availability error wording, OpenSearch security-plugin behavior, and local credentials/connection behavior for non-DynamoDB resources. The page should either ground these in the provided source or narrow the wording.",
+            "The `connectTo`/environment-variable wording risks overclaiming by saying referenceable parameters are injected into workloads matching deployed-stack behavior. The supplied authoritative `connectTo` guidance is more nuanced, and non-enumerated resources should not get unsupported env-var injection claims.",
+            "The remote database section is useful but too thin on tradeoffs: it mentions when to use remote databases, but not the operational cost/risk tradeoff of pointing dev mode at real AWS resources, such as shared state mutation or AWS charges.",
+            "The page has no API reference, which is probably acceptable for a local-development guide, but it also lacks a concise command section for the main user actions (`stacktape dev`, remote resources, fresh reset)."
+          ],
+          "mandatoryFixes": [
+            "Replace \"the experience mirrors the deployed stack\" with narrower wording that explicitly says dev mode preserves the same Stacktape resource connection model where supported, while local containers do not emulate every AWS feature.",
+            "Add the documented reset path and command: show `.stacktape/dev-data/<stage>/<resourceName>/data/` and a one-command fenced bash block for `stacktape dev --freshDb`.",
+            "Add the documented runtime override for remote resources with one command per fenced bash block: `stacktape dev --remoteResources mainDb` and, if included, a separate block for `stacktape dev --remoteResources mainDb,cache`.",
+            "Add or restore a Port allocation section explaining that Stacktape avoids conflicts with a stage-based offset and sequential free-port search, and that the selected port is reflected in injected connection information.",
+            "Narrow environment-variable claims to the documented resource-name-dependent pattern `STP_[RESOURCE_NAME]_[PARAM]` and avoid implying an exhaustive env-var injection table for resources where the source does not provide one.",
+            "For each unsupported or high-risk emulation claim, either ground it in the provided source wording or soften it. In particular, revisit Docker error wording, OpenSearch security-plugin behavior, and non-DynamoDB local credential defaults."
+          ],
+          "optionalImprovements": [
+            "Add a compact \"Common commands\" section near the top so readers can immediately find dev mode, remote resource, and reset workflows.",
+            "Add a short comparison table for local vs remote databases covering cost, speed, AWS fidelity, shared state, and recommended use.",
+            "Mention the DynamoDB Local details from source more precisely: `amazon/dynamodb-local`, `-sharedDb`, `-dbPath`, `ListTables` readiness polling every 300 ms, and 30-second timeout are strong concrete facts.",
+            "In code-example prose, explain that `instanceSize: 'db.t4g.micro'` is included for deployed RDS and ignored locally; this is stated once for PostgreSQL but should be consistently reinforced where repeated.",
+            "Make the SEO description less absolute by replacing \"zero AWS cost\" with wording scoped to local containers, because `dev.remote: true` intentionally uses deployed AWS resources."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the supplied generated local-databases source and uses the required CodeBlock pattern for Stacktape config examples. The main publication risks are Stacktape-specific details that are either contradicted by the higher-priority relational database types or overstate local/deployed parity beyond the available source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“For relational databases, the local container is initialized with the password from `credentials.masterUserPassword`. The default local username depends on the engine: PostgreSQL uses `postgres`, MySQL and MariaDB use `root`. The configured `credentials.masterUserName` may override these where the underlying container image supports it.”",
+              "reason": "The higher-priority relational database type source documents `credentials.masterUserName` as the admin username with default `db_master_user`. The draft replaces that with engine-specific local usernames and a conditional override that is not supported by the provided source and contradicts the generated source’s earlier wording.",
+              "suggestedFix": "Say that the local username comes from `credentials.masterUserName`, which defaults to `db_master_user`, and the password comes from `credentials.masterUserPassword`. Avoid claiming PostgreSQL uses `postgres` or MySQL/MariaDB use `root` unless local resource code proves it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "interface RelationalDatabaseCredentials {\n  /**\n   * #### Admin username. Avoid special characters: `[]{}(),;?*=!@`.\n   *\n   * ---\n   *\n   * > **Warning:** Changing this after creation **replaces the database and deletes all data**.\n   *\n   * @default \"db_master_user\"\n   */\n  masterUserName?: string;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "For [relational databases](/resources/databases/relational-database), the local username comes from `credentials.masterUserName` (which defaults to `db_master_user`) and the password from `credentials.masterUserPassword`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The SQL interface and connection string format match the deployed behavior” and “The SQL interface and connection string format are the same, so application code works unchanged.”",
+              "reason": "The source supports that Aurora engines are mapped to PostgreSQL/MySQL containers locally, but it does not prove full connection-string parity or that application code works unchanged. The same source also says Aurora-specific behavior is not available locally, so the parity claim is too broad.",
+              "suggestedFix": "Narrow the wording to: “For typical SQL queries, the local PostgreSQL/MySQL container is usually enough for application-level development. Aurora-specific behavior is only available on the deployed AWS resource.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“In dev mode, Stacktape runs a local PostgreSQL container matching the engine version in your config” and “this starts a PostgreSQL container pinned to `16.6`.”",
+              "reason": "The provided authoritative relational type source documents that `version` exists, but the provided local runtime source does not show PostgreSQL container image selection or version pinning. The generated docs claim matching versions, but there is no higher-priority implementation evidence in the provided source files.",
+              "suggestedFix": "Write more cautiously: “The deployed database uses the engine version from your config. In dev mode, Stacktape runs a local PostgreSQL container for PostgreSQL engines.” Only mention exact local version matching if the local relational-database runtime source is available and confirms it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "interface SharedEngineProperties {\n  /**\n   * #### Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL).\n   */\n  version: string;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "In dev mode, Stacktape runs a local PostgreSQL container matching the engine version in your config."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“In dev mode, Stacktape runs a local Redis container that matches your `engineVersion`.”",
+              "reason": "No Redis local-resource implementation or Redis config type source is included. The supplied source list does not establish that local Redis image selection matches `engineVersion`; this is a Stacktape-specific behavior claim that affects expectations when testing Redis version behavior locally.",
+              "suggestedFix": "Narrow to: “In dev mode, Stacktape runs a local Redis container for Redis resources.” Remove the version-matching claim unless the Redis local resource source confirms it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/local-databases.md",
+                  "quote": "In dev mode, Stacktape runs a local Redis container that matches your `engineVersion`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If Docker is not available, Stacktape shows a clear error message with instructions to install or start Docker.” and FAQ wording with the same claim.",
+              "reason": "The provided DynamoDB implementation uses Docker helpers but does not include the error text or prove an instructional Docker-availability error. The draft’s statement is user-facing behavior that should be backed by CLI/runtime source, not inferred.",
+              "suggestedFix": "Say only: “Docker Desktop or another Docker-compatible runtime must be running before starting dev mode.” Avoid describing the exact error quality or instructions unless the Docker helper source is included.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/local-resources/dynamodb.ts",
+                  "quote": "import { execDocker } from '@shared/utils/docker';"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/local-resources/dynamodb.ts",
+                  "quote": "await execDocker(buildDockerArgs(actualPort));"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Add the local Stacktape state directory to your `.gitignore`” and “delete that resource's data directory” without naming where that directory is.",
+              "reason": "The provided source proves Docker containers mount a `dataDir`, but it does not document the user-visible local Stacktape state directory path. The instruction may be useful, but without a grounded path it is not actionable and could mislead users into deleting or ignoring the wrong directory.",
+              "suggestedFix": "Either provide the exact documented path if available from source, or rewrite to: “If you inspect dev mode state on disk, avoid committing generated database files.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/local-resources/dynamodb.ts",
+                  "quote": "const { name, port, dataDir, containerName } = config;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/local-resources/dynamodb.ts",
+                  "quote": "'-v',\n    `${dataDir}:${DYNAMODB_DATA_PATH}`,"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft’s Stacktape config examples import and instantiate `RdsEnginePostgres`.",
+              "reason": "The provided type source defines the engine type value as `postgres`, while the generated source example uses `RdsEnginePostgresql`. The exact exported class names are not visible in the supplied source files, so this may be valid or invalid depending on the package exports, but it is worth checking with the deterministic code-block validator.",
+              "suggestedFix": "Verify the examples type-check. If the validator fails, use the exported class name expected by the Stacktape package, likely the same spelling used by generated examples.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape may pick a port other than the database's default to avoid collisions across stages and developers. The assigned port is displayed in the dev mode TUI…”",
+              "reason": "The DynamoDB source proves port probing and fallback for DynamoDB, but the provided source does not prove the same behavior for every supported local database or that the TUI displays every assigned port. This should be narrowed unless the shared local-resource/TUI source is available.",
+              "suggestedFix": "Scope the claim to local resources generally only if shared helper/TUI source confirms it, or say “Dev mode uses the connection string it provides to workloads, so application code should not assume the default database port.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />` for Stacktape config examples and does not hand-author YAML examples.",
+            "The draft correctly separates dev-mode local database behavior from deployed-stack behavior in several places, especially around `dev.remote: true`.",
+            "The DynamoDB section is well grounded in the supplied runtime source for the image name, `-sharedDb`, `-dbPath`, automatic table creation from `primaryKey`, local endpoint, synthetic ARN, and readiness polling interval/timeout.",
+            "The draft uses valid navigation routes for the cross-links checked against the provided documentation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 5: Type '\"7.2\"' is not assignable to type '\"6.0\" | \"6.2\" | \"7.0\" | \"7.1\" | undefined'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 7: Type '\"7.2\"' is not assignable to type '\"6.0\" | \"6.2\" | \"7.0\" | \"7.1\" | undefined'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1391,8 +2070,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\local-development\\local-databases.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/local-development/local-databases.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 6.9, hard blockers 25, advisory high 0, verifier medium 19"
+  "pipelineReviewSummary": "reviewer-avg 6.9, hard blockers 2, advisory high 0, verifier medium 6",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

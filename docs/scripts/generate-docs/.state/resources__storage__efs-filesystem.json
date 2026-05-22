@@ -2,7 +2,7 @@
   "pageId": "resources__storage__efs-filesystem",
   "pageRoute": "resources/storage/efs-filesystem",
   "startedAt": "2026-05-14T13:23:01.998Z",
-  "updatedAt": "2026-05-15T14:33:26.680Z",
+  "updatedAt": "2026-05-22T01:23:48.826Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1321,20 +1321,270 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__storage__efs-filesystem/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three throughput modes (elastic, provisioned, bursting) are fully documented — each with a working example, decision guidance, and a cost/tradeoff signal. This satisfies the union-type coverage requirement.",
+            "The 'When NOT to use' section includes a comparison table with concrete alternatives (S3, HostingBucket, relational DB) and a direct cost comparison (~$0.30/GB vs ~$0.023/GB) that genuinely helps the reader decide.",
+            "The mounting section gives a realistic, end-to-end example (EfsFilesystem + WebService together) that a reader can copy directly. The prose explanation of efsFilesystemName, mountPath, and rootDirectory properties is grounded in the source's SimpleServiceContainer.volumeMounts JSDoc.",
+            "The backups section is unusually complete: it explains what IS configurable (backupEnabled: true), what is NOT configurable (schedule, retention), when to skip backups (ephemeral data), and the cost implication — all in a tight paragraph.",
+            "The 10-question FAQ spans all three required categories: Stacktape-specific ('How do I mount?', 'Can I use EFS with Lambda?'), AWS use-case questions ('Does EFS have a storage limit?', 'Does EFS encrypt data?'), and comparison questions ('EFS vs S3', 'EFS vs EBS'). Answer depth is appropriate.",
+            "The Warning callout for provisioned throughput billing is correctly placed and prevents an easy cost surprise for first-time users.",
+            "Pricing context appears near the top, matches the source JSDoc exactly (~$0.30/GB/month for standard access), and uses the required '~' approximation.",
+            "No forbidden patterns present: no YAML config blocks, no StacktapeConfig plain-object style, no fenced TypeScript containing defineConfig, no YAML alternative tabs, no marketing language, no PropertiesTable, exactly one ApiReference."
+          ],
+          "problems": [
+            "Missing <ReferenceableParams> component: the source clearly defines EfsFilesystemReferencableParam = 'arn', and the page's default rhythm says to include <ReferenceableParams resource=\"...\" /> when the resource exposes any. There is no mention anywhere on the page of how to reference the filesystem's ARN from other resources.",
+            "The <Info> callout about Lambda EFS mounts makes three specific Stacktape configuration claims — that the type is 'LambdaEfsMount', that joinDefaultVpc: true is required, and that mount paths must start with /mnt/ — none of which are grounded in the provided source files. These are presented as facts about configuration, not as forward references.",
+            "The ContainerEfsMount shape used in the mounting code example (type: 'efs', properties.efsFilesystemName, properties.rootDirectory) is not defined in any of the provided source files. The ContainerEfsMount type is referenced in SimpleServiceContainer but not defined inline. The code-block validator should confirm this shape, but from the prose-review perspective it is unverified.",
+            "The POSIX reference ('standard POSIX filesystem interface — a mounted directory where fs.readFile, open(), and other standard file I/O calls work') has a useful concrete expansion, but the initial mention of 'POSIX filesystem' in the opening paragraph (where the reader might first encounter it) has no inline explanation. Beginners may not know what POSIX means."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add <ReferenceableParams resource=\"efs-filesystem\" /> near the ApiReference section to document the 'arn' referenceable parameter. This lets readers know they can use $ResourceParam('sharedStorage', 'arn') to reference the filesystem from IAM statements or other resources.",
+            "Soften or gate the Lambda EFS mount claims in the <Info> callout. Replace specific type names and property names ('LambdaEfsMount', 'joinDefaultVpc: true', '/mnt/ prefix') with 'See the Lambda function page for the exact configuration requirements' — let the Lambda page carry those grounded claims rather than asserting them from unsourced context here.",
+            "Add a one-clause inline explanation of 'POSIX' in the opening paragraph, e.g., 'standard POSIX filesystem interface (the same API as a local disk)' — this costs four words and removes the only piece of jargon that has no context for a low-AWS-experience reader.",
+            "The mounting section's prose bullets for efsFilesystemName, mountPath, and rootDirectory read slightly like a mini API reference. Consider condensing these to 1-2 sentences and relying on the linked resource API references for the full property details, to avoid duplication with what the ApiReference component already surfaces.",
+            "The 'EFS vs EBS' FAQ answer ends with 'consider whether EFS in provisioned throughput mode meets your requirements' — this is slightly circular. A stronger close would name EFS's actual ceiling (e.g., 'EFS provisioned throughput can reach several GB/s, which covers most shared-storage workloads') or simply say 'EBS is not a Stacktape resource type and is not available through this abstraction layer.'",
+            "The throughput modes comparison table header 'Default' column could be clearer — 'elastic' is labeled 'Yes' while others say 'No', but a reader skimming the table might not realize 'Default: Yes' means 'this is what you get if you don't set throughputMode.' Changing the column header to 'Is default?' or rewording to 'Recommended default' would prevent confusion."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with label: 'TypeScript' — no YAML blocks, no fenced TypeScript with defineConfig, no StacktapeConfig type pattern.",
+            "Throughput modes section covers all three union variants (elastic, provisioned, bursting) with per-variant decision guidance, a comparison table, and working code examples — good union-type coverage discipline.",
+            "The 'When NOT to use' section is its own H2 with a concrete comparison table and a cost ratio signal, not buried under 'When to use'.",
+            "Pricing context (~$0.30/GB/month) is sourced directly from the EfsFilesystemProps JSDoc and placed near the top as required.",
+            "FAQ has exactly 10 Q&A pairs spanning Stacktape-specific, AWS-use-case, and comparison categories. Answers are concise and self-contained.",
+            "Backups section accurately sources 35-day retention and incremental behavior from the JSDoc, and correctly notes that no schedule/retention controls are exposed in EfsFilesystemProps.",
+            "Single <ApiReference definitionName=\"EfsFilesystemProps\" /> — correct definitionName matches the source type, not the bare class name."
+          ],
+          "problems": [
+            "MISSING REFERENCEABLE PARAMS SECTION: The source defines EfsFilesystemReferencableParam = 'arn', meaning EFS exposes an 'arn' referenceable parameter. The page instructions require a <ReferenceableParams resource=\"...\" /> component when a resource exposes any params. This component is entirely absent.",
+            "UNVERIFIED ContainerEfsMount SHAPE: The mounting example shows a specific structure — type: 'efs', properties.efsFilesystemName, properties.mountPath, properties.rootDirectory — but the provided source files only declare 'volumeMounts?: ContainerEfsMount[]' without defining ContainerEfsMount. If these field names are wrong, a production engineer will get a runtime or type error copying this example.",
+            "UNSOURCED LAMBDA EFS MOUNT CLAIMS: The Info callout claims 'Lambda functions also support EFS mounts through a separate LambdaEfsMount configuration' and that 'mount paths must start with /mnt/'. Neither LambdaEfsMount as a type name nor the /mnt/ requirement appears anywhere in the provided source files. This is invented Stacktape-specific API surface.",
+            "S3 PRICE IN PROSE (NOT JUST FAQ): $0.023/GB/month for S3 Standard appears in the 'When NOT to use' section body, not only in the FAQ. This price is not in any provided source file. The rule says 'never invent or estimate AWS list prices that are not present in the provided source' outside of FAQ context where well-known AWS facts are permitted."
+          ],
+          "mandatoryFixes": [
+            "Add a <ReferenceableParams resource=\"efs-filesystem\" /> component to surface the 'arn' referenceable parameter, which is documented in the source as EfsFilesystemReferencableParam = 'arn'. Place it after the API Reference section or wherever fits the page flow.",
+            "Either source-ground the ContainerEfsMount field names (type: 'efs', efsFilesystemName, mountPath, rootDirectory) from an authoritative source file, or replace the mounting example's property shape with a note directing the reader to the workload resource's API reference for the exact volumeMounts schema. Invented field names in a code example directly mislead production engineers.",
+            "Remove or caveat the Lambda EFS mount Info callout. The claims about 'LambdaEfsMount', 'joinDefaultVpc: true' as a requirement, and the '/mnt/' path prefix constraint are not grounded in any provided source file. If these facts exist, cite the source; otherwise, replace with 'Lambda functions can also mount EFS volumes — see the Lambda function page for configuration details' without asserting specific type names or constraints.",
+            "Remove the S3 price ($0.023/GB/month) from the 'When NOT to use' prose body, or move the comparison statement to the FAQ section where well-known AWS background facts are explicitly permitted. The source files contain only EFS pricing; the S3 price is not in any provided source file."
+          ],
+          "optionalImprovements": [
+            "The throughput mode table lists 'Default: Yes' for elastic and 'No' for others — consider instead adding the '@default elastic' annotation explicitly in prose near the table so readers skimming the API reference column understand it matches the source JSDoc.",
+            "The 'Mounting to workloads' section briefly mentions rootDirectory as optional but only in a bullet list. A one-line code comment in the example showing rootDirectory would help readers understand when to use it without requiring them to guess the format.",
+            "The bursting mode subsection ends with a recommendation to prefer elastic, which is good. Consider adding a one-line note about the burst credit replenishment rate or minimum throughput floor so readers can estimate whether bursting is viable for their storage size before ruling it out entirely.",
+            "The FAQ answer for 'EFS vs EBS' mentions EBS is 'not listed as a Stacktape resource type' — this is accurate and useful, but the answer could briefly note that overrides/cloudformationResources exist as an escape hatch if a reader genuinely needs EBS-backed storage."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first paragraph is exactly right — self-contained, 57 words, names the resource and its value proposition clearly.",
+            "Throughput modes section enumerates all three union variants (elastic, provisioned, bursting) with H3 subsections, opinionated guidance, and explicit when-to-switch signals.",
+            "Backups section has the full decision support trifecta: when to enable, when to skip, and cost tradeoff signal.",
+            "Tables are used in the right places: 'When NOT to use' comparison table and the throughput modes overview table are both extractable and informative.",
+            "FAQ has exactly 10 questions mixing Stacktape-specific, AWS use-case, and choosing/comparison categories.",
+            "No forbidden config patterns found — all Stacktape config examples use CodeBlock intellisense with TypeScript class-based defineConfig correctly.",
+            "Single ApiReference with correct definitionName='EfsFilesystemProps' that matches the source type.",
+            "EFS vs S3 cost comparison ($0.30 vs $0.023/GB/month) gives the reader a concrete decision signal, not vague guidance.",
+            "The mounting section explains efsFilesystemName, mountPath, and rootDirectory with their purpose before showing the example — no unexplained tunable values."
+          ],
+          "problems": [
+            "Missing <ReferenceableParams> component: the source defines EfsFilesystemReferencableParam = 'arn', meaning the filesystem exposes an ARN parameter accessible via $ResourceParam(). The style guide requires '<ReferenceableParams resource=\"...\" />' when any referenceable params exist. This is absent from the page.",
+            "Source-grounding gap on volumeMounts structure: the properties ContainerEfsMount, type: 'efs', efsFilesystemName, mountPath, and rootDirectory are referenced in SimpleServiceContainer in __helpers.d.ts but ContainerEfsMount is not defined in the provided source files. The page invents specific property names without source backing. The code-block-validator would catch actual type errors, but this gap should be called out.",
+            "Lambda EFS mount claims are not grounded in provided source: the Info callout describes a LambdaEfsMount type, joinDefaultVpc: true requirement, and /mnt/ prefix constraint. None of these Stacktape-specific claims appear in the provided source files — only well-known AWS Lambda facts are present.",
+            "Per-variant depth imbalance in Throughput modes: only 'provisioned' has a dedicated code example. 'elastic' relies on the Basic example section implicitly and 'bursting' has no example at all. Strictly, each variant subsection should be self-sufficient. The bursting guidance is correctly discouraging, but 'elastic' still deserves a focused example showing the zero-config path or at minimum a clear cross-reference to the Basic example.",
+            "The S3 pricing figure ($0.023/GB/month) in the When NOT to use table is not in the provided source files. Pricing rules say to never invent prices not present in the source. This is a well-known AWS fact but technically violates the sourcing rule as framed."
+          ],
+          "mandatoryFixes": [
+            "Add <ReferenceableParams resource=\"efs-filesystem\" /> to the page (or a dedicated 'Referenceable parameters' section). The source declares EfsFilesystemReferencableParam = 'arn', so the EFS filesystem exposes its ARN via $ResourceParam('sharedStorage', 'arn'). This is required by the style guide when referenceable params exist.",
+            "Either (a) verify the Lambda EFS mount claims (LambdaEfsMount type name, joinDefaultVpc requirement, /mnt/ prefix) against the Lambda function source and add a source citation, or (b) narrow the Info callout to well-known AWS facts without asserting Stacktape-specific type names that are not in the provided source files.",
+            "Either soft-phrase the S3 pricing comparison (e.g., 'roughly an order of magnitude cheaper') to avoid citing a specific dollar figure not present in the source, or remove the comparison value and link to AWS pricing pages instead."
+          ],
+          "optionalImprovements": [
+            "The elastic throughput H3 subsection has no code example of its own. Since elastic is the default, a single-line mention like 'The Basic example above uses elastic mode — no property needed' with an explicit cross-reference would make the subsection self-sufficient without adding another full CodeBlock.",
+            "The 'bursting' H3 could show a brief example (throughputMode: 'bursting') for completeness, even if the prose recommends against it. Per-variant equal depth is better served with a code snippet even for discouraged modes.",
+            "The 'Mounting to workloads' section lists efsFilesystemName, mountPath, and rootDirectory as bullet definitions before the example, which is good. Consider adding a short note on the naming convention — that efsFilesystemName must exactly match the key used in the resources object of defineConfig, since that's a common misconfiguration.",
+            "The FAQ answer for 'Does EFS encrypt data?' hedges at-rest encryption as something to address via overrides, but does not explain what the default actually is (EFS creates filesystems unencrypted by default at rest unless you use KMS). Being concrete here would improve the FAQ answer quality.",
+            "Consider adding a short paragraph about access patterns — EFS uses NFS v4.1 under the hood, so it requires the workload to be in a VPC. Most Stacktape container workloads handle this automatically, but a one-line note would help users debugging 'connection refused' errors if they're using a non-VPC workload type."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the EFS source and uses the required TypeScript CodeBlock pattern. The main issues are a few Stacktape-specific or configuration-facing claims that go beyond the provided EFS and helper types, especially around mounting details, Lambda support, and unexposed backup/encryption controls.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"You can adjust this value on subsequent deployments without replacing the filesystem.\"",
+              "reason": "The source says provisioned throughput can be changed anytime, but it does not specify the deployment behavior or whether changing it avoids resource replacement. That replacement/no-replacement claim is Stacktape/CloudFormation behavior that is not grounded in the provided source.",
+              "suggestedFix": "Narrow to the sourced wording: \"The `provisionedThroughputInMibps` value sets guaranteed throughput — `100` means 100 MiB/s. The source marks this value as changeable anytime; additional per-MiB/s fees apply.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/efs-filesystem.d.ts",
+                  "quote": "E.g., `100` = 100 MiB/s. Additional fees apply based on the provisioned amount. Can be changed anytime."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"`EfsFilesystemProps` does not expose schedule or retention controls beyond the daily/35-day default. If you need custom backup policies (different schedules, longer retention, or cross-region replication), configure AWS Backup separately outside of the EFS resource configuration.\"",
+              "reason": "The first sentence is grounded by the absence of additional backup properties, but the recommendation to configure AWS Backup separately and the examples of custom backup policies are not supported by the provided Stacktape source. This is configuration-facing guidance that could change what a reader does.",
+              "suggestedFix": "Keep the exposed Stacktape fact and remove the unsupported external configuration instruction, or phrase it cautiously: \"`EfsFilesystemProps` only exposes `backupEnabled`; schedule, retention, and cross-region backup settings are not modeled on this resource.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/efs-filesystem.d.ts",
+                  "quote": "interface EfsFilesystemProps {\n  /**\n   * #### Enable daily automatic backups with 35-day retention. Incremental (only changes are copied).\n   */\n  backupEnabled?: boolean;\n\n  /**\n   * #### How throughput scales with your workload."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Container workload types such as web service, private service, worker service, and multi-container workload expose the `volumeMounts` property.\"",
+              "reason": "The provided source confirms `volumeMounts` on `SimpleServiceContainer`, but it does not include the declarations for every named workload type or for multi-container workload. The page can safely say EFS is accessible from containers through `volumeMounts`, but the exact workload list is not fully grounded in the provided source excerpt.",
+              "suggestedFix": "Use the broader sourced claim: \"EFS filesystems are accessible from containers in your stack through `volumeMounts`; container workload API references show the exact mount shape for each workload type.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "interface SimpleServiceContainer extends ResourceAccessProps {\n  /**\n   * #### Configures the container image for the service.\n   */\n  packaging: ContainerWorkloadContainerPackaging;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "  /**\n   * #### Persistent EFS volumes shared across containers and restarts.\n   *\n   * ---\n   *\n   * Data stored in EFS volumes persists even when containers are replaced.\n   * Multiple containers can mount the same volume. All data is encrypted in transit.\n   */\n  volumeMounts?: ContainerEfsMount[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For Lambda functions, check the Lambda function API reference for any EFS mount support and required VPC settings.\" and FAQ: \"AWS Lambda supports mounting EFS filesystems... For the exact Stacktape configuration shape and any required VPC settings...\"",
+              "reason": "The provided sources do not include Lambda EFS mount types or Lambda VPC settings. The draft is cautious, but it still introduces Lambda EFS support on this page without source backing. Since Lambda support is not visible in the provided source list, the EFS page should avoid asserting or implying Stacktape Lambda mount support here.",
+              "suggestedFix": "Remove the Lambda Info callout and FAQ entry, or reduce it to a non-Stacktape AWS background sentence without implying Stacktape configuration support. If Lambda EFS support should be documented, include the Lambda source file in the source set.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type StacktapeWorkloadDefinition =\n  | LambdaFunction\n  | ContainerWorkload\n  | BatchJob\n  | WebService\n  | PrivateService\n  | WorkerService\n  | EdgeLambdaFunction;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "  volumeMounts?: ContainerEfsMount[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For at-rest encryption, `EfsFilesystemProps` does not expose a dedicated setting. AWS EFS supports at-rest encryption using AWS KMS keys at the service level — consult overrides if you need to configure the underlying CloudFormation encryption properties.\"",
+              "reason": "The absence of an at-rest encryption property is grounded, but the instruction to use Stacktape overrides for underlying EFS encryption properties is not supported by the provided EFS source. The generic `overrides` escape hatch exists, but no source here confirms the underlying EFS logical resource path or that this specific encryption customization will work safely.",
+              "suggestedFix": "Keep the scoped property statement and remove the prescriptive override guidance: \"`EfsFilesystemProps` does not expose a dedicated at-rest encryption setting; use the API reference and only reach for overrides when you have verified the generated CloudFormation resource.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/efs-filesystem.d.ts",
+                  "quote": "interface EfsFilesystemProps {\n  /**\n   * #### Enable daily automatic backups with 35-day retention. Incremental (only changes are copied).\n   */\n  backupEnabled?: boolean;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type ResourceOverrides = {\n  [cfLogicalName: string]: { [resourcePath: string]: any };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Multiple containers can mount the same EFS volume and share files through it — EFS handles concurrent reads and writes using standard POSIX file-locking semantics.\"",
+              "reason": "The source clearly supports multiple containers mounting the same volume, but it does not mention POSIX file-locking semantics. This is likely true as general AWS EFS behavior, but it is more specific than the provided Stacktape source.",
+              "suggestedFix": "Either remove the locking detail or frame it as AWS EFS background: \"Underneath, Amazon EFS is a POSIX-style shared filesystem, so applications can coordinate file access using normal filesystem behavior.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"EFS is the built-in shared storage option via `EfsFilesystem` and `volumeMounts`. EBS is not listed as a Stacktape resource type.\"",
+              "reason": "The provided `StacktapeResourceDefinition` union includes `EfsFilesystem` and does not include an EBS resource, so the claim is directionally supported. However, \"built-in shared storage option\" reads like a product-wide completeness claim; the source only proves EFS is a resource type, not that it is the only shared storage option in every Stacktape context.",
+              "suggestedFix": "Narrow the wording: \"The provided Stacktape resource union includes `EfsFilesystem`; it does not list a dedicated EBS resource type.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML config examples.",
+            "`<ApiReference definitionName=\"EfsFilesystemProps\" />` matches the EFS props type in the source.",
+            "The throughput mode variants and default are correctly grounded: `elastic`, `provisioned`, and `bursting`, with `elastic` as the default.",
+            "The pricing line for EFS Standard storage is grounded in the EFS source comment.",
+            "The backup basics are grounded: `backupEnabled` enables daily automatic backups with 35-day retention and incremental copies."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\storage\\efs-filesystem.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 2, advisory high 0, verifier medium 5"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/resources/storage/efs-filesystem.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T01:23:48.826Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/efs-filesystem.d.ts": "10365d228a068b0938f55d7758e6c48e241d440d",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts": "242cf94f68a3f84aa3afefe69f69152a524f95d6",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/resources/storage/efs-filesystem.md": "6e43837a2191ebacd93da97ac71d581872d94ec1"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

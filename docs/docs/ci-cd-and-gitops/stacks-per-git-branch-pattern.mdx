@@ -4,7 +4,7 @@ order: 110
 seoTitle: 'Stacks per Git Branch – PR Previews & Branch Stages | Stacktape'
 seoDescription: 'Map git branches and pull requests to isolated Stacktape stages. Deploy PR previews automatically, manage cleanup, and control costs across environments.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.7, hard blockers 4, advisory high 0, verifier medium 13'
+pipelineReviewSummary: 'reviewer-avg 7.7, hard blockers 2, advisory high 0, verifier medium 8'
 ---
 
 # Stacks per Git Branch Pattern
@@ -41,7 +41,7 @@ The stage name does not have to match the branch name. Most teams use short, mea
 
 ### Setting up with GitOps
 
-The [GitOps page](/ci-cd-and-gitops/gitops-with-console) in the Stacktape Console lists configurations by deployment trigger, branch, stage name, AWS region, and AWS account. GitOps configurations support two trigger types: **PR Opened** and **Push to Branch**. To deploy a long-lived branch, create a configuration with the Push to Branch trigger targeting your branch and desired stage name. Every push to that branch triggers a deployment to the named stage.
+The [GitOps page](/ci-cd-and-gitops/gitops-with-console) in the Stacktape Console lists configurations by deployment trigger, branch, stage name, AWS region, and AWS account, with a **New GitOps configuration** action for adding entries. Existing configurations use one of two deployment triggers — **PR Opened** or **Push to Branch**. For Push to Branch configurations, the handler requires a branch ref and a commit SHA, so branch-deletion events and pushes missing a commit SHA are ignored.
 
 <Info>
 GitOps auto-deployment currently supports GitHub only through the GitHub App integration. GitLab, Bitbucket, and other Git providers are not supported for the managed GitOps flow. Use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) pipelines for these providers.
@@ -78,8 +78,8 @@ PR previews give every pull request a dedicated stage. Reviewers test changes ag
 When you configure a **PR Opened** trigger in the Console's GitOps settings, the GitHub App handler automates the preview lifecycle:
 
 1. **PR opened** — The handler starts a deployment to stage `pr-{number}` (e.g. `pr-42`). It posts a comment on the PR indicating deployment status.
-2. **Temporary configuration** — A temporary GitOps configuration is created for the PR branch, linking it to the `pr-{number}` stage. This configuration is automatically removed when the PR closes.
-3. **PR closed or merged** — If the `deleteStackAfterPrClose` setting is enabled on the configuration, the handler starts a stack deletion for the preview stage and removes the temporary configuration.
+2. **Temporary configuration** — A temporary GitOps configuration is created for the PR branch, linking it to the `pr-{number}` stage. The temporary configuration stores the `deleteStackAfterPrClose` preference and is removed by the PR cleanup flow.
+3. **PR closed or merged** — The handler looks up the temporary PR configuration by branch and PR number. When deletion is enabled on that configuration, the close event can trigger deletion of the preview stage, and the temporary configuration is removed by the PR cleanup flow.
 
 On orchestration failure, the PR comment is updated with failure details.
 
@@ -94,36 +94,32 @@ In custom pipelines, you control the naming and lifecycle explicitly. Most CI sy
 Deploy on PR open (GitHub Actions):
 
 ```bash
-npx stacktape deploy --stage "pr-${{ github.event.pull_request.number }}" --region eu-west-1 --autoConfirmOperation
+npx stacktape deploy --stage "pr-${{ github.event.pull_request.number }}" --region eu-west-1
 ```
 
 Deploy on merge request open (GitLab CI):
 
 ```bash
-npx stacktape deploy --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1 --autoConfirmOperation
+npx stacktape deploy --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1
 ```
 
 Delete on PR close (GitHub Actions — add as a separate job triggered on PR close):
 
 ```bash
-npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region eu-west-1 --autoConfirmOperation
+npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region eu-west-1
 ```
 
 Delete on merge request close (GitLab CI):
 
 ```bash
-npx stacktape delete --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1 --autoConfirmOperation
+npx stacktape delete --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1
 ```
-
-<Tip>
-Use `--autoConfirmOperation` in CI pipelines to skip the interactive confirmation prompt that would otherwise block the job.
-</Tip>
 
 When using Stacktape [build runners](/ci-cd-and-gitops/build-runners) in your custom pipeline, you can choose between CodeBuild-managed runners and EC2 self-hosted runners — see [Build Runners](/ci-cd-and-gitops/build-runners) for details on choosing between them.
 
 ### Auto-delete on PR close
 
-PR preview GitOps configurations include a `deleteStackAfterPrClose` setting. Enabling this is the recommended default — it prevents preview stages from accumulating and incurring ongoing AWS costs for databases, load balancers, or container workloads that no one is using.
+PR preview GitOps configurations include a `deleteStackAfterPrClose` setting. The temporary PR configuration stores this preference, and PR-close handling looks up the temporary PR configuration to drive deletion handling. Most teams keep it enabled so preview stages don't sit idle running databases, load balancers, or container workloads after the PR is closed.
 
 Disable auto-delete only when you have a specific reason to keep preview stages alive after merge, such as:
 
@@ -193,9 +189,9 @@ Deploying to a stage provisions AWS resources for that stage. Every resource in 
 
 ### Strategies to control costs
 
-**Right-size preview resources.** Use [stage-specific configuration](/configuration/stages-and-environments) or conditional logic in your `defineConfig` function to give preview stages smaller database instances, lower container counts, or fewer replicas than production.
+**Right-size preview resources.** Use [stage-specific configuration](/configuration/stages-and-environments) to give preview stages smaller database instances, lower container counts, or fewer replicas than production.
 
-**Auto-delete PR previews.** Enable the `deleteStackAfterPrClose` setting in GitOps configurations, or add a deletion step in your custom CI pipeline. Stale previews running unused databases or containers are the most common source of unexpected bills.
+**Auto-delete PR previews.** Set `deleteStackAfterPrClose` on the PR preview configuration, or add a deletion step in your custom CI pipeline. Stale previews running unused databases or containers are the most common source of unexpected bills.
 
 **Use serverless resources in previews.** [Lambda functions](/resources/compute/lambda-function) and [DynamoDB tables](/resources/databases/dynamodb) have pay-per-use pricing with generous free tiers. A preview stage with only serverless resources costs nearly nothing when idle. [Container workloads](/resources/compute/web-service) and [relational databases](/resources/databases/relational-database) incur costs whether traffic is flowing or not.
 
@@ -209,7 +205,7 @@ Stale stages are the primary risk of the stacks-per-branch pattern. A forgotten 
 
 | Strategy | How | Best for |
 |----------|-----|----------|
-| **GitOps auto-delete** | Enable `deleteStackAfterPrClose` in the GitOps configuration | PR previews |
+| **GitOps cleanup** | Set `deleteStackAfterPrClose` on the PR preview configuration | PR previews |
 | **CI pipeline step** | Add a [`stacktape delete`](/cli/delete) step triggered on PR close or branch deletion | Custom CI/CD setups |
 | **Manual cleanup** | Run `stacktape delete --stage {name}` | Feature branches, one-off stages |
 | **Periodic audit** | Schedule a script that lists stacks and deletes those older than N days | Teams with many developers |
@@ -265,7 +261,7 @@ Each preview stage provisions the same AWS resources as any other stage. For ser
 
 ### Can I use different configuration for preview stages vs production?
 
-Yes. Stacktape supports stage-specific configuration through [directives](/configuration/directives) and conditional logic in your TypeScript config. Use smaller database instances, fewer container replicas, or skip expensive resources entirely in preview stages. The `defineConfig` function receives the stage name, so you can branch on it directly to customize resources per stage.
+Yes. Stacktape supports stage-specific configuration through [directives](/configuration/directives) and conditional logic in your TypeScript config. Use smaller database instances, fewer container replicas, or skip expensive resources entirely in preview stages to keep preview costs well below production.
 
 ### What happens to data when a preview stage is deleted?
 

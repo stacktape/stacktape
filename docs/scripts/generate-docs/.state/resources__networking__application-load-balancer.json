@@ -2,7 +2,7 @@
   "pageId": "resources__networking__application-load-balancer",
   "pageRoute": "resources/networking/application-load-balancer",
   "startedAt": "2026-05-15T20:45:13.887Z",
-  "updatedAt": "2026-05-17T12:55:48.706Z",
+  "updatedAt": "2026-05-22T06:41:07.790Z",
   "iterations": [
     {
       "iteration": 1,
@@ -835,6 +835,505 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__networking__application-load-balancer/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Excellent decision-support structure: the 'When to use' / 'When NOT to use' sections are concrete and actionable, not generic filler.",
+            "The <FeatureComparisonTable> for ALB vs HTTP API Gateway is one of the most genuinely useful decision aids possible on this page — covers the exact comparison a first-time user will be running in their head.",
+            "Routing conditions table is precise and directly readable — exactly what a newcomer needs before writing their first integration.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense> with TypeScript class-based patterns; no forbidden YAML or plain-object StacktapeConfig forms found.",
+            "CDN and Firewall sections both include explicit 'when to enable / when to skip' guidance with cost and tradeoff context — not just configuration recipes.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service behavior, comparison/choosing) with substantive 2-4 sentence answers; no padding.",
+            "Internal load balancer section is tightly scoped with concrete microservices use cases.",
+            "Alarm coverage shows all three trigger types with a working example and correctly sources 'onlyIncludeTargets', 'disabledGlobalAlarms', and evaluation knobs from the type definitions."
+          ],
+          "problems": [
+            "'stacktape param:get' CLI command is referenced with a link to /cli/param-get — this command does not appear in the git-tracked CLI docs (no param-get.mdx file is visible in the git status CLI section). If the command doesn't exist, this is a broken link and a factual error.",
+            "'any of 50+ raw ALB CloudWatch metrics' — the '50+' number is not grounded in any of the provided source files. The source only defines ApplicationLoadBalancerCustomTrigger as a type without specifying a metric count.",
+            "The sentence 'In the provided ApplicationLoadBalancerListener type, defaultAction is LbRedirect' reads as source-code commentary leaking into user-facing prose. Readers don't need to know the internal TypeScript type name.",
+            "cloudfrontPriceClass: 'PriceClass_All' is claimed to be the default, but the CdnConfiguration type (which ApplicationLoadBalancerCdnConfiguration extends) is not in the provided source files, making this default unverifiable from source.",
+            "The Tip callout in the Listeners section ('Most applications work fine with default listeners…') largely restates the preceding paragraph's opening sentence — minor redundancy that dilutes the Tip's signal value."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or verify the 'stacktape param:get' reference. If the command doesn't exist, replace with a note like: 'The deployed domain is visible in the stack outputs after deployment and referenceable in config via $ResourceParam().'",
+            "Remove '50+' from the custom alarm description — replace with 'any ALB CloudWatch metric' or 'raw ALB CloudWatch metrics (latency, active connections, HTTP status codes, processed bytes, etc.)' without claiming an ungrounded count.",
+            "Rewrite the defaultAction sentence to user-facing language: instead of 'In the provided ApplicationLoadBalancerListener type, defaultAction is LbRedirect', write 'The defaultAction currently supports only the redirect type.'",
+            "Soften or remove the PriceClass_All default claim if it cannot be confirmed from source: replace 'PriceClass_All (default, all regions worldwide)' with 'PriceClass_All (all regions worldwide)' and link to the CDN docs for the authoritative default.",
+            "Trim the Tip callout in the Listeners section — it restates the paragraph above it. Either remove the Tip entirely or replace it with a concrete example of when a custom port is genuinely needed (e.g., a WebSocket service on 8080)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations — all Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with TypeScript only, no fenced YAML config blocks, no StacktapeConfig type pattern.",
+            "`<FeatureComparisonTable>` for ALB vs HTTP API Gateway is well-constructed and directly answers the most common decision question; placing it early is the right call.",
+            "The routing conditions table (paths, methods, hosts, headers, queryParams, sourceIps) with concrete examples in every row is highly scannable and covers all conditions from `ApplicationLoadBalancerIntegrationProps` in events.d.ts.",
+            "Decision-support structure is solid on every opt-in section: CDN, firewall, and internal ALB each get a 'when to enable / when to skip' framing, not just configuration recipes.",
+            "Multi-service routing example is realistic (two Lambda functions sharing one ALB with explicit priorities) and directly copyable without modification.",
+            "All three ALB alarm trigger types from the `ApplicationLoadBalancerAlarmTrigger` union are covered with working examples, correct type strings, and correct property names sourced from alarms.d.ts.",
+            "FAQ covers all three required categories: Stacktape-specific (custom domains, firewall attachment, env vars), AWS-service (health checking, WebSocket support, cost model), and comparison (ALB vs API Gateway, ALB vs NLB). Ten Q&As, none padded.",
+            "The `onlyIncludeTargets` property on the unhealthy-targets alarm trigger is called out — grounded in the source and genuinely useful for production multi-service stacks.",
+            "The basic example correctly shows an empty `ApplicationLoadBalancer({})` and explains why defaults are sufficient, setting accurate reader expectations before diving into configuration."
+          ],
+          "problems": [
+            "The alarms section claims the `application-load-balancer-custom` trigger lets you alarm on 'any of 50+ raw ALB CloudWatch metrics'. The `ApplicationLoadBalancerCustomTrigger` type appears in the `ApplicationLoadBalancerAlarmTrigger` union in alarms.d.ts but its interface body is not provided in the source files. The specific count '50+' and the enumerated metrics (latency, active connections, HTTP status codes, processed bytes) are unsourced and should not be asserted.",
+            "The CDN section asserts `PriceClass_All` is the 'default, all regions worldwide'. The `ApplicationLoadBalancerCdnConfiguration` extends `CdnConfiguration`, but `CdnConfiguration` is not in the provided source files. Claiming a default value for `cloudfrontPriceClass` without the base type present is ungrounded.",
+            "The CDN section mentions `forwardingOptions`, `routeRewrites`, and `edgeFunctions` as additional CDN features without any grounding in the provided source files. These names are plausible but unverifiable from the provided source.",
+            "The `cdn: { enabled: true, ... }` shape used in the CDN example relies on `CdnConfiguration.enabled` being a boolean, but `CdnConfiguration` is not in the provided source files. The property may be valid but is not grounded."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Soften the custom alarm claim: replace 'any of 50+ raw ALB CloudWatch metrics (latency, active connections, specific HTTP status codes, processed bytes, etc.)' with 'any raw ALB CloudWatch metric with a custom threshold and aggregation function'. Remove the specific count and unverifiable metric names.",
+            "For the `cloudfrontPriceClass` default, either remove the '(default)' parenthetical next to `PriceClass_All` or note that the full CDN configuration surface is on the CDN docs page. Do not assert a default that is not in the provided source.",
+            "For `forwardingOptions`, `routeRewrites`, and `edgeFunctions` in the CDN section, replace the inline list with a shorter forward: 'See [CDN](/resources/networking/cdn) for full configuration including forwarding, route rewrites, and edge functions.' This is more honest about what the ALB-specific source covers.",
+            "The `cdn: { enabled: true }` line in the CDN example would benefit from a one-line explanation verifying the `enabled` flag activates the CDN — acceptable if `CdnConfiguration` is documented elsewhere — but flag it as potentially needing verification against the CDN type definition.",
+            "The ALB health check FAQ answer states 'Application Load Balancer alarming can monitor unhealthy targets' — this is correct but could link to the Alarms section earlier on the same page (e.g., 'see the Alarms section above') to connect the FAQ back to the actionable config."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong answer-first opening with concrete routing capabilities, pricing context, WebSocket/firewall/gradual-deployment fit, and relevant links.",
+            "Good decision support in the early sections: clear when-to-use and when-not-to-use guidance, plus a comparison table for ALB vs HTTP API Gateway.",
+            "Stacktape config examples use the required class-based `defineConfig` style inside `<CodeBlock intellisense>` with a visible `TypeScript` tab.",
+            "Good separation between top-level `useFirewall` and `cdn.useFirewall`, avoiding the common nested-property flattening problem.",
+            "FAQ is broad and useful: it mixes Stacktape-specific questions, AWS ALB usage questions, and choosing/comparison questions."
+          ],
+          "problems": [
+            "Several Stacktape-specific or adjacent claims are not grounded in the provided source files: HTTP API Gateway `~$1/million requests`, API Gateway `scales to zero cost`, direct WAF attachment being false for HTTP API Gateway, and Network Load Balancer being for `gRPC` or `static IP addresses`. These may be true elsewhere, but they are not supported by the supplied sources.",
+            "The page says unmatched ALB requests get the listener's default action, but the provided listener type only documents `defaultAction?: LbRedirect`; it does not document the behavior when no default action is configured.",
+            "The Routing section introduces a `<Tip>` component and the page also uses `<Info>`; this is probably acceptable without example-page constraints, but the component palette is more varied than necessary for a reference-style resource page.",
+            "The Alarms section claims custom ALB alarms can use `50+ raw ALB CloudWatch metrics`, but the provided alarm source only says `ApplicationLoadBalancerCustomTrigger` exists and does not enumerate or quantify metrics in the visible source.",
+            "The Custom domains section states that disabling DNS record creation requires `customCertificateArn`; the `DomainConfiguration` JSDoc says to provide it, but the type does not enforce it. The wording should stay advisory, not absolute.",
+            "The CDN section says `PriceClass_All` is the default and that ALB origins are not cached unless headers or `cachingOptions` are configured. Those defaults/behaviors are not present in the provided source files for this page.",
+            "The Internal load balancer section says an internal ALB gets no public DNS name. The source only says internal ALBs are not reachable from the internet, so the DNS-name claim is over-specific."
+          ],
+          "mandatoryFixes": [
+            "Replace unsupported comparison-table price text for HTTP API Gateway with wording grounded in the source, such as the sourced breakeven statement: `more cost-effective above ~500k requests/day`.",
+            "Remove or qualify unsupported defaults and behavioral claims in the CDN section, especially `PriceClass_All` as default and cache behavior for ALB origins, unless the CDN source file is added.",
+            "Change the unmatched-route sentence to a narrower sourced claim: custom listener `defaultAction` currently supports redirects; avoid claiming what happens when no rule matches and no redirect is configured.",
+            "Remove `50+` from the custom alarm description unless the metric list source is provided.",
+            "Reword custom-domain DNS guidance to match the source: if you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`; avoid implying a type-level requirement.",
+            "Remove or qualify unsupported NLB comparison details such as `gRPC`, `static IP addresses`, and `ultra-low latency` unless a Network Load Balancer source is provided."
+          ],
+          "optionalImprovements": [
+            "Add a small table in the Routing section showing which properties belong on the ALB resource versus the workload integration; that would reduce confusion for readers expecting routes on the load balancer itself.",
+            "Use more explicit entity names in a few later paragraphs, e.g. prefer `the Application Load Balancer listener` over `the listener` where paragraphs may be extracted independently.",
+            "Consider moving the API Reference before Referenceable parameters if this page is used mostly as a lookup page, though the current placement is acceptable.",
+            "Trim repeated CDN/firewall recommendation text in the `<Tip>` and surrounding paragraphs; the decision guidance is good but slightly duplicated."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Application Load Balancer, event integration, helper, and alarm type sources. The main issues are unsupported/overstated claims around custom alarm metrics, HTTP API Gateway comparison details, and a few statements that go beyond what the ALB type source documents.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `application-load-balancer-custom` trigger lets you alarm on any raw ALB CloudWatch metric (latency, active connections, specific HTTP status codes, processed bytes, etc.) with a custom `threshold`, `statistic` function, and `comparisonOperator`.”",
+              "reason": "The provided alarm type source declares `ApplicationLoadBalancerCustomTrigger` as a union member, but the supplied source does not define its properties. The draft makes a broad claim about supported metric names and properties that is not grounded in the provided files.",
+              "suggestedFix": "Narrow the wording to only say that Stacktape has an `application-load-balancer-custom` alarm trigger type, or remove the property/metric examples unless the missing custom-trigger type definition is added to the source set.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type ApplicationLoadBalancerAlarmTrigger =\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | ApplicationLoadBalancerCustomTrigger;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape supports three alarm trigger types for Application Load Balancer: ... custom (`application-load-balancer-custom`, alarm on any of 50+ raw ALB CloudWatch metrics with a custom threshold and aggregation function).”",
+              "reason": "The source supports the existence of the custom ALB alarm trigger type, but not the “50+ raw ALB CloudWatch metrics” count or the exact custom threshold/aggregation behavior for that trigger.",
+              "suggestedFix": "Remove “50+” and the detailed custom-metric behavior, or cite a source file that defines `ApplicationLoadBalancerCustomTrigger` and its properties.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type ApplicationLoadBalancerAlarmTrigger =\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | ApplicationLoadBalancerCustomTrigger;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The comparison table says HTTP API Gateway has “WebSocket support: false”, “Direct WAF attachment: false”, and “Gradual deployments: false.”",
+              "reason": "The provided source files document ALB support for WebSockets, firewalls, and gradual deployments, and they document HTTP API Gateway request routing by method/path. They do not provide the HTTP API Gateway resource type or enough evidence to make broad negative claims about all of those HTTP API Gateway capabilities.",
+              "suggestedFix": "Rephrase as ALB-positive source-grounded claims, for example: “ALB is documented here as required for WebSockets, firewalls, and gradual deployments; HTTP API Gateway integrations in the provided source route by method and path.” Avoid a boolean comparison unless the HTTP API Gateway source is included.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/application-load-balancers.d.ts",
+                  "quote": "* #### HTTP/HTTPS load balancer with flat ~$18/month pricing. Required for WebSockets, firewalls, and gradual deployments."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface HttpApiIntegrationProps {\n  /**\n   * #### The name of the HTTP API Gateway.\n   */\n  httpApiGatewayName: string;\n  /**\n   * #### The HTTP method that will trigger this integration."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Custom listeners default to the same shape — HTTPS on 443 and HTTP on 80 redirecting to HTTPS.”",
+              "reason": "The source says the ALB `listeners` property defaults to HTTPS 443 plus HTTP 80 redirecting to HTTPS when `listeners` is omitted. It does not say that each custom listener or custom listener collection has that same default shape once `listeners` is configured.",
+              "suggestedFix": "Say “If you omit `listeners`, Stacktape uses HTTPS on 443 plus HTTP on 80 redirecting to HTTPS.” Avoid saying custom listeners default to that same shape.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/application-load-balancers.d.ts",
+                  "quote": "* #### Custom listeners (port + protocol). Defaults to HTTPS on 443 + HTTP on 80 (redirecting to HTTPS).\n   */\n  listeners?: ApplicationLoadBalancerListener[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If neither [customDomains nor customCertificateArns] is set, an HTTPS listener cannot be created.”",
+              "reason": "The listener type states that HTTPS requires a TLS certificate and describes two supported certificate paths. It does not explicitly document deployment failure behavior for omitting both. The sentence is likely directionally correct, but the exact “cannot be created” behavior is stronger than the provided source.",
+              "suggestedFix": "Use the source wording: “An HTTPS listener requires a TLS certificate, either auto-created with `customDomains` or supplied through `customCertificateArns`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/application-load-balancers.d.ts",
+                  "quote": "* #### Listener protocol. `HTTPS` requires a TLS certificate (auto-created with `customDomains` or via `customCertificateArns`).\n   */\n  protocol: 'HTTP' | 'HTTPS';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Requests that don't match any rule get the listener's default action.”",
+              "reason": "The source defines `defaultAction` as the action for requests that do not match any integration, but only on `ApplicationLoadBalancerListener`. The draft also relies on this behavior in the default-listener example where no custom listener default action is configured. The default action for omitted listeners is not shown in the provided source beyond HTTP redirect behavior.",
+              "suggestedFix": "Scope the statement to configured custom listeners: “For custom listeners, `defaultAction` controls requests that do not match any integration.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/application-load-balancers.d.ts",
+                  "quote": "* #### Action for requests that don't match any integration. Currently supports `redirect` only.\n   */\n  defaultAction?: LbRedirect;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“When set, requests from other IPs are rejected at the load balancer level before reaching your application.”",
+              "reason": "The source says `whitelistIps` restricts access to specific IP addresses/CIDRs and defaults to all IPs allowed. It does not specify the exact rejection behavior or response handling for non-whitelisted IPs.",
+              "suggestedFix": "Use narrower wording: “`whitelistIps` restricts listener access to the listed IP addresses or CIDR ranges.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Internal ALBs still support all the same routing, listeners, and alarm features — they simply aren't reachable from outside the VPC.”",
+              "reason": "The source states that `interface: 'internal'` makes the ALB VPC-only and not reachable from the internet. It does not explicitly guarantee that every routing, listener, CDN, custom-domain, firewall, or alarm configuration behaves identically with an internal ALB.",
+              "suggestedFix": "Keep the important supported fact and avoid the blanket equivalence claim: “Internal ALBs use the same `ApplicationLoadBalancer` configuration shape, but the endpoint is VPC-only and not reachable from the internet.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses the correct `<CodeBlock intellisense tabs={[{ label: 'TypeScript' ... }]} />` pattern for Stacktape config examples and does not hand-author YAML Stacktape config.",
+            "`<ApiReference definitionName=\"ApplicationLoadBalancerProps\" />` matches the page resource type name with the required `Props` suffix.",
+            "The draft correctly keeps top-level `useFirewall` separate from `cdn.useFirewall`, matching the requirement not to flatten nested-property constraints.",
+            "The main ALB properties covered in prose are grounded in the provided type source: `interface`, `customDomains`, `listeners`, `cdn`, `alarms`, `disabledGlobalAlarms`, and `useFirewall`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Application Load Balancer, event integration, domain, and alarm type sources. The main factual risks are a listener default-action overstatement, unsupported detail around custom ALB alarms, and an unverified WAF scope constraint. The page also has a couple of documentation-quality gaps where opt-in or variant behavior is introduced without enough decision support or an equivalent example.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The Listeners section says: \"In the provided `ApplicationLoadBalancerListener` type, `defaultAction` is `LbRedirect`, so the documented default action is a redirect.\"",
+              "reason": "The source says `defaultAction` is optional and currently supports only redirect when configured. It does not say that an omitted `defaultAction` defaults to a redirect, so the draft can mislead readers about unmatched-request behavior.",
+              "suggestedFix": "Change this to: \"If you configure `defaultAction`, Stacktape currently supports redirect actions only.\" Avoid calling redirect the default unless runtime source confirms that behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/application-load-balancers.d.ts",
+                  "quote": "  /**\n   * #### Action for requests that don't match any integration. Currently supports `redirect` only.\n   */\n  defaultAction?: LbRedirect;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Alarms section claims `application-load-balancer-custom` can alarm on \"any of 50+ raw ALB CloudWatch metrics\" and describes custom `threshold`, `statistic`, and `comparisonOperator` behavior.",
+              "reason": "The provided source confirms that an `ApplicationLoadBalancerCustomTrigger` variant exists, but it does not define that trigger's properties, metric list, or a \"50+\" metric count. The draft's specific configuration guidance is therefore not grounded in the provided source files.",
+              "suggestedFix": "Either add the source file that defines `ApplicationLoadBalancerCustomTrigger`, or narrow the prose to say that a custom ALB alarm trigger exists and leave details to the API reference.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type ApplicationLoadBalancerAlarmTrigger =\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | ApplicationLoadBalancerCustomTrigger;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Firewall section says the referenced firewall \"must use `scope: 'load-balancer'` (not `'cdn'`).\"",
+              "reason": "The provided authoritative ALB type only says `useFirewall` is the name of a `web-app-firewall` resource. The source list does not include the `WebAppFirewall` type that would verify the allowed `scope` values or the claimed requirement.",
+              "suggestedFix": "Either include and verify the `WebAppFirewallProps` source, or narrow the sentence to: \"The `useFirewall` value is the resource name of a `web-app-firewall` resource defined in your stack.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/application-load-balancers.d.ts",
+                  "quote": "  /**\n   * #### Name of a `web-app-firewall` resource to protect this load balancer from common web exploits.\n   */\n  useFirewall?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Routing section gives a full Lambda routing example but only mentions container routing in prose, even though ALB routing has separate Lambda and container integration shapes.",
+              "reason": "The source defines both Lambda and container ALB integrations, and the container integration adds the required `containerPort` property. Because the page presents both as first-class routing targets, the container variant needs either an equivalent example or a stronger callout that the shown example is Lambda-only.",
+              "suggestedFix": "Add a compact container or web-service ALB routing example that includes `containerPort`, or explicitly state that the example is Lambda-only and link readers to the container integration details.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ContainerWorkloadLoadBalancerIntegrationProps extends ApplicationLoadBalancerIntegrationProps {\n  /**\n   * #### The container port that will receive traffic from the load balancer.\n   */\n  containerPort: number;\n}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ApplicationLoadBalancerIntegration {\n  /**\n   * #### Triggers a function when an Application Load Balancer receives a matching HTTP request."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Custom domains section introduces `customDomains` with an example but does not explain when to use a custom domain, when the default ALB domain is enough, or the DNS/certificate tradeoff.",
+              "reason": "`customDomains` is an optional feature with concrete DNS and certificate behavior in the source. The section documents how to configure it, but it lacks decision support for whether the reader should enable it.",
+              "suggestedFix": "Add 2-4 sentences before the example: use custom domains for public APIs or stable client-facing endpoints; skip them for temporary/internal testing where the generated ALB domain is enough; Route53 and ACM certificate handling are the main setup tradeoffs.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/application-load-balancers.d.ts",
+                  "quote": "  /**\n   * #### Custom domains.\n   *\n   * ---\n   *\n   * By default, Stacktape creates DNS records and TLS certificates for each domain.\n   * If you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`.\n   *\n   * Backward compatible format `string[]` is still supported.\n   */\n  customDomains?: DomainConfiguration[] | string[];"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `defineConfig` and class-based TypeScript examples inside `<CodeBlock intellisense>` with `label: 'TypeScript'`, and it does not hand-author Stacktape YAML examples.",
+            "`<ApiReference definitionName=\"ApplicationLoadBalancerProps\" />` matches the page resource type and uses the required `Props` suffix.",
+            "The top-level `useFirewall` and nested `cdn.useFirewall` paths are kept separate, which avoids flattening the ALB and CDN firewall attachment models.",
+            "The core ALB routing conditions, default listener ports, `interface` values, referenceable parameter component, and alarm trigger names are broadly aligned with the provided type sources."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Type '\"load-balancer\"' is not assignable to type '\"cdn\" | \"regional\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Type '\"load-balancer\"' is not assignable to type '\"cdn\" | \"regional\"'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__networking__application-load-balancer/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Excellent decision-support structure: the 'When to use' / 'When NOT to use' sections are concrete and actionable, not generic filler.",
+            "The <FeatureComparisonTable> for ALB vs HTTP API Gateway is one of the most genuinely useful decision aids possible on this page — covers the exact comparison a first-time user will be running in their head.",
+            "Routing conditions table is precise and directly readable — exactly what a newcomer needs before writing their first integration.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense> with TypeScript class-based patterns; no forbidden YAML or plain-object StacktapeConfig forms found.",
+            "CDN and Firewall sections both include explicit 'when to enable / when to skip' guidance with cost and tradeoff context — not just configuration recipes.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service behavior, comparison/choosing) with substantive 2-4 sentence answers; no padding.",
+            "Internal load balancer section is tightly scoped with concrete microservices use cases.",
+            "Alarm coverage shows all three trigger types with a working example and correctly sources 'onlyIncludeTargets', 'disabledGlobalAlarms', and evaluation knobs from the type definitions."
+          ],
+          "problems": [
+            "'stacktape param:get' CLI command is referenced with a link to /cli/param-get — this command does not appear in the git-tracked CLI docs (no param-get.mdx file is visible in the git status CLI section). If the command doesn't exist, this is a broken link and a factual error.",
+            "'any of 50+ raw ALB CloudWatch metrics' — the '50+' number is not grounded in any of the provided source files. The source only defines ApplicationLoadBalancerCustomTrigger as a type without specifying a metric count.",
+            "The sentence 'In the provided ApplicationLoadBalancerListener type, defaultAction is LbRedirect' reads as source-code commentary leaking into user-facing prose. Readers don't need to know the internal TypeScript type name.",
+            "cloudfrontPriceClass: 'PriceClass_All' is claimed to be the default, but the CdnConfiguration type (which ApplicationLoadBalancerCdnConfiguration extends) is not in the provided source files, making this default unverifiable from source.",
+            "The Tip callout in the Listeners section ('Most applications work fine with default listeners…') largely restates the preceding paragraph's opening sentence — minor redundancy that dilutes the Tip's signal value."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or verify the 'stacktape param:get' reference. If the command doesn't exist, replace with a note like: 'The deployed domain is visible in the stack outputs after deployment and referenceable in config via $ResourceParam().'",
+            "Remove '50+' from the custom alarm description — replace with 'any ALB CloudWatch metric' or 'raw ALB CloudWatch metrics (latency, active connections, HTTP status codes, processed bytes, etc.)' without claiming an ungrounded count.",
+            "Rewrite the defaultAction sentence to user-facing language: instead of 'In the provided ApplicationLoadBalancerListener type, defaultAction is LbRedirect', write 'The defaultAction currently supports only the redirect type.'",
+            "Soften or remove the PriceClass_All default claim if it cannot be confirmed from source: replace 'PriceClass_All (default, all regions worldwide)' with 'PriceClass_All (all regions worldwide)' and link to the CDN docs for the authoritative default.",
+            "Trim the Tip callout in the Listeners section — it restates the paragraph above it. Either remove the Tip entirely or replace it with a concrete example of when a custom port is genuinely needed (e.g., a WebSocket service on 8080)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations — all Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with TypeScript only, no fenced YAML config blocks, no StacktapeConfig type pattern.",
+            "`<FeatureComparisonTable>` for ALB vs HTTP API Gateway is well-constructed and directly answers the most common decision question; placing it early is the right call.",
+            "The routing conditions table (paths, methods, hosts, headers, queryParams, sourceIps) with concrete examples in every row is highly scannable and covers all conditions from `ApplicationLoadBalancerIntegrationProps` in events.d.ts.",
+            "Decision-support structure is solid on every opt-in section: CDN, firewall, and internal ALB each get a 'when to enable / when to skip' framing, not just configuration recipes.",
+            "Multi-service routing example is realistic (two Lambda functions sharing one ALB with explicit priorities) and directly copyable without modification.",
+            "All three ALB alarm trigger types from the `ApplicationLoadBalancerAlarmTrigger` union are covered with working examples, correct type strings, and correct property names sourced from alarms.d.ts.",
+            "FAQ covers all three required categories: Stacktape-specific (custom domains, firewall attachment, env vars), AWS-service (health checking, WebSocket support, cost model), and comparison (ALB vs API Gateway, ALB vs NLB). Ten Q&As, none padded.",
+            "The `onlyIncludeTargets` property on the unhealthy-targets alarm trigger is called out — grounded in the source and genuinely useful for production multi-service stacks.",
+            "The basic example correctly shows an empty `ApplicationLoadBalancer({})` and explains why defaults are sufficient, setting accurate reader expectations before diving into configuration."
+          ],
+          "problems": [
+            "The alarms section claims the `application-load-balancer-custom` trigger lets you alarm on 'any of 50+ raw ALB CloudWatch metrics'. The `ApplicationLoadBalancerCustomTrigger` type appears in the `ApplicationLoadBalancerAlarmTrigger` union in alarms.d.ts but its interface body is not provided in the source files. The specific count '50+' and the enumerated metrics (latency, active connections, HTTP status codes, processed bytes) are unsourced and should not be asserted.",
+            "The CDN section asserts `PriceClass_All` is the 'default, all regions worldwide'. The `ApplicationLoadBalancerCdnConfiguration` extends `CdnConfiguration`, but `CdnConfiguration` is not in the provided source files. Claiming a default value for `cloudfrontPriceClass` without the base type present is ungrounded.",
+            "The CDN section mentions `forwardingOptions`, `routeRewrites`, and `edgeFunctions` as additional CDN features without any grounding in the provided source files. These names are plausible but unverifiable from the provided source.",
+            "The `cdn: { enabled: true, ... }` shape used in the CDN example relies on `CdnConfiguration.enabled` being a boolean, but `CdnConfiguration` is not in the provided source files. The property may be valid but is not grounded."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Soften the custom alarm claim: replace 'any of 50+ raw ALB CloudWatch metrics (latency, active connections, specific HTTP status codes, processed bytes, etc.)' with 'any raw ALB CloudWatch metric with a custom threshold and aggregation function'. Remove the specific count and unverifiable metric names.",
+            "For the `cloudfrontPriceClass` default, either remove the '(default)' parenthetical next to `PriceClass_All` or note that the full CDN configuration surface is on the CDN docs page. Do not assert a default that is not in the provided source.",
+            "For `forwardingOptions`, `routeRewrites`, and `edgeFunctions` in the CDN section, replace the inline list with a shorter forward: 'See [CDN](/resources/networking/cdn) for full configuration including forwarding, route rewrites, and edge functions.' This is more honest about what the ALB-specific source covers.",
+            "The `cdn: { enabled: true }` line in the CDN example would benefit from a one-line explanation verifying the `enabled` flag activates the CDN — acceptable if `CdnConfiguration` is documented elsewhere — but flag it as potentially needing verification against the CDN type definition.",
+            "The ALB health check FAQ answer states 'Application Load Balancer alarming can monitor unhealthy targets' — this is correct but could link to the Alarms section earlier on the same page (e.g., 'see the Alarms section above') to connect the FAQ back to the actionable config."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong answer-first opening with concrete routing capabilities, pricing context, WebSocket/firewall/gradual-deployment fit, and relevant links.",
+            "Good decision support in the early sections: clear when-to-use and when-not-to-use guidance, plus a comparison table for ALB vs HTTP API Gateway.",
+            "Stacktape config examples use the required class-based `defineConfig` style inside `<CodeBlock intellisense>` with a visible `TypeScript` tab.",
+            "Good separation between top-level `useFirewall` and `cdn.useFirewall`, avoiding the common nested-property flattening problem.",
+            "FAQ is broad and useful: it mixes Stacktape-specific questions, AWS ALB usage questions, and choosing/comparison questions."
+          ],
+          "problems": [
+            "Several Stacktape-specific or adjacent claims are not grounded in the provided source files: HTTP API Gateway `~$1/million requests`, API Gateway `scales to zero cost`, direct WAF attachment being false for HTTP API Gateway, and Network Load Balancer being for `gRPC` or `static IP addresses`. These may be true elsewhere, but they are not supported by the supplied sources.",
+            "The page says unmatched ALB requests get the listener's default action, but the provided listener type only documents `defaultAction?: LbRedirect`; it does not document the behavior when no default action is configured.",
+            "The Routing section introduces a `<Tip>` component and the page also uses `<Info>`; this is probably acceptable without example-page constraints, but the component palette is more varied than necessary for a reference-style resource page.",
+            "The Alarms section claims custom ALB alarms can use `50+ raw ALB CloudWatch metrics`, but the provided alarm source only says `ApplicationLoadBalancerCustomTrigger` exists and does not enumerate or quantify metrics in the visible source.",
+            "The Custom domains section states that disabling DNS record creation requires `customCertificateArn`; the `DomainConfiguration` JSDoc says to provide it, but the type does not enforce it. The wording should stay advisory, not absolute.",
+            "The CDN section says `PriceClass_All` is the default and that ALB origins are not cached unless headers or `cachingOptions` are configured. Those defaults/behaviors are not present in the provided source files for this page.",
+            "The Internal load balancer section says an internal ALB gets no public DNS name. The source only says internal ALBs are not reachable from the internet, so the DNS-name claim is over-specific."
+          ],
+          "mandatoryFixes": [
+            "Replace unsupported comparison-table price text for HTTP API Gateway with wording grounded in the source, such as the sourced breakeven statement: `more cost-effective above ~500k requests/day`.",
+            "Remove or qualify unsupported defaults and behavioral claims in the CDN section, especially `PriceClass_All` as default and cache behavior for ALB origins, unless the CDN source file is added.",
+            "Change the unmatched-route sentence to a narrower sourced claim: custom listener `defaultAction` currently supports redirects; avoid claiming what happens when no rule matches and no redirect is configured.",
+            "Remove `50+` from the custom alarm description unless the metric list source is provided.",
+            "Reword custom-domain DNS guidance to match the source: if you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`; avoid implying a type-level requirement.",
+            "Remove or qualify unsupported NLB comparison details such as `gRPC`, `static IP addresses`, and `ultra-low latency` unless a Network Load Balancer source is provided."
+          ],
+          "optionalImprovements": [
+            "Add a small table in the Routing section showing which properties belong on the ALB resource versus the workload integration; that would reduce confusion for readers expecting routes on the load balancer itself.",
+            "Use more explicit entity names in a few later paragraphs, e.g. prefer `the Application Load Balancer listener` over `the listener` where paragraphs may be extracted independently.",
+            "Consider moving the API Reference before Referenceable parameters if this page is used mostly as a lookup page, though the current placement is acceptable.",
+            "Trim repeated CDN/firewall recommendation text in the `<Tip>` and surrounding paragraphs; the decision guidance is good but slightly duplicated."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -847,8 +1346,19 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\networking\\application-load-balancer.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.3, hard blockers 4, advisory high 0, verifier medium 12"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/resources/networking/application-load-balancer.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T06:41:07.790Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/application-load-balancers.d.ts": "713df61ef0b2816d046bdb9a25fd6f857460849f",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts": "242cf94f68a3f84aa3afefe69f69152a524f95d6",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/resources/networking/application-load-balancer.md": "b87c2392f582bdddf618ecc9ccb4253cd014fe09"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

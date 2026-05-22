@@ -2,7 +2,7 @@
   "pageId": "configuration__variables-and-reuse",
   "pageRoute": "configuration/variables-and-reuse",
   "startedAt": "2026-05-16T16:38:46.461Z",
-  "updatedAt": "2026-05-16T17:02:23.217Z",
+  "updatedAt": "2026-05-22T03:23:16.994Z",
   "iterations": [
     {
       "iteration": 1,
@@ -903,20 +903,406 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__variables-and-reuse/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clean, well-motivated progression from simple constants → stage conditions → helper functions → shared modules → spreading → conditional resources → dynamic generation — mirrors how a real team would actually adopt these patterns.",
+            "The 'When NOT to use reuse' section with concrete 1/2/3+ occurrence thresholds is unusually actionable for a concept page; most docs pages skip this entirely.",
+            "The comparison table (TypeScript const vs variables + $Var()) gives the reader an immediate, opinionated answer rather than making them weigh vague tradeoffs.",
+            "The defineConfig context parameters table is well-structured and clearly useful as a quick reference.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS/underlying mechanics, choosing/comparison) with concrete answers.",
+            "No mandatory style violations: no YAML resources blocks, no StacktapeConfig plain-object style, no defineConfig inside plain fenced TypeScript blocks."
+          ],
+          "problems": [
+            "The 'variables' section — which is half the page's namesake — defines a variables map in TypeScript but never shows $Var().variableName actually being used to reference a defined variable. A reader who needs this feature (primarily YAML users) leaves unable to use it. The define-then-reference loop is broken.",
+            "The custom directives section shows how to register a directive but omits the handler file structure entirely. The prose says 'exports a default function' but provides no example of what that file looks like. A reader cannot implement a custom directive from this page alone.",
+            "The defineConfig context table includes 'user: { id, name, email }' — this field is not present in the provided source file (_root.d.ts does not expose the callback type), which means this specific shape is ungrounded and could be inaccurate.",
+            "The 'Reusable scripts and hooks' section is a bulleted pointer to another page with no example and no sufficient depth. For a concept page with section-depth requirements, this is thin enough that it reads as padding rather than guidance."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the 'variables' section, extend the code example or add a second short snippet showing $Var().appPort or $Var().apiDomain actually referenced — e.g. in a resource's environment or a directive call — so the define-then-use cycle is visible on the same page.",
+            "In the 'Custom directives' section, add a minimal fenced TypeScript block showing the handler file structure (export default async function, parameters, return value) so the reader can implement one without navigating away.",
+            "Qualify or remove 'user: { id, name, email }' from the defineConfig context table. If the source does not expose this type shape, write 'user object (see reference docs for shape)' or omit the column until it's confirmed.",
+            "Either expand 'Reusable scripts and hooks' with a one-line example showing a hook referencing a script name, or collapse the section to a single sentence with a link — don't occupy H2 space for pure navigation prose.",
+            "Consider adding a minimal <ApiReference> for the variables or directives top-level config properties (e.g. definitionName='DirectiveDefinition') to give readers a drillable property reference, even on a concept page.",
+            "The intro paragraph mentions YAML configurations specifically but the rest of the page is TypeScript-first. A one-sentence callout at the top of the 'variables' section reinforcing 'this property is primarily for YAML configs; TypeScript users should use the patterns above' would pre-empt confusion before the table does."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The TypeScript-native reuse sections are concrete and directly actionable — shared constants, stage-based branching, helper functions, spreading, and dynamic generation all appear as distinct patterns with working code examples.",
+            "The comparison table (TypeScript const vs variables + $Var()) is the most useful thing on the page for a reader deciding which mechanism to reach for. It lands an opinion and explains the tradeoff rather than just listing both options.",
+            "The 'When NOT to use reuse' section is unusually useful for a concept page — the one/two/three-occurrences heuristic gives the reader a concrete rule to apply, not just a vague 'don't over-abstract'.",
+            "The FAQ is comprehensive and mixes Stacktape-specific questions (env vars at runtime, $Var vs const) with practical workflow questions (split files, stage conditionals) — covers the questions a real user will actually search.",
+            "Source grounding is mostly solid: the variables property JSDoc in _root.d.ts exactly supports the $Var().variableName syntax, and the three script types (local-script, local-script-with-bastion-tunneling, bastion-script) match the source union."
+          ],
+          "problems": [
+            "The defineConfig context parameter table lists awsProfile, user: { id, name, email }, and cliArgs as specific parameters. None of these appear in the only provided source file (_root.d.ts). For a reader configuring production deployments, a wrong or incomplete parameter table directly causes broken code. The table needs source verification or must be hedged ('parameters vary by command — confirm with your Stacktape version').",
+            "The human-maintained section instructions explicitly say 'Use a single short example per concept, not multiple variants.' The page has six separate full TypeScript code blocks (shared constants, stage-based, helper functions, object spreading, conditional resources, dynamic generation). This is a concept page, not a cookbook. The excess examples make the page significantly longer than warranted and dilute the signal-to-noise ratio.",
+            "The conditional resources example uses 'const resources: Record<string, any> = { api };' — this loses all TypeScript type safety at the point of return, and the any annotation may cause issues with Stacktape's internal config validator. The page presents this as the pattern without noting it is a workaround or mentioning that Stacktape may provide a better-typed alternative. A reader building production configs could copy this verbatim and lose type checking on their entire resources object.",
+            "The 'Why reuse matters' H2 section is a thin wrapper around a single paragraph that mostly restates what duplication causes. It adds an H2 with minimal content that could be folded into the intro paragraph or the first TypeScript-native section. As a standalone section it pads page length without adding actionable guidance.",
+            "The 'Shared modules across projects' subsection mentions 'published package' and shows a defaultTags object with { team: 'platform', managedBy: 'stacktape' } — but the page never explains how these tags would be applied (stackConfig.tags? resource-level tags?). A reader following this pattern may not know how to wire the shared object into actual Stacktape config properties."
+          ],
+          "mandatoryFixes": [
+            "Verify or remove the defineConfig context parameter table. The specific claim that the callback receives awsProfile, user: { id, name, email }, and cliArgs is not grounded in the provided source files. Either remove the unverified parameters from the table, add a link to the authoritative type definition, or hedge the claim explicitly. Presenting an unverified parameter shape as a reference table will cause production breakage if any field name is wrong.",
+            "Reduce code examples to match the human-maintained section instruction ('Use a single short example per concept, not multiple variants'). Keep the most illustrative example per concept (the stage-based conditional logic example for branching, the helper function example for factory patterns). Cut or merge the spreading, conditional resources, and dynamic generation sections into prose with at most one combined example — or link to a dedicated cookbook page."
+          ],
+          "optionalImprovements": [
+            "Replace 'const resources: Record<string, any> = { api }' in the conditional resources example with a properly typed alternative. If Stacktape's resources object type is indexable (it likely accepts Record<string, StacktapeResourceDefinition>), use that. If not, note in prose that this pattern trades type safety for flexibility and suggest the reader check the resource type definition.",
+            "Fold the 'Why reuse matters' H2 into the intro paragraph. Its single-paragraph content is not enough to warrant a top-level section. Moving it into the opening saves one H2 in the TOC and improves the signal density of the page.",
+            "In the 'Shared modules across projects' subsection, add one sentence showing where defaultTags would be consumed in a Stacktape config — e.g., 'Import defaultTags into your stacktape.ts and spread it into stackConfig.tags or each resource's tags property.' Without this anchor, the reader has a shared module with no clear connection point.",
+            "The Tip callout ('In TypeScript configs, these parameters replace YAML directives') is placed after the parameter table, which is the wrong order — the reader hits an unexplained table first and the orientation second. Move the Tip to appear before the table, or fold its content into the table's introductory prose.",
+            "The FAQ answer for 'What happens to variables at runtime?' correctly explains that config values are not automatically runtime env vars. Consider adding one sentence noting that $ResourceParam() and connectTo are the mechanisms for injecting infrastructure values into running workloads, giving the reader a concrete next step."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive coverage of TypeScript reuse patterns — constants, conditionals, helper functions, object spreading, conditional resources, and dynamic generation — each with a focused code example and follow-up explanation.",
+            "The deployment context parameter table is fact-dense and self-contained; extractors can quote it directly without surrounding prose.",
+            "The 'When NOT to use reuse' section gives a concrete 1/2/3-occurrence heuristic instead of vague guidance — exactly the kind of opinionated decision support the style guide calls for.",
+            "The variables-vs-TypeScript-const comparison table is clear, hits the right level, and explicitly states the opinionated recommendation ('For TypeScript configs, native constants are the better choice').",
+            "Focus markers are used consistently and correctly across all CodeBlock examples, keeping the rendered snippets tight without hiding imports from the copy buffer.",
+            "The 'Conditional resources' section correctly explains both WebAppFirewall scope values ('regional' vs 'cdn') as required — not just the one used in the example."
+          ],
+          "problems": [
+            "First paragraph ends with 'This page covers both approaches and when to reach for each.' — this is the explicitly forbidden 'this guide will cover...' meta-framing. AI Overviews extract the first paragraph verbatim; this sentence degrades the snippet and violates the hard AEO rule.",
+            "All 10 FAQ entries are Stacktape-specific. The required three-category mix is missing: there are no use-case questions about underlying AWS behavior (e.g. 'Can I reference SSM Parameter Store values in my config?', 'How does this compare to Terraform input variables?') and no choosing/comparison questions (e.g. 'TypeScript config vs YAML config — which should I use?', 'When should I use Stacktape variables vs Lambda environment variables?').",
+            "The 'variables' property section defines the property and shows registration but never shows $Var().variableName used inside an actual resource property. A reader cannot copy this section and know how to wire a variable into, say, an environment block or a port number.",
+            "Custom directives section shows directive registration but not invocation. The prose says 'use $FetchConfig() anywhere in the config' but shows no example of that call inside a resource — the reader can only guess the syntax.",
+            "The helper-function example sets memory: 512 and timeout: 30 as tunable property values with no surrounding prose explaining what the properties control or what the valid range is. Per the 'unexplained tunable values' criterion, both need at least one sentence of context.",
+            "The 'Reusable scripts and hooks' section is prose-only with no code example and no $Var() or hook invocation shown. It reads as a stub, and its cross-links substitute for depth the section should have on its own."
+          ],
+          "mandatoryFixes": [
+            "Remove or rewrite the forbidden meta-framing sentence 'This page covers both approaches and when to reach for each.' from the opening paragraph. Replace it with a concrete statement about who needs this page and what they will be able to do — e.g., 'Both paths are supported from a single stacktape.ts file.' The paragraph must be a self-contained answer, not a table of contents.",
+            "Expand the FAQ to include at least two questions from the missing required categories: (a) one use-case/AWS question such as 'Can I read AWS SSM Parameter Store or Secrets Manager values at config evaluation time?' or 'How do Stacktape variables compare to Terraform input variables?'; (b) one choosing/comparison question such as 'TypeScript config vs YAML config — which should I use?' or 'When should I use Stacktape variables instead of Lambda environment variables?'. All-Stacktape FAQs are penalized as missing the high-intent search queries that bring readers in.",
+            "Add a code snippet inside the 'variables property' section that shows $Var().variableName referenced inside an actual resource property — for example, inside an environment block or as a port value. Without this, the section documents how to declare a variable but not how to use one.",
+            "Add 1-2 sentences of prose before or after the helper-function code example explaining what memory controls (MB of RAM allocated to the Lambda function) and what timeout controls (maximum execution time in seconds), so readers know these are configurable rather than magic constants."
+          ],
+          "optionalImprovements": [
+            "Show $FetchConfig() invoked inside a resource property (e.g. in an environment value) in the custom directives section — registration without invocation leaves readers unable to complete the pattern.",
+            "Shorten the H2 'Deployment context in defineConfig' to 'Deploy context' or 'Config context' — the current form reads like a sentence fragment and runs long.",
+            "The 'Shared modules across projects' subsection has the thinnest treatment of any TypeScript-native subsection. Adding one concrete sentence about using path aliases or a local npm workspace (common patterns in monorepos) would lift it from a stub to a practical hint.",
+            "Consider adding a brief callout or note in the custom directives section clarifying that directive handler files run in a Node.js context during deployment — this is a non-obvious constraint that affects what imports and APIs are available (e.g. no browser globals, AWS SDK is available)."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly consistent with the provided sources and follows the required Stacktape config-example format. I found one concrete unsupported claim that should be narrowed because the provided root config type documents custom directive files but not handler export shape or invocation semantics in that level of detail.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The handler file exports a default function that receives any parameters passed in the directive call and returns the computed value. Once registered, use `$FetchConfig()` anywhere in the config.\"",
+              "reason": "The provided authoritative root type only says custom directives point to JS/TS/Python files and can be used like built-in directives. It does not document the handler export contract, parameter passing shape, or return behavior. The generated page repeats the claim, but no type/runtime source for DirectiveDefinition or directive execution is provided here to ground those specifics.",
+              "suggestedFix": "Narrow to the source-backed behavior: \"Register a directive by giving it a name and a JS, TypeScript, or Python file path. After registration, use it like a built-in directive such as `$FetchConfig()` to compute a config value at deploy time.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Define a directive by pointing to a JS/TS/Python file, then use it anywhere in the config\n   * like a built-in directive (`$MyDirective()`). Useful for fetching external data,\n   * computing dynamic values, or conditional logic."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and avoid hand-authored YAML config blocks.",
+            "The draft correctly uses `defineConfig` and class-based resources instead of the plain-object `StacktapeConfig` style.",
+            "The `variables` description is grounded in the root config type: `variables` is a top-level map referenced with `$Var().variableName`.",
+            "The scripts and hooks section matches the root config source, including the three documented script types and `stacktape script:run`.",
+            "All checked internal documentation links appear in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 15, col 72: Type 'string' is not assignable to type '\"*\" | \"DELETE\" | \"GET\" | \"HEAD\" | \"OPTIONS\" | \"PATCH\" | \"POST\" | \"PUT\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 23, col 67: Type 'string' is not assignable to type '\"GET\" | \"POST\" | \"*\" | \"DELETE\" | \"HEAD\" | \"OPTIONS\" | \"PATCH\" | \"PUT\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__variables-and-reuse/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clean, well-motivated progression from simple constants → stage conditions → helper functions → shared modules → spreading → conditional resources → dynamic generation — mirrors how a real team would actually adopt these patterns.",
+            "The 'When NOT to use reuse' section with concrete 1/2/3+ occurrence thresholds is unusually actionable for a concept page; most docs pages skip this entirely.",
+            "The comparison table (TypeScript const vs variables + $Var()) gives the reader an immediate, opinionated answer rather than making them weigh vague tradeoffs.",
+            "The defineConfig context parameters table is well-structured and clearly useful as a quick reference.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS/underlying mechanics, choosing/comparison) with concrete answers.",
+            "No mandatory style violations: no YAML resources blocks, no StacktapeConfig plain-object style, no defineConfig inside plain fenced TypeScript blocks."
+          ],
+          "problems": [
+            "The 'variables' section — which is half the page's namesake — defines a variables map in TypeScript but never shows $Var().variableName actually being used to reference a defined variable. A reader who needs this feature (primarily YAML users) leaves unable to use it. The define-then-reference loop is broken.",
+            "The custom directives section shows how to register a directive but omits the handler file structure entirely. The prose says 'exports a default function' but provides no example of what that file looks like. A reader cannot implement a custom directive from this page alone.",
+            "The defineConfig context table includes 'user: { id, name, email }' — this field is not present in the provided source file (_root.d.ts does not expose the callback type), which means this specific shape is ungrounded and could be inaccurate.",
+            "The 'Reusable scripts and hooks' section is a bulleted pointer to another page with no example and no sufficient depth. For a concept page with section-depth requirements, this is thin enough that it reads as padding rather than guidance."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the 'variables' section, extend the code example or add a second short snippet showing $Var().appPort or $Var().apiDomain actually referenced — e.g. in a resource's environment or a directive call — so the define-then-use cycle is visible on the same page.",
+            "In the 'Custom directives' section, add a minimal fenced TypeScript block showing the handler file structure (export default async function, parameters, return value) so the reader can implement one without navigating away.",
+            "Qualify or remove 'user: { id, name, email }' from the defineConfig context table. If the source does not expose this type shape, write 'user object (see reference docs for shape)' or omit the column until it's confirmed.",
+            "Either expand 'Reusable scripts and hooks' with a one-line example showing a hook referencing a script name, or collapse the section to a single sentence with a link — don't occupy H2 space for pure navigation prose.",
+            "Consider adding a minimal <ApiReference> for the variables or directives top-level config properties (e.g. definitionName='DirectiveDefinition') to give readers a drillable property reference, even on a concept page.",
+            "The intro paragraph mentions YAML configurations specifically but the rest of the page is TypeScript-first. A one-sentence callout at the top of the 'variables' section reinforcing 'this property is primarily for YAML configs; TypeScript users should use the patterns above' would pre-empt confusion before the table does."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The TypeScript-native reuse sections are concrete and directly actionable — shared constants, stage-based branching, helper functions, spreading, and dynamic generation all appear as distinct patterns with working code examples.",
+            "The comparison table (TypeScript const vs variables + $Var()) is the most useful thing on the page for a reader deciding which mechanism to reach for. It lands an opinion and explains the tradeoff rather than just listing both options.",
+            "The 'When NOT to use reuse' section is unusually useful for a concept page — the one/two/three-occurrences heuristic gives the reader a concrete rule to apply, not just a vague 'don't over-abstract'.",
+            "The FAQ is comprehensive and mixes Stacktape-specific questions (env vars at runtime, $Var vs const) with practical workflow questions (split files, stage conditionals) — covers the questions a real user will actually search.",
+            "Source grounding is mostly solid: the variables property JSDoc in _root.d.ts exactly supports the $Var().variableName syntax, and the three script types (local-script, local-script-with-bastion-tunneling, bastion-script) match the source union."
+          ],
+          "problems": [
+            "The defineConfig context parameter table lists awsProfile, user: { id, name, email }, and cliArgs as specific parameters. None of these appear in the only provided source file (_root.d.ts). For a reader configuring production deployments, a wrong or incomplete parameter table directly causes broken code. The table needs source verification or must be hedged ('parameters vary by command — confirm with your Stacktape version').",
+            "The human-maintained section instructions explicitly say 'Use a single short example per concept, not multiple variants.' The page has six separate full TypeScript code blocks (shared constants, stage-based, helper functions, object spreading, conditional resources, dynamic generation). This is a concept page, not a cookbook. The excess examples make the page significantly longer than warranted and dilute the signal-to-noise ratio.",
+            "The conditional resources example uses 'const resources: Record<string, any> = { api };' — this loses all TypeScript type safety at the point of return, and the any annotation may cause issues with Stacktape's internal config validator. The page presents this as the pattern without noting it is a workaround or mentioning that Stacktape may provide a better-typed alternative. A reader building production configs could copy this verbatim and lose type checking on their entire resources object.",
+            "The 'Why reuse matters' H2 section is a thin wrapper around a single paragraph that mostly restates what duplication causes. It adds an H2 with minimal content that could be folded into the intro paragraph or the first TypeScript-native section. As a standalone section it pads page length without adding actionable guidance.",
+            "The 'Shared modules across projects' subsection mentions 'published package' and shows a defaultTags object with { team: 'platform', managedBy: 'stacktape' } — but the page never explains how these tags would be applied (stackConfig.tags? resource-level tags?). A reader following this pattern may not know how to wire the shared object into actual Stacktape config properties."
+          ],
+          "mandatoryFixes": [
+            "Verify or remove the defineConfig context parameter table. The specific claim that the callback receives awsProfile, user: { id, name, email }, and cliArgs is not grounded in the provided source files. Either remove the unverified parameters from the table, add a link to the authoritative type definition, or hedge the claim explicitly. Presenting an unverified parameter shape as a reference table will cause production breakage if any field name is wrong.",
+            "Reduce code examples to match the human-maintained section instruction ('Use a single short example per concept, not multiple variants'). Keep the most illustrative example per concept (the stage-based conditional logic example for branching, the helper function example for factory patterns). Cut or merge the spreading, conditional resources, and dynamic generation sections into prose with at most one combined example — or link to a dedicated cookbook page."
+          ],
+          "optionalImprovements": [
+            "Replace 'const resources: Record<string, any> = { api }' in the conditional resources example with a properly typed alternative. If Stacktape's resources object type is indexable (it likely accepts Record<string, StacktapeResourceDefinition>), use that. If not, note in prose that this pattern trades type safety for flexibility and suggest the reader check the resource type definition.",
+            "Fold the 'Why reuse matters' H2 into the intro paragraph. Its single-paragraph content is not enough to warrant a top-level section. Moving it into the opening saves one H2 in the TOC and improves the signal density of the page.",
+            "In the 'Shared modules across projects' subsection, add one sentence showing where defaultTags would be consumed in a Stacktape config — e.g., 'Import defaultTags into your stacktape.ts and spread it into stackConfig.tags or each resource's tags property.' Without this anchor, the reader has a shared module with no clear connection point.",
+            "The Tip callout ('In TypeScript configs, these parameters replace YAML directives') is placed after the parameter table, which is the wrong order — the reader hits an unexplained table first and the orientation second. Move the Tip to appear before the table, or fold its content into the table's introductory prose.",
+            "The FAQ answer for 'What happens to variables at runtime?' correctly explains that config values are not automatically runtime env vars. Consider adding one sentence noting that $ResourceParam() and connectTo are the mechanisms for injecting infrastructure values into running workloads, giving the reader a concrete next step."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive coverage of TypeScript reuse patterns — constants, conditionals, helper functions, object spreading, conditional resources, and dynamic generation — each with a focused code example and follow-up explanation.",
+            "The deployment context parameter table is fact-dense and self-contained; extractors can quote it directly without surrounding prose.",
+            "The 'When NOT to use reuse' section gives a concrete 1/2/3-occurrence heuristic instead of vague guidance — exactly the kind of opinionated decision support the style guide calls for.",
+            "The variables-vs-TypeScript-const comparison table is clear, hits the right level, and explicitly states the opinionated recommendation ('For TypeScript configs, native constants are the better choice').",
+            "Focus markers are used consistently and correctly across all CodeBlock examples, keeping the rendered snippets tight without hiding imports from the copy buffer.",
+            "The 'Conditional resources' section correctly explains both WebAppFirewall scope values ('regional' vs 'cdn') as required — not just the one used in the example."
+          ],
+          "problems": [
+            "First paragraph ends with 'This page covers both approaches and when to reach for each.' — this is the explicitly forbidden 'this guide will cover...' meta-framing. AI Overviews extract the first paragraph verbatim; this sentence degrades the snippet and violates the hard AEO rule.",
+            "All 10 FAQ entries are Stacktape-specific. The required three-category mix is missing: there are no use-case questions about underlying AWS behavior (e.g. 'Can I reference SSM Parameter Store values in my config?', 'How does this compare to Terraform input variables?') and no choosing/comparison questions (e.g. 'TypeScript config vs YAML config — which should I use?', 'When should I use Stacktape variables vs Lambda environment variables?').",
+            "The 'variables' property section defines the property and shows registration but never shows $Var().variableName used inside an actual resource property. A reader cannot copy this section and know how to wire a variable into, say, an environment block or a port number.",
+            "Custom directives section shows directive registration but not invocation. The prose says 'use $FetchConfig() anywhere in the config' but shows no example of that call inside a resource — the reader can only guess the syntax.",
+            "The helper-function example sets memory: 512 and timeout: 30 as tunable property values with no surrounding prose explaining what the properties control or what the valid range is. Per the 'unexplained tunable values' criterion, both need at least one sentence of context.",
+            "The 'Reusable scripts and hooks' section is prose-only with no code example and no $Var() or hook invocation shown. It reads as a stub, and its cross-links substitute for depth the section should have on its own."
+          ],
+          "mandatoryFixes": [
+            "Remove or rewrite the forbidden meta-framing sentence 'This page covers both approaches and when to reach for each.' from the opening paragraph. Replace it with a concrete statement about who needs this page and what they will be able to do — e.g., 'Both paths are supported from a single stacktape.ts file.' The paragraph must be a self-contained answer, not a table of contents.",
+            "Expand the FAQ to include at least two questions from the missing required categories: (a) one use-case/AWS question such as 'Can I read AWS SSM Parameter Store or Secrets Manager values at config evaluation time?' or 'How do Stacktape variables compare to Terraform input variables?'; (b) one choosing/comparison question such as 'TypeScript config vs YAML config — which should I use?' or 'When should I use Stacktape variables instead of Lambda environment variables?'. All-Stacktape FAQs are penalized as missing the high-intent search queries that bring readers in.",
+            "Add a code snippet inside the 'variables property' section that shows $Var().variableName referenced inside an actual resource property — for example, inside an environment block or as a port value. Without this, the section documents how to declare a variable but not how to use one.",
+            "Add 1-2 sentences of prose before or after the helper-function code example explaining what memory controls (MB of RAM allocated to the Lambda function) and what timeout controls (maximum execution time in seconds), so readers know these are configurable rather than magic constants."
+          ],
+          "optionalImprovements": [
+            "Show $FetchConfig() invoked inside a resource property (e.g. in an environment value) in the custom directives section — registration without invocation leaves readers unable to complete the pattern.",
+            "Shorten the H2 'Deployment context in defineConfig' to 'Deploy context' or 'Config context' — the current form reads like a sentence fragment and runs long.",
+            "The 'Shared modules across projects' subsection has the thinnest treatment of any TypeScript-native subsection. Adding one concrete sentence about using path aliases or a local npm workspace (common patterns in monorepos) would lift it from a stub to a practical hint.",
+            "Consider adding a brief callout or note in the custom directives section clarifying that directive handler files run in a Node.js context during deployment — this is a non-obvious constraint that affects what imports and APIs are available (e.g. no browser globals, AWS SDK is available)."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\variables-and-reuse.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 3, advisory high 0, verifier medium 12"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/configuration/variables-and-reuse.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T03:23:16.994Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/variables-and-reuse.md": "bb06589c40017dfd46a2dcee3c78e6ec7e7e18fd"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

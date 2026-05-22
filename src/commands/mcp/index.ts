@@ -3,7 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { pathExists, readFile } from 'fs-extra';
 import { buildIndex, search, formatAnswer } from './lexical-index';
-import type { LexicalIndex, DocType } from './lexical-index';
+import type { LexicalIndex, DocKind } from './lexical-index';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
 
 type ToolOutput = {
@@ -448,23 +448,23 @@ Use this tool when:
         .enum(['answer', 'reference', 'snippet'])
         .optional()
         .describe(
-          'Response mode: answer (full docs), reference (titles+paths), snippet (code blocks). Default: answer'
+          'Response mode: answer (matched docs chunks), reference (titles+routes+source metadata), snippet (code blocks). Default: answer'
         ),
       resourceType: z
         .string()
         .optional()
         .describe('Filter to a specific resource type (e.g. "function", "web-service", "relational-database")'),
-      docType: z
-        .enum(['config-ref', 'cli-ref', 'concept', 'recipe', 'troubleshooting', 'getting-started'])
+      docKind: z
+        .enum(['docs-page', 'config-reference'])
         .optional()
-        .describe('Filter to a specific doc category'),
+        .describe('Filter to a specific generated docs artifact kind'),
       maxItems: z.number().optional().describe('Max number of results to return (default: 3)')
     },
-    async ({ query, mode, resourceType, docType, maxItems }) => {
+    async ({ query, mode, resourceType, docKind, maxItems }) => {
       const results = search(index, {
         query,
         resourceType,
-        docType: docType as DocType | undefined,
+        docKind: docKind as DocKind | undefined,
         maxItems: maxItems ?? 3
       });
 
@@ -863,7 +863,7 @@ Use this tool when:
 // ─── Command Entry ───────────────────────────────────────────────────────────
 
 export const commandMcp = async () => {
-  // Build the lexical index from generated AI docs
+  // Build the lexical index from generated LLM docs
   const index = await buildIndex();
 
   // Create and start the MCP server

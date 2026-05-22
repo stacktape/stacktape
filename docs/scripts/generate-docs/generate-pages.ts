@@ -5,8 +5,8 @@ import { getArgValue, getPositiveIntegerArg, hasFlag } from './cli-args';
 import { detectPageStatus, isPendingStatus } from './page-status';
 import { ensurePlaceholderPage } from './placeholders';
 import { pageDefinitions, getPageByRoute } from './pages';
-import { runPagePipeline } from './run-page';
-import { getStatePath } from './state';
+import { runPagePipeline, runPageRefinement, summarizeRefinementCandidate } from './run-page';
+import { getStatePath, loadState } from './state';
 import type { PageDefinition } from './types';
 
 const docsContentRoot = resolve(import.meta.dir, '..', '..', 'docs');
@@ -143,6 +143,25 @@ const main = async () => {
   const onlyFailed = hasFlag(argv, '--onlyFailed');
   const onlyPending = hasFlag(argv, '--onlyPending');
   const onlyStale = hasFlag(argv, '--onlyStale');
+  // --refineReview runs a targeted patch-and-verify pass on pages currently in
+  // `needs-human-review`. Cheaper than a full pipeline iteration: writer makes a minimal
+  // patch addressing only the hard verifier blockers, then only the affected verifiers
+  // (+ deterministic) re-check. Reviewers run only when the prose-similarity check shows
+  // the writer changed > 30% of non-code lines.
+  //
+  // Designed for drip-feed use — re-run whenever spare Claude/Codex capacity is available.
+  // Each invocation picks the worst still-eligible pages first. Pages keep being eligible
+  // as long as each pass reduces hard blockers; when a pass fails to make progress, the
+  // page is flagged stalled and skipped on future runs until --retryStalled is set.
+  const refineReview = hasFlag(argv, '--refineReview');
+  // --retryStalled re-includes pages whose prior refinement pass didn't reduce blockers.
+  // Use after tweaking the refinement prompt or after source-of-truth changes that might
+  // unblock previously-stuck pages.
+  const retryStalled = hasFlag(argv, '--retryStalled');
+  // Floor: pages below this reviewer-avg need a fresh rewrite, not a patch. Refinement skips
+  // them with a one-line log so they're visible in the summary.
+  const refineMinReviewerAvg = 6.5;
+  const maxPages = getPositiveIntegerArg(argv, '--maxPages', 0);
   const invalidatePassed = hasFlag(argv, '--invalidatePassed');
   const dryRun = hasFlag(argv, '--dryRun');
   const exampleArg = getArgValue(argv, '--example');
@@ -242,6 +261,116 @@ const main = async () => {
 
   if (prepareOnly) {
     console.info(`Prepared ${pages.length} page placeholders.`);
+    return;
+  }
+
+  if (refineReview) {
+    type Candidate = {
+      page: PageDefinition;
+      summary: NonNullable<ReturnType<typeof summarizeRefinementCandidate>>;
+    };
+    const candidates: Candidate[] = [];
+    const skipped: Array<{ route: string; reason: string }> = [];
+    for (const page of pages.filter(Boolean) as PageDefinition[]) {
+      const state = await loadState({ pageId: page.id });
+      if (!state) {
+        skipped.push({ route: page.route, reason: 'no-state' });
+        continue;
+      }
+      const summary = summarizeRefinementCandidate(state);
+      if (!summary) {
+        skipped.push({ route: page.route, reason: 'no-iterations' });
+        continue;
+      }
+      if (summary.outcome !== 'needs-human-review') {
+        continue;
+      }
+      if (summary.hardBlockers === 0) {
+        skipped.push({ route: page.route, reason: 'no-hard-blockers' });
+        continue;
+      }
+      if (summary.reviewerAvg < refineMinReviewerAvg) {
+        skipped.push({ route: page.route, reason: `reviewer-avg-too-low:${summary.reviewerAvg.toFixed(2)}` });
+        continue;
+      }
+      if (!retryStalled && summary.refinementStalled) {
+        skipped.push({
+          route: page.route,
+          reason: `stalled-after-${summary.refinementAttempts}-attempt(s)`
+        });
+        continue;
+      }
+      candidates.push({ page, summary });
+    }
+
+    // Breadth-first across drip-feed sessions: least-attempted pages go first, so every
+    // page gets one shot before any gets two. Within the same attempt count, prefer the
+    // worst (most hard blockers; highest reviewer-avg = most readable / most fixable).
+    candidates.sort((a, b) => {
+      if (a.summary.refinementAttempts !== b.summary.refinementAttempts) {
+        return a.summary.refinementAttempts - b.summary.refinementAttempts;
+      }
+      if (b.summary.hardBlockers !== a.summary.hardBlockers) return b.summary.hardBlockers - a.summary.hardBlockers;
+      return b.summary.reviewerAvg - a.summary.reviewerAvg;
+    });
+
+    const targets = maxPages > 0 ? candidates.slice(0, maxPages) : candidates;
+    console.info(
+      `\nRefinement queue: ${targets.length} page(s) to refine, ${skipped.length} skipped (${
+        candidates.length
+      } eligible after filters).${maxPages > 0 ? ` --maxPages=${maxPages}.` : ''}`
+    );
+    if (skipped.length > 0) {
+      const reasonCounts = skipped.reduce<Record<string, number>>((acc, entry) => {
+        acc[entry.reason] = (acc[entry.reason] || 0) + 1;
+        return acc;
+      }, {});
+      console.info(`  Skipped breakdown: ${Object.entries(reasonCounts).map(([reason, count]) => `${reason}=${count}`).join(', ')}`);
+    }
+    if (targets.length === 0) {
+      console.info('No pages eligible for refinement.');
+      return;
+    }
+
+    const refinementResults = await runBatch(targets, concurrency, async ({ page, summary }) => {
+      console.info(
+        `\nRefining /${page.route} (attempt ${summary.refinementAttempts + 1}, hard blockers: ${summary.hardBlockers}, reviewer-avg: ${summary.reviewerAvg.toFixed(2)})`
+      );
+      const result = await runPageRefinement({ page, agentModels, examplePath, retryStalled });
+      const label =
+        result.outcome === 'passed'
+          ? 'PASSED'
+          : result.outcome === 'needs-human-review'
+            ? 'STILL NEEDS REVIEW'
+            : result.outcome === 'failed'
+              ? 'FAILED'
+              : `SKIPPED (${result.reason})`;
+      const blockerDelta =
+        result.hardBlockersAfter !== undefined && result.hardBlockersBefore !== undefined
+          ? `, blockers ${result.hardBlockersBefore}→${result.hardBlockersAfter}`
+          : '';
+      const similarityNote = result.proseSimilarity !== undefined ? `, similarity ${result.proseSimilarity.toFixed(2)}` : '';
+      console.info(`  ${label} /${page.route}${blockerDelta}${similarityNote}`);
+      return { route: page.route, outcome: result.outcome, reason: result.reason };
+    });
+
+    console.info('\n--- Refinement Summary ---');
+    const passed = refinementResults.filter((r) => r.outcome === 'passed').length;
+    const stillReview = refinementResults.filter((r) => r.outcome === 'needs-human-review').length;
+    const failed = refinementResults.filter((r) => r.outcome === 'failed').length;
+    const skippedRun = refinementResults.filter((r) => r.outcome === 'skipped').length;
+    for (const r of refinementResults) {
+      const label =
+        r.outcome === 'passed'
+          ? 'PASS'
+          : r.outcome === 'needs-human-review'
+            ? 'REVIEW'
+            : r.outcome === 'failed'
+              ? 'FAIL'
+              : `SKIP(${r.reason})`;
+      console.info(`  ${label} /${r.route}`);
+    }
+    console.info(`  ${passed} promoted to passed; ${stillReview} still needs review; ${failed} failed; ${skippedRun} skipped.`);
     return;
   }
 

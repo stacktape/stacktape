@@ -2,7 +2,7 @@
   "pageId": "getting-started__ci-cd",
   "pageRoute": "getting-started/ci-cd",
   "startedAt": "2026-05-16T15:22:48.392Z",
-  "updatedAt": "2026-05-16T15:39:18.289Z",
+  "updatedAt": "2026-05-22T07:03:51.962Z",
   "iterations": [
     {
       "iteration": 1,
@@ -862,20 +862,476 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/getting-started__ci-cd/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "GitOps configuration fields (trigger, branch, stage, region, AWS account, auto-delete) are grounded in the Console source (GitOps.tsx table columns and github-app handler); the PR stage naming `pr-{#number}` is directly sourced from `gitDeploymentConfig.stage || 'pr-{#number}'` in GitOps.tsx.",
+            "The codebuild:deploy section is well-grounded in the actual command source — zip, upload to S3, run remotely — and the note that `autoConfirmOperation` is set automatically is verifiable from `adjustArguments()` in codebuild-deploy/index.ts.",
+            "GitHub Actions and GitLab CI examples are realistic, copyable, and contain only the command in fenced blocks with prose introductions above each variant. No multi-command blocks or explanatory `#` comments inside code blocks.",
+            "The `<FeatureComparisonTable>` comparison is clear and opinionated, covering setup effort, maintenance, PR previews, custom steps, and provider support — directly answering the decision most readers face.",
+            "FAQ spans all three required categories: Stacktape-specific (GitOps providers, API key), AWS use-case (CodeBuild pricing), and comparison (GitOps vs custom CI, combining both). Nine entries, all substantive.",
+            "The post-deploy CI/CD prompt behavior is correctly tied to the `stackManager.stackActionType === 'create' && globalStateManager.invokedFrom === 'cli'` guard in deploy/index.ts, giving the section accurate framing.",
+            "The opinionated recommendation ('Start with GitOps') is placed at the end of the comparison section and repeated in relevant FAQ entries — consistent and clear throughout."
+          ],
+          "problems": [
+            "Page significantly exceeds the 400–800 word target stated in the Getting Started section instructions. The prose alone is well over 1,000 words. For the target audience (wants to copy-paste and ship), this density turns a hands-on step into a reference page.",
+            "No screenshots included anywhere, despite the section instructions explicitly stating '400–800 words plus code blocks and screenshots'. A Getting Started page about a visual Console flow (GitOps configuration modal) particularly benefits from a screenshot.",
+            "The exact CLI prompt text ('? Set up automatic deployments on push to `main`? (Y/n)') is not verifiable from the provided source files. The `cicd-setup.ts` file that contains `promptCiCdSetupAfterDeploy()` is not in the source set. Quoting a specific prompt string without a source is a risk.",
+            "GitLab and Bitbucket as supported git providers are asserted without source grounding. The only provided server-side source is `github-app/index.ts`. Claiming three providers without sourcing the other two is unverified.",
+            "The `rollback` CLI command is cited in the FAQ ('use the CLI's [`rollback`](/cli/rollback) command, which reverts to the previous CloudFormation stack version') but no rollback source file is provided. The claim about 'reverts to the previous CloudFormation stack version' is ungrounded.",
+            "The codebuild:deploy prose says 'It skips the interactive confirmation automatically once the build starts remotely.' This is imprecise: per `adjustArguments()`, `autoConfirmOperation = true` is set before the zip is uploaded and the remote build is started — the confirmation is not skipped mid-run, it is pre-set before invocation."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Trim total prose to closer to the 400–800 word target by collapsing the CodeBuild section to a single paragraph + one bash block, condensing 'What you can configure' to a 3-line prose summary (the detailed list belongs in the linked reference page), and moving the GitLab CI example behind a brief 'For GitLab CI, the pattern is identical — change the YAML runner config' note with a link to the full custom CI/CD page.",
+            "Add at least one screenshot: the GitOps configuration table from the Console (listing trigger, branch, stage, region, account) would make the 'What you can configure' sub-section immediately concrete without requiring prose exposition.",
+            "Replace the unverified exact prompt string with source-safe phrasing: 'After a new stack is created from a terminal session, the CLI offers to set up CI/CD automatically for the current branch.' Omit the quoted `(Y/n)` text until the source is confirmed.",
+            "Scope the supported-git-providers claim to what is sourced: 'GitHub is supported; GitLab and Bitbucket integration is available — see [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for the full provider list.' This avoids asserting Bitbucket/GitLab without source.",
+            "Correct the codebuild:deploy confirmation wording to: 'Before uploading, Stacktape applies `--autoConfirmOperation` automatically, so the remote build runs without pausing for confirmation.' This matches `adjustArguments()` in the source.",
+            "The H3 heading 'CLI prompt after first deploy' is descriptive but slightly long for a Getting Started page. Consider shortening to 'Post-deploy setup prompt' to keep headings compact.",
+            "Consider whether the 'Which path to choose' H2 + table can be promoted to appear earlier in the page — just after the intro — so the reader makes the decision before reading two full sections of detail they may not need."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Clear two-path structure (GitOps vs custom CI) with an opinionated recommendation ('Start with GitOps') that helps readers decide without over-explaining",
+            "GitHub Actions and GitLab CI examples are realistic and copyable; `--autoConfirmOperation` flag explained in context where readers will actually need it",
+            "CLI prompt-after-first-deploy behavior is source-grounded (`promptCiCdSetupAfterDeploy()` called on new-stack creates in TTY mode per `deploy/index.ts`)",
+            "CodeBuild deploy section accurately reflects the zip→S3→CodeBuild pipeline from the source and correctly notes `autoConfirmOperation` is set automatically inside the command",
+            "`<FeatureComparisonTable>` in 'Which path to choose' is the right format for this decision and covers the five dimensions that matter most",
+            "Skip-ahead `<Info>` callout and terminal 'Next →' link both present, satisfying the getting-started section requirements",
+            "PR preview auto-delete is source-grounded: `deleteStackAfterPrClose` flag confirmed in `github-app/index.ts`"
+          ],
+          "problems": [
+            "FAQ section is explicitly forbidden on Getting Started pages. The section instructions state 'Skip the FAQ entirely on pure narrative pages (Getting Started steps).' Nine FAQ entries add ~600 words and push the page well past the 400–800 word target.",
+            "Page length far exceeds the 400–800 word target specified in the getting-started section instructions. Even without the FAQ, the page is at the high end; with it, the page is roughly 1,800+ words.",
+            "No screenshots are included. The section instructions explicitly require 'code blocks and screenshots' on each getting-started page. A screenshot of the GitOps configuration modal in the Console would be especially valuable here.",
+            "The 'Configuration source' option listed under GitOps ('read stacktape.ts from the git repository, or use a config stored in the Console') is not grounded in any provided source file. The `CreateGitOpsConfigModal` source is not included, so this claim cannot be verified.",
+            "GitLab and Bitbucket support is stated confidently multiple times, but only a `github-app` handler is present in the provided source. The broader provider support is not confirmed by the provided files.",
+            "The rollback FAQ answer links to `/cli/rollback`, but the actual source file visible in git status is `docs/docs/cli/cf-rollback.mdx`. The route should be `/cli/cf-rollback`, not `/cli/rollback`.",
+            "The specific CLI prompt text (`? Set up automatic deployments on push to 'main'? (Y/n)`) is not grounded in the provided source. Only the `promptCiCdSetupAfterDeploy()` function call is confirmed; the exact interactive text is invented."
+          ],
+          "mandatoryFixes": [
+            "Remove the entire FAQ section. The getting-started section instructions explicitly say 'Skip the FAQ entirely on pure narrative pages (Getting Started steps).' Moving these Q&As to a dedicated CI/CD reference page or the linked deep-dive pages (/ci-cd-and-gitops/gitops-with-console, /ci-cd-and-gitops/custom-ci-cd) is the right destination for them.",
+            "Trim overall page length to the 400–800 word target. After removing the FAQ, audit the remaining prose: the 'What you can configure' bullet list, the 'Supported git providers' subsection, and the extended rollback FAQ content can all be condensed or pushed to the linked deep-dive pages.",
+            "Add at least one screenshot. The GitOps configuration table visible in the Console (deployment trigger badge, branch, stage, region, AWS account columns — all confirmed in `GitOps.tsx`) is the natural candidate. The section instructions require screenshots alongside code blocks.",
+            "Fix the rollback CLI link in the FAQ (and if any rollback mention survives trimming): change `/cli/rollback` to `/cli/cf-rollback` to match the actual file `docs/docs/cli/cf-rollback.mdx`.",
+            "Either remove or soften the 'Configuration source' GitOps option (read from repo vs stored in Console). It is not grounded in any provided source file. If it cannot be verified against `CreateGitOpsConfigModal` source, omit it or hedge with 'depending on your Console configuration'.",
+            "Either remove the confident multi-provider claim ('Stacktape supports GitHub, GitLab, and Bitbucket') or explicitly ground it. Only a `github-app` handler is evidenced in the provided source. If GitLab/Bitbucket support is real, it needs a grounded source; otherwise soften to 'GitHub is supported; see the Console for additional providers'."
+          ],
+          "optionalImprovements": [
+            "The specific CLI prompt text is invented. Replace the quoted prompt with a prose description: 'After a successful deploy that creates a new stack, the CLI offers to configure automatic deployments for the current branch' — without quoting unverified terminal output.",
+            "The GitLab CI example uses `only: [main]` which is deprecated in favour of `rules:` in modern GitLab CI. While not a Stacktape error, updating it would prevent copy-paste failures for readers on current GitLab.",
+            "The `codebuild:deploy` section could note the one meaningful constraint visible in the source: the command zips only git-tracked files (`gitCreateZipArchive`) — untracked or gitignored assets will not be included in the remote build.",
+            "Consider moving the comparison table earlier in the page (before the GitOps and custom CI sections) so first-time readers self-select the right path before reading implementation details, rather than discovering the comparison only at the end."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Strong answer-first opening paragraph that explains both CI/CD paths and positions the recommendation clearly.",
+            "The `<FeatureComparisonTable>` in 'Which path to choose' is the page's highest-value extractable section — concrete, scannable, and decision-enabling.",
+            "PR preview environments section is accurate and grounded: `pr-{#number}` default naming confirmed in the Console source (`gitDeploymentConfig.stage || 'pr-{#number}'`), and `deleteStackAfterPrClose` auto-delete behavior confirmed in `github-app/index.ts`.",
+            "CLI prompt after first deploy is grounded: `promptCiCdSetupAfterDeploy()` is called only for `stackActionType === 'create' && invokedFrom === 'cli'` (deploy/index.ts), matching the 'new stack + interactive terminal' qualification.",
+            "GitHub Actions and GitLab CI examples are complete, copyable, and correctly use fenced YAML (non-Stacktape pipeline config), not CodeBlock wrappers.",
+            "PR preview shell commands are correctly split into two separate fenced blocks with prose between them — copy-button safe.",
+            "FAQ mixes all three required categories: Stacktape-specific, AWS service (CodeBuild cost), and comparison/choosing questions. Nine questions is a good count.",
+            "CodeBuild deploy section accurately reflects the source: zip → S3 upload → CodeBuild start flow, and the automatic `autoConfirmOperation = true` flag set in `adjustArguments` is correctly noted.",
+            "The 'skip ahead' callout and 'next step' footer satisfy the getting-started section's linear-flow requirements.",
+            "`--autoConfirmOperation` flag is called out explicitly in examples and explained in prose — critical for CI users."
+          ],
+          "problems": [
+            "FAQ answer for 'How much does AWS CodeBuild cost for deployments?' quotes a specific dollar figure ('$0.005 per build minute') — the style guide explicitly says to avoid quoting specific dollar prices in FAQ answers because they drift. Quote a pricing model and rough magnitude instead.",
+            "The `/cli/rollback` link in the rollback FAQ answer is likely incorrect. The repo file is `docs/docs/cli/cf-rollback.mdx`, strongly suggesting the route is `/cli/cf-rollback` (matching `cf:rollback` CLI command naming). An incorrect link will 404 and erodes trust.",
+            "The 'What you can configure' bullet point 'Configuration source — read stacktape.ts from the git repository, or use a config stored in the Console' is not confirmed by the provided source files. The `ElevatedTable` column list in `GitOps.tsx` shows only: Deployment trigger, From branch, Stage name, Region, AWS Account. The `CreateGitOpsConfigModal` code is not provided so this field's existence is unverifiable.",
+            "GitLab and Bitbucket provider support is stated as fact ('Stacktape supports GitHub, GitLab, and Bitbucket') but only the GitHub app Lambda handler is provided as source. No GitLab or Bitbucket handler appears in the source set. This is an unsupported affirmative claim about Stacktape's behavior.",
+            "H2 headings are on the longer side ('GitOps via the Stacktape Console', 'Custom CI/CD integration') — borderline for the 1-5 word noun-form H2 guideline, though they remain descriptive and not sentence-length."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Change the CodeBuild FAQ answer from '$0.005 per build minute' to a model-based description: 'AWS CodeBuild charges per build minute; costs are low for typical deployments (seconds to a few minutes for small projects, longer for large ones). See the AWS CodeBuild pricing page for current rates by instance type.' This stays true without quoting a stale number.",
+            "Fix rollback link: change `/cli/rollback` to `/cli/cf-rollback` to match the file naming convention in `docs/docs/cli/cf-rollback.mdx`.",
+            "Either ground the 'Configuration source' bullet by verifying it appears in `CreateGitOpsConfigModal`, or remove it from the 'What you can configure' list to stay strictly within the confirmed column headers from `GitOps.tsx`.",
+            "Qualify the GitLab/Bitbucket claim: if the source only confirms GitHub, say 'GitHub is supported; GitLab and Bitbucket integration may be available — check the Stacktape Console when connecting your git provider.' Do not assert GitLab/Bitbucket as confirmed unless source confirms them.",
+            "Add a one-sentence mention of the `--hotSwap` flag available on `deploy` (visible in deploy/index.ts) as an optional speed optimization for teams using custom CI — it's relevant to CI users and avoids a common 'why is my pipeline slow?' question.",
+            "The getting-started section instructions mention screenshots. A screenshot of the GitOps configuration table or the 'New GitOps configuration' modal would materially improve comprehension of the Console workflow, which cannot be fully verified from code alone.",
+            "The H2 'GitOps via the Stacktape Console' could be shortened to 'GitOps setup' or 'GitOps (Console)' to match the 1-5 word guideline more closely. 'Custom CI/CD integration' → 'Custom pipelines'. These are stylistic, not blocking."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly consistent with the provided source files, especially around the recommended GitOps path, post-deploy CI/CD prompt, GitHub PR event handling, custom CLI deployments, and CodeBuild remote deployment flow. The main issues are a few Stacktape-specific claims that go beyond the provided source or state CodeBuild behavior too broadly.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "`codebuild:deploy` performs the same deployment as `deploy` but runs the build step on AWS infrastructure rather than your local machine or CI runner. It skips the interactive confirmation automatically once the build starts remotely.",
+              "reason": "The provided `codebuild:deploy` source explicitly runs `potentiallyPromptBeforeOperation` before starting the CodeBuild deployment. The command later sets `autoConfirmOperation = true` only for the arguments passed into the remote CodeBuild job, not for the local preflight confirmation. Saying it skips the interactive confirmation automatically is misleading.",
+              "suggestedFix": "Say that `codebuild:deploy` may still prompt locally before starting the remote build, then passes `autoConfirmOperation: true` to the remote CodeBuild invocation after the user has already confirmed locally.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/codebuild-deploy/index.ts",
+                  "quote": "const cfTemplateDiff = templateManager.getOldTemplateDiff();\n    const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });\n\n    if (abort) {\n      return;\n    }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/codebuild-deploy/index.ts",
+                  "quote": "// setting auto confirm operation to skip potential prompt\n  // if we have gotten here, than we were already prompted before, so this should be fine\n  finalArgs.autoConfirmOperation = true;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Console configuration supports `Configuration source — read stacktape.ts from the git repository, or use a config stored in the Console`.",
+              "reason": "The provided Console source for the GitOps list page shows trigger, branch, stage, region, and AWS account columns, but it does not show a configuration-source field. The generated LLM doc repeats the claim, but the provided source-code excerpt does not ground the Console behavior. This is a Stacktape-specific configuration claim, so it should be narrowed unless the modal or server source is added.",
+              "suggestedFix": "Remove this bullet or narrow it to only the fields visible in the provided source: deployment trigger, source branch, target stage, AWS region, and AWS account.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "columnHeaders={[\n            ['Deployment trigger', 185],\n            'From branch',\n            ['Stage name', 135],\n            ['Region', 135],\n            'AWS Account',\n            // 'Created',\n            ['', 50]\n          ]}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`Auto-delete on PR close` is listed as a Console setting in the GitOps configuration form.",
+              "reason": "The GitHub webhook handler supports conditional deletion using `deleteStackAfterPrClose`, but the provided Console GitOps page source does not show this as a visible setting. The claim may be true in the modal, but that modal source is not included, so the draft should avoid saying it is set in the Console unless the modal/source is provided.",
+              "suggestedFix": "Phrase this as behavior supported by GitOps PR-close handling: Stacktape can delete the PR stack when `deleteStackAfterPrClose` is enabled, without claiming the exact Console field unless the relevant modal source is available.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts",
+                  "quote": "if (deletionConfigData.deleteStackAfterPrClose) {\n            return startDeletion({ deletionConfigData }).catch((err) => errorHandler(err, deletionConfigData));\n          }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "columnHeaders={[\n            ['Deployment trigger', 185],\n            'From branch',\n            ['Stage name', 135],\n            ['Region', 135],\n            'AWS Account',\n            // 'Created',\n            ['', 50]\n          ]}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The GitOps FAQ says each PR gets a live URL and its own independent infrastructure.",
+              "reason": "The provided source supports creating a temporary GitOps configuration for PR-opened events and optionally deleting on PR-close, but it does not guarantee that every PR stack produces a live URL or that all infrastructure is fully independent. Those outcomes depend on the Stacktape config being deployed.",
+              "suggestedFix": "Say that PR GitOps deploys a separate Stacktape stage per PR, which can expose URLs when the configured resources produce public endpoints.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts",
+                  "quote": "// if this is reaction to opening PR, we create GitDeploymentConfiguration that reacts to pushes into PR branch\n        if (deploymentConfigData.gitEventDetail.eventType === 'PULL_REQUEST_OPENED') {\n          await createGitConfigurationForPR({ deploymentConfigData }).catch((err) =>\n            errorHandler(err, deploymentConfigData)\n          );\n        }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "label: gitDeploymentConfig.stage || 'pr-{#number}',\n              value: gitDeploymentConfig.stage || 'Z'"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The FAQ says `rollback` reverts to the previous CloudFormation stack version.",
+              "reason": "The draft links to a valid route, but no rollback command source is included. The provided sources do not define the exact rollback behavior, so this should be stated more cautiously or omitted from this getting-started page.",
+              "suggestedFix": "Replace with: `For immediate rollback without a code push, use the CLI rollback command; see the rollback reference for exact behavior.`",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The first paragraph is concise, self-contained, and matches the page purpose.",
+            "The draft preserves the Getting Started flow and ends with the required next-step link to `/getting-started/going-to-production`.",
+            "No forbidden hand-authored Stacktape YAML config examples or plain-object `StacktapeConfig` examples appear in the draft.",
+            "The `codebuild:deploy` description is mostly grounded: the source shows project zipping, upload to S3, remote CodeBuild start, and CloudWatch log streaming.",
+            "The draft uses the documented CLI routes `/cli/deploy`, `/cli/codebuild-deploy`, and `/cli/rollback`, all of which exist in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/getting-started__ci-cd/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "GitOps configuration fields (trigger, branch, stage, region, AWS account, auto-delete) are grounded in the Console source (GitOps.tsx table columns and github-app handler); the PR stage naming `pr-{#number}` is directly sourced from `gitDeploymentConfig.stage || 'pr-{#number}'` in GitOps.tsx.",
+            "The codebuild:deploy section is well-grounded in the actual command source — zip, upload to S3, run remotely — and the note that `autoConfirmOperation` is set automatically is verifiable from `adjustArguments()` in codebuild-deploy/index.ts.",
+            "GitHub Actions and GitLab CI examples are realistic, copyable, and contain only the command in fenced blocks with prose introductions above each variant. No multi-command blocks or explanatory `#` comments inside code blocks.",
+            "The `<FeatureComparisonTable>` comparison is clear and opinionated, covering setup effort, maintenance, PR previews, custom steps, and provider support — directly answering the decision most readers face.",
+            "FAQ spans all three required categories: Stacktape-specific (GitOps providers, API key), AWS use-case (CodeBuild pricing), and comparison (GitOps vs custom CI, combining both). Nine entries, all substantive.",
+            "The post-deploy CI/CD prompt behavior is correctly tied to the `stackManager.stackActionType === 'create' && globalStateManager.invokedFrom === 'cli'` guard in deploy/index.ts, giving the section accurate framing.",
+            "The opinionated recommendation ('Start with GitOps') is placed at the end of the comparison section and repeated in relevant FAQ entries — consistent and clear throughout."
+          ],
+          "problems": [
+            "Page significantly exceeds the 400–800 word target stated in the Getting Started section instructions. The prose alone is well over 1,000 words. For the target audience (wants to copy-paste and ship), this density turns a hands-on step into a reference page.",
+            "No screenshots included anywhere, despite the section instructions explicitly stating '400–800 words plus code blocks and screenshots'. A Getting Started page about a visual Console flow (GitOps configuration modal) particularly benefits from a screenshot.",
+            "The exact CLI prompt text ('? Set up automatic deployments on push to `main`? (Y/n)') is not verifiable from the provided source files. The `cicd-setup.ts` file that contains `promptCiCdSetupAfterDeploy()` is not in the source set. Quoting a specific prompt string without a source is a risk.",
+            "GitLab and Bitbucket as supported git providers are asserted without source grounding. The only provided server-side source is `github-app/index.ts`. Claiming three providers without sourcing the other two is unverified.",
+            "The `rollback` CLI command is cited in the FAQ ('use the CLI's [`rollback`](/cli/rollback) command, which reverts to the previous CloudFormation stack version') but no rollback source file is provided. The claim about 'reverts to the previous CloudFormation stack version' is ungrounded.",
+            "The codebuild:deploy prose says 'It skips the interactive confirmation automatically once the build starts remotely.' This is imprecise: per `adjustArguments()`, `autoConfirmOperation = true` is set before the zip is uploaded and the remote build is started — the confirmation is not skipped mid-run, it is pre-set before invocation."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Trim total prose to closer to the 400–800 word target by collapsing the CodeBuild section to a single paragraph + one bash block, condensing 'What you can configure' to a 3-line prose summary (the detailed list belongs in the linked reference page), and moving the GitLab CI example behind a brief 'For GitLab CI, the pattern is identical — change the YAML runner config' note with a link to the full custom CI/CD page.",
+            "Add at least one screenshot: the GitOps configuration table from the Console (listing trigger, branch, stage, region, account) would make the 'What you can configure' sub-section immediately concrete without requiring prose exposition.",
+            "Replace the unverified exact prompt string with source-safe phrasing: 'After a new stack is created from a terminal session, the CLI offers to set up CI/CD automatically for the current branch.' Omit the quoted `(Y/n)` text until the source is confirmed.",
+            "Scope the supported-git-providers claim to what is sourced: 'GitHub is supported; GitLab and Bitbucket integration is available — see [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for the full provider list.' This avoids asserting Bitbucket/GitLab without source.",
+            "Correct the codebuild:deploy confirmation wording to: 'Before uploading, Stacktape applies `--autoConfirmOperation` automatically, so the remote build runs without pausing for confirmation.' This matches `adjustArguments()` in the source.",
+            "The H3 heading 'CLI prompt after first deploy' is descriptive but slightly long for a Getting Started page. Consider shortening to 'Post-deploy setup prompt' to keep headings compact.",
+            "Consider whether the 'Which path to choose' H2 + table can be promoted to appear earlier in the page — just after the intro — so the reader makes the decision before reading two full sections of detail they may not need."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Clear two-path structure (GitOps vs custom CI) with an opinionated recommendation ('Start with GitOps') that helps readers decide without over-explaining",
+            "GitHub Actions and GitLab CI examples are realistic and copyable; `--autoConfirmOperation` flag explained in context where readers will actually need it",
+            "CLI prompt-after-first-deploy behavior is source-grounded (`promptCiCdSetupAfterDeploy()` called on new-stack creates in TTY mode per `deploy/index.ts`)",
+            "CodeBuild deploy section accurately reflects the zip→S3→CodeBuild pipeline from the source and correctly notes `autoConfirmOperation` is set automatically inside the command",
+            "`<FeatureComparisonTable>` in 'Which path to choose' is the right format for this decision and covers the five dimensions that matter most",
+            "Skip-ahead `<Info>` callout and terminal 'Next →' link both present, satisfying the getting-started section requirements",
+            "PR preview auto-delete is source-grounded: `deleteStackAfterPrClose` flag confirmed in `github-app/index.ts`"
+          ],
+          "problems": [
+            "FAQ section is explicitly forbidden on Getting Started pages. The section instructions state 'Skip the FAQ entirely on pure narrative pages (Getting Started steps).' Nine FAQ entries add ~600 words and push the page well past the 400–800 word target.",
+            "Page length far exceeds the 400–800 word target specified in the getting-started section instructions. Even without the FAQ, the page is at the high end; with it, the page is roughly 1,800+ words.",
+            "No screenshots are included. The section instructions explicitly require 'code blocks and screenshots' on each getting-started page. A screenshot of the GitOps configuration modal in the Console would be especially valuable here.",
+            "The 'Configuration source' option listed under GitOps ('read stacktape.ts from the git repository, or use a config stored in the Console') is not grounded in any provided source file. The `CreateGitOpsConfigModal` source is not included, so this claim cannot be verified.",
+            "GitLab and Bitbucket support is stated confidently multiple times, but only a `github-app` handler is present in the provided source. The broader provider support is not confirmed by the provided files.",
+            "The rollback FAQ answer links to `/cli/rollback`, but the actual source file visible in git status is `docs/docs/cli/cf-rollback.mdx`. The route should be `/cli/cf-rollback`, not `/cli/rollback`.",
+            "The specific CLI prompt text (`? Set up automatic deployments on push to 'main'? (Y/n)`) is not grounded in the provided source. Only the `promptCiCdSetupAfterDeploy()` function call is confirmed; the exact interactive text is invented."
+          ],
+          "mandatoryFixes": [
+            "Remove the entire FAQ section. The getting-started section instructions explicitly say 'Skip the FAQ entirely on pure narrative pages (Getting Started steps).' Moving these Q&As to a dedicated CI/CD reference page or the linked deep-dive pages (/ci-cd-and-gitops/gitops-with-console, /ci-cd-and-gitops/custom-ci-cd) is the right destination for them.",
+            "Trim overall page length to the 400–800 word target. After removing the FAQ, audit the remaining prose: the 'What you can configure' bullet list, the 'Supported git providers' subsection, and the extended rollback FAQ content can all be condensed or pushed to the linked deep-dive pages.",
+            "Add at least one screenshot. The GitOps configuration table visible in the Console (deployment trigger badge, branch, stage, region, AWS account columns — all confirmed in `GitOps.tsx`) is the natural candidate. The section instructions require screenshots alongside code blocks.",
+            "Fix the rollback CLI link in the FAQ (and if any rollback mention survives trimming): change `/cli/rollback` to `/cli/cf-rollback` to match the actual file `docs/docs/cli/cf-rollback.mdx`.",
+            "Either remove or soften the 'Configuration source' GitOps option (read from repo vs stored in Console). It is not grounded in any provided source file. If it cannot be verified against `CreateGitOpsConfigModal` source, omit it or hedge with 'depending on your Console configuration'.",
+            "Either remove the confident multi-provider claim ('Stacktape supports GitHub, GitLab, and Bitbucket') or explicitly ground it. Only a `github-app` handler is evidenced in the provided source. If GitLab/Bitbucket support is real, it needs a grounded source; otherwise soften to 'GitHub is supported; see the Console for additional providers'."
+          ],
+          "optionalImprovements": [
+            "The specific CLI prompt text is invented. Replace the quoted prompt with a prose description: 'After a successful deploy that creates a new stack, the CLI offers to configure automatic deployments for the current branch' — without quoting unverified terminal output.",
+            "The GitLab CI example uses `only: [main]` which is deprecated in favour of `rules:` in modern GitLab CI. While not a Stacktape error, updating it would prevent copy-paste failures for readers on current GitLab.",
+            "The `codebuild:deploy` section could note the one meaningful constraint visible in the source: the command zips only git-tracked files (`gitCreateZipArchive`) — untracked or gitignored assets will not be included in the remote build.",
+            "Consider moving the comparison table earlier in the page (before the GitOps and custom CI sections) so first-time readers self-select the right path before reading implementation details, rather than discovering the comparison only at the end."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Strong answer-first opening paragraph that explains both CI/CD paths and positions the recommendation clearly.",
+            "The `<FeatureComparisonTable>` in 'Which path to choose' is the page's highest-value extractable section — concrete, scannable, and decision-enabling.",
+            "PR preview environments section is accurate and grounded: `pr-{#number}` default naming confirmed in the Console source (`gitDeploymentConfig.stage || 'pr-{#number}'`), and `deleteStackAfterPrClose` auto-delete behavior confirmed in `github-app/index.ts`.",
+            "CLI prompt after first deploy is grounded: `promptCiCdSetupAfterDeploy()` is called only for `stackActionType === 'create' && invokedFrom === 'cli'` (deploy/index.ts), matching the 'new stack + interactive terminal' qualification.",
+            "GitHub Actions and GitLab CI examples are complete, copyable, and correctly use fenced YAML (non-Stacktape pipeline config), not CodeBlock wrappers.",
+            "PR preview shell commands are correctly split into two separate fenced blocks with prose between them — copy-button safe.",
+            "FAQ mixes all three required categories: Stacktape-specific, AWS service (CodeBuild cost), and comparison/choosing questions. Nine questions is a good count.",
+            "CodeBuild deploy section accurately reflects the source: zip → S3 upload → CodeBuild start flow, and the automatic `autoConfirmOperation = true` flag set in `adjustArguments` is correctly noted.",
+            "The 'skip ahead' callout and 'next step' footer satisfy the getting-started section's linear-flow requirements.",
+            "`--autoConfirmOperation` flag is called out explicitly in examples and explained in prose — critical for CI users."
+          ],
+          "problems": [
+            "FAQ answer for 'How much does AWS CodeBuild cost for deployments?' quotes a specific dollar figure ('$0.005 per build minute') — the style guide explicitly says to avoid quoting specific dollar prices in FAQ answers because they drift. Quote a pricing model and rough magnitude instead.",
+            "The `/cli/rollback` link in the rollback FAQ answer is likely incorrect. The repo file is `docs/docs/cli/cf-rollback.mdx`, strongly suggesting the route is `/cli/cf-rollback` (matching `cf:rollback` CLI command naming). An incorrect link will 404 and erodes trust.",
+            "The 'What you can configure' bullet point 'Configuration source — read stacktape.ts from the git repository, or use a config stored in the Console' is not confirmed by the provided source files. The `ElevatedTable` column list in `GitOps.tsx` shows only: Deployment trigger, From branch, Stage name, Region, AWS Account. The `CreateGitOpsConfigModal` code is not provided so this field's existence is unverifiable.",
+            "GitLab and Bitbucket provider support is stated as fact ('Stacktape supports GitHub, GitLab, and Bitbucket') but only the GitHub app Lambda handler is provided as source. No GitLab or Bitbucket handler appears in the source set. This is an unsupported affirmative claim about Stacktape's behavior.",
+            "H2 headings are on the longer side ('GitOps via the Stacktape Console', 'Custom CI/CD integration') — borderline for the 1-5 word noun-form H2 guideline, though they remain descriptive and not sentence-length."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Change the CodeBuild FAQ answer from '$0.005 per build minute' to a model-based description: 'AWS CodeBuild charges per build minute; costs are low for typical deployments (seconds to a few minutes for small projects, longer for large ones). See the AWS CodeBuild pricing page for current rates by instance type.' This stays true without quoting a stale number.",
+            "Fix rollback link: change `/cli/rollback` to `/cli/cf-rollback` to match the file naming convention in `docs/docs/cli/cf-rollback.mdx`.",
+            "Either ground the 'Configuration source' bullet by verifying it appears in `CreateGitOpsConfigModal`, or remove it from the 'What you can configure' list to stay strictly within the confirmed column headers from `GitOps.tsx`.",
+            "Qualify the GitLab/Bitbucket claim: if the source only confirms GitHub, say 'GitHub is supported; GitLab and Bitbucket integration may be available — check the Stacktape Console when connecting your git provider.' Do not assert GitLab/Bitbucket as confirmed unless source confirms them.",
+            "Add a one-sentence mention of the `--hotSwap` flag available on `deploy` (visible in deploy/index.ts) as an optional speed optimization for teams using custom CI — it's relevant to CI users and avoids a common 'why is my pipeline slow?' question.",
+            "The getting-started section instructions mention screenshots. A screenshot of the GitOps configuration table or the 'New GitOps configuration' modal would materially improve comprehension of the Console workflow, which cannot be fully verified from code alone.",
+            "The H2 'GitOps via the Stacktape Console' could be shortened to 'GitOps setup' or 'GitOps (Console)' to match the 1-5 word guideline more closely. 'Custom CI/CD integration' → 'Custom pipelines'. These are stylistic, not blocking."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided CI/CD and GitOps sources, but it contains several Stacktape-specific claims that are either unsupported by the provided source files or phrased more strongly than the source allows. The highest-risk issues are around Console configuration options, custom CI credential behavior, and CodeBuild pricing/default details.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Configuration source — read `stacktape.ts` from the git repository, or use a config stored in the Console”",
+              "reason": "The provided Console source for the GitOps page shows the visible GitOps table fields and creation modal wiring, but it does not show or substantiate a configurable “configuration source” option. This is a Stacktape-specific Console capability claim and should not be asserted from the provided sources.",
+              "suggestedFix": "Remove this bullet unless the CreateGitOpsConfigModal or server source proving the option is included. Narrow the list to fields visible in the provided source: deployment trigger, branch, stage name, region, and AWS account.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "columnHeaders={[\n            ['Deployment trigger', 185],\n            'From branch',\n            ['Stage name', 135],\n            ['Region', 135],\n            'AWS Account',"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The CLI deploys into the AWS account you connected to your Stacktape organization.”",
+              "reason": "The provided deploy command source shows deployment uses `globalStateManager.targetAwsAccount`, but it does not establish that custom CI automatically deploys through an organization-connected AWS account solely from `STACKTAPE_API_KEY`. That may be true elsewhere, but it is not grounded in the supplied source set.",
+              "suggestedFix": "Say only that CI should provide `STACKTAPE_API_KEY` for Stacktape API authentication, and keep AWS-account selection wording tied to CLI arguments/defaults only if a source for that behavior is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/codebuild-deploy/index.ts",
+                  "quote": "const { awsAccountId } = globalStateManager.targetAwsAccount;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/codebuild-deploy/index.ts",
+                  "quote": "stacktapeUserInfo: {\n        id: globalStateManager.userData.id,\n        apiKey: globalStateManager.apiKey\n      }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS CodeBuild charges per build minute. The `general1.small` instance type (the default for most workloads) costs roughly $0.005 per build minute in US regions. A typical Stacktape deployment takes 2-10 minutes depending on project size, so each deploy costs a few cents.”",
+              "reason": "The provided source confirms Stacktape starts a CodeBuild deployment, but it does not include CodeBuild instance defaults, pricing, or typical Stacktape deployment duration. Concrete pricing and duration numbers should not be invented from outside the provided source set for this page.",
+              "suggestedFix": "Replace with a non-numeric pricing model statement, such as: “AWS CodeBuild is billed by build duration and compute type; check AWS pricing for your region and runner size.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/codebuild-deploy/index.ts",
+                  "quote": "build = await startCodebuildDeployment({\n      awsSdkManager,\n      awsAccountId,\n      codebuildPipeline,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For immediate rollback without a code push, use the CLI's [`rollback`](/cli/rollback) command, which reverts to the previous CloudFormation stack version.”",
+              "reason": "The provided sources include deploy and codebuild-deploy command behavior, but no rollback command source. The route exists in the navigation index, but the specific behavior “reverts to the previous CloudFormation stack version” is not grounded in the supplied files.",
+              "suggestedFix": "Keep the link but narrow the claim: “For a CLI rollback workflow, see [`rollback`](/cli/rollback).”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/deploy/index.ts",
+                  "quote": "const performFullDeploy = async () => {\n  try {\n    const { warningMessages } = await stackManager.deployStack(deploymentArtifactManager.cloudformationTemplateUrl);"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“GitOps gives you push-to-deploy and PR preview environments with zero pipeline code.” / “no workflow files to maintain.”",
+              "reason": "The provided source supports GitOps configurations and GitHub event handling, but it does not directly prove that all GitOps setup requires zero workflow code or no workflow files. This is likely true at the product level, but it is broader than the supplied source proves.",
+              "suggestedFix": "Narrow to source-grounded behavior: “GitOps configurations can deploy on push and pull-request events from the Console, without showing users a CI workflow file in this flow.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“When you configure a pull-request trigger, Stacktape creates an isolated stage for each PR (named `pr-{#number}` by default).”",
+              "reason": "The UI source shows `pr-{#number}` as the displayed fallback stage value, and the GitHub handler shows temporary PR GitOps configuration creation. The word “isolated” is plausible for stage-based deployments, but the provided source does not explicitly define isolation semantics for PR stages.",
+              "suggestedFix": "Use narrower wording: “Stacktape uses a PR-specific stage name, displayed as `pr-{#number}` when no explicit stage is set.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses the documented `stacktape debug:logs` rule by not inventing a logs command.",
+            "The GitOps event flow is broadly supported by the GitHub app handler: PR opened creates a temporary GitOps configuration, PR closed deletes it, and `deleteStackAfterPrClose` controls stack deletion.",
+            "The `codebuild:deploy` description that Stacktape zips the project, uploads it, starts CodeBuild, and passes `autoConfirmOperation: true` to the remote invocation is grounded in the provided command source.",
+            "The page avoids forbidden hand-authored Stacktape YAML config and does not use the deprecated `StacktapeConfig` typed-object style."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\getting-started\\ci-cd.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 3, advisory high 1, verifier medium 13"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/getting-started/ci-cd.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T07:03:51.962Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx": "8e28b3c0f30a5d01e75d832d4eac379b499fee85",
+    "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts": "2e007e542274b4908d3e32769afe3c76c4dd3d21",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/codebuild-deploy/index.ts": "f71dbe8694568c033d5681e766cd4efffd1c73aa",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/deploy/index.ts": "555109ac47325341f247864350e1e82fa8719690",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/getting-started/ci-cd.md": "a321ecf04e758c4a3f57ed7246feb984e9e57b46"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

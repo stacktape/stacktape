@@ -2,7 +2,7 @@
   "pageId": "observability__alarms",
   "pageRoute": "observability/alarms",
   "startedAt": "2026-05-17T16:06:21.933Z",
-  "updatedAt": "2026-05-17T16:30:53.936Z",
+  "updatedAt": "2026-05-21T16:04:56.102Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1063,6 +1063,434 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/observability__alarms/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive trigger-type tables with threshold property names, units, default statistics, and comparison operators — all tightly matched to the source types in alarms.d.ts.",
+            "Three realistic, copy-paste-ready TypeScript config examples (Lambda alarm, database with evaluation tuning, Lambda with Slack notifications and a p95 duration alarm) that cover the main use cases.",
+            "Clear CLI vs Console separation throughout: debug:alarms for per-stack alarm state, Console for global rule management — directly meeting the section requirement.",
+            "Evaluation window section explains the period/evaluationPeriods/breachedPeriods interplay with a concrete worked example (25-minute window, 3-of-5 breach) and a practical <Tip> starting configuration for production.",
+            "FAQ covers all three required categories: Stacktape-specific questions (disabling global alarms, inline vs global), AWS service questions (CloudWatch alarm cost, testing alarms), and comparison questions (alarms vs issues).",
+            "The info callout distinguishing LessThanThreshold defaults for free-storage and free-memory triggers is a source-grounded clarification that prevents a common misconfiguration.",
+            "disabledGlobalAlarms feature documented with a concrete, realistic use case (long-running scheduled Lambda tripping a duration alarm) that makes the decision clear."
+          ],
+          "problems": [
+            "UNGROUNDED CLAIM: The `application-load-balancer-custom` trigger section describes `metric` and `threshold` properties in detail and claims '52 CloudWatch ALB metrics' — but the `ApplicationLoadBalancerCustomTrigger` interface is NOT defined in the provided alarms.d.ts. None of these specifics are grounded in any provided source file. The same ungrounded detail is repeated verbatim in the FAQ answer for 'What does the application-load-balancer-custom trigger support?'",
+            "INVENTED NUMBER: The '52 CloudWatch ALB metrics' count is a specific number not found in any provided source. It reads as authoritative but is unverifiable and will drift as AWS adds metrics.",
+            "POTENTIALLY UNGROUNDED RESOURCE: The Supported Resources table lists 'Web service' with an `alarms` property, but the source's `StpAlarmEnabledResource` union covers only LambdaFunction, RelationalDatabase, HttpApiGateway, ApplicationLoadBalancer, and SqsQueue — no WebService. Whether web services expose a separate `alarms` property that delegates to their underlying networking resource is not confirmed by the provided source.",
+            "UNKNOWN MDX COMPONENT: `<ConsoleScreenshot>` is not in the documented MDX component palette (Info, Tip, Warning, ApiReference, ReferenceableParams, CodeBlock). If the component is not registered in the docs build, the 'Global alarm rules' section will silently render nothing or throw a build error."
+          ],
+          "mandatoryFixes": [
+            "Remove the ungrounded `application-load-balancer-custom` trigger detail. The `ApplicationLoadBalancerCustomTrigger` interface does not appear in the provided alarms.d.ts, so the `metric` property name, `threshold` property name, the '52 metrics' count, and the list of example metric names (ActiveConnectionCount, TargetResponseTime, etc.) are all unsupported Stacktape-specific claims. Replace the paragraph with: 'The `application-load-balancer-custom` trigger lets you alarm on additional ALB CloudWatch metrics beyond the built-in error-rate and unhealthy-targets triggers. See the API reference for the supported properties.' Remove the same ungrounded content from the FAQ answer about the custom trigger.",
+            "Remove the specific '52 CloudWatch ALB metrics' count everywhere it appears. The source does not enumerate these metrics and the number is a specific claim that will become stale. Replace with non-numeric phrasing such as 'additional ALB CloudWatch metrics'.",
+            "Either ground the Web service row in the Supported Resources table by identifying a source file that shows WebService has its own `alarms` property, or remove the row entirely. The authoritative `StpAlarmEnabledResource` union in alarms.d.ts covers Lambda, RelationalDatabase, HttpApiGateway, ApplicationLoadBalancer, and SqsQueue — WebService is absent. If the row stays, the Info callout should clarify this is indirect (alarms attach to the underlying ALB or API Gateway resource, not the WebService itself), and the prose should not imply WebService is a first-class alarm-enabled resource."
+          ],
+          "optionalImprovements": [
+            "Verify that `<ConsoleScreenshot>` is a valid registered MDX component in the docs build. If not, replace it with a prose description of the alarm rules page and a link, or convert to a standard `<Info>` callout. Leaving an unregistered component will silently break the section.",
+            "The database alarm code example uses `instanceClass: 'db.t4g.micro'` without explaining what the property controls or what alternatives exist. One sentence noting that `instanceClass` sets the database server size and linking to the relational database page would prevent the value from reading as a required magic string.",
+            "The ALB custom trigger table row lists 'Default statistic: avg' — but since the `ApplicationLoadBalancerCustomTrigger` interface is not in the provided source, this default cannot be verified. After narrowing the custom trigger description (per mandatory fix), either remove this table row or mark the statistic as 'see API reference'.",
+            "The Global alarm rules section explains `forServices` and `forStages` as Console-side properties but doesn't connect them to the same-named fields on the `AlarmDefinition` type. A brief parenthetical noting the Console terminology maps to the type fields would reduce confusion for readers who jump between the Console and their config.",
+            "The evaluation window Tip gives two good starting configurations but doesn't name the core trade-off: shorter periods catch issues faster but produce more false positives; longer periods or higher breachedPeriods reduce noise but delay detection. One sentence framing the trade-off before the specific recommendations would help readers calibrate to their own tolerance."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Trigger-type tables are precise and grounded — comparison operator defaults and statistic availability (e.g. error-rate triggers don't expose statistic) correctly reflect the source type definitions.",
+            "Evaluation window explanation with the concrete period×evaluationPeriods×breachedPeriods math is exactly the kind of depth a production engineer needs to tune alarms correctly.",
+            "CLI vs Console distinction is clean throughout: debug:alarms commands are separate from Console alarm-rules management, matching the section instructions.",
+            "LessThanThreshold defaults for free-storage and free-memory are correctly called out — easy detail to miss that causes real misconfiguration.",
+            "Code examples are syntactically correct, use proper class names and packaging types, and demonstrate realistic patterns (multi-alarm config, evaluation tuning, p95 statistic override).",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service mechanics, comparison questions) with useful, standalone answers.",
+            "The Info callout explaining web-service alarm trigger type dependency on networking mode prevents a common misconfiguration.",
+            "SqsQueueNotEmpty trigger edge case (no configurable threshold, fires on any non-zero message count) is explicitly documented rather than glossed over."
+          ],
+          "problems": [
+            "Ungrounded factual claim: 'any of 52 CloudWatch ALB metrics' for the application-load-balancer-custom trigger. The number 52 does not appear anywhere in the provided source files. The ApplicationLoadBalancerCustomTrigger interface is referenced in the union type but its definition (including property names like `metric`, `threshold`) is absent from the provided source.",
+            "Ungrounded metric names for ALB custom trigger: the FAQ answer lists specific metric names (ActiveConnectionCount, TargetResponseTime, HTTPCode_Target_5XX_Count, HealthyHostCount, etc.) that are not present in any provided source file.",
+            "ApiReference uses definitionName='AlarmDefinitionBase' but AlarmDefinitionBase omits the `trigger` and `name` fields — which are the most important properties for inline alarms. These live on `AlarmDefinition` (which extends AlarmDefinitionBase). A user drilling into the API reference will not see the trigger property at all.",
+            "Web service listed as a supported inline alarm resource in the table, but `type StpAlarmEnabledResource` in alarms.d.ts enumerates only five types: StpLambdaFunction, StpRelationalDatabase, StpHttpApiGateway, StpApplicationLoadBalancer, StpSqsQueue. StpWebService is absent. The claim that web services accept an `alarms` property inline needs source backing.",
+            "`disabledGlobalAlarms` property is described in a full section with a code example, but this property is not defined anywhere in the provided source files (alarms.d.ts does not contain it). If the property exists it belongs on the resource types, not alarms.d.ts, but neither source is present.",
+            "Alarms as event triggers section links to /configuration/triggers/alarms-as-triggers without any source backing in the provided files. AlarmNotificationEventRuleInput exists in the source but describes the notification payload, not a Lambda trigger integration."
+          ],
+          "mandatoryFixes": [
+            "Replace the 'any of 52 CloudWatch ALB metrics' claim with source-grounded wording. The exact count is not in the provided source. Either omit the number and say 'allows you to specify any ALB CloudWatch metric by name' (if you can confirm the metric property exists) or note that the supported metric names are not enumerated in the config types and link to AWS CloudWatch ALB metrics documentation instead.",
+            "Remove the specific ALB custom metric name examples (ActiveConnectionCount, TargetResponseTime, RequestCount, HTTPCode_Target_5XX_Count, HealthyHostCount, UnHealthyHostCount, TLS errors, authentication metrics) from both the Trigger types section and the FAQ answer. These names are not in any provided source file.",
+            "Change <ApiReference definitionName='AlarmDefinitionBase' /> to <ApiReference definitionName='AlarmDefinition' />. AlarmDefinition extends AlarmDefinitionBase and includes the `trigger` and `name` fields that are the primary reason readers visit the API reference. AlarmDefinitionBase alone shows only evaluation, notificationTargets, includeInHistory, and description — missing the most important property.",
+            "Qualify the web service row in the Supported resources table. The source's StpAlarmEnabledResource union does not include web services. Either remove the row and handle web services via a note that the underlying ALB or API Gateway resource accepts alarms, or explicitly mark that web service alarm support is indirect (through the underlying resource) and confirm from a source that web services expose an `alarms` property before listing it as a supported inline target.",
+            "Remove or heavily qualify the disabledGlobalAlarms section and the associated code example. This property does not appear in the provided source files. If it exists on the individual resource types (LambdaFunctionProps, etc.) and was verified from those type files, cite the specific file. Otherwise the section is ungrounded and will mislead users who try to use the property.",
+            "Remove or heavily qualify the 'Alarms as event triggers' section. The AlarmNotificationEventRuleInput type in the source describes the notification payload shape, not a Lambda trigger integration. The link to /configuration/triggers/alarms-as-triggers has no source grounding in the provided files."
+          ],
+          "optionalImprovements": [
+            "The Supported resources table could show the resource page links in the first column rather than in prose text, making it faster to jump to the resource docs from the alarm config page.",
+            "The Notification targets section describes what each integration needs (conversationId + accessToken for Slack, webhookUrl for MS Teams) but doesn't state what the `webhook` type's optional HMAC signing property is called. The source shows WebhookIntegration is in the union — if the `secret` property name is grounded, one line would close a practical question.",
+            "The evaluation window Tip callout recommends starting with evaluationPeriods:3 + breachedPeriods:2 at 60s period for production error-rate alarms. This is good but would be stronger with a note that 60s period requires the resource to generate enough data points in 3 minutes to avoid INSUFFICIENT_DATA state on low-traffic resources (e.g. scheduled Lambdas).",
+            "The Console section could mention that the alarm-rules page shows 'All projects' and 'All stages' labels when forServices/forStages are empty, matching what users will see. This detail is grounded in the AlarmsRulesPage source (MultiValueSummary allLabel values)."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "The page is easy to scan: short H2s, trigger tables, realistic examples, and a broad FAQ.",
+            "Stacktape config examples use class-based TypeScript inside <CodeBlock intellisense> with the required TypeScript tab label.",
+            "The page clearly distinguishes inline alarms, global alarm rules, CLI alarm state checks, and Console alarm rule management."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided sources: inline web-service alarms, web-service disabledGlobalAlarms, combining global and inline alarms at deploy time, and global alarm filtering by project/stage/resource/disabledGlobalAlarms.",
+            "The <ApiReference definitionName=\"AlarmDefinitionBase\" /> likely points to a shared base interface, not the root page concept. The page is about alarm rules and inline alarm definitions, so the API reference may be too narrow or wrong for the documented surface.",
+            "The page claims application-load-balancer-custom supports “any of 52 CloudWatch ALB metrics” and lists specific metric names, but the provided alarms.d.ts source does not define the custom trigger props or the metric enum/list.",
+            "The Console section describes real-time alarm state as CLI-only, but the provided Console source only grounds alarm rules list/details/create/delete, not whether specific-stage alarm states are absent from Console.",
+            "The FAQ includes specific CloudWatch pricing and high-resolution alarm behavior that are not present in the provided source files. The prompt allows AWS FAQ context, but the “not used by Stacktape” claim depends on the period multiple-of-60 config source and should be phrased narrowly.",
+            "Some H2 first paragraphs are too dependent on context or too short for extraction, especially “Trigger types,” “Evaluation windows,” “Notification targets,” and “Alarms as event triggers.”",
+            "Several examples set tunable values without enough surrounding anchors: db.t4g.micro, thresholdMB: 1000, timeout: 300, Slack conversationId/accessToken, and disabledGlobalAlarms name assumptions."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the claim that web services support inline alarms and disabledGlobalAlarms. The provided alarms.d.ts StpAlarmEnabledResource includes Lambda functions, relational databases, HTTP API Gateways, Application Load Balancers, and SQS queues only.",
+            "Replace unsupported ALB custom metric claims with source-grounded wording, or add the source that defines ApplicationLoadBalancerCustomTriggerProps and its allowed metric values. Do not state “52 metrics” unless the metric list is in the provided source.",
+            "Fix the API reference to use the correct root definition for the documented surface. If the page is documenting global alarm rules, use AlarmDefinition if it exists in the schema; if documenting inline resource alarms, explain why AlarmDefinitionBase is intentionally shown.",
+            "Narrow the global alarm behavior claims to what the provided sources show: Console alarm rules have name, created date, forServices, forStages, trigger, notificationTargets, trigger properties, and evaluation details. Do not claim deploy-time merge/filter internals unless runtime/config source is provided.",
+            "Revise H2 opening paragraphs so each is self-contained and names “Stacktape alarms” or “Stacktape alarm rules” explicitly rather than relying on surrounding context."
+          ],
+          "optionalImprovements": [
+            "Add a short comparison table for inline alarms vs global alarm rules; the page already compares them in prose and FAQ, but a table would improve extractability.",
+            "Add one or two sentences after each major example explaining every non-obvious tunable value and whether it is illustrative or recommended.",
+            "Move the pricing FAQ wording toward pricing model rather than a specific $0.10 value unless pricing is provided in the page source bundle.",
+            "The Console screenshot is plausible, but the source only proves the alarm rules table and detail modal. Keep UI descriptions close to the visible component labels: create new alarm rule, show details, delete, alert channels, trigger details, evaluation."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the alarm type source and Console alarm-rules page, but it contains several Stacktape-specific claims that are either unsupported by the provided sources or contradicted by the alarm trigger types. The highest-impact problems are around unsupported ALB custom-metric details, incorrect notification wording, an unsupported alarm-state/history claim, and an unverified CLI example.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft says `application-load-balancer-custom` can alarm on any of 52 CloudWatch ALB metrics and lists examples such as `ActiveConnectionCount`, `TargetResponseTime`, `RequestCount`, and `HTTPCode_Target_5XX_Count`.",
+              "reason": "The provided `ApplicationLoadBalancerCustomTrigger` type is referenced in the union, but the source excerpt does not define its properties, accepted metric names, or a 52-metric list. This would affect what users try to configure.",
+              "suggestedFix": "Narrow the text to say that `application-load-balancer-custom` exists as an ALB trigger type, but avoid claiming the metric count or supported metric names unless the source file defining `ApplicationLoadBalancerCustomTrigger` is included.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type ApplicationLoadBalancerAlarmTrigger =\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | ApplicationLoadBalancerCustomTrigger;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft says the `application-load-balancer-custom` trigger has default statistic `avg`, supports `statistic` and `comparisonOperator`, and uses `threshold` plus `metric`.",
+              "reason": "The provided source does not show `ApplicationLoadBalancerCustomTrigger` or its props, so the draft cannot ground these property names or defaults from the supplied source. Because these are exact configuration fields, this is a publication-blocking risk.",
+              "suggestedFix": "Remove the ALB custom trigger details, or replace them with only the grounded fact that `application-load-balancer-custom` is one accepted ALB alarm trigger type.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type AlarmTrigger =\n  | LambdaErrorRateTrigger\n  | LambdaDurationTrigger\n  | RelationalDatabaseReadLatencyTrigger\n  | RelationalDatabaseWriteLatencyTrigger\n  | RelationalDatabaseCPUUtilizationTrigger\n  | RelationalDatabaseFreeStorageTrigger\n  | RelationalDatabaseFreeMemoryTrigger\n  | RelationalDatabaseConnectionCountTrigger\n  | HttpApiGatewayErrorRateTrigger\n  | HttpApiGatewayLatencyTrigger\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | ApplicationLoadBalancerCustomTrigger\n  | SqsQueueReceivedMessagesCountTrigger\n  | SqsQueueNotEmptyTrigger;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft says `notificationTargets` supports Slack, MS Teams, email, Discord, and webhook integration types, but the notification section says the alert-channels guide covers “required scopes, webhook formats, credential handling via `$Secret()`, and per-integration configuration properties.”",
+              "reason": "The alarm type source only grounds the integration union and the basic meaning of `notificationTargets`; it does not ground required scopes, webhook formats, or credential-handling requirements. Those details may be documented elsewhere, but they are not in the supplied source for this page.",
+              "suggestedFix": "Keep the grounded list of integration types and link to alert channels without enumerating setup details that are not present in the source list.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type AlarmUserIntegration =\n  | MsTeamsIntegration\n  | SlackIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "  /**\n   * #### Where to send notifications when the alarm fires — Slack, MS Teams, or email.\n   */\n  notificationTargets?: AlarmUserIntegration[];"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft says when an alarm fires, “The state change is also recorded in alert history unless `includeInHistory` is set to `false`.”",
+              "reason": "The source says `includeInHistory` controls whether alarm state changes should appear in monitoring history, but it does not prove that every alarm fire is recorded in the `/observability/alert-history` surface or that notification-time state changes are recorded there exactly as described.",
+              "suggestedFix": "Use the source wording: “`includeInHistory` controls whether alarm state changes should appear in monitoring history and defaults to `true`.” Avoid promising the specific alert-history behavior unless a source file for that page is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "  /**\n   * #### Whether alarm state changes should appear in monitoring history.\n   *\n   * @default true\n   */\n  includeInHistory?: boolean;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The draft repeatedly says `database-free-memory` defaults to `LessThanThreshold`.",
+              "reason": "The free-memory trigger documentation says free memory drops below the value by default, but the inherited `comparisonOperator` JSDoc still declares `@default GreaterThanThreshold`. The draft states a specific default enum value that is not directly supported by the provided source and conflicts with the shared comparison default annotation.",
+              "suggestedFix": "Phrase this as behavior instead of a default enum: “`database-free-memory` fires when average free memory drops below the threshold.” Avoid listing `LessThanThreshold` as the default comparison unless the runtime validator source confirms it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "interface RelationalDatabaseFreeMemoryTriggerProps extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {\n  /**\n   * #### Fires when free memory drops below this value (MB).\n   *\n   * ---\n   *\n   * Default: fires if **average** free memory < threshold. Customize with `statistic` and `comparisonOperator`.\n   */\n  thresholdMB: number;\n}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "interface TriggerWithCustomComparison {\n  /**\n   * #### How to compare the metric value against the threshold.\n   *\n   * @default GreaterThanThreshold\n   */\n  comparisonOperator?: ComparisonOperator;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The draft repeatedly says `database-free-storage` defaults to `LessThanThreshold`.",
+              "reason": "The free-storage trigger documentation says free storage drops below the threshold and that the default behavior uses minimum free storage below threshold, but the inherited `comparisonOperator` JSDoc declares `@default GreaterThanThreshold`. The draft states a concrete default enum value that is not directly supported by the provided source and conflicts with the shared comparison default annotation.",
+              "suggestedFix": "Phrase this as behavior: “`database-free-storage` fires when minimum free disk space drops below the threshold.” Do not list `LessThanThreshold` as the default comparison unless runtime source confirms that enum override.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "interface RelationalDatabaseFreeStorageTriggerProps extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {\n  /**\n   * #### Fires when free disk space drops below this value (MB).\n   *\n   * ---\n   *\n   * Default: fires if **minimum** free storage < threshold.\n   */\n  thresholdMB: number;\n}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "interface TriggerWithCustomComparison {\n  /**\n   * #### How to compare the metric value against the threshold.\n   *\n   * @default GreaterThanThreshold\n   */\n  comparisonOperator?: ComparisonOperator;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The CLI example uses `stacktape debug:alarms --stage production --region eu-west-1`.",
+              "reason": "The provided source list does not include the `debug:alarms` CLI command implementation or command schema, so the page cannot verify the exact `--stage` and `--region` flags from authoritative CLI source. The route exists in the navigation index, but flag names and required arguments are not grounded here.",
+              "suggestedFix": "Either include the CLI source in the page source list, or remove the concrete flags and say to see the `debug:alarms` CLI reference for supported options.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AlarmsPage/AlarmsRulesPage.tsx",
+                  "quote": "const alarmsQuery = trpc.alarms.useQuery({ organizationId: selectedOrg.id });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "interface AlarmEvaluation {\n  /**\n   * #### Duration of one evaluation period in seconds. Must be a multiple of 60.\n   *\n   * @default 60\n   */\n  period?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says `description` appears in Slack messages, emails, and the AWS CloudWatch console.",
+              "reason": "The source grounds that `description` is used in notification messages and the AWS console, but it does not name Slack or email specifically. Naming specific delivery surfaces is more precise than the source supports.",
+              "suggestedFix": "Use the source wording: “The `description` property adds a custom alarm description used in notification messages and the AWS console.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "  /**\n   * #### Custom alarm description used in notification messages and the AWS console.\n   */\n  description?: string;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses peer `## When to use` and `## When NOT to use` sections.",
+            "The supported inline alarm resource list in the draft matches `StpAlarmEnabledResource`: Lambda functions, relational databases, HTTP API Gateways, Application Load Balancers, and SQS queues.",
+            "The draft uses the documented `stacktape debug:logs` command and links it to `/cli/debug-logs`.",
+            "The draft avoids hand-authored YAML and uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` for Stacktape configuration examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the alarm types, evaluation fields, notification integration union, and Console alarm-rules table shown in the provided sources. The main publication blockers are unsupported Stacktape-specific claims around ALB custom alarms, CLI output/flags, global-rule application behavior, and alarm-history behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The `application-load-balancer-custom` trigger lets you alarm on any of 52 CloudWatch ALB metrics, with examples such as `ActiveConnectionCount`, `TargetResponseTime`, `RequestCount`, and `HTTPCode_Target_5XX_Count`; the FAQ repeats the same 52-metric claim and says `statistic` and `comparisonOperator` can be customized.",
+              "reason": "The provided authoritative type file only includes `ApplicationLoadBalancerCustomTrigger` in the union. It does not define the custom trigger's `metric`, `threshold`, supported metric list, count of metrics, or statistic/comparison support. The generated llm-doc repeats the claim, but it is secondary and not backed by the included type excerpt.",
+              "suggestedFix": "Narrow the custom ALB section to what the provided type source supports: `application-load-balancer-custom` is an accepted ALB trigger type. Remove the metric count, metric-name examples, and custom-statistic/comparison claims unless the missing interface source is added.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type ApplicationLoadBalancerAlarmTrigger =\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | ApplicationLoadBalancerCustomTrigger;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "`stacktape debug:alarms` shows each alarm's state, associated resource, metric name, threshold, comparison operator, and last update time; the draft also shows `--resourceName` and `--state` filter examples in the generated source text, though the submitted draft keeps only the basic command.",
+              "reason": "No CLI command source for `debug:alarms` is included. The provided page source only authorizes that the CLI reference route exists in the navigation index, not its flags, output fields, or filter options. The submitted draft avoids the extra filter examples, but it still claims the command views CloudWatch alarms for a deployed stack without command-source evidence.",
+              "suggestedFix": "Keep only a cautious pointer: “Use [`stacktape debug:alarms`](/cli/debug-alarms) to inspect alarms from the CLI; see the CLI reference for flags and output.” Do not describe output fields or flags unless `src/commands/debug-alarms/index.ts` is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/observability/alarms.md",
+                  "quote": "Use [`stacktape debug:alarms`](/cli/debug-alarms) to view the current state of all CloudWatch alarms for a deployed stack. The command shows each alarm's state (`OK`, `ALARM`, or `INSUFFICIENT_DATA`), the associated resource, metric name, threshold, comparison operator, and last update time."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "At deploy time, Stacktape combines global alarm rules with inline alarms; global alarms are filtered by project name, stage, resource type, and `disabledGlobalAlarms`; both global and inline alarms produce independent CloudWatch alarms and can be active simultaneously.",
+              "reason": "The provided type source defines global-rule shape (`AlarmDefinition`, `forServices`, `forStages`) and the Console page displays organization alarm rules, but no deployment/runtime source is included showing how Stacktape combines rules, when filtering happens, whether alarms are independent, or how `disabledGlobalAlarms` is applied. `disabledGlobalAlarms` is not present in the provided alarm type source.",
+              "suggestedFix": "State only what is grounded: Console alarm rules have `forServices` and `forStages`, and inline alarms are configured on alarm-enabled resources. Remove deploy-time merge/filter/independent-CloudWatch behavior unless deployment source is added.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "interface AlarmDefinition extends AlarmDefinitionBase {\n  /**\n   * #### A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`).\n   */\n  name: string;\n  /**\n   * #### The metric and threshold that fires this alarm.\n   *\n   * ---\n   *\n   * `type` selects what to monitor (error rate, CPU, latency, etc.) and `properties` set the threshold.\n   */\n  trigger: AlarmTrigger;\n  /**\n   * #### Only activate this alarm for these services. If omitted, applies to all services.\n   */\n  forServices?: string[];\n  /**\n   * #### Only activate this alarm for these stages (e.g., `production`). If omitted, applies to all stages.\n   */\n  forStages?: string[];\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "`disabledGlobalAlarms` is available on the five alarm-enabled resource types, takes alarm names configured in the Console, and does not affect inline alarms defined on the same resource.",
+              "reason": "The submitted draft includes a Stacktape config example using `disabledGlobalAlarms`, but the provided source files do not define that property on any resource type. The alarm type file defines the alarm-enabled resource union, but not resource props or `disabledGlobalAlarms`. This would change what readers configure.",
+              "suggestedFix": "Remove the `disabledGlobalAlarms` section and example, or provide the relevant resource prop type sources that define `disabledGlobalAlarms` and its semantics.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type StpAlarmEnabledResource =\n  | StpLambdaFunction\n  | StpRelationalDatabase\n  | StpHttpApiGateway\n  | StpApplicationLoadBalancer\n  | StpSqsQueue;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Global alarm rules are created in the Stacktape Console and “deploy any matching resource and it automatically gets the alarm attached”; each rule specifies a trigger type and threshold, and Stacktape applies it to all matching resources at deploy time.",
+              "reason": "The Console source shows an alarm-rules page with create, table, details, project and stage columns, alert channels, trigger details, and evaluation. The provided sources do not show deployment-time attachment semantics or that every matching resource automatically receives a CloudWatch alarm.",
+              "suggestedFix": "Phrase this as Console-scope behavior only: “The Console alarm rules page stores organization alarm rules with project and stage filters, trigger details, evaluation settings, and alert channels.” Avoid automatic deploy-time attachment wording unless deployment source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AlarmsPage/AlarmsRulesPage.tsx",
+                  "quote": "columnHeaders={['Name', 'Created', ['For projects', 200], ['For stages', 200], 'Trigger', ['', 95]]}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AlarmsPage/AlarmsRulesPage.tsx",
+                  "quote": "<HeadingWithSeparator>Trigger details</HeadingWithSeparator>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The `description` property appears in Slack messages, emails, and the AWS CloudWatch console; alarm state changes are recorded in alert history unless `includeInHistory` is false.",
+              "reason": "The type source supports `description` as being used in notification messages and the AWS console, and `includeInHistory` as controlling monitoring history. It does not support channel-specific claims about Slack and email, nor does it specifically name the `/observability/alert-history` surface. The draft also names Slack/email behavior more concretely than the source.",
+              "suggestedFix": "Use the source wording: “`description` is used in notification messages and the AWS console.” For history, say “`includeInHistory` controls whether alarm state changes appear in monitoring history” and optionally link to alert history without claiming exact runtime recording behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "  /**\n   * #### Whether alarm state changes should appear in monitoring history.\n   *\n   * @default true\n   */\n  includeInHistory?: boolean;\n  /**\n   * #### Custom alarm description used in notification messages and the AWS console.\n   */\n  description?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The draft says Stacktape supports Slack, MS Teams, email, Discord, and webhook notification targets, while the `notificationTargets` JSDoc says “Slack, MS Teams, or email.”",
+              "reason": "The actual union type includes five integrations, so the draft's integration list is correct. However, any wording that treats the JSDoc phrase as exhaustive would be wrong. The draft should avoid relying on the narrower JSDoc wording and should keep the five-type union framing.",
+              "suggestedFix": "No functional change needed to the five-integration list. If revising, explicitly ground the statement in `AlarmUserIntegration` and avoid saying the JSDoc lists all notification types.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type AlarmUserIntegration =\n  | MsTeamsIntegration\n  | SlackIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "   * #### Where to send notifications when the alarm fires — Slack, MS Teams, or email."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The database example imports and uses `RdsEnginePostgres`, and the Lambda examples use `StacktapeLambdaBuildpackPackaging`.",
+              "reason": "The provided source list for this page does not include resource class export/type files. The prompt's global class-name guidance lists `StacktapeLambdaBuildpackPackaging` and says database engine classes start with `RdsEngine`, so these may be valid, but the provided page-specific sources do not prove `RdsEnginePostgres` specifically.",
+              "suggestedFix": "If the deterministic code-block validator accepts `RdsEnginePostgres`, keep it. Otherwise switch to a class name confirmed by the package exports or include the relevant database engine type source in the page source set.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The submitted draft uses `<CodeBlock intellisense>` for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The `AlarmEvaluation` defaults and constraints in the Evaluation windows section match the provided type source: `period` defaults to 60, `evaluationPeriods` to 1, `breachedPeriods` to 1, `period` must be a multiple of 60, and `breachedPeriods` must be less than or equal to `evaluationPeriods`.",
+            "The supported trigger unions for Lambda, relational databases, HTTP API Gateway, Application Load Balancer, and SQS queue match the trigger union types in `types/stacktape-config/alarms.d.ts`.",
+            "The Console alarm-rules description is partially grounded: the provided Console source shows a page titled “Alarm rules,” a “Create new alarm rule” button, table columns for name/created/projects/stages/trigger, a details modal, alert channels, trigger details, evaluation, show-details, and delete controls."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 4, col 41: Argument of type '{ engine: RdsEnginePostgres; alarms: ({ trigger: { type: \"database-cpu-utilization\"; properties: { thresholdPercent: number; }; }; evaluation: { period: number; evaluationPeriods: number; breachedPeriods: number; }; } | { ...; })[]; }' is not assignable to parameter of type 'RelationalDatabasePropsWithOverrides'.\n  Property 'credentials' is missing in type '{ engine: RdsEnginePostgres; alarms: ({ trigger: { type: \"database-cpu-utilization\"; properties: { thresholdPercent: number; }; }; evaluation: { period: number; evaluationPeriods: number; breachedPeriods: number; }; } | { ...; })[]; }' but required in type 'RelationalDatabaseProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 26: Object literal may only specify known properties, and 'instanceClass' does not exist in type 'RdsEnginePrimaryInstance'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 4, col 41: Argument of type '{ engine: RdsEnginePostgres; alarms: ({ trigger: { type: \"database-cpu-utilization\"; properties: { thresholdPercent: number; }; }; evaluation: { period: number; evaluationPeriods: number; breachedPeriods: number; }; } | { ...; })[]; }' is not assignable to parameter of type 'RelationalDatabasePropsWithOverrides'.\n  Property 'credentials' is missing in type '{ engine: RdsEnginePostgres; alarms: ({ trigger: { type: \"database-cpu-utilization\"; properties: { thresholdPercent: number; }; }; evaluation: { period: number; evaluationPeriods: number; breachedPeriods: number; }; } | { ...; })[]; }' but required in type 'RelationalDatabaseProps'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 7, col 9: Object literal may only specify known properties, and 'instanceClass' does not exist in type 'RdsEnginePrimaryInstance'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1075,8 +1503,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\observability\\alarms.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/observability/alarms.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.4, hard blockers 7, advisory high 1, verifier medium 13"
+  "pipelineReviewSummary": "reviewer-avg 7.4, hard blockers 10, advisory high 0, verifier medium 9",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

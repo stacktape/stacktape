@@ -160,7 +160,7 @@ Compatibility aliases still work: `--factualVerifierModel` maps to `--factualAcc
 | [`prompts.ts`](./prompts.ts) | Writer / reviewer / verifier / SEO-reviewer prompt scaffolding. Hard rules and detection patterns live in `commonRules` and `sharedReviewerRequirements`. |
 | [`run-page.ts`](./run-page.ts) | Pass thresholds (`REVIEWER_GRAND_AVG_THRESHOLD`, `REVIEWER_MIN_SCORE_THRESHOLD`, `REVIEWER_PER_REVIEWER_AVG_THRESHOLD`) and the reviewer/verifier agent wiring. |
 | [`agent-models.ts`](./agent-models.ts) | Stable agent role names and CLI model-override flag parsing. |
-| [`context.ts`](./context.ts) | Auto-augmentation of source files (which `@generated/ai-docs/*` to inject for which page kind, when to inject pricing summaries / DB engine versions). Per-source 80 KB truncation budget lives here too. |
+| [`context.ts`](./context.ts) | Auto-augmentation of source files (which `@generated/llm-docs/*` to inject for which page kind, when to inject pricing summaries / DB engine versions). Per-source 80 KB truncation budget lives here too. |
 | [`pricing-summary.ts`](./pricing-summary.ts) | How `prices.json` is distilled into per-resource markdown summaries. Per-slug logic. |
 | [`code-validator.ts`](./code-validator.ts) | Deterministic check of `<CodeBlock intellisense>` blocks. Public-class whitelist falls back to `fallbackKnownExports` when `__release-npm/index.d.ts` is absent. |
 | [`providers.ts`](./providers.ts) | Claude / Codex CLI invocation. Picks up `CLAUDE_CLI_PATH` and `CODEX_CLI_PATH` env vars. |
@@ -216,9 +216,8 @@ A high-severity verifier issue from any verifier blocks passing regardless of sc
 
 [`context.ts`](./context.ts) injects extra sources based on page kind/route. Three maps:
 
-- `aiDocsConfigRefAliases` — resource slug → `@generated/ai-docs/config-ref/<base>.md` filename.
-- `aiDocsConceptByRoute` — concept page route → ai-docs concept file.
-- `aiDocsRecipeByRoute`, `aiDocsTroubleshootingByRoute` — same for recipes / troubleshooting.
+- `llmDocsConfigReferenceAliases` — resource slug → `@generated/llm-docs/config-reference/<base>.md` filename.
+- Every page also receives its generated `@generated/llm-docs/pages/<route>.md` file when that file exists.
 
 Add an entry when you want a page to receive a pre-distilled AI summary alongside its raw types.
 

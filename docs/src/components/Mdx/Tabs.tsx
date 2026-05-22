@@ -17,13 +17,13 @@ export function Tabs({ children }: { children: ReactNode }) {
   if (tabs.length === 0) return null;
 
   return (
-    <div css={{ margin: '25px 0 30px 0' }}>
+    <div css={{ margin: '20px 0 24px 0' }}>
       <div
         css={{
           display: 'flex',
           gap: '0',
           borderBottom: `1px solid rgba(255, 255, 255, 0.1)`,
-          marginBottom: '16px'
+          marginBottom: '12px'
         }}
       >
         {tabs.map((tab, idx) => (
@@ -35,8 +35,9 @@ export function Tabs({ children }: { children: ReactNode }) {
               border: 'none',
               borderBottom: idx === activeIndex ? `2px solid ${colors.primary}` : '2px solid transparent',
               color: idx === activeIndex ? colors.fontColorPrimary : colors.fontColorTernary,
-              padding: '8px 16px',
+              padding: '3px 16px',
               fontSize: '14px',
+              lineHeight: 1.5,
               fontWeight: idx === activeIndex ? 600 : 400,
               cursor: 'pointer',
               transition: 'color 0.15s, border-color 0.15s',

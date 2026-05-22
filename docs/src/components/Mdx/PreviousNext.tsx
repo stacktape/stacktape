@@ -63,21 +63,21 @@ function LeftButton({ url, title, label }) {
               margin: 0,
               padding: 0,
               color: colors.fontColorPrimary,
-              span: {
+              p: {
                 fontSize: '13px',
                 lineHeight: 1.625,
                 fontWeight: '500'
               }
             }}
           >
-            <span>{label}</span>
+            <p>{label}</p>
           </div>
           <div
             css={{
               display: 'block',
               margin: 0,
               padding: 0,
-              span: {
+              p: {
                 fontSize: '16px',
                 lineHeight: 1.5,
                 fontWeight: '500'
@@ -133,21 +133,21 @@ function RightButton({ url, title, label }) {
               margin: 0,
               padding: 0,
               color: colors.fontColorPrimary,
-              span: {
+              p: {
                 fontSize: '13px',
                 lineHeight: 1.625,
                 fontWeight: '500'
               }
             }}
           >
-            <span>{label}</span>
+            <p>{label}</p>
           </div>
           <div
             css={{
               display: 'block',
               margin: 0,
               padding: 0,
-              span: {
+              p: {
                 fontSize: '16px',
                 lineHeight: 1.5,
                 fontWeight: '500'

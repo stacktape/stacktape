@@ -35,7 +35,7 @@ const { getCommandInfo } = require('../../../src/config/cli/utils.ts') as {
 
 const docsRoot = join(import.meta.dir, '..', '..');
 const stacktapeRoot = join(docsRoot, '..');
-const aiDocsRoot = join(stacktapeRoot, '@generated', 'ai-docs');
+const llmDocsRoot = join(stacktapeRoot, '@generated', 'llm-docs');
 const sectionInstructionsPath = join(import.meta.dir, 'section-instructions.yml');
 const styleGuidePath = join(import.meta.dir, 'style-guide.md');
 
@@ -60,7 +60,7 @@ const safeReadFile = async (filePath: string) => {
   }
 };
 
-const unique = <T,>(items: T[]) => [...new Set(items)];
+const unique = <T>(items: T[]) => [...new Set(items)];
 
 const loadSectionInstructionsConfig = async (): Promise<SectionInstructionsConfig> => {
   const raw = await safeReadFile(sectionInstructionsPath);
@@ -84,7 +84,8 @@ const resolveSectionInstructions = ({
   page: PageDefinition;
 }): ResolvedSectionInstruction[] => {
   const section = getPageSection(page.route);
-  const instructions = config.sections?.[section]?.filter((instruction): instruction is string => typeof instruction === 'string') || [];
+  const instructions =
+    config.sections?.[section]?.filter((instruction): instruction is string => typeof instruction === 'string') || [];
   return instructions.length > 0 ? [{ section, instructions }] : [];
 };
 
@@ -100,9 +101,9 @@ const parseDescription = async (description = '') => {
   };
 };
 
-// Map resource page slugs (in pages.ts) to the @generated/ai-docs/config-ref filename.
-// Only resources whose ai-docs file uses a different basename than the page slug need an entry.
-const aiDocsConfigRefAliases: Record<string, string> = {
+// Map resource page slugs (in pages.ts) to the @generated/llm-docs/config-reference filename.
+// Only resources whose LLM docs file uses a different basename than the page slug need an entry.
+const llmDocsConfigReferenceAliases: Record<string, string> = {
   'lambda-function': 'function',
   'web-service': 'web-service',
   'private-service': 'private-service',
@@ -143,28 +144,6 @@ const aiDocsConfigRefAliases: Record<string, string> = {
   'aws-cdk-constructs': 'aws-cdk-construct'
 };
 
-// Map configuration concept route → @generated/ai-docs/concept filename(s).
-// Some pages legitimately benefit from multiple ai-docs concept summaries.
-const aiDocsConceptByRoute: Record<string, string | string[]> = {
-  'configuration/configuration-files': ['yaml-config', 'typescript-config'],
-  'configuration/connecting-resources': 'connecting-resources',
-  'configuration/directives': 'directives',
-  'configuration/stages-and-environments': 'stages-and-environments',
-  'configuration/overrides-and-escape-hatches': ['overrides-and-transforms', 'extending-cloudformation']
-};
-
-// Map recipe route → @generated/ai-docs/recipe filename.
-const aiDocsRecipeByRoute: Record<string, string> = {
-  'recipes/rest-api-database': 'rest-api-with-database',
-  'recipes/graphql-api': 'graphql-api',
-  'recipes/nextjs-full-stack-app': 'nextjs-full-stack',
-  'recipes/background-job-processing': 'background-jobs',
-  'recipes/scheduled-tasks': 'scheduled-tasks',
-  'recipes/static-website': 'static-website',
-  'recipes/monorepo-setup': 'monorepo-setup',
-  'recipes/database-migrations': 'database-migrations'
-};
-
 // Page route prefix → resource slug (used when the route doesn't carry the slug as the last segment).
 const resolveResourceSlugFromRoute = (route: string): string | undefined => {
   const segments = route.split('/');
@@ -176,12 +155,14 @@ const resolveResourceSlugFromRoute = (route: string): string | undefined => {
 
 const resolveAutoAugmentedSources = async ({ page }: { page: PageDefinition }): Promise<string[]> => {
   const candidates: string[] = [];
+  const generatedPagePath = join(llmDocsRoot, 'pages', `${page.route || 'index'}.md`);
+  candidates.push(generatedPagePath);
 
   if (page.kind === 'resource') {
     const slug = resolveResourceSlugFromRoute(page.route);
-    const aiDocsBase = slug ? aiDocsConfigRefAliases[slug] : undefined;
-    if (aiDocsBase) {
-      candidates.push(join(aiDocsRoot, 'config-ref', `${aiDocsBase}.md`));
+    const configReferenceBase = slug ? llmDocsConfigReferenceAliases[slug] : undefined;
+    if (configReferenceBase) {
+      candidates.push(join(llmDocsRoot, 'config-reference', `${configReferenceBase}.md`));
     }
     if (slug === 'relational-database') {
       candidates.push(join(stacktapeRoot, '@generated', 'db-engine-versions', 'versions.json'));
@@ -190,26 +171,11 @@ const resolveAutoAugmentedSources = async ({ page }: { page: PageDefinition }): 
     // gets a distilled, ~1 KB markdown summary instead of the 300+ KB raw prices.json.
   }
 
-  if (page.kind === 'concept') {
-    const conceptBase = aiDocsConceptByRoute[page.route];
-    const conceptBases = Array.isArray(conceptBase) ? conceptBase : conceptBase ? [conceptBase] : [];
-    for (const base of conceptBases) {
-      candidates.push(join(aiDocsRoot, 'concept', `${base}.md`));
-    }
-  }
-
-  if (page.kind === 'recipe') {
-    const recipeBase = aiDocsRecipeByRoute[page.route];
-    if (recipeBase) {
-      candidates.push(join(aiDocsRoot, 'recipe', `${recipeBase}.md`));
-    }
-  }
-
   if (page.kind === 'cli' && page.cliCommand) {
-    candidates.push(join(aiDocsRoot, 'cli-ref', `${page.cliCommand.replaceAll(':', '-')}.md`));
+    candidates.push(join(llmDocsRoot, 'pages', 'cli', `${page.cliCommand.replaceAll(':', '-')}.md`));
   }
 
-  // Filter to only those that exist on disk; missing ai-docs files are not an error.
+  // Filter to only those that exist on disk; missing generated LLM docs are not an error.
   const existing = await Promise.all(
     candidates.map(async (filePath) => ((await pathExists(filePath)) ? filePath : null))
   );
@@ -298,7 +264,13 @@ const buildNavigationIndex = (): string => {
   return lines.join('\n').trim();
 };
 
-export const buildContextPack = async ({ page, examplePath }: { page: PageDefinition; examplePath?: string }): Promise<ContextPack> => {
+export const buildContextPack = async ({
+  page,
+  examplePath
+}: {
+  page: PageDefinition;
+  examplePath?: string;
+}): Promise<ContextPack> => {
   const structurePlan = (await safeReadFile(join(docsRoot, 'DOCS_STRUCTURE_PLAN.md'))) || '';
   const pipelinePlan = (await safeReadFile(join(docsRoot, 'DOCS_PIPELINE_PLAN.md'))) || '';
   const styleGuide = (await safeReadFile(styleGuidePath)) || '';
@@ -315,7 +287,9 @@ export const buildContextPack = async ({ page, examplePath }: { page: PageDefini
       return { filePath, content: await safeReadFile(filePath) };
     })
   );
-  const missingSourceFiles = sourceFileResults.filter((result) => result.content === null).map((result) => result.filePath);
+  const missingSourceFiles = sourceFileResults
+    .filter((result) => result.content === null)
+    .map((result) => result.filePath);
   if (missingSourceFiles.length > 0) {
     console.warn(`  Missing ${missingSourceFiles.length} configured source file(s) for /${page.route}:`);
     for (const filePath of missingSourceFiles) {

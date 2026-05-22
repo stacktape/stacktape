@@ -2,7 +2,7 @@
   "pageId": "deployment-and-lifecycle__deploy-time-parameters",
   "pageRoute": "deployment-and-lifecycle/deploy-time-parameters",
   "startedAt": "2026-05-17T15:19:42.258Z",
-  "updatedAt": "2026-05-17T15:47:01.767Z",
+  "updatedAt": "2026-05-21T20:17:26.042Z",
   "iterations": [
     {
       "iteration": 1,
@@ -834,6 +834,483 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/deployment-and-lifecycle__deploy-time-parameters/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Resolution-phase taxonomy (config-time vs CloudFormation-time) is explained early and referenced consistently throughout — this is the single most important mental model for this page and the page nails it.",
+            "Every major directive gets its own subsection with a working, copyable code example. The CLI argument syntax (`-- --logLevel debug`) is shown concretely, which is genuinely hard to find elsewhere.",
+            "The FAQ is thorough (11 Q&A pairs), mixes Stacktape-specific, use-case, and comparison questions, and includes detailed answers about dev-mode behavior sourced directly from the implementation.",
+            "The opening paragraph is self-contained, 40-75 words, names the concept and the directive family up front — strong AEO posture.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'`. No forbidden YAML or plain-object patterns found.",
+            "Directive facts are source-grounded: `$CliArgs` merging behavior, `$Secret` version-pinning and `{{resolve:secretsmanager:...}}` template reference, `$SsmParam` ssm-secure/ssm prefix logic, `$StackOutput` requiring exported outputs — all match the source implementation.",
+            "Decision guidance between TypeScript conditionals and directives is concrete and opinionated, which is exactly what first-time users need.",
+            "H2 headings are short noun-form labels throughout. FAQ H3s correctly use question form."
+          ],
+          "problems": [
+            "The deployment-context-directives table includes a 'Source' column with `globalStateManager.targetStack.stage` for `$Stage()`. This is an internal implementation detail that will confuse a first-time reader who has no idea what `globalStateManager` is. The other three rows in the same column use user-friendly descriptions ('Target AWS region', 'Target AWS account', 'Configured AWS profile'), making the inconsistency especially jarring.",
+            "The 'Variables and self-reference' section has zero code examples — two short sentences only. Every other section (9 sections) includes at least one `<CodeBlock intellisense>` example. A first-time user reading this section has no working starting point for `$Var()` or `$This()`.",
+            "The page mentions `$ResourceParam()` and `$CfResourceParam()` in the resolution-phases list and in the FAQ but gives no example anywhere in the main body. The cross-link to `/configuration/referenceable-parameters` is present, but a reader who has never deployed a stack will not understand why these two directives exist or when they would reach for them vs `$StackOutput`. At minimum, a one-sentence 'when to use' in the cross-stack references section or a standalone callout would orient the reader.",
+            "The `$GitInfo` section lists 'Common property names include branch, commit, username, gitUrl, and hasUncommitedChanges' — these are not enumerated in the provided source file (the source only shows that invalid names produce an error listing valid arguments via `Object.keys(gitInfo)`). This is a minor source-grounding gap; the page appropriately adds a caveat but calling them 'common' implies authoritative knowledge the source doesn't support."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove the 'Source' column from the deployment-context-directives table, or replace `globalStateManager.targetStack.stage` with a user-friendly description like 'Stage name passed via --stage CLI flag' — consistent with the other three rows.",
+            "Add a short code example to the 'Variables and self-reference' section showing `$Var().myDomain` and `$This()` in realistic property values, so the section matches the depth of every other section on the page.",
+            "Add a one-paragraph `$ResourceParam` / `$CfResourceParam` orientation at the end of the 'Cross-stack references' section (or as a short callout) explaining these are for same-stack resource references, with a cross-link — so readers understand the full directive landscape without having to leave the page to grasp the distinction.",
+            "For `$GitInfo` valid properties, either enumerate them (if grounded in a separate source file like git-info-manager.ts) or remove the 'common property names include...' list and rely solely on 'the error message lists all valid arguments' — that caveat is already present and is sufficient.",
+            "Consider adding a visual summary table of all 16 directives with their resolution phase, use case in one line, and a link anchor — readers who arrive knowing what they want to look up would benefit from a scannable 'all directives at a glance' reference above the FAQ."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Directive resolution-phase framework (config-time vs CloudFormation-time) is clearly and accurately explained, grounded in source isRuntime flags.",
+            "The `$CliArgs` behavior — merging `globalStateManager.args` with `additionalArgs`, returning `undefined` when no default is supplied — matches the source exactly.",
+            "`$Secret` local-resolution behavior (fetching actual secret from Secrets Manager, using version ID from stack output when available) is accurately described.",
+            "`$SsmParam` use of `ssm-secure` vs `ssm` dynamic reference prefix based on SecureString type is correctly sourced.",
+            "$StackOutput vs $CfStackOutput distinction (snapshot vs live import-value reference) is accurate and useful for production decision-making.",
+            "Shell command examples are in separate fenced blocks with prose labels — no copy-button trap.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS use-case, comparison questions) and is well-calibrated in depth.",
+            "The embedded-directive shorthand explanation (`api-$Stage()-endpoint`) and the `$CliArgs` default-value pattern are practically useful.",
+            "No forbidden patterns: no YAML resources block, no StacktapeConfig typed style, no fenced TypeScript with defineConfig, no marketing language."
+          ],
+          "problems": [
+            "$ResourceParam is one of the most important cross-resource reference directives — it appears in the resolution-phase table and one FAQ answer but has no dedicated section with an example. Any real multi-resource config uses it constantly. This is a significant completeness gap.",
+            "$CfResourceParam is listed in the resolution-phase table but is never explained, shown in an example, or compared to $ResourceParam. A developer who needs to reference a raw CloudFormation resource attribute gets no guidance.",
+            "The 'Git metadata' section lists specific property names — `branch`, `commit`, `username`, `gitUrl`, `hasUncommitedChanges` — as 'common property names'. The source file (built-in-directives.ts) does not enumerate valid property names; it only says the error message lists them. These names are ungrounded in the provided source.",
+            "The claim that embedded directives in strings are 'automatically converted' (e.g. `api-$Stage()-endpoint` → `$Format('api-{}-endpoint', '$Stage()')`) is not grounded in the provided source file. The built-in-directives.ts only defines directive implementations; the string-embedding detection would live in the config resolver/parser, which is not in scope.",
+            "The defineConfig callback section claims the callback receives 'stage, region, AWS account ID, profile, and CLI arguments' as an enumerated list. This is plausible but is not grounded in the provided source — the source file covers directives, not the defineConfig signature."
+          ],
+          "mandatoryFixes": [
+            "Add a dedicated '$ResourceParam' subsection (under 'CloudFormation-time directives' or as its own H2) with a working code example showing how to reference another resource's output (e.g. a database endpoint or bucket name). This is the primary pattern for wiring resources together and deserves at least the same depth as $Secret.",
+            "Add a '$CfResourceParam' subsection that explains it takes a raw CloudFormation logical resource name and a CloudFormation attribute (GetAtt/Ref), contrasted with $ResourceParam which takes a Stacktape resource name. Without this, readers who see $CfResourceParam in source or error messages have no documentation to consult.",
+            "Remove the specific Git property names (`username`, `gitUrl`, `hasUncommitedChanges`, etc.) from the '$GitInfo' section. The source only guarantees the error message lists valid arguments — replace the named list with: 'Pass a property name supported by Stacktape's Git metadata; if the name is invalid, the error message lists all valid arguments.' This avoids documenting ungrounded specifics.",
+            "Either ground the embedded-directive shorthand claim (`api-$Stage()-endpoint` auto-conversion) in the config-resolver source, or remove it from prose and the FAQ. If it belongs on this page, it needs a source citation — otherwise a reader who relies on it and finds it doesn't work has no recourse."
+          ],
+          "optionalImprovements": [
+            "The 'Variables and self-reference' section ($Var and $This) is very short — one paragraph for two directives. A small code example showing a variables block and a $Var() reference would make it actionable rather than just descriptive.",
+            "The resolution-phase table lists all directives but doesn't distinguish 'resolves to a scalar' (like $Stage) from 'resolves to an object' (like $File, $Var, $This) — a one-word 'Returns' column note ('string', 'object', 'CF intrinsic') would help readers quickly pick the right one.",
+            "Consider adding a brief warning in the $Secret section that $Secret resolves at CloudFormation stack creation time — not at deploy CLI time — so the resolved value is not visible in the generated template, which is the intended security behavior. Developers sometimes expect to see it in the YAML output.",
+            "The FAQ answer on 'How do CloudFormation-time directives behave during local development?' is the most technically detailed answer on the page and could reference `stacktape dev` more directly so readers know where to go if local resolution fails."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "Configuration examples follow the required TypeScript class-based `<CodeBlock intellisense>` pattern and avoid forbidden YAML or `StacktapeConfig` examples.",
+            "The page is practical: it covers the major directive families, shows realistic Lambda environment-variable examples, and splits shell commands into separate copyable blocks.",
+            "FAQ is broad enough for this page, with useful questions about CLI args, formatting, secrets, cross-stack references, local development, and stage-specific config."
+          ],
+          "problems": [
+            "Some TypeScript callback claims are not grounded in the provided source file. The source only defines built-in directives; it does not prove the `defineConfig` callback receives `stage`, `region`, AWS account ID, profile, or CLI arguments.",
+            "The page says deployment context is exposed through four directives, but the introduction and callback section also emphasize `$CliArgs()` as deploy-time context. The distinction is understandable but slightly inconsistent for extractive readers.",
+            "The `Git metadata` section lists common property names such as `branch`, `commit`, `username`, `gitUrl`, and `hasUncommitedChanges`. The provided source only proves that invalid keys produce an error listing valid keys; it does not show the concrete key set.",
+            "The Secrets section mentions creating secrets in the Stacktape Console, but the provided source file does not include Console behavior for secrets. The page should either cite a source-backed Console page or avoid implying a source-grounded Console workflow.",
+            "Several H2 sections are useful but thin on decision support. For example, External configuration files and Git metadata explain what the directives do, but give limited guidance on when not to use them or how to choose between approaches before the FAQ.",
+            "No API/reference summary table lists all directives, parameters, phase, and local-dev behavior in one place. The prose is good, but a table would be more extractable for answer engines and faster for developers scanning the page."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the claim that the `defineConfig` callback exposes AWS account ID, profile, and CLI arguments. Based on the provided source, safely document only the built-in directives unless callback type sources are included.",
+            "Replace the concrete `$GitInfo()` property examples with source-grounded wording, or add the source that defines the Git metadata shape. The current property list is unsupported by the provided file.",
+            "Remove the unsupported Stacktape Console secret-creation mention or add Console/secret source files that prove the behavior."
+          ],
+          "optionalImprovements": [
+            "Add a compact directive reference table with columns for directive, phase, required parameters, return behavior, and best use case.",
+            "Strengthen decision guidance in `External configuration files`: use `$File()` for committed structured config, `$FileRaw()` for text/blob content, and `$CliArgs()` for one-off deploy overrides.",
+            "Clarify the grouping around deployment context by saying `$Stage()`, `$Region()`, `$AwsAccountId()`, and `$Profile()` expose standard deployment context, while `$CliArgs()` reads both standard and additional CLI arguments.",
+            "Add a short caution that `$StackOutput()` and `$CfStackOutput()` require exported CloudFormation outputs, because non-exported outputs are explicitly rejected by the resolver.",
+            "Consider adding a brief comparison table for `$Format()` vs `$CfFormat()` and `$StackOutput()` vs `$CfStackOutput()` to improve snippet extraction."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely consistent with the provided directive implementation and avoids the forbidden Stacktape config formats. I found a few claims that are either too strong for the source or contradict implementation details around cross-stack imports and local resolution.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“`ImportValue` is a CloudFormation same-region construct, so use `$CfStackOutput()` for stacks deployed in the same region as the consuming stack.”",
+              "reason": "The implementation of `$CfStackOutput()` accepts and forwards an optional `region` argument to `resolveStackOutput`, then returns `ImportValue(result.ExportName)`. The source does not enforce or document a same-region restriction at the Stacktape directive layer, and the draft’s earlier wording says only `$StackOutput()` accepts the optional region argument. This would incorrectly steer readers away from a parameter the directive accepts.",
+              "suggestedFix": "Say that both `$StackOutput()` and `$CfStackOutput()` accept `stackName`, `outputName`, and an optional `region` argument. Then narrow the CloudFormation caveat: `$CfStackOutput()` emits an `ImportValue` reference for the exported output, so users should be aware of CloudFormation import/export constraints for the deployed stacks.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "name: 'CfStackOutput',\n    requiredParams: { stackName: 'string', outputName: 'string' },\n    isRuntime: true,\n    resolveFunction: () => async (stackName: string, outputName: string, region?: AWSRegion) => {\n      return resolveStackOutput({ directive: 'CfStackOutput', outputName, stackName, region });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "return directive === 'StackOutput' ? result.OutputValue : ImportValue(result.ExportName);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“During local resolution (in `stacktape dev`), `$CfFormat()` performs simple string interpolation by replacing `{}` placeholders with the resolved values.”",
+              "reason": "The local resolver does simple placeholder replacement, but unlike the deploy-time resolver it does not call `validateFormatDirectiveParams`. The draft implies equivalent validated behavior during local development, which is stronger than the implementation shows.",
+              "suggestedFix": "Narrow the statement to: “During local resolution in `stacktape dev`, `$CfFormat()` replaces `{}` placeholders with the provided local values.” Avoid implying validation or full CloudFormation equivalence.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "localResolveFunction:\n      () =>\n      (interpolatedString: string, ...values: any[]) => {\n        let res = interpolatedString;\n        values.forEach((val) => {\n          res = res.replace('{}', val);\n        });\n        return res;\n      }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“`$Secret()` fetches the actual secret value from Secrets Manager (using the version ID from the deployed stack output if available) and throws an error if the fetch fails.”",
+              "reason": "The local resolver always passes `versionId: secretVersionId` to `getSecretValue`, even when `secretVersionId` is undefined. The phrase “if available” suggests a deliberate fallback path, but the source only shows a commented-out block that once handled missing version IDs; no explicit fallback behavior is implemented here.",
+              "suggestedFix": "Say: “During local resolution, `$Secret()` reads the secret from Secrets Manager and uses the version ID recorded in the deployed stack output when that output exists. If the AWS read or JSON/key extraction fails, Stacktape throws a directive error.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "const secretVersionId =\n        stackManager?.existingStackDetails?.stackOutput[getStackOutputName(secretName, 'CurrentSecretVersionId')];"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "const { SecretString: secretValue } = await awsSdkManager.getSecretValue({\n          secretId: secretName,\n          versionId: secretVersionId\n        });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Common property names include `branch`, `commit`, `username`, `gitUrl`, and `hasUncommitedChanges`…” and the example uses `$GitInfo('commit')` / `$GitInfo('branch')`.",
+              "reason": "The provided implementation validates `$GitInfo()` keys dynamically from `Object.keys(gitInfo)`, but the source file does not define the actual key set. The generated docs repeat these names, so this is not clearly wrong, but the authoritative code in the provided source does not prove those exact properties.",
+              "suggestedFix": "Keep the example if it is validated elsewhere, but make the prose more cautious: “Commonly used properties include commit and branch; if you pass an invalid property, Stacktape lists the valid keys.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and `defineConfig`; there are no hand-authored Stacktape YAML examples or `StacktapeConfig` typed plain objects.",
+            "The directive phase classification matches `isRuntime` in `built-in-directives.ts` for the listed config-time and CloudFormation-time directives.",
+            "The `$File()`, `$FileRaw()`, `$CliArgs()`, `$Secret()`, `$SsmParam()`, `$ResourceParam()`, and `$CfResourceParam()` behavior is mostly grounded in the provided implementation.",
+            "All cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided directive implementation and avoids the forbidden Stacktape config example patterns. I found a few factual issues where the draft overstates source-backed behavior or uses examples that are not supported by the provided source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The Git metadata example uses `$GitInfo('commit')` and `$GitInfo('branch')`, and the prose says common property names include `branch`, `commit`, `username`, `gitUrl`, and `hasUncommitedChanges`.",
+              "reason": "The provided source does not enumerate valid Git metadata property names. It only says invalid names produce an error listing keys from the runtime `gitInfo` object. Because the draft gives concrete property names and a copyable example, unsupported names would directly break readers' configs if they are wrong. The source-backed wording is that `$GitInfo()` accepts a property present in Stacktape's runtime Git metadata and reports valid keys on error.",
+              "suggestedFix": "Remove the concrete `$GitInfo('commit')` / `$GitInfo('branch')` example or replace it with cautious prose: `$GitInfo(property)` reads a key from Stacktape's Git metadata, and the CLI error lists valid keys if the property is invalid. Do not list specific keys unless another source enumerates them.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "const gitInfo = await gitInfoManager.gitInfo;\n      const res = gitInfo[property];\n      if (!res) {\n        throw new ExpectedError(\n          'DIRECTIVE',\n          `$GitInfo directive argument \"${tuiManager.makeBold(property)}\" is not a valid argument.`,\n          [`Valid arguments are: ${Object.keys(gitInfo).map(tuiManager.makeBold).join(', ')}`]\n        );\n      }\n      return res;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "`$CfStackOutput()` validates that the named output exists and is exported on the referenced stack, then emits a CloudFormation `ImportValue` reference for that export.",
+              "reason": "The implementation delegates validation to `resolveStackOutput`, but the function can return a missing-output identifier instead of validating when stack details cannot be fetched and `disableEmulation` is set. The draft states validation unconditionally, which omits a documented branch in the actual directive implementation.",
+              "suggestedFix": "Narrow the statement: `$CfStackOutput()` normally checks the referenced stack output and emits `ImportValue`; when Stacktape cannot fetch stack details and `--disableEmulation` is set, the directive returns the missing-output identifier instead.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "if (!stackDetails) {\n    if (!globalStateManager.args.disableEmulation) {\n      throw new ExpectedError('DIRECTIVE', `$${directive} error: can't fetch stack outputs of stack \"${stackName}\"`, [\n        'Make sure the stack is deployed and correctly spelled (full stack names are formatted as {stackName}-{stage})'\n      ]);\n    }\n    return IDENTIFIER_FOR_MISSING_OUTPUT;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "For sensitive values, use CloudFormation-time directives that resolve during stack creation.",
+              "reason": "The source marks `$Secret()` and `$SsmParam()` as runtime directives and returns CloudFormation dynamic-reference strings, but it also performs AWS lookups during deployment to validate and pin versions. Saying they “resolve during stack creation” is incomplete for the Stacktape behavior described immediately below and could make readers think Stacktape does not access the secret or parameter at deploy time.",
+              "suggestedFix": "Say: `$Secret()` and `$SsmParam()` are CloudFormation-time directives that Stacktape validates during deployment and writes as CloudFormation dynamic references pinned to the current version.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "secret = await awsSdkManager.getSecretValue({ secretId: secretName });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "return `{{resolve:secretsmanager:${secretName}:SecretString:${jsonKey || ''}::${secret.VersionId}}}`;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "param = await awsSdkManager.getSsmParameterValue({ ssmParameterName: paramReference });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "return `{{resolve:${resolvePrefix}:${paramReference}:${paramVersion}}`;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The draft repeatedly describes `defineConfig` callback conditionals as the preferred way to vary “numbers, objects, arrays,” “whole resource shapes,” and “any property type.”",
+              "reason": "The provided source for this page does not include the `defineConfig` type or resolver implementation. The generated LLM summary says the callback receives deployment metadata for programmatic logic, but it does not prove the broad “any property type” claim. This is plausible, but broader than the source provided for verification.",
+              "suggestedFix": "Narrow to the sourced behavior: the TypeScript `defineConfig` callback can use deployment metadata for programmatic logic, such as branching on stage. Avoid saying it works for “any property type” unless the relevant TypeScript config source is included.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/deploy-time-parameters.md",
+                  "quote": "The `defineConfig` callback in TypeScript configs receives deployment metadata you can use for programmatic logic — branching on stage, adjusting resource sizes, or toggling features conditionally. The available deployment context mirrors what the built-in directives expose: stage, region, AWS account ID, profile, and CLI arguments."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The FAQ says `$Secret()` fetches the actual secret value from Secrets Manager “using the version ID from the deployed stack output if available.”",
+              "reason": "The source passes the deployed stack output value as `versionId`, but if the output is not available, the same call still executes with `versionId: undefined`. The phrase “using the version ID ... if available” is mostly right, but it omits the fallback behavior that the implementation actually uses: it still fetches by secret ID without a pinned version ID when no output exists.",
+              "suggestedFix": "Clarify local behavior: during local resolution, `$Secret()` reads the version ID from the deployed stack output when present, then calls Secrets Manager; if no version output is present, the call is still made without a version ID.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "const secretVersionId =\n        stackManager?.existingStackDetails?.stackOutput[getStackOutputName(secretName, 'CurrentSecretVersionId')];"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/domain/config-manager/built-in-directives.ts",
+                  "quote": "const { SecretString: secretValue } = await awsSdkManager.getSecretValue({\n          secretId: secretName,\n          versionId: secretVersionId\n        });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and class-based `defineConfig` style; there are no hand-authored YAML Stacktape config examples.",
+            "The directive phase lists match the `isRuntime` values in `built-in-directives.ts` for the directives covered on the page.",
+            "The `$CliArgs()`, `$File()`, `$FileRaw()`, `$Stage()`, `$Region()`, `$Profile()`, `$AwsAccountId()`, `$Format()`, `$Var()`, `$This()`, `$ResourceParam()`, `$CfResourceParam()`, `$Secret()`, `$SsmParam()`, `$CfFormat()`, `$StackOutput()`, and `$CfStackOutput()` descriptions are mostly aligned with the provided implementation.",
+            "All markdown cross-links in the draft point to routes present in the supplied documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 12, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 13, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 14, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 9, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 10, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 11, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 1, col 10: Module '\"stacktape\"' has no exported member '$AwsAccountId'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 9, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 10, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 1, col 10: Module '\"stacktape\"' has no exported member '$CliArgs'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 9, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 10, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 9, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 10, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 8, col 45: Expected 0 arguments, but got 1.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 8, col 79: Expected 0 arguments, but got 1.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 9, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 10, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 1, col 10: '\"stacktape\"' has no exported member named '$Format'. Did you mean '$CfFormat'?",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): TypeScript type error.",
+              "reason": "line 9, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 1, col 10: '\"stacktape\"' has no exported member named '$StackOutput'. Did you mean '$CfStackOutput'?",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript type error.",
+              "reason": "line 9, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript type error.",
+              "reason": "line 10, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript type error.",
+              "reason": "line 11, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -849,5 +1326,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\deployment-and-lifecycle\\deploy-time-parameters.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 3, advisory high 0, verifier medium 11"
+  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 3, advisory high 0, verifier medium 11",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

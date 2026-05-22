@@ -1,0 +1,73 @@
+# help
+
+The `stacktape help` command displays help information for all available Stacktape CLI commands and their options. Run it without arguments to see every command, or pass `--command` to get detailed option documentation for a specific command. No API key or AWS credentials are required.
+
+## Usage
+
+List all available commands with their descriptions:
+
+```bash
+stacktape help
+```
+
+Show detailed options for a specific command:
+
+```bash
+stacktape help --command deploy
+```
+
+The short alias `stp` works in place of `stacktape`:
+
+```bash
+stp help --command dev
+```
+
+## The `--command` flag
+
+When you pass `--command` (alias `--cmd`), Stacktape prints the full option reference for that command — each flag's name, whether it's required, and a description. This is the fastest way to check which flags a command accepts without leaving the terminal.
+
+```bash
+stacktape help --command delete
+```
+
+Without `--command`, the output lists every CLI command with a short description, followed by hints linking to the full [CLI documentation](/cli/deploy) and the Stacktape docs site.
+
+## Options reference
+
+
+## CLI Options: `stacktape help`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--command (-cmd)` | no | `string` | Command This argument has different meanings depending on the command:
+
+With `stacktape help`, it specifies a command to show detailed help for.
+With `stacktape container:session`, it specifies a command to run inside the container to start the interactive session. | - |
+
+
+## Examples
+
+Get help for the [dev](/cli/dev) command to see all development mode flags:
+
+```bash
+stacktape help --command dev
+```
+
+Check required and optional flags for [debug:logs](/cli/debug-logs):
+
+```bash
+stacktape help --command debug:logs
+```
+
+View all commands at a glance:
+
+```bash
+stacktape help
+```
+
+## Related commands
+
+- [version](/cli/version) — print the installed Stacktape version.
+- [init](/cli/init) — scaffold a new Stacktape project with an interactive wizard.
+- [defaults:configure](/cli/defaults-configure) — set system-wide default values for common flags like `region` and `stage`.
+- [info:whoami](/cli/info-whoami) — verify your current API key, organization, and connected AWS accounts.

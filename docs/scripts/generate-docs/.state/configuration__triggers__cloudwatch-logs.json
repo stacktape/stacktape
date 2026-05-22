@@ -2,7 +2,7 @@
   "pageId": "configuration__triggers__cloudwatch-logs",
   "pageRoute": "configuration/triggers/cloudwatch-logs",
   "startedAt": "2026-05-17T11:36:41.289Z",
-  "updatedAt": "2026-05-17T11:47:30.965Z",
+  "updatedAt": "2026-05-22T02:51:39.759Z",
   "iterations": [
     {
       "iteration": 1,
@@ -823,6 +823,343 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__triggers__cloudwatch-logs/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is crisp, self-contained, and under 75 words — suitable for AI engine extraction.",
+            "The Event payload section pre-empts the most common beginner gotcha (base64+gzip decoding) with a copyable handler snippet, which is exactly what a first-time user needs.",
+            "Filter pattern table in the 'Filtering logs' section is a high-value, concise reference that will be cited and scanned independently.",
+            "The `$ResourceParam()` cross-reference example is realistic and addresses a genuine day-one pain point without requiring the reader to leave the page.",
+            "FAQ covers all three required categories: Stacktape-specific, AWS-service mechanics (subscription filter quotas, retry behavior), and comparison/choosing questions.",
+            "No forbidden patterns: no YAML Stacktape config blocks, no StacktapeConfig type imports, no fenced TypeScript Stacktape config, no PropertiesTable, single ApiReference.",
+            "When to use / When NOT to use are correct peer H2 sections — not nested.",
+            "Focus markers are present on all three config CodeBlocks and the examples are realistic enough to be directly adapted."
+          ],
+          "problems": [
+            "The FAQ states 'The CloudwatchLogIntegration is available in the events array of both Lambda functions and batch jobs' — this is a Stacktape-specific claim that is not confirmed in the provided source files (events.d.ts only defines the type; it does not enumerate which resource types expose it). Should be worded cautiously or removed if unsupported.",
+            "Three separate <CodeBlock intellisense> blocks are used: basic example, filter example, and cross-reference example. The filter example is essentially the same resource configuration as the basic example with one extra property added. The section instructions for trigger pages explicitly say 'Use a single short example per concept, not multiple variants' — having two nearly identical config blocks for the same resource inflates page length without adding proportional value.",
+            "The 'Throughput and delivery' section presents several AWS-service-level facts (batching behavior, subscription filter quotas, retry semantics) with no source grounding from the provided files. These are accurate AWS facts, but the section's framing ('Understanding the AWS delivery model') is slightly tutorial-heavy for a reference trigger page.",
+            "The <Warning> block is used to call out the mandatory base64+gzip decode requirement — valid usage, but the same information is already stated clearly in the Event payload section prose directly above the warning. This is mild redundancy."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Merge the 'Filtering logs' code block into the 'Basic example' block (add filter as an optional commented-out or annotated property) and collapse the section to prose + table only. This cuts one config block and tightens the page without losing the filter pattern table.",
+            "Reword the batch jobs FAQ claim to be cautious: 'Lambda functions support the CloudwatchLogIntegration in their events array. Check your resource's referenceable parameters page to confirm support for other compute resource types.' — avoids an ungrounded Stacktape-specific assertion.",
+            "Remove or shorten the <Warning> block in the Event payload section — the decode/decompress requirement is already clearly stated in the prose immediately above it. The warning adds nothing the surrounding text doesn't already say.",
+            "Consider moving the <ApiReference> block to just below the intro paragraph (before When to use) to serve readers who already know the concept and are on the page purely to look up a property. The current bottom placement requires scrolling the full page to find it.",
+            "The 'Referencing log groups within a stack' H2 heading is 6 words — trim to 'Cross-stack log group references' or 'Using stack resource log groups' for better scannability. Alternatively, downgrade to an H3 under 'Basic example' since it is a narrower extension of the same concept."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Event payload decoding example is realistic, complete, and directly addresses the non-obvious base64+gzip encoding documented in the source JSDoc — exactly the kind of handler code a developer needs.",
+            "Filter pattern table is excellent AEO-friendly content: concrete examples covering string, exclusion, JSON field, and numeric comparison patterns in a single scannable reference.",
+            "Correct identification of the two-property API (logGroupArn, filter) and accurate prose reflecting that retry, batch size, and delivery timing are not configurable at the integration level.",
+            "The $ResourceParam() cross-stack reference example solves a real friction point — users shouldn't need to hardcode log group ARNs for resources in their own stack.",
+            "Throughput and delivery section correctly calls out the AWS two-subscription-filter quota and the idempotency requirement, which are genuine production gotchas.",
+            "FAQ spans all three required categories (Stacktape-specific, use-case/AWS-side, choosing/comparison) with concise, independently useful answers.",
+            "When NOT to use section is concrete and opinionated — naming alarms, log forwarding, and batch exports as better alternatives rather than generic guidance."
+          ],
+          "problems": [
+            "The FAQ answer for 'Can I use this trigger with batch jobs?' states 'The CloudwatchLogIntegration is available in the events array of both Lambda functions and batch jobs.' The provided source (events.d.ts) defines the CloudwatchLogIntegration interface but does not enumerate which resource types accept it in their events array. This is an ungrounded Stacktape-specific claim — if it is wrong, a reader would waste time debugging a deployment error.",
+            "The logGroupArn values in all three CodeBlock examples use the pattern arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/my-app:* with a trailing :* wildcard. Standard CloudWatch log group ARNs do not end in :* — that suffix is IAM policy syntax. A developer copy-pasting this value into a real deployment will get an ARN validation error or an unintended subscription filter. The correct form is arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/my-app without the :* suffix.",
+            "The 'Referencing log groups within a stack' section claims that 'Lambda functions, batch jobs, web services, worker services, and multi-container workloads all expose logGroupArn as a referenceable parameter.' This broad list is not grounded in the provided source files — the source only defines the CloudwatchLogIntegration properties, not which resource types expose logGroupArn. Overstating the list could mislead a user trying to watch a resource type that does not actually expose the parameter.",
+            "Three separate full CodeBlock examples (basic, filtering, cross-stack) is heavier than the section instructions' guidance of 'a single short example per concept' for trigger pages. The cross-stack reference section repeats infrastructure already set up in the first two examples, which dilutes the canonical example's prominence."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the log group ARN format in all three CodeBlock examples: remove the trailing :* from arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/my-app:* — the correct ARN has no wildcard suffix. Copy-pasting the current value will produce an invalid ARN.",
+            "Either ground or soften the batch job claim in the FAQ. If batch jobs do support CloudwatchLogIntegration in their events array, cite the source or add a cross-reference. If unsupported or unverified, rewrite the answer to say 'Lambda functions are the primary target; check the batch job documentation for supported integrations.'",
+            "Narrow the 'Referencing log groups within a stack' prose claim: instead of listing five resource types as guaranteed to expose logGroupArn, link to the referenceable parameters reference page and let readers verify their specific resource type there.",
+            "Consider collapsing the 'Referencing log groups within a stack' section into a callout or short prose paragraph within the Basic example section rather than a standalone H2 with its own full CodeBlock. The section instructions prefer a single canonical example per trigger page; the $ResourceParam() pattern can be noted as a tip rather than a separate configuration path.",
+            "Add a one-line pricing context near the top — CloudWatch Logs subscription filters and Lambda invocations both have cost implications. Even a brief note like 'Each invocation is billed at standard Lambda rates; CloudWatch Logs ingestion and storage costs apply separately' orients cost-sensitive readers without inventing specific numbers."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "H2 structure is compact and easy to scan, with clear decision sections before configuration.",
+            "Stacktape config examples use `<CodeBlock intellisense>` with the required `label: 'TypeScript'` tab and avoid hand-authored YAML.",
+            "The payload decoding example is useful and matches the source note that CloudWatch Logs payloads are base64-encoded and gzipped.",
+            "FAQ covers Stacktape-specific, AWS behavior, and comparison questions rather than only repeating config details."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source file: automatic trigger permissions, `CloudwatchLogIntegration` support in batch jobs, and which Stacktape resources expose `logGroupArn` as a referenceable parameter.",
+            "The throughput and delivery section relies heavily on AWS subscription-filter behavior, quota, batching, retry, and latency claims that are not present in the provided Stacktape source. These may be true AWS facts, but the page presents some of them as Stacktape integration behavior.",
+            "The source only documents `logGroupArn`, optional `filter`, and base64+gzip payload encoding for `CloudwatchLogIntegrationProps`; the draft goes beyond that with referenceable-parameter and delivery-model details without source support.",
+            "The page says CloudWatch Logs triggers are available in both Lambda functions and batch jobs, but the provided source describes `CloudwatchLogIntegration` as triggering a function, not a batch job.",
+            "The filter-pattern table is practically useful, but the examples are derived from linked AWS syntax rather than the provided source. That is acceptable as AWS background only if the page clearly frames it as AWS syntax, not Stacktape-specific behavior."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the claim that Stacktape auto-configures required permissions for the trigger; the provided source only defines the integration properties and trigger concept.",
+            "Remove or source-ground the claim that `CloudwatchLogIntegration` is available for batch jobs. Based on the provided source, document it as triggering a Lambda function/function only.",
+            "Remove or source-ground the claims that Lambda functions, batch jobs, web services, worker services, and multi-container workloads expose `logGroupArn` as a referenceable parameter. If no source is provided, narrow the wording to explain that `logGroupArn` accepts a log group ARN and avoid listing resource parameters.",
+            "Revise the Throughput and delivery section so Stacktape-specific claims are limited to what the source supports: `CloudwatchLogIntegrationProps` has required `logGroupArn` and optional `filter`, and the payload is base64-encoded and gzipped. Frame batching, subscription filters, quota, and retries explicitly as AWS CloudWatch Logs behavior, or remove them if strict source grounding is required.",
+            "Update the FAQ entries that repeat unsupported claims, especially batch job support, referenceable `logGroupArn` lists, subscription-filter quota, and retry behavior."
+          ],
+          "optionalImprovements": [
+            "Add a short source-grounded property table for `CloudwatchLogIntegrationProps`: `logGroupArn` required, `filter` optional, and what each property controls.",
+            "Clarify that the AWS filter syntax examples are examples of AWS CloudWatch Logs filter pattern syntax, while Stacktape only passes the `filter` string through the integration property.",
+            "Consider trimming repeated referenceable-parameter guidance unless additional source files prove which resources expose `logGroupArn`.",
+            "The `When NOT to use` section is useful, but claims like managed log forwarding and high-volume ETL alternatives should be checked against source files or softened as general guidance."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No concrete factual or source-grounding issues found. The draft stays within the two Stacktape-specific properties exposed by CloudwatchLogIntegrationProps, uses the required CodeBlock pattern for Stacktape config examples, links only to valid internal routes, and frames batching/retry/quotas as AWS delivery behavior rather than Stacktape-configurable behavior.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft correctly uses <CodeBlock intellisense> with a TypeScript tab for all Stacktape configuration examples and does not hand-author YAML.",
+            "The API reference uses the exact Props type name visible in the source: CloudwatchLogIntegrationProps.",
+            "The draft correctly describes the only Stacktape-level CloudWatch Logs trigger properties as logGroupArn and optional filter, matching the source type.",
+            "The draft scopes batching, retry behavior, subscription filter quotas, and delivery timing to underlying AWS CloudWatch Logs behavior, while noting that Stacktape does not expose those controls at the integration layer."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely grounded in the provided CloudwatchLogIntegration source and uses the required TypeScript CodeBlock pattern. I found one actionable Stacktape-specific grounding issue: the page says Stacktape log forwarding works without code, but the provided source list for this page does not include any log-forwarding source that supports that behavior.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Managed log forwarding — if you just need to pipe logs to an external service with no custom logic, [log forwarding](/observability/log-forwarding) handles this without code.” Also repeated in the FAQ: “Log forwarding is a managed Stacktape feature that streams logs to external destinations without custom code.”",
+              "reason": "The provided authoritative source for this page only defines CloudwatchLogIntegration with `logGroupArn` and optional `filter`. The generated-docs source repeats the claim, but it is secondary and no observability/log-forwarding source is included to support the Stacktape-specific behavior that log forwarding streams to external destinations without code.",
+              "suggestedFix": "Narrow the comparison to avoid unsupported behavior, for example: “For managed log forwarding, see [log forwarding](/observability/log-forwarding). Use a CloudWatch Logs trigger when you need custom parsing or transformation in a Lambda function.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface CloudwatchLogIntegrationProps {\n  /**\n   * #### The ARN of the log group to watch for new records.\n   */\n  logGroupArn: string;\n  /**\n   * #### A filter pattern to apply to the log records.\n   *\n   * ---\n   *\n   * Only logs that match this pattern will trigger the function.\n   * For details on the syntax, see the [AWS documentation on filter and pattern syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html).\n   */\n  filter?: string;\n}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly describes `CloudwatchLogIntegration` as triggering a function when new log records appear in a CloudWatch log group.",
+            "The draft correctly states that `logGroupArn` is required and `filter` is optional.",
+            "The draft correctly notes that the CloudWatch Logs event payload is base64-encoded and gzipped.",
+            "The draft uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and avoids hand-authored YAML.",
+            "The `<ApiReference definitionName=\"CloudwatchLogIntegrationProps\" />` value matches the source type name."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 16, col 7: Type 'CloudwatchLogIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'CloudwatchLogIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"cloudwatch-logs\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 16, col 7: Type 'CloudwatchLogIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'CloudwatchLogIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"cloudwatch-logs\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 24, col 7: Type 'CloudwatchLogIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'CloudwatchLogIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"cloudwatch-logs\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__triggers__cloudwatch-logs/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is crisp, self-contained, and under 75 words — suitable for AI engine extraction.",
+            "The Event payload section pre-empts the most common beginner gotcha (base64+gzip decoding) with a copyable handler snippet, which is exactly what a first-time user needs.",
+            "Filter pattern table in the 'Filtering logs' section is a high-value, concise reference that will be cited and scanned independently.",
+            "The `$ResourceParam()` cross-reference example is realistic and addresses a genuine day-one pain point without requiring the reader to leave the page.",
+            "FAQ covers all three required categories: Stacktape-specific, AWS-service mechanics (subscription filter quotas, retry behavior), and comparison/choosing questions.",
+            "No forbidden patterns: no YAML Stacktape config blocks, no StacktapeConfig type imports, no fenced TypeScript Stacktape config, no PropertiesTable, single ApiReference.",
+            "When to use / When NOT to use are correct peer H2 sections — not nested.",
+            "Focus markers are present on all three config CodeBlocks and the examples are realistic enough to be directly adapted."
+          ],
+          "problems": [
+            "The FAQ states 'The CloudwatchLogIntegration is available in the events array of both Lambda functions and batch jobs' — this is a Stacktape-specific claim that is not confirmed in the provided source files (events.d.ts only defines the type; it does not enumerate which resource types expose it). Should be worded cautiously or removed if unsupported.",
+            "Three separate <CodeBlock intellisense> blocks are used: basic example, filter example, and cross-reference example. The filter example is essentially the same resource configuration as the basic example with one extra property added. The section instructions for trigger pages explicitly say 'Use a single short example per concept, not multiple variants' — having two nearly identical config blocks for the same resource inflates page length without adding proportional value.",
+            "The 'Throughput and delivery' section presents several AWS-service-level facts (batching behavior, subscription filter quotas, retry semantics) with no source grounding from the provided files. These are accurate AWS facts, but the section's framing ('Understanding the AWS delivery model') is slightly tutorial-heavy for a reference trigger page.",
+            "The <Warning> block is used to call out the mandatory base64+gzip decode requirement — valid usage, but the same information is already stated clearly in the Event payload section prose directly above the warning. This is mild redundancy."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Merge the 'Filtering logs' code block into the 'Basic example' block (add filter as an optional commented-out or annotated property) and collapse the section to prose + table only. This cuts one config block and tightens the page without losing the filter pattern table.",
+            "Reword the batch jobs FAQ claim to be cautious: 'Lambda functions support the CloudwatchLogIntegration in their events array. Check your resource's referenceable parameters page to confirm support for other compute resource types.' — avoids an ungrounded Stacktape-specific assertion.",
+            "Remove or shorten the <Warning> block in the Event payload section — the decode/decompress requirement is already clearly stated in the prose immediately above it. The warning adds nothing the surrounding text doesn't already say.",
+            "Consider moving the <ApiReference> block to just below the intro paragraph (before When to use) to serve readers who already know the concept and are on the page purely to look up a property. The current bottom placement requires scrolling the full page to find it.",
+            "The 'Referencing log groups within a stack' H2 heading is 6 words — trim to 'Cross-stack log group references' or 'Using stack resource log groups' for better scannability. Alternatively, downgrade to an H3 under 'Basic example' since it is a narrower extension of the same concept."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Event payload decoding example is realistic, complete, and directly addresses the non-obvious base64+gzip encoding documented in the source JSDoc — exactly the kind of handler code a developer needs.",
+            "Filter pattern table is excellent AEO-friendly content: concrete examples covering string, exclusion, JSON field, and numeric comparison patterns in a single scannable reference.",
+            "Correct identification of the two-property API (logGroupArn, filter) and accurate prose reflecting that retry, batch size, and delivery timing are not configurable at the integration level.",
+            "The $ResourceParam() cross-stack reference example solves a real friction point — users shouldn't need to hardcode log group ARNs for resources in their own stack.",
+            "Throughput and delivery section correctly calls out the AWS two-subscription-filter quota and the idempotency requirement, which are genuine production gotchas.",
+            "FAQ spans all three required categories (Stacktape-specific, use-case/AWS-side, choosing/comparison) with concise, independently useful answers.",
+            "When NOT to use section is concrete and opinionated — naming alarms, log forwarding, and batch exports as better alternatives rather than generic guidance."
+          ],
+          "problems": [
+            "The FAQ answer for 'Can I use this trigger with batch jobs?' states 'The CloudwatchLogIntegration is available in the events array of both Lambda functions and batch jobs.' The provided source (events.d.ts) defines the CloudwatchLogIntegration interface but does not enumerate which resource types accept it in their events array. This is an ungrounded Stacktape-specific claim — if it is wrong, a reader would waste time debugging a deployment error.",
+            "The logGroupArn values in all three CodeBlock examples use the pattern arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/my-app:* with a trailing :* wildcard. Standard CloudWatch log group ARNs do not end in :* — that suffix is IAM policy syntax. A developer copy-pasting this value into a real deployment will get an ARN validation error or an unintended subscription filter. The correct form is arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/my-app without the :* suffix.",
+            "The 'Referencing log groups within a stack' section claims that 'Lambda functions, batch jobs, web services, worker services, and multi-container workloads all expose logGroupArn as a referenceable parameter.' This broad list is not grounded in the provided source files — the source only defines the CloudwatchLogIntegration properties, not which resource types expose logGroupArn. Overstating the list could mislead a user trying to watch a resource type that does not actually expose the parameter.",
+            "Three separate full CodeBlock examples (basic, filtering, cross-stack) is heavier than the section instructions' guidance of 'a single short example per concept' for trigger pages. The cross-stack reference section repeats infrastructure already set up in the first two examples, which dilutes the canonical example's prominence."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the log group ARN format in all three CodeBlock examples: remove the trailing :* from arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/my-app:* — the correct ARN has no wildcard suffix. Copy-pasting the current value will produce an invalid ARN.",
+            "Either ground or soften the batch job claim in the FAQ. If batch jobs do support CloudwatchLogIntegration in their events array, cite the source or add a cross-reference. If unsupported or unverified, rewrite the answer to say 'Lambda functions are the primary target; check the batch job documentation for supported integrations.'",
+            "Narrow the 'Referencing log groups within a stack' prose claim: instead of listing five resource types as guaranteed to expose logGroupArn, link to the referenceable parameters reference page and let readers verify their specific resource type there.",
+            "Consider collapsing the 'Referencing log groups within a stack' section into a callout or short prose paragraph within the Basic example section rather than a standalone H2 with its own full CodeBlock. The section instructions prefer a single canonical example per trigger page; the $ResourceParam() pattern can be noted as a tip rather than a separate configuration path.",
+            "Add a one-line pricing context near the top — CloudWatch Logs subscription filters and Lambda invocations both have cost implications. Even a brief note like 'Each invocation is billed at standard Lambda rates; CloudWatch Logs ingestion and storage costs apply separately' orients cost-sensitive readers without inventing specific numbers."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "H2 structure is compact and easy to scan, with clear decision sections before configuration.",
+            "Stacktape config examples use `<CodeBlock intellisense>` with the required `label: 'TypeScript'` tab and avoid hand-authored YAML.",
+            "The payload decoding example is useful and matches the source note that CloudWatch Logs payloads are base64-encoded and gzipped.",
+            "FAQ covers Stacktape-specific, AWS behavior, and comparison questions rather than only repeating config details."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source file: automatic trigger permissions, `CloudwatchLogIntegration` support in batch jobs, and which Stacktape resources expose `logGroupArn` as a referenceable parameter.",
+            "The throughput and delivery section relies heavily on AWS subscription-filter behavior, quota, batching, retry, and latency claims that are not present in the provided Stacktape source. These may be true AWS facts, but the page presents some of them as Stacktape integration behavior.",
+            "The source only documents `logGroupArn`, optional `filter`, and base64+gzip payload encoding for `CloudwatchLogIntegrationProps`; the draft goes beyond that with referenceable-parameter and delivery-model details without source support.",
+            "The page says CloudWatch Logs triggers are available in both Lambda functions and batch jobs, but the provided source describes `CloudwatchLogIntegration` as triggering a function, not a batch job.",
+            "The filter-pattern table is practically useful, but the examples are derived from linked AWS syntax rather than the provided source. That is acceptable as AWS background only if the page clearly frames it as AWS syntax, not Stacktape-specific behavior."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the claim that Stacktape auto-configures required permissions for the trigger; the provided source only defines the integration properties and trigger concept.",
+            "Remove or source-ground the claim that `CloudwatchLogIntegration` is available for batch jobs. Based on the provided source, document it as triggering a Lambda function/function only.",
+            "Remove or source-ground the claims that Lambda functions, batch jobs, web services, worker services, and multi-container workloads expose `logGroupArn` as a referenceable parameter. If no source is provided, narrow the wording to explain that `logGroupArn` accepts a log group ARN and avoid listing resource parameters.",
+            "Revise the Throughput and delivery section so Stacktape-specific claims are limited to what the source supports: `CloudwatchLogIntegrationProps` has required `logGroupArn` and optional `filter`, and the payload is base64-encoded and gzipped. Frame batching, subscription filters, quota, and retries explicitly as AWS CloudWatch Logs behavior, or remove them if strict source grounding is required.",
+            "Update the FAQ entries that repeat unsupported claims, especially batch job support, referenceable `logGroupArn` lists, subscription-filter quota, and retry behavior."
+          ],
+          "optionalImprovements": [
+            "Add a short source-grounded property table for `CloudwatchLogIntegrationProps`: `logGroupArn` required, `filter` optional, and what each property controls.",
+            "Clarify that the AWS filter syntax examples are examples of AWS CloudWatch Logs filter pattern syntax, while Stacktape only passes the `filter` string through the integration property.",
+            "Consider trimming repeated referenceable-parameter guidance unless additional source files prove which resources expose `logGroupArn`.",
+            "The `When NOT to use` section is useful, but claims like managed log forwarding and high-volume ETL alternatives should be checked against source files or softened as general guidance."
+          ]
+        }
+      ],
+      "verifierResults": [],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -835,8 +1172,14 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\cloudwatch-logs.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.6, hard blockers 9, advisory high 0, verifier medium 10"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/configuration/triggers/cloudwatch-logs.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T02:51:39.759Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/triggers/cloudwatch-logs.md": "ad9d6a149e671276d0389c552f1c4aac8c91e5a0"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

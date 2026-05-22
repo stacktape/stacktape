@@ -1,5 +1,5 @@
 import { debounce } from 'lodash';
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useSessionStorage } from 'react-use';
 import { borderLight, growDownAnimation, pageLayout, prettyScrollBar } from '@/styles/variables';
 import { onMaxW795 } from '../../../styles/responsive';
@@ -14,9 +14,14 @@ export function SidebarNavigation({
 }) {
   const [persistedScrollPosition, setPersistedScrollPosition] = useSessionStorage('_stp-sidebar-scroll-pos', 0);
   const ref = useRef(null);
-  const saveScrollPosition = debounce((e) => {
-    setPersistedScrollPosition(e.target.scrollTop);
-  }, 12);
+  // useMemo so the debounced setter keeps its internal timer across renders. Read scrollTop
+  // synchronously inside the event handler — React's synthetic events are pooled, so by the time
+  // the debounce fires, e.currentTarget is null.
+  const debouncedSetScroll = useMemo(
+    () => debounce((value: number) => setPersistedScrollPosition(value), 120),
+    [setPersistedScrollPosition]
+  );
+  const saveScrollPosition = (e: React.UIEvent<HTMLDivElement>) => debouncedSetScroll(e.currentTarget.scrollTop);
   useLayoutEffect(() => {
     ref.current.scrollTop = persistedScrollPosition;
   }, [persistedScrollPosition]);
@@ -30,8 +35,8 @@ export function SidebarNavigation({
         left: 0,
         right: 0,
         overflowX: 'hidden',
-        width: '305px',
-        minWidth: '305px',
+        width: '295px',
+        minWidth: '295px',
         flexDirection: 'column',
         display: 'flex',
         [onMaxW795]: {

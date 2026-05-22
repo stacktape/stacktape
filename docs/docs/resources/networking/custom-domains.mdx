@@ -2,9 +2,9 @@
 title: 'Custom Domains'
 order: 57
 seoTitle: 'Custom Domains - Attach Your Own Domains | Stacktape Docs'
-seoDescription: 'Attach custom domain names to Stacktape resources with free TLS certificates and Route53 DNS. Works with API Gateways, Load Balancers, CDNs, web services, and frontends.'
+seoDescription: 'Attach custom domain names to Stacktape API Gateways, Load Balancers, and CDNs with free TLS certificates from AWS Certificate Manager and Route53 DNS records.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.9, hard blockers 2, advisory high 0, verifier medium 11'
+pipelineReviewSummary: 'reviewer-avg 7.9, hard blockers 1, advisory high 0, verifier medium 5'
 ---
 
 # Custom Domains
@@ -30,7 +30,7 @@ Every Stacktape resource with a public URL already has TLS on its auto-generated
 
 ## Supported resources
 
-The `customDomains` property accepts an array of `DomainConfiguration` objects. The following resource types support custom domains:
+Custom domains attach directly to the four public networking resources Stacktape exposes:
 
 | Resource | Typical use case |
 |----------|-----------------|
@@ -38,11 +38,10 @@ The `customDomains` property accepts an array of `DomainConfiguration` objects. 
 | [Application Load Balancer](/resources/networking/application-load-balancer) | `app.example.com` for container workloads |
 | [Network Load Balancer](/resources/networking/network-load-balancer) | TCP/TLS services at a custom domain |
 | [CDN](/resources/networking/cdn) | `cdn.example.com` for cached content delivery |
-| [Web service](/resources/compute/web-service) | Container workloads with a public URL |
-| [Static hosting](/resources/frontend/static-hosting) | `www.example.com` for static sites |
-| SSR frontends ([Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)) | SSR apps at a custom domain |
 
-The `DomainConfiguration` structure is the same across all resource types that accept it. Each entry in the `customDomains` array uses three properties: `domainName` (required), `customCertificateArn` (optional), and `disableDnsRecordCreation` (optional, defaults to `false`). Application Load Balancers and Network Load Balancers also accept a `string[]` format where each string is a domain name — other resource types require the full `DomainConfiguration` object.
+To put a custom domain in front of a compute workload, frontend, or static site, route traffic through one of these networking resources — for example, place a [CDN](/resources/networking/cdn) in front of a static site or SSR frontend, or front a containerized [web service](/resources/compute/web-service) with an [Application Load Balancer](/resources/networking/application-load-balancer).
+
+Each entry in a resource's `customDomains` array is a `DomainConfiguration` object with three fields: `domainName` (required), `customCertificateArn` (optional), and `disableDnsRecordCreation` (optional, defaults to `false`). The structure is identical across every resource type that accepts custom domains.
 
 ## Prerequisites
 
@@ -200,7 +199,7 @@ Each root domain (e.g., `example.com` and `mycompany.io`) needs its own Route53 
 
 ### Which Stacktape resources support custom domains?
 
-Custom domains are supported on [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), [CDNs](/resources/networking/cdn), [web services](/resources/compute/web-service), [static hosting](/resources/frontend/static-hosting), and all SSR frontend resources ([Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)). All use the same `DomainConfiguration` structure. ALB and NLB additionally accept a shorthand `string[]` format.
+Custom domains attach to [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), and [CDNs](/resources/networking/cdn). To put a custom domain in front of a compute workload, frontend, or static site, front it with one of these networking resources (most commonly a CDN or ALB). All four use the same `DomainConfiguration` structure.
 
 ### How do I set up a Route53 hosted zone for my domain?
 

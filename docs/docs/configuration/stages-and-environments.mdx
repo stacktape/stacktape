@@ -4,7 +4,7 @@ order: 3
 seoTitle: 'Stages and Environments - Multi-Environment Deployments | Stacktape'
 seoDescription: 'Deploy multiple isolated environments from one codebase with Stacktape stages. Create dev, staging, and production stacks using stage-aware TypeScript configuration with full resource isolation.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 8.3, hard blockers 4, advisory high 0, verifier medium 18'
+pipelineReviewSummary: 'reviewer-avg 8.3, hard blockers 6, advisory high 0, verifier medium 13'
 ---
 
 # Stages and Environments
@@ -70,7 +70,7 @@ removes only that stage's resources — other stages are unaffected.
 
 ## Stage-aware configuration
 
-The `defineConfig` callback receives a `stage` parameter along with `projectName`, `region`, and `command`. Use standard TypeScript logic — conditionals, lookup objects, helper functions — to vary your config per stage.
+The `defineConfig` callback receives a `stage` parameter. Use standard TypeScript logic — conditionals, lookup objects, helper functions — to vary your config per stage.
 
 <CodeBlock
   intellisense
@@ -131,16 +131,7 @@ stage uses its own credentials. See [Secrets](/configuration/secrets) for how to
 
 ### Config callback parameters
 
-The `defineConfig` callback receives an object with these properties:
-
-| Parameter | Type | Description |
-|---|---|---|
-| `stage` | `string` | The stage name passed via `--stage` |
-| `projectName` | `string` | The project name for this operation |
-| `region` | `string` | The AWS region for this operation |
-| `command` | `string` | The CLI command being run (`deploy`, `delete`, `dev`, etc.) |
-
-Additional properties (`cliArgs`, `awsProfile`, `user`) are also available. See the [configuration files](/configuration/configuration-files) page for the full `defineConfig` API.
+The `defineConfig` callback receives an object whose `stage` property is the stage name passed via `--stage`. See the [configuration files](/configuration/configuration-files) page for the full `defineConfig` API and any other properties exposed on the callback object.
 
 ### Using $Stage() in directives
 
@@ -231,7 +222,7 @@ resources. Keep stage names under 12 characters — abbreviate branch names if n
 
 ### Preview environments for pull requests
 
-The [Stacktape Console's GitOps integration](/ci-cd-and-gitops/gitops-with-console) can create preview environments for pull requests: it deploys a `preview-{pr-number}` stage when a PR is opened, comments with the deployment URL, and deletes the environment when the PR is merged or closed. This gives reviewers a live, isolated environment for every change. See [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for setup details.
+Per-PR preview environments are a common GitOps pattern with Stacktape stages — each pull request gets its own isolated stage that reviewers can test against. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) and [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for setup details.
 
 ## Conditional resources
 
@@ -296,13 +287,13 @@ Store separate Stacktape secrets for each stage. Use
 Create a development secret:
 
 ```bash
-stacktape secret:create --name db-password-dev --region eu-west-1
+stacktape secret:create --secretName db-password-dev --region eu-west-1
 ```
 
 Create a production secret:
 
 ```bash
-stacktape secret:create --name db-password-production --region eu-west-1
+stacktape secret:create --secretName db-password-production --region eu-west-1
 ```
 
 Then reference the stage-specific secret in your config using the `stage` parameter:
@@ -476,7 +467,7 @@ to add these only in production.
 
 ### How do I access the stage name in my config?
 
-The `defineConfig` callback receives an object with a `stage` property (along with `projectName`, `region`, and `command`). Use standard TypeScript logic to branch on the stage value — ternary operators, lookup objects, or if statements all work. In directive strings that need the stage at CloudFormation deploy time, use the [`$Stage()` directive](/configuration/directives).
+The `defineConfig` callback receives an object with a `stage` property. Use standard TypeScript logic to branch on the stage value — ternary operators, lookup objects, or if statements all work. In directive strings that need the stage at CloudFormation deploy time, use the [`$Stage()` directive](/configuration/directives).
 
 ### Can I include resources only in certain stages?
 
@@ -488,7 +479,7 @@ Each stage creates its own CloudFormation stack with its own AWS resources — s
 
 ### How do I set up automatic preview environments for pull requests?
 
-Use the [Stacktape Console's GitOps integration](/ci-cd-and-gitops/gitops-with-console) to auto-deploy a stage for each PR. When a PR is opened, a `preview-{pr-number}` stage is deployed with a comment linking to the deployment URL. When the PR is merged or closed, the stage is automatically deleted. See [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for the full setup.
+Per-PR preview environments are a common GitOps pattern with Stacktape stages — each pull request gets its own isolated stage that reviewers can test against. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) and [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for the full setup.
 
 ### What happens when I deploy to an existing stage?
 

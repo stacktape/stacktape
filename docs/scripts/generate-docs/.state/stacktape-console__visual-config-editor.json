@@ -2,7 +2,7 @@
   "pageId": "stacktape-console__visual-config-editor",
   "pageRoute": "stacktape-console/visual-config-editor",
   "startedAt": "2026-05-17T20:21:31.144Z",
-  "updatedAt": "2026-05-18T15:12:10.735Z",
+  "updatedAt": "2026-05-22T06:22:08.953Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1567,6 +1567,529 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/stacktape-console__visual-config-editor/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source grounding is excellent — quoted UI strings match the source exactly (start button disabled text, no-repositories messages, stage-linked label, finallyCallback cleanup behavior).",
+            "The 'When to use / When NOT to use' pair is genuinely opinionated and helps the reader decide without hedging.",
+            "AI generation walkthrough accurately mirrors the three-step flow visible in ConfigEditorPage.tsx, including the private/public split and the temp-project cleanup behavior.",
+            "Troubleshooting section covers real scenarios from the source (disabled button, placeholder values, read-only templates) rather than generic advice.",
+            "FAQ covers all three required categories — Stacktape-specific, AWS/use-case, and comparison questions — with 10 substantive entries, none padded.",
+            "The Warning callout on AI-generated configs sets appropriate reader expectations without being alarmist."
+          ],
+          "problems": [
+            "Mandatory: 'Common tasks' section repeats content from 'Editor views' — 'Using IntelliSense' is nearly identical to the 'Editor' subsection (same keyboard shortcuts, same hover-doc tip), and 'Starting from a preset' restates what the 'Editor' subsection already explains. Three of five 'Common tasks' subsections restate earlier content rather than adding task-oriented framing.",
+            "Stage-linked config read-only behavior appears in three distinct places with near-identical wording: the <Info> callout inside 'Templates', the 'Editing a stage-linked config' subsection under 'Common tasks', and the 'Config linked to a stage is read-only' troubleshooting entry. This triple coverage wastes reader attention and inflates page length without adding clarity.",
+            "The 'What the config editor does' section largely restates the intro paragraph (Monaco engine, IntelliSense, three views, templates) and previews sections that immediately follow. It adds minimal new information before the reader reaches the sections that explain each feature properly."
+          ],
+          "mandatoryFixes": [
+            "Trim the 'Common tasks' section to remove entries that duplicate 'Editor views' content. Specifically: remove or radically shorten 'Using IntelliSense' (already covered in the 'Editor' H3) and 'Starting from a preset' (already covered in the 'Editor' H3). 'Common tasks' should contain only flows not explained in 'Editor views' — saving changes, copying config to a project, and navigating to a stage-linked template. This directly addresses the backbone-section-padded-with-restated-content rule; penalize completeness by 1 for the current state."
+          ],
+          "optionalImprovements": [
+            "Consolidate stage-linked config read-only coverage to two locations at most: keep the <Info> callout in 'Templates' for in-context context, keep the troubleshooting entry for problem-solving mode, and remove the 'Editing a stage-linked config' Common tasks subsection (it fully overlaps with both).",
+            "Trim or fold 'What the config editor does' — the three-views overview and the template concept can be one short paragraph at the top of 'Editor views' rather than a standalone section that reads as a second intro.",
+            "The FAQ entry 'Config editor vs stacktape init' is the clearest decision-support content on the page and likely the highest-intent question for new users. Consider moving it earlier in the FAQ list (currently last) since new readers hit it after wading through nine entries.",
+            "The <ConsoleScreenshot> component reference cannot be confirmed from the provided source files — verify the component exists in the MDX component palette and that the screenshot path /static/screenshots/console-config-editor.png is valid before publishing."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurately grounded in source: every specific UI behavior is traceable to ConfigEditorPage.tsx or Explanations.tsx — the disabled-button tooltip text, the noOptionsMessage variants, the auto-select branch logic, the temp-project lifecycle, and the read-only stage-linked template message all match the source precisely.",
+            "IntelliSense keyboard shortcuts (Ctrl+Space / Cmd+Space) and hover-doc tips are taken verbatim from Explanations.tsx (`editorConfigInConfigEditor`), not invented.",
+            "The CloudFormation and tree-view approximation caveat ('not 100% accurate, as some information are only known during deployment') matches Explanations.tsx exactly, correctly framed as a static compilation rather than a live preview.",
+            "AI generation three-step flow (choose repo type → select branch → start) matches the component's state machine and the `startButtonDisabled: !selectedBranch || !gitUrl` guard.",
+            "FAQ is well-populated (9 entries) and spans Stacktape-specific, use-case, and comparison questions as required.",
+            "'When to use' and 'When NOT to use' are correct peer H2s with concrete, non-circular guidance."
+          ],
+          "problems": [
+            "Content duplication across sections degrades signal: 'Common tasks > Using IntelliSense' is nearly verbatim restatement of 'Editor views > Editor' (same keyboard shortcuts, same hover-doc description). 'Common tasks > Starting from a preset' restates the preset paragraph in 'Editor views > Editor' almost word-for-word. 'Common tasks > Editing a stage-linked config' re-narrates the `<Info>` callout in the Templates section. This is the padded backbone violation: a section filled with restated content from earlier sections.",
+            "Troubleshooting entries 'Config linked to a stage is read-only' and 'AI generation button is disabled' are direct paraphrases of the Templates and AI generation sections respectively. While some duplication is acceptable in Troubleshooting for users who jump there directly, the content here adds no new diagnostic information beyond what appears 50-100 lines earlier — they read as padding.",
+            "'What the config editor does' section partially overlaps with the opening paragraph (both describe the Monaco base, the three views, and templates) and then hands off to 'Editor views' which covers the same three views in detail. The intermediate section adds little new content and creates a redundant overview layer."
+          ],
+          "mandatoryFixes": [
+            "Trim 'Common tasks' to remove restatements of 'Editor views' content. Specifically: collapse 'Using IntelliSense' into a one-sentence forward reference to the Editor section (the shortcuts are already documented there); collapse 'Starting from a preset' similarly; collapse 'Editing a stage-linked config' into a one-sentence pointer to the Templates section's Info callout. Common tasks should contain only steps that are genuinely task-oriented and not already covered in the descriptive sections above. This addresses the padded backbone violation.",
+            "Trim or remove 'What the config editor does' as a standalone H2: its content (Monaco, three views, templates-as-drafts) is a restatement of the intro paragraph plus a preview of 'Editor views'. Either merge it into the intro paragraph or delete it and let the H2 sections carry the detail directly. Do not pad backbone sections with content already present in the page."
+          ],
+          "optionalImprovements": [
+            "Add one sentence noting that the editor component does not render until a template is selected (inferred from source: `{selectedTemplate && <ConfigEditor ...>}`). This is observable behavior that readers might wonder about when first visiting the page with no templates.",
+            "The Troubleshooting section can be shortened by replacing full re-explanations with one-sentence cross-references: 'Config linked to a stage is read-only → see Templates section above' and 'AI generation button is disabled → see Starting a generation above.' This keeps troubleshooting scannable for users who jump there without turning it into a copy of the main body.",
+            "The source shows `showLearnHowToUse={!selectedTemplate?.isCreateInConsoleForNewStage}` — there appears to be an optional 'learn how to use' disclosure shown for normal (non-stage-linked) templates. A brief mention would be more complete than silently omitting it."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong answer-first opening that explains the Console config editor and why a reader would use it.",
+            "Good scan structure with short H2s, task-oriented H3s, troubleshooting, related links, and a broad FAQ.",
+            "AI generation flow is mostly concrete and grounded in the provided UI source: Private/Public selection, repository URL, branch selection, disabled button text, Git provider link, and temporary project creation are all represented.",
+            "The page clearly positions the editor as a drafting/prototyping tool rather than the preferred long-term source of truth for mature projects."
+          ],
+          "problems": [
+            "Several important claims are not grounded in the provided source files: framework detection for AI generation, specific preset categories, team collaboration behavior, local IDE IntelliSense parity, and copying saved templates into a repository as the intended workflow.",
+            "The page describes the editor as Monaco-based and references a screenshot, but the provided source does not show Monaco usage or the screenshot asset. The metadata says Monaco-based, but the page should not expand that into unsupported implementation detail unless the component source confirms it.",
+            "The page repeatedly says hover documentation includes defaults and allowed values. The provided Explanations source only says hover shows documentation, while the richer type/default/allowed-values behavior is not visible in the supplied files.",
+            "The FAQ is useful but too long and repetitive for this Console page. Several answers restate earlier content almost verbatim, especially CloudFormation preview, templates versus files, and editor versus IDE.",
+            "The page uses `stacktape.yaml` as a recommended copy target in multiple places. The project instructions say docs examples use TypeScript as the source of truth, and the page should avoid making YAML feel equivalent or preferred unless the source specifically requires it.",
+            "Some Console workflow language is more specific than the source supports, such as \"open the AI generation dialog\" and \"the flow walks you through three steps.\" The source shows modal content and controls but not a named dialog entry point or complete visible stepper.",
+            "No route is stated. The human instructions prefer literal Console routes from console-app routing when describing navigation; this page never anchors the editor to a Console route."
+          ],
+          "mandatoryFixes": [
+            "Replace or qualify unsupported claims about AI generation detecting specific frameworks/languages. The provided source only supports that AI generation starts from a public Git URL or connected private repository and selected branch, then starts an AI generation mutation.",
+            "Remove or narrow claims that hover docs show defaults and allowed values unless the ConfigEditor component source is included and proves that behavior. Use the grounded wording from Explanations: hover over any property to see its documentation.",
+            "Remove unsupported preset category claims such as web frameworks, backend APIs, and workers unless the preset source is provided. The source only proves a preset menu is present through ConfigEditor props, not its contents.",
+            "Narrow the template/team-sharing language to what the source proves: templates are selected, loaded, updated by `templateId`, and scoped by `organizationId`. Do not claim collaboration workflows beyond organization-scoped access unless source files prove member behavior.",
+            "Revise YAML mentions so TypeScript is the recommended documented path. If mentioning YAML because `Explanations.initStep` names it, make it secondary and avoid telling readers to choose whichever format they prefer.",
+            "Add the literal Console route for the config editor if available from routing source, or avoid navigation instructions that imply a known path not present in the provided source."
+          ],
+          "optionalImprovements": [
+            "Trim the FAQ to 6-8 distinct questions and remove duplicate CloudFormation/template/editor-versus-IDE material.",
+            "Make the opening paragraph slightly less implementation-heavy: focus on browser editing, hover docs, autocompletion, templates, and AI generation because those are visible in source.",
+            "Add a small table comparing config editor, local IDE, and `stacktape init`; it would improve extraction and decision-making.",
+            "Move the screenshot after the first task-oriented section or remove it if the asset is not part of the verified source set.",
+            "Add a short note that stage-created templates are read-only and link to `/projects/{project}/{stage}/config`, matching the route expression in source without pretending to know a concrete project/stage path."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly consistent with the provided ConfigEditorPage and Explanations sources. I found no high-severity contradictions, invented routes, forbidden Stacktape config examples, or API-reference structure issues. A few Console UI details rely on generated prose or inferred behavior rather than the provided console-app source, so they should be narrowed or grounded before publication.",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"The editor also exposes a preset menu for starting from a ready-made configuration. Selecting a preset populates the editor so you can customize it from there.\"",
+              "reason": "The provided console-app source for ConfigEditorPage passes props that hint at preset-related UI, but the actual ConfigEditor implementation is not included. The generated docs mention presets, but the hard requirements say Console UI behavior should be grounded in console-app source files.",
+              "suggestedFix": "Keep the weaker, source-grounded claim that the editor has preset-related controls only if the ConfigEditor source is added. Otherwise phrase cautiously, for example: \"The editor can include preset-based starting points for configuration templates.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Once complete, the generated config appears in the editor.\"",
+              "reason": "ConfigEditorPage shows AI generation controls and a start function, but the provided source does not show how the result is inserted into the editor. This may be true, but it is not visible in the included console-app source.",
+              "suggestedFix": "Either add the ConfigEditor implementation as source evidence or narrow the sentence to what is shown: \"The editor starts the AI generation process from the selected repository and branch.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"The editor tracks language features when it first opens — if suggestions are not yet available, wait a moment for the loading to complete.\"",
+              "reason": "The page source lazily loads the ConfigEditor component and tracks a config-editor loading state, but the provided source does not explicitly say Monaco language features, schema loading, or autocomplete initialization can lag after opening.",
+              "suggestedFix": "Ground this in the loading behavior only, for example: \"If the editor is still loading, wait for the loading indicator to finish before retrying autocompletion.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `stacktape debug:logs` nowhere and does not invent a logs command.",
+            "The draft has no hand-authored Stacktape YAML, no `StacktapeConfig` typed examples, and no fenced TypeScript Stacktape config examples.",
+            "`## When to use` and `## When NOT to use` are peer H2 sections, so the heading hierarchy requirement is satisfied.",
+            "All markdown cross-links I checked point to routes present in the provided documentation navigation index.",
+            "The read-only stage-linked template behavior, direct stage config link text, AI repository type choices, branch selection, disabled start condition, and disabled-button text are grounded in the provided ConfigEditorPage source."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided Console source for the visual config editor, especially around template selection, read-only stage-linked configs, AI generation inputs, branch selection, and CloudFormation/tree preview limitations. The main factual problems are over-specific or unsupported claims about generated config insertion, `stacktape init`, provider support, and the exact behavior after AI generation completes.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Once complete, the generated config appears in the editor.”",
+              "reason": "The provided ConfigEditorPage source shows AI generation being started via `startAiGenPublicMutation` and cleanup via `finallyCallback`, but it does not show generated config content being inserted into the editor after completion. This may be true elsewhere, but it is not grounded in the provided source files.",
+              "suggestedFix": "Narrow the wording to the sourced behavior: “The editor starts AI config generation for the selected repository and branch. Review the generated configuration before deploying once it is available.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "return startAiGenPublicMutation.mutateAsync({\n        gitBranchOrCommit: valueHoldRef.current.gitBranchOrCommit!,\n        organizationId: selectedOrg!.id,\n        projectId: project.id\n      });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const aiGenControls = {\n    startFn: aiGenStart,\n    additionalModalContent: AiGenAdditionalContent,\n    finallyCallback: aiGenFinallyCallback,\n    startButtonDisabled: !selectedBranch || !gitUrl,\n    startButtonDisabledText: 'Please select Git repository and branch to generate config from.',\n    onClose\n  };"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“To turn an editor template into a config file in your project, run `stacktape init` from your project directory. The command writes the contents of the editor into a `stacktape.ts` or `stacktape.yaml` configuration file.” and similar FAQ claims that `stacktape init` writes editor template content into a local project file.",
+              "reason": "The only provided source for `stacktape init` says it creates a Stacktape configuration file with the contents of the config editor, but the generated source page explicitly describes `stacktape init` as scaffolding a new local project from a starter template. The draft goes further by presenting `stacktape init` as a direct way to export the currently selected editor template, which is not shown in ConfigEditorPage and conflicts with the provided generated page’s “Config editor vs stacktape init” wording.",
+              "suggestedFix": "Avoid claiming direct template export unless CLI source is provided. Use the safer existing-doc pattern: “Copy the config from the editor into `stacktape.ts` or `stacktape.yaml`, then use `stacktape deploy`; use `stacktape init` when starting a new local project.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/stacktape-console/visual-config-editor.md",
+                  "quote": "[`stacktape init`](/cli/init) scaffolds a new Stacktape project locally from a starter template and writes the config file directly to disk. The config editor in the Console lets you draft configs in the browser with IntelliSense, presets, and AI generation."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "This command will create a stacktape configuration file with the contents of the config editor in your project."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For mature projects where the Stacktape config lives in version control, most teams edit `stacktape.ts` directly in their IDE (VS Code, Cursor, or similar). The `stacktape` npm package provides type-aware editing locally, and you get the full benefits of TypeScript — variables, conditionals, loops, and IDE refactoring tools.”",
+              "reason": "The recommendation is acceptable guidance, but the provided source files do not ground the specific claim that the `stacktape` npm package provides local type-aware editing or IDE behavior. The source for the editor only documents hover docs and autocomplete inside the Console editor.",
+              "suggestedFix": "Keep the recommendation but remove or soften the local npm-package behavior claim unless a configuration/type source is provided. For example: “For source-controlled TypeScript configs, most teams edit `stacktape.ts` in their IDE and use normal TypeScript tooling.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "<b>TIP: </b>Hover over any property to see its documentation\n        <br />\n        <b>TIP: </b>Trigger autocompletion by typing the shortcut for your OS: (example: <code>CTRL+SPACE</code> on\n        Windows and Linux or <code>CMD+SPACE</code> on Mac.)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The repository dropdown lists all repositories accessible through your connected providers” and “connect GitHub, GitLab, or other providers.”",
+              "reason": "The source shows the dropdown options come from `trpc.allUsableRepositories` and that the UI links to `/git-integrations`, but it does not identify which Git providers are supported on this page. GitHub/GitLab/other providers appears in the generic `gitProviders` explanation, not in the config editor source path, and “all repositories accessible” is stronger than the source’s “usable repositories” query name.",
+              "suggestedFix": "Use the UI-grounded wording: “For private repositories, select a repository from the repositories available through your connected Git provider installations. If none are connected, the editor links to Git integrations.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const allUsableRepositoriesQuery = trpc.allUsableRepositories.useQuery({ organizationId: selectedOrg!.id });\n  const allUsableRepositories = allUsableRepositoriesQuery.data || [];\n  const allRepositoriesOptions = allUsableRepositories.map(getUsableRepositoryOption);"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "<InlineLink openInNewTab to=\"/git-integrations\">\n                  Connect new Git provider\n                </InlineLink>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The actual deployment resolves all values correctly.”",
+              "reason": "The source supports that the CloudFormation template and tree view are not 100% accurate because some information is only known during deployment. It does not support the stronger guarantee that all placeholder values are resolved correctly during deployment.",
+              "suggestedFix": "Narrow to the sourced distinction: “Those values are resolved during deployment rather than in the static preview.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "<p>Statically compiled Stacktape config into a CloudFormation template.</p>\n      <p>This template is not 100% accurate, as some information are only known during the deployment.</p>"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "<p>Tree view of the Stacktape config compiled into a CloudFormation template.</p>\n      <p>This template is not 100% accurate, as some information are only known during the deployment.</p>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The CloudFormation preview is useful for … verifying IAM permissions, and debugging deployment issues before running `stacktape deploy`.”",
+              "reason": "The source supports that the preview is a statically compiled CloudFormation template and is not fully accurate. It does not specifically support the use cases of verifying IAM permissions or debugging deployment issues. This is plausible, but it is not grounded in the provided files.",
+              "suggestedFix": "Write this more cautiously: “Use the preview to inspect the generated CloudFormation structure before deploying.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "<p>Statically compiled Stacktape config into a CloudFormation template.</p>\n      <p>This template is not 100% accurate, as some information are only known during the deployment.</p>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You can create, edit, and save templates without triggering any deployment.”",
+              "reason": "ConfigEditorPage shows selecting and saving an existing template through `updateTemplateMutation`; it does not show creating templates on this page. The source also does not explicitly state that saving never triggers deployment, although no deployment call is visible in this component.",
+              "suggestedFix": "Remove “create” and keep the behavior shown by the source: “You can select, edit, and save Console templates from the config editor without using the deploy command.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const updatedTemplate = await updateTemplateMutation.mutateAsync({\n        organizationId: selectedOrg!.id,\n        templateId: valueHoldRef.current.selectedTemplate!.id,\n        content: config\n      });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "<TemplateSelect\n          setSelectedTemplate={setSelectedTemplate as any}\n          selectedTemplate={selectedTemplate as Template | null}\n          refetchOnWindowFocus={false}\n          selectWidth=\"730px\"\n        />"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly states that stage-linked templates are read-only in the config editor and that the editor links to the stage configuration page; this is directly supported by `readOnly={selectedTemplate.isCreateInConsoleForNewStage}` and the `labelDetail` message in ConfigEditorPage.",
+            "The AI generation flow is mostly grounded: the source supports public/private repository selection, repository URL input for public repositories, private repository dropdowns, branch selection, default branch auto-selection, disabled start button text, temporary project creation, and cleanup through `finallyCallback`.",
+            "The hover documentation and autocomplete shortcut claims are grounded in `Explanations.tsx`, including `CTRL+SPACE` on Windows/Linux and `CMD+SPACE` on Mac.",
+            "The CloudFormation template and tree view limitations are accurately grounded in `Explanations.tsx`, which says both views are static/compiled representations and not 100% accurate because some information is only known during deployment.",
+            "All cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/stacktape-console__visual-config-editor/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source grounding is excellent — quoted UI strings match the source exactly (start button disabled text, no-repositories messages, stage-linked label, finallyCallback cleanup behavior).",
+            "The 'When to use / When NOT to use' pair is genuinely opinionated and helps the reader decide without hedging.",
+            "AI generation walkthrough accurately mirrors the three-step flow visible in ConfigEditorPage.tsx, including the private/public split and the temp-project cleanup behavior.",
+            "Troubleshooting section covers real scenarios from the source (disabled button, placeholder values, read-only templates) rather than generic advice.",
+            "FAQ covers all three required categories — Stacktape-specific, AWS/use-case, and comparison questions — with 10 substantive entries, none padded.",
+            "The Warning callout on AI-generated configs sets appropriate reader expectations without being alarmist."
+          ],
+          "problems": [
+            "Mandatory: 'Common tasks' section repeats content from 'Editor views' — 'Using IntelliSense' is nearly identical to the 'Editor' subsection (same keyboard shortcuts, same hover-doc tip), and 'Starting from a preset' restates what the 'Editor' subsection already explains. Three of five 'Common tasks' subsections restate earlier content rather than adding task-oriented framing.",
+            "Stage-linked config read-only behavior appears in three distinct places with near-identical wording: the <Info> callout inside 'Templates', the 'Editing a stage-linked config' subsection under 'Common tasks', and the 'Config linked to a stage is read-only' troubleshooting entry. This triple coverage wastes reader attention and inflates page length without adding clarity.",
+            "The 'What the config editor does' section largely restates the intro paragraph (Monaco engine, IntelliSense, three views, templates) and previews sections that immediately follow. It adds minimal new information before the reader reaches the sections that explain each feature properly."
+          ],
+          "mandatoryFixes": [
+            "Trim the 'Common tasks' section to remove entries that duplicate 'Editor views' content. Specifically: remove or radically shorten 'Using IntelliSense' (already covered in the 'Editor' H3) and 'Starting from a preset' (already covered in the 'Editor' H3). 'Common tasks' should contain only flows not explained in 'Editor views' — saving changes, copying config to a project, and navigating to a stage-linked template. This directly addresses the backbone-section-padded-with-restated-content rule; penalize completeness by 1 for the current state."
+          ],
+          "optionalImprovements": [
+            "Consolidate stage-linked config read-only coverage to two locations at most: keep the <Info> callout in 'Templates' for in-context context, keep the troubleshooting entry for problem-solving mode, and remove the 'Editing a stage-linked config' Common tasks subsection (it fully overlaps with both).",
+            "Trim or fold 'What the config editor does' — the three-views overview and the template concept can be one short paragraph at the top of 'Editor views' rather than a standalone section that reads as a second intro.",
+            "The FAQ entry 'Config editor vs stacktape init' is the clearest decision-support content on the page and likely the highest-intent question for new users. Consider moving it earlier in the FAQ list (currently last) since new readers hit it after wading through nine entries.",
+            "The <ConsoleScreenshot> component reference cannot be confirmed from the provided source files — verify the component exists in the MDX component palette and that the screenshot path /static/screenshots/console-config-editor.png is valid before publishing."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurately grounded in source: every specific UI behavior is traceable to ConfigEditorPage.tsx or Explanations.tsx — the disabled-button tooltip text, the noOptionsMessage variants, the auto-select branch logic, the temp-project lifecycle, and the read-only stage-linked template message all match the source precisely.",
+            "IntelliSense keyboard shortcuts (Ctrl+Space / Cmd+Space) and hover-doc tips are taken verbatim from Explanations.tsx (`editorConfigInConfigEditor`), not invented.",
+            "The CloudFormation and tree-view approximation caveat ('not 100% accurate, as some information are only known during deployment') matches Explanations.tsx exactly, correctly framed as a static compilation rather than a live preview.",
+            "AI generation three-step flow (choose repo type → select branch → start) matches the component's state machine and the `startButtonDisabled: !selectedBranch || !gitUrl` guard.",
+            "FAQ is well-populated (9 entries) and spans Stacktape-specific, use-case, and comparison questions as required.",
+            "'When to use' and 'When NOT to use' are correct peer H2s with concrete, non-circular guidance."
+          ],
+          "problems": [
+            "Content duplication across sections degrades signal: 'Common tasks > Using IntelliSense' is nearly verbatim restatement of 'Editor views > Editor' (same keyboard shortcuts, same hover-doc description). 'Common tasks > Starting from a preset' restates the preset paragraph in 'Editor views > Editor' almost word-for-word. 'Common tasks > Editing a stage-linked config' re-narrates the `<Info>` callout in the Templates section. This is the padded backbone violation: a section filled with restated content from earlier sections.",
+            "Troubleshooting entries 'Config linked to a stage is read-only' and 'AI generation button is disabled' are direct paraphrases of the Templates and AI generation sections respectively. While some duplication is acceptable in Troubleshooting for users who jump there directly, the content here adds no new diagnostic information beyond what appears 50-100 lines earlier — they read as padding.",
+            "'What the config editor does' section partially overlaps with the opening paragraph (both describe the Monaco base, the three views, and templates) and then hands off to 'Editor views' which covers the same three views in detail. The intermediate section adds little new content and creates a redundant overview layer."
+          ],
+          "mandatoryFixes": [
+            "Trim 'Common tasks' to remove restatements of 'Editor views' content. Specifically: collapse 'Using IntelliSense' into a one-sentence forward reference to the Editor section (the shortcuts are already documented there); collapse 'Starting from a preset' similarly; collapse 'Editing a stage-linked config' into a one-sentence pointer to the Templates section's Info callout. Common tasks should contain only steps that are genuinely task-oriented and not already covered in the descriptive sections above. This addresses the padded backbone violation.",
+            "Trim or remove 'What the config editor does' as a standalone H2: its content (Monaco, three views, templates-as-drafts) is a restatement of the intro paragraph plus a preview of 'Editor views'. Either merge it into the intro paragraph or delete it and let the H2 sections carry the detail directly. Do not pad backbone sections with content already present in the page."
+          ],
+          "optionalImprovements": [
+            "Add one sentence noting that the editor component does not render until a template is selected (inferred from source: `{selectedTemplate && <ConfigEditor ...>}`). This is observable behavior that readers might wonder about when first visiting the page with no templates.",
+            "The Troubleshooting section can be shortened by replacing full re-explanations with one-sentence cross-references: 'Config linked to a stage is read-only → see Templates section above' and 'AI generation button is disabled → see Starting a generation above.' This keeps troubleshooting scannable for users who jump there without turning it into a copy of the main body.",
+            "The source shows `showLearnHowToUse={!selectedTemplate?.isCreateInConsoleForNewStage}` — there appears to be an optional 'learn how to use' disclosure shown for normal (non-stage-linked) templates. A brief mention would be more complete than silently omitting it."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong answer-first opening that explains the Console config editor and why a reader would use it.",
+            "Good scan structure with short H2s, task-oriented H3s, troubleshooting, related links, and a broad FAQ.",
+            "AI generation flow is mostly concrete and grounded in the provided UI source: Private/Public selection, repository URL, branch selection, disabled button text, Git provider link, and temporary project creation are all represented.",
+            "The page clearly positions the editor as a drafting/prototyping tool rather than the preferred long-term source of truth for mature projects."
+          ],
+          "problems": [
+            "Several important claims are not grounded in the provided source files: framework detection for AI generation, specific preset categories, team collaboration behavior, local IDE IntelliSense parity, and copying saved templates into a repository as the intended workflow.",
+            "The page describes the editor as Monaco-based and references a screenshot, but the provided source does not show Monaco usage or the screenshot asset. The metadata says Monaco-based, but the page should not expand that into unsupported implementation detail unless the component source confirms it.",
+            "The page repeatedly says hover documentation includes defaults and allowed values. The provided Explanations source only says hover shows documentation, while the richer type/default/allowed-values behavior is not visible in the supplied files.",
+            "The FAQ is useful but too long and repetitive for this Console page. Several answers restate earlier content almost verbatim, especially CloudFormation preview, templates versus files, and editor versus IDE.",
+            "The page uses `stacktape.yaml` as a recommended copy target in multiple places. The project instructions say docs examples use TypeScript as the source of truth, and the page should avoid making YAML feel equivalent or preferred unless the source specifically requires it.",
+            "Some Console workflow language is more specific than the source supports, such as \"open the AI generation dialog\" and \"the flow walks you through three steps.\" The source shows modal content and controls but not a named dialog entry point or complete visible stepper.",
+            "No route is stated. The human instructions prefer literal Console routes from console-app routing when describing navigation; this page never anchors the editor to a Console route."
+          ],
+          "mandatoryFixes": [
+            "Replace or qualify unsupported claims about AI generation detecting specific frameworks/languages. The provided source only supports that AI generation starts from a public Git URL or connected private repository and selected branch, then starts an AI generation mutation.",
+            "Remove or narrow claims that hover docs show defaults and allowed values unless the ConfigEditor component source is included and proves that behavior. Use the grounded wording from Explanations: hover over any property to see its documentation.",
+            "Remove unsupported preset category claims such as web frameworks, backend APIs, and workers unless the preset source is provided. The source only proves a preset menu is present through ConfigEditor props, not its contents.",
+            "Narrow the template/team-sharing language to what the source proves: templates are selected, loaded, updated by `templateId`, and scoped by `organizationId`. Do not claim collaboration workflows beyond organization-scoped access unless source files prove member behavior.",
+            "Revise YAML mentions so TypeScript is the recommended documented path. If mentioning YAML because `Explanations.initStep` names it, make it secondary and avoid telling readers to choose whichever format they prefer.",
+            "Add the literal Console route for the config editor if available from routing source, or avoid navigation instructions that imply a known path not present in the provided source."
+          ],
+          "optionalImprovements": [
+            "Trim the FAQ to 6-8 distinct questions and remove duplicate CloudFormation/template/editor-versus-IDE material.",
+            "Make the opening paragraph slightly less implementation-heavy: focus on browser editing, hover docs, autocompletion, templates, and AI generation because those are visible in source.",
+            "Add a small table comparing config editor, local IDE, and `stacktape init`; it would improve extraction and decision-making.",
+            "Move the screenshot after the first task-oriented section or remove it if the asset is not part of the verified source set.",
+            "Add a short note that stage-created templates are read-only and link to `/projects/{project}/{stage}/config`, matching the route expression in source without pretending to know a concrete project/stage path."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided ConfigEditorPage and Explanations sources. The main factual risks are Console UI claims that go beyond the provided Console source, especially template creation, exact AI generation outcomes, and config format handling inside the browser editor.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The Stacktape Console includes a browser-based config editor for creating and editing Stacktape configuration templates.” Similar claims appear in the FAQ: “You can create, edit, and save templates without triggering any deployment.”",
+              "reason": "The provided ConfigEditorPage source shows selecting an existing template and updating its content, but it does not show template creation in the config editor page. Template creation may exist elsewhere, but it is not grounded in the provided source files for this page.",
+              "suggestedFix": "Narrow the claim to “selecting, editing, and saving Stacktape configuration templates” unless TemplateSelect source is added and proves template creation from this page.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "<TemplateSelect\n          setSelectedTemplate={setSelectedTemplate as any}\n          selectedTemplate={selectedTemplate as Template | null}\n          refetchOnWindowFocus={false}\n          selectWidth=\"730px\"\n        />"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const onSaveChanges = useCallback(\n    async (config: string) => {\n      const updatedTemplate = await updateTemplateMutation.mutateAsync({\n        organizationId: selectedOrg!.id,\n        templateId: valueHoldRef.current.selectedTemplate!.id,\n        content: config\n      });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The config editor can start AI config generation from a selected public or private Git repository and branch.” Later: “The editor starts AI config generation for the selected repository and branch. Review the generated configuration before deploying once it is available.”",
+              "reason": "The source supports starting AI generation by creating a temporary project and calling startAiGen, but it does not show the generated configuration appearing in this editor or becoming available in the selected template. That outcome is asserted without support in the provided Console source.",
+              "suggestedFix": "Say the editor starts AI config generation for the selected repository and branch, and link to the AI config generation page for what happens after generation. Avoid saying the generated config appears or is available in this editor unless sourced.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "return startAiGenPublicMutation.mutateAsync({\n        gitBranchOrCommit: valueHoldRef.current.gitBranchOrCommit!,\n        organizationId: selectedOrg!.id,\n        projectId: project.id\n      });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The editor creates a temporary project for the generation process and removes it automatically when generation completes, regardless of whether it succeeds or fails.” Similar claim appears in the FAQ: “cleans up the temporary project automatically — regardless of whether generation succeeds or fails.”",
+              "reason": "The source shows a finallyCallback that deletes the temporary project, but the provided source does not prove when that callback is invoked or that it runs on both success and failure. The wording “regardless of whether it succeeds or fails” is stronger than the page source supports.",
+              "suggestedFix": "Use narrower wording: “The page passes a cleanup callback that deletes the temporary project after the AI generation flow finishes.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const aiGenFinallyCallback = useCallback(() => {\n    deleteProjectMutation.mutateAsync({ name: valueHoldRef.current.projectName!, organizationId: selectedOrg!.id });\n  }, [selectedOrg, deleteProjectMutation]);"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const aiGenControls = {\n    startFn: aiGenStart,\n    additionalModalContent: AiGenAdditionalContent,\n    finallyCallback: aiGenFinallyCallback,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Copy the config from the editor into a `stacktape.ts` or `stacktape.yaml` file in your project...” and “Copy the config from the editor into whichever format your team prefers.”",
+              "reason": "The provided source supports that Stacktape configuration files may be named stacktape.ts or stacktape.yaml, but it does not show that the Console editor can convert between TypeScript and YAML or that copied editor content can be pasted into either format unchanged. “Whichever format your team prefers” implies format conversion or dual-format editor output that is not grounded here.",
+              "suggestedFix": "Say “copy the config into a matching Stacktape configuration file” or “Stacktape supports `stacktape.ts` and `stacktape.yaml`; use the format that matches the editor content you are copying.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "<p>\n        The name of the file is either <b>stacktape.ts</b> or <b>stacktape.yaml</b>.\n      </p>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The config editor page has a template selector; selecting a template loads its content into the editor, and saving updates that template for the selected organization.”",
+              "reason": "Selecting a template and saving its content are grounded. The part “for the selected organization” is grounded for saving, but the draft also broadly says templates are “managed as templates in the Console” and “team members with access can view and work with the same set of templates” in related places. The provided source shows organizationId in the update call but does not establish sharing or team-member access behavior.",
+              "suggestedFix": "Keep the grounded organization-scoped save behavior, but remove or narrow any sharing/team access language unless access-control source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const updatedTemplate = await updateTemplateMutation.mutateAsync({\n        organizationId: selectedOrg!.id,\n        templateId: valueHoldRef.current.selectedTemplate!.id,\n        content: config\n      });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The CloudFormation preview is useful for understanding your stack's structure, verifying IAM permissions, and debugging deployment issues before running `stacktape deploy`.”",
+              "reason": "The source supports that the view is a statically compiled CloudFormation template and not fully accurate, but it does not specifically support “verifying IAM permissions” or “debugging deployment issues.” These are plausible uses, but the wording reads like Console-supported behavior rather than general guidance.",
+              "suggestedFix": "Narrow to “useful for inspecting the AWS resources and relationships Stacktape compiles from your config” unless stronger source is available.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The editor loads language features when it first opens — if suggestions are not yet available, wait a moment for the loading to complete.”",
+              "reason": "The page source lazy-loads the ConfigEditor component and tracks loading state, but the provided files do not show language-feature loading behavior or a transient state for autocompletion readiness.",
+              "suggestedFix": "Remove the second sentence or rephrase as general troubleshooting: “If suggestions do not appear, trigger autocomplete manually with the OS shortcut.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The start button is disabled until both a repository and branch are selected — hovering shows ‘Please select Git repository and branch to generate config from.’”",
+              "reason": "The disabled condition and disabled text are grounded, but the provided source does not show that the disabled text appears specifically on hover. That behavior may be implemented inside ConfigEditor, but that component source is not provided.",
+              "suggestedFix": "Say “the disabled state uses the message...” or simply “the start button is disabled until both a repository and branch are selected.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses the documented `stacktape debug:logs` constraint by not inventing a `stacktape logs` command.",
+            "The draft’s route links all point to routes present in the provided documentation navigation index.",
+            "The stage-linked read-only behavior is well grounded: the source sets `readOnly` from `selectedTemplate.isCreateInConsoleForNewStage` and displays the exact stage configuration page message.",
+            "The AI generation repository type, branch selection, default branch auto-selection, disabled condition, and private/public repository inputs are mostly grounded in ConfigEditorPage.tsx.",
+            "The CloudFormation and tree view caveat that static previews are not 100% accurate is grounded in Explanations.tsx."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1579,8 +2102,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\stacktape-console\\visual-config-editor.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/stacktape-console/visual-config-editor.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.4, hard blockers 6, advisory high 0, verifier medium 9"
+  "pipelineReviewSummary": "reviewer-avg 7.4, hard blockers 1, advisory high 0, verifier medium 4",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

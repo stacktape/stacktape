@@ -2,7 +2,7 @@
   "pageId": "resources__databases__relational-database",
   "pageRoute": "resources/databases/relational-database",
   "startedAt": "2026-05-15T10:14:50.519Z",
-  "updatedAt": "2026-05-15T14:11:06.975Z",
+  "updatedAt": "2026-05-22T03:03:35.028Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1358,20 +1358,429 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__databases__relational-database/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Covers all four engine families (RDS, Aurora, Aurora Serverless v2, Aurora Serverless v1) with dedicated code examples and per-variant tradeoff guidance — no variant is left as a one-liner mention.",
+            "The FeatureComparisonTable at the top of Engine types gives a first-time reader an instant decision matrix before they read any prose — this is exactly what the audience needs before choosing an engine.",
+            "Pricing context is accurate, tied to source (versions.json + price file), and annotated with '~' to acknowledge regional variation.",
+            "All connectTo env-var claims (`STP_MAIN_DATABASE_CONNECTION_STRING`, `HOST`, `PORT`, Aurora reader params, scripts-only JDBC vars) are correctly scoped to the right resource types and match the ResourceAccessProps and ScriptEnvProps JSDoc sources.",
+            "Property-value anchors are present throughout: every tunable property in code examples (instanceSize, minCapacity, maxCapacity, multiAz, pauseAfterSeconds, log_min_duration_statement) is explained in surrounding prose.",
+            "10-question FAQ spans all three required categories (Stacktape-specific, AWS service behavior, choosing/comparison), with concise 2–4 sentence answers that stand alone as extractable snippets.",
+            "Application-code snippet showing `process.env.STP_MAIN_DATABASE_CONNECTION_STRING` with the pg client closes the loop from config to running code — essential for a first-timer.",
+            "Opinionated 'When NOT to use' section with concrete alternatives (DynamoDB, Redis, OpenSearch, MongoDB Atlas) helps readers who've arrived at the wrong page leave quickly and confidently.",
+            "The Aurora Serverless v1 Warning callout and the t-family burstable CPU throttling explanation are genuine 'gotchas' that save production incidents — not padding."
+          ],
+          "problems": [
+            "The Basic example section and the Standard RDS sub-section use identical code. A first-time reader will encounter the same snippet twice within two scroll-lengths, which erodes trust and wastes space.",
+            "The 'Database name and port' H2 merges two independent concerns. 'Port' is a two-sentence topic and 'dbName' is a more substantial one; combining them makes the section hard to link to or scan for either topic individually.",
+            "The 'Supported versions' section lists version strings but provides no guidance on which version to pick (always choose the latest stable? stay one minor behind?). A first-timer will not know what '16.11 vs 17.7' means for their project.",
+            "The 'Connecting from workloads' section implies workloads always receive `STP_MAIN_DATABASE_PORT` injected via connectTo. The ResourceAccessProps JSDoc does list PORT for RelationalDatabase, so this is accurate — but the page doesn't mention that Aurora Serverless engines do not expose a configurable port property (stated elsewhere in the page, under 'Database name and port'), creating a slight inconsistency: the env var is injected but the port can't be changed for Serverless engines.",
+            "The long page structure means the 'Basic example' — the anchor for a first-timer — appears at H2 position 3 after two multi-paragraph prose sections. Low-AWS-experience readers may not reach it before bouncing."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Make the Basic example visually distinct from the Standard RDS example — either change the basic example to use Aurora Serverless v2 (the recommended engine) and note 'for a standard RDS example, see Engine types below', or add a one-line callout after the basic example pointing to the engine comparison before repeating the same snippet.",
+            "Split 'Database name and port' into two separate H2s — 'Database name' and 'Port' — or merge port coverage into the relevant engine-type sub-sections where it is already partially discussed.",
+            "Add one sentence at the start of the 'Supported versions' section advising readers to use the latest stable minor version within a given major (e.g., 'Use the most recent patch within your chosen major — e.g., 16.11 rather than 16.6 — to get the latest bug fixes'). The versions table answers 'what is valid' but not 'what should I choose'.",
+            "Consider adding a brief 'Connection pooling' note under 'Connecting from workloads' — RDS has a max-connections limit per instance class, and first-timers using Lambda or ECS with many concurrent tasks frequently hit it. A one-sentence callout to RDS Proxy or a pooler library (PgBouncer) would prevent a common production surprise.",
+            "The FAQ answer for 'How do I run database migrations' references `local-script-with-bastion-tunneling` — consider linking directly to the bastion-host and deployment-scripts pages from that answer since both are non-obvious resources for a first-timer.",
+            "Move or link the 'Dev mode' section earlier in the page (or reference it from the Basic example) — a first-timer deploying for the first time will likely hit local dev mode before they think about alarms or storage."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All four engine families (RDS, Aurora, Aurora Serverless v2, Aurora Serverless v1) are documented with working code examples and per-variant tradeoffs at roughly equal depth — union-type coverage discipline is well-executed.",
+            "FeatureComparisonTable at the top of the Engine types section gives an at-a-glance engine comparison across 9 dimensions — readers can make a decision before reading the prose.",
+            "Aurora Serverless accessibility constraint (vpc/scoping-workloads-in-vpc only) is correctly called out twice — once in the engine subsection and once in the Accessibility section — reducing the most common misconfiguration.",
+            "connectTo environment variables use the correct `STP_MAIN_DATABASE_*` pattern and accurately distinguish between workloads (CONNECTION_STRING, HOST, PORT) and scripts (plus JDBC_CONNECTION_STRING), matching the ResourceAccessProps vs ScriptEnvProps split in the source.",
+            "All six alarm trigger types are documented with accurate threshold property names and units (thresholdPercent, thresholdMB, thresholdCount, thresholdSeconds) sourced directly from the type definitions.",
+            "Credential warnings are prominent and accurate: username-change-deletes-data warning and special-character list both match the source.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS use-case, comparison questions) with complete, independently extractable answers — 10 questions exactly.",
+            "Production-oriented guidance is consistent throughout: backup retention recommendation (7 days), deletion protection, instance size progression, and the strong push toward scoping-workloads-in-vpc for production."
+          ],
+          "problems": [
+            "The Basic Example section and the Standard RDS subsection share identical code (same class, same version, same instanceSize). The Standard RDS code example adds no incremental value over what the reader already saw — the second occurrence should be differentiated or restructured.",
+            "The claim 'For standard RDS, no default database is created unless you specify dbName explicitly' is behavioral AWS knowledge not directly grounded in the source type definitions. The source shows `dbName?: string` with no `@default` annotation for RdsEngineProperties — the source is simply silent here, not confirmatory.",
+            "The Connecting from workloads section correctly lists injected env vars but does not mention that a database using scoping-workloads-in-vpc accessibility also requires the consuming workload to list the database in connectTo to get network access — this is implied but not stated explicitly, which is a common production misconfiguration.",
+            "Missing connection pooling context in the Connecting from workloads section. RDS has hard connection limits based on instance memory (e.g., db.t4g.micro supports ~87 max connections). This is a common production failure mode when a Lambda function or auto-scaling container workload hits the limit — the page leaves readers unprepared for it."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Differentiate the Standard RDS code example from the Basic Example — for instance, show multi-AZ enabled or a readReplicas configuration to make the Standard RDS subsection add value rather than repeat the intro.",
+            "Add a brief connection pooling warning in the Connecting from workloads section: RDS has fixed max_connections tied to instance memory; Lambda and auto-scaling container workloads can exhaust connections quickly. Mention RDS Proxy or a pooler as the mitigation path.",
+            "Soften or qualify 'For standard RDS, no default database is created unless you specify dbName explicitly' — either cite AWS behavior explicitly ('AWS does not create an initial database for RDS if dbName is omitted') or simply say 'dbName is optional; if omitted, no initial database is created' to make the scope clear.",
+            "In the Supported versions section, add a one-line note that AWS adds new minor versions regularly and the AWS RDS console or CLI shows the current complete list — the table is a snapshot that will go stale.",
+            "The forceDisablePublicIp property is mentioned only in passing at the end of the Accessibility section. Consider adding it to the accessibility table so readers can see it as a distinct option alongside the mode choices."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Answer-first paragraph is tight, self-contained, and accurately summarizes what the resource does and why it matters — meets the 40-75 word AEO target.",
+            "FeatureComparisonTable covering all four engine families (RDS, Aurora, Aurora Serverless v2, Serverless v1) is the clearest single artifact on the page — citation-friendly and immediately actionable.",
+            "All four engine variants receive a working code example plus when-to-use decision guidance, per-variant cost context, and clear tradeoffs — strong union-type coverage discipline.",
+            "Aurora Serverless v2 VPC-only accessibility constraint is prominently flagged both in the relevant engine section and again in the Accessibility section, preventing a common deployment error.",
+            "Connecting from workloads section shows exactly which env vars are injected by connectTo for workloads vs. scripts, with a runnable TypeScript handler snippet — the most practical section on the page.",
+            "Instance size table with vCPU, RAM, and approximate monthly cost anchors all tunable values in examples with concrete decision context.",
+            "FAQ has 10 questions spanning Stacktape-specific, AWS use-case, and comparison categories — broadly useful for organic search and AI snippet extraction.",
+            "Credential warning about masterUserName replacement is prominently placed as a Warning callout, preventing data-loss mistakes.",
+            "All code examples use `<CodeBlock intellisense tabs={[...]}>` with label: 'TypeScript'; no hand-authored YAML, no StacktapeConfig type imports, no fenced TypeScript for Stacktape config — zero mandatory style violations.",
+            "Exactly one `<ApiReference definitionName=\"RelationalDatabaseProps\" />` placed at the bottom — correct and non-duplicated."
+          ],
+          "problems": [
+            "The 'Basic example' section and the 'Standard RDS' subsection under 'Engine types' contain identical code (RdsEnginePostgres with db.t4g.micro). This makes the Standard RDS subsection feel like a repeat rather than adding new information. Readers scanning down from the basic example will not know why the same block appears again.",
+            "The 'Storage' section is placed after 'Connecting from workloads', but storage configuration is an RDS engine property and is logically part of the engine setup. Readers configuring an RDS instance will expect to see storage options before they see networking/connection content.",
+            "The Standard RDS subsection does not add any material beyond the Basic example — no additional options (multiAz, storage, readReplicas) are demonstrated that aren't shown later in dedicated sections. The subsection is mostly prose that restates the table above it, padded with a duplicate code block.",
+            "The Aurora Serverless v2 example sets `maxCapacity: 16` with a good prose explanation, but `minCapacity: 0.5` is set to the documented default — worth a one-line note that omitting it would give the same result, so readers understand which values are overrides vs. defaults."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove the duplicate code example from 'Standard RDS' — the Basic example already covers that configuration. Replace the duplicated block with a concrete example of a property that only appears in RDS (e.g., multiAz: true plus a readReplicas entry), so the subsection adds new information instead of repeating the page's opening example.",
+            "Move 'Storage' to immediately after 'Engine types' (or scope it as a sub-section under the Standard RDS engine variant), since it is an RDS-only property and logically belongs with engine configuration rather than after connection patterns.",
+            "Add a one-line note in the Aurora Serverless v2 example explaining that minCapacity: 0.5 is the documented default — readers unfamiliar with the defaults may treat every set value in an example as mandatory.",
+            "Add a brief callout or FAQ entry about connection pooling for serverless/Lambda workloads, since relational databases plus Lambda functions is the most common pain point on this topic (too many short-lived Lambda invocations can exhaust DB connections). This is a high-signal operational concern that AI engines frequently surface."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided relational database types, generated engine-version data, alarm types, helper connectTo documentation, and pricing summary. I found one publication-blocking issue: an invented cross-link target that is not present in the documentation navigation index.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "FAQ: “See the [database migrations recipe](/recipes/database-migrations) for a complete walkthrough.”",
+              "reason": "`/recipes/database-migrations` is not listed in the provided documentation navigation index. The verifier instructions classify any markdown link whose target is outside that index as an invented route.",
+              "suggestedFix": "Remove the sentence or replace the link with an existing route such as `/configuration/hooks-and-scripts` or `/deployment-and-lifecycle/deployment-scripts-and-hooks`.",
+              "evidence": [
+                {
+                  "file": "Documentation pages navigation index",
+                  "quote": "Documentation pages (every route in the site — any cross-link in the draft pointing outside this list is an invented route):"
+                },
+                {
+                  "file": "Documentation pages navigation index",
+                  "quote": "- /configuration/hooks-and-scripts — Lifecycle hooks and scripts."
+                },
+                {
+                  "file": "Documentation pages navigation index",
+                  "quote": "- /deployment-and-lifecycle/deployment-scripts-and-hooks — Automate work before and after deployments."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "`<ApiReference definitionName=\"RelationalDatabaseProps\" />` matches the page resource props type.",
+            "The draft correctly documents the four engine families from `RelationalDatabaseProps.engine`: RDS, Aurora, Aurora Serverless v2, and Aurora Serverless v1.",
+            "The accessibility modes, default `internet` mode, `whitelistedIps` behavior, and Aurora Serverless VPC-only constraint match `DatabaseAccessibility`.",
+            "The `connectTo` environment-variable wording correctly uses the concrete `mainDatabase` resource name pattern: `STP_MAIN_DATABASE_*`.",
+            "The pricing context for `db.t4g.micro` and Aurora `db.t3.small` is grounded in the provided AWS pricing summary."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript type error.",
+              "reason": "line 29, col 17: Type '\"mainDatabase\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 6,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__databases__relational-database/iteration-6.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Covers all four engine families (RDS, Aurora, Aurora Serverless v2, Aurora Serverless v1) with dedicated code examples and per-variant tradeoff guidance — no variant is left as a one-liner mention.",
+            "The FeatureComparisonTable at the top of Engine types gives a first-time reader an instant decision matrix before they read any prose — this is exactly what the audience needs before choosing an engine.",
+            "Pricing context is accurate, tied to source (versions.json + price file), and annotated with '~' to acknowledge regional variation.",
+            "All connectTo env-var claims (`STP_MAIN_DATABASE_CONNECTION_STRING`, `HOST`, `PORT`, Aurora reader params, scripts-only JDBC vars) are correctly scoped to the right resource types and match the ResourceAccessProps and ScriptEnvProps JSDoc sources.",
+            "Property-value anchors are present throughout: every tunable property in code examples (instanceSize, minCapacity, maxCapacity, multiAz, pauseAfterSeconds, log_min_duration_statement) is explained in surrounding prose.",
+            "10-question FAQ spans all three required categories (Stacktape-specific, AWS service behavior, choosing/comparison), with concise 2–4 sentence answers that stand alone as extractable snippets.",
+            "Application-code snippet showing `process.env.STP_MAIN_DATABASE_CONNECTION_STRING` with the pg client closes the loop from config to running code — essential for a first-timer.",
+            "Opinionated 'When NOT to use' section with concrete alternatives (DynamoDB, Redis, OpenSearch, MongoDB Atlas) helps readers who've arrived at the wrong page leave quickly and confidently.",
+            "The Aurora Serverless v1 Warning callout and the t-family burstable CPU throttling explanation are genuine 'gotchas' that save production incidents — not padding."
+          ],
+          "problems": [
+            "The Basic example section and the Standard RDS sub-section use identical code. A first-time reader will encounter the same snippet twice within two scroll-lengths, which erodes trust and wastes space.",
+            "The 'Database name and port' H2 merges two independent concerns. 'Port' is a two-sentence topic and 'dbName' is a more substantial one; combining them makes the section hard to link to or scan for either topic individually.",
+            "The 'Supported versions' section lists version strings but provides no guidance on which version to pick (always choose the latest stable? stay one minor behind?). A first-timer will not know what '16.11 vs 17.7' means for their project.",
+            "The 'Connecting from workloads' section implies workloads always receive `STP_MAIN_DATABASE_PORT` injected via connectTo. The ResourceAccessProps JSDoc does list PORT for RelationalDatabase, so this is accurate — but the page doesn't mention that Aurora Serverless engines do not expose a configurable port property (stated elsewhere in the page, under 'Database name and port'), creating a slight inconsistency: the env var is injected but the port can't be changed for Serverless engines.",
+            "The long page structure means the 'Basic example' — the anchor for a first-timer — appears at H2 position 3 after two multi-paragraph prose sections. Low-AWS-experience readers may not reach it before bouncing."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Make the Basic example visually distinct from the Standard RDS example — either change the basic example to use Aurora Serverless v2 (the recommended engine) and note 'for a standard RDS example, see Engine types below', or add a one-line callout after the basic example pointing to the engine comparison before repeating the same snippet.",
+            "Split 'Database name and port' into two separate H2s — 'Database name' and 'Port' — or merge port coverage into the relevant engine-type sub-sections where it is already partially discussed.",
+            "Add one sentence at the start of the 'Supported versions' section advising readers to use the latest stable minor version within a given major (e.g., 'Use the most recent patch within your chosen major — e.g., 16.11 rather than 16.6 — to get the latest bug fixes'). The versions table answers 'what is valid' but not 'what should I choose'.",
+            "Consider adding a brief 'Connection pooling' note under 'Connecting from workloads' — RDS has a max-connections limit per instance class, and first-timers using Lambda or ECS with many concurrent tasks frequently hit it. A one-sentence callout to RDS Proxy or a pooler library (PgBouncer) would prevent a common production surprise.",
+            "The FAQ answer for 'How do I run database migrations' references `local-script-with-bastion-tunneling` — consider linking directly to the bastion-host and deployment-scripts pages from that answer since both are non-obvious resources for a first-timer.",
+            "Move or link the 'Dev mode' section earlier in the page (or reference it from the Basic example) — a first-timer deploying for the first time will likely hit local dev mode before they think about alarms or storage."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All four engine families (RDS, Aurora, Aurora Serverless v2, Aurora Serverless v1) are documented with working code examples and per-variant tradeoffs at roughly equal depth — union-type coverage discipline is well-executed.",
+            "FeatureComparisonTable at the top of the Engine types section gives an at-a-glance engine comparison across 9 dimensions — readers can make a decision before reading the prose.",
+            "Aurora Serverless accessibility constraint (vpc/scoping-workloads-in-vpc only) is correctly called out twice — once in the engine subsection and once in the Accessibility section — reducing the most common misconfiguration.",
+            "connectTo environment variables use the correct `STP_MAIN_DATABASE_*` pattern and accurately distinguish between workloads (CONNECTION_STRING, HOST, PORT) and scripts (plus JDBC_CONNECTION_STRING), matching the ResourceAccessProps vs ScriptEnvProps split in the source.",
+            "All six alarm trigger types are documented with accurate threshold property names and units (thresholdPercent, thresholdMB, thresholdCount, thresholdSeconds) sourced directly from the type definitions.",
+            "Credential warnings are prominent and accurate: username-change-deletes-data warning and special-character list both match the source.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS use-case, comparison questions) with complete, independently extractable answers — 10 questions exactly.",
+            "Production-oriented guidance is consistent throughout: backup retention recommendation (7 days), deletion protection, instance size progression, and the strong push toward scoping-workloads-in-vpc for production."
+          ],
+          "problems": [
+            "The Basic Example section and the Standard RDS subsection share identical code (same class, same version, same instanceSize). The Standard RDS code example adds no incremental value over what the reader already saw — the second occurrence should be differentiated or restructured.",
+            "The claim 'For standard RDS, no default database is created unless you specify dbName explicitly' is behavioral AWS knowledge not directly grounded in the source type definitions. The source shows `dbName?: string` with no `@default` annotation for RdsEngineProperties — the source is simply silent here, not confirmatory.",
+            "The Connecting from workloads section correctly lists injected env vars but does not mention that a database using scoping-workloads-in-vpc accessibility also requires the consuming workload to list the database in connectTo to get network access — this is implied but not stated explicitly, which is a common production misconfiguration.",
+            "Missing connection pooling context in the Connecting from workloads section. RDS has hard connection limits based on instance memory (e.g., db.t4g.micro supports ~87 max connections). This is a common production failure mode when a Lambda function or auto-scaling container workload hits the limit — the page leaves readers unprepared for it."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Differentiate the Standard RDS code example from the Basic Example — for instance, show multi-AZ enabled or a readReplicas configuration to make the Standard RDS subsection add value rather than repeat the intro.",
+            "Add a brief connection pooling warning in the Connecting from workloads section: RDS has fixed max_connections tied to instance memory; Lambda and auto-scaling container workloads can exhaust connections quickly. Mention RDS Proxy or a pooler as the mitigation path.",
+            "Soften or qualify 'For standard RDS, no default database is created unless you specify dbName explicitly' — either cite AWS behavior explicitly ('AWS does not create an initial database for RDS if dbName is omitted') or simply say 'dbName is optional; if omitted, no initial database is created' to make the scope clear.",
+            "In the Supported versions section, add a one-line note that AWS adds new minor versions regularly and the AWS RDS console or CLI shows the current complete list — the table is a snapshot that will go stale.",
+            "The forceDisablePublicIp property is mentioned only in passing at the end of the Accessibility section. Consider adding it to the accessibility table so readers can see it as a distinct option alongside the mode choices."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Answer-first paragraph is tight, self-contained, and accurately summarizes what the resource does and why it matters — meets the 40-75 word AEO target.",
+            "FeatureComparisonTable covering all four engine families (RDS, Aurora, Aurora Serverless v2, Serverless v1) is the clearest single artifact on the page — citation-friendly and immediately actionable.",
+            "All four engine variants receive a working code example plus when-to-use decision guidance, per-variant cost context, and clear tradeoffs — strong union-type coverage discipline.",
+            "Aurora Serverless v2 VPC-only accessibility constraint is prominently flagged both in the relevant engine section and again in the Accessibility section, preventing a common deployment error.",
+            "Connecting from workloads section shows exactly which env vars are injected by connectTo for workloads vs. scripts, with a runnable TypeScript handler snippet — the most practical section on the page.",
+            "Instance size table with vCPU, RAM, and approximate monthly cost anchors all tunable values in examples with concrete decision context.",
+            "FAQ has 10 questions spanning Stacktape-specific, AWS use-case, and comparison categories — broadly useful for organic search and AI snippet extraction.",
+            "Credential warning about masterUserName replacement is prominently placed as a Warning callout, preventing data-loss mistakes.",
+            "All code examples use `<CodeBlock intellisense tabs={[...]}>` with label: 'TypeScript'; no hand-authored YAML, no StacktapeConfig type imports, no fenced TypeScript for Stacktape config — zero mandatory style violations.",
+            "Exactly one `<ApiReference definitionName=\"RelationalDatabaseProps\" />` placed at the bottom — correct and non-duplicated."
+          ],
+          "problems": [
+            "The 'Basic example' section and the 'Standard RDS' subsection under 'Engine types' contain identical code (RdsEnginePostgres with db.t4g.micro). This makes the Standard RDS subsection feel like a repeat rather than adding new information. Readers scanning down from the basic example will not know why the same block appears again.",
+            "The 'Storage' section is placed after 'Connecting from workloads', but storage configuration is an RDS engine property and is logically part of the engine setup. Readers configuring an RDS instance will expect to see storage options before they see networking/connection content.",
+            "The Standard RDS subsection does not add any material beyond the Basic example — no additional options (multiAz, storage, readReplicas) are demonstrated that aren't shown later in dedicated sections. The subsection is mostly prose that restates the table above it, padded with a duplicate code block.",
+            "The Aurora Serverless v2 example sets `maxCapacity: 16` with a good prose explanation, but `minCapacity: 0.5` is set to the documented default — worth a one-line note that omitting it would give the same result, so readers understand which values are overrides vs. defaults."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove the duplicate code example from 'Standard RDS' — the Basic example already covers that configuration. Replace the duplicated block with a concrete example of a property that only appears in RDS (e.g., multiAz: true plus a readReplicas entry), so the subsection adds new information instead of repeating the page's opening example.",
+            "Move 'Storage' to immediately after 'Engine types' (or scope it as a sub-section under the Standard RDS engine variant), since it is an RDS-only property and logically belongs with engine configuration rather than after connection patterns.",
+            "Add a one-line note in the Aurora Serverless v2 example explaining that minCapacity: 0.5 is the documented default — readers unfamiliar with the defaults may treat every set value in an example as mandatory.",
+            "Add a brief callout or FAQ entry about connection pooling for serverless/Lambda workloads, since relational databases plus Lambda functions is the most common pain point on this topic (too many short-lived Lambda invocations can exhaust DB connections). This is a high-signal operational concern that AI engines frequently surface."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided relational database types and uses the required TypeScript CodeBlock pattern. The main fixes are around over-specific pricing/default claims that should be narrowed to what the source actually says.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“Aurora Serverless v2 bills per ACU-hour with no minimum instance commitment” and similar wording that says it “charges only for what you use.”",
+              "reason": "The source supports pay-per-capacity wording, but Aurora Serverless v2 also has a configured minimum capacity with a default of 0.5 ACU. The draft should avoid implying there is no idle baseline cost.",
+              "suggestedFix": "Say that Aurora Serverless v2 bills per ACU-hour within the configured min/max range, and that `minCapacity` sets the baseline capacity floor; the default is `0.5`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "#### Minimum ACUs (0.5-128 in 0.5 increments). ~1 ACU ≈ 2 GB RAM.\n   *\n   * ---\n   *\n   * Set low (0.5) for dev/staging to minimize cost. The database scales up instantly under load.\n   *\n   * @default 0.5"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "#### Maximum ACUs (0.5-128 in 0.5 increments). Caps your scaling and cost.\n   *\n   * @default 10"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For standard RDS, no default database is created unless you specify `dbName` explicitly.”",
+              "reason": "The source says `dbName` is optional for RDS and documents defaults for Aurora/Aurora Serverless, but it does not state that no default database is created for standard RDS. Absence of an `@default` is not enough to claim AWS/Stacktape creates no database.",
+              "suggestedFix": "Narrow to: “For standard RDS, `dbName` is optional and the provided source does not document a Stacktape default. Set `dbName` explicitly when your app needs a predictable initial database name.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "interface RdsEngineProperties extends SharedEngineProperties {\n  /**\n   * #### Name of the database created on initialization. For Oracle, this is the SID. Not applicable to SQL Server.\n   */\n  dbName?: string;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "interface AuroraEngineProperties extends SharedEngineProperties {\n  /**\n   * #### Name of the initial database.\n   * @default \"defdb\"\n   */\n  dbName?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS RDS storage costs a few cents per GB/month” and the FAQ repeats “Storage costs are separate (typically a few cents per GB/month with auto-scaling).”",
+              "reason": "The provided pricing source explicitly excludes storage, I/O, and data transfer. The draft invents a storage price magnitude that is not present in the source files.",
+              "suggestedFix": "Replace with: “Storage, I/O, and data transfer are billed separately; the provided pricing source only covers on-demand instance pricing.”",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/relational-database.md",
+                  "quote": "All prices are us-east-1 list price for an on-demand single instance/task and exclude storage, I/O, and data transfer."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Aurora Serverless v1 manages its version automatically — the `version` property is optional.”",
+              "reason": "The `version` property is optional, but the source only says the engine version is “usually” managed by AWS automatically. The draft wording is slightly stronger than the source.",
+              "suggestedFix": "Change to: “For Aurora Serverless v1, `version` is optional and is usually managed by AWS automatically.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/relational-databases.d.ts",
+                  "quote": "#### Engine version. Usually managed by AWS automatically for serverless v1.\n   */\n  version?: string;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[...]}>` for Stacktape configuration examples and does not hand-author YAML config examples.",
+            "`<ApiReference definitionName=\"RelationalDatabaseProps\" />` matches the page type name and includes the required `Props` suffix.",
+            "The `connectTo` environment variable names for the `mainDatabase` example follow the documented `STP_[RESOURCE_NAME]_[PARAM]` pattern.",
+            "The engine union is covered: standard RDS, Aurora, Aurora Serverless v2, and Aurora Serverless v1 are all discussed with examples and tradeoffs.",
+            "All checked cross-links point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript type error.",
+              "reason": "line 28, col 17: Type '\"mainDatabase\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\databases\\relational-database.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/resources/databases/relational-database.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 3, advisory high 0, verifier medium 5"
+  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 1, advisory high 0, verifier medium 4",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

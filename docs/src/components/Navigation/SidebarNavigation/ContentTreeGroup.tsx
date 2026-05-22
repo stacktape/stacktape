@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight } from 'react-feather';
 import { colors, fontFamily } from '../../../styles/variables';
 import { ContentTreeNode } from './ContentTreeNode';
+import { useExpandedMap, useExpansionToggle, useIsExpanded } from './expansion-store';
 import { buildGuidePath, flattenVisibleItems } from './guide-path';
 import type { NavGroup } from './navigation-data';
 
@@ -38,10 +39,22 @@ const measureRows = (container: HTMLElement) => {
   return { centers, totalHeight };
 };
 
+// Cheap equality for measurement state — avoids setState (and the React re-render + Emotion
+// serialization storm of the whole sub-tree) when ResizeObserver fires with the same values.
+const sameMeasurement = (
+  a: { centers: number[]; totalHeight: number },
+  b: { centers: number[]; totalHeight: number }
+) => {
+  if (a.totalHeight !== b.totalHeight || a.centers.length !== b.centers.length) return false;
+  for (let i = 0; i < a.centers.length; i += 1) {
+    if (a.centers[i] !== b.centers[i]) return false;
+  }
+  return true;
+};
+
 const useGuidePath = (
   containerRef: React.RefObject<HTMLDivElement>,
-  flat: { depth: number }[],
-  deps: unknown[]
+  flat: { depth: number }[]
 ) => {
   const [measured, setMeasured] = useState<{ centers: number[]; totalHeight: number }>({
     centers: [],
@@ -51,15 +64,35 @@ const useGuidePath = (
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    setMeasured(measureRows(el));
-    // ResizeObserver catches font load, scrollbar shifts, and any layout change inside the
-    // container. Without it the curve can lag behind row-height changes that happen post-mount.
-    const ro = new ResizeObserver(() => setMeasured(measureRows(el)));
+    setMeasured((prev) => {
+      const next = measureRows(el);
+      return sameMeasurement(prev, next) ? prev : next;
+    });
+
+    // Observe ONLY the container. During the 220ms expand animation, the container's content
+    // box resizes continuously as the grid track grows — that's enough signal to drive
+    // re-measure. Previously we observed every `[data-guide-row]` row as well, which made the
+    // observer fire N times per frame and triggered a forced layout (`getBoundingClientRect`
+    // on every row) for each fire. With one observer + an rAF guard, we coalesce to at most
+    // one measurement per frame. Set up exactly once per group mount — re-creating the
+    // observer on every toggle (the old deps=[flat] behavior) was pure waste.
+    let raf = 0;
+    const ro = new ResizeObserver(() => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        setMeasured((prev) => {
+          const next = measureRows(el);
+          return sameMeasurement(prev, next) ? prev : next;
+        });
+      });
+    });
     ro.observe(el);
-    el.querySelectorAll<HTMLElement>('[data-guide-row]').forEach((row) => ro.observe(row));
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [containerRef]);
 
   return useMemo(() => {
     if (flat.length === 0 || measured.centers.length !== flat.length) return null;
@@ -70,17 +103,11 @@ const useGuidePath = (
   }, [flat, measured]);
 };
 
-export function ContentTreeGroup({
-  group,
-  expandedItems,
-  toggle
-}: {
-  group: NavGroup;
-  expandedItems: Record<string, boolean>;
-  toggle: (key: string) => void;
-}) {
+export function ContentTreeGroup({ group }: { group: NavGroup }) {
   const groupKey = `group:${group.id}`;
-  const isExpanded = expandedItems[groupKey] ?? group.defaultOpen;
+  const isExpanded = useIsExpanded(groupKey);
+  const toggle = useExpansionToggle();
+  const expandedItems = useExpandedMap();
   const isRootGroup = group.id === '__root';
 
   const flat = useMemo(
@@ -89,7 +116,7 @@ export function ContentTreeGroup({
   );
 
   const childrenContainerRef = useRef<HTMLDivElement>(null);
-  const guide = useGuidePath(childrenContainerRef, flat, [flat]);
+  const guide = useGuidePath(childrenContainerRef, flat);
 
   // Root group (catch-all for the index page) renders without a header and is always expanded.
   // No guide curve here — the root group is just the Introduction entry, where a guide line would
@@ -98,7 +125,7 @@ export function ContentTreeGroup({
     return (
       <div css={{ display: 'block', padding: 0, marginBottom: '8px' }}>
         {group.children.map((child) => (
-          <ContentTreeNode key={child.key} item={child} expandedItems={expandedItems} toggle={toggle} depth={0} />
+          <ContentTreeNode key={child.key} item={child} depth={0} />
         ))}
       </div>
     );
@@ -172,13 +199,7 @@ export function ContentTreeGroup({
             </svg>
           )}
           {group.children.map((child) => (
-            <ContentTreeNode
-              key={child.key}
-              item={child}
-              expandedItems={expandedItems}
-              toggle={toggle}
-              depth={1}
-            />
+            <ContentTreeNode key={child.key} item={child} depth={1} />
           ))}
         </div>
       </div>

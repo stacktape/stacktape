@@ -2,7 +2,7 @@
   "pageId": "configuration__triggers__schedule-triggers",
   "pageRoute": "configuration/triggers/schedule-triggers",
   "startedAt": "2026-05-17T10:02:11.609Z",
-  "updatedAt": "2026-05-17T10:20:05.700Z",
+  "updatedAt": "2026-05-22T06:33:35.044Z",
   "iterations": [
     {
       "iteration": 1,
@@ -755,20 +755,417 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__triggers__schedule-triggers/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "First paragraph is tight, self-contained, and AEO-ready — names the resource, the underlying AWS service (EventBridge), and several concrete use cases in under 75 words.",
+            "Cron field table with wildcards and a rich set of real-world cron expression examples is exceptionally practical and will serve as a reference readers bookmark.",
+            "Multiple schedules section uses a genuinely realistic example (incremental every 5 min + full sync at 3 AM) with distinct `input` values per trigger — this is the highest-value example on the page.",
+            "All three payload customization variants (input, inputPath, inputTransformer) are documented with roughly equal depth: prose, a working code example, and a tradeoff signal.",
+            "The Rate vs Cron Tip callout is opinionated and actionable — gives a clear decision rule rather than just describing both options.",
+            "FAQ spans all three required categories: Stacktape-specific (minimum interval, multiple schedules), AWS use-case (pricing, concurrent execution, EventBridge timezone), and comparison (schedule vs state machine, Lambda cost vs always-on container).",
+            "Handler example includes proper `aws-lambda` TypeScript typing (`ScheduledHandler`) and the note about using `any` when custom input shapes are passed — correctly anticipates a real reader question.",
+            "When NOT to use section is concrete and links to the correct alternative trigger types rather than just naming them."
+          ],
+          "problems": [
+            "The claim 'Batch jobs also support schedule triggers' is not verifiable from the provided source files (events.d.ts defines integration types but does not specify which resource types accept ScheduleIntegration). This is stated as a fact without source grounding.",
+            "The inputPath section is noticeably weaker than the input and inputTransformer sections. The example use case — extracting `$.time` from the EventBridge event to pass to a 'time-logger' function — is contrived and doesn't motivate when a real team would choose inputPath over input or inputTransformer for schedule events. The prose even acknowledges this option is 'rarely needed' for schedule triggers, which makes the full code example feel like filler.",
+            "The page does not show the default EventBridge scheduled event payload structure (source, time, detail-type, etc.). A first-time user who does NOT configure input/inputPath/inputTransformer will not know what their handler receives, which is critical for writing a handler that doesn't use custom input.",
+            "The monitoring section is thin — one CLI command and a link to the Console. It would be more useful to mention that Lambda execution errors from scheduled invocations are visible in the function's CloudWatch metrics, and that silent failures (function succeeds but does no useful work) are common with scheduled functions and require alarm setup to detect."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a brief callout or prose paragraph showing the default EventBridge scheduled event structure (the JSON shape a handler receives when no `input`/`inputPath`/`inputTransformer` is set). Even a collapsed example or a 3-field snippet (source, time, detail-type) would let users write their first handler without guessing.",
+            "Qualify or remove the batch job schedule trigger claim. Either verify it is source-grounded and add a concrete pointer (e.g., a link to the batch job docs with an inline example), or change it to 'check the batch job docs to see if schedule triggers are supported there' to avoid asserting an unverified fact.",
+            "Either strengthen the inputPath section with a more realistic motivation (e.g., reusing a trigger pattern also applied to EventBus events where the original event is richer) or shorten it significantly — remove the code example and direct readers to use `input` or `inputTransformer` instead. The current treatment occupies as much space as the stronger sections while being less useful.",
+            "Expand the monitoring section to mention that Lambda invocation errors from EventBridge scheduled rules appear in CloudWatch Metrics under the function's error rate, and that a function returning successfully without doing useful work requires application-level alarms (not just invocation error alarms) to detect — the alarms tip is present but the mechanism is not explained.",
+            "Consider adding a note about idempotency: if a scheduled Lambda errors and EventBridge retries the invocation (EventBridge retries failed Lambda invocations up to twice by default), the function may run more than once. Users writing side-effectful tasks (DB deletes, email sends) should handle this.",
+            "The FAQ answer for 'What if my schedule expression is invalid?' is redundant with the 'Invalid expressions' subsection in the body — consider consolidating or cross-linking rather than repeating identical content in two places."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no YAML blocks, no fenced TypeScript, no StacktapeConfig type.",
+            "Schedule format tables (rate and cron) are accurate, well-structured, and directly grounded in the source JSDoc examples.",
+            "The mutual-exclusivity Warning for input/inputPath/inputTransformer is correctly placed and grounded in the source JSDoc.",
+            "The multiple-schedules + input example is a realistic, copyable pattern that directly addresses a common reader question.",
+            "Handler example using `ScheduledHandler` from aws-lambda is a useful addition that rounds out the page.",
+            "Single <ApiReference definitionName='ScheduleIntegrationProps' /> correctly matches the source type name.",
+            "FAQ is well-structured with 10 entries spanning Stacktape-specific, AWS-behavior, and comparison questions.",
+            "The 'When to use / When NOT to use' sections are opinionated and concrete — not circular."
+          ],
+          "problems": [
+            "The 'inputPath' section provides a full CodeBlock example for a feature the page itself labels 'rarely needed' for schedule triggers. This violates the section instructions ('Use a single short example per concept') and adds bulk without proportional value for this trigger type.",
+            "The claim 'Batch jobs also support schedule triggers' cannot be verified from the provided source file (events.d.ts). The source shows EventBusIntegration mentioning batch jobs but does not enumerate ScheduleIntegration on BatchJob resources. This is either an unsupported claim or needs sourcing from the batch job type file.",
+            "The claim 'Container workloads... do not support schedule triggers directly' is a negative claim unverifiable from the provided source. The source file is silent on what resources accept ScheduleIntegration. Asserting this as fact could mislead readers if the real answer is different.",
+            "The recommendation to 'set the Lambda function's reserved concurrency to 1' to prevent overlapping schedule invocations is useful advice but does not explain how to configure this in Stacktape (the property name on LambdaFunction). A reader trying to act on this has no path forward."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace the full inputPath CodeBlock example with a one-sentence description and the JSONPath syntax, consistent with the page's own admission that inputPath is 'rarely needed' for schedule triggers. Free up the space for a more actionable section.",
+            "Qualify the batch job schedule trigger claim: either source it (add a parenthetical '(see batch job docs)' without asserting the claim as fact) or remove it until it can be verified against the batch job type definitions.",
+            "Replace the unsourced negative container workload claim with a positive statement: 'ScheduleIntegration is available on LambdaFunction and BatchJob resources' — which is what the source supports.",
+            "For the concurrent-execution section in the FAQ answer, name the Stacktape property that controls reserved concurrency on LambdaFunction (e.g. reservedConcurrency) so readers can act on the guidance without having to search."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Self-contained opening paragraph (≈50 words) names the resource, the mechanism (EventBridge rule), and the use cases without meta-framing — strong AEO snippet target.",
+            "Peer H2 'When to use' / 'When NOT to use' sections are concrete and opinionated, with specific alternative resources named rather than generic disclaimers.",
+            "Rate/cron expression tables are fact-dense and sourced directly from the JSDoc comments — field ranges, wildcard characters, and UTC constraint are all correct.",
+            "All three payload customization options (input, inputPath, inputTransformer) are covered at equal depth: one working example per option, sourced from ScheduleIntegrationProps.",
+            "Multiple schedules example is realistic — incremental + full sync pattern with distinguishing `input` payloads is exactly what teams need in production.",
+            "Warning callout for the mutually exclusive constraint on input/inputPath/inputTransformer matches the source JSDoc exactly and is placed before the option variants.",
+            "Rate-vs-cron Tip callout gives a concrete, opinionated decision rule rather than restating definitions.",
+            "FAQ mixes all three required categories: Stacktape-specific (interval limits, multiple schedules), AWS service (UTC timezone, concurrent invocations, Lambda cost model), and comparison (rate vs cron, schedule vs Step Functions). 10 Q&A pairs."
+          ],
+          "problems": [
+            "The basic example sets `memory: 512` and `timeout: 300` (and `timeout: 900` in the cron example) but the surrounding prose never explains what these control or what the supported range is. Per the property-value-anchor rule, a reader cannot tell whether these are defaults, minimums, or arbitrary choices.",
+            "The claim that batch jobs support schedule triggers ('ScheduleIntegration is available on Lambda functions and batch jobs') is stated twice (post-basic-example prose and FAQ) but is not grounded in the provided source file (events.d.ts). The source only shows ScheduleIntegration in the Lambda/event context.",
+            "The Monitoring section is thin — it contains one CLI command, one sentence, and a Tip callout. There is no guidance on what to actually look for in logs, what failure modes look like, or when to set up alarms (the Tip references alarms but only as a forward link with no decision context)."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add one prose sentence after the basic example's code block explaining what `memory` and `timeout` control (memory in MB, timeout in seconds) and that they are Lambda function properties documented on the Lambda function page. This prevents readers from treating the values as required magic.",
+            "Either source-ground the batch-job schedule trigger claim by referencing the batch-job type definition, or narrow the wording to 'Lambda functions' only and add a cross-link to the batch job page with a note that batch jobs have their own trigger configuration.",
+            "Expand the Monitoring section: add one sentence about what a failed scheduled invocation looks like (timeout, error in CloudWatch Logs) and a brief note on setting error-rate alarms — the current section ends at the Tip with no actionable next step.",
+            "Consider adding a 'Default event payload' subsection (or note) showing what the standard AWS EventBridge scheduled event object looks like when no input/inputPath/inputTransformer is set. The source says 'your function receives the standard AWS EventBridge scheduled event' but never shows the shape, leaving readers who skip payload customization without a concrete reference.",
+            "The 'Invalid expressions' H3 subsection under 'Schedule formats' is currently just two sentences. It could be promoted to a small callout or integrated into the cron section prose rather than given its own heading, which inflates the TOC relative to the content depth."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided ScheduleIntegration source and follows the required TypeScript CodeBlock pattern. The main factual risk is one unsupported Stacktape-specific orchestration claim that implies a schedule-to-state-machine path through EventBridge, plus one payload-shape overstatement.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Complex multi-step orchestration — if the job involves branching, retries, or parallel steps, consider a state machine triggered on a schedule via an EventBridge event bus.” Also: “You can trigger a state machine on a schedule using an EventBridge event bus integration.”",
+              "reason": "The provided source only documents ScheduleIntegration as triggering a function, and EventBusIntegration as triggering a batch job from matching event-bus events. It does not support the draft’s Stacktape-specific claim that a state machine can be scheduled through an EventBridge event bus integration.",
+              "suggestedFix": "Narrow the wording to: “For complex multi-step orchestration, use a state machine. This page only documents schedule triggers for Lambda functions.” Remove the claim that Stacktape can schedule a state machine through EventBridge unless a state-machine source file explicitly supports it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "* #### Triggers a function on a recurring schedule (cron jobs, periodic tasks)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "* #### Triggers a batch job when an event matching a specified pattern is received by an event bus."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `input` property accepts any JSON-serializable value that replaces the default event payload.”",
+              "reason": "The source describes `input` as a fixed JSON object, not as any JSON-serializable value. The TypeScript type is `any`, but the documented contract in the provided source is narrower.",
+              "suggestedFix": "Write “The `input` property passes a fixed JSON object as the event payload” or “fixed JSON payload” and avoid claiming support for every JSON-serializable primitive or array.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "* #### A fixed JSON object to be passed as the event payload."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "input?: any;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense tabs={[...]}>` with `label: 'TypeScript'`; there are no hand-authored YAML Stacktape config examples.",
+            "The API reference uses `ScheduleIntegrationProps`, which matches the source interface name.",
+            "The draft correctly documents the three payload customization properties: `input`, `inputPath`, and `inputTransformer`, including the source-backed constraint that only one may be used.",
+            "The first mention of `stacktape debug:logs` links to `/cli/debug-logs`, which is present in the navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__triggers__schedule-triggers/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "First paragraph is tight, self-contained, and AEO-ready — names the resource, the underlying AWS service (EventBridge), and several concrete use cases in under 75 words.",
+            "Cron field table with wildcards and a rich set of real-world cron expression examples is exceptionally practical and will serve as a reference readers bookmark.",
+            "Multiple schedules section uses a genuinely realistic example (incremental every 5 min + full sync at 3 AM) with distinct `input` values per trigger — this is the highest-value example on the page.",
+            "All three payload customization variants (input, inputPath, inputTransformer) are documented with roughly equal depth: prose, a working code example, and a tradeoff signal.",
+            "The Rate vs Cron Tip callout is opinionated and actionable — gives a clear decision rule rather than just describing both options.",
+            "FAQ spans all three required categories: Stacktape-specific (minimum interval, multiple schedules), AWS use-case (pricing, concurrent execution, EventBridge timezone), and comparison (schedule vs state machine, Lambda cost vs always-on container).",
+            "Handler example includes proper `aws-lambda` TypeScript typing (`ScheduledHandler`) and the note about using `any` when custom input shapes are passed — correctly anticipates a real reader question.",
+            "When NOT to use section is concrete and links to the correct alternative trigger types rather than just naming them."
+          ],
+          "problems": [
+            "The claim 'Batch jobs also support schedule triggers' is not verifiable from the provided source files (events.d.ts defines integration types but does not specify which resource types accept ScheduleIntegration). This is stated as a fact without source grounding.",
+            "The inputPath section is noticeably weaker than the input and inputTransformer sections. The example use case — extracting `$.time` from the EventBridge event to pass to a 'time-logger' function — is contrived and doesn't motivate when a real team would choose inputPath over input or inputTransformer for schedule events. The prose even acknowledges this option is 'rarely needed' for schedule triggers, which makes the full code example feel like filler.",
+            "The page does not show the default EventBridge scheduled event payload structure (source, time, detail-type, etc.). A first-time user who does NOT configure input/inputPath/inputTransformer will not know what their handler receives, which is critical for writing a handler that doesn't use custom input.",
+            "The monitoring section is thin — one CLI command and a link to the Console. It would be more useful to mention that Lambda execution errors from scheduled invocations are visible in the function's CloudWatch metrics, and that silent failures (function succeeds but does no useful work) are common with scheduled functions and require alarm setup to detect."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a brief callout or prose paragraph showing the default EventBridge scheduled event structure (the JSON shape a handler receives when no `input`/`inputPath`/`inputTransformer` is set). Even a collapsed example or a 3-field snippet (source, time, detail-type) would let users write their first handler without guessing.",
+            "Qualify or remove the batch job schedule trigger claim. Either verify it is source-grounded and add a concrete pointer (e.g., a link to the batch job docs with an inline example), or change it to 'check the batch job docs to see if schedule triggers are supported there' to avoid asserting an unverified fact.",
+            "Either strengthen the inputPath section with a more realistic motivation (e.g., reusing a trigger pattern also applied to EventBus events where the original event is richer) or shorten it significantly — remove the code example and direct readers to use `input` or `inputTransformer` instead. The current treatment occupies as much space as the stronger sections while being less useful.",
+            "Expand the monitoring section to mention that Lambda invocation errors from EventBridge scheduled rules appear in CloudWatch Metrics under the function's error rate, and that a function returning successfully without doing useful work requires application-level alarms (not just invocation error alarms) to detect — the alarms tip is present but the mechanism is not explained.",
+            "Consider adding a note about idempotency: if a scheduled Lambda errors and EventBridge retries the invocation (EventBridge retries failed Lambda invocations up to twice by default), the function may run more than once. Users writing side-effectful tasks (DB deletes, email sends) should handle this.",
+            "The FAQ answer for 'What if my schedule expression is invalid?' is redundant with the 'Invalid expressions' subsection in the body — consider consolidating or cross-linking rather than repeating identical content in two places."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no YAML blocks, no fenced TypeScript, no StacktapeConfig type.",
+            "Schedule format tables (rate and cron) are accurate, well-structured, and directly grounded in the source JSDoc examples.",
+            "The mutual-exclusivity Warning for input/inputPath/inputTransformer is correctly placed and grounded in the source JSDoc.",
+            "The multiple-schedules + input example is a realistic, copyable pattern that directly addresses a common reader question.",
+            "Handler example using `ScheduledHandler` from aws-lambda is a useful addition that rounds out the page.",
+            "Single <ApiReference definitionName='ScheduleIntegrationProps' /> correctly matches the source type name.",
+            "FAQ is well-structured with 10 entries spanning Stacktape-specific, AWS-behavior, and comparison questions.",
+            "The 'When to use / When NOT to use' sections are opinionated and concrete — not circular."
+          ],
+          "problems": [
+            "The 'inputPath' section provides a full CodeBlock example for a feature the page itself labels 'rarely needed' for schedule triggers. This violates the section instructions ('Use a single short example per concept') and adds bulk without proportional value for this trigger type.",
+            "The claim 'Batch jobs also support schedule triggers' cannot be verified from the provided source file (events.d.ts). The source shows EventBusIntegration mentioning batch jobs but does not enumerate ScheduleIntegration on BatchJob resources. This is either an unsupported claim or needs sourcing from the batch job type file.",
+            "The claim 'Container workloads... do not support schedule triggers directly' is a negative claim unverifiable from the provided source. The source file is silent on what resources accept ScheduleIntegration. Asserting this as fact could mislead readers if the real answer is different.",
+            "The recommendation to 'set the Lambda function's reserved concurrency to 1' to prevent overlapping schedule invocations is useful advice but does not explain how to configure this in Stacktape (the property name on LambdaFunction). A reader trying to act on this has no path forward."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace the full inputPath CodeBlock example with a one-sentence description and the JSONPath syntax, consistent with the page's own admission that inputPath is 'rarely needed' for schedule triggers. Free up the space for a more actionable section.",
+            "Qualify the batch job schedule trigger claim: either source it (add a parenthetical '(see batch job docs)' without asserting the claim as fact) or remove it until it can be verified against the batch job type definitions.",
+            "Replace the unsourced negative container workload claim with a positive statement: 'ScheduleIntegration is available on LambdaFunction and BatchJob resources' — which is what the source supports.",
+            "For the concurrent-execution section in the FAQ answer, name the Stacktape property that controls reserved concurrency on LambdaFunction (e.g. reservedConcurrency) so readers can act on the guidance without having to search."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Self-contained opening paragraph (≈50 words) names the resource, the mechanism (EventBridge rule), and the use cases without meta-framing — strong AEO snippet target.",
+            "Peer H2 'When to use' / 'When NOT to use' sections are concrete and opinionated, with specific alternative resources named rather than generic disclaimers.",
+            "Rate/cron expression tables are fact-dense and sourced directly from the JSDoc comments — field ranges, wildcard characters, and UTC constraint are all correct.",
+            "All three payload customization options (input, inputPath, inputTransformer) are covered at equal depth: one working example per option, sourced from ScheduleIntegrationProps.",
+            "Multiple schedules example is realistic — incremental + full sync pattern with distinguishing `input` payloads is exactly what teams need in production.",
+            "Warning callout for the mutually exclusive constraint on input/inputPath/inputTransformer matches the source JSDoc exactly and is placed before the option variants.",
+            "Rate-vs-cron Tip callout gives a concrete, opinionated decision rule rather than restating definitions.",
+            "FAQ mixes all three required categories: Stacktape-specific (interval limits, multiple schedules), AWS service (UTC timezone, concurrent invocations, Lambda cost model), and comparison (rate vs cron, schedule vs Step Functions). 10 Q&A pairs."
+          ],
+          "problems": [
+            "The basic example sets `memory: 512` and `timeout: 300` (and `timeout: 900` in the cron example) but the surrounding prose never explains what these control or what the supported range is. Per the property-value-anchor rule, a reader cannot tell whether these are defaults, minimums, or arbitrary choices.",
+            "The claim that batch jobs support schedule triggers ('ScheduleIntegration is available on Lambda functions and batch jobs') is stated twice (post-basic-example prose and FAQ) but is not grounded in the provided source file (events.d.ts). The source only shows ScheduleIntegration in the Lambda/event context.",
+            "The Monitoring section is thin — it contains one CLI command, one sentence, and a Tip callout. There is no guidance on what to actually look for in logs, what failure modes look like, or when to set up alarms (the Tip references alarms but only as a forward link with no decision context)."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add one prose sentence after the basic example's code block explaining what `memory` and `timeout` control (memory in MB, timeout in seconds) and that they are Lambda function properties documented on the Lambda function page. This prevents readers from treating the values as required magic.",
+            "Either source-ground the batch-job schedule trigger claim by referencing the batch-job type definition, or narrow the wording to 'Lambda functions' only and add a cross-link to the batch job page with a note that batch jobs have their own trigger configuration.",
+            "Expand the Monitoring section: add one sentence about what a failed scheduled invocation looks like (timeout, error in CloudWatch Logs) and a brief note on setting error-rate alarms — the current section ends at the Tip with no actionable next step.",
+            "Consider adding a 'Default event payload' subsection (or note) showing what the standard AWS EventBridge scheduled event object looks like when no input/inputPath/inputTransformer is set. The source says 'your function receives the standard AWS EventBridge scheduled event' but never shows the shape, leaving readers who skip payload customization without a concrete reference.",
+            "The 'Invalid expressions' H3 subsection under 'Schedule formats' is currently just two sentences. It could be promoted to a small callout or integrated into the cron section prose rather than given its own heading, which inflates the TOC relative to the content depth."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided schedule integration sources and follows the required CodeBlock pattern. I found a small number of factual/source-grounding problems, mainly around over-specific AWS scheduling behavior and omitting the batch-job schedule path that appears in the provided generated source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Can I run a container on a schedule? This page documents `ScheduleIntegration` on Lambda functions. A common pattern for running container-based work on a recurring schedule is to invoke a scheduled Lambda function that starts the container task programmatically using the AWS SDK.”",
+              "reason": "The provided generated source explicitly documents batch jobs as another Stacktape-supported schedule-trigger path. Presenting a scheduled Lambda that starts a container task as the common pattern omits the documented Stacktape option and can lead readers to implement extra AWS SDK glue instead of using a scheduled batch job.",
+              "suggestedFix": "Say that this page focuses on Lambda schedule triggers, but Stacktape batch jobs also support schedule triggers. Recommend a scheduled batch job for recurring container-based work, and mention the scheduled-Lambda-plus-SDK pattern only as an advanced escape hatch.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/triggers/schedule-triggers.md",
+                  "quote": "[Batch jobs](/resources/compute/batch-job) also support schedule triggers — see the [batch job docs](/resources/compute/batch-job) for details on that configuration."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/triggers/schedule-triggers.md",
+                  "quote": "Schedule triggers (`ScheduleIntegration`) are available on [Lambda functions](/resources/compute/lambda-function) and [batch jobs](/resources/compute/batch-job)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The first invocation happens one interval after the EventBridge rule is created (i.e., after deployment).”",
+              "reason": "The provided authoritative type source only says schedule triggers use rate and cron expressions and gives examples. It does not define first-fire timing after rule creation, and this behavior is not stated in the generated source as a verified Stacktape contract beyond repeating the same claim. This is an AWS/EventBridge timing detail that should be worded cautiously or omitted unless separately sourced.",
+              "suggestedFix": "Remove the first-invocation timing sentence, or narrow it to practical guidance such as: “Use rate expressions when you need a fixed interval and do not need to control the exact wall-clock time.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "* Two formats:\n * - **Rate**: `rate(5 minutes)`, `rate(1 hour)`, `rate(7 days)`\n * - **Cron**: `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, all times UTC)"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "* #### The schedule rate or cron expression.\n   *\n   * ---\n   *\n   * Examples: `rate(2 hours)`, `cron(0 10 * * ? *)`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“An invalid schedule expression causes the deployment to fail during CloudFormation stack creation.”",
+              "reason": "The source documents `scheduleRate` as a string and gives examples, but it does not specify when invalid expressions are rejected or that the failure happens specifically during CloudFormation stack creation. That timing is too specific for the provided sources.",
+              "suggestedFix": "Use narrower wording: “Invalid EventBridge schedule expressions are rejected during deployment.” Avoid naming CloudFormation stack creation unless runtime source or schema validation source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "scheduleRate: string;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "* Examples: `rate(2 hours)`, `cron(0 10 * * ? *)`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Specifying more than one causes a deployment error.”",
+              "reason": "The source supports that only one of `input`, `inputPath`, or `inputTransformer` can be used, but it does not state the failure mode or phase. Claiming a deployment error is plausible but not grounded in the provided authoritative source.",
+              "suggestedFix": "Keep the mutual-exclusion rule and remove the unsupported failure-phase claim: “Set only one of `input`, `inputPath`, or `inputTransformer` on a schedule trigger.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "* You can only use one of `input`, `inputPath`, or `inputTransformer`."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "input?: any;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "inputPath?: string;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "inputTransformer?: EventInputTransformer;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“EventBridge schedule rules themselves are free — there is no charge for the rule itself.”",
+              "reason": "This is general AWS pricing guidance, so it is allowed under the verifier rules, but the wording is absolute and may be stale or incomplete because AWS pricing can change and the provided Stacktape sources do not include pricing data for EventBridge schedules.",
+              "suggestedFix": "Soften the pricing wording: “EventBridge schedule rules usually do not add meaningful idle cost; check current AWS EventBridge pricing for your region. You still pay for Lambda invocations and runtime.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“AWS EventBridge does not support timezone-aware cron expressions.”",
+              "reason": "The provided Stacktape source states that AWS cron times are UTC, but it does not discuss timezone-aware scheduling support. This is likely true for EventBridge rules, but the statement is broader than the provided source and AWS also has newer scheduling products with timezone support, so the wording can confuse readers.",
+              "suggestedFix": "Scope the claim to the Stacktape schedule trigger: “For Stacktape schedule triggers, cron expressions are UTC.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab, and there are no hand-authored Stacktape YAML config examples.",
+            "The API reference uses `<ApiReference definitionName=\"ScheduleIntegrationProps\" />`, which matches the provided type name.",
+            "The draft correctly documents the three payload customization properties from `ScheduleIntegrationProps`: `input`, `inputPath`, and `inputTransformer`.",
+            "The draft correctly links only to routes present in the provided documentation navigation index.",
+            "The first paragraph is self-contained and accurately describes schedule triggers as recurring EventBridge-backed invocations of Stacktape Lambda functions."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\schedule-triggers.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/configuration/triggers/schedule-triggers.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 2, advisory high 0, verifier medium 5"
+  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 1, advisory high 0, verifier medium 3",
+  "refinementAttempts": 2,
+  "refinementStalled": true
 }

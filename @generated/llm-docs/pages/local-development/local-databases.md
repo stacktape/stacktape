@@ -1,0 +1,284 @@
+# Local Databases
+
+Stacktape [dev mode](/local-development/dev-mode-overview) runs supported databases locally in Docker containers so you can develop without deploying or paying for AWS resources. Data persists between sessions, connection strings are injected as environment variables automatically, and the experience mirrors the deployed stack — with no manual Docker setup required.
+
+## When to use local databases
+
+Local databases are the default and recommended path for day-to-day development. They start in seconds, have zero network latency, cost nothing, and isolate each developer's data. Use local databases when you are iterating on application logic, testing schema migrations, or prototyping new features.
+
+## When NOT to use local databases
+
+Switch to [remote (deployed) databases](#using-remote-databases) when your work depends on behavior that local emulation cannot replicate — Aurora multi-AZ failover, DynamoDB Streams, OpenSearch security plugins, or engine-specific query plan differences. Also prefer remote databases when you need to test against a realistic data volume or share state across a team. Set `dev.remote: true` on the resource to connect to the deployed AWS resource instead.
+
+## Supported databases
+
+Stacktape provides local emulation for the most common Stacktape database resource types. Each emulatable resource runs as a Docker container, with data persisted to a directory mounted into the container.
+
+| Resource type | Local emulation |
+|---|---|
+| [Relational database](/resources/databases/relational-database) (PostgreSQL, MySQL, MariaDB) | Docker container |
+| RDS Aurora (PostgreSQL, MySQL — including Serverless v1/v2) | Mapped to standard PostgreSQL or MySQL container |
+| RDS Oracle, RDS SQL Server | Not supported — set `dev.remote: true` |
+| [Redis](/resources/databases/redis) | Docker container |
+| [DynamoDB table](/resources/databases/dynamodb) | `amazon/dynamodb-local` container |
+| [OpenSearch domain](/resources/databases/opensearch) | Docker container |
+| [MongoDB Atlas](/resources/databases/mongodb-atlas) | Not supported — third-party managed service |
+| [Upstash Redis](/resources/databases/upstash-redis) | Not supported — third-party managed service |
+
+For [relational databases](/resources/databases/relational-database), the local username comes from `credentials.masterUserName` (which defaults to `db_master_user`) and the password from `credentials.masterUserPassword`. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
+
+Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. The SQL interface and connection string format match the deployed behavior, which is sufficient for application-level development.
+
+
+> **Info:** Docker Desktop (or any Docker-compatible runtime) must be running before starting dev mode. If Docker is not available, Stacktape shows a clear error message with instructions to install or start Docker.
+
+
+## How it works
+
+When you run [`stacktape dev`](/cli/dev), Stacktape identifies database resources in your config and starts Docker containers for each one.
+
+1. **Container naming** — each container is named per stage and resource, so multiple stages can run in parallel without conflicts.
+2. **Port allocation** — Stacktape searches for an available port near the database's default port and binds the container there. Two stages or developers on the same machine get non-conflicting ports.
+3. **Data persistence** — Stacktape mounts a local data directory into the container, so data survives dev mode restarts.
+4. **Readiness checks** — Stacktape polls the container until it responds, then marks the resource ready for your workloads.
+5. **Environment variable injection** — referenceable parameters (host, port, connectionString, etc.) are injected into your workloads as `STP_<RESOURCE_NAME>_<PARAM>` environment variables, matching the deployed-stack behavior. See [Connecting resources](/configuration/connecting-resources) for the full pattern.
+
+## Relational databases
+
+### PostgreSQL
+
+In dev mode, Stacktape runs a local PostgreSQL container matching the engine version in your config. The container is initialized with the username, password, and database name from `credentials` and the engine `dbName` (when set).
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RelationalDatabase, RdsEnginePostgresql } from 'stacktape';
+export default defineConfig(() => {
+  const mainDb = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: "$Secret('db.password')"
+    },
+    engine: new RdsEnginePostgresql({
+      version: '16.6',
+      primaryInstance: {
+        instanceSize: 'db.t4g.micro'
+      }
+    })
+  });
+
+  return {
+    resources: { mainDb }
+  };
+});
+```
+
+
+In dev mode, this starts a PostgreSQL container pinned to `16.6`. The `instanceSize` only applies to the deployed AWS resource — it is ignored locally. The connection string is injected into your workloads as `STP_MAIN_DB_CONNECTION_STRING`. Injected referenceable parameters include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`.
+
+### MySQL and MariaDB
+
+In dev mode, Stacktape runs a local MySQL container for the `mysql` engine and a MariaDB container for the `mariadb` engine, matching the engine version from your config.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RelationalDatabase, RdsEngineMysql } from 'stacktape';
+export default defineConfig(() => {
+  const appDb = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: "$Secret('db.password')"
+    },
+    engine: new RdsEngineMysql({
+      version: '8.0.36',
+      primaryInstance: {
+        instanceSize: 'db.t4g.micro'
+      }
+    })
+  });
+
+  return {
+    resources: { appDb }
+  };
+});
+```
+
+
+Injected referenceable parameters for MySQL and MariaDB include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`.
+
+### Aurora engines
+
+All Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. The mapping is:
+
+| Aurora engine type | Local container |
+|---|---|
+| `aurora-postgresql`, `aurora-postgresql-serverless`, `aurora-postgresql-serverless-v2` | PostgreSQL |
+| `aurora-mysql`, `aurora-mysql-serverless`, `aurora-mysql-serverless-v2` | MySQL |
+
+This is a pragmatic tradeoff: the SQL interface, schema behavior, and connection string format match the deployed database, which is sufficient for application development. Aurora-specific behavior — ACU scaling, multi-AZ replication, reader endpoints, pause-after-inactivity — is only available on the deployed AWS resource. Test these features against a deployed stage using `dev.remote: true`.
+
+### Oracle and SQL Server
+
+RDS Oracle (`oracle-ee`, `oracle-se2`) and SQL Server (`sqlserver-ee`, `sqlserver-se`, `sqlserver-ex`, `sqlserver-web`) engines do not have local emulation. If your config includes an Oracle or SQL Server database, use `dev.remote: true` to connect to the deployed AWS resource during development.
+
+## Redis
+
+In dev mode, Stacktape runs a local Redis container that matches your `engineVersion`. Redis runs as a single node locally — cluster-mode features such as hash slots and multi-node failover are not available.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RedisCluster } from 'stacktape';
+export default defineConfig(() => {
+  const cache = new RedisCluster({
+    engineVersion: '7.2',
+    defaultUserPassword: "$Secret('redis.password')"
+  });
+
+  return {
+    resources: { cache }
+  };
+});
+```
+
+
+Injected referenceable parameters include `host`, `port`, `connectionString`, and `sharding` (always `disabled` locally). When a password is set, `username` is also injected as `default`.
+
+## DynamoDB
+
+Stacktape uses the `amazon/dynamodb-local` image with the `-sharedDb` flag, meaning all tables share a single underlying database file. Tables are automatically created from your config if a `primaryKey` is defined — you do not need to create them manually.
+
+Container readiness is checked by making an HTTP `ListTables` request, polling every 300 ms with a 30-second timeout.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, DynamoDbTable } from 'stacktape';
+export default defineConfig(() => {
+  const tasks = new DynamoDbTable({
+    primaryKey: {
+      partitionKey: { name: 'pk', type: 'string' },
+      sortKey: { name: 'sk', type: 'string' }
+    }
+  });
+
+  return {
+    resources: { tasks }
+  };
+});
+```
+
+
+Injected referenceable parameters include `endpoint` (e.g. `http://localhost:<port>`), `name` (the table name), and `arn` (a synthetic local ARN in the format `arn:aws:dynamodb:local:000000000000:table/<name>`). Your application code should use the `endpoint` parameter to configure the AWS SDK DynamoDB client for local access.
+
+
+> **Warning:** DynamoDB Local supports basic CRUD operations, queries, and scans, but does not emulate DynamoDB Streams, Global Tables, TTL, or on-demand backups. Use `dev.remote: true` if your application depends on these features.
+
+
+## OpenSearch
+
+In dev mode, Stacktape runs a local OpenSearch container as a single-node cluster. Cluster-level features (sharding across nodes, dedicated master nodes) are not available locally.
+
+Injected referenceable parameters include `domainEndpoint` and `arn` (a synthetic local ARN).
+
+## Using remote databases
+
+By default, supported databases run locally. To connect to the real deployed AWS resource instead, set `dev.remote: true` on the resource in your config:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RelationalDatabase, RdsEnginePostgresql } from 'stacktape';
+export default defineConfig(() => {
+  const mainDb = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: "$Secret('db.password')"
+    },
+    engine: new RdsEnginePostgresql({
+      version: '16.6',
+      primaryInstance: {
+        instanceSize: 'db.t4g.micro'
+      }
+    }),
+    dev: {
+      remote: true
+    }
+  });
+
+  return {
+    resources: { mainDb }
+  };
+});
+```
+
+
+### When to use remote databases
+
+- **Testing against real data** — when you need to reproduce a production issue with actual records.
+- **Aurora-specific behavior** — to test failover, reader endpoints, or serverless ACU scaling.
+- **DynamoDB advanced features** — Streams, Global Tables, TTL, and backups are only available on the deployed resource.
+- **Shared development database** — when multiple developers need to see the same state.
+
+For most day-to-day development, local databases are faster (no network latency), free (no AWS charges), and isolated (no risk of corrupting shared data).
+
+## Resetting local data
+
+Data from local databases persists across dev sessions in a directory Stacktape mounts into the container. To wipe the local state for a resource, stop dev mode and delete that resource's data directory before restarting.
+
+
+> **Tip:** Add the local Stacktape state directory to your `.gitignore` to avoid committing local database data to version control.
+
+
+## Databases without local emulation
+
+Not all Stacktape database resources support local emulation:
+
+| Resource | Local support | Alternative |
+|---|---|---|
+| RDS Oracle / SQL Server | No | Set `dev.remote: true` to use the deployed RDS instance |
+| [MongoDB Atlas](/resources/databases/mongodb-atlas) | No | Use a local MongoDB container manually, or set `dev.remote: true` |
+| [Upstash Redis](/resources/databases/upstash-redis) | No | Connect to the deployed Upstash instance (third-party managed) |
+
+Oracle and SQL Server engines are not mapped to a local container type. MongoDB Atlas and Upstash Redis are third-party managed services without local emulation in dev mode.
+
+## FAQ
+
+### Does local database data persist when I restart dev mode?
+
+Yes. Stacktape mounts a local data directory into each database container, and that directory survives both dev mode restarts and machine reboots. If a container with the same name is already running, Stacktape reuses it rather than creating a new one.
+
+### Can I run multiple stages locally at the same time?
+
+Yes. Each stage gets its own container name and its own non-conflicting port assignment, so two developers or two stages on the same machine do not collide. You can run `stacktape dev --stage dev-alice` and `stacktape dev --stage dev-bob` in parallel.
+
+### How do I connect to the local database with a GUI tool?
+
+Use the host `localhost` and the port shown in the dev mode TUI output. For PostgreSQL/MySQL/MariaDB, use the username and password from your `credentials` config (the username defaults to `db_master_user`). For Redis, use the connection string shown in the TUI. DynamoDB Local and OpenSearch use HTTP endpoints.
+
+### Does local DynamoDB support Streams and Global Tables?
+
+No. DynamoDB Local supports basic CRUD, queries, and scans, but does not emulate Streams, Global Tables, Time to Live (TTL), or on-demand backups. If your application depends on these features, set `dev.remote: true` on the [DynamoDB table](/resources/databases/dynamodb) resource to connect to the deployed AWS resource.
+
+### How does Stacktape handle Aurora Serverless locally?
+
+Aurora Serverless v1 and v2 engine types are mapped to standard PostgreSQL or MySQL containers locally. Serverless scaling (ACU-based), pause-after-inactivity, and automatic failover are AWS-only features. The SQL interface and connection string format are the same, so application code works unchanged.
+
+### What happens if Docker is not running?
+
+Stacktape detects Docker availability at startup. If Docker is not installed or the Docker daemon is not running, you get a clear error message directing you to install or start Docker Desktop. Dev mode cannot start local databases without a Docker-compatible runtime.
+
+### Can I use the local database for running migrations?
+
+Yes. The connection string is injected into your workloads the same way as in a deployed stack. Run migrations from your application code, a [deployment script](/resources/advanced/deployment-scripts), or manually via a database client connected to `localhost:<port>`. Schema changes persist across dev sessions because the data directory is preserved.
+
+### Can I use Oracle or SQL Server databases locally?
+
+No. RDS Oracle and SQL Server engine types do not have local emulation in Stacktape dev mode. Use `dev.remote: true` on the resource to connect to the deployed RDS instance during development. Alternatively, you can run your own Oracle or SQL Server container manually and configure your application to connect to it.
+
+### Where can I find the actual port a local database is using?
+
+Stacktape may pick a port other than the database's default to avoid collisions across stages and developers. The assigned port is displayed in the dev mode TUI and reflected in the injected connection string, so your application code does not need to handle port differences — the injected environment variables always contain the correct value.

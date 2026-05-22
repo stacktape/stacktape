@@ -2,7 +2,7 @@
   "pageId": "resources__advanced__raw-cloudformation-resources",
   "pageRoute": "resources/advanced/raw-cloudformation-resources",
   "startedAt": "2026-05-17T13:19:43.092Z",
-  "updatedAt": "2026-05-17T13:39:59.822Z",
+  "updatedAt": "2026-05-22T03:33:00.188Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1032,6 +1032,531 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__advanced__raw-cloudformation-resources/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong, self-contained opening paragraph that directly answers 'what is this and why does it matter' in ~60 words — good AEO hygiene.",
+            "Opinionated 'When to use' / 'When NOT to use' structure with concrete, clearly differentiated guidance (overrides vs. raw CF vs. CDK), including an explicit recommendation at the end.",
+            "Realistic, copyable examples across multiple sections (SES email identity, SNS topic, SSM parameter, SQS DLQ) — each illustrates a genuinely common use case.",
+            "The intrinsic-function syntax-mapping table (CloudFormation syntax → TypeScript object form) is highly practical and exactly what a first-timer needs when they hit their first `Ref`.",
+            "The `<FeatureComparisonTable>` comparing all three escape hatches is a strong decision-support tool and very scannable.",
+            "Comprehensive FAQ with 10 Q&A pairs that correctly span all three required categories: Stacktape-specific, underlying-AWS-service, and choosing/comparison questions.",
+            "All Stacktape config examples use `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'` — no forbidden YAML or fenced-TypeScript violations.",
+            "Shell commands are properly split into one-per-block with prose introductions — no multi-command copy-button trap."
+          ],
+          "problems": [
+            "MANDATORY STYLE VIOLATION — `<ApiReference definitionName=\"default\" />` uses 'default' which is not a valid schema definition name. The Stacktape config types end in `Props` or use their declared type name; the value type for `cloudformationResources` entries appears to be `CloudformationResource` in the source. A wrong `definitionName` renders an empty API reference section, removing the exhaustive-options discovery path for readers. This triggers the '`<ApiReference>` whose `definitionName` does not match any generated config-schema definition' rule and must penalize `completeness` by at least 2.",
+            "CLI command factual error: the page repeatedly uses `stacktape stack-info --detailed` but Stacktape's consistent colon-separated CLI pattern (`debug:logs`, `info:stacks`, `info:operations`, `info:whoami` as seen in the CLI docs file names) indicates the correct command is `stacktape info:stack --detailed`. Using the wrong command syntax will cause a 'command not found' error for readers who copy it.",
+            "The broken `<ApiReference definitionName=\"default\" />` is both a factual error and a style violation — it should appear in both `problems` and `mandatoryFixes`."
+          ],
+          "mandatoryFixes": [
+            "`<ApiReference definitionName=\"default\" />` — 'default' does not match any TypeScript type in the provided source. The value type for entries in `cloudformationResources` is `CloudformationResource` (from `cloudformationResources?: { [resourceName: string]: CloudformationResource }` in `_root.d.ts`). Look up the exact schema key used for `CloudformationResource` in `@generated/schemas/config-schema.json` and replace 'default' with that key (e.g., `\"CloudformationResource\"` or its `Props`-suffixed variant if applicable). A wrong `definitionName` renders an empty section and breaks the reader's path to exhaustive property discovery. Penalizes `completeness` by 2.",
+            "Replace every instance of `stacktape stack-info --detailed` with `stacktape info:stack --detailed` (and update surrounding prose accordingly). Based on Stacktape's consistent `group:command` pattern — `debug:logs`, `info:stacks`, `info:operations`, `info:whoami` — the file `info-stack.mdx` maps to the CLI command `info:stack`, not `stack-info`. Readers who copy the current text will get a command-not-found error."
+          ],
+          "optionalImprovements": [
+            "Verify whether `stacktape compile-template` is the correct command syntax or whether it should be `stacktape compile:template` — the colon-vs-hyphen pattern needs a check against the CLI source (`src/commands/compile-template/index.ts`).",
+            "The 'Resource attributes' section lists all eight supported attributes but doesn't signal which are commonly used vs. rarely needed. A one-sentence note like 'Most teams only need `Type`, `Properties`, and `DeletionPolicy`; `CreationPolicy` and `Metadata` are rarely used' would help readers focus.",
+            "Consider adding a brief note about `cloudformationResources` behavior during `stacktape dev` mode — are raw CF resources deployed as-is, skipped, or unavailable during local development? This is a common first-timer question that is currently unanswered.",
+            "The 'Basic example' section could note explicitly that the Stacktape config map key (e.g., `sesEmailIdentity`) becomes the CloudFormation logical ID — the current wording says to 'confirm the final CloudFormation logical ID' with `compile-template`, which implies it might differ when it actually shouldn't for raw resources.",
+            "The FAQ answer for DependsOn between raw and Stacktape-managed resources could be slightly more concrete — mention that Stacktape logical names often include a hash or prefix derived from the resource name, which is why `compile-template` verification matters before each major upgrade."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, opinionated when-to-use / when-not-to-use sections grounded in actual source behavior (connectTo, overrides, CDK tradeoffs) — gives readers a real decision, not just feature description.",
+            "The three-way escape-hatch comparison table (Raw CF vs CDK vs Overrides) is the page's strongest asset: covers all alternatives, contrasts the right dimensions, ends with a prioritized recommendation.",
+            "IAM grants section correctly identifies that raw CF resources are outside the connectTo graph and shows iamRoleStatements + Fn::GetAtt as the alternative — critical gotcha for production use.",
+            "Intrinsic functions reference table (CF syntax → TypeScript object form) is a high-signal, scannable snippet that developers will reach for repeatedly.",
+            "All Stacktape config examples use <CodeBlock intellisense tabs=[TypeScript]> correctly; no fenced YAML blocks, no StacktapeConfig typed style.",
+            "Shell commands are correctly split into separate fenced blocks (one command each), with no explanatory # comments inside blocks.",
+            "FAQ covers all three required categories: Stacktape-specific (connectTo, resource limit, DeletionPolicy), AWS-service questions (rollback behavior, CF pricing model), and comparison questions (raw CF vs CDK, raw CF vs overrides)."
+          ],
+          "problems": [
+            "MANDATORY: `<ApiReference definitionName=\"default\" />` — 'default' is not a valid schema definition name. The correct value must match the generated config-schema key for the CloudformationResource type (e.g. 'CloudformationResource'). This will render an empty or broken API reference section, the only API reference on the page. Penalizes completeness by at least 2.",
+            "The FeatureComparisonTable row 'Counted toward resource limit — CDK Constructs: true' is asserted without explicit source grounding in the provided files. The source confirms cloudformationResources 'Does not count towards your resource limit' for raw CF, but the same explicit statement for CDK constructs (AwsCdkConstruct being in resources) is not stated in the provided source.",
+            "The 'Resource attributes' section enumerates specific CloudFormation resource attributes (Condition, CreationPolicy, UpdatePolicy, etc.) as supported. The CloudformationResource type definition is not included in the provided source files, so this enumeration is not source-grounded from the inline files. These are accurate AWS CloudFormation facts, but the claim is presented as a Stacktape-specific enumeration."
+          ],
+          "mandatoryFixes": [
+            "Replace `<ApiReference definitionName=\"default\" />` with the correct definitionName matching the CloudformationResource type in the generated config-schema. 'default' is not a valid schema entry name and will render an empty API reference section. Per rules: wrong definitionName penalizes completeness by at least 2 points. Look up the exact key from `@generated/schemas/config-schema.json` — it is likely 'CloudformationResource' or 'CloudformationResourceProps'."
+          ],
+          "optionalImprovements": [
+            "Qualify the CDK 'Counted toward resource limit: true' cell in the comparison table with a brief source citation or link to the CDK constructs page, since the provided source only explicitly states the negative (raw CF does not count) and is silent on CDK.",
+            "The 'Resource attributes' section could open with a note that these are standard CloudFormation resource attributes and link to the AWS CloudFormation resource syntax docs rather than implying Stacktape defines which attributes are valid — this would reduce any source-grounding exposure.",
+            "The page links to '/cli/info-stack' for the `stacktape stack-info --detailed` command in the FAQ but not in the 'Avoiding naming conflicts' prose section — add a link there too for consistency with the cross-page linking rule.",
+            "Consider adding a sentence in the 'Avoiding naming conflicts' section noting that Stacktape's stack-level tags (projectName, stage, stackName) are automatically applied to CF resources that support tagging, which can help with cost attribution even for raw resources."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and grounded in the `cloudformationResources` source comment.",
+            "The page uses TypeScript class-based Stacktape config examples inside `<CodeBlock intellisense tabs={[...]}/>` and avoids hand-authored Stacktape YAML.",
+            "The decision framing is useful: raw CloudFormation vs built-in resources, overrides, and CDK constructs is the right comparison for this escape hatch.",
+            "The FAQ covers Stacktape-specific, AWS behavior, and choosing/comparison questions without padding."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are broader than the provided source supports. The source says raw CloudFormation resources are merged as-is, do not count toward the resource limit, and can be inspected with `stacktape stack-info --detailed`; it does not prove the accepted CloudFormation attribute list, Console integration behavior, dev mode behavior, or exact logical-ID stability semantics.",
+            "The `Resource attributes` section states a precise supported attribute list (`Type`, `Properties`, `DependsOn`, `Condition`, `DeletionPolicy`, `Metadata`, `CreationPolicy`, `UpdatePolicy`) without the `CloudformationResource` type in the provided source. That should be narrowed or explicitly tied to standard CloudFormation template attributes rather than Stacktape validation support.",
+            "The `Using intrinsic functions` example says it demonstrates `Fn::GetAtt` wiring up a Lambda permission, but the code block does not contain `Fn::GetAtt` or a Lambda permission. This is a concrete example/prose mismatch.",
+            "The `Granting workload access` example sets `Resource` to an intrinsic-function object, but the provided `StpIamRoleStatement.Resource` type is `string[]`. Unless another source permits intrinsic functions there, the example appears type-invalid against the supplied type definition.",
+            "The page repeatedly recommends `stacktape compile-template` for discovering generated logical names, but the provided root source only says to use `stacktape stack-info --detailed` for existing logical names. `compile-template` may be valid CLI behavior, but it is not grounded in the supplied source list.",
+            "The FAQ includes unsupported specifics such as CloudFormation's 500-resource stack limit and `disableAutoRollback` behavior. Those may be AWS/Stacktape facts elsewhere, but they are not grounded in the provided files for this review.",
+            "The first paragraph and comparison table say raw CloudFormation resources do not count toward the Stacktape resource limit, which is sourced, but the FAQ extends that into 'as many raw resources as the underlying CloudFormation stack supports' plus a numeric AWS limit; that needs a source or softer wording.",
+            "Some example tunables are insufficiently anchored: `MessageRetentionPeriod: 1209600`, `RetentionInDays: 365`, `LogGroupName: '/custom/audit-trail'`, and wildcard SES IAM `Resource: ['*']` deserve brief context so they do not read as defaults or required values."
+          ],
+          "mandatoryFixes": [
+            "Fix the intrinsic-functions section so the prose matches the code: either add a real `Fn::GetAtt`/Lambda permission example that type-checks, or remove the claim that the example demonstrates `Fn::GetAtt` and Lambda permission wiring.",
+            "Correct the `iamRoleStatements.Resource` example to match the provided `StpIamRoleStatement.Resource: string[]` type, or provide a grounded source proving intrinsic functions are accepted there.",
+            "Remove or narrow unsupported Stacktape-specific claims about Console integration, dev mode integration, `compile-template` logical-name discovery, accepted raw-resource attributes, and exact rollback behavior unless those claims are backed by additional source files.",
+            "Replace the precise 'supported attributes are...' wording with cautious CloudFormation-oriented wording unless the `CloudformationResource` type source is available.",
+            "Add short prose anchors for non-obvious tunable values used in examples, especially `MessageRetentionPeriod: 1209600`, `RetentionInDays: 365`, and `Resource: ['*']`."
+          ],
+          "optionalImprovements": [
+            "Link the first mention of built-in resource types to the resource catalog in the opening or first decision section, not only inside a later bullet.",
+            "Consider changing `Resource attributes` to `CloudFormation syntax` for a shorter, more reader-oriented H2.",
+            "Add a brief warning near the first example that raw CloudFormation resources require AWS-level permissions, lifecycle awareness, and service-specific validation from CloudFormation.",
+            "If `compile-template` is retained after sourcing, clarify the distinction: `stack-info --detailed` inspects deployed stacks; `compile-template` previews the generated template before deploy."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided root config source, especially the core behavior of `cloudformationResources` merging raw CloudFormation into the template and not counting toward Stacktape's resource limit. The main blockers are unsupported Stacktape-specific claims about generated logical IDs, resource graph behavior, command behavior, and API reference targeting.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The map key (e.g. `sesEmailIdentity`) is the Stacktape config name for the raw resource. Use `stacktape compile-template` to confirm the final CloudFormation logical ID before referencing it from other resources.” Similar claims appear in “Using intrinsic functions,” “Avoiding naming conflicts,” and the FAQ.",
+              "reason": "The source says raw CloudFormation resources are merged as-is and says to use `stacktape stack-info --detailed` to check existing logical names. It does not state that raw `cloudformationResources` keys are transformed into different final logical IDs, nor that `compile-template` should be used to discover generated logical IDs for raw resources. Because raw resources are described as merged as-is, the wording about “final” IDs and Stacktape-generated logical IDs for raw resources is unsupported and may mislead readers about how to reference them.",
+              "suggestedFix": "Narrow the claim: say that the `cloudformationResources` map key is the CloudFormation logical ID for that raw resource, and use `stacktape stack-info --detailed` to inspect Stacktape-managed logical names when avoiding collisions. Keep `compile-template` only as a generic way to preview the generated template if supported elsewhere, not as the sourced method for discovering logical IDs.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "These are merged into the CloudFormation template as-is. Use `stacktape stack-info --detailed`\n   * to check existing logical names and avoid conflicts."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Raw CloudFormation resources sit outside the `resources` map and do not participate in Stacktape's resource typing or the `connectTo` resource graph.” Also: “Can I use connectTo with raw CloudFormation resources? No. The `connectTo` mechanism works only with Stacktape-managed resources defined in the `resources` property.”",
+              "reason": "The source proves that `resources` is typed as `StacktapeResourceDefinition` and `cloudformationResources` is separately typed as `CloudformationResource`, so raw CloudFormation resources are outside the typed Stacktape resource map. However, the source does not explicitly define a “connectTo resource graph” or state that `connectTo` works only with `resources` entries. The conclusion is plausible, but stated too absolutely for the provided source.",
+              "suggestedFix": "Keep the grounded part and soften the mechanism: “Raw CloudFormation resources are not Stacktape resource definitions, so they do not get the typed `connectTo` behavior documented for Stacktape resources. Grant workload access explicitly with `iamRoleStatements`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "resources: { [resourceName: string]: StacktapeResourceDefinition };\n  /**\n   * #### Escape hatch: add raw AWS CloudFormation resources alongside Stacktape-managed ones."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "cloudformationResources?: { [resourceName: string]: CloudformationResource };"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "List the names of resources this workload needs to communicate with. Stacktape automatically:\n   * - **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n   * - **Opens network access** (security group rules for databases, Redis)\n   * - **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“To inspect the logical names Stacktape has assigned, use either of these commands: `stacktape stack-info --detailed`; `stacktape compile-template`.”",
+              "reason": "The provided source explicitly names `stacktape stack-info --detailed` for inspecting existing logical names and avoiding conflicts. It does not mention `stacktape compile-template` for this purpose. Because this is a concrete CLI behavior claim, the unsupported second command should be removed or reframed unless backed by CLI source.",
+              "suggestedFix": "Use only the sourced command in this context: `stacktape stack-info --detailed`. If keeping `compile-template`, say only that it previews the CloudFormation template if that behavior is confirmed by CLI source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "These are merged into the CloudFormation template as-is. Use `stacktape stack-info --detailed`\n   * to check existing logical names and avoid conflicts."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Find resource logical IDs with `stacktape stack-info --detailed`."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "`<ApiReference definitionName=\"ConfigRoot\" />`",
+              "reason": "The page is specifically about `cloudformationResources`, whose source type is `CloudformationResource`, not the full root config. The generated page source for this route shows the API reference shape for the CloudFormation resource object (`Type`, `Condition`, `CreationPolicy`, `DeletionPolicy`, `DependsOn`, `Metadata`, `Properties`, `UpdatePolicy`), not a root config API reference. `ConfigRoot` is not supported by the provided page-specific source and would likely render the wrong reference for the reader.",
+              "suggestedFix": "Point the API reference at the CloudFormation resource definition used by `cloudformationResources`, or use the schema definition name generated for that type. Do not use `ConfigRoot` for a page whose subject is the raw CloudFormation resource object.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "cloudformationResources?: { [resourceName: string]: CloudformationResource };"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/resources/advanced/raw-cloudformation-resources.md",
+                  "quote": "type default = {\n  Type: string;\n  Condition?: defaultCondition;\n  CreationPolicy?: CreationPolicy;\n  DeletionPolicy?: \"Delete\" | \"Retain\" | \"Snapshot\";\n  DependsOn?: defaultDependsOn;\n  Metadata?: unknown;\n  Properties?: unknown;\n  UpdatePolicy?: UpdatePolicy;\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `iamRoleStatements` property is available on all Stacktape compute resources (Lambda functions, web services, worker services, batch jobs, and multi-container workloads).”",
+              "reason": "The source shows `iamRoleStatements` on `ResourceAccessProps`, and `SimpleServiceContainer` extends `ResourceAccessProps`. It does not show the definitions for Lambda functions, web services, worker services, batch jobs, or multi-container workloads in the provided files, so the all-compute-resources claim is broader than the available evidence.",
+              "suggestedFix": "Narrow to the source-backed behavior: “Stacktape workloads that expose `iamRoleStatements` can use raw IAM policy statements for permissions not covered by `connectTo`.” If this page needs the full list, add the relevant workload type source files to ground it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "interface ResourceAccessProps {\n  /**\n   * #### Give this resource access to other resources in your stack."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "iamRoleStatements?: StpIamRoleStatement[];"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "interface SimpleServiceContainer extends ResourceAccessProps {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape offers three escape hatches for going beyond built-in resource types.” The comparison table also claims CDK constructs are counted toward the resource limit and raw CloudFormation has “zero dependencies beyond CloudFormation knowledge.”",
+              "reason": "The provided source supports two escape hatches directly: `cloudformationResources` and `ResourceOverrides`; it also shows `AwsCdkConstruct` as a Stacktape resource type. It does not state that these are the complete set of escape hatches, that CDK constructs count toward the resource limit, or that raw CloudFormation has zero dependencies. These are Stacktape-specific comparison claims that need stronger source grounding.",
+              "suggestedFix": "Change “three escape hatches” to “three common ways to go beyond the default abstractions are…” and remove the unsupported “counted toward resource limit” row unless a source explicitly confirms it. Rephrase “zero dependencies” as “does not require CDK constructs” if you can ground that from the raw CloudFormation shape.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Does not count towards your resource limit."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "| AwsCdkConstruct"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type ResourceOverrides = {\n  [cfLogicalName: string]: { [resourcePath: string]: any };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS CloudFormation allows up to 500 resources per stack by default, with the option to request a limit increase.”",
+              "reason": "This is a concrete numeric quota. The provided Stacktape sources do not contain the 500-resource CloudFormation quota, and the draft gives no source. General AWS facts are allowed, but numeric quotas should be verified or cited because they can change and directly affect reader planning.",
+              "suggestedFix": "Either remove the specific number or link to AWS CloudFormation quotas. A cautious version would be: “You are still limited by AWS CloudFormation stack quotas.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Does not count towards your resource limit."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You can disable automatic rollback with the `disableAutoRollback` deployment config option…”",
+              "reason": "The option exists in `DeploymentConfig`, but the source does not show the TypeScript config path or class-based example for this page. The statement is mostly correct, but it should be scoped as `deploymentConfig.disableAutoRollback` to match the source and avoid implying it is a top-level option.",
+              "suggestedFix": "Write: “Set `deploymentConfig.disableAutoRollback` to `true` to keep the stack in a failed state for debugging.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "deploymentConfig?: DeploymentConfig;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "disableAutoRollback?: boolean;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` for Stacktape config examples and does not hand-author Stacktape YAML.",
+            "The core description of `cloudformationResources` as a top-level escape hatch that merges raw AWS CloudFormation resources into the generated template is directly grounded in `_root.d.ts`.",
+            "The draft correctly states that `cloudformationResources` does not count toward the Stacktape resource limit, which is explicitly documented in `_root.d.ts`.",
+            "The draft correctly uses `iamRoleStatements` as the source-backed way to add raw IAM policy statements for permissions not covered by `connectTo`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided sources and avoids the forbidden Stacktape config example patterns. The main problems are an API reference target that appears to document the wrong type, plus a couple of overbroad integration-support claims.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "`<ApiReference definitionName=\"ConfigRoot\" />` is used for the raw CloudFormation resources page.",
+              "reason": "The page is about values inside `cloudformationResources`, whose source type is `CloudformationResource`. Pointing the API reference at the root config would document the whole Stacktape config instead of the raw CloudFormation resource object. The generated page source for this route documents the raw resource shape with `Type`, `Properties`, `DependsOn`, `DeletionPolicy`, and related CloudFormation attributes.",
+              "suggestedFix": "Change the API reference to the schema definition for the `CloudformationResource` value type used by `cloudformationResources`. If the generated schema key for this nested type is `default`, use that; otherwise use the exact `CloudformationResource` definition name from the schema.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "cloudformationResources?: { [resourceName: string]: CloudformationResource };"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/resources/advanced/raw-cloudformation-resources.md",
+                  "quote": "type default = {\n  Type: string;\n  Condition?: defaultCondition;\n  CreationPolicy?: CreationPolicy;\n  DeletionPolicy?: \"Delete\" | \"Retain\" | \"Snapshot\";\n  DependsOn?: defaultDependsOn;\n  Metadata?: unknown;\n  Properties?: unknown;\n  UpdatePolicy?: UpdatePolicy;\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“Built-in resources defined in the `resources` map are the documented path for `connectTo`, alarms, dev mode, and Stacktape Console integration.”",
+              "reason": "The source supports `connectTo` for Stacktape resources, but alarm support is only defined for a subset of resource types. The sentence reads like all built-in resources participate in alarms, which is broader than the alarm source allows.",
+              "suggestedFix": "Narrow the sentence: “Built-in resources defined in the `resources` map are the documented path for typed resource behavior such as `connectTo`, resource-specific alarms where supported, dev mode where supported, and Stacktape Console visibility.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type StpAlarmEnabledResource =\n  | StpLambdaFunction\n  | StpRelationalDatabase\n  | StpHttpApiGateway\n  | StpApplicationLoadBalancer\n  | StpSqsQueue;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type StacktapeResourceDefinition =\n  | HostingBucket\n  | NextjsWeb\n  | AstroWeb\n  | NuxtWeb\n  | SvelteKitWeb\n  | SolidStartWeb\n  | TanStackWeb\n  | RemixWeb\n  | StacktapeWorkloadDefinition\n  | RelationalDatabase\n  | ApplicationLoadBalancer\n  | NetworkLoadBalancer\n  | HttpApiGateway\n  | Bucket\n  | UserAuthPool\n  | EventBus\n  | Bastion\n  | DynamoDbTable\n  | RedisCluster\n  | StateMachine\n  | MongoDbAtlasCluster"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `iamRoleStatements` property is available on all Stacktape compute resources ([Lambda functions], [web services], [worker services], [batch jobs], and [multi-container workloads]).”",
+              "reason": "The draft says “all Stacktape compute resources” but the parenthetical list omits compute workload types present in the source, including `PrivateService` and `EdgeLambdaFunction`. The provided source excerpt does not prove `iamRoleStatements` is available on every workload type, so the broad claim should be narrowed or the omitted compute resources should be handled explicitly if verified elsewhere.",
+              "suggestedFix": "Avoid “all” unless the full workload props confirm it. Use a narrower sentence such as: “Stacktape workloads that expose `iamRoleStatements` can use raw IAM policy statements for permissions not covered by `connectTo`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type StacktapeWorkloadDefinition =\n  | LambdaFunction\n  | ContainerWorkload\n  | BatchJob\n  | WebService\n  | PrivateService\n  | WorkerService\n  | EdgeLambdaFunction;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "iamRoleStatements?: StpIamRoleStatement[];"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `defineConfig` class-based TypeScript examples inside `<CodeBlock intellisense>` and does not hand-author Stacktape YAML.",
+            "The core description of `cloudformationResources` as a top-level escape hatch merged into the CloudFormation template and excluded from the resource limit is directly supported by `_root.d.ts`.",
+            "The draft correctly keeps `iamRoleStatements.Resource` as `string[]`, matching the `StpIamRoleStatement` source type."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 8, col 19: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<ApiReference definitionName=\"ConfigRoot\" /> references an unknown schema definition.",
+              "reason": "ConfigRoot is not present in @generated/schemas/config-schema.json definitions.",
+              "suggestedFix": "Use a definitionName that exists in @generated/schemas/config-schema.json."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__advanced__raw-cloudformation-resources/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong, self-contained opening paragraph that directly answers 'what is this and why does it matter' in ~60 words — good AEO hygiene.",
+            "Opinionated 'When to use' / 'When NOT to use' structure with concrete, clearly differentiated guidance (overrides vs. raw CF vs. CDK), including an explicit recommendation at the end.",
+            "Realistic, copyable examples across multiple sections (SES email identity, SNS topic, SSM parameter, SQS DLQ) — each illustrates a genuinely common use case.",
+            "The intrinsic-function syntax-mapping table (CloudFormation syntax → TypeScript object form) is highly practical and exactly what a first-timer needs when they hit their first `Ref`.",
+            "The `<FeatureComparisonTable>` comparing all three escape hatches is a strong decision-support tool and very scannable.",
+            "Comprehensive FAQ with 10 Q&A pairs that correctly span all three required categories: Stacktape-specific, underlying-AWS-service, and choosing/comparison questions.",
+            "All Stacktape config examples use `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'` — no forbidden YAML or fenced-TypeScript violations.",
+            "Shell commands are properly split into one-per-block with prose introductions — no multi-command copy-button trap."
+          ],
+          "problems": [
+            "MANDATORY STYLE VIOLATION — `<ApiReference definitionName=\"default\" />` uses 'default' which is not a valid schema definition name. The Stacktape config types end in `Props` or use their declared type name; the value type for `cloudformationResources` entries appears to be `CloudformationResource` in the source. A wrong `definitionName` renders an empty API reference section, removing the exhaustive-options discovery path for readers. This triggers the '`<ApiReference>` whose `definitionName` does not match any generated config-schema definition' rule and must penalize `completeness` by at least 2.",
+            "CLI command factual error: the page repeatedly uses `stacktape stack-info --detailed` but Stacktape's consistent colon-separated CLI pattern (`debug:logs`, `info:stacks`, `info:operations`, `info:whoami` as seen in the CLI docs file names) indicates the correct command is `stacktape info:stack --detailed`. Using the wrong command syntax will cause a 'command not found' error for readers who copy it.",
+            "The broken `<ApiReference definitionName=\"default\" />` is both a factual error and a style violation — it should appear in both `problems` and `mandatoryFixes`."
+          ],
+          "mandatoryFixes": [
+            "`<ApiReference definitionName=\"default\" />` — 'default' does not match any TypeScript type in the provided source. The value type for entries in `cloudformationResources` is `CloudformationResource` (from `cloudformationResources?: { [resourceName: string]: CloudformationResource }` in `_root.d.ts`). Look up the exact schema key used for `CloudformationResource` in `@generated/schemas/config-schema.json` and replace 'default' with that key (e.g., `\"CloudformationResource\"` or its `Props`-suffixed variant if applicable). A wrong `definitionName` renders an empty section and breaks the reader's path to exhaustive property discovery. Penalizes `completeness` by 2.",
+            "Replace every instance of `stacktape stack-info --detailed` with `stacktape info:stack --detailed` (and update surrounding prose accordingly). Based on Stacktape's consistent `group:command` pattern — `debug:logs`, `info:stacks`, `info:operations`, `info:whoami` — the file `info-stack.mdx` maps to the CLI command `info:stack`, not `stack-info`. Readers who copy the current text will get a command-not-found error."
+          ],
+          "optionalImprovements": [
+            "Verify whether `stacktape compile-template` is the correct command syntax or whether it should be `stacktape compile:template` — the colon-vs-hyphen pattern needs a check against the CLI source (`src/commands/compile-template/index.ts`).",
+            "The 'Resource attributes' section lists all eight supported attributes but doesn't signal which are commonly used vs. rarely needed. A one-sentence note like 'Most teams only need `Type`, `Properties`, and `DeletionPolicy`; `CreationPolicy` and `Metadata` are rarely used' would help readers focus.",
+            "Consider adding a brief note about `cloudformationResources` behavior during `stacktape dev` mode — are raw CF resources deployed as-is, skipped, or unavailable during local development? This is a common first-timer question that is currently unanswered.",
+            "The 'Basic example' section could note explicitly that the Stacktape config map key (e.g., `sesEmailIdentity`) becomes the CloudFormation logical ID — the current wording says to 'confirm the final CloudFormation logical ID' with `compile-template`, which implies it might differ when it actually shouldn't for raw resources.",
+            "The FAQ answer for DependsOn between raw and Stacktape-managed resources could be slightly more concrete — mention that Stacktape logical names often include a hash or prefix derived from the resource name, which is why `compile-template` verification matters before each major upgrade."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, opinionated when-to-use / when-not-to-use sections grounded in actual source behavior (connectTo, overrides, CDK tradeoffs) — gives readers a real decision, not just feature description.",
+            "The three-way escape-hatch comparison table (Raw CF vs CDK vs Overrides) is the page's strongest asset: covers all alternatives, contrasts the right dimensions, ends with a prioritized recommendation.",
+            "IAM grants section correctly identifies that raw CF resources are outside the connectTo graph and shows iamRoleStatements + Fn::GetAtt as the alternative — critical gotcha for production use.",
+            "Intrinsic functions reference table (CF syntax → TypeScript object form) is a high-signal, scannable snippet that developers will reach for repeatedly.",
+            "All Stacktape config examples use <CodeBlock intellisense tabs=[TypeScript]> correctly; no fenced YAML blocks, no StacktapeConfig typed style.",
+            "Shell commands are correctly split into separate fenced blocks (one command each), with no explanatory # comments inside blocks.",
+            "FAQ covers all three required categories: Stacktape-specific (connectTo, resource limit, DeletionPolicy), AWS-service questions (rollback behavior, CF pricing model), and comparison questions (raw CF vs CDK, raw CF vs overrides)."
+          ],
+          "problems": [
+            "MANDATORY: `<ApiReference definitionName=\"default\" />` — 'default' is not a valid schema definition name. The correct value must match the generated config-schema key for the CloudformationResource type (e.g. 'CloudformationResource'). This will render an empty or broken API reference section, the only API reference on the page. Penalizes completeness by at least 2.",
+            "The FeatureComparisonTable row 'Counted toward resource limit — CDK Constructs: true' is asserted without explicit source grounding in the provided files. The source confirms cloudformationResources 'Does not count towards your resource limit' for raw CF, but the same explicit statement for CDK constructs (AwsCdkConstruct being in resources) is not stated in the provided source.",
+            "The 'Resource attributes' section enumerates specific CloudFormation resource attributes (Condition, CreationPolicy, UpdatePolicy, etc.) as supported. The CloudformationResource type definition is not included in the provided source files, so this enumeration is not source-grounded from the inline files. These are accurate AWS CloudFormation facts, but the claim is presented as a Stacktape-specific enumeration."
+          ],
+          "mandatoryFixes": [
+            "Replace `<ApiReference definitionName=\"default\" />` with the correct definitionName matching the CloudformationResource type in the generated config-schema. 'default' is not a valid schema entry name and will render an empty API reference section. Per rules: wrong definitionName penalizes completeness by at least 2 points. Look up the exact key from `@generated/schemas/config-schema.json` — it is likely 'CloudformationResource' or 'CloudformationResourceProps'."
+          ],
+          "optionalImprovements": [
+            "Qualify the CDK 'Counted toward resource limit: true' cell in the comparison table with a brief source citation or link to the CDK constructs page, since the provided source only explicitly states the negative (raw CF does not count) and is silent on CDK.",
+            "The 'Resource attributes' section could open with a note that these are standard CloudFormation resource attributes and link to the AWS CloudFormation resource syntax docs rather than implying Stacktape defines which attributes are valid — this would reduce any source-grounding exposure.",
+            "The page links to '/cli/info-stack' for the `stacktape stack-info --detailed` command in the FAQ but not in the 'Avoiding naming conflicts' prose section — add a link there too for consistency with the cross-page linking rule.",
+            "Consider adding a sentence in the 'Avoiding naming conflicts' section noting that Stacktape's stack-level tags (projectName, stage, stackName) are automatically applied to CF resources that support tagging, which can help with cost attribution even for raw resources."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and grounded in the `cloudformationResources` source comment.",
+            "The page uses TypeScript class-based Stacktape config examples inside `<CodeBlock intellisense tabs={[...]}/>` and avoids hand-authored Stacktape YAML.",
+            "The decision framing is useful: raw CloudFormation vs built-in resources, overrides, and CDK constructs is the right comparison for this escape hatch.",
+            "The FAQ covers Stacktape-specific, AWS behavior, and choosing/comparison questions without padding."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are broader than the provided source supports. The source says raw CloudFormation resources are merged as-is, do not count toward the resource limit, and can be inspected with `stacktape stack-info --detailed`; it does not prove the accepted CloudFormation attribute list, Console integration behavior, dev mode behavior, or exact logical-ID stability semantics.",
+            "The `Resource attributes` section states a precise supported attribute list (`Type`, `Properties`, `DependsOn`, `Condition`, `DeletionPolicy`, `Metadata`, `CreationPolicy`, `UpdatePolicy`) without the `CloudformationResource` type in the provided source. That should be narrowed or explicitly tied to standard CloudFormation template attributes rather than Stacktape validation support.",
+            "The `Using intrinsic functions` example says it demonstrates `Fn::GetAtt` wiring up a Lambda permission, but the code block does not contain `Fn::GetAtt` or a Lambda permission. This is a concrete example/prose mismatch.",
+            "The `Granting workload access` example sets `Resource` to an intrinsic-function object, but the provided `StpIamRoleStatement.Resource` type is `string[]`. Unless another source permits intrinsic functions there, the example appears type-invalid against the supplied type definition.",
+            "The page repeatedly recommends `stacktape compile-template` for discovering generated logical names, but the provided root source only says to use `stacktape stack-info --detailed` for existing logical names. `compile-template` may be valid CLI behavior, but it is not grounded in the supplied source list.",
+            "The FAQ includes unsupported specifics such as CloudFormation's 500-resource stack limit and `disableAutoRollback` behavior. Those may be AWS/Stacktape facts elsewhere, but they are not grounded in the provided files for this review.",
+            "The first paragraph and comparison table say raw CloudFormation resources do not count toward the Stacktape resource limit, which is sourced, but the FAQ extends that into 'as many raw resources as the underlying CloudFormation stack supports' plus a numeric AWS limit; that needs a source or softer wording.",
+            "Some example tunables are insufficiently anchored: `MessageRetentionPeriod: 1209600`, `RetentionInDays: 365`, `LogGroupName: '/custom/audit-trail'`, and wildcard SES IAM `Resource: ['*']` deserve brief context so they do not read as defaults or required values."
+          ],
+          "mandatoryFixes": [
+            "Fix the intrinsic-functions section so the prose matches the code: either add a real `Fn::GetAtt`/Lambda permission example that type-checks, or remove the claim that the example demonstrates `Fn::GetAtt` and Lambda permission wiring.",
+            "Correct the `iamRoleStatements.Resource` example to match the provided `StpIamRoleStatement.Resource: string[]` type, or provide a grounded source proving intrinsic functions are accepted there.",
+            "Remove or narrow unsupported Stacktape-specific claims about Console integration, dev mode integration, `compile-template` logical-name discovery, accepted raw-resource attributes, and exact rollback behavior unless those claims are backed by additional source files.",
+            "Replace the precise 'supported attributes are...' wording with cautious CloudFormation-oriented wording unless the `CloudformationResource` type source is available.",
+            "Add short prose anchors for non-obvious tunable values used in examples, especially `MessageRetentionPeriod: 1209600`, `RetentionInDays: 365`, and `Resource: ['*']`."
+          ],
+          "optionalImprovements": [
+            "Link the first mention of built-in resource types to the resource catalog in the opening or first decision section, not only inside a later bullet.",
+            "Consider changing `Resource attributes` to `CloudFormation syntax` for a shorter, more reader-oriented H2.",
+            "Add a brief warning near the first example that raw CloudFormation resources require AWS-level permissions, lifecycle awareness, and service-specific validation from CloudFormation.",
+            "If `compile-template` is retained after sourcing, clarify the distinction: `stack-info --detailed` inspects deployed stacks; `compile-template` previews the generated template before deploy."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<ApiReference definitionName=\"default\" /> does not match the page's canonical typeName \"ConfigRoot\".",
+              "reason": "Resource pages must use the exact typeName from pages.ts (always ending in \"Props\"). \"default\" is a different type — even if it exists in the schema, it's not the root type for this page.",
+              "suggestedFix": "Use <ApiReference definitionName=\"ConfigRoot\" />."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1044,8 +1569,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\advanced\\raw-cloudformation-resources.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/resources/advanced/raw-cloudformation-resources.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 4, advisory high 2, verifier medium 14"
+  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 1, advisory high 0, verifier medium 1",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

@@ -2,31 +2,31 @@
 title: 'Billing and Subscription'
 order: 128
 seoTitle: 'Billing and Subscription Plans | Stacktape Console'
-seoDescription: 'Manage your Stacktape subscription plan, view invoices, and update payment details. Compare Free, Flexible, and Enterprise plans with percentage-based AWS cost pricing.'
+seoDescription: 'Manage Stacktape subscriptions in the Console. Compare Free, Flexible, and Enterprise plans, view invoices, and complete Paddle checkout from the billing pages.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.5, hard blockers 3, advisory high 1, verifier medium 17'
+pipelineReviewSummary: 'reviewer-avg 7.5, hard blockers 2, advisory high 0, verifier medium 12'
 ---
 
 # Billing and Subscription
 
-Stacktape offers three subscription plans — Free, Flexible, and Enterprise — managed through the Stacktape Console. Billing uses Paddle as the payment processor. You can view invoices, update payment details, and change plans directly from the Console.
+Stacktape offers three subscription plans — Free, Flexible, and Enterprise — managed through the Stacktape Console. Billing uses Paddle as the payment processor. The Console lets you view invoices, change plans, and complete Paddle checkout from the billing pages.
 
 ## What this part of the Console does
 
-The billing and subscription area covers two Console pages. The **Subscription Plans** page (at `/subscription-plans`) is where you choose or change your plan. The **Billing** page (at `/billing`) shows payment details and past invoices. Users with the VIEWER role are redirected to `/overview` when they attempt to access either page. Billing management actions (upgrading, downgrading, updating payment) are shown only when the current user has the `org:manage-billing` permission.
+The billing and subscription area covers two Console pages. The **Subscription Plans** page (at `/subscription-plans`) is where you choose or change your plan. The **Billing** page (at `/billing`) renders a billing details section, an invoices list, and a Paddle checkout container. Users with the VIEWER role are redirected to `/overview` when they attempt to access either page. On the subscription page, the **Upgrade now** and **Downgrade to FREE** buttons render only when the current user has the `org:manage-billing` permission. The `/billing` page passes that same `canManageBilling` flag to its billing details section.
 
 ## Subscription plans
 
-Stacktape bills based on the AWS infrastructure costs your stacks generate — not per seat, per deployment, or per request. All plans include unlimited deployments and unlimited stacks.
+Stacktape bills based on the AWS infrastructure costs your stacks generate — not per seat, per deployment, or per request. The Free and Flexible plan cards both list unlimited deployments and unlimited stacks.
 
 <FeatureComparisonTable
   columns={["Free", "Flexible", "Enterprise"]}
   features={[
     { name: "Price", values: { "Free": "$0", "Flexible": "% of AWS costs", "Enterprise": "Custom" } },
     { name: "Team members", values: { "Free": "1", "Flexible": "Unlimited", "Enterprise": "Unlimited" } },
-    { name: "AWS cost limit", values: { "Free": "$100/mo", "Flexible": "No limit", "Enterprise": "No limit" } },
-    { name: "Deployments", values: { "Free": "Unlimited", "Flexible": "Unlimited", "Enterprise": "Unlimited" } },
-    { name: "Stacks", values: { "Free": "Unlimited", "Flexible": "Unlimited", "Enterprise": "Unlimited" } },
+    { name: "AWS cost limit", values: { "Free": "$100/mo", "Flexible": "No limit", "Enterprise": "Not listed" } },
+    { name: "Deployments", values: { "Free": "Unlimited", "Flexible": "Unlimited", "Enterprise": "Not listed" } },
+    { name: "Stacks", values: { "Free": "Unlimited", "Flexible": "Unlimited", "Enterprise": "Not listed" } },
     { name: "Support", values: { "Free": "Community", "Flexible": "Hands-on", "Enterprise": "Up to 24x7 premium" } },
     { name: "SSO", values: { "Free": false, "Flexible": false, "Enterprise": true } },
     { name: "SOC 2 Compliance", values: { "Free": false, "Flexible": false, "Enterprise": true } }
@@ -45,7 +45,7 @@ The Flexible plan includes unlimited team members and hands-on support. Choose t
 
 ### Enterprise plan
 
-The Enterprise plan shows custom pricing on the subscription page and includes a schedule-meeting button to connect with the Stacktape team. It includes SSO, SOC 2 compliance, and up to 24x7 premium support. Choose this when your organization requires compliance certifications, SSO integration, or dedicated support SLAs.
+The Enterprise plan shows custom pricing on the subscription page and includes a schedule-meeting button to connect with the Stacktape team. The Enterprise plan card lists unlimited members, SSO, SOC 2 compliance, and up to 24x7 premium support. Choose this when your organization requires compliance certifications, SSO integration, or dedicated support SLAs.
 
 ## Walkthrough: upgrading to the Flexible plan
 
@@ -63,9 +63,9 @@ The Enterprise plan shows custom pricing on the subscription page and includes a
 
 In the Stacktape Console, navigate to `/billing`. The page renders a billing details section and an invoices list showing past payments.
 
-### Updating payment details
+### Reviewing billing details
 
-On the `/billing` page, billing management controls are available to users with the `org:manage-billing` permission. The `BillingDetails` component receives permission context and conditionally renders management options.
+On the `/billing` page, the billing details section receives a `canManageBilling` flag derived from the `org:manage-billing` permission. Users without that permission can still view the page (unless they have the VIEWER role, in which case they are redirected to `/overview`).
 
 ### Downgrading to the Free plan
 
@@ -77,18 +77,12 @@ The `/subscription-plans` page shows which plan is currently active. The active 
 
 ## Permissions
 
-Billing access is controlled by role and permission:
+Billing access is gated in two ways:
 
-| Role | View billing pages | Manage billing |
-|---|---|---|
-| Owner | Yes | Yes |
-| Admin | Yes | Yes |
-| Developer | Yes | No |
-| Member | Yes | No |
-| Viewer | Redirected to /overview | No |
+- **VIEWER redirect** — Users with the VIEWER role are redirected to `/overview` when they open `/billing` or `/subscription-plans`.
+- **`org:manage-billing`** — The **Upgrade now** and **Downgrade to FREE** buttons on `/subscription-plans` are rendered only when the current user has this permission. The same `canManageBilling` flag is passed into the billing details section on `/billing`.
 
-- **View billing pages** — access `/billing` and `/subscription-plans`. All roles except Viewer can view these pages.
-- **Manage billing** (`org:manage-billing`) — upgrade, downgrade, and update payment details. The management buttons are rendered only when this permission is present.
+For the full role-to-permission mapping and how to change a user's role, see [team and access control](/stacktape-console/team-and-access-control).
 
 <Warning>Users with the VIEWER role are automatically redirected to `/overview` when attempting to access billing or subscription pages.</Warning>
 
@@ -122,7 +116,7 @@ Stacktape charges based on the AWS infrastructure costs it manages for you. The 
 
 ### Is there a per-deployment or per-request fee?
 
-No. All plans include unlimited deployments and unlimited stacks. Pricing is based solely on AWS infrastructure costs managed by Stacktape, not on the number of deploys, API requests, or developer seats (on paid plans).
+No. The Free and Flexible plan cards list unlimited deployments and unlimited stacks. Pricing is based on AWS infrastructure costs managed by Stacktape, not on the number of deploys, API requests, or developer seats (on paid plans).
 
 ### What counts as "managed AWS costs"?
 
@@ -134,7 +128,7 @@ Yes. The Free plan requires no credit card and supports one team member with up 
 
 ### Who can manage billing in my organization?
 
-Users with the `org:manage-billing` permission see the upgrade, downgrade, and payment management controls. Users without this permission can still view the billing and subscription pages (except Viewers, who are redirected). See [team and access control](/stacktape-console/team-and-access-control) for role management.
+Users with the `org:manage-billing` permission see the upgrade and downgrade controls on `/subscription-plans`, and the same flag is passed into the billing details section on `/billing`. Users without this permission can still view the billing and subscription pages (except Viewers, who are redirected). See [team and access control](/stacktape-console/team-and-access-control) for role management.
 
 ### What payment methods does Stacktape accept?
 

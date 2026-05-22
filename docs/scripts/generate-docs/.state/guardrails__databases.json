@@ -2,7 +2,7 @@
   "pageId": "guardrails__databases",
   "pageRoute": "guardrails/databases",
   "startedAt": "2026-05-17T18:12:12.757Z",
-  "updatedAt": "2026-05-18T15:03:20.609Z",
+  "updatedAt": "2026-05-21T15:41:48.169Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1618,6 +1618,293 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/guardrails__databases/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear preventive-vs-reactive framing in the opening Info callout sets the right mental model for a first-timer before they read a single guardrail section.",
+            "The four-column summary table near the top (guardrail name, type identifier, key property, allowlist vs blocklist) is high-signal and well-placed — readers can scan the whole feature space in seconds.",
+            "Each guardrail section follows a consistent shape: definition snippet, When to enable, When to skip, Tradeoff. The repetition is helpful, not redundant.",
+            "The 'Combining database guardrails' section adds genuine value by giving a prioritized starting recommendation — VPC-only + deletion protection first — rather than just listing all four.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service behavior, comparison/choosing). Ten Q&As is appropriate for the page scope. The Aurora Serverless vs. instance restriction Q&A and the RDS cost Q&A are especially useful for first-timers.",
+            "No YAML Stacktape config blocks, no StacktapeConfig type pattern, no fenced TypeScript with defineConfig — all three hard forbidden patterns are clean.",
+            "Guardrail definition snippets are illustrated as plain TypeScript object literals (not defineConfig configs), which is the correct form for this Console-managed feature."
+          ],
+          "problems": [
+            "Several enforcement-behavior claims go beyond what the provided source file (`guardrails.d.ts`) documents. The source only defines type shapes. Claims not grounded there include: (1) Aurora Serverless engines being skipped during instance-restriction checks, (2) the two accepted VPC modes (`vpc` and `scoping-workloads-in-vpc`) by name, (3) the specific error message format (`Database \"mainDb\" uses engine...`). These may be accurate, but they are not derivable from the provided source.",
+            "The engine type identifier list in the 'Engine restriction' section and its FAQ entry extends well beyond the two examples given in the source JSDoc (`postgres`, `aurora-postgresql`). Listing `aurora-mysql`, `aurora-mysql-serverless`, `aurora-postgresql-serverless-v2`, etc. as confirmed identifiers is unsupported by the source, which only exposes `allowedEngines?: string[]` with two illustrative examples.",
+            "The instance-restriction section asserts that the guardrail 'checks instance sizes across primary instances and read replicas for RDS engines, and across all instances in Aurora clusters.' This specific traversal behavior is not documented in the source type definitions.",
+            "The 'require-deletion-protection' section states 'Unlike the VPC-only guardrail, deletion protection only applies to relational databases (not OpenSearch domains or other database types).' While the type JSDoc for `RequireDeletionProtectionGuardrail` says 'all relational databases', it does not explicitly state it excludes OpenSearch. The VPC section says it covers OpenSearch, but the source does not confirm that OpenSearch is excluded from deletion-protection scope — this reads as inferred comparison, not a grounded assertion."
+          ],
+          "mandatoryFixes": [
+            "Scope-down the unsupported enforcement-behavior claims to what the source documents. Replace the Aurora Serverless exception sentence ('Aurora Serverless engines (both v1 and v2) are skipped during instance-size checks') with a hedged observation: since Aurora Serverless scales automatically, instance size strings are not applicable to those engines — but do not state the guardrail definitively 'skips' them as an implementation fact. Similarly, remove or hedge the specific VPC mode names (`vpc` and `scoping-workloads-in-vpc`) and the specific error message format, since those are not in the provided source.",
+            "Trim the engine type identifier list in both the main body and the FAQ to match what the source documents: the type definition gives `postgres` and `aurora-postgresql` as examples. Replace the extended list with language like: 'Use the engine type identifiers supported by your relational database configuration — the type definition shows `postgres` and `aurora-postgresql` as examples; see the relational database docs for the full set.' Do not enumerate identifiers the source does not confirm.",
+            "Fix the scope comparison between `require-deletion-protection` and `require-vpc-databases` regarding OpenSearch: the source JSDoc for `RequireDeletionProtectionGuardrail` says 'all relational databases' — use that exact scope claim and remove the parenthetical assertion that OpenSearch is excluded, since that is inferred, not stated, in the source."
+          ],
+          "optionalImprovements": [
+            "The 'How database guardrails work' section is the weakest in the page — it repeats information the reader will encounter in each per-guardrail section. Consider condensing it to two sentences (fetch from Console, validate before CloudFormation) and removing the illustrative code snippet, which duplicates the engine restriction section's snippet.",
+            "The opening paragraph runs long for an AEO-target snippet (well over 75 words). Tighten to a single 50-70 word paragraph that answers 'what is this and who should care' without listing Console and CLI command names inline.",
+            "Consider adding a brief note that guardrails are organization-level, not stage-level — i.e., a guardrail enabled for the org applies to all stages unless Stacktape supports per-stage overrides. If stage-scoping is not supported, say so explicitly; first-timers will assume they can enable VPC-only for production but not dev.",
+            "The `<Tip>` in the engine restriction section is helpful but could include a concrete recommended `allowedEngines` array value so readers can copy it directly into the Console form rather than assembling it from the prose explanation above."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The allowlist vs. blocklist distinction between engine restriction and instance restriction is explained clearly and early — exactly the kind of behavioral detail engineers need before configuring.",
+            "The preventive-vs-reactive callout at the top (guardrails vs. alarms) is well-placed and avoids a real confusion point for new users.",
+            "Summary table at the top with type identifier, key property, and approach gives a quick reference without forcing the reader to scan every section.",
+            "Decision support (when to enable / when to skip / tradeoff) is present for every guardrail — the page feels like a guide, not a config reference.",
+            "FAQ coverage spans all three required categories: Stacktape-specific, AWS service behavior, and choosing/comparison questions.",
+            "Recommended starting-point guidance at the end of the Combining section is concrete and opinionated — tells engineers where to begin rather than leaving them to figure it out."
+          ],
+          "problems": [
+            "UNSUPPORTED CLAIM — VPC + OpenSearch: The page states 'This guardrail checks both relational databases and OpenSearch domains.' The provided source file (`guardrails.d.ts`) only says 'all databases must use VPC-only accessibility'; it does not enumerate OpenSearch domains. This is a concrete unsupported Stacktape-specific claim that will mislead engineers who want to know exactly what the guardrail covers.",
+            "UNSUPPORTED CLAIM — Aurora Serverless instance restriction exemption: 'Aurora Serverless engines (both v1 and v2) are skipped during instance-size checks since they auto-scale without fixed instance sizes.' This behavioral detail is not present in the provided source. Engineers relying on this to explain why an Aurora Serverless database isn't being checked could be wrong.",
+            "UNSUPPORTED CLAIM — Specific error message format: The page shows `Database \"mainDb\" uses engine \"mysql\" which is not allowed. Allowed engines: postgres, aurora-postgresql.` as the exact error text. This is not grounded in any provided source file and should not be presented as authoritative.",
+            "UNSUPPORTED CLAIM — Sequential checking with 'first violation blocks': 'Stacktape checks each one in sequence. A deployment must pass all active guardrails to proceed — the first violation blocks the deployment.' The source does not describe the ordering or whether all violations or just the first are reported. This may mislead engineers who expect all violations to be surfaced at once.",
+            "UNSUPPORTED CLAIM — Specific accessibility mode strings: 'The enforcement accepts two VPC-only accessibility modes: `vpc` and `scoping-workloads-in-vpc`.' These specific mode name strings are not in the provided source file for this page.",
+            "UNSUPPORTED CLAIM — Instance restriction enforcement detail: 'The enforcement checks instance sizes across primary instances and read replicas for RDS engines, and across all instances in Aurora clusters.' This enforcement behavior is not described in the provided source file.",
+            "OVER-SPECIFIC ENGINE LIST: The page lists `aurora-mysql`, `aurora-postgresql`, `aurora-mysql-serverless`, `aurora-postgresql-serverless`, `aurora-mysql-serverless-v2`, `aurora-postgresql-serverless-v2`, and `postgres` as recognized engine identifiers. The source only provides `postgres` and `aurora-postgresql` as examples in the JSDoc — the extended list is not grounded in the provided source and could be incomplete or wrong."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify the claim that `require-vpc-databases` covers OpenSearch domains. The source only says 'all databases' — if OpenSearch is genuinely included, this must be grounded in enforcement source code not provided here. Until then, narrow the claim to 'relational databases and other database resources' or simply 'all databases' to match the source wording.",
+            "Remove the claim that Aurora Serverless databases are skipped during `database-instance-restriction` checks. This behavioral detail is not in the provided source. Replace with a note that the source is silent on how serverless engines are handled and direct readers to the relational database docs.",
+            "Remove the specific error message example. The source does not define error message text. Replace with a general description: 'Stacktape reports which resource violated which guardrail and blocks the deployment before any CloudFormation changes are applied.'",
+            "Remove the 'checks each one in sequence / first violation blocks' claim. Replace with: 'A deployment must satisfy all active guardrails to proceed.' Do not claim ordering or first-only reporting behavior without source grounding.",
+            "Remove the specific accessibility mode strings (`vpc`, `scoping-workloads-in-vpc`) from the VPC guardrail section — these are not in the provided source file for this page. Replace with a link to the relational database page for accessibility mode details.",
+            "Remove the 'primary instances and read replicas for RDS / all instances in Aurora clusters' instance enforcement detail. This behavior is not in the provided source. Say only that the guardrail checks configured instance sizes against the blocklist.",
+            "Narrow the engine identifier list to what the source explicitly provides as examples (`postgres`, `aurora-postgresql`) and direct readers to the relational database docs for the full set of valid engine identifiers, rather than listing a potentially incomplete set."
+          ],
+          "optionalImprovements": [
+            "Consider adding a brief note that all four guardrail `properties` fields use optional (`?`) properties — engineers who inspect the types may wonder whether omitting a property is equivalent to disabling the guardrail vs. it being unset.",
+            "The 'How database guardrails work' section is useful framing but reads slightly long for a section that admits the enforcement details can't be fully sourced. Consider trimming it to 2-3 sentences and moving the guardrail definition shape examples into each individual guardrail section (where they already appear).",
+            "The FAQ entry 'How much does AWS RDS cost compared to Aurora Serverless?' gives no concrete magnitudes, which weakens it as a useful answer. Consider adding a rough-order-of-magnitude comparison (e.g. RDS t3.medium vs. Aurora Serverless v2 minimum ACU cost) or linking to an AWS pricing page rather than ending vaguely with 'can scale down when idle'."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 5,
+            "scannability": 8,
+            "completeness": 4,
+            "practicalUsefulness": 4,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, compact, and clearly distinguishes preventive database guardrails from runtime monitoring concerns.",
+            "The page is easy to scan: short H2s, a useful summary table, separate sections for each guardrail type, and a broad FAQ.",
+            "The page correctly identifies the four database-related guardrail type identifiers and their documented properties from `guardrails.d.ts`.",
+            "The guardrails vs alarms distinction is useful and matches the human-maintained section instruction at a conceptual level."
+          ],
+          "problems": [
+            "Major source-grounding problem: the draft claims guardrails are configured in the Stacktape Console, fetched from organization global configuration, and enforced during `deploy`, `preview-changes`, and `codebuild-deploy`, but `guardrails.d.ts` only defines guardrail types and properties. None of that lifecycle or Console behavior is grounded in the provided source.",
+            "Major source-grounding problem: the draft claims Stacktape throws a `GUARDRAIL` error, includes a specific example error message, and stops before CloudFormation. None of these enforcement details appear in the provided source.",
+            "Major source-grounding problem: the draft describes runtime validator behavior for engine identifiers, RDS read replicas, Aurora clusters, Aurora Serverless skip behavior, OpenSearch coverage, and accepted accessibility modes. The provided source only says all databases must use VPC-only accessibility and all relational databases must use deletion protection; it does not define those detailed checks.",
+            "The examples are object fragments rather than clearly contextualized guardrail definitions. They are useful for shape, but they are not copy-paste runnable and the page does not explain where this object shape is used without relying on unsupported Console/lifecycle claims.",
+            "Several FAQ answers repeat unsupported operational claims, especially deployment-command validation, GUARDRAIL errors, OpenSearch applicability, and serverless instance-restriction behavior.",
+            "The page is overconfident where the source is thin. Phrases like “the enforcement code recognizes,” “Stacktape fetches,” “checks each one in sequence,” and “safe to add at any time” read as authoritative implementation facts but are not supported by the only source file."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow all unsupported lifecycle claims. From the provided source, you can say Stacktape defines guardrail definition types; do not claim Console configuration, organization-global fetching, deploy-command behavior, or CloudFormation ordering unless additional source files are provided.",
+            "Replace the invented `GUARDRAIL` error example with cautious wording or omit it. The provided source does not define error codes, error text, or failure timing.",
+            "Narrow `require-vpc-databases` coverage to the exact sourced statement: when enabled, all databases must use VPC-only accessibility with no public internet access. Do not claim specific accessibility mode strings or OpenSearch behavior unless those are grounded in additional source.",
+            "Narrow `database-instance-restriction` to the exact sourced statement: `blockedInstanceSizes` lists blocked database instance sizes. Remove claims about primary instances, read replicas, Aurora clusters, and Aurora Serverless being skipped unless validator/source files are provided.",
+            "Narrow `database-engine-restriction` to the exact sourced statement: `allowedEngines` is an array of allowed database engine type strings, with `postgres` and `aurora-postgresql` shown as examples. Do not list additional recognized engine identifiers unless sourced elsewhere.",
+            "Revise FAQ answers so every Stacktape-specific operational claim is grounded in `guardrails.d.ts` or clearly framed as general AWS background, not Stacktape behavior.",
+            "Make the object examples explicitly “definition shape” examples and avoid implying a specific authoring location or deployment workflow unless supported by source."
+          ],
+          "optionalImprovements": [
+            "Add a short “What the source defines” or “Guardrail shape” section that explains the shared `type` plus `properties` pattern without overreaching into runtime behavior.",
+            "Keep the comparison table, but add a column for “Property value shape” so readers can quickly see `string[]` versus `boolean`.",
+            "Trim repeated recommendations in the FAQ and Combining sections after source-grounding fixes; the current recommendations are useful but become repetitive.",
+            "Consider replacing the unsupported exact engine list with a small sourced table: `postgres` and `aurora-postgresql` as examples, plus a note to use engine identifiers accepted by the relational database resource page if that page is available as a separate source."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided guardrail type definitions, but it makes several operational claims that are not grounded in the authoritative guardrails type source. The biggest issues are around VPC-only scope, existing-stack behavior, and error/reporting details.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Adding a guardrail is therefore safe for already-running stacks: it protects future deployments without disrupting infrastructure that is already in place.”",
+              "reason": "The authoritative guardrails type source defines guardrail shapes and says non-matching values are blocked, but it does not state that enabling a guardrail is safe for already-running stacks or that existing infrastructure is never disrupted. That operational behavior is not grounded in the required source file for this page.",
+              "suggestedFix": "Narrow to source-grounded wording: “Guardrails define preventive policy for future validations; non-matching values are blocked when the guardrail is evaluated.” Avoid claiming no disruption to existing infrastructure unless supported by runtime/command source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailDefinition =\n  | StageRestrictionGuardrail\n  | RegionRestrictionGuardrail\n  | CommandRestrictionGuardrail\n  | ResourceTypeRestrictionGuardrail\n  | RequireVpcDatabasesGuardrail\n  | RequireDeletionProtectionGuardrail\n  | RequireDeadLetterQueueGuardrail\n  | FunctionMemoryLimitGuardrail\n  | FunctionTimeoutLimitGuardrail\n  | ContainerResourceLimitGuardrail\n  | DatabaseEngineRestrictionGuardrail\n  | DatabaseInstanceRestrictionGuardrail\n  | RequireWafGuardrail\n  | RequireCustomDomainGuardrail\n  | ResourceCountLimitGuardrail;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“The `require-vpc-databases` guardrail enforces that all databases use VPC-only network accessibility with no public internet access. When `enabled` is `true`, any database that is not VPC-only is blocked.” The page then points only to relational database documentation for accessibility modes.",
+              "reason": "The source says “all databases,” not only relational databases. The draft’s surrounding context repeatedly frames database guardrails as relational-database guardrails, which may understate the scope of `require-vpc-databases`. The provided generated docs say this guardrail also checks OpenSearch domains, but the authoritative type file only supports the broader “all databases” wording.",
+              "suggestedFix": "Say “all databases” for `require-vpc-databases` and avoid narrowing the claim to relational databases. If OpenSearch scope is kept, ground it in runtime source; otherwise link relational docs only as one place where accessibility is configured, not as the full scope.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type RequireVpcDatabasesGuardrail = {\n  type: 'require-vpc-databases';\n  properties: {\n    /**\n     * #### When enabled, all databases must use VPC-only accessibility (no public internet access).\n     */\n    enabled?: boolean;\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When multiple guardrails are active, a deployment must satisfy every one of them to proceed — the first violation blocks the deployment and reports the specific error.”",
+              "reason": "The type source supports that individual guardrails define blocked or required values, but it does not define evaluation order, “first violation” behavior, or error-reporting details. Those are runtime/CLI behavior claims, not type-shape claims.",
+              "suggestedFix": "Remove “first violation” and specific reporting behavior unless runtime source is provided. Safer wording: “A stack must satisfy every active guardrail that applies to its resources.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailType =\n  | 'stage-restriction'\n  | 'region-restriction'\n  | 'command-restriction'\n  | 'resource-type-restriction'\n  | 'require-vpc-databases'\n  | 'require-deletion-protection'\n  | 'require-dead-letter-queue'\n  | 'function-memory-limit'\n  | 'function-timeout-limit'\n  | 'container-resource-limit'\n  | 'database-engine-restriction'\n  | 'database-instance-restriction'\n  | 'require-waf'\n  | 'require-custom-domain'\n  | 'resource-count-limit';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“What happens when a guardrail blocks my deployment? A deployment that violates an active guardrail is blocked, with an error describing which resource and value triggered the violation.”",
+              "reason": "The source comments establish that disallowed values are blocked, but they do not guarantee the shape or contents of the error message. The claim about resource and value details needs command/runtime source support.",
+              "suggestedFix": "Keep the blocking behavior, but remove the guaranteed error detail: “A deployment that violates an active guardrail is blocked. Update the resource configuration so it matches the guardrail and redeploy.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type DatabaseEngineRestrictionGuardrail = {\n  type: 'database-engine-restriction';\n  properties: {\n    /**\n     * #### Database engine types that are allowed (e.g., `[\"postgres\", \"aurora-postgresql\"]`). Others are blocked.\n     */\n    allowedEngines?: string[];\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Database guardrails are guardrail definitions with a `type` identifier and a `properties` object, applied across your organization rather than written into a single `stacktape.ts` file.”",
+              "reason": "The provided guardrails type source defines `GuardrailDefinition`, `type`, and `properties`, but it does not state where guardrails are configured or that they are organization-level rather than stack config. The generated docs mention Console/global configuration, but the page-specific instruction says guardrail claims should be grounded in `guardrails.d.ts`.",
+              "suggestedFix": "Either cite supported Console/runtime source for organization-level configuration, or narrow to: “Database guardrails are represented as guardrail definitions with a `type` identifier and a `properties` object.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Small teams or early-stage projects where engine flexibility matters more than standardization. If your team already follows a strong convention, a guardrail may add overhead without benefit.”",
+              "reason": "This is reasonable guidance, but “guardrail may add overhead” is not directly supported by the provided source. It is low impact because it is recommendation language, not a Stacktape behavior claim.",
+              "suggestedFix": "Keep the recommendation but make it less factual: “Small teams may choose to skip this until engine standardization becomes a real policy requirement.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly lists the four database guardrail type identifiers present in `guardrails.d.ts`.",
+            "The `allowedEngines`, `blockedInstanceSizes`, and `enabled` property names match the source definitions.",
+            "The page correctly distinguishes preventive guardrails from reactive alarms without conflating their purpose.",
+            "All cross-links used in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft correctly identifies the four database-related guardrail types and their main properties, but it makes several Stacktape-specific operational and configuration-scope claims that are not grounded in the authoritative guardrails type source provided.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says active guardrails block deployments at specific lifecycle points, are safe to add for already-running stacks, protect only future deployments, do not disrupt existing infrastructure, and that the first violation reports a specific error.",
+              "reason": "The authoritative guardrails type file supports the existence of these guardrail definitions and says certain values are blocked, but it does not define activation timing, existing-stack behavior, validation order, or error reporting. Those are Stacktape-specific operational claims and need runtime/CLI source support or narrower wording.",
+              "suggestedFix": "Keep the source-grounded claim that disallowed engines, blocked instance sizes, non-VPC database access, and missing deletion protection are blocked. Remove or hedge deploy-time, first-violation, error-message, and existing-infrastructure statements unless runtime validator or CLI source is added.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type DatabaseEngineRestrictionGuardrail = {\n  type: 'database-engine-restriction';\n  properties: {\n    /**\n     * #### Database engine types that are allowed (e.g., `[\"postgres\", \"aurora-postgresql\"]`). Others are blocked.\n     */\n    allowedEngines?: string[];\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Database guardrails are guardrail definitions with a `type` identifier and a `properties` object, applied across your organization rather than written into a single `stacktape.ts` file.”",
+              "reason": "The provided authoritative guardrails type source defines the shape of `GuardrailDefinition`, but it does not state where guardrails are configured, whether they are organization-wide, or whether they are excluded from `stacktape.ts`. This affects where readers will try to configure the feature.",
+              "suggestedFix": "Say only that database guardrails are represented as guardrail definitions with `type` and `properties`, or add Console/configuration source before claiming organization-level configuration and non-`stacktape.ts` placement.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailDefinition =\n  | StageRestrictionGuardrail\n  | RegionRestrictionGuardrail\n  | CommandRestrictionGuardrail\n  | ResourceTypeRestrictionGuardrail\n  | RequireVpcDatabasesGuardrail\n  | RequireDeletionProtectionGuardrail\n  | RequireDeadLetterQueueGuardrail\n  | FunctionMemoryLimitGuardrail\n  | FunctionTimeoutLimitGuardrail\n  | ContainerResourceLimitGuardrail\n  | DatabaseEngineRestrictionGuardrail\n  | DatabaseInstanceRestrictionGuardrail\n  | RequireWafGuardrail\n  | RequireCustomDomainGuardrail\n  | ResourceCountLimitGuardrail;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“VPC-only databases require consuming workloads to be in the same VPC, which adds a configuration step for every resource that needs database access. For local access to VPC-only databases during development, use a bastion host.”",
+              "reason": "The guardrail source only says databases must use VPC-only accessibility with no public internet access. It does not state same-VPC workload requirements, per-resource configuration steps, or bastion-host guidance.",
+              "suggestedFix": "Narrow the tradeoff to the sourced fact: VPC-only databases remove public internet access. If the page should recommend same-VPC workloads or bastion access, add relational database or bastion source files that support that guidance.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type RequireVpcDatabasesGuardrail = {\n  type: 'require-vpc-databases';\n  properties: {\n    /**\n     * #### When enabled, all databases must use VPC-only accessibility (no public internet access).\n     */\n    enabled?: boolean;\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The opening paragraph says the `properties` object describes what is allowed or blocked for relational databases in the stack.",
+              "reason": "The source distinguishes scopes: `require-vpc-databases` applies to all databases, while `require-deletion-protection` applies to relational databases. The opening wording makes the whole page sound relational-database-only, which is too broad for the VPC-only guardrail.",
+              "suggestedFix": "Change the opening to “database resources” or explicitly say that engine, instance, and deletion-protection guardrails focus on relational databases, while the VPC-only guardrail applies to all databases per the guardrail type definition.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "* #### When enabled, all databases must use VPC-only accessibility (no public internet access)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "* #### When enabled, all relational databases must have `deletionProtection` set to `true`."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly lists the four database-related guardrail type identifiers: `database-engine-restriction`, `database-instance-restriction`, `require-vpc-databases`, and `require-deletion-protection`.",
+            "The main property names match the authoritative type file: `allowedEngines`, `blockedInstanceSizes`, and `enabled`.",
+            "The draft correctly distinguishes preventive guardrails from reactive alarms without conflating their purposes.",
+            "All markdown cross-links in the draft point to routes present in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1630,8 +1917,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\guardrails\\databases.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/guardrails/databases.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.0, hard blockers 10, advisory high 0, verifier medium 6"
+  "pipelineReviewSummary": "reviewer-avg 7.0, hard blockers 0, advisory high 0, verifier medium 8",
+  "refinementAttempts": 1,
+  "refinementStalled": false
 }

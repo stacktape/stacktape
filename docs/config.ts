@@ -56,7 +56,7 @@ export default {
     backgroundColor: '#1B1B1B',
     url: 'https://docs.stacktape.com',
     siteimage: 'https://stacktape.com/cover-images/opengraph.png',
-    copyright: 'Copyright © Stacktape 2025'
+    copyright: 'Copyright © Stacktape 2026'
   },
   sidebar: {
     forcedNavOrder: [
@@ -139,8 +139,5 @@ export default {
     appId: 'PFTWPISD3F',
     apiKey: 'b10d8ccfbb0cb544d1a42486e46ecc8f',
     indexName: 'Docs crawler'
-  },
-  crisp: {
-    id: '1d26554b-8e37-4cb0-8c95-e774099f4b74'
   }
 };

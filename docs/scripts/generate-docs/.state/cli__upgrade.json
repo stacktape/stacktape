@@ -2,7 +2,7 @@
   "pageId": "cli__upgrade",
   "pageRoute": "cli/upgrade",
   "startedAt": "2026-05-17T23:19:10.997Z",
-  "updatedAt": "2026-05-17T23:25:47.382Z",
+  "updatedAt": "2026-05-22T01:58:09.476Z",
   "iterations": [
     {
       "iteration": 1,
@@ -690,6 +690,211 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/cli__upgrade/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Accurate source grounding throughout — detection logic (native, package-global, package-local, unknown), platform-specific shell usage, and no-API-key requirement are all confirmed by the source files.",
+            "The 'How it works' section adds real value by explaining the four installation scenarios and their differing behavior, which is the key thing a user needs to understand for this command.",
+            "No forbidden patterns — no YAML Stacktape config, no StacktapeConfig typed style, no fenced TypeScript defineConfig blocks.",
+            "Correct use of <CliCommandsApiReference> with the right sortedArgs shape; no hand-authored flags table.",
+            "<Info> callout cleanly surfaces the local-install gotcha without burying it in prose.",
+            "FAQ covers a practical range of questions (credential requirements, version detection, pinning/downgrading) and answers are concise and actionable.",
+            "Related commands section links to relevant siblings without padding."
+          ],
+          "problems": [
+            "The 'Examples' section shows `stacktape upgrade` — identical to the Usage section. The section guidelines say to include 'Examples' only for non-obvious patterns. The `--newVersion` / `--nv` flag is the one non-obvious pattern this command has, and it is documented only in the FAQ, not in the Examples section.",
+            "The <Info> callout under Examples partially repeats what the 'How it works' section already explains about local installs. It adds no new information and creates mild redundancy.",
+            "The Examples section, because it duplicates the Usage invocation exactly, adds zero practical value for copy-paste purposes and slightly undermines practicalUsefulness for a reader scanning for quick answers."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move the --newVersion usage into the Examples section with a concrete invocation (e.g. `stacktape upgrade --newVersion 3.4.0`) and a one-line prose explanation. This is the only non-trivial usage pattern for this command and it belongs in Examples, not buried in the FAQ.",
+            "Either remove the <Info> callout under Examples (since 'How it works' already covers the local-install case) or replace it with a forward reference to the 'How it works' section instead of restating the behavior.",
+            "The FAQ answer for 'Can I downgrade or pin a specific version?' says 'The CLI schema exposes a --newVersion flag. However, the standard upgrade flow...' — the 'However' framing is slightly confusing. Rewrite as: 'Use `stacktape upgrade --newVersion 3.4.0` to install a specific version. You can also use your package manager directly (e.g. `npm install -g stacktape@3.4.0`).' This makes the flag's purpose immediately clear.",
+            "Consider omitting the Examples H2 entirely and folding the --newVersion example into a 'Common patterns' note after the Flags section, since the command is simple enough that a separate Examples section feels forced when it can only show one invocation."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The 'How it works' section accurately maps to the four installation-type branches in `src/commands/upgrade/index.ts` (native, package-global, package-local, unknown), including the correct platform dispatch (PowerShell on Windows, sh elsewhere).",
+            "The API-key-not-required claim is correctly grounded in the `commandsNotRequiringApiKey` list in commands.ts.",
+            "No forbidden style violations: no YAML Stacktape config blocks, no StacktapeConfig type imports, no marketing language, no multiple commands in one shell block.",
+            "The `<CliCommandsApiReference>` component is used correctly per the CLI section instructions.",
+            "The FAQ correctly identifies that the command only has one configurable flag (`--newVersion`) and the upgrade is otherwise fully automatic.",
+            "Related commands section is correctly scoped to the 1-3 closest siblings."
+          ],
+          "problems": [
+            "The 'Examples' section only shows `stacktape upgrade` — the exact same command already shown in the 'Usage' section. The only configurable flag (`--newVersion`) never appears in a concrete example, so a reader wanting to install a specific version must infer the syntax from the flags table alone.",
+            "The claim that 'unknown installation method' causes Stacktape to 'print the native install script for your platform' is plausible but the utils.ts source file (which contains `getUpgradeCommand`) was not provided, so this specific behavior is not confirmed by the inline source. It may be correct, but it is a speculative statement from the page's source set.",
+            "The `<Info>` callout at the end of the Examples section ('If Stacktape is installed as a local project dependency…') duplicates content already covered in the 'How it works' section without adding new detail, creating unnecessary repetition.",
+            "The FAQ answer on 'Can I downgrade or pin a specific Stacktape version?' mentions package manager installs and re-running the native install script, but buries the in-CLI path (`--newVersion` flag) as the first sentence and then suggests workarounds — the flag is the primary documented mechanism and should be the lead recommendation with a concrete invocation shown."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a second example block showing `stacktape upgrade --newVersion 3.4.0` with a one-sentence intro explaining it installs a specific version. This makes the only configurable flag immediately usable without guessing.",
+            "Either remove the `<Info>` callout in the Examples section (it repeats 'How it works') or replace it with a genuinely new edge case not already covered in the prose.",
+            "Qualify the 'unknown installation method' behavior with a hedge such as 'Stacktape prints an install command for your platform' rather than asserting specifically 'the native install script', since utils.ts was not in the provided source set.",
+            "In the FAQ answer on version pinning, lead with the concrete `--newVersion` invocation (`stacktape upgrade --newVersion 3.4.0`) before mentioning package-manager workarounds, so readers get the simplest path first."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the expected length range.",
+            "The page follows the CLI reference structure: short intro, usage, generated flag reference, examples, related commands, and FAQ.",
+            "Shell examples are copyable and each fenced bash block contains only one command with no explanatory comments inside the block.",
+            "The page uses the required <CliCommandsApiReference command=\"upgrade\" /> component instead of hand-authoring the flags table."
+          ],
+          "problems": [
+            "Several installation-detection details are not grounded in the provided source files. The draft claims native, npm, pnpm, bun, local dependency, unknown install behavior, PowerShell/sh execution, and example update commands, but the provided implementation only shows branching on installationType values and delegates the actual detection and command generation to src/commands/upgrade/utils.ts, which is not included.",
+            "The flag discussion is internally inconsistent with the provided command description. Source prose says a version can be specified using the `--version` option, while the draft says the schema exposes `--newVersion`; without src/config/cli/options.ts, the page should avoid confidently documenting unsupported flag spelling beyond the generated reference.",
+            "The FAQ includes a concrete package-manager command with a pinned example version (`npm install -g stacktape@3.4.0`) that is not grounded in the provided sources and may age badly.",
+            "The page says no cloud interaction is involved. The source grounds that `upgrade` does not require a Stacktape API key, but it does not explicitly ground the broader claim about no cloud interaction or AWS credentials.",
+            "The page is practical for the basic happy path, but its most useful operational details depend on missing source files, so the reader may be misled by over-specific behavior claims."
+          ],
+          "mandatoryFixes": [
+            "Narrow or remove unsupported installation-method details unless `src/commands/upgrade/utils.ts` is added as a source. Keep only what `src/commands/upgrade/index.ts` proves: latest-version comparison, native/global installs run the generated command, local/unknown installs print a command, Windows uses PowerShell, other platforms use `sh`.",
+            "Resolve the version flag wording. Either align the prose with the source description (`--version`) or explicitly ground `--newVersion`/`--nv` from the options source or generated CLI reference; do not present both as if they are verified.",
+            "Remove the ungrounded pinned downgrade example or replace it with cautious wording that package-manager-specific version pinning is outside the `stacktape upgrade` flow."
+          ],
+          "optionalImprovements": [
+            "Add a short note under Usage that `stacktape upgrade` has no required flags, because `requiredArgs` is an empty array in the command definition.",
+            "Move the local-install behavior from the Info callout into the main How it works section, since it is one of the core decision points for this command.",
+            "Make Related commands more tightly upgrade-adjacent if available in the docs set; `version` is strong, while `login` is only loosely related because upgrading does not require an API key."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command definition and upgrade implementation. The main factual risk is that several detailed installation-detection and generated-command claims depend on `src/commands/upgrade/utils.ts`, which is not included in the source list, so they are not verifiable from the provided authoritative source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“It detects how Stacktape was installed — native binary, global package, or local project dependency” and the detailed bullets for native, global package, local project dependency, and unknown installation method.",
+              "reason": "The provided implementation shows that `commandUpgrade` calls `detectInstallationType()` and branches on returned string values, but the actual detection rules live in `src/commands/upgrade/utils.ts`, which is not included. The draft’s detailed explanation of what paths are inspected and how global/local/native installs are classified is therefore not grounded in the provided authoritative source.",
+              "suggestedFix": "Narrow the wording to what the included implementation proves: Stacktape calls an installation-type detector, automatically runs the upgrade command for `native` and `package-global`, and prints a command for `package-local` or unknown installs. Avoid describing the detector’s filesystem/path heuristics unless `utils.ts` is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/upgrade/index.ts",
+                  "quote": "const installationType = await detectInstallationType();\n  const upgradeCommand = getUpgradeCommand(installationType);"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/upgrade/index.ts",
+                  "quote": "if (installationType.installationType === 'native' || installationType.installationType === 'package-global') {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Global package install (npm, pnpm, or bun): the upgrade command runs automatically using the detected package manager (e.g. `npm update -g stacktape`, `pnpm update -g stacktape`, or `bun update -g stacktape`).”",
+              "reason": "The included command implementation does not show the package managers supported by `getUpgradeCommand()` or the exact command strings returned. Those details appear to come from the generated LLM doc, but the authoritative utility implementation is missing from the provided source list.",
+              "suggestedFix": "Either remove the exact npm/pnpm/bun command examples or phrase them cautiously as examples only if the source file defining `getUpgradeCommand()` is added and confirms them.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/upgrade/index.ts",
+                  "quote": "const upgradeCommand = getUpgradeCommand(installationType);"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/upgrade/index.ts",
+                  "quote": "Running upgrade command:\\n  ${tuiManager.colorize('yellow', upgradeCommand)}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Unknown installation method: Stacktape prints the native install script for your platform so you can run it manually.”",
+              "reason": "The implementation proves only that unknown installs print the `upgradeCommand` returned by `getUpgradeCommand()`. The provided source does not show that this command is a native install script or that it is platform-specific.",
+              "suggestedFix": "Say: “For unknown installation methods, Stacktape prints a command to run manually.” Add “native install script” only if `getUpgradeCommand()` is provided and confirms that behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/upgrade/index.ts",
+                  "quote": "const instructionPrefix =\n    installationType.installationType === 'package-local'\n      ? 'To upgrade Stacktape in your project'\n      : 'Could not detect your installation method automatically. To upgrade Stacktape';"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/upgrade/index.ts",
+                  "quote": "\\n\\n${instructionPrefix}, run:\\n  ${tuiManager.colorize('yellow', upgradeCommand)}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The Flags table documents `--newVersion (-nv)`, while the command description says “You can also specify a version to install using the `--version` option.”",
+              "reason": "The draft’s generated flags table uses `newVersion`/`nv`, but the command description in `commands.ts` says `--version`. The implementation also ignores command arguments entirely. This mismatch can confuse readers about whether version pinning is supported and which flag name works.",
+              "suggestedFix": "Keep the auto-generated reference, but add a caution near the flags table: the command metadata exposes `newVersion`, while the current `commandUpgrade` implementation resolves the latest published version and does not consume a version argument. Avoid telling readers to use `--version` unless the option source confirms it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts",
+                  "quote": "upgrade: {\n    description: `Upgrades Stacktape to the latest version.\n\nYou can also specify a version to install using the \\`--version\\` option.`,\n    args: {\n      newVersion: newVersion.optional()\n    }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/upgrade/index.ts",
+                  "quote": "export const commandUpgrade = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“No. The `upgrade` command is listed among commands that do not require a Stacktape API key. It only checks the latest published version and runs an install command locally — no cloud interaction is involved.”",
+              "reason": "The no-API-key part is grounded, but “no cloud interaction is involved” is broader than the provided source proves. The command calls `getLatestStacktapeVersion()`, whose implementation is not provided, so the source does not show what network endpoint or service is contacted to resolve the latest version.",
+              "suggestedFix": "Keep “No Stacktape API key is required.” Replace the rest with narrower wording such as: “The command reads the installed version, resolves the latest published Stacktape version, and then runs or prints a local install command.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly states that `upgrade` has no required arguments; `requiredArgs` is an empty array in `commands.ts`.",
+            "The draft correctly states that `upgrade` is listed in `commandsNotRequiringApiKey`.",
+            "The draft correctly describes the already-latest path: the implementation compares the latest version with the normalized current version and returns without running an upgrade command when no newer version is available.",
+            "The draft uses the required `<CliCommandsApiReference command=\"upgrade\" ... />` component and links only to routes present in the navigation index.",
+            "The shell examples follow the one-command-per-block rule."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -702,8 +907,16 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\upgrade.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 1, advisory high 0, verifier medium 8"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/cli/upgrade.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T01:58:09.476Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/upgrade/index.ts": "b46e3f0f37b59b7e86a19920d6e3a9543fd4a819",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/cli/upgrade.md": "822b3a16c9aa326d240043a5f7f71aad3aa1a259"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

@@ -1,0 +1,308 @@
+---
+title: 'Gradual Deployments'
+order: 80
+seoTitle: 'Gradual Deployments (Canary & Linear) | Stacktape Docs'
+seoDescription: 'Deploy Lambda functions and web services safely with canary and linear traffic shifting. Automatic rollback, lifecycle hooks, and zero-downtime deployments on AWS.'
+---
+
+# Gradual Deployments
+
+Gradual deployments shift traffic from the old version of your code to the new version incrementally — canary or linear — instead of switching all at once. If issues arise during the rollout, traffic rolls back to the previous version automatically. Stacktape supports gradual deployments for [Lambda functions](/resources/compute/lambda-function) and [web services](/resources/compute/web-service) that use an [application load balancer](/resources/networking/application-load-balancer).
+
+## When to use
+
+Enable gradual deployments when a broken release would cause visible user impact and you want an automated safety net. Typical scenarios:
+
+- **Production APIs handling real traffic** — a canary catches errors from 10% of requests before they hit everyone.
+- **Services with complex runtime behavior** — issues that unit tests and staging can't catch (memory leaks, performance regressions, third-party dependency failures).
+- **Teams shipping frequently** — multiple deploys per day benefit from automated rollback more than manual verification.
+
+## When NOT to use
+
+Gradual deployments add deploy-time complexity and extend total deployment duration by at least the strategy's wait interval. Skip them when:
+
+- **You're in early development** — fast iteration matters more than zero-downtime guarantees.
+- **The service has no inbound traffic** — background workers, cron jobs, and internal batch jobs don't benefit from traffic shifting. [Worker services](/resources/compute/worker-service) and [private services](/resources/compute/private-service) without a load balancer don't expose the `deployment` property.
+- **You need the fastest possible deploys** — canary strategies add 5–30 minutes to your deploy cycle depending on the strategy chosen.
+- **You use a network load balancer or HTTP API Gateway** — gradual deployments on a web service require `loadBalancing.type` set to `application-load-balancer`. The default `http-api-gateway` and `network-load-balancer` types do not support traffic shifting.
+
+## Lambda function strategies
+
+Lambda functions support nine deployment strategies through the `deployment` property on [LambdaFunction](/resources/compute/lambda-function). Traffic shifts between Lambda versions using weighted aliases managed by AWS CodeDeploy. If issues arise during the shift, traffic rolls back to the previous version automatically.
+
+### Strategy reference
+
+| Strategy | Behavior |
+|----------|----------|
+| `Canary10Percent5Minutes` | 10% immediately, remaining 90% after 5 minutes |
+| `Canary10Percent10Minutes` | 10% immediately, remaining 90% after 10 minutes |
+| `Canary10Percent15Minutes` | 10% immediately, remaining 90% after 15 minutes |
+| `Canary10Percent30Minutes` | 10% immediately, remaining 90% after 30 minutes |
+| `Linear10PercentEvery1Minute` | 10% more traffic every minute (full rollout in ~10 minutes) |
+| `Linear10PercentEvery2Minutes` | 10% more every 2 minutes (full rollout in ~20 minutes) |
+| `Linear10PercentEvery3Minutes` | 10% more every 3 minutes (full rollout in ~30 minutes) |
+| `Linear10PercentEvery10Minutes` | 10% more every 10 minutes (full rollout in ~100 minutes) |
+| `AllAtOnce` | Instant switch — no gradual rollout, but lifecycle hooks still run |
+
+**Canary** strategies are the most common choice. They expose a small slice of traffic (10%) to the new version for a fixed window, giving you time to observe error rates and latency before the remaining 90% shifts all at once.
+
+**Linear** strategies provide a smoother ramp-up. Use them when your function has load-dependent behavior (memory pressure, connection pool exhaustion, third-party rate limits) that only surfaces at higher concurrency.
+
+**AllAtOnce** switches traffic instantly but still runs lifecycle hooks (`beforeAllowTrafficFunction`, `afterTrafficShiftFunction`). Use it when you want pre-flight validation without the gradual ramp.
+
+### Basic Lambda example
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    memory: 1024,
+    timeout: 30,
+    deployment: {
+      strategy: 'Canary10Percent5Minutes'
+    }
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `strategy` property controls how traffic moves between versions. With `Canary10Percent5Minutes`, 10% of invocations go to the new version immediately. After 5 minutes with no issues, the remaining 90% shifts over. If issues arise during the canary window, traffic rolls back to the previous version automatically.
+
+### Lambda lifecycle hooks
+
+You can run validation functions before and after traffic shifts. The `beforeAllowTrafficFunction` runs before any user traffic reaches the new version — if it fails, the deployment rolls back without exposing users to the new code. The `afterTrafficShiftFunction` runs after all traffic has moved, useful for cleanup or notifications.
+
+Both properties take the resource name of another Lambda function in your config as a string value.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const smokeTest = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/smoke-test.ts'
+    }),
+    timeout: 60
+  });
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    memory: 1024,
+    timeout: 30,
+    deployment: {
+      strategy: 'Canary10Percent10Minutes',
+      beforeAllowTrafficFunction: 'smokeTest'
+    }
+  });
+
+  return { resources: { smokeTest, api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `smokeTest` function runs before any traffic shifts. Use it for health checks, integration verification, or testing the new version against a staging database. If the function signals failure, the deployment rolls back — no user traffic ever reaches the broken version.
+
+## Web service strategies
+
+[Web services](/resources/compute/web-service) support gradual deployments through the `deployment` property. Container traffic shifting follows the same canary, linear, or all-at-once pattern as Lambda, but routes through the application load balancer instead of Lambda aliases. The exact strategy values accepted by the `deployment.strategy` field are surfaced by TypeScript IntelliSense when editing your config.
+
+<Warning>
+Gradual deployments on a web service require an [application load balancer](/resources/networking/application-load-balancer). Set `loadBalancing.type` to `application-load-balancer` on your web service. The default `http-api-gateway` type does not support traffic shifting.
+</Warning>
+
+### Basic web service example
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new WebService({
+    containers: [
+      {
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/server.ts'
+        }),
+        environment: [
+          {
+            name: 'PORT',
+            value: '3000'
+          }
+        ]
+      }
+    ],
+    resources: { cpu: 0.25, memory: 512 },
+    loadBalancing: {
+      type: 'application-load-balancer'
+    },
+    deployment: {
+      strategy: 'Canary10Percent5Minutes'
+    }
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `loadBalancing.type` must be `application-load-balancer` for the `deployment` property to work. An ALB costs ~$18/month plus usage-based charges — if you're currently using the default `http-api-gateway` (pay-per-request), this is the main cost difference when enabling gradual deployments.
+
+## Choosing a strategy
+
+<FeatureComparisonTable
+  columns={["Canary", "Linear", "AllAtOnce"]}
+  features={[
+    { name: "Blast radius", values: { "Canary": "Low (10% max exposure)", "Linear": "Gradual increase", "AllAtOnce": "Full (100% immediate)" } },
+    { name: "Best for", values: { "Canary": "Most production APIs", "Linear": "Load-sensitive services", "AllAtOnce": "Hook-only validation" } },
+    { name: "Rollback window", values: { "Canary": "During wait period", "Linear": "At any step", "AllAtOnce": "Before-hook only" } },
+    { name: "Lambda options", values: { "Canary": "4 (5/10/15/30 min)", "Linear": "4 (1/2/3/10 min)", "AllAtOnce": "1" } }
+  ]}
+/>
+
+**For most teams, start with `Canary10Percent5Minutes`.** It balances safety (only 10% of users affected if the new version is broken) with speed (adds roughly 5 minutes to deploy time). Move to a longer canary window (`10Minutes`, `15Minutes`, or `30Minutes`) only if your monitoring needs more time to detect issues.
+
+Use **linear** strategies when you suspect that issues only appear under load. A linear ramp gives you time to observe metrics at each traffic level — useful for services with connection pools, caches, or memory-intensive workloads that behave differently at 50% load than at 10%.
+
+Use **AllAtOnce** when you want lifecycle hooks (before/after functions) but don't need gradual traffic shifting. The switch is instant, but your hooks still run and can block the deployment if validation fails.
+
+## Deploy time impact
+
+Gradual deployments extend total deployment time. The minimum overhead equals the strategy's built-in wait interval — `Canary10Percent5Minutes` adds at least 5 minutes, `Linear10PercentEvery10Minutes` adds at least 100 minutes. Additional time for packaging, CloudFormation updates, and container startup comes on top of the strategy interval.
+
+For Lambda functions, the strategy interval dominates. For web services, new container instances must also start and pass health checks before traffic shifting begins, which adds variable time depending on image size and startup behavior.
+
+| Lambda strategy type | Interval |
+|--------------|-----------------|
+| Canary | 5, 10, 15, or 30 minutes |
+| Linear | 1, 2, 3, or 10 minutes per step (10 steps total) |
+| AllAtOnce | Instant |
+
+## Rollback behavior
+
+Rollback behavior for Lambda functions is described in the `LambdaDeploymentConfig` source: if issues arise during traffic shifting, traffic rolls back to the previous version automatically. The `beforeAllowTrafficFunction` hook can also trigger a rollback by signaling failure — the deployment stops before any user traffic reaches the new code.
+
+For web services, the `deployment` property enables the same pattern through the ALB. If issues arise during the traffic shift, traffic rolls back to the previous version automatically.
+
+In both cases, rollback happens at the traffic-routing layer — the old version is still running and traffic is pointed back to it without needing a full redeploy.
+
+The [`stacktape rollback`](/cli/rollback) command performs a separate, CloudFormation-level rollback to a previously deployed version. It is designed for rolling back completed deployments (reverting to an earlier version of your stack), not for interrupting an in-progress gradual deployment.
+
+## Writing lifecycle hook functions
+
+Both `beforeAllowTrafficFunction` and `afterTrafficShiftFunction` receive a CodeDeploy lifecycle event and must call back to CodeDeploy with a success or failure status. Here is the expected handler pattern:
+
+```typescript
+import { CodeDeploy } from '@aws-sdk/client-codedeploy';
+
+const codedeploy = new CodeDeploy({});
+
+export const handler = async (event: { DeploymentId: string; LifecycleEventHookExecutionId: string }) => {
+  try {
+    // Run your validation logic here
+    // e.g., hit a health endpoint, check database connectivity, verify dependencies
+
+    await codedeploy.putLifecycleEventHookExecutionStatus({
+      deploymentId: event.DeploymentId,
+      lifecycleEventHookExecutionId: event.LifecycleEventHookExecutionId,
+      status: 'Succeeded'
+    });
+  } catch (error) {
+    await codedeploy.putLifecycleEventHookExecutionStatus({
+      deploymentId: event.DeploymentId,
+      lifecycleEventHookExecutionId: event.LifecycleEventHookExecutionId,
+      status: 'Failed'
+    });
+  }
+};
+```
+
+The function must explicitly signal either `Succeeded` or `Failed`. If it times out without signaling, the deployment treats it as a failure and rolls back. Set a generous `timeout` on the hook function to give your validation logic enough time to complete.
+
+## Cost considerations
+
+Gradual deployments themselves don't add AWS costs beyond what you pay for the underlying resources. However, there are indirect cost factors to consider:
+
+- **Application load balancer** is required for web service gradual deployments. ALBs cost ~$18/month plus usage-based charges (LCU pricing). If you're currently using the default `http-api-gateway` (pay-per-request at ~$1/million requests), switching to ALB is the main cost addition. ALBs are more cost-effective above roughly 500k requests/day.
+- **Web services** run both old and new container instances simultaneously during the traffic-shifting window. You pay for double capacity for the duration of the strategy interval. For a 5-minute canary, this is minimal. For a longer linear ramp, factor in the additional Fargate or EC2 costs.
+- **Lambda functions** have no meaningful cost overhead from gradual deployments. The alias-based traffic shifting doesn't create extra invocations — the same request count simply splits across two versions.
+
+## Lambda vs web service comparison
+
+| Aspect | Lambda functions | Web services |
+|--------|-----------------|--------------|
+| Strategies available | 9 (finer time granularity) | Supported via `deployment` property |
+| Load balancer required | No | Yes (`application-load-balancer`) |
+| Auto-rollback | If issues arise during shift; hook failure | If issues arise during shift |
+| Lifecycle hooks | `beforeAllowTrafficFunction`, `afterTrafficShiftFunction` | — |
+| Cost overhead | None | Brief double-capacity during shift |
+
+<ApiReference definitionName="LambdaDeploymentConfig" />
+
+## FAQ
+
+### What happens if my deployment fails during the canary window?
+
+For Lambda functions, traffic automatically reverts to the previous version. For web services, traffic stays on the original containers and the deployment stops. No manual intervention is required in either case. The rollback happens at the traffic-routing layer, so the old version is never taken down.
+
+### Can I use gradual deployments with HTTP API Gateway?
+
+No. Gradual deployments for web services require an [application load balancer](/resources/networking/application-load-balancer). The default `http-api-gateway` load balancing type routes to a single target and does not support weighted traffic splitting. Lambda functions don't have this restriction — they use alias-based shifting and work regardless of how the function is triggered.
+
+### How do I monitor the canary during deployment?
+
+Use [`stacktape debug:logs`](/cli/debug-logs) to tail logs from the function or container in real time. You can also configure [alarms](/observability/alarms) on your resources to surface issues as they happen. CloudWatch metrics (error rates, latency, 5xx counts) are available in the [Stacktape Console](/stacktape-console/console-overview) and directly in AWS CloudWatch.
+
+### Does AllAtOnce provide any benefit over a normal deployment?
+
+Yes. `AllAtOnce` still runs your `beforeAllowTrafficFunction` before traffic shifts, giving you a pre-flight check (smoke test, integration verification) that can block the deployment. A normal deployment without the `deployment` property switches traffic immediately with no hook opportunity.
+
+### Can I use gradual deployments for private services or worker services?
+
+[Private services](/resources/compute/private-service) and [worker services](/resources/compute/worker-service) do not expose the `deployment` property. Private services don't have internet-facing load balancers, and worker services have no inbound traffic to shift. If you need gradual deployments for an internal service, consider using a [web service](/resources/compute/web-service) with `loadBalancing.type: 'application-load-balancer'` instead.
+
+### Can I customize the canary percentage or timing?
+
+No. The strategies use fixed percentages and intervals. All canary strategies shift 10% initially, and all linear strategies increment by 10% per step. If you need custom percentages or intervals, you can use [CloudFormation overrides](/configuration/overrides-and-escape-hatches) to define a custom deployment configuration, but this requires understanding the underlying AWS CodeDeploy configuration resources.
+
+### How much does a gradual deployment cost compared to a normal deployment?
+
+For Lambda functions, there's no additional cost — the same invocations are split across two versions. For web services, you pay for double capacity during the traffic-shifting window because both old and new containers run simultaneously. The additional cost depends on your container size and the strategy duration. A 5-minute canary with 0.25 vCPU / 512 MB containers adds pennies; a longer linear ramp with larger containers adds a few dollars per deployment.
+
+### How fast does rollback happen?
+
+For Lambda functions, the alias weight change propagates within seconds. For web services, the ALB listener rule switches back to the original target group, which typically completes within a minute as connections drain from the new containers.
+
+### When should I use a longer canary window (15 or 30 minutes)?
+
+Use longer canary windows when your monitoring needs time to accumulate statistically significant data. A 5-minute window works for APIs with consistent traffic (hundreds of requests per minute). If your service handles fewer requests, a 15 or 30-minute window ensures enough requests hit the new version to surface latency regressions or elevated error rates. Also consider longer windows when issues tend to be delayed — memory leaks, connection exhaustion, or cache warming that takes time to manifest.

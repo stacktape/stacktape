@@ -1,0 +1,207 @@
+# Issues
+
+Stacktape Issues is a built-in error inbox available in the [Stacktape Console](/stacktape-console/console-overview) and the [CLI](/cli/issues-list). It records runtime errors from your compute resources and displays each issue's status, error message, error type, occurrence count, resource name, and originating project and stage. Manage issues without integrating a third-party error tracking service.
+
+## When to use
+
+Stacktape Issues gives you structured error tracking with no additional SDK or external service. Enable it when:
+
+- You want to see which runtime errors are recurring across projects and stages without scanning raw log lines.
+- You need a lightweight triage workflow — open, resolve, or ignore issues — without leaving Stacktape.
+- You want occurrence counts and error classification grouped per issue, not scattered across individual log entries.
+
+Issues works well as a first line of error visibility. For most teams shipping APIs and background workers on Stacktape, it replaces the need for a separate error tracking tool during early and mid-stage development.
+
+## When NOT to use
+
+Stacktape Issues detects errors from log output. It does not instrument your application process directly. If you need guaranteed capture of every in-process exception, breadcrumbs, custom tags, user session tracking, release tracking, or performance profiling, use a dedicated APM tool like Sentry or Datadog alongside or instead of Issues. Issues is best for catching and triaging recurring runtime failures — not for full-stack observability.
+
+## Enabling issue monitoring
+
+Issue monitoring is off by default for new projects. Configure it from the Issues page in the Stacktape Console by clicking **Configure Issues**. Displaying the configure button requires the `projects:update-settings` permission in your organization.
+
+The setup modal accepts four settings:
+
+| Setting | Description |
+|---|---|
+| **Organization-wide enable** | Capture errors from every project in the organization |
+| **Per-project enable** | Turn monitoring on or off for individual projects |
+| **Enabled stages** | List of stage names to monitor. Leave empty to monitor all stages |
+| **Event sampling rate** | Fraction of error events to process. Defaults to 100 when no organization-level rate is set |
+
+After enabling, redeploy each target stage with Stacktape CLI 3.8.0 or newer. The deployment adds AWS CloudWatch Logs subscription filters that route error events to the detection system. Until you redeploy, no errors are captured for that stage.
+
+
+> **Warning:** Stages deployed with CLI versions older than 3.8.0 do not report issues. Redeploy after enabling monitoring for detection to begin.
+
+
+### Event sampling rate
+
+The sampling rate controls what fraction of detected error events the system processes. At 100 (the default), every error is captured. Lowering the rate reduces processing volume during traffic bursts but makes occurrence counts approximate rather than exact. Consider lowering the rate for high-traffic stages where you need trend visibility without processing every event.
+
+
+> **Info:** Issues remain visible in the Console and CLI even after monitoring is turned off for a project. Disabling monitoring stops new errors from being captured but does not delete existing issues.
+
+
+## Error types
+
+Stacktape classifies detected runtime errors into six types. These labels appear in both the Console table and the CLI output:
+
+| Error type | Description |
+|---|---|
+| **Uncaught** | An unhandled exception in application code |
+| **Caught** | An exception that was caught and explicitly logged |
+| **Unhandled Rejection** | A Promise rejection without a `.catch()` or `try/catch` in an `async` function |
+| **Exit Error** | The process exited with a non-zero exit code |
+| **Handler Not Found** | The Lambda runtime could not locate the specified handler function |
+| **Panic** | A panic-level error (e.g., Go `panic()`, Rust `panic!`) |
+
+The error type helps you quickly distinguish between preventable application bugs (Uncaught, Unhandled Rejection), infrastructure-level failures (Exit Error, Handler Not Found), and crash-severity events (Panic). Caught errors appear when your code handles an exception but still logs it at error level.
+
+## Issue statuses
+
+Every issue has one of three statuses. The Console displays summary cards at the top of the Issues page with the count for each:
+
+| Status | Color in Console | Meaning |
+|---|---|---|
+| **Open** | Red | Active error that needs attention |
+| **Resolved** | Green | Marked as fixed |
+| **Ignored** | Gray | Intentionally suppressed |
+
+Use **Resolve** when you've shipped a fix for the error. Use **Ignore** when the error is expected or non-actionable (for example, a known third-party timeout you can't prevent). Both statuses can be reverted to Open if the error recurs or you change your mind. Status changes are available through the CLI commands [`issues:resolve`](/cli/issues-resolve), [`issues:ignore`](/cli/issues-ignore), and [`issues:reopen`](/cli/issues-reopen).
+
+## Viewing issues in the Console
+
+The Issues page in the Stacktape Console provides a filterable, paginated view of all recorded issues across your organization. Three summary cards at the top show the count of Open, Resolved, and Ignored issues at a glance.
+
+### Issue table
+
+Below the summary cards, a table lists issues with these columns:
+
+| Column | Shows |
+|---|---|
+| **Last seen** | Timestamp of the most recent occurrence |
+| **Error** | The error message (truncated in the table row) |
+| **Type** | One of the six error types |
+| **Resource** | The function or resource name that produced the error, when available |
+| **Project / Stage** | The originating project and stage |
+| **Count** | Total occurrences of this error |
+| **Status** | Current status with color coding |
+
+Clicking any row navigates to the issue detail page for that specific error.
+
+### Filtering
+
+The Console provides four combinable filters that let you narrow the issue list:
+
+- **Status** — All, Open, Resolved, or Ignored. Defaults to Open so you see active errors first.
+- **Search** — Substring match against error messages. Useful for finding a specific exception type or message pattern.
+- **Project** — Narrow results to a single project.
+- **Stage** — Narrow results to a single stage. The dropdown includes stages from your deployed and undeployed projects plus stages found in existing issues.
+
+The table paginates at 20 items per page by default and sorts by last-seen timestamp descending. Changing any filter resets to the first page.
+
+
+> Screenshot: Stacktape Console Issues page showing three summary cards for Open, Resolved, and Ignored counts, filter controls for status, search, project, and stage, and a paginated table listing runtime errors with columns for last seen, error, type, resource, project/stage, count, and status Caption: Issues page with summary cards, filters, and the error table
+
+
+## Managing issues from the CLI
+
+The Stacktape CLI provides commands for working with issues. These commands use your configured [API key](/stacktape-console/api-keys) and work in non-interactive environments like CI/CD pipelines and AI coding assistants.
+
+### Listing issues
+
+[`stacktape issues:list`](/cli/issues-list) displays issues as a formatted table. The default limit is 25.
+
+```bash
+stacktape issues:list
+```
+
+Filter by project, stage, or status:
+
+```bash
+stacktape issues:list --projectName my-api --stage production --issueStatus OPEN
+```
+
+Set a custom limit:
+
+```bash
+stacktape issues:list --limit 50
+```
+
+In agent mode (used by AI coding assistants), the command outputs raw JSON for programmatic consumption. The JSON includes each issue's `id`, `status`, `errorMessage`, `errorType`, `functionName`, `project`, `stage`, `occurrenceCount`, and `lastOccurrence`.
+
+### Changing issue status
+
+The CLI provides three commands to change an issue's status:
+
+- [`stacktape issues:resolve`](/cli/issues-resolve) — mark an issue as resolved
+- [`stacktape issues:ignore`](/cli/issues-ignore) — suppress an issue
+- [`stacktape issues:reopen`](/cli/issues-reopen) — move an issue back to Open
+
+See each command's CLI reference page for usage details and available flags.
+
+
+> **Tip:** Use these commands in deployment pipelines to auto-resolve issues after a successful deploy, or to check for open issues as a deployment gate before promoting a stage.
+
+
+## Issues vs logs vs alarms
+
+Issues, [logs](/observability/logs), and [alarms](/observability/alarms) serve different observability purposes. Use them together for layered coverage:
+
+| | Issues | Logs | Alarms |
+|---|---|---|---|
+| **Purpose** | Track and triage runtime errors | View raw output from resources | Alert on metric thresholds |
+| **How it works** | Captures error events from log output | Always on — every log line is recorded | You define threshold rules in config |
+| **Grouping** | Errors tracked with occurrence counts | No grouping — raw stream | One alarm per rule |
+| **Action model** | Resolve, ignore, or reopen | Search and filter via [`debug:logs`](/cli/debug-logs) | Triggers [notifications](/observability/notifications) |
+| **Best for** | Error triage and regression tracking | Debugging specific requests | Proactive threshold monitoring |
+
+Issues complement [alarms](/observability/alarms): alarms tell you *something is wrong* (high error rate, elevated latency), while issues tell you *what specific errors are happening*. Configure [alert channels](/observability/alert-channels) for alarm notifications, then use the Issues page to diagnose which errors are driving the spike.
+
+## Limitations
+
+- **Log-based detection.** Issues relies on detecting error patterns from log output. Errors that don't produce recognizable log patterns — such as silent data corruption, errors swallowed without logging, or logic bugs with no error output — are not captured.
+- **False positives possible.** Log lines that match error patterns but aren't actual application errors (for example, error messages logged at info level for diagnostic purposes) may be recorded as issues. Review unexpected entries before acting on them.
+
+## FAQ
+
+### How do I enable issue monitoring for my projects?
+
+Open the Issues page in the [Stacktape Console](/stacktape-console/console-overview) and click **Configure Issues**. You can enable monitoring organization-wide or for individual projects, and optionally restrict it to specific stage names. After enabling, redeploy each target stage with Stacktape CLI 3.8.0 or newer so the CloudWatch Logs subscription filters are created.
+
+### What types of errors does Stacktape detect?
+
+Stacktape classifies errors into six types: uncaught exceptions, caught exceptions, unhandled Promise rejections, process exit errors, Lambda handler-not-found errors, and panics. These types appear in both the Console table and the CLI output, helping you quickly distinguish between application bugs, infrastructure failures, and crash-severity events.
+
+### Does issue monitoring add cost to my AWS bill?
+
+The detection mechanism uses AWS CloudWatch Logs subscription filters, which route matching log events to the processing system. For most workloads this adds minimal cost. High-volume stages with noisy error logs may see higher processing volume — lowering the event sampling rate reduces this. See [Managing Costs](/managing-costs/overview) for broader cost guidance.
+
+### Can I manage issues from CI/CD pipelines?
+
+Yes. The CLI commands ([`issues:list`](/cli/issues-list), [`issues:resolve`](/cli/issues-resolve), [`issues:ignore`](/cli/issues-ignore), [`issues:reopen`](/cli/issues-reopen)) accept API key authentication and work in non-interactive environments. Use them in deployment pipelines to check for open issues as a gate, or to auto-resolve issues after a successful deploy.
+
+### What permissions do I need to configure issue monitoring?
+
+Configuring monitoring settings — enabling per project, setting the sampling rate, choosing stages — requires the `projects:update-settings` permission. Access to viewing and managing issues is controlled through your organization's [team and access settings](/stacktape-console/team-and-access-control).
+
+### How is Stacktape Issues different from Sentry or Bugsnag?
+
+Stacktape Issues is a lightweight, built-in error inbox with no SDK integration, no separate billing, and no external data egress. It detects errors from log output rather than in-process SDK instrumentation. This means zero code changes but less granular context — no breadcrumbs, no custom tags, no user session tracking, no performance traces. Use Issues for straightforward error triage; consider a dedicated APM tool if you need deep debugging context, release tracking, or performance monitoring.
+
+### Do I need to redeploy after enabling issue monitoring?
+
+Yes. Enabling monitoring in the Console configures the platform to process incoming errors, but the CloudWatch Logs subscription filters are attached to your resources during deployment. Each stage must be redeployed with Stacktape CLI 3.8.0 or newer for detection to begin. Stages deployed with older CLI versions do not report issues.
+
+### What happens to existing issues when I disable monitoring?
+
+Existing issues remain visible in the Console and CLI after monitoring is turned off. Disabling monitoring stops new errors from being captured but does not delete previously recorded issues. You can still filter, search, resolve, or ignore them.
+
+### Can I filter issues to only production stages?
+
+Yes, at two levels. In the monitoring configuration, restrict detection to specific stage names so errors from development or test stages are never captured. In the Console and CLI, filter the displayed issues by stage after capture. Use the configuration-level filter to reduce noise from non-production stages; use the display-level filter for ad-hoc investigation across stages.
+
+### When should I use issues vs alarms for error monitoring?
+
+Use both — they answer different questions. [Alarms](/observability/alarms) fire when a metric crosses a threshold (e.g., error rate above 5%), telling you *something is wrong*. Issues tell you *what specific errors are happening* and how often. Set up alarms with [alert channels](/observability/alert-channels) for real-time notification, then use the Issues page to identify which errors caused the spike and decide how to fix them.

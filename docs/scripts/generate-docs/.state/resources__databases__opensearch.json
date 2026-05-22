@@ -2,7 +2,7 @@
   "pageId": "resources__databases__opensearch",
   "pageRoute": "resources/databases/opensearch",
   "startedAt": "2026-05-17T12:31:08.430Z",
-  "updatedAt": "2026-05-17T12:47:56.275Z",
+  "updatedAt": "2026-05-21T19:53:31.681Z",
   "iterations": [
     {
       "iteration": 1,
@@ -769,6 +769,338 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__databases__opensearch/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Self-contained opening paragraph with concrete pricing (~$50/month sourced from JSDoc) — extractable by AI engines without surrounding context.",
+            "Strong peer-level 'When to use' / 'When NOT to use' H2 sections with a comparison table covering DynamoDB, relational databases, Redis, and PostgreSQL full-text search.",
+            "Accessibility mode permanence warning is prominent and placed at the exact decision point where the reader is about to choose — not buried in an FAQ.",
+            "Multiple production-oriented code examples (dev single-node, production 3-node with dedicated masters and standby) that scale in complexity and are realistic enough to copy.",
+            "Cluster configuration covers all three node roles in the union type (data nodes, dedicated master nodes, UltraWarm warm nodes) with per-role tradeoffs and instance type guidance — not just the happy path.",
+            "connectTo / environment variable section correctly distinguishes IAM grants (via connectTo) from endpoint injection (via $ResourceParam), with a working code example showing both.",
+            "FAQ spans all three required categories: Stacktape-specific (accessibility mode, scaling after creation), AWS use-case (pricing, logging, AZ redundancy), and comparison (vs DynamoDB, vs Elasticsearch, vs relational DB) — 10 well-differentiated pairs.",
+            "All CodeBlock examples use defineConfig + class-based resources with focus markers hiding imports — no forbidden YAML or plain-object style detected.",
+            "Logging section documents all three log types (error, search slow, index slow) with defaults sourced from the type definitions (disabled: false, 14-day retention)."
+          ],
+          "problems": [
+            "The logging section states 'Each log type is enabled by default' as a general fact, but the source only confirms `disabled: false` as a default for an OpenSearchLogRetentionSettings object when it IS configured. Whether logs are active when the `logging` property is omitted entirely is ambiguous in the source. The JSDoc for the logging property says 'Sent to CloudWatch automatically', which partially supports the claim, but the wording 'enabled by default' could mislead readers into thinking logs flow without any config. Source-grounding verifier may flag this as overreaching.",
+            "The 'Connecting to other resources' section contains a negative claim: 'OpenSearch domains are in the connectTo system but do not auto-inject environment variables.' The connectTo JSDoc in __helpers.d.ts enumerates which resource types inject env vars and OpenSearch is not listed — but the source is silent on negatives, not explicitly stating no vars are injected. Source-grounding verifier policy flags negative env-var claims as unsupported. The claim is practically accurate given the source silence, but phrasing it as a positive ('Use $ResourceParam to inject endpoint and ARN') without the negative form would be safer.",
+            "The 'Overrides' section contains only one sentence pointing to an external link. Per the completeness discipline this is acceptable (the link is informative), but the section header with a single sentence of filler could be omitted rather than kept as a near-empty section."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Rephrase the logging default claim from 'Each log type is enabled by default' to 'When the logging property is configured, each log type defaults to enabled (disabled: false) with 14-day retention' — this stays within what the source confirms without implying behavior when logging is omitted.",
+            "Replace the negative connectTo claim ('do not auto-inject environment variables') with a purely positive framing: 'Use the $ResourceParam directive to inject the domain endpoint and ARN into your workload's environment — Stacktape grants IAM permissions via connectTo and exposes domainEndpoint and arn as referenceable parameters.' This avoids the source-grounding negative-claim trap while preserving the practical guidance.",
+            "Remove the 'Overrides' section entirely or expand it with one concrete example of a property a user would realistically override on an OpenSearch domain (e.g. enabling encryption at rest). A single-sentence section that only restates 'use overrides' adds no value over the API reference.",
+            "The Cognito Dashboards section could add one sentence on how to locate the Dashboards URL after deployment — e.g. mentioning that the URL is available via $ResourceParam or stacktape info:stack output — so the reader knows what comes next after deploying with userPool.",
+            "Consider adding a brief mention of dev mode behavior for OpenSearch (or explicitly noting it runs on the deployed AWS resource rather than locally during stacktape dev), since the DevModeConfig interface in __helpers.d.ts is relevant to how readers think about testing their setup locally."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "No mandatory style violations: all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with `label: 'TypeScript'`, no hand-authored YAML, no StacktapeConfig plain-object style.",
+            "The Warning callout on accessibility mode permanence is the most production-critical fact on the page and is prominently placed — exactly what a production user needs before making an irreversible decision.",
+            "connectTo handling is correctly scoped: the page accurately states OpenSearch does not auto-inject env vars (OpenSearch is absent from the connectTo JSDoc enumeration in __helpers.d.ts) and directs the reader to $ResourceParam with concrete parameter names sourced from `OpenSearchDomainReferencableParams = 'arn' | 'domainEndpoint'`.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service mechanics, choosing/comparison) with 10 distinct, non-padded entries. Each answer is 2–4 sentences and stands alone when extracted.",
+            "Production example (3 data nodes, 3 dedicated masters, standbyEnabled, higher IOPS/throughput) is realistic and grounded in source constraints: standby requirements match the source JSDoc exactly.",
+            "Source-grounded defaults are consistently cited: version 2.17, m4.large.search single-node default, internet accessibility, 14-day log retention, iops 3000, throughput 125 MiB/s — all verified against the type definitions.",
+            "Decision-support depth is present in every opt-in section (when to enable, when default is fine, cost/tradeoff signal, opinion) — dedicated master nodes, warm storage, standby, Cognito Dashboards all include tradeoff prose, not just config snippets.",
+            "The accessibility mode comparison table (internet / vpc / scoping-workloads-in-vpc) with 'When to use' column gives the reader enough context to decide before writing config."
+          ],
+          "problems": [
+            "Minor ambiguity in logging section: 'Each log type is enabled by default' is slightly aggressive. The source sets `disabled: @default false` on each log sub-type, but the top-level `logging` field is optional (`logging?: OpenSearchLogConfiguration`). Whether logs fire when `logging` is omitted entirely is not explicitly stated by the source. The JSDoc comment 'Sent to CloudWatch automatically' supports the claim, but the wording could be tightened.",
+            "The statement 'Increasing `iops` above 3000 or `throughput` above 125 MiB/s incurs additional AWS cost' is correct AWS behavior but is not explicitly stated in the provided source files — only 'GP3 volumes only' is sourced. This is a well-known AWS fact but technically ungrounded for strict source-grounding purposes.",
+            "The `$ResourceParam` directive usage is shown as a JavaScript string literal (`value: \"$ResourceParam('search', 'domainEndpoint')\"`) without any note that this is a Stacktape config-time directive, not a runtime expression. A reader encountering this pattern for the first time might be confused about when evaluation occurs."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Tighten the logging 'enabled by default' claim: change 'Each log type is enabled by default' to 'When configured, each log type is active by default (`disabled: false`). The source JSDoc marks logs as sent to CloudWatch automatically, but whether they fire without any `logging` config entry is worth testing against a fresh deploy.' Alternatively, just say 'The `disabled` property defaults to `false` — once you add a logging block, logs flow unless you explicitly disable them.'",
+            "Add a one-sentence caveat for the IOPS cost note: 'GP3 volumes default to 3000 IOPS and 125 MiB/s throughput; provisioning above these baseline values incurs additional EBS charges' — framing it as an EBS pricing model fact rather than a Stacktape claim.",
+            "Add a brief note explaining `$ResourceParam` in the connecting section: 'The `$ResourceParam` directive is evaluated at deploy time — Stacktape substitutes the resolved endpoint URL into the Lambda's environment before deployment.' This prevents confusion about whether the string is evaluated at runtime.",
+            "The Cluster configuration section has four sub-H3s (Data nodes, Dedicated master nodes, Warm storage, Production example) plus Multi-AZ prose — consider extracting 'Multi-AZ and standby' into its own H3 rather than leaving it as trailing prose after the production example. It's a distinct topic with its own source properties (`multiAzDisabled`, `standbyEnabled`) and deserves equal visual weight.",
+            "The 'Overrides' section is a single sentence. This is acceptable per instructions (if source-grounded content is thin, keep it short), but consider adding a one-line example of what kind of OpenSearch-specific CF property a user might want to override (e.g., encryption at rest, domain policy) to make it slightly more actionable."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and includes the sourced pricing context.",
+            "The page uses the required TypeScript class-based <CodeBlock intellisense> pattern and avoids hand-authored Stacktape YAML.",
+            "Core OpenSearch configuration areas are covered: version, cluster topology, storage, networking, connectTo, logging, Dashboards, referenceable params, and API reference.",
+            "Networking mode comparison table is useful and correctly highlights the permanent internet/VPC mode choice from the source.",
+            "FAQ is broad and mixes Stacktape-specific, AWS-use-case, and comparison questions."
+          ],
+          "problems": [
+            "Several technical claims go beyond the provided source: Elasticsearch client libraries working without changes, Kibana fork wording, r6g memory-to-cost guidance, m5/m6g master sizing guidance, AWS blue/green updates, OpenSearch feature claims like ML-powered search/anomaly detection/observability plugins, and single-digit millisecond DynamoDB latency.",
+            "The page makes a negative connectTo/env-var claim: \"OpenSearch domains are in the connectTo system but do not auto-inject environment variables.\" The source only omits OpenSearch from the injected-variable table; it does not support stating the negative.",
+            "The source only shows OpenSearchDomain in connectTo as affecting IAM role permissions. The page says scoping-workloads-in-vpc security-group access is configured via connectTo, but the helper source lists OpenSearch under role-affecting resources, not security-group-affecting resources.",
+            "The Logging section says all three log types are enabled by default, but the source only states each nested log setting's disabled default is false if that log configuration object exists. It does not clearly prove all log groups are created when logging is omitted.",
+            "The Basic example calls the domain \"minimal\" while requiring clusterConfig and storage. Because clusterConfig is optional and defaults to one m4.large.search node, the wording is slightly misleading.",
+            "Some tunable values are under-explained: production example sets storage iops/throughput, instance classes, dedicatedMasterCount, and standbyEnabled without enough source-grounded rationale for each value.",
+            "The \"Overrides\" section is too thin for an advanced escape hatch and provides no OpenSearch-specific caution or example. It may be better omitted or expanded from source-grounded ResourceOverrides behavior.",
+            "The phrase \"production-ready cluster\" is a style-guide issue because it is not qualified by the specific properties that make the example suitable for production."
+          ],
+          "mandatoryFixes": [
+            "Replace the negative env-var sentence with a source-grounded version: state that OpenSearch exposes `domainEndpoint` and `arn` as referenceable parameters via `$ResourceParam()`, and that `connectTo` adds IAM permissions to the consuming workload role. Do not claim OpenSearch env vars are not auto-injected.",
+            "Remove or narrow the unsupported security-group claim for `scoping-workloads-in-vpc`. The source supports that the mode requires security-group access via `connectTo` in the OpenSearch accessibility docs, but `__helpers.d.ts` does not list OpenSearch as security-group-affecting; phrase cautiously and do not generalize beyond the accessibility mode wording.",
+            "Revise the Logging default wording. Say `disabled` defaults to `false` and `retentionDays` defaults to `14` within each configured log type; avoid claiming all three log types are always enabled when `logging` is omitted unless runtime source proves it.",
+            "Remove or qualify unsupported AWS/OpenSearch claims not present in the provided sources, especially client-library compatibility without changes, Kibana fork, r6g cost-efficiency, AWS blue/green updates, OpenSearch plugin feature lists, and DynamoDB latency numbers.",
+            "Rename or rewrite \"production-ready cluster\" to describe the sourced properties: 3 data nodes, 3 dedicated masters, storage settings, and standby mode for the documented 99.99% SLA path.",
+            "Add short explanations for non-obvious example values such as `iops: 5000`, `throughput: 250`, `r6g.large.search`, `m6g.large.search`, `dedicatedMasterCount: 3`, and `standbyEnabled: true`, or remove values that are not needed for the example."
+          ],
+          "optionalImprovements": [
+            "Make the Basic example either truly minimal by relying on defaults, or rename it to \"small development example\" since it explicitly sets cluster size and storage.",
+            "Move the API reference slightly earlier if the page is intended as a reference-heavy resource page; current placement is acceptable but late for readers checking property names.",
+            "Add a compact table for cluster node roles covering data, dedicated master, and warm nodes, with when to use and tradeoff columns.",
+            "Strengthen the Dashboards section by explaining that `userPool` expects the name of a `user-pool` resource and keeping the post-deploy user-management wording cautious unless Console or auth-pool docs are provided.",
+            "Trim the Overrides section if no OpenSearch-specific guidance is available from source; a one-line link is low value compared with the rest of the page."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely grounded in the provided OpenSearch type source and follows the required MDX/API-reference structure. I found a few Stacktape-specific claims that go beyond the source, mainly around data loss, automatic environment variables for OpenSearch, and post-deploy Cognito/Dashboards flow.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The warning says switching accessibility mode “requires deleting and recreating the domain, which destroys all data.”",
+              "reason": "The source supports that accessibility mode cannot be changed and switching requires a new domain, but it does not state that Stacktape deletes the existing domain or that all data is destroyed as part of this operation. That extra consequence is plausible but not source-grounded.",
+              "suggestedFix": "Narrow the warning to: “Switching between `internet` and `vpc`/`scoping-workloads-in-vpc` requires creating a new domain. Plan migrations or snapshots before changing this choice.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/open-search.d.ts",
+                  "quote": "**Cannot be changed after creation** — switching between internet and VPC modes requires a new domain."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“OpenSearch domains are in the `connectTo` system but do not auto-inject environment variables.”",
+              "reason": "The draft’s current page says to use `$ResourceParam`, which is good. However, the generated source included in the provided files contains this explicit negative claim. The helper source lists injected variables for supported resource types but does not provide an OpenSearch env-var injection table. Per the verifier instructions, negative connectTo/env-var claims are unsupported when the source is silent. If this sentence is retained from the generated source or reintroduced, it must be avoided.",
+              "suggestedFix": "Keep the current draft’s narrower wording: “Use `$ResourceParam('search', 'domainEndpoint')` or `$ResourceParam('search', 'arn')` to pass OpenSearch values to application code.” Do not claim OpenSearch does not auto-inject env vars.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**Injected Variables by Resource Type:**\n   * - **`Bucket`**: `NAME`, `ARN`\n   * - **`DynamoDbTable`**: `NAME`, `ARN`, `STREAM_ARN`\n   * - **`MongoDbAtlasCluster`**: `CONNECTION_STRING`\n   * - **`RelationalDatabase`**: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included.\n   * - **`RedisCluster`**: `HOST`, `READER_HOST`, `PORT`\n   * - **`EventBus`**: `ARN`\n   * - **`Function`**: `ARN`\n   * - **`BatchJob`**: `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`\n   * - **`UserAuthPool`**: `ID`, `CLIENT_ID`, `ARN`\n   * - **`SnsTopic`**: `ARN`, `NAME`\n   * - **`SqsQueue`**: `ARN`, `NAME`, `URL`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After deploying, create users in the linked auth pool. Those users can then sign in to OpenSearch Dashboards at the domain's Dashboards URL with their Cognito credentials.”",
+              "reason": "The source supports that `userPool` enables login to OpenSearch Dashboards via Cognito, but it does not document the post-deploy user creation workflow or the existence/location of a Dashboards URL. This is likely AWS behavior, but the Stacktape-specific flow is not grounded in the provided files.",
+              "suggestedFix": "Replace with a narrower source-grounded sentence: “The `userPool` setting enables Cognito login for OpenSearch Dashboards using the named `user-pool` resource.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/open-search.d.ts",
+                  "quote": "#### Name of a `user-pool` resource in your config. Enables login to OpenSearch Dashboards via Cognito."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The “OpenSearch Dashboards with Cognito” section introduces the opt-in `userPool` feature but gives limited decision support beyond one when-to-enable and one when-to-skip sentence.",
+              "reason": "The section does not discuss a cost/tradeoff signal or any operational caveat of adding Cognito-backed Dashboards. The provided source only states what `userPool` does, so the section should either stay very narrow or add grounded caution that it is only for enabling Cognito login via a named user-pool resource.",
+              "suggestedFix": "Add one cautious tradeoff sentence, such as: “Most API-only workloads should skip `userPool`; adding Dashboards login means also operating a user auth pool for human access.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/open-search.d.ts",
+                  "quote": "userPool?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape creates the log groups and routes, but the thresholds are configured through the OpenSearch API.”",
+              "reason": "The source says OpenSearch logs are sent to CloudWatch automatically and slow logs are queries/indexing operations exceeding thresholds configured in OpenSearch index settings. It does not explicitly state that Stacktape creates log groups and routes. The practical meaning is likely correct, but the implementation detail is not directly present in the provided source.",
+              "suggestedFix": "Narrow to: “Slow logs only emit entries for thresholds configured in OpenSearch index settings; Stacktape’s logging configuration controls the CloudWatch log retention and whether each log type is disabled.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `CodeBlock` with `intellisense` and a visible `label: 'TypeScript'` for Stacktape config examples, with no hand-authored YAML config blocks.",
+            "The draft uses the class-based `defineConfig` style rather than the forbidden plain-object `StacktapeConfig` style.",
+            "`<ApiReference definitionName=\"OpenSearchDomainProps\" />` matches the source type name and includes the required `Props` suffix.",
+            "The documented OpenSearch versions, logging retention values, storage defaults, accessibility modes, and referenceable parameters match the provided `open-search.d.ts` source.",
+            "The links used in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly well grounded in the provided OpenSearch type source. I found a few publication-relevant issues where the draft overstates Stacktape-specific behavior or makes unsupported claims about configuration effects.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“After deploying, create users in the linked auth pool. Those users can then sign in to OpenSearch Dashboards at the domain's Dashboards URL with their Cognito credentials.”",
+              "reason": "The source only says that `userPool` names a user-pool resource and enables login to OpenSearch Dashboards via Cognito. It does not document a post-deploy user-creation workflow, where users are created, or that those users can sign in at a Dashboards URL with those credentials.",
+              "suggestedFix": "Narrow this to the sourced behavior: “The `userPool` property names a `user-pool` resource in the same config and enables Cognito login for OpenSearch Dashboards.” Link to the user auth pool page for managing users, without describing an unverified flow.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/open-search.d.ts",
+                  "quote": "#### Name of a `user-pool` resource in your config. Enables login to OpenSearch Dashboards via Cognito.\n   */\n  userPool?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“In `scoping-workloads-in-vpc` mode, access is scoped to workloads connected with `connectTo`.” and “only workloads with explicit `connectTo` can reach the domain.”",
+              "reason": "The source says `scoping-workloads-in-vpc` requires security-group access via `connectTo`, but it does not explicitly support the exclusive claim that only connected workloads can reach the domain. The wording is directionally consistent but too absolute for the provided source.",
+              "suggestedFix": "Use the source wording: “In `scoping-workloads-in-vpc` mode, VPC access also requires security-group access via `connectTo`.” Avoid “only workloads” unless runtime validators or generated infrastructure code prove exclusivity.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/open-search.d.ts",
+                  "quote": "- **`scoping-workloads-in-vpc`**: Like `vpc`, but also requires security-group access via `connectTo`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `connectTo` to grant the consuming workload IAM permissions for the OpenSearch domain. Stacktape adds the IAM permissions required to interact with the domain to the workload's role.”",
+              "reason": "OpenSearch is included in the type union for resources whose `connectTo` affects the workload role, but the provided source does not specify the exact OpenSearch permissions or describe them as “required to interact with the domain.” The general `connectTo` JSDoc examples mention IAM permissions for services such as S3 and SQS, but OpenSearch is not listed in the documented per-resource table.",
+              "suggestedFix": "Write more cautiously: “OpenSearch domains are accepted by `connectTo`; for consuming workloads, `connectTo` participates in role-based access, and in `scoping-workloads-in-vpc` mode it is also used for security-group access.” Then show `$ResourceParam` for endpoint/ARN.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type StpResourceScopableByConnectToAffectingRole =\n  | Subtype<StpResource, StpLambdaFunction>\n  | Subtype<StpResource, StpContainerWorkload>\n  | Subtype<StpResource, StpBatchJob>\n  | Subtype<StpResource, StpStateMachine>\n  | Subtype<StpResource, StpEventBus>\n  | Subtype<StpResource, StpBucket>\n  | Subtype<StpResource, StpDynamoTable>\n  | Subtype<StpResource, StpOpenSearchDomain>"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**Injected Variables by Resource Type:**\n   * - **`Bucket`**: `NAME`, `ARN`\n   * - **`DynamoDbTable`**: `NAME`, `ARN`, `STREAM_ARN`\n   * - **`MongoDbAtlasCluster`**: `CONNECTION_STRING`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape creates the log groups and routes, but the thresholds are configured through the OpenSearch API.”",
+              "reason": "The source documents that OpenSearch logs are sent to CloudWatch and that slow logs are queries/indexing operations exceeding thresholds configured in OpenSearch index settings. It does not state that Stacktape creates log groups, creates routes, or that thresholds must be configured specifically through the OpenSearch API.",
+              "suggestedFix": "Narrow to: “Slow logs only contain entries after you configure slow-log thresholds in OpenSearch index settings. Stacktape configures the OpenSearch log outputs to CloudWatch.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/open-search.d.ts",
+                  "quote": "#### Error logs, search slow logs, and indexing slow logs. Sent to CloudWatch automatically."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/open-search.d.ts",
+                  "quote": "#### Search slow logs — queries exceeding thresholds you configure in OpenSearch index settings."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I scale my cluster after creation? Yes — you can change instance types, add or remove data nodes, add dedicated master nodes, and resize storage by updating your Stacktape config and redeploying. AWS performs a blue/green deployment during these changes.”",
+              "reason": "The provided Stacktape source exposes configurable properties for instance type, counts, master nodes, and storage, but it does not document update semantics, blue/green behavior, or that all listed changes are safely supported after creation. Only accessibility mode is explicitly documented as immutable.",
+              "suggestedFix": "Keep the immutable accessibility fact and avoid unsupported update guarantees: “Cluster sizing and storage are configured in Stacktape config. The source explicitly marks accessibility mode as immutable after creation; verify AWS OpenSearch update behavior before changing production cluster topology.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/open-search.d.ts",
+                  "quote": "**Cannot be changed after creation** — switching between internet and VPC modes requires a new domain."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/open-search.d.ts",
+                  "quote": "#### Instance types, counts, and cluster topology (data nodes, master nodes, warm storage)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“A production-ready cluster with 3 data nodes, 3 dedicated masters, and Multi-AZ standby for high availability.”",
+              "reason": "The example is consistent with documented standby requirements, but “production-ready” is broader than the source proves. The source documents topology and availability behavior, not a complete production-readiness posture.",
+              "suggestedFix": "Replace with a precise description: “A higher-availability cluster with 3 data nodes, 3 dedicated master nodes, and Multi-AZ standby.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `OpenSearchDomainProps` in `<ApiReference>`, matching the resource props type.",
+            "Stacktape config examples use `<CodeBlock intellisense>` with a `TypeScript` tab and class-based `defineConfig` examples, with no hand-authored YAML config.",
+            "The engine version list, default version, cluster default, log retention values, referenceable parameters, and accessibility modes match the provided `open-search.d.ts` source.",
+            "The draft correctly avoids claiming automatic `connectTo` environment variables for OpenSearch and instead uses `$ResourceParam('search', 'domainEndpoint')`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 27, col 17: Type '\"search\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 23, col 17: Type '\"search\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 25, col 7: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -784,5 +1116,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\databases\\opensearch.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.3, hard blockers 3, advisory high 0, verifier medium 7"
+  "pipelineReviewSummary": "reviewer-avg 8.3, hard blockers 3, advisory high 0, verifier medium 7",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

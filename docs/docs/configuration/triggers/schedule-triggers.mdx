@@ -2,9 +2,9 @@
 title: 'Schedule Triggers'
 order: 20
 seoTitle: 'Schedule Triggers — Cron & Rate Schedules | Stacktape Docs'
-seoDescription: 'Run Lambda functions on cron or rate schedules with Stacktape. Configure recurring tasks using AWS EventBridge rules, customize event payloads, and monitor scheduled invocations.'
+seoDescription: 'Run Lambda functions on cron or rate schedules with Stacktape. Configure recurring tasks using AWS EventBridge rules, customize event payloads, and monitor invocations.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 8.5, hard blockers 2, advisory high 0, verifier medium 5'
+pipelineReviewSummary: 'reviewer-avg 8.5, hard blockers 1, advisory high 0, verifier medium 3'
 ---
 
 # Schedule Triggers
@@ -22,7 +22,7 @@ A schedule trigger invokes a Stacktape [Lambda function](/resources/compute/lamb
 
 - **Real-time event processing** — if the trigger is an incoming message, file upload, or database change, use [SQS](/configuration/triggers/sqs-events), [S3](/configuration/triggers/s3-events), or [DynamoDB Streams](/configuration/triggers/dynamodb-streams) triggers instead.
 - **Sub-minute granularity** — the minimum interval is one minute. For higher-frequency processing, use a stream-based trigger like [Kinesis](/configuration/triggers/kinesis-events) or a long-running container with an internal timer.
-- **Complex multi-step orchestration** — if the job involves branching, retries, or parallel steps, consider a [state machine](/resources/orchestration/state-machine) triggered on a schedule via an [EventBridge event bus](/configuration/triggers/event-bus-events).
+- **Complex multi-step orchestration** — for branching, retries, or parallel steps, use a [state machine](/resources/orchestration/state-machine). This page only documents schedule triggers for Lambda functions.
 
 ## Basic example
 
@@ -67,8 +67,6 @@ export default defineConfig(() => {
 />
 
 The handler at `./src/cleanup.ts` runs once every 24 hours. `ScheduleIntegration` has no batching controls — each schedule rule invokes the target with the configured event payload independently.
-
-[Batch jobs](/resources/compute/batch-job) also support schedule triggers — see the [batch job docs](/resources/compute/batch-job) for details on that configuration.
 
 ## Schedule formats
 
@@ -411,9 +409,9 @@ AWS Lambda invokes the function independently for each scheduled event. If the p
 
 No. AWS EventBridge schedule rules are free — there is no charge for the rule itself. You pay only for Lambda invocations when the function runs. This makes schedule triggers significantly cheaper than running a container 24/7 with a cron daemon for the same periodic task.
 
-### Can I use a schedule trigger with container workloads?
+### Can I run a container on a schedule?
 
-Schedule triggers (`ScheduleIntegration`) are available on [Lambda functions](/resources/compute/lambda-function) and [batch jobs](/resources/compute/batch-job). Container workloads like [web services](/resources/compute/web-service) or [worker services](/resources/compute/worker-service) do not support schedule triggers directly. To run a container on a schedule, use a batch job with a schedule trigger, or invoke a Lambda function on a schedule that starts the container task programmatically.
+This page documents `ScheduleIntegration` on [Lambda functions](/resources/compute/lambda-function). A common pattern for running container-based work on a recurring schedule is to invoke a scheduled Lambda function that starts the container task programmatically using the AWS SDK.
 
 ### How do I pass different payloads for different schedules on the same function?
 
@@ -433,4 +431,4 @@ AWS Lambda pricing is purely pay-per-use: you pay for the number of invocations 
 
 ### When should I use a schedule trigger vs a Step Functions state machine?
 
-Use a schedule trigger for simple, single-step periodic tasks — cleanup, polling, report generation, health checks. If the job involves branching logic, parallel execution, retries with exponential backoff, or chaining multiple steps together, a [state machine](/resources/orchestration/state-machine) is the better fit. You can trigger a state machine on a schedule using an [EventBridge event bus integration](/configuration/triggers/event-bus-events).
+Use a schedule trigger for simple, single-step periodic tasks — cleanup, polling, report generation, health checks. If the job involves branching logic, parallel execution, retries with exponential backoff, or chaining multiple steps together, a [state machine](/resources/orchestration/state-machine) is the better fit. This page only documents schedule triggers for Lambda functions.

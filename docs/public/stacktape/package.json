@@ -1,6 +1,6 @@
 {
   "name": "stacktape",
-  "version": "3.4.0",
+  "version": "3.0.17",
   "description": "PaaS 2.0 that deploys to your own AWS account.",
   "author": "Stacktape team <support@stacktape.com>",
   "license": "MIT",
@@ -27,11 +27,9 @@
       "types": "./index.d.ts",
       "default": "./index.js"
     },
-    "./types": {
-      "types": "./types.d.ts"
-    },
-    "./cloudformation": {
-      "types": "./cloudformation.d.ts"
+    "./sdk": {
+      "types": "./sdk.d.ts",
+      "default": "./sdk.js"
     }
   },
   "main": "./index.js",

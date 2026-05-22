@@ -1,9 +1,7 @@
 import { kebabCase } from 'change-case';
 import sortBy from 'lodash/sortBy';
-import { Fragment, useRef, useState } from 'react';
-import useCollapse from 'react-hook-collapse';
-import { BiChevronDown, BiChevronUp } from 'react-icons/bi';
-import { typographyCss } from '@/styles/global';
+import { Fragment, useState } from 'react';
+import { ChevronDown } from 'react-feather';
 import { onMaxW500, onMaxW650 } from '@/styles/responsive';
 import { capitalizeFirstLetter } from '@/utils/helpers';
 import {
@@ -13,12 +11,18 @@ import {
   getTypeNameFromReference
 } from '@/utils/schema-extractor';
 import configSchema from '../../../../@generated/schemas/config-schema.json';
-import { border, box, colors } from '../../styles/variables';
+import { colors, fontFamily, fontFamilyMono } from '../../styles/variables';
 import { Badge } from './Badge';
 
 const buildApiReferenceTableId = ({ definitionName }: { definitionName: string }) => {
   return `api-ref_${kebabCase(definitionName)}`;
 };
+
+// Same duration as the sidebar nav collapse so the two animations feel consistent.
+const COLLAPSE_DURATION_MS = 220;
+
+const ROW_HOVER_BG = 'rgba(255, 255, 255, 0.04)';
+const ROW_DIVIDER = '1px solid rgba(255, 255, 255, 0.06)';
 
 export type BadgeInfo = {
   isCompositeType: boolean;
@@ -50,16 +54,12 @@ function PropertyTypeBadgeLine({
 
         const badgeText = `${typeName}${isEnum ? ' ENUM' : ''}${exactValue ? ` "${exactValue}"` : ''}`;
         return (
-          <span key={badgeText}>
+          <Fragment key={badgeText}>
             {isCompositeType ? (
               <a
-                onClick={(e) => {
-                  e.stopPropagation();
-                }}
-                css={{
-                  wordBreak: 'break-all'
-                }}
-                href={apiReferenceTableId}
+                onClick={(e) => e.stopPropagation()}
+                css={{ wordBreak: 'break-all' }}
+                href={apiReferenceTableId || undefined}
               >
                 <Badge backgroundColor="#00828b" hoverBackgroundColor={colors.primaryButtonBorder}>
                   {badgeText}
@@ -70,12 +70,8 @@ function PropertyTypeBadgeLine({
                 {badgeText}
               </Badge>
             )}
-            {!isLast && (
-              <span>
-                <span css={{ color: colors.fontColorPrimary, margin: '0px 2px' }}>or</span>
-              </span>
-            )}
-          </span>
+            {!isLast && <span css={{ color: colors.fontColorTernary, margin: '0 4px' }}>or</span>}
+          </Fragment>
         );
       })}
     </Fragment>
@@ -118,49 +114,45 @@ function ExpandableView({
     .map(({ enumeratedValues }) => enumeratedValues || [])
     .flat()
     .sort((val1: any, val2: any) => {
-      if (typeof val1 === 'number') {
-        return Number(val1) - Number(val2);
-      }
+      if (typeof val1 === 'number') return Number(val1) - Number(val2);
       return val1;
     });
 
   return (
     <div
       css={{
+        padding: '4px 18px 18px 18px',
         color: colors.fontColorPrimary,
-        lineHeight: 1.5,
         fontSize: '14px',
-        paddingLeft: '7px',
-        paddingBottom: '13px'
+        lineHeight: 1.6,
+        // Inline `<code>` styling inside the long description uses the global pill style — no
+        // per-row override needed.
+        '> *:first-of-type': { marginTop: 0 }
       }}
     >
-      <p
-        css={{
-          fontSize: '15px',
-          li: { lineHeight: '1.4 !important', fontSize: '14px !important' },
-          fontWeight: 'bold',
-          marginTop: '15px'
-          // width: '100%'
-        }}
+      <div
+        css={{ fontSize: '14.5px', fontWeight: 600, color: colors.fontColorPrimary, marginBottom: '10px' }}
         dangerouslySetInnerHTML={{ __html: shortDesc }}
       />
-      <p
+      <div
         css={{
-          fontSize: '14px',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '4px',
+          marginTop: '10px',
           color: colors.fontColorPrimary,
-          lineHeight: 1.6,
-          marginTop: '13px',
-          wordBreak: 'break-all'
+          fontSize: '13.5px',
+          lineHeight: 1.7
         }}
       >
-        <span css={{ paddingRight: '3px' }}>Type: </span>
+        <span css={{ color: colors.fontColorTernary, marginRight: '2px' }}>Type</span>
         {propertyTypeInfo.isArray && (
           <span
             css={{
               whiteSpace: 'nowrap',
-              [onMaxW500]: {
-                whiteSpace: 'normal'
-              }
+              color: colors.fontColorPrimary,
+              [onMaxW500]: { whiteSpace: 'normal' }
             }}
           >
             Array of&nbsp;
@@ -170,41 +162,50 @@ function ExpandableView({
           badges={allowedPropertyTypes}
           rewriteLinksForReferencedCompositeTypes={rewriteLinksForReferencedCompositeTypes}
         />
-      </p>
+      </div>
       {shouldShowPossibleValuesList && (
-        <p css={{ paddingBottom: '6px', marginTop: '14px', lineHeight: 1.6, wordBreak: 'break-all' }}>
-          <span css={{ paddingRight: '3px' }}>Possible values: </span>
+        <div
+          css={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '4px',
+            marginTop: '8px',
+            fontSize: '13.5px',
+            lineHeight: 1.7
+          }}
+        >
+          <span css={{ color: colors.fontColorTernary, marginRight: '2px' }}>Possible values</span>
           {possibleValues.map((allowedType) => (
-            <Badge key={allowedType} backgroundColor="#656565">
+            <Badge key={allowedType} backgroundColor="#5a5a5a">
               {allowedType}
             </Badge>
           ))}
-        </p>
+        </div>
       )}
-      {longDescription ? (
+      {longDescription && (
         <div
           css={{
             marginTop: '14px',
-            p: { lineHeight: '1.7 !important', fontSize: '14px !important' },
-            li: { lineHeight: '1.6 !important', fontSize: '14px !important' },
-            a: { fontWeight: 'bold !important' as any },
+            color: colors.fontColorPrimary,
+            p: { fontSize: '14px !important', lineHeight: '1.7 !important', margin: '8px 0 !important' },
+            li: { fontSize: '14px !important', lineHeight: '1.6 !important' },
+            a: { fontWeight: 500 },
             pre: {
               backgroundColor: colors.darkerBackground,
               overflowX: 'auto',
               overflowY: 'hidden'
             }
-            // '*': { whiteSpace: 'normal' }
           }}
           dangerouslySetInnerHTML={{ __html: longDescription.replaceAll('--stp-required--', '') }}
         />
-      ) : null}
+      )}
     </div>
   );
 }
 
 export function PropertyInfo({
   propertyName,
-  idx,
   propertyRequired,
   propertyTypeInfo,
   shortDescription,
@@ -227,101 +228,91 @@ export function PropertyInfo({
   rewriteLinksForReferencedCompositeTypes?: { [typeName: string]: string };
 }) {
   const [open, setOpen] = useState(false);
-  const oddRowColor = colors.darkerBackground;
-  const evenRowColor = colors.backgroundColor;
-  const ref = useRef(null);
-  useCollapse(ref, open);
+
   return (
     <div
       css={{
-        backgroundColor: idx % 2 === 0 ? evenRowColor : oddRowColor,
-        cursor: 'pointer',
-        display: 'flex',
-        justifyContent: 'space-between',
-        position: 'relative',
-        width: '100%',
-        borderRadius: isLast ? '0px 0px 6px 6px' : 'initial',
-        paddingBottom: isLast ? '1px' : '0px',
-        borderLeft: `2px solid ${colors.darkerBackground}`,
-        borderRight: `2px solid ${colors.darkerBackground}`
+        borderBottom: isLast ? 'none' : ROW_DIVIDER,
+        transition: `background 140ms ease`,
+        '&:hover': { background: ROW_HOVER_BG }
       }}
-      onClick={() => setOpen(!open)}
-      aria-label={`${open ? 'collapse row' : 'expand row'}`}
     >
-      <div css={{ width: '100%', padding: '4px 6px 6px 7px', overflowX: 'hidden' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={open ? 'Collapse row' : 'Expand row'}
+        css={{
+          all: 'unset',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          width: '100%',
+          padding: '10px 16px',
+          boxSizing: 'border-box'
+        }}
+      >
+        <code
+          css={{
+            // Override the global `code` size — at default 0.875em the property name reads
+            // smaller than the surrounding row, which makes the list feel cramped.
+            fontSize: '13.5px',
+            fontFamily: fontFamilyMono,
+            color: colors.fontColorPrimary,
+            background: 'rgba(54, 190, 190, 0.10)',
+            padding: '2px 7px',
+            borderRadius: '4px',
+            wordBreak: 'break-all',
+            userSelect: 'text'
+          }}
+          onClick={(e) => e.stopPropagation() /* let users select the prop name without toggling */}
+        >
+          {propertyName}
+        </code>
         <div
           css={{
             display: 'flex',
-            justifyContent: 'space-between',
-            paddingTop: '3px',
             alignItems: 'center',
-            wordBreak: 'break-word'
+            gap: '6px',
+            marginLeft: 'auto',
+            flexShrink: 0
           }}
         >
-          <span
+          {defaultValue !== undefined && <Badge backgroundColor="#1f6f88">Default: {defaultValue.toString()}</Badge>}
+          {propertyRequired && <Badge backgroundColor="#c66514">Required</Badge>}
+          <ChevronDown
+            size={16}
             css={{
-              ...typographyCss,
-              margin: '0px',
-              padding: '0px 7px',
-              lineHeight: 1.75,
-              // fontSize: '14px',
-              marginLeft: '2px',
-              color: colors.fontColorPrimary,
-              height: '100%',
-              border,
-              borderRadius: '4px',
-              letterSpacing: 0.8,
-              backgroundColor: '#292929',
-              userSelect: 'none'
+              color: colors.fontColorTernary,
+              transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: `transform ${COLLAPSE_DURATION_MS}ms ease`,
+              flexShrink: 0
             }}
-          >
-            {propertyName}
-          </span>
-          <div css={{ display: 'flex', alignItems: 'center', overflow: 'hidden', height: '26px' }}>
-            <div css={{ '*': { userSelect: 'none' } }}>
-              {defaultValue !== undefined && (
-                <span css={{ top: '7px', right: propertyRequired ? '76px' : '8px' }}>
-                  <Badge backgroundColor="#187e9c">Default: {defaultValue.toString()}</Badge>
-                </span>
-              )}
-              {propertyRequired && (
-                <span css={{ top: '7px', right: '8px' }}>
-                  <Badge backgroundColor="#f2720c">Required</Badge>
-                </span>
-              )}
-            </div>
-            <div
-              css={{
-                width: '40px',
-                minWidth: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                paddingLeft: '8px',
-                [onMaxW500]: {
-                  width: '34px',
-                  minWidth: '34px'
-                },
-                'svg path': {
-                  fill: colors.fontColorPrimary
-                }
-              }}
-            >
-              {!open ? (
-                <BiChevronDown size={20} color={colors.fontColorPrimary} />
-              ) : (
-                <BiChevronUp size={20} color={colors.fontColorPrimary} />
-              )}
-            </div>
-          </div>
+          />
         </div>
-        {open && (
+      </button>
+
+      {/* Grid-template-rows trick: animates from 0fr → 1fr (and back), with the inner div
+          clipping overflow so children visually collapse smoothly. Same pattern as the sidebar
+          nav (see ContentTreeNode.tsx) so both feel consistent. Content stays mounted so the
+          animation runs both ways. */}
+      <div
+        aria-hidden={!open}
+        css={{
+          display: 'grid',
+          gridTemplateRows: open ? '1fr' : '0fr',
+          transition: `grid-template-rows ${COLLAPSE_DURATION_MS}ms ease`
+        }}
+      >
+        <div css={{ overflow: 'hidden', minHeight: 0 }}>
           <ExpandableView
             propertyTypeInfo={propertyTypeInfo}
             longDescription={longDescription}
             shortDescription={shortDescription}
             rewriteLinksForReferencedCompositeTypes={rewriteLinksForReferencedCompositeTypes}
           />
-        )}
+        </div>
       </div>
     </div>
   );
@@ -344,42 +335,40 @@ function PropertiesHeader({
     <div
       css={{
         display: 'flex',
-        padding: '4px 12px',
-        background: colors.darkerBackground,
-        color: colors.primary,
-        fontSize: '14px',
-        lineHeight: '2em',
-        borderRadius: '6px 6px 0px 0px',
-        border,
-        borderBottom: 'none'
+        alignItems: 'center',
+        gap: '12px',
+        padding: '12px 16px',
+        borderBottom: ROW_DIVIDER,
+        fontFamily
       }}
     >
-      <div css={{ textAlign: 'left', flex: 1, ...typographyCss }}>
+      <div css={{ display: 'flex', alignItems: 'baseline', gap: '8px', flex: 1, minWidth: 0 }}>
         <span
           css={{
-            fontWeight: 'bolder',
+            fontSize: '15px',
+            fontWeight: 600,
             color: colors.fontColorPrimary,
-            fontSize: '14px',
-            letterSpacing: 0.4
+            letterSpacing: '0.2px'
           }}
         >
           {getTypenameFromPropertiesInterface(definitionName)}
         </span>
-        &nbsp;&nbsp;
-        <span css={{ color: colors.fontColorPrimary, fontWeight: 'normal' }}>API reference</span>
+        <span css={{ fontSize: '12px', color: colors.fontColorTernary, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+          API reference
+        </span>
       </div>
       {referencedInDefinitions.length > 0 && (
         <div
           css={{
-            ...typographyCss,
-            textAlign: 'right',
-            flex: 1,
-            [onMaxW650]: {
-              display: 'none'
-            }
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '12.5px',
+            color: colors.fontColorTernary,
+            [onMaxW650]: { display: 'none' }
           }}
         >
-          <span css={{ color: colors.fontColorPrimary, marginRight: '3px' }}>Parent:</span>
+          <span>Parent</span>
           <PropertyTypeBadgeLine
             badges={referencedInDefinitions.map((defName) => ({
               typeName: getTypenameFromPropertiesInterface(defName),
@@ -410,7 +399,6 @@ function PropertiesTable({
     searchForReferencesInDefinition
   });
 
-  // const [propertyToNest, nestedPropertyName] = nestedTable.split('.');
   const properties: { propertyName: string; propertySpec: any; required: boolean }[] = [];
   if (!definition) {
     if (process.env.IS_DEV) {
@@ -453,10 +441,12 @@ function PropertiesTable({
     <div id={buildApiReferenceTableId({ definitionName })}>
       <div
         css={{
-          background: colors.backgroundColor,
-          marginBottom: '30px',
-          marginTop: '30px',
-          ...box
+          margin: '30px 0',
+          background: colors.elementBackground,
+          borderRadius: '8px',
+          boxShadow:
+            '0 2px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+          overflow: 'hidden'
         }}
       >
         <PropertiesHeader

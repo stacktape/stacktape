@@ -2,7 +2,7 @@
   "pageId": "resources__advanced__deployment-scripts",
   "pageRoute": "resources/advanced/deployment-scripts",
   "startedAt": "2026-05-15T14:50:09.030Z",
-  "updatedAt": "2026-05-15T15:34:58.659Z",
+  "updatedAt": "2026-05-22T01:31:08.376Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1319,20 +1319,274 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__advanced__deployment-scripts/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The Basic example is realistic (Prisma migrations with Hono/execSync handler) and includes a concrete working handler code snippet immediately after — the reader can copy both the config and the handler in one reading pass.",
+            "Trigger behavior section explicitly states the failure semantics for both trigger types (after:deploy rolls back the whole stack; before:delete continues deletion regardless) — this is the most important 'gotcha' and it's explained early and concisely.",
+            "The FeatureComparisonTable between deployment scripts and lifecycle hooks provides a clear decision heuristic and helps first-timers who haven't yet learned the Stacktape mental model.",
+            "FAQ covers all three required categories: Stacktape-specific (Q1–Q6), AWS service use-case (Q9 on Lambda pricing), and comparison/choosing (Q7 deployment script vs lifecycle hook, Q8 batch job vs deployment script, Q10 language support). The answers are the right length for Featured Snippets.",
+            "Both packaging modes (StacktapeLambdaBuildpackPackaging and CustomArtifactLambdaPackaging) are documented with working code examples, making the union-type coverage complete without padding.",
+            "The connectTo environment variable examples use the concrete resource name from the example ('mainDatabase' → 'STP_MAIN_DATABASE_CONNECTION_STRING') rather than a generic placeholder — exactly as the style guide requires."
+          ],
+          "problems": [
+            "The Info callout in 'Connecting to resources' mentions 'NAT Gateways configured in stackConfig.vpc.nat' without explaining what NAT Gateways are or why they cost money — a first-timer will not know whether they need to worry about this or can skip the paragraph. The callout is dense for its audience.",
+            "The FeatureComparisonTable uses raw boolean `true`/`false` values (not strings) for the 'Needs Lambda packaging' feature row. Depending on how the component renders booleans, this may show literal 'true'/'false' tokens rather than the checkmark/cross symbols a reader expects. Using 'Yes'/'No' strings would be safer.",
+            "The 'Manual execution' section is short — two paragraphs with no code example showing an actual CLI invocation. A first-timer who wants to test before a full deploy would benefit from seeing the command form, even just `stacktape deployment-script:run --scriptName runMigrations --stage dev`."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the Info callout under 'Connecting to resources', replace the inline reference to 'stackConfig.vpc.nat' with a link to the VPC documentation and a one-sentence cost signal ('each NAT Gateway adds ~$32/month'). This keeps the callout actionable without requiring the reader to go look up a config key mid-stream.",
+            "Change the boolean `true`/`false` values in the FeatureComparisonTable to the strings 'Yes' / 'No' to ensure consistent rendering regardless of how the component handles non-string primitives.",
+            "Add a concrete CLI invocation to the 'Manual execution' section — e.g., `stacktape deployment-script:run --scriptName runMigrations --stage dev` — so a reader can act on the section immediately. Two short prose paragraphs with no command to copy leaves the section feeling incomplete for someone who just wants to test their script.",
+            "The 'Basic example' section describes the `memory` property with the '1,769 MB = 1 vCPU' fact and the `storage` property defaults in prose placed between the config CodeBlock and the handler snippet. This mid-section prose slows the first-run reader; consider moving these property details to a small table or collapsing them into the surrounding paragraphs so the config → handler flow reads without interruption.",
+            "The FAQ question 'Can I have multiple deployment scripts in one stack?' (Q6) answers with 'prefer combining the steps into a single script that performs them in sequence' — but does not address the case where the user legitimately needs separate scripts at different trigger points (e.g., one `after:deploy` and one `before:delete`). Clarify that multiple scripts at different triggers are fine; the sequencing guidance only applies to scripts at the same trigger."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Trigger behavior section is precise and actionable — the rollback vs. continue distinction between after:deploy and before:delete is clearly explained and tied directly to source JSDoc, reducing configuration mistakes in production.",
+            "Both Lambda packaging modes (StacktapeLambdaBuildpackPackaging and CustomArtifactLambdaPackaging) are covered with working CodeBlock examples and when-to-use guidance — no union-type coverage gap.",
+            "The VPC internet access caveat is explicitly flagged with a concrete alternative (NAT Gateway) and a practical split-script workaround, which is exactly the kind of production gotcha this audience needs.",
+            "connectTo env var naming correctly uses the example resource name (mainDatabase → STP_MAIN_DATABASE_CONNECTION_STRING), not a generic placeholder — consistent with cross-page rules.",
+            "10-question FAQ with good category spread: Stacktape-specific (rollback, manual run, multiple scripts), AWS-behavior (runtime, pricing, max duration), and comparison (deployment script vs. lifecycle hook, vs. batch job).",
+            "The migration example is realistic and includes the matching handler code showing how STP_MAIN_DATABASE_CONNECTION_STRING is consumed — unusually complete for a configuration page.",
+            "No mandatory style violations: all Stacktape config examples are in <CodeBlock intellisense />, no YAML resource blocks, no StacktapeConfig type import, single <ApiReference> at page bottom.",
+            "When to use / When NOT to use are correctly structured as peer H2 sections per heading hierarchy discipline.",
+            "The FeatureComparisonTable concisely captures the deployment-script vs. lifecycle-hook decision without prose overexplanation.",
+            "Default timeout (10s) and storage (512 MB) values are stated and sourced from the type definitions' @default annotations."
+          ],
+          "problems": [
+            "The Manual execution section does not clarify whether rollback applies to scripts triggered via `stacktape deployment-script:run`. It implies rollback is an intrinsic property of the script, but rollback only applies to deploy-triggered runs. A reader who runs a script manually mid-deploy troubleshooting could be confused about whether a failure there affects the stack state.",
+            "The Packaging section table links to /packaging/function/stacktape-buildpack and /packaging/function/custom-artifact without context on whether these internal docs paths exist — minor but the page relies on them for language-specific config details that aren't covered inline.",
+            "The 'Connecting to resources' section lists three injected variables for mainDatabase (CONNECTION_STRING, HOST, PORT) without noting that Aurora clusters additionally inject READER_CONNECTION_STRING and READER_HOST. Readers using Aurora Serverless v2 may miss reader endpoint injection exists. The source explicitly enumerates this for RelationalDatabase in the connectTo JSDoc."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In Manual execution, add one sentence scoping rollback to deploy-triggered runs only: 'Manual invocations via deployment-script:run do not trigger stack rollback regardless of exit status.'",
+            "In the Connecting to resources section, extend the mainDatabase env-var list to mention that Aurora-backed databases additionally inject READER_CONNECTION_STRING and READER_HOST — this is in the source and affects readers choosing Aurora Serverless v2.",
+            "Consider adding a brief note in 'Trigger behavior > after:deploy' on ordering: when multiple after:deploy scripts exist in the same stack, clarify whether execution order is defined or not (if order is not guaranteed by the implementation, that is a production gotcha worth flagging).",
+            "The storage property description in Basic example could be slightly more concrete — it mentions 'database dumps' as an example, but the range (512–10,240 MB) is already in the source and citing the upper bound when discussing large-file use cases would help the reader calibrate.",
+            "The FeatureComparisonTable row 'Can run manually' shows `true` for both, which is correct, but the mechanism differs (deployment-script:run vs. stacktape script:run). A footnote or inline clarification would help readers who see both in docs and aren't sure which CLI command applies to which type."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong AEO-ready opening paragraph (~70 words, self-contained) that directly answers 'what is this and why does it matter' and includes pricing context in one sentence.",
+            "Both trigger variants (after:deploy and before:delete) are documented with separate code examples AND distinct failure semantics (rollback vs. deletion continues) — this is a critical difference that most readers will need.",
+            "Both Lambda packaging modes (StacktapeLambdaBuildpackPackaging and CustomArtifactLambdaPackaging) are covered with code examples and a comparison table, satisfying union-type and per-variant depth requirements.",
+            "FeatureComparisonTable comparing deployment scripts vs. lifecycle hooks provides genuine decision support — includes the VPC-access row that often drives the choice.",
+            "connectTo env-var names correctly use the resource-name-dependent pattern (e.g., STP_MAIN_DATABASE_CONNECTION_STRING for a resource named mainDatabase) — no generic placeholder names.",
+            "VPC internet-access tradeoff is documented in an Info callout with a concrete mitigation path (NAT Gateways), covering the most common gotcha for migration scripts.",
+            "Property-value anchors are solid: memory: 512 explained with CPU-scaling rule (1,769 MB = 1 vCPU), timeout: 120 explained as '2-minute tolerance for large migrations', storage range and default stated.",
+            "All Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> correctly; application code (Lambda handlers) uses fenced blocks. No forbidden YAML config, no StacktapeConfig type, no defineConfig in a fenced block.",
+            "Exactly one <ApiReference definitionName=\"DeploymentScriptProps\" /> placed at the bottom. Definition name matches the source interface name exactly.",
+            "10-question FAQ is present with all questions filled with 2–4 sentence answers that stand alone when extracted."
+          ],
+          "problems": [
+            "FAQ is skewed heavily toward Stacktape-specific questions (approximately 7 out of 10). AWS Lambda use-case questions (category 2) are nearly absent — only one pure-AWS question ('How much does running a deployment script cost?'). High-intent searches like 'Lambda cold starts', 'Lambda concurrency model', 'Lambda VPC and internet access', and 'what happens when Lambda times out' are left unanswered, reducing the page's discoverability for readers who arrive via those queries.",
+            "The answer to 'How long can a deployment script run?' says 'The default timeout is 10 seconds' — this is correct per source (@default 10) but is not surfaced in the main body prose until the Basic example section, where the reader sees timeout: 120 without the default being stated first. The default appears in the source JSDoc but is easy to miss in the page flow.",
+            "The 'Connecting to resources' section says connecting to mainDatabase injects CONNECTION_STRING, HOST, and PORT, but does not mention JDBC_CONNECTION_STRING, which the ScriptEnvProps.connectTo JSDoc includes for RelationalDatabase. This is a minor omission — the page links to the full reference — but an AI engine extracting that paragraph will produce a slightly incomplete snippet for readers looking for JDBC connection details."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace 2–3 Stacktape-specific FAQ questions with AWS Lambda use-case questions to satisfy the category-2 requirement. Good candidates: 'Can Lambda functions in a VPC reach the internet?' (addresses the joinDefaultVpc tradeoff), 'How does Lambda handle concurrent deployment script invocations?' (relevant when deploying multiple stages in parallel), 'How do I debug a failed deployment script?' (directs to stacktape debug:logs and CloudWatch).",
+            "State the default timeout (10 seconds) once in the main body — e.g., in the Trigger behavior or Basic example section intro — so readers scanning the page see it without needing the FAQ or the ApiReference.",
+            "Mention JDBC_CONNECTION_STRING alongside CONNECTION_STRING in the Connecting to resources section, or add a parenthetical '(plus JDBC_CONNECTION_STRING for Java/JDBC drivers)' so the snippet extracted by AI engines is complete for that audience.",
+            "The 'Manual execution' section is currently a single paragraph with no code example showing the CLI command syntax. A one-liner fenced shell block (`stacktape deployment-script:run --scriptName runMigrations --stage dev --region eu-west-1`) would make the section more copy-paste useful.",
+            "Consider adding a brief note about the `runtime` property in the Packaging section — the page says it's 'auto-detected from file extension' but doesn't state the consequences of specifying it explicitly (e.g., forcing Node 20 vs the default), which would help readers using non-default runtimes."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the DeploymentScript and helper type sources. The highest-impact issues are one invented cross-link, one likely unsupported Stacktape-specific claim about deployment-script ordering, and several places where the page overstates deployment scripts as having automatic rollback or exact CloudFormation rollback semantics beyond what the source says.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"For language-specific tuning (Node.js version, Python version, module format), see [language-specific packaging config](/packaging/function/language-specific-config).\"",
+              "reason": "The target route `/packaging/function/language-specific-config` is not present in the provided documentation navigation index. Invented internal routes are publication blockers because they create broken links.",
+              "suggestedFix": "Replace the link with an existing route, most likely `/packaging/function/stacktape-buildpack`, or remove the sentence and let the API reference expose `languageSpecificConfig`.",
+              "evidence": []
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"If your workflow requires strict ordering between scripts, prefer combining the steps into a single script that performs them in sequence.\"",
+              "reason": "The source confirms that multiple `DeploymentScript` resources can exist through the generic resources map, but it does not document execution ordering semantics between multiple deployment scripts. The recommendation may be reasonable, but the draft implies a constraint or behavior that is not source-grounded.",
+              "suggestedFix": "Narrow the wording: \"The provided DeploymentScript type does not define ordering between multiple deployment-script resources. If steps must run in a strict sequence, put them in one script.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-script.d.ts",
+                  "quote": "interface DeploymentScriptProps extends ResourceAccessProps {\n  /**\n   * #### When to run: `after:deploy` (fails → rollback) or `before:delete` (fails → deletion continues).\n   */\n  trigger: 'after:deploy' | 'before:delete';"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "resources: { [resourceName: string]: StacktapeResourceDefinition };"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly states exact CloudFormation rollback behavior for failed `after:deploy` scripts: \"the entire deployment rolls back\", \"CloudFormation deployment rolls back to its previous state\", and \"All resources created or updated during the deployment are reverted.\"",
+              "reason": "The DeploymentScript type documents `after:deploy` as `fails → rollback`, but it does not specify that rollback is CloudFormation rollback, that every created or updated resource is reverted, or that the stack returns exactly to the previous state. Those details go beyond the provided source.",
+              "suggestedFix": "Keep the source-grounded fact and remove the exact CloudFormation semantics: \"If an `after:deploy` script fails, Stacktape treats the deployment as failed and rolls back according to the deployment rollback behavior.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-script.d.ts",
+                  "quote": "* #### When to run: `after:deploy` (fails → rollback) or `before:delete` (fails → deletion continues)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to invoke any deployment script on demand without a full deploy.\"",
+              "reason": "The source says deployment scripts can be triggered manually with `stacktape deployment-script:run`, but does not support the word \"any\" or the claim \"without a full deploy\". The wording could imply the command can run undeployed or newly changed scripts, which is not established in the provided source.",
+              "suggestedFix": "Use the narrower sourced wording: \"Deployment scripts can also be triggered manually with `stacktape deployment-script:run`.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-script.d.ts",
+                  "quote": "* or `before:delete` for cleanup. Can also be triggered manually with `stacktape deployment-script:run`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stacktape bundles and uploads it\" and \"Stacktape bundles and uploads it\" for `StacktapeLambdaBuildpackPackaging`.",
+              "reason": "The source says `stacktape-lambda-buildpack` automatically bundles code and dependencies into a Lambda deployment package. It does not say this packaging mode uploads the artifact. Uploading may be true operationally, but it is not present in the provided source files for this page.",
+              "suggestedFix": "Say \"Stacktape bundles code and dependencies into a Lambda deployment package\" and avoid the upload claim unless a source file in the page set supports it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "* The `stacktape-lambda-buildpack` automatically bundles your code and dependencies into an optimized Lambda deployment package."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stacktape injects the connection string as an environment variable ... and opens the necessary security group rules\" in the FAQ answer \"Can a deployment script access my database?\"",
+              "reason": "The security-group statement is source-grounded, and the relational database environment variables are source-grounded, but the phrase \"the connection string\" is singular and omits that relational databases also inject JDBC connection string, host, and port; Aurora also injects reader values. This is not wrong for the example, but it can understate what `connectTo` provides and should align with the documented variable list.",
+              "suggestedFix": "Write: \"For a relational database, `connectTo` injects `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, and `PORT` using the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern; Aurora clusters also get reader connection values.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\n   * Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "* - **`RelationalDatabase`**: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses class-based `defineConfig` examples inside `<CodeBlock intellisense>` with the required `label: 'TypeScript'` and does not hand-author Stacktape YAML.",
+            "`<ApiReference definitionName=\"DeploymentScriptProps\" />` matches the `DeploymentScriptProps` type name in the source.",
+            "The main DeploymentScript properties, trigger values, timeout default and maximum, memory range, storage range and default, `parameters`, `environment`, `joinDefaultVpc`, `connectTo`, and `iamRoleStatements` are generally grounded in the provided type definitions.",
+            "The page correctly distinguishes deployment scripts from local lifecycle hooks and uses the documented `stacktape debug:logs` command in the FAQ."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\advanced\\deployment-scripts.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/resources/advanced/deployment-scripts.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 1, advisory high 0, verifier medium 8"
+  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 1, advisory high 0, verifier medium 9",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

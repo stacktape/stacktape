@@ -2,7 +2,7 @@
   "pageId": "cli__domain__add",
   "pageRoute": "cli/domain-add",
   "startedAt": "2026-05-17T21:21:09.754Z",
-  "updatedAt": "2026-05-17T21:29:27.916Z",
+  "updatedAt": "2026-05-22T03:08:42.350Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1046,6 +1046,459 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/cli__domain__add/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "The wizard flow walkthrough in 'What it does' accurately reflects the source code's branching logic and is the most useful section for a first-time reader.",
+            "The Warning callout about subdomains being rejected is correctly placed right after the description and addresses the single most common user mistake.",
+            "The Parameter Store resume-from-saved-state behavior is explained clearly and addresses a real user concern (what happens if I cancel midway).",
+            "The FAQ covers all three required categories: Stacktape-specific (subdomain vs root domain), AWS service questions (how long does DNS propagation take, is there a cost), and comparison/choosing questions (CI/CD automation vs manual run).",
+            "All bash examples are in separate fenced blocks with one command each, no comment-label pollution, and cover the three most common invocation patterns (basic, with profile, with named AWS account).",
+            "The `<CliCommandsApiReference>` component is used correctly with all required props, and no flags are hand-authored.",
+            "DNS ownership scenarios are split into two concrete sub-scenarios with named registrar examples (GoDaddy, Namecheap, Hostinger), making the external-registrar path actionable.",
+            "TLS certificate behavior for us-east-1 vs other regions is documented accurately and matches the source code's conditional logic."
+          ],
+          "problems": [
+            "The 'What it does' section opens with 'walks through up to four stages' but then enumerates five numbered items (1. Enter domain name, 2. Check registration, 3. Verify DNS ownership, 4. Provision TLS certificates, 5. Optional SES verification). The count 'four' is factually wrong and will confuse readers counting along.",
+            "The 'DNS ownership scenarios' H2 section and 'TLS certificates' H2 section substantially repeat content already covered in the numbered list inside 'What it does', adding only a paragraph of expansion each. This redundancy dilutes the page without adding proportional value to a first-time reader.",
+            "The 'SES email verification' section says to skip the step 'if you don't plan to send transactional email from your application' but never says what you gain by completing it — the reader has no way to decide without knowing that verifying enables sending from a custom domain (e.g. noreply@mydomain.com) rather than an AWS-assigned address."
+          ],
+          "mandatoryFixes": [
+            "Fix the factual error in 'What it does': change 'walks through up to four stages' to 'walks through up to five stages' (or remove the count entirely) to match the five numbered items that follow."
+          ],
+          "optionalImprovements": [
+            "Collapse or merge the standalone 'DNS ownership scenarios' and 'TLS certificates' H2 sections into the 'What it does' walkthrough as inline callouts or sub-bullets, since the standalone sections mostly restate what the numbered list already covers with minor additions.",
+            "In the 'SES email verification' section, add one concrete sentence explaining the benefit: e.g. 'Once verified, you can send email from addresses at your domain (e.g. noreply@mydomain.com) through AWS SES instead of an AWS-assigned address.'",
+            "The `<Tip>` callout embeds a raw URL inline with the text; consider converting it to a standard MDX link for consistency with the rest of the page's link style.",
+            "The 'Related commands' section links to `deploy` and `defaults:configure` but not to the domains and certificates documentation page referenced in the source — adding that link would complete the navigation triangle for a reader who wants the full domain setup guide."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Flow documentation is well-grounded in the actual source — the resume-from-saved-progress behavior, the conditional us-east-1 cert, and the DKIM SES records are all accurately sourced from src/commands/domain-add/index.ts.",
+            "The DNS ownership scenarios section (Route 53 vs external registrar) cleanly maps to the two code paths in the source and gives the reader actionable guidance without being verbose.",
+            "FAQ is thorough, mixes Stacktape-specific, AWS-behavior, and comparison questions well, and each answer is a useful standalone paragraph.",
+            "Shell code blocks are correctly split: one command per block, no explanatory # comments inside blocks.",
+            "The <CliCommandsApiReference> component is used correctly with all flags sourced from the command definition.",
+            "The <Warning> callout for subdomain rejection is accurate and correctly placed — the source throws stpErrors.e38 for subdomains detected via tldtsParse."
+          ],
+          "problems": [
+            "Factual inconsistency: 'The domain:add wizard walks through up to four stages' immediately precedes a numbered list of five items (Enter domain name, Check registration, Verify DNS ownership, Provision TLS certificates, Optional SES verification). The count is wrong — the source flow has five distinct stopping points.",
+            "The '## TLS certificates' standalone section largely duplicates step 4 of the numbered list in '## What it does'. Both say the same things about regional vs us-east-1 certs and DNS validation records. This padding lowers signal density without adding information.",
+            "The wizard flow omits a documented interactive confirmation: before generating certs the source prompts 'Do you wish to generate certificates... in your AWS account?' and exits if the user declines. The draft implies cert generation is automatic once ownership is verified, which is slightly misleading.",
+            "The flow description says 'It stops at the first incomplete step' but a reader could misread this as a single-run process. The source clearly shows that after the DNS ownership step, the command stores status and returns — the user must update their registrar, wait for propagation, and then re-run. This multi-run nature is stated in the FAQ but not in the main flow section."
+          ],
+          "mandatoryFixes": [
+            "Fix the stage count: change 'up to four stages' to 'up to five stages' (or 'up to five steps') to match the five numbered items that follow — this is a direct factual contradiction visible to any reader."
+          ],
+          "optionalImprovements": [
+            "Remove or significantly trim '## TLS certificates' — its content is already covered in step 4 of the 'What it does' numbered list. If kept, restrict it to one non-redundant fact (e.g., that ACM public certificates are free) rather than restating the us-east-1 / DNS validation content already present above.",
+            "Add a sentence to the cert provisioning step (step 4) noting that the command prompts for confirmation before requesting certificates, and exits if the user declines — sourced from the `promptConfirm` call in the index.ts.",
+            "Add a one-sentence clarification to the main flow summary that after the DNS ownership step the command exits and must be re-run after registrar propagation — the FAQ covers this but the flow section leaves it implicit.",
+            "Consider a short table summarising each wizard stage, what input/action is required, and whether the command exits after it — this would make the multi-run nature scannable at a glance."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly explains the command's purpose and downstream resource use.",
+            "Usage and examples show realistic invocations with required `--region`, and each shell block contains exactly one copyable command.",
+            "The page uses the required `<CliCommandsApiReference command=\"domain:add\" />` component instead of hand-authoring the flags table.",
+            "The DNS migration warning is practical and matches the source warning to copy existing DNS records before changing registrar name servers."
+          ],
+          "problems": [
+            "The page says the wizard has \"up to four stages\" but then lists five stages. This is a direct clarity issue.",
+            "Several claims are broader than the provided source supports: \"run once per region before referencing the domain,\" \"resumes from saved progress on subsequent runs,\" \"hosted zone usage\" cost, and using `domain:add` in CI/CD with `--agent` are not established by the provided `domain-add` command source.",
+            "The FAQ includes AWS pricing/cost claims beyond the source: ACM public certificate pricing and Route 53 hosted zone charges are useful background, but the page phrases them as part of the command's cost model without source support.",
+            "The `--agent` FAQ is risky: `domain:add` uses an interactive prompt for the domain name, and the provided source does not show a non-interactive argument for domain name. Saying `--agent` makes it suitable for non-interactive environments is not grounded.",
+            "The \"What it does\" section overstates exact flow control. The source shows returns after DNS migration setup and certificate validation record creation, but does not support the polished claim that it \"stops at the first incomplete step\" in all cases.",
+            "The page tells readers to check or manage status in the Stacktape Console, but no `console-app` source is provided. The command source prints Console links, so a generic link is fine, but UI workflow language should stay narrow.",
+            "The Related commands section misses the closest sibling for this command if one exists in the docs navigation/source set; with only provided commands, `deploy` and `defaults:configure` are acceptable but somewhat indirect."
+          ],
+          "mandatoryFixes": [
+            "Fix the internal contradiction: change \"up to four stages\" to \"up to five stages\" or remove the count.",
+            "Revise the CI/CD FAQ. Do not claim `--agent` makes `domain:add` fully non-interactive unless the source provides a domain-name argument or agent-mode behavior for the prompt; say the command is primarily interactive and should usually be run manually.",
+            "Narrow unsupported persistence wording. Replace \"resumes from saved progress on subsequent runs\" with a source-grounded statement such as \"the command stores domain status in Parameter Store after DNS setup and certificate-validation-record setup, so later runs can read saved domain status.\"",
+            "Remove or qualify unsupported cost claims that are not in the provided source, especially Route 53 hosted zone usage charges and ACM public certificate pricing. Keep only sourced pricing: Route 53 registration hint says prices start at $3/year for `.click`, and the command text says SES verification is free.",
+            "Avoid unsupported Console workflow wording. Keep the source-grounded link to `https://console.stacktape.com/domains`, but do not describe UI actions or status management beyond the command's printed hints."
+          ],
+          "optionalImprovements": [
+            "Add a short \"When to use\" section before \"Usage\" to match the CLI page rhythm: use `domain:add` when preparing a root domain for custom domains and certificates; skip it when the domain is already added in the target region.",
+            "Make the opening paragraph slightly shorter; it is clear but near the upper end of snippet length.",
+            "In \"What it does,\" distinguish \"registered in Route 53\" from \"DNS ownership already verified\" more carefully. The source checks `domainStatus.ownershipVerified`, not only the registrar.",
+            "Replace broad resource phrasing like \"API Gateways\" with the exact source/docs term used elsewhere on the page, such as \"HTTP API Gateways,\" for consistency.",
+            "Consider moving the Warning about root domains closer to the first usage example because it is the most important failure mode before running the command."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command sources. The main factual risk is that it treats domain registration location as the branching condition, while the source branches on detected DNS ownership verification. One certificate/SES sequencing claim should also be narrowed.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command handles two scenarios depending on where the domain is registered.” / “If the domain was purchased through AWS Route 53, ownership is already verified...” / “For domains registered with GoDaddy, Namecheap, Hostinger, or other external registrars...”",
+              "reason": "The source does not branch on where the domain was purchased or registered. The command branches on `domainStatus.ownershipVerified`; when ownership is not verified, it tells the user DNS is managed outside AWS and asks about moving DNS management to Route 53. Registration and DNS management are separate concepts, so the draft should not equate Route 53 registration with verified ownership or external registration with the migration path.",
+              "suggestedFix": "Rewrite the section around ownership status: “If Stacktape detects domain ownership as already verified, the wizard proceeds to TLS certificate setup. If ownership is not verified, the wizard treats DNS as managed outside AWS and asks whether to manage DNS records in Route 53.” Mention GoDaddy/Namecheap/Hostinger only as examples of registrar name-server guides shown by the CLI.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "if (!domainStatus.ownershipVerified) {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "        `DNS for ${tuiManager.makeBold(domainName)} is managed outside AWS.`,"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "  tuiManager.success('Domain ownership verified.');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If domain ownership and TLS certificates are complete, the command optionally offers to verify the domain for sending email through AWS SES.”",
+              "reason": "The command gates the SES prompt on `regionalCert.Status === ISSUED`; the source does not show a separate status check for the additional `usEast1Cert` before SES verification. Saying “TLS certificates are complete” overstates what the visible source verifies before moving to SES.",
+              "suggestedFix": "Narrow the wording to the visible behavior: “After the regional certificate is issued, the wizard can offer optional SES verification.” Avoid implying that every requested certificate has been separately checked as issued before the SES step.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "if (regionalCert.Status !== CertificateStatus.ISSUED) {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "  tuiManager.success('TLS certificates validated.');\n  await sesManager.init({ identities: [domainName] });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "incorrect-claim",
+              "statement": "“The `domain:add` wizard walks through up to four stages.”",
+              "reason": "The draft immediately lists five stages: enter domain name, check registration, verify DNS ownership, provision TLS certificates, and optional SES verification. The source also includes all of these phases as distinct pieces of command behavior.",
+              "suggestedFix": "Remove the count or say “The `domain:add` wizard walks through the domain setup in stages.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required `--region` flag and the minimal usage example are consistent with `requiredArgs: ['region']`.",
+            "The root-domain-only warning is grounded in the `tldtsParse(domainName).subdomain` check and `stpErrors.e38` branch.",
+            "The arguments reference uses `<CliCommandsApiReference command=\"domain:add\" ... />`, matching the documented command.",
+            "The draft avoids forbidden Stacktape config examples, hand-authored YAML, and fenced TypeScript Stacktape config blocks.",
+            "All markdown cross-links point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the domain:add command source and CLI command definition. I found a few publication-relevant issues: one unsupported Console URL/flow claim, one potentially misleading agent-mode CI claim, one over-specific Route 53 registration claim, and one internal implementation detail exposed as user-facing behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"After running the command, check certificate and domain status in the Stacktape Console at https://console.stacktape.com/domains.\"",
+              "reason": "The command source prints a generic Console domains URL in hints, but the provided source list does not include console-app source proving that this exact Console page exposes certificate and domain status. Console UI/page behavior must be grounded in console-app source, which is not provided here.",
+              "suggestedFix": "Narrow to the source-backed behavior: \"The command prints https://console.stacktape.com/domains as the place to continue or check domain setup.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "tuiManager.hint('Check certificate status in Stacktape Console: https://console.stacktape.com/domains');"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"For non-interactive environments, use the `--agent` flag, which outputs JSONL and auto-confirms operations.\"",
+              "reason": "The draft's FAQ says `--agent` can be used for non-interactive environments, but the actual domain:add implementation always prompts for the domain name and uses promptConfirm for multiple decisions. The command definition includes the universal `agent` option, but the domain-add command source does not branch on agent mode or provide non-interactive domain/confirmation arguments.",
+              "suggestedFix": "Keep the manual guidance and remove the non-interactive recommendation. For example: \"Although `--agent` is listed as a universal CLI option, `domain:add` still prompts for the domain name and setup confirmations, so treat it as an interactive setup command.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "const domainName = await tuiManager.promptText({\n    message: 'Domain name (example: mydomain.com):'\n  });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "const controlDomainDnsWithAws = await tuiManager.promptConfirm({\n      message: \"Do you wish to manage your domain's DNS records in your AWS account?\"\n    });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "const generateCerts = await tuiManager.promptConfirm({\n      message: `Do you wish to generate certificates for ${tuiManager.makeBold(domainName)} in your AWS account?`\n    });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"If the domain was purchased through AWS Route 53, ownership is already verified and the command skips straight to TLS certificate provisioning.\"",
+              "reason": "The code checks `domainStatus.ownershipVerified`; it does not explicitly check that the domain was purchased through Route 53. A Route 53-registered domain may be a common case, but the source only supports the broader condition: if ownership is already verified, the command proceeds to certificates.",
+              "suggestedFix": "Rephrase as: \"If Stacktape detects domain ownership as verified, the command proceeds to TLS certificate provisioning.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "if (!domainStatus.ownershipVerified) {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "tuiManager.success('Domain ownership verified.');\n  let regionalCert = domainStatus.regionalCert;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft repeatedly says the command requests an additional certificate \"through `requestCertificateForDomainName(domainName, true)`\" and suggests this is meaningful user-facing behavior.",
+              "reason": "The source does call that internal helper with `true`, but the provided source does not define what the boolean means. The statement is technically visible in code, but it exposes an internal function call instead of a source-grounded user-facing fact. The lower-priority generated doc says this is a us-east-1 certificate for CloudFront/CDN use, but the authoritative command source only proves a second certificate is requested when the selected region is not `us-east-1`.",
+              "suggestedFix": "Write the supported fact without naming the internal helper or inferring the boolean: \"When the selected region is not `us-east-1`, the command also requests a second certificate.\" If using the generated-doc framing, keep it cautious: \"The generated docs describe that second certificate as the us-east-1 certificate used for CloudFront/CDN integrations.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "[awsSdkManager.requestCertificateForDomainName(domainName, false)].concat(\n        globalStateManager.region !== 'us-east-1' ? awsSdkManager.requestCertificateForDomainName(domainName, true) : []\n      )"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "\"The command requests a free AWS ACM certificate in the specified `--region`.\"",
+              "reason": "The command output says Stacktape can create free TLS certificates, and the code requests certificates. However, the source quote does not explicitly say ACM in the user-facing message; ACM is only indirectly visible through the imported `CertificateStatus` from `@aws-sdk/client-acm`. This is likely correct but should be phrased as AWS TLS certificates unless ACM is introduced cautiously.",
+              "suggestedFix": "Use the command's wording: \"The command requests free TLS certificates in your AWS account.\" If mentioning ACM, phrase it as implementation context: \"The command checks certificate status through AWS ACM.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "import { CertificateStatus } from '@aws-sdk/client-acm';"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "tuiManager.warn(`Stacktape can create free TLS certs for ${tuiManager.makeBold(domainName)} in your AWS account.`);"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"The `domain:add` wizard walks through up to four stages\" immediately followed by a numbered list of five stages.",
+              "reason": "This is internally inconsistent and may confuse readers even though the individual listed steps broadly match the command flow.",
+              "suggestedFix": "Change \"up to four stages\" to \"several stages\" or make the count match the five listed steps.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required `--region` argument and allowed CLI options are grounded in `src/config/cli/commands.ts` and reflected through the required `<CliCommandsApiReference command=\"domain:add\" ... />` component.",
+            "The root-domain-only behavior is correctly grounded in `tldtsParse(domainName).subdomain` and `stpErrors.e38({ domainName })`.",
+            "The DNS migration flow, hosted-zone creation prompt, registrar name server instructions, and warning to copy existing DNS records are all supported by `src/commands/domain-add/index.ts`.",
+            "The SES verification section is source-grounded: the command initializes SES identity status, optionally verifies the domain with DKIM, creates DKIM records, and says SES verification can take a few minutes."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/cli__domain__add/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "The wizard flow walkthrough in 'What it does' accurately reflects the source code's branching logic and is the most useful section for a first-time reader.",
+            "The Warning callout about subdomains being rejected is correctly placed right after the description and addresses the single most common user mistake.",
+            "The Parameter Store resume-from-saved-state behavior is explained clearly and addresses a real user concern (what happens if I cancel midway).",
+            "The FAQ covers all three required categories: Stacktape-specific (subdomain vs root domain), AWS service questions (how long does DNS propagation take, is there a cost), and comparison/choosing questions (CI/CD automation vs manual run).",
+            "All bash examples are in separate fenced blocks with one command each, no comment-label pollution, and cover the three most common invocation patterns (basic, with profile, with named AWS account).",
+            "The `<CliCommandsApiReference>` component is used correctly with all required props, and no flags are hand-authored.",
+            "DNS ownership scenarios are split into two concrete sub-scenarios with named registrar examples (GoDaddy, Namecheap, Hostinger), making the external-registrar path actionable.",
+            "TLS certificate behavior for us-east-1 vs other regions is documented accurately and matches the source code's conditional logic."
+          ],
+          "problems": [
+            "The 'What it does' section opens with 'walks through up to four stages' but then enumerates five numbered items (1. Enter domain name, 2. Check registration, 3. Verify DNS ownership, 4. Provision TLS certificates, 5. Optional SES verification). The count 'four' is factually wrong and will confuse readers counting along.",
+            "The 'DNS ownership scenarios' H2 section and 'TLS certificates' H2 section substantially repeat content already covered in the numbered list inside 'What it does', adding only a paragraph of expansion each. This redundancy dilutes the page without adding proportional value to a first-time reader.",
+            "The 'SES email verification' section says to skip the step 'if you don't plan to send transactional email from your application' but never says what you gain by completing it — the reader has no way to decide without knowing that verifying enables sending from a custom domain (e.g. noreply@mydomain.com) rather than an AWS-assigned address."
+          ],
+          "mandatoryFixes": [
+            "Fix the factual error in 'What it does': change 'walks through up to four stages' to 'walks through up to five stages' (or remove the count entirely) to match the five numbered items that follow."
+          ],
+          "optionalImprovements": [
+            "Collapse or merge the standalone 'DNS ownership scenarios' and 'TLS certificates' H2 sections into the 'What it does' walkthrough as inline callouts or sub-bullets, since the standalone sections mostly restate what the numbered list already covers with minor additions.",
+            "In the 'SES email verification' section, add one concrete sentence explaining the benefit: e.g. 'Once verified, you can send email from addresses at your domain (e.g. noreply@mydomain.com) through AWS SES instead of an AWS-assigned address.'",
+            "The `<Tip>` callout embeds a raw URL inline with the text; consider converting it to a standard MDX link for consistency with the rest of the page's link style.",
+            "The 'Related commands' section links to `deploy` and `defaults:configure` but not to the domains and certificates documentation page referenced in the source — adding that link would complete the navigation triangle for a reader who wants the full domain setup guide."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Flow documentation is well-grounded in the actual source — the resume-from-saved-progress behavior, the conditional us-east-1 cert, and the DKIM SES records are all accurately sourced from src/commands/domain-add/index.ts.",
+            "The DNS ownership scenarios section (Route 53 vs external registrar) cleanly maps to the two code paths in the source and gives the reader actionable guidance without being verbose.",
+            "FAQ is thorough, mixes Stacktape-specific, AWS-behavior, and comparison questions well, and each answer is a useful standalone paragraph.",
+            "Shell code blocks are correctly split: one command per block, no explanatory # comments inside blocks.",
+            "The <CliCommandsApiReference> component is used correctly with all flags sourced from the command definition.",
+            "The <Warning> callout for subdomain rejection is accurate and correctly placed — the source throws stpErrors.e38 for subdomains detected via tldtsParse."
+          ],
+          "problems": [
+            "Factual inconsistency: 'The domain:add wizard walks through up to four stages' immediately precedes a numbered list of five items (Enter domain name, Check registration, Verify DNS ownership, Provision TLS certificates, Optional SES verification). The count is wrong — the source flow has five distinct stopping points.",
+            "The '## TLS certificates' standalone section largely duplicates step 4 of the numbered list in '## What it does'. Both say the same things about regional vs us-east-1 certs and DNS validation records. This padding lowers signal density without adding information.",
+            "The wizard flow omits a documented interactive confirmation: before generating certs the source prompts 'Do you wish to generate certificates... in your AWS account?' and exits if the user declines. The draft implies cert generation is automatic once ownership is verified, which is slightly misleading.",
+            "The flow description says 'It stops at the first incomplete step' but a reader could misread this as a single-run process. The source clearly shows that after the DNS ownership step, the command stores status and returns — the user must update their registrar, wait for propagation, and then re-run. This multi-run nature is stated in the FAQ but not in the main flow section."
+          ],
+          "mandatoryFixes": [
+            "Fix the stage count: change 'up to four stages' to 'up to five stages' (or 'up to five steps') to match the five numbered items that follow — this is a direct factual contradiction visible to any reader."
+          ],
+          "optionalImprovements": [
+            "Remove or significantly trim '## TLS certificates' — its content is already covered in step 4 of the 'What it does' numbered list. If kept, restrict it to one non-redundant fact (e.g., that ACM public certificates are free) rather than restating the us-east-1 / DNS validation content already present above.",
+            "Add a sentence to the cert provisioning step (step 4) noting that the command prompts for confirmation before requesting certificates, and exits if the user declines — sourced from the `promptConfirm` call in the index.ts.",
+            "Add a one-sentence clarification to the main flow summary that after the DNS ownership step the command exits and must be re-run after registrar propagation — the FAQ covers this but the flow section leaves it implicit.",
+            "Consider a short table summarising each wizard stage, what input/action is required, and whether the command exits after it — this would make the multi-run nature scannable at a glance."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly explains the command's purpose and downstream resource use.",
+            "Usage and examples show realistic invocations with required `--region`, and each shell block contains exactly one copyable command.",
+            "The page uses the required `<CliCommandsApiReference command=\"domain:add\" />` component instead of hand-authoring the flags table.",
+            "The DNS migration warning is practical and matches the source warning to copy existing DNS records before changing registrar name servers."
+          ],
+          "problems": [
+            "The page says the wizard has \"up to four stages\" but then lists five stages. This is a direct clarity issue.",
+            "Several claims are broader than the provided source supports: \"run once per region before referencing the domain,\" \"resumes from saved progress on subsequent runs,\" \"hosted zone usage\" cost, and using `domain:add` in CI/CD with `--agent` are not established by the provided `domain-add` command source.",
+            "The FAQ includes AWS pricing/cost claims beyond the source: ACM public certificate pricing and Route 53 hosted zone charges are useful background, but the page phrases them as part of the command's cost model without source support.",
+            "The `--agent` FAQ is risky: `domain:add` uses an interactive prompt for the domain name, and the provided source does not show a non-interactive argument for domain name. Saying `--agent` makes it suitable for non-interactive environments is not grounded.",
+            "The \"What it does\" section overstates exact flow control. The source shows returns after DNS migration setup and certificate validation record creation, but does not support the polished claim that it \"stops at the first incomplete step\" in all cases.",
+            "The page tells readers to check or manage status in the Stacktape Console, but no `console-app` source is provided. The command source prints Console links, so a generic link is fine, but UI workflow language should stay narrow.",
+            "The Related commands section misses the closest sibling for this command if one exists in the docs navigation/source set; with only provided commands, `deploy` and `defaults:configure` are acceptable but somewhat indirect."
+          ],
+          "mandatoryFixes": [
+            "Fix the internal contradiction: change \"up to four stages\" to \"up to five stages\" or remove the count.",
+            "Revise the CI/CD FAQ. Do not claim `--agent` makes `domain:add` fully non-interactive unless the source provides a domain-name argument or agent-mode behavior for the prompt; say the command is primarily interactive and should usually be run manually.",
+            "Narrow unsupported persistence wording. Replace \"resumes from saved progress on subsequent runs\" with a source-grounded statement such as \"the command stores domain status in Parameter Store after DNS setup and certificate-validation-record setup, so later runs can read saved domain status.\"",
+            "Remove or qualify unsupported cost claims that are not in the provided source, especially Route 53 hosted zone usage charges and ACM public certificate pricing. Keep only sourced pricing: Route 53 registration hint says prices start at $3/year for `.click`, and the command text says SES verification is free.",
+            "Avoid unsupported Console workflow wording. Keep the source-grounded link to `https://console.stacktape.com/domains`, but do not describe UI actions or status management beyond the command's printed hints."
+          ],
+          "optionalImprovements": [
+            "Add a short \"When to use\" section before \"Usage\" to match the CLI page rhythm: use `domain:add` when preparing a root domain for custom domains and certificates; skip it when the domain is already added in the target region.",
+            "Make the opening paragraph slightly shorter; it is clear but near the upper end of snippet length.",
+            "In \"What it does,\" distinguish \"registered in Route 53\" from \"DNS ownership already verified\" more carefully. The source checks `domainStatus.ownershipVerified`, not only the registrar.",
+            "Replace broad resource phrasing like \"API Gateways\" with the exact source/docs term used elsewhere on the page, such as \"HTTP API Gateways,\" for consistency.",
+            "Consider moving the Warning about root domains closer to the first usage example because it is the most important failure mode before running the command."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided command source and CLI metadata. I found two issues worth fixing: one unsupported Route 53 registration shortcut claim and one internal/source mismatch about the number of wizard stages.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If the domain was purchased through AWS Route 53, ownership is already verified and the command skips straight to TLS certificate provisioning.”",
+              "reason": "The command source does not check where the domain was registered or purchased. It branches on `domainStatus.ownershipVerified`; a Route 53 registration may be a reasonable inference, but the provided source only supports wording based on detected ownership status, not registrar identity.",
+              "suggestedFix": "Replace with: “If Stacktape detects that domain ownership is already verified, the command continues to TLS certificate provisioning.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "let zoneInfo = domainStatus.hostedZoneInfo;\n  if (!domainStatus.ownershipVerified) {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts",
+                  "quote": "  tuiManager.success('Domain ownership verified.');\n  let regionalCert = domainStatus.regionalCert;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "incorrect-claim",
+              "statement": "“The `domain:add` wizard walks through up to four stages.”",
+              "reason": "The draft immediately lists five stages, and the command source contains a separate optional SES verification phase after certificate validation. The number should be corrected or removed.",
+              "suggestedFix": "Say “The `domain:add` wizard walks through several stages” or “up to five stages.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The `--region` requirement and allowed CLI options are consistent with the command definition and generated argument metadata.",
+            "The root-domain-only warning is grounded in the `tldtsParse(domainName).subdomain` check and `stpErrors.e38` path.",
+            "The hosted-zone, certificate-request, DNS-validation-record, and optional SES DKIM flows broadly match `src/commands/domain-add/index.ts`.",
+            "All shell examples use one command per fenced block, and the draft does not contain forbidden Stacktape YAML or plain-object `StacktapeConfig` examples."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -1058,8 +1511,16 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\domain-add.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.1, hard blockers 5, advisory high 0, verifier medium 11"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/cli/domain-add.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T03:08:42.350Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/domain-add/index.ts": "516cb603fe8a82dfaf08e809bbf712f1a379ce15",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/cli/domain-add.md": "127cfd10a67db78699ea5c559cc4fc0f1d7d08ed"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

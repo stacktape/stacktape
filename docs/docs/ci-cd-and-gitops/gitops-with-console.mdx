@@ -4,7 +4,7 @@ order: 107
 seoTitle: 'GitOps with Console – Auto-Deploy on Push & PR Previews | Stacktape'
 seoDescription: 'Set up push-to-deploy and PR preview environments with Stacktape Console. Connect GitHub, map branches to stages, and auto-deploy on every push with no pipeline files.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.7, hard blockers 2, advisory high 0, verifier medium 12'
+pipelineReviewSummary: 'reviewer-avg 7.7, hard blockers 1, advisory high 0, verifier medium 4'
 ---
 
 # GitOps with Console
@@ -39,7 +39,7 @@ Push-to-deploy is the most common GitOps pattern. Every push to a specified bran
 
 ### Setting up push-to-deploy
 
-Create a GitOps configuration in the Console that maps a branch to a stage. Navigate to your project's GitOps page and click **New GitOps configuration**. GitOps configurations are listed with deployment trigger, branch, stage name, AWS region, and connected AWS account. Push configurations appear as "Push to Branch" in the trigger column.
+Push-to-deploy is configured from your project's GitOps page in the Stacktape Console. Click **New GitOps configuration** to open the creation modal. Existing configurations are listed with their deployment trigger, branch, stage name, AWS region, and connected AWS account — push configurations appear as **Push to Branch** in the trigger column.
 
 You can create multiple push-to-deploy configurations for the same project — for example, `main` → `prod` and `develop` → `staging`, each targeting different AWS accounts or regions.
 
@@ -53,7 +53,7 @@ PR preview environments give every pull request its own isolated stage. Reviewer
 
 ### Setting up PR previews
 
-Create a GitOps configuration with the **PR Opened** trigger and select the target branch (the branch PRs are opened against, typically `main`). When a PR is opened against that branch, the handler starts a deployment to a new stage. The Console displays the stage name as `pr-{#number}` (e.g. `pr-42` for PR #42) when no explicit stage name is configured.
+PR preview configurations are created from the same **New GitOps configuration** modal on the GitOps page, using the **PR Opened** trigger. When a PR is opened against the configured branch, the handler starts a deployment to a new stage. The Console displays the stage name as `pr-{#number}` (e.g. `pr-42` for PR #42) when no explicit stage name is configured.
 
 The GitHub App handler also creates a temporary internal configuration that watches for subsequent pushes to the PR branch, so the preview stays current with the latest code. This temporary configuration is filtered out of the GitOps configuration list in the Console — you only see the configurations you explicitly created.
 
@@ -69,16 +69,9 @@ For a deeper look at the per-PR stage pattern — including naming conventions, 
 
 ## Build runners
 
-GitOps deployments need deployment execution infrastructure to run the actual `deploy` or `delete` command. Stacktape supports two runner types:
+GitOps deployments need deployment execution infrastructure to run the actual `deploy` or `delete` command. Stacktape offers multiple build-runner options — including AWS CodeBuild-managed runners and EC2-based runners — with different cost, startup, and operational tradeoffs.
 
-| Runner type | Model | Startup | Best for |
-|---|---|---|---|
-| **CodeBuild-managed** | Fully managed, per-minute billing, no persistent infrastructure | Provisions on demand (cold start per deployment) | Most teams — no maintenance, pay only when deploying |
-| **EC2-based** | Persistent instances, fixed hourly cost while running | Near-instant (instance already running) | Large stacks with frequent deploys where cold start matters |
-
-CodeBuild runners are the default choice for most teams — zero maintenance overhead and you pay only for the minutes your deployment runs. EC2-based runners make sense when you deploy frequently enough that the cold-start overhead of provisioning a fresh CodeBuild environment adds up, or when your deployment requires tools or caches that benefit from a persistent filesystem.
-
-For full configuration options, compute sizing, and cost tradeoffs, see [Build runners](/ci-cd-and-gitops/build-runners).
+For runner types, configuration options, compute sizing, and cost tradeoffs, see [Build runners](/ci-cd-and-gitops/build-runners).
 
 ## Webhook flow
 
@@ -91,7 +84,7 @@ Understanding the event flow helps with debugging when a push doesn't trigger a 
   { title: "PR bookkeeping", description: "On PR open: creates a temporary configuration for pushes to the PR branch. On PR close: removes the temporary configuration." }
 ]} />
 
-The handler processes all matching configurations through `Promise.all`. PR bookkeeping errors (creating or removing the temporary push configuration) and PR-close deletion errors are captured individually — the handler returns a response indicating whether all actions succeeded or how many failed.
+The handler processes all matching configurations through `Promise.all`. PR bookkeeping errors and PR-close deletion errors are captured individually and summarized in the response. The deployment start call is not wrapped in that same per-action error handler in the GitHub App handler source.
 
 <Info>
 The GitHub App handler also processes `workflow_job` events for [self-hosted GitHub Actions runners](/ci-cd-and-gitops/self-hosted-github-actions-runners). These events are handled separately from GitOps deployment triggers.
@@ -131,7 +124,7 @@ This gives you continuous deployment to staging on every push, production deploy
 
 ### How do I set up push-to-deploy with Stacktape?
 
-In the Stacktape Console, navigate to your project's GitOps page and create a new configuration. Select "Push to Branch" as the trigger, pick the branch to watch, set a stage name, and choose your AWS account and region. Every push to that branch triggers a deployment automatically. No pipeline files or CI configuration is needed.
+In the Stacktape Console, navigate to your project's GitOps page and click **New GitOps configuration** to open the creation modal. After you save a push-to-branch configuration, every push to the watched branch triggers a deployment to the configured stage automatically. No pipeline files or CI configuration are needed in your repository.
 
 ### How do PR preview environments get cleaned up?
 
@@ -139,7 +132,7 @@ When you create a PR preview configuration, you can enable auto-deletion on PR c
 
 ### What happens if a GitOps action fails?
 
-The GitHub App handler processes matching configurations through `Promise.all`. PR bookkeeping errors and deletion errors are captured individually and reported in the response summary. Common failure causes include invalid Stacktape configuration, missing [secrets](/configuration/secrets), or AWS permission issues on the connected account. Check your deployment output and [`stacktape debug:logs`](/cli/debug-logs) for diagnostics.
+The GitHub App handler processes matching configurations through `Promise.all`. PR bookkeeping errors and PR-close deletion errors are captured individually and summarized in the handler's response. Deployment failures themselves surface in the deployment output for the affected stage rather than as part of that webhook response summary. Common failure causes include invalid Stacktape configuration, missing [secrets](/configuration/secrets), or AWS permission issues on the connected account. Check your deployment output and [`stacktape debug:logs`](/cli/debug-logs) for diagnostics.
 
 ### How much does AWS CodeBuild cost for deployments?
 

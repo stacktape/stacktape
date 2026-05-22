@@ -2,7 +2,7 @@
   "pageId": "deployment-and-lifecycle__multi-region-deployments",
   "pageRoute": "deployment-and-lifecycle/multi-region-deployments",
   "startedAt": "2026-05-17T15:19:42.255Z",
-  "updatedAt": "2026-05-17T15:36:35.016Z",
+  "updatedAt": "2026-05-21T14:58:34.730Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1046,6 +1046,229 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/deployment-and-lifecycle__multi-region-deployments/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong opinionated 'When to use' and 'When NOT to use' sections that actually help readers decide — especially the cost/complexity tradeoff in 'When NOT to use'.",
+            "Multi-region patterns section (active-active, active-passive, region-per-audience) gives concrete when-to-choose guidance per pattern rather than just describing mechanics.",
+            "Cross-region data comparison table is high-signal and practical — consolidates a genuinely complex decision into a scannable format.",
+            "Correct CodeBlock usage throughout: all Stacktape config examples use defineConfig + class-based resources inside <CodeBlock intellisense tabs>, no YAML config blocks.",
+            "10-question FAQ covers all three required categories (Stacktape-specific, AWS use-case, choosing/comparison) with useful 2-4 sentence answers.",
+            "Shell command discipline is clean: one command per fenced block, no explanatory # comments inside blocks.",
+            "Region restriction guardrail code example is realistic and includes the actual error message the user will see — removes ambiguity about what happens when the guardrail fires.",
+            "The region resolution priority order note in the <Info> callout is a practical gotcha that prevents real debugging sessions."
+          ],
+          "problems": [
+            "The defineConfig callback params list ('region', 'stage', 'projectName', 'command', 'awsProfile', and 'user' with 'id, name, and email') is stated as fact in two separate places on the page but is not confirmed in the provided source file (src/commands/deploy/index.ts). The source file exposes globalStateManager.args and stage but not the defineConfig callback signature.",
+            "The claim 'Stacktape generates a globally unique hash from the region, stack name, and AWS account ID' is not confirmed anywhere in the provided source file. This is presented as a factual statement.",
+            "Region resolution priority order ('explicit --region flag → AWS_DEFAULT_REGION → persisted default → AWS config file') is not confirmed in the provided source file.",
+            "The cross-region data section names DynamoDB global tables, Aurora Global Database, and S3 CRR without any plain-language orientation — a reader with low AWS experience hitting this section will not know whether these are services they already have access to, how much they cost, or how hard they are to set up. The table reads as an expert-to-expert summary.",
+            "The 'Stacktape supports 20 AWS regions' claim with a specific 20-region table is not confirmed in the provided source file.",
+            "The 'How it works' section and the intro paragraph both state that each stack uses the project name and stage — there is minor repetition between the intro and this section that does not add new information."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Soften the defineConfig params claim: instead of listing all six params as fact, write 'the callback receives deploy-time context including the region and stage' and link to the defineConfig reference page. This avoids committing to a specific params list that isn't in the source.",
+            "Remove or qualify the 'globally unique hash' claim — if you cannot ground it in source, replace with 'resource names are scoped to avoid collisions when the same project and stage run in multiple regions' and omit the implementation detail.",
+            "Add 1-2 sentences of plain-language context before the cross-region data table: e.g., 'AWS offers native replication features for each storage type. The options below each trade consistency guarantees for simplicity — pick based on whether your application can tolerate a few seconds of lag between regions.' This orients a low-AWS-experience reader before the table.",
+            "Move the minimal two-command deploy example (the two bash blocks) to an earlier position — ideally immediately after the intro paragraph or at the start of 'How it works' — so the copy-paste-and-ship reader finds the runnable example before reading three sections of prose.",
+            "The 20-region table adds bulk but is unlikely to help most readers choose a region. Consider trimming to a one-paragraph recommendation ('eu-west-1 for Europe, us-east-1 for US-first projects') and linking to AWS's region list, which stays current."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "No mandatory style violations: all Stacktape config examples are correctly in <CodeBlock intellisense> with TypeScript tabs; no hand-authored YAML; no StacktapeConfig type import.",
+            "Every bash block contains exactly one command with explanatory prose above it — the copy-button trap is fully avoided.",
+            "The active-active / active-passive / region-per-audience pattern breakdown is concrete and opinionated, with explicit 'When to choose' guidance for each.",
+            "The cross-region data comparison table (DynamoDB global tables, Aurora Global Database, S3 CRR, app-level sync) is the most citation-worthy section on the page — concrete, scannable, and decision-oriented.",
+            "The 'When NOT to use' section is a genuine peer H2 and gives real cost/ops reasons rather than generic hedging.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS use-case, choosing/comparison) with 10 well-distributed questions.",
+            "The <Warning> callout on cross-region replication costs is accurate and actionable.",
+            "Rollback behavior during multi-region CI/CD is mentioned ('failed region rolls back via CloudFormation's automatic rollback'), matching the deploy source which shows isAutoRollbackEnabled and deleteArtifactsRollbackedDeploy."
+          ],
+          "problems": [
+            "The defineConfig params object API is claimed specifically: 'params includes region, stage, projectName, command, awsProfile, and user (with id, name, and email)'. This claim and the exact property names are not grounded in the provided source file (deploy/index.ts). If any name differs from the actual runtime type, a developer using the destructuring pattern will get undefined silently.",
+            "Guardrail type names ('region-restriction', 'stage-restriction', 'command-restriction', 'resource-type-restriction') and the allowedRegions property structure are stated as fact but are not verifiable from the provided source. The deploy source only shows validateGuardrails is called — it does not show type names, property shapes, or the error message format.",
+            "The specific error message text ('Region \"ap-southeast-1\" is not allowed. Allowed regions: eu-west-1, eu-central-1, us-east-1.') is presented as a direct quote but its wording is unverifiable from the source. If wrong, it misdirects developers debugging guardrail failures.",
+            "The 20-region list with specific AWS region identifiers is an unchecked factual claim. The source file does not enumerate supported regions. One entry error could send a developer to the wrong region.",
+            "The region resolution priority order (explicit --region flag → AWS_DEFAULT_REGION → persisted default → AWS config file) is a specific Stacktape behavioral claim not verifiable from the provided source.",
+            "The section instructions for deployment-and-lifecycle pages require describing CloudFormation stack states inline where deploy-time state matters (e.g., UPDATE_ROLLBACK_IN_PROGRESS, UPDATE_FAILED). The page mentions CF rollback in passing but never names the relevant stack states, which is a missed concrete signal for an engineer debugging a stuck stack."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Source-ground the defineConfig params object: verify the exact property names (region, stage, projectName, command, awsProfile, user) against the actual DefinedConfigParams type in the Stacktape types. If any name is wrong, fix it; if the source is missing, narrow the claim to only what is verified.",
+            "Source-ground the guardrail type names and allowedRegions property against the guardrail types (likely in types/stacktape-config/guardrails.d.ts or similar). If the names differ from what the schema validator expects, the code example silently fails.",
+            "Either verify the exact region-restriction error message wording or replace the quoted message with a description ('Stacktape throws an error naming the disallowed region and the allowed list') to avoid quoting text that may not match runtime output.",
+            "Add CloudFormation rollback state names inline per section-instructions: note that when a region's deploy fails, the CloudFormation stack enters UPDATE_ROLLBACK_IN_PROGRESS → UPDATE_ROLLBACK_COMPLETE (or ROLLBACK_COMPLETE for a failed create). Engineers watching a multi-region deploy need these state labels to diagnose a stuck stack.",
+            "The 'How it works' H2 is slightly generic for a page about a well-defined deployment pattern. Consider 'Deploying to a region' or 'Deploy mechanics' to be more specific, consistent with the noun-form heading preference.",
+            "The Info callout about region resolution priority could be narrowed or removed if the four-step priority order cannot be confirmed from source — a developer who relies on a wrong precedence order and gets unexpected region selection will have a difficult debugging session."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 4,
+            "practicalUsefulness": 4,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Strong answer-first opening paragraph that clearly explains Stacktape multi-region deployments and why they matter.",
+            "H2 structure is easy to scan, with useful decision sections for when to use and when not to use multi-region deployments.",
+            "Shell examples follow the one-command-per-block rule, and Stacktape config examples use <CodeBlock intellisense> with a TypeScript tab.",
+            "The page gives practical operational framing around latency, compliance, DNS routing, data replication, monitoring, and deletion order."
+          ],
+          "problems": [
+            "The page makes many Stacktape-specific claims that are not grounded in the provided source file. The source only shows deploy-command flow, CloudFormation deployment, guardrail validation, artifact packaging, hotswap/full deploy behavior, notifications, and post-deploy cleanup.",
+            "Unsupported claims include: Stacktape supports exactly 20 AWS regions, the CLI region resolution priority, region-derived unique hashes, defineConfig params shape, multi-region DNS behavior, custom-domain behavior, GitOps multi-region behavior, alert-channel scoping, and region-restriction error text.",
+            "Several AWS replication and routing claims are plausible background knowledge, but the draft presents some of them as Stacktape guidance without any provided source support.",
+            "The page says `--region` is required for deploy, but the provided deploy source does not show argument parsing or required-region validation.",
+            "The active-active, active-passive, and region-per-audience sections are useful but mostly unsupported by the single source file, so they read more like inferred architecture advice than source-grounded Stacktape documentation.",
+            "The draft does not distinguish source-grounded CLI behavior from Console behavior carefully enough. The GitOps with Console section describes multi-region Console configuration without console-app source support.",
+            "Some concrete numbers are unsupported by the provided source, including under ~200 ms, 30-90 seconds, under 1 second Aurora lag, 400+ edge locations, 2-3 regions, and exactly 20 supported AWS regions.",
+            "The FAQ is broad and useful for search, but several answers repeat unsupported claims from the body, especially custom domains, defineConfig params, region count, rollback behavior, and CloudFront edge count."
+          ],
+          "mandatoryFixes": [
+            "Remove or re-source every Stacktape-specific claim not grounded in the provided deploy source. Keep only behavior visible in `src/commands/deploy/index.ts` unless additional source files are supplied.",
+            "Do not state that `--region` is required, how region defaults are resolved, or that Stacktape supports exactly 20 regions unless the CLI argument/defaulting and region source files are provided.",
+            "Remove the supported-regions table or replace it with cautious wording backed by an actual region-constant source file.",
+            "Remove the GitOps with Console workflow details unless console-app or GitOps command/source files are provided. You may link to GitOps docs, but do not describe Console setup behavior from inference.",
+            "Replace unsupported `defineConfig` params claims with sourced deploy-command behavior, or provide the config-manager/type source that defines the callback parameters.",
+            "Remove or qualify unsupported Stacktape claims about DNS routing, custom domains, alert channels, and per-region monitoring unless the relevant resource, Console, or observability sources are provided.",
+            "Remove unsupported concrete latency, failover, replication-lag, edge-location, and region-count numbers, or cite source files that contain them.",
+            "Revise the FAQ so every Stacktape-specific answer is grounded in the provided source. General AWS background may remain only when clearly framed as AWS behavior, not Stacktape behavior."
+          ],
+          "optionalImprovements": [
+            "Add a short section grounded in the deploy source explaining that deploy validates guardrails, packages workloads, uploads artifacts, then performs either hotswap or a full CloudFormation deployment.",
+            "Mention the source-grounded hotswap fallback behavior: when hotswap is requested but not possible, Stacktape warns and runs a full CloudFormation deploy.",
+            "Add a source-grounded note that deploy refuses to deploy over an existing dev stack, because the provided source explicitly checks `isDevStack`.",
+            "Tighten the page around a smaller, verifiable claim: multi-region deployment is an operational pattern achieved by running deploy separately per region, while Stacktape deploy itself operates on one target stack at a time."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly consistent with the provided multi-region source material and avoids the forbidden Stacktape configuration patterns. I did not find publication-blocking factual issues grounded in the supplied sources.",
+          "issues": [],
+          "positiveFindings": [
+            "Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and do not hand-author YAML.",
+            "The page keeps `When to use` and `When NOT to use` as peer H2 sections.",
+            "The draft uses the documented `stacktape debug:logs` command and links it to `/cli/debug-logs`.",
+            "Cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "The deploy lifecycle statement that guardrails are validated before packaging and CloudFormation deployment is supported by `src/commands/deploy/index.ts`, where `validateGuardrails` runs before artifact preparation and upload."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided multi-region source material and follows the required CodeBlock and shell-command rules. I found two source-grounding issues that should be tightened before publication.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`stacktape deploy` validates configured guardrails before packaging and the CloudFormation deployment begins, so a forbidden region fails fast — no artifacts are uploaded and no stack operations run.”",
+              "reason": "The deploy source supports that guardrails run before packaging and before CloudFormation deployment, but it does not support the broader “no artifacts are uploaded and no stack operations run” statement for every guardrail failure path. The source only shows `validateGuardrails` is called early; the exact side effects of validation failure are not shown in the provided source.",
+              "suggestedFix": "Narrow to the source-backed fact: “`stacktape deploy` validates configured guardrails before packaging and before the CloudFormation deployment phase begins.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/deploy/index.ts",
+                  "quote": "validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/deploy/index.ts",
+                  "quote": "eventManager.setPhase('BUILD_AND_PACKAGE');\n  const [{ packagedWorkloads, abort, cfTemplateDiff }] = await Promise.all([\n    prepareArtifactsForStackDeployment(),"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/deploy/index.ts",
+                  "quote": "eventManager.setPhase('UPLOAD');\n  await deploymentArtifactManager.uploadAllArtifacts({ useHotswap });\n\n  await notificationManager.sendDeploymentNotification({\n    message: {\n      text: `Deploying stack ${globalStateManager.targetStack.stackName}${useHotswap ? ' (using hotswap)' : ''}.`,\n      type: 'progress'\n    }\n  });\n\n  eventManager.setPhase('DEPLOY');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Configure alert channels per region so the right team gets notified about region-specific incidents. Each region's alarms, metrics, and issues are scoped to that region's stack.”",
+              "reason": "The provided source supports that Stacktape can deploy independent stacks per region, but it does not include observability or alert-channel source showing alert channels are configured per region or that alarms, metrics, and issues are scoped this way.",
+              "suggestedFix": "Remove or narrow this to a general recommendation that does not assert Stacktape-specific alert-channel behavior, for example: “When you operate multiple regional stacks, check logs and operational signals for the region you are investigating.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/multi-region-deployments.md",
+                  "quote": "Each region's stack is monitored independently. Use [`stacktape debug:logs`](/cli/debug-logs) with the appropriate `--region` flag to view logs for a specific region:"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/multi-region-deployments.md",
+                  "quote": "Configure [alert channels](/observability/alert-channels) per region so the right team gets notified about region-specific incidents. Each region's alarms, metrics, and issues are scoped to that region's stack."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab, and there are no hand-authored YAML Stacktape config examples.",
+            "Shell examples follow the one-command-per-block rule and do not include explanatory comments inside copyable command blocks.",
+            "The draft correctly distinguishes Stacktape’s per-region stack deployment from DNS routing and cross-region data replication, which it describes as outside Stacktape’s automatic resource model.",
+            "All checked cross-links point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 7, col 46: Argument of type '{ dockerfilePath: string; }' is not assignable to parameter of type 'CustomDockerfileCwImagePackagingProps'.\n  Property 'buildContextPath' is missing in type '{ dockerfilePath: string; }' but required in type 'CustomDockerfileCwImagePackagingProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1058,8 +1281,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\deployment-and-lifecycle\\multi-region-deployments.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/deployment-and-lifecycle/multi-region-deployments.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.1, hard blockers 11, advisory high 2, verifier medium 12"
+  "pipelineReviewSummary": "reviewer-avg 7.1, hard blockers 1, advisory high 0, verifier medium 3",
+  "refinementAttempts": 1,
+  "refinementStalled": false
 }

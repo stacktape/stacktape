@@ -114,7 +114,7 @@ Yes. It runs as long as the AI client keeps the stdio connection open. When the 
 
 ### How does `stacktape_docs` search work?
 
-The server builds a lexical (BM25) search index from pre-generated documentation at startup. Queries are matched against this index and the top results are returned as structured text. This ensures agents get accurate, up-to-date answers grounded in the current Stacktape docs rather than relying on training data.
+The server builds a lexical (BM25) search index from generated LLM documentation at startup. Queries are matched against section-level chunks and returned with route, source file, heading path, and generated docs kind metadata. Syntax and property lookups are biased toward `config-reference` chunks, workflow questions are biased toward `docs-page` chunks, and near-duplicate top results from the same page are skipped. This ensures agents get accurate, up-to-date answers grounded in the current Stacktape docs rather than relying on training data.
 
 ### Can I use MCP tools alongside dev mode?
 

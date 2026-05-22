@@ -179,17 +179,36 @@ MCP tool arguments are normalized before execution — common snake_case and keb
 
 ### stacktape_docs — search documentation
 
-The `stacktape_docs` tool searches Stacktape documentation for configuration syntax, resource types, deployment patterns, and troubleshooting guidance. The MCP server builds a lexical search index from generated AI docs bundled with the CLI and exposes `query`, `mode`, `resourceType`, `docType`, and `maxItems` parameters.
+The `stacktape_docs` tool searches Stacktape documentation for configuration syntax, resource types, deployment patterns, and troubleshooting guidance. The MCP server builds a lexical search index from generated LLM docs bundled with the CLI and exposes `query`, `mode`, `resourceType`, `docKind`, and `maxItems` parameters.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `query` | string (required) | Search query (e.g. "how to configure a lambda function") |
-| `mode` | `answer` \| `reference` \| `snippet` | `answer` returns full doc content, `reference` returns titles and paths, `snippet` returns code blocks. Default: `answer` |
+| `mode` | `answer` \| `reference` \| `snippet` | `answer` returns matched docs chunks, `reference` returns titles and routes, `snippet` returns code blocks. Default: `answer` |
 | `resourceType` | string | Filter to a specific resource type (e.g. `function`, `web-service`, `relational-database`) |
-| `docType` | `config-ref` \| `cli-ref` \| `concept` \| `recipe` \| `troubleshooting` \| `getting-started` | Filter to a doc category |
+| `docKind` | `docs-page` \| `config-reference` | Filter to a generated docs artifact kind |
 | `maxItems` | number | Max results to return. Default: 3 |
 
-The docs index does not need network access — it is built from files shipped with the Stacktape CLI. This tool is the right starting point for any Stacktape configuration question, since syntax can change between versions.
+The docs index does not need network access — it is built from generated LLM documentation shipped with the Stacktape CLI version running the MCP server. Search favors `config-reference` chunks for syntax, type, and property queries, favors `docs-page` chunks for workflow questions, and avoids returning multiple near-duplicate top results from the same page.
+
+Reference responses include the matched page title, route, generated docs kind, source file, and heading path:
+
+```json
+{
+  "answer": "Found 1 relevant document(s).",
+  "references": [
+    {
+      "title": "Lambda Function",
+      "route": "/config-reference/function",
+      "docKind": "config-reference",
+      "sourcePath": "types/stacktape-config/functions.d.ts",
+      "headingPath": ["Lambda Function", "Lambda Function"]
+    }
+  ]
+}
+```
+
+This tool is the right starting point for any Stacktape configuration question, since syntax can change between versions.
 
 ### stacktape_ops — deploy, delete, and manage secrets
 

@@ -2,7 +2,7 @@
   "pageId": "resources__frontend__remix",
   "pageRoute": "resources/frontend/remix",
   "startedAt": "2026-05-14T12:42:44.539Z",
-  "updatedAt": "2026-05-16T00:07:59.175Z",
+  "updatedAt": "2026-05-21T17:36:04.790Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1556,20 +1556,457 @@
       ],
       "status": "failed",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__frontend__remix/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening paragraph — self-contained, names all three layers (Lambda SSR, S3, CloudFront CDN) and frames the resource's purpose in under 60 words, ready for AI snippet extraction.",
+            "Effective decision support for every opt-in feature: WAF, CDN, custom domains, and VPC each get a concrete 'when to enable / when to skip' signal plus a cost or tradeoff note.",
+            "Property value anchors are consistently applied — every non-obvious value in code examples (memory: 2048, retentionDays: 30, etc.) is explained in adjacent prose with alternatives named.",
+            "Code examples are progressive and realistic: basic example establishes the minimal config, later examples add focus markers on the incremental change, making copy-paste safe at each stage.",
+            "10 FAQ questions span all three required categories (Stacktape-specific, AWS service behavior, and comparison/choosing questions) with 2-4 sentence answers that stand alone as Featured Snippet candidates.",
+            "No style violations: all Stacktape configs use `<CodeBlock intellisense tabs={[...]}/>`, no hand-authored YAML, no StacktapeConfig type pattern, no fenced TypeScript blocks containing defineConfig.",
+            "connectTo section correctly names environment variables using the example resource name (`STP_MAIN_DATABASE_CONNECTION_STRING`), not a generic placeholder."
+          ],
+          "problems": [
+            "The `serverLambda.timeout` claim — 'defaults to 30 seconds, which is also the maximum for SSR web resources' — is not verifiable from the provided source files. `SsrWebServerLambdaConfig` is not included in the source list, so both the default and the maximum are ungrounded claims.",
+            "The `serverLambda.memory` default of 1024 MB and the `retentionDays` default of 180 days for logging are also stated as concrete numbers without corresponding source grounding in the provided type definitions.",
+            "The `cdn` section describes `defaultCachingOptions` as a sub-property in prose but never shows it in a code example, which creates a dangling mention — readers who want to use it have no example to guide them."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify `serverLambda.timeout` default (30s), the SSR maximum timeout, `serverLambda.memory` default (1024 MB), and `logging.retentionDays` default (180) against the `SsrWebServerLambdaConfig` type definition before publication; if confirmed, add a short parenthetical citing the source type.",
+            "Either add a minimal `defaultCachingOptions` code snippet to the CDN section or remove the prose mention entirely — a half-documented sub-property confuses first-time readers more than omitting it.",
+            "Add a one-sentence cold-start callout in the Server Lambda section — first-time Remix users often see a slow first request and wonder if Stacktape is misconfigured; a sentence like 'The first request after a period of inactivity will be slower while Lambda initializes' normalizes the behavior.",
+            "The `dev.workingDirectory` property is mentioned in prose only ('can also be set') but never shown in an example. Either add it to the build/dev code snippet or drop the mention to avoid implying there is more to configure than there really is for most users.",
+            "Consider acknowledging that `appDirectory` defaults to `\".\"` in the basic example prose — the current text sets it to `./apps/web` to illustrate a monorepo shape, which is good, but a sentence noting 'for single-app repos, you can omit appDirectory entirely' would save beginners a question."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with label: 'TypeScript' — no forbidden YAML or plain-object patterns detected.",
+            "FAQ section hits all three required question categories (Stacktape-specific, AWS use-case, and comparison) with exactly 10 pairs. Answers are self-contained and useful.",
+            "connectTo section is accurate: env var pattern STP_MAIN_DATABASE_CONNECTION_STRING / STP_MAIN_DATABASE_HOST / STP_MAIN_DATABASE_PORT matches the JSDoc in ResourceAccessProps for RelationalDatabase.",
+            "Heading structure is clean — short noun-form H2s, 'When to use' and 'When NOT to use' are peer H2s (not nested), single <ApiReference definitionName='RemixWebProps' /> at the bottom.",
+            "The 'Domains and firewall' section correctly scopes useFirewall to the CDN distribution and correctly requires scope: 'cdn' on the WebAppFirewall resource — no conflation with ALB-firewall paths.",
+            "Code examples are realistic and copyable, with surrounding prose that explains each non-obvious property value (memory: 2048, pnpm --filter web build, etc.)."
+          ],
+          "problems": [
+            "FACTUAL PROBLEM — timeout maximum claim: The page asserts 'timeout defaults to 30 seconds, which is also the maximum for SSR web resources.' The type SsrWebServerLambdaConfig is not in the provided source files, so neither the default nor the specific 30-second maximum for SSR (as opposed to standard Lambda's 900s) is source-grounded. If the real ceiling is different (e.g., 60s or 180s based on CloudFront origin timeout constraints), production users will be silently limited. This is the most significant factual risk on the page.",
+            "PRACTICAL PROBLEM — no-op example value: Having set timeout: 30 in the code example, the prose immediately explains 'The value in the example matches that ceiling, so it is effectively a no-op here.' Showing a no-op configuration as a positive example is counterproductive. The reader learns nothing actionable from it.",
+            "UNGROUNDED CLAIM — dev.workingDirectory: The prose states 'dev.workingDirectory can also be set if the dev command needs a different working directory relative to the project root.' SsrWebDevConfig is not in the provided source files, so this property cannot be confirmed. If it does not exist, the reader will waste time looking for it.",
+            "UNGROUNDED CLAIM — 180-day log retention: The Logging section states the server Lambda 'sends logs to CloudWatch by default with 180-day retention.' The serverLambda.logging type (part of SsrWebServerLambdaConfig) is not in the provided source files. 180 days is a common Stacktape default but cannot be confirmed here.",
+            "NEGATIVE CAPABILITY CLAIM — streaming/edge: The 'When NOT to use' bullet states the resource 'does not support edge Lambda or response streaming.' This is a definitive negative capability claim not confirmed by source. Streaming support in the underlying Lambda runtime may or may not be exposed; framing it as a hard limit could incorrectly steer readers away.",
+            "UNGROUNDED SUB-PROPERTIES — cdn: The CDN section mentions cdn.defaultCachingOptions and cdn.pathCachingOverrides[].path and .ttl. The SsrWebCdnConfig type is not in the provided source files, so specific sub-property names cannot be confirmed.",
+            "UNGROUNDED SUB-PROPERTIES — fileOptions: fileOptions[].includePattern and fileOptions[].headers[].name / .value are cited. DirectoryUploadFilter is not in the provided source files."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify the 'also the maximum for SSR web resources' assertion on timeout. The SsrWebServerLambdaConfig type is not in the provided source files, so the specific ceiling cannot be stated as fact. Replace with: 'timeout defaults to 30 seconds; check the API Reference or source for the maximum allowed value for SSR resources.' If you can confirm the maximum from SsrWebServerLambdaConfig, restate it with the source citation.",
+            "Remove timeout: 30 from the serverLambda code example, or replace it with a value below the claimed default (e.g., timeout: 15) so the example demonstrates a meaningful override rather than a no-op. The surrounding prose explicitly calls it 'effectively a no-op' — showing a no-op is bad practice in a copyable example.",
+            "Qualify the streaming/edge Lambda negative claim in 'When NOT to use'. Change 'does not support edge Lambda or response streaming' to 'does not expose edge Lambda or response streaming configuration' to avoid asserting a hard capability limit not confirmed in source."
+          ],
+          "optionalImprovements": [
+            "Verify dev.workingDirectory exists in SsrWebDevConfig from the actual type definition before keeping the prose mention. If unconfirmed, remove the sentence to avoid sending readers on a dead-end config search.",
+            "Verify the 180-day CloudWatch retention default in the serverLambda logging config type. If unconfirmed, soften to 'retention is configurable via serverLambda.logging.retentionDays' without asserting a specific default.",
+            "Add a brief cold-start note in the Server Lambda section. Lambda cold starts are a real production concern for SSR response latency, especially on low-traffic pages. Even one sentence ('Lambda cold starts add latency to the first request after idle periods; increasing memory reduces initialization time') addresses a top concern for this audience.",
+            "The Logging section lists logging.disabled and logging.logForwarding options — verify both are sub-properties of the actual logging config type (not in provided source). If confirmed, this is fine; if not, tighten the language to what the API Reference exposes.",
+            "The FAQ answer 'How much does hosting Remix on Lambda and CloudFront cost?' correctly avoids inventing prices but could add that cache invalidations after every deploy have a small per-invalidation cost at high deploy frequency — a practical nuance for teams with CI that deploys many times per day."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first opening paragraph is self-contained, concrete, and under 75 words — suitable for AI Overview extraction.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]}>` with `defineConfig` and proper focus markers. No forbidden YAML blocks.",
+            "Decision support is strong in opt-in sections: custom domains, firewall, and CDN all explain when to enable, when to skip, and the tradeoff.",
+            "Connecting resources section correctly derives env var names from the example resource name (`STP_MAIN_DATABASE_CONNECTION_STRING` for `mainDatabase`).",
+            "FAQ spans 10 questions and mixes Stacktape-specific, AWS cost/behavior, and comparison questions adequately.",
+            "When NOT to use section is explicit, links alternatives, and covers streaming/edge Lambda gap cleanly.",
+            "The `joinDefaultVpc` VPC internet-access caveat is included precisely where readers need it (server Lambda section).",
+            "Single `<ApiReference definitionName=\"RemixWebProps\" />` placed at the conventional bottom position."
+          ],
+          "problems": [
+            "The 'Connecting resources' code example sets `engine: 'postgres-16'` and `instanceClass: 'db.t4g.micro'` on the `RelationalDatabase` without any prose explaining what these properties control or what alternatives exist — violates rule 14 (unexplained tunable values).",
+            "The claim '`timeout` defaults to 30 seconds, which is also the maximum for SSR web resources' is asserted as Stacktape-specific behavior, but `SsrWebServerLambdaConfig` is not in the provided source files, making both the default and the ceiling unverifiable. This risks a source-grounding issue in the factual-accuracy pass.",
+            "Similarly, `memory` default (1024 MB) and the range '128 to 10,240 MB' are stated confidently, but the full `SsrWebServerLambdaConfig` interface is absent from the source set provided.",
+            "`cdn.disableInvalidationAfterDeploy` default (`false`) and `cdn.defaultCachingOptions` are mentioned but `SsrWebCdnConfig` is not in the provided source, so these defaults are unverified.",
+            "FAQ is somewhat Stacktape-heavy: 6 of 10 questions are Stacktape-specific (appDirectory, WAF, streaming, migrations, custom domain, what Stacktape creates). Only 2 are pure AWS-service questions (cost, CloudFront caching) and 2 are comparison. Adding a Lambda cold-start or payload-limit question would improve AEO coverage for high-intent AWS searches."
+          ],
+          "mandatoryFixes": [
+            "In the 'Connecting resources' section, add 1-2 sentences of prose explaining what `engine: 'postgres-16'` controls (the database engine; alternatives include postgres-15, aurora-postgresql, mysql-8, etc.) and what `instanceClass: 'db.t4g.micro'` controls (the RDS compute/memory size; other options include db.t4g.small, db.r6g.large, etc.). Per rule 14, every tunable value in a code example must be explained in surrounding prose."
+          ],
+          "optionalImprovements": [
+            "Soften or source-qualify the '30-second maximum for SSR web resources' claim — either verify it against `SsrWebServerLambdaConfig` or reframe as 'Lambda functions behind CloudFront are subject to the API Gateway/CloudFront integration timeout, which is effectively 29–30 seconds' and note this is an AWS constraint, not a Stacktape one.",
+            "Replace or augment one of the Stacktape-specific FAQ questions with a pure AWS-behavior question such as 'How fast does Lambda cold-start for a Remix app?' or 'Is there a payload size limit for Remix SSR on Lambda?' to capture high-intent search queries.",
+            "The CDN section names `cdn.defaultCachingOptions` in a bullet but never shows it in a code example or explains its shape — either show a brief example or note it is documented in the API Reference drill-down.",
+            "Consider adding a single-sentence note in the 'Build and dev' section clarifying that `dev.workingDirectory` is relative to the project root (not `appDirectory`), since that distinction is easy to misconfigure in monorepos."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "Verification complete. I found several source-grounding issues where the draft goes beyond the provided Remix-specific source or uses unsupported nested-property details.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft configures and describes `serverLambda.joinDefaultVpc`, including: `serverLambda: { joinDefaultVpc: true }`, “Set `joinDefaultVpc` to `true` when the SSR function must reach VPC-protected resources…”, and “make sure ... `serverLambda.joinDefaultVpc` is `true` for VPC-protected databases.”",
+              "reason": "The provided Remix source only says `serverLambda` customizes memory, timeout, VPC, and logging; it does not expose or document a `joinDefaultVpc` property in the provided nested type definitions. Because this is a specific Stacktape property used in copyable config, it needs direct source backing from the page’s sources.",
+              "suggestedFix": "Avoid naming `joinDefaultVpc` unless the `SsrWebServerLambdaConfig` source is included and confirms it. Use narrower wording such as “configure the `serverLambda` VPC settings when the SSR function must reach VPC-protected resources” and remove the `joinDefaultVpc` assignment from examples, or add the missing authoritative source if available.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "serverLambda?: SsrWebServerLambdaConfig;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "* #### Customize the SSR Lambda function (memory, timeout, VPC, logging)."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The “Static files and CDN” example uses `cdn.pathCachingOverrides`, `path`, `cachingOptions`, `maxTTL`, and `defaultTTL`, and the prose says `pathCachingOverrides` sets caching rules with `minTTL`, `maxTTL`, and `defaultTTL`.",
+              "reason": "The provided Remix source only identifies `cdn` as `SsrWebCdnConfig` and describes it broadly as CDN cache controls for SSR routes and specific path patterns. The nested `SsrWebCdnConfig` shape is not present in the provided sources, so the specific property names and TTL fields in a copyable config example are unsupported by the provided source list.",
+              "suggestedFix": "Remove the concrete nested `cdn` example or replace it with cautious prose that links the reader to the API reference. If the page should show this example, include the authoritative source file that defines `SsrWebCdnConfig` and its nested fields.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "cdn?: SsrWebCdnConfig;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "* #### CDN cache controls for SSR routes and specific path patterns."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The “Static files and CDN” example uses `fileOptions: [{ includePattern, headers }]`, and the prose says `fileOptions` applies headers and tags to uploaded files matching a glob pattern via `includePattern`.",
+              "reason": "The Remix source only says `fileOptions` is `DirectoryUploadFilter[]` and can set custom headers for static files matching a pattern. It does not provide the nested property names `includePattern`, `headers`, `name`, or `value`, nor does it mention tags in the provided source list.",
+              "suggestedFix": "Keep the high-level `fileOptions` description but remove unsupported nested property details and the copyable nested example, or add the authoritative `DirectoryUploadFilter` definition to the source list before documenting those fields.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "fileOptions?: DirectoryUploadFilter[];"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "* #### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape uses that directory for the Remix build and then deploys SSR on Lambda, static assets on S3, and a CloudFront CDN for the app.”",
+              "reason": "The source supports that `appDirectory` is the directory containing `vite.config.ts` or `remix.config.js` and supports the Lambda/S3/CloudFront architecture, but it does not explicitly say Stacktape uses `appDirectory` as the working directory for the build. That is plausible, but the wording is stronger than the provided source.",
+              "suggestedFix": "Narrow the sentence to the sourced facts: “`appDirectory` identifies the directory containing `vite.config.ts` or `remix.config.js`; the Remix resource deploys SSR on Lambda, static assets on S3, and a CloudFront CDN.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "* #### Directory containing your `vite.config.ts` (or `remix.config.js`). For monorepos, point to the Remix workspace."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "* #### Deploy a Remix SSR app with Lambda for server rendering, S3 for static assets, and CloudFront CDN."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft claims “The example sets an aggressive cache header on fingerprinted assets in `assets/**`, which is safe because Remix includes content hashes in asset filenames.”",
+              "reason": "The provided Stacktape sources do not state Remix asset filenames are content-hashed, and the `fileOptions` source does not mention fingerprinting or safety of immutable caching. This may be true for many Remix builds, but it is not grounded in the provided source files and could mislead readers into applying long-lived caching to non-fingerprinted paths.",
+              "suggestedFix": "Remove the safety claim or make it conditional: “Use long-lived immutable caching only for paths that your build fingerprints with content hashes.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "* #### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The “Logging” example sets `serverLambda.logging.retentionDays: 30`, and the prose says `retentionDays` controls how many days CloudWatch keeps the SSR function’s logs.",
+              "reason": "The Remix source confirms `serverLambda` can customize logging, but the provided sources do not include the nested logging type or a `retentionDays` property. Because this is a concrete Stacktape config property in a copyable example, it needs direct source support.",
+              "suggestedFix": "Replace the concrete logging code sample with prose that says `serverLambda.logging` customizes SSR Lambda logging, or include the source that defines `SsrWebServerLambdaConfig` and its logging fields.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "serverLambda?: SsrWebServerLambdaConfig;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "* #### Customize the SSR Lambda function (memory, timeout, VPC, logging)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft says “Use `connectTo` for resources such as relational databases, buckets, SQS queues, SNS topics, and auth pools.”",
+              "reason": "The source supports the general `connectTo` behavior and lists injected values for several resources, including relational databases, buckets, SQS queues, SNS topics, and user auth pools. However, it does not use the phrase “auth pools”; the supported resource name in the source is `UserAuthPool`. The informal wording is ambiguous and could be read as a different resource concept.",
+              "suggestedFix": "Use the exact source term: “Use `connectTo` for resources such as relational databases, buckets, SQS queues, SNS topics, and user auth pools (`UserAuthPool`).”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The FAQ says “The internal resource structure includes a nested bucket and a server Lambda function.”",
+              "reason": "The source supports `_nestedResources` with `bucket` and `serverFunction`, but “internal resource structure” may imply users can rely on these nested resource names directly. The source exposes them in generated types, but the page does not explain whether those names are part of a stable user-facing API.",
+              "suggestedFix": "If this detail is useful, phrase it as an implementation note: “The generated type shows nested `bucket` and `serverFunction` resources, while the public app is configured through the `RemixWeb` resource.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `defineConfig` and class-based `RemixWeb` examples inside `<CodeBlock intellisense>` with `label: 'TypeScript'`, and it does not hand-author Stacktape YAML examples.",
+            "The API reference uses `<ApiReference definitionName=\"RemixWebProps\" />`, which matches the page’s resource props type.",
+            "The top-level WAF wording correctly scopes `useFirewall` to the Remix CDN and requires a `web-app-firewall` resource with `scope: 'cdn'`, matching the Remix source.",
+            "The documented `appDirectory`, `buildCommand`, `customDomains`, `environment`, `dev`, `fileOptions`, `cdn`, `serverLambda`, `useFirewall`, `connectTo`, and `iamRoleStatements` top-level properties all exist in the provided sources."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the Remix resource type and helper types. The main publication risks are a few Stacktape-specific claims that go beyond the provided source, especially around nested CDN shape, exact networking behavior, and lifecycle hook configuration.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Define an `afterDeploy` hook that runs a migration script with `connectTo` pointing at your database.”",
+              "reason": "The source confirms hooks reference named scripts and scripts can use `connectTo`, but it does not support `connectTo` being configured on the hook itself. The wording “hook … with connectTo” could lead readers to put `connectTo` in the wrong place.",
+              "suggestedFix": "Say: “Define an `afterDeploy` hook that references a script, and configure that script with `connectTo` pointing at your database.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "interface Hooks {\n  /**\n   * #### Scripts to run after deploying. Common use: run database migrations, seed data.\n   */\n  afterDeploy?: NamedScriptLifecycleHook[];"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "interface NamedScriptLifecycleHook extends LifecycleHookBase {\n  /**\n   * #### Script Name\n   *\n   * ---\n   *\n   * The name of the script to execute. The script must be defined in the `scripts` section of your configuration.\n   */\n  scriptName: string;\n}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "interface ScriptEnvProps {\n  /**\n   * #### Connect To\n   *\n   * ---\n   *\n   * A list of resources the script needs to interact with. Stacktape automatically injects environment variables with connection details for each specified resource."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `cdn` when you need to tune CDN caching for SSR routes or specific path patterns.” and “`pathCachingOverrides` sets caching rules for specific CDN path patterns…”",
+              "reason": "The Remix source only exposes `cdn?: SsrWebCdnConfig` and describes it as “CDN cache controls for SSR routes and specific path patterns.” The provided source does not include the `SsrWebCdnConfig` shape or a `pathCachingOverrides` property, so the exact nested property name and behavior are not grounded in the supplied files.",
+              "suggestedFix": "Narrow the prose to the sourced property-level claim, or provide source for `SsrWebCdnConfig`. For example: “Use `cdn` when SSR routes or path-specific cache behavior needs deliberate tuning. See the API reference for the nested CDN options.” Remove or avoid the `pathCachingOverrides` example unless the nested type source is included.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "  /**\n   * #### CDN cache controls for SSR routes and specific path patterns.\n   */\n  cdn?: SsrWebCdnConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Set `joinDefaultVpc` to `true` when the SSR function must reach VPC-protected resources…” and the examples use `serverLambda: { joinDefaultVpc: true }`.",
+              "reason": "The provided Remix source says `serverLambda` can customize VPC behavior, but the supplied files do not include the `SsrWebServerLambdaConfig` definition or a `joinDefaultVpc` property. The specific property name is therefore unsupported by the provided source list.",
+              "suggestedFix": "Either include the source file defining `SsrWebServerLambdaConfig.joinDefaultVpc`, or avoid the specific property and say: “Configure `serverLambda` VPC access when the SSR function must reach VPC-protected resources.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "  /**\n   * #### Customize the SSR Lambda function (memory, timeout, VPC, logging).\n   */\n  serverLambda?: SsrWebServerLambdaConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `serverLambda.logging` to adjust SSR Lambda logging behavior, such as retention or forwarding configuration” and the example uses `retentionDays: 30`.",
+              "reason": "The Remix source supports that `serverLambda` includes logging customization, but the supplied files do not define the nested logging shape or a `retentionDays` property. The specific nested property and forwarding reference are not grounded in the provided source.",
+              "suggestedFix": "Either include the source defining the SSR Lambda logging config, or narrow the section to: “Use `serverLambda.logging` when you need to adjust SSR Lambda logging behavior. See the API reference for available logging options.” Remove the `retentionDays` example unless the nested type source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "  /**\n   * #### Customize the SSR Lambda function (memory, timeout, VPC, logging).\n   */\n  serverLambda?: SsrWebServerLambdaConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The example sets an aggressive cache header on fingerprinted assets in `assets/**`, which is safe because Remix includes content hashes in asset filenames.”",
+              "reason": "The source supports `fileOptions` for static file headers, but it does not state that Remix assets under `assets/**` are fingerprinted or that this cache policy is safe. This is likely general Remix knowledge, but the page presents it as a concrete safety claim tied to the example.",
+              "suggestedFix": "Make the claim conditional: “Use this kind of long-lived cache header only for fingerprinted assets whose filenames change when content changes.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "  /**\n   * #### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.\n   */\n  fileOptions?: DirectoryUploadFilter[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`fileOptions` applies HTTP headers and tags to uploaded static files matching a glob pattern via `includePattern`.”",
+              "reason": "The Remix source says `fileOptions` sets custom headers for static files matching a pattern, but it does not mention tags or the nested `includePattern` field. The provided files do not include the `DirectoryUploadFilter` definition, so the tags/includePattern details are not grounded here.",
+              "suggestedFix": "Either include the `DirectoryUploadFilter` source or narrow the sentence to: “`fileOptions` sets custom HTTP headers for static files matching a pattern.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "  /**\n   * #### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.\n   */\n  fileOptions?: DirectoryUploadFilter[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“customDomains configures DNS records and TLS certificates” and “Stacktape creates the DNS record by default and provisions a free TLS certificate.”",
+              "reason": "The source supports auto-managed DNS records and TLS certificates, and it says the domain-level `disableDnsRecordCreation` default is false. It does not explicitly say `customDomains` creates the DNS record by default on the Remix resource unless the nested `DomainConfiguration` default is applied. This is likely correct through the shared type, but the stronger wording should stay close to the shared source.",
+              "suggestedFix": "Keep the claim, but phrase it directly from `DomainConfiguration`: “For each custom domain, Stacktape automatically creates a DNS record and provisions a free TLS certificate unless you set `disableDnsRecordCreation` or provide `customCertificateArn`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/remix-web.d.ts",
+                  "quote": "  /**\n   * #### Attach custom domains with auto-managed DNS records and TLS certificates.\n   *\n   * ---\n   *\n   * **Prerequisite:** A Route 53 hosted zone for your domain must exist in your AWS account.\n   */\n  customDomains?: DomainConfiguration[];"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "  /**\n   * #### Skip DNS record creation for this domain.\n   *\n   * ---\n   *\n   * Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS.\n   *\n   * @default false\n   */\n  disableDnsRecordCreation?: boolean;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The page says Remix `environment` variables “are not available in the CDN layer or static assets.”",
+              "reason": "The source states environment variables are for the SSR function, which supports the positive part of the claim. The negative statement about CDN/static assets is not directly stated in the provided source, although it is a reasonable inference.",
+              "suggestedFix": "Use positive wording only: “Explicit `environment` variables are injected into the SSR Lambda function.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `defineConfig` and class-based `RemixWeb` examples inside `<CodeBlock intellisense>` with the required `label: 'TypeScript'`, and it does not hand-author YAML Stacktape config.",
+            "`<ApiReference definitionName=\"RemixWebProps\" />` matches the Remix props type in the source.",
+            "The top-level Remix properties discussed in the draft map to `RemixWebProps`: `appDirectory`, `buildCommand`, `environment`, `customDomains`, `serverLambda`, `useFirewall`, `dev`, `fileOptions`, `cdn`, `connectTo`, and `iamRoleStatements`.",
+            "The `connectTo` environment variable pattern and the concrete `STP_MAIN_DATABASE_*` names are consistent with `ResourceAccessProps` for a resource named `mainDatabase`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 10, col 21: Object literal may only specify known properties, and 'name' does not exist in type 'KeyValuePair'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 11, col 11: Object literal may only specify known properties, and 'name' does not exist in type 'KeyValuePair'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Type 'string' is not assignable to type 'AuroraEngine | AuroraServerlessEngine | AuroraServerlessV2Engine | RdsEngine'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Type 'string' is not assignable to type 'AuroraEngine | AuroraServerlessEngine | AuroraServerlessV2Engine | RdsEngine'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 10, col 19: Type 'RelationalDatabase' is not assignable to type 'string'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 22: Object literal may only specify known properties, and '\"APP_ENV\"' does not exist in type 'EnvironmentVar[]'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\frontend\\remix.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/resources/frontend/remix.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 1, advisory high 0, verifier medium 9"
+  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 6, advisory high 0, verifier medium 14",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

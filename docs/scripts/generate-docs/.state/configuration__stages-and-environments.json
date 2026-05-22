@@ -2,7 +2,7 @@
   "pageId": "configuration__stages-and-environments",
   "pageRoute": "configuration/stages-and-environments",
   "startedAt": "2026-05-16T16:06:26.167Z",
-  "updatedAt": "2026-05-16T16:38:46.454Z",
+  "updatedAt": "2026-05-21T18:08:32.378Z",
   "iterations": [
     {
       "iteration": 1,
@@ -816,20 +816,436 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__stages-and-environments/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "No mandatory style violations: all Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with TypeScript, and shell commands are correctly split one-per-block with prose before each.",
+            "Strong progression from 'what' → 'why' → 'how' → practical patterns. The opening paragraph is appropriately self-contained and answer-first.",
+            "Config callback parameters table (stage, projectName, region, command) is immediately actionable for a beginner and not something most docs pages bother to include.",
+            "FAQ covers all three required categories: Stacktape-specific, AWS-service/underlying-mechanics, and comparison/choosing questions. Ten Q&A pairs, each 2-4 sentences and standalone.",
+            "Realistic, copyable examples: multi-tier lookup pattern, conditional resources, feature branch workflow, stage-specific domains. These read like code a real team would commit.",
+            "Best practices section is specific and justified — not a generic list of platitudes. Each tip includes a concrete rationale (e.g. why the fallback to tiers.dev helps feature branches stay cheap).",
+            "Warning callouts are placed at precisely the right moments (long stack names, dev-mode conflict with deploy) without over-alerting."
+          ],
+          "problems": [
+            "The claim 'The minimum length is 2 characters' for stage names is not grounded in the provided source files. The curated doc and AI-docs source only mention the 12-character maximum. This is a potential inaccuracy that the source-grounding verifier will flag.",
+            "The 'Why stages exist' H2 section substantially restates the opening paragraph. Both explain 'you'd otherwise maintain parallel config files' and 'CI/CD mapping.' For a concept page this creates mild redundancy without adding decision support that wasn't already there.",
+            "The multi-tier WebService example uses `resources: { cpu: 0.5, memory: 1024 }` — the property name 'resources' for WebService compute config is not confirmed by the provided source files. If the actual property is 'compute', the code-block-validator will catch this, but if it silently accepts wrong property names the example will mislead readers.",
+            "The 'Listing Stages' section uses `stacktape info:stacks` (linked to /cli/info-stacks) while both provided source docs (`_curated-docs` and `@generated/ai-docs`) use `stacktape stack:list`. The draft command is likely correct per the live CLI docs structure, but the discrepancy between source files is unresolved and worth flagging."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or source-ground the '2 characters minimum' stage name constraint. If no source supports it, replace with just the maximum: 'Stage names must be at most 12 characters and contain only lowercase alphanumeric characters and hyphens.'",
+            "Condense or fold the 'Why stages exist' H2 into the opening section. The first paragraph already makes the key point; the full H2 mostly repeats it. Merging recovers a full screen of vertical space and keeps the reader moving faster toward the working examples.",
+            "Verify the WebService `resources: { cpu, memory }` property name against the actual TypeScript types or a known good working example. If the correct property is `compute`, update the multi-tier example accordingly.",
+            "Confirm that `stacktape info:stacks` is the canonical command name and update the prose to be explicit: e.g., 'Use stacktape info:stacks (the info:stacks command) to list all deployed stacks.' This helps readers who search for the old name.",
+            "The `$Secret` directive is called with string concatenation (`'db-password-' + stage`) in the first example but with template literals in the source docs. Standardize to template literals for consistency: `$Secret(\\`db-password-${stage}\\`)` — this also matches the curated source pattern.",
+            "Consider adding one sentence to the 'Sharing resources across stages' section clarifying when NOT to share (when you want full blast-radius isolation, you do not share). Currently the section only explains how to share, which is decision-less."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No forbidden patterns — all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript. No YAML resources blocks, no StacktapeConfig type import.",
+            "Shell commands are correctly split: one command per fenced block, no explanatory # comments inside the blocks.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-service use-case, and comparison/choosing). Ten entries, all substantive.",
+            "The Warning callout for dev-mode / deploy conflict is well-grounded: the deploy source code explicitly throws on isDevStack metadata, so this is a real production gotcha correctly surfaced.",
+            "The obfuscated-names warning ('If the combination is too long, Stacktape will obfuscate some internal resource names') is directly grounded in deploy source code (obfuscatedNamesStateHolder.usingObfuscateNames and the tuiManager.warn call).",
+            "The multi-tier lookup pattern with fallback to dev tier (tiers[stage] || tiers.dev) is a realistic, opinionated recommendation that helps the reader make a decision, not just configure.",
+            "Conditional resources section correctly skips resources for ephemeral stages and adds WAF only in production — concrete, copyable, and decision-oriented.",
+            "CLI commands use the correct modern form (stacktape info:stacks, not stacktape stack:list which appears in the lower-priority curated docs)."
+          ],
+          "problems": [
+            "The claim 'The minimum length is 2 characters' for stage names is not present in any provided source file (neither the curated docs, the deploy source, nor the AI-distilled summary). If wrong, users trying single-character stage names would be misled.",
+            "The constraint 'must contain only lowercase alphanumeric characters and hyphens' adds 'lowercase' — the curated docs say 'alphanumeric characters and hyphens' without specifying case. Adding 'lowercase' is an unsupported tightening of the constraint.",
+            "The Config callback parameters table lists 'Additional properties (cliArgs, awsProfile, user) are also available' — none of these extra properties appear in the provided source files. This is a fabricated claim that could cause users to write broken config code.",
+            "The Sharing Resources section describes the $StackOutput directive usage with three positional arguments ($StackOutput('shared-infra-dev', 'database', 'connectionString')) — this signature is taken from the curated docs (lower priority) and is not verified against the authoritative types source. If the signature is different (e.g., different argument order or count), users will get runtime errors."
+          ],
+          "mandatoryFixes": [
+            "Remove or hedge the 'minimum length is 2 characters' claim — it is not in any provided source file. Either omit the minimum entirely or qualify it as 'check CLI validation for the exact minimum'.",
+            "Remove 'lowercase' from the stage name constraint ('must contain only lowercase alphanumeric characters and hyphens') unless a source file confirms it. The grounded constraint from the curated docs is 'alphanumeric characters and hyphens' — use that wording verbatim.",
+            "Remove the 'Additional properties (cliArgs, awsProfile, user) are also available' sentence from the Config callback parameters table — these properties are not present in any provided source file and constitute an invented API claim. Either source-verify them or drop the sentence."
+          ],
+          "optionalImprovements": [
+            "Verify the $StackOutput directive signature (argument count and order) against the authoritative types or a higher-priority source file before publishing — the curated docs example is the only basis for the three-argument form shown.",
+            "The 'Why stages exist' H2 is an editorial motivation section that doesn't appear in the curated docs or AI-distilled summary. It adds value, but could be folded into the intro paragraph to avoid an extra top-level heading before the first concrete content.",
+            "The 'Stage-aware configuration' section uses $Secret('db-password-' + stage) with + concatenation while other examples in the source use template literals. Both work in TypeScript, but for consistency within the page consider using the same syntax throughout.",
+            "The $Stage() directive subsection says it 'is mainly useful in YAML configs' — if the page is TypeScript-first and explicitly discourages hand-authored YAML, this subsection could be cut or reduced to a single sentence with a link to the directives page rather than a multi-sentence explanation."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Answer-first opening paragraph (≈55 words) is self-contained and directly extractable by AI engines — names the concept, the mechanism, and the benefit.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript source; no YAML Stacktape config violation anywhere on the page.",
+            "Config callback parameters table is a concrete, scannable reference that AI engines will cite; the domain-per-stage mapping table is similarly effective.",
+            "FAQ section has 10 entries mixing Stacktape-specific, AWS-service, and choosing/comparison questions — broad enough to capture diverse search intent.",
+            "Warning callouts are precisely targeted (stack name length → obfuscated resource names; dev mode conflict with deploy) and add real operational value.",
+            "Multi-tier lookup-object pattern is the most realistic example on the page and directly copyable; the feature-branch deploy/delete lifecycle is concise and useful.",
+            "Section on conditional resources is well-motivated — explains which resources to skip in ephemeral stages and why, with a concrete `WebAppFirewall` production-only example."
+          ],
+          "problems": [
+            "\"Sharing resources across stages\" section uses only a <ProjectStructure> component and prose but omits the actual code examples that the source curated doc explicitly provides — a defineConfig showing $StackOutput in the consuming project (api/stacktape.ts referencing shared-infra outputs). This is the most critical completeness gap on the page.",
+            "Two FAQ entries are near-duplicate: FAQ 8 ('Should I use separate AWS accounts or separate stages for production isolation?') and FAQ 10 ('What's the difference between stages and AWS accounts for environment separation?') cover essentially the same decision from only slightly different angles. The answers overlap significantly. One should be merged into the other or removed.",
+            "Stage name constraints claim two facts not visible in the provided source files: 'minimum length is 2 characters' and 'must contain only lowercase alphanumeric characters'. The source curated doc says max 12 chars and alphanumeric+hyphens (without the lowercase qualifier or minimum length). These may be correct but are unsourced at the provided evidence level.",
+            "The '$Stage() directive' subsection is underdeveloped — two sentences of prose with no example. The page never shows a case where $Stage() is actually needed instead of the stage callback parameter, leaving readers unsure when to reach for it."
+          ],
+          "mandatoryFixes": [
+            "Add code examples to the 'Sharing resources across stages' section. The source curated doc (stages-and-environments.mdx) shows both the shared-infra defineConfig (RelationalDatabase) and the consuming api defineConfig (LambdaFunction with environment.DATABASE_URL set via $StackOutput). These must appear in the draft as <CodeBlock intellisense tabs={[...]} /> blocks — not just a prose description of what $StackOutput does. Without them the section fails the decision-support and practical-usefulness criteria for that pattern."
+          ],
+          "optionalImprovements": [
+            "Merge the two AWS-accounts-vs-stages FAQ entries into a single, more thorough entry — this removes padding and keeps the FAQ at 9 high-quality Q&A pairs.",
+            "Either add a minimal code snippet to the '$Stage() directive' subsection (showing a directive string using $Stage() in contrast to the TypeScript stage variable), or remove the subsection entirely if it adds no demonstrable value over a link to the directives page.",
+            "Soften or source the stage name constraints. If 'lowercase only' and 'minimum 2 characters' cannot be confirmed from source, rewrite as 'Stage names are limited to 12 characters and should contain only alphanumeric characters and hyphens' — matching the curated doc wording exactly.",
+            "The 'Best practices' section lists 6 items in prose; converting the list items into a compact bullet list (rather than bold-label paragraphs) would improve scannability at a glance without changing the content."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided stages source, but it contains several Stacktape-specific claims and command examples that are either stronger than the source supports or contradicted by the supplied docs. The most important fixes are narrowing stage isolation wording, correcting the secret creation command, and avoiding unsupported Console/GitOps automation details.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"There is zero risk of a development deploy affecting production data or traffic.\" / \"There is no data sharing or network overlap between stages unless you explicitly configure it.\"",
+              "reason": "The source supports separate resources per stage, but not the absolute claims of \"zero risk\" or no network overlap. Those statements are stronger than the provided source and could mislead readers about all possible cross-stage access, networking, IAM, or manually shared dependencies.",
+              "suggestedFix": "Narrow the claim to the sourced behavior: each stage creates a separate CloudFormation stack and separate Stacktape-managed resources. Avoid absolute risk and network-overlap claims unless source code explicitly supports them.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "Stages allow you to deploy multiple isolated environments from the same codebase. Each stage creates a completely separate set of AWS resources."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "When you deploy with different stages, Stacktape creates completely separate resources:"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The secret creation examples use `stacktape secret:create --secretName db-password-dev --region eu-west-1` and `stacktape secret:create --secretName db-password-production --region eu-west-1`.",
+              "reason": "The provided generated source uses `--name`, while the curated source shows `secret:create --region` as an interactive flow. No provided source supports `--secretName`, so the draft likely documents the wrong CLI flag.",
+              "suggestedFix": "Use the command form supported by the available source, or avoid naming the flag if the authoritative CLI source is not available. For example, use `stacktape secret:create --name db-password-dev --region eu-west-1` only if confirmed against CLI source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/stages-and-environments.md",
+                  "quote": "stacktape secret:create --name db-password-dev --region eu-west-1"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "stacktape secret:create --region us-east-1"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"The Stacktape Console can automatically create preview environments for pull requests\" style claims appear as: \"Per-PR preview environments are a common GitOps pattern with Stacktape stages — each pull request gets its own isolated stage...\" and FAQ claims GitOps auto-deletes stages when branches are removed.",
+              "reason": "The only Console PR automation details in the provided source are in curated prose, not console-app source. The verifier instructions require Console UI/flow behavior to be grounded in console-app source, which is not provided. The draft should avoid operational claims like PR comments, automatic creation, and automatic deletion unless grounded in Console source.",
+              "suggestedFix": "Keep the safer wording used in part of the draft: say stages are a good fit for PR preview environments and link to GitOps docs for setup details. Remove claims about automatic deletion/comments unless verified from console-app source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "The Stacktape Console can automatically create preview environments for pull requests:"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The minimum length is 2 characters\" for stage names.",
+              "reason": "The curated source states the 12-character limit and says stage names should contain alphanumeric characters and hyphens, but it does not mention a minimum length. The generated source repeats the draft claim, but no higher-priority type or runtime validator is provided to support it.",
+              "suggestedFix": "Remove the minimum-length sentence unless the stage validator source is available. Keep the sourced constraint: stage names are limited to 12 characters and should contain only alphanumeric characters and hyphens.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "Stage names are limited to **12 characters** and should contain only alphanumeric characters and hyphens."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stage names ... must contain only lowercase alphanumeric characters and hyphens.\"",
+              "reason": "The curated source says alphanumeric characters and hyphens, but does not specify lowercase or use a hard \"must\" beyond the 12-character limit. Without the validator source, lowercase-only is not grounded by the provided authoritative material.",
+              "suggestedFix": "Write cautiously: \"Stage names are limited to 12 characters and should contain only alphanumeric characters and hyphens.\" Add lowercase only if verified against the runtime validator.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "Stage names are limited to **12 characters** and should contain only alphanumeric characters and hyphens."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Deleting a stage removes only that stage's resources — other stages are unaffected\" and \"Deletion removes the CloudFormation stack and all resources it created (databases, functions, buckets, etc.).\"",
+              "reason": "The provided source supports separate resources per stage, and the draft's statement is plausible, but no delete command source is provided to ground exact deletion behavior or all-resource removal semantics. This is a Stacktape-specific lifecycle claim that should be backed by delete command code or narrowed.",
+              "suggestedFix": "Narrow to: `stacktape delete --stage ...` targets the named stage's stack. Avoid promising that all created resources are removed unless the delete command source confirms the behavior and exceptions.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "Create temporary environments for feature branches:"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "# Delete when done\nstacktape delete --stage feature-123 --region us-east-1"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stacktape updates the existing CloudFormation stack in place. AWS CloudFormation computes the diff between the current and desired state, then applies only the changes. Resources that haven't changed are left untouched. If the update fails, CloudFormation rolls back to the previous state automatically.\"",
+              "reason": "The deploy source supports full deploy through `stackManager.deployStack(...)` and a template diff, but it does not support the detailed claims that only changed resources are applied, unchanged resources are left untouched, or that CloudFormation always rolls back to the previous state automatically. The source also contains Stacktape-specific rollback artifact cleanup logic conditioned on `isAutoRollbackEnabled`, which makes the draft wording too absolute.",
+              "suggestedFix": "Say Stacktape deploys the updated CloudFormation template for the existing stage. If you discuss rollback, phrase it cautiously and link to `/deployment-and-lifecycle/rollbacks` rather than promising automatic rollback behavior here.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/deploy/index.ts",
+                  "quote": "const cfTemplateDiff = templateManager.getOldTemplateDiff();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/deploy/index.ts",
+                  "quote": "const { warningMessages } = await stackManager.deployStack(deploymentArtifactManager.cloudformationTemplateUrl);"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/deploy/index.ts",
+                  "quote": "if (stackManager.isAutoRollbackEnabled && (err as ExpectedError).type !== 'STACK_MONITORING') {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"AWS resources within the stack inherit names derived from this stack name.\"",
+              "reason": "The source supports the CloudFormation stack-name pattern and warns that long project+stage names can cause some resource names to be obfuscated. It does not support a broad claim that AWS resource names inherit names derived from the stack name.",
+              "suggestedFix": "Limit the wording to the sourced stack-name behavior and obfuscation warning: Stacktape derives the CloudFormation stack name from project and stage, and long project+stage combinations can cause some resource names to be obfuscated.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "Your stack name is derived from your project name and stage:"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/deploy/index.ts",
+                  "quote": "tuiManager.warn('Stack name too long (project+stage). Some resource names will be obfuscated.');"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and avoid hand-authored YAML config blocks.",
+            "The draft correctly uses `stacktape debug:logs` nowhere and links CLI commands only to routes present in the provided navigation index.",
+            "The stack naming pattern `{projectName}-{stage}` and the 12-character stage-name limit are grounded in the curated source.",
+            "The warning that deploy is blocked for a stage currently running in dev mode is grounded in `src/commands/deploy/index.ts`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided curated and generated stage docs, uses the required TypeScript CodeBlock style for Stacktape configuration, and links only to routes present in the navigation index. The main problems are a few over-specific or overbroad claims that are not grounded in the provided sources, plus one CLI flag mismatch for secrets.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Create a development secret: `stacktape secret:create --secretName db-password-dev --region eu-west-1` and create a production secret with `--secretName`.",
+              "reason": "The provided source example for `secret:create` does not use a `--secretName` flag. It shows the command run with `--region` and the secret name supplied interactively. The draft's flag name is not grounded in the provided command source list and may be invalid.",
+              "suggestedFix": "Use the source-grounded interactive form: `stacktape secret:create --region eu-west-1`, then explain that the user enters `db-password-dev` or `db-password-production` when prompted. If the CLI source for `secret:create` later proves a name flag exists, use the exact flag from that source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "stacktape secret:create --region us-east-1\n# name: db-password-dev\n# value: dev-password"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "stacktape secret:create --region us-east-1\n# name: db-password-production\n# value: super-secure-production-password"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Stage names are limited to 12 characters and must contain only lowercase alphanumeric characters and hyphens. The minimum length is 2 characters.",
+              "reason": "The provided curated source supports the 12-character limit and alphanumeric/hyphen guidance, but it does not support lowercase-only or a 2-character minimum. The generated LLM doc repeats the claim, but no validator or type source is provided to establish it as authoritative.",
+              "suggestedFix": "Narrow the wording to the supported constraint: stage names are limited to 12 characters and should contain only alphanumeric characters and hyphens. Omit the lowercase-only and minimum-length claims unless a validator source is added.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "Stage names are limited to **12 characters** and should contain only alphanumeric characters and hyphens."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Because every stage produces its own CloudFormation stack with its own resources, there is zero risk of a development deploy affecting production data or traffic.",
+              "reason": "The source supports separate stacks and separate resources by default, but the draft later documents intentionally sharing resources through another stack. “Zero risk” is too absolute because stage isolation can be bypassed by explicit cross-stack references or shared external resources.",
+              "suggestedFix": "Replace with narrower wording: by default, deploying one stage targets that stage's own CloudFormation stack and resources, so ordinary dev deploys do not update the production stack. Note that shared resources are only affected if you explicitly reference or reuse them.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "Stages allow you to deploy multiple isolated environments from the same codebase. Each stage creates a completely separate set of AWS resources."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "Sometimes you want to share certain resources (like a database) across stages. Use a separate \"shared infrastructure\" stack:"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The API project references the shared database's connection string via `$StackOutput('shared-infra-dev', 'database', 'connectionString')`.",
+              "reason": "The provided source only shows `$StackOutput` used inside a Lambda environment variable. It does not define the directive signature as taking three positional arguments, and the draft does not show a surrounding config example that proves this exact call shape type-checks.",
+              "suggestedFix": "Use the source-grounded pattern from the curated doc, or phrase more cautiously: expose the value from the shared stack and reference it with the `$StackOutput` directive. If showing exact syntax, mirror the provided example with `DATABASE_URL: $StackOutput(...)` in a CodeBlock after verifying the directive signature.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/stages-and-environments.mdx",
+                  "quote": "DATABASE_URL: $StackOutput(`shared-infra-${stage}`, 'database', 'connectionString')"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The `defineConfig` callback receives an object whose `stage` property is the stage name passed via `--stage`.",
+              "reason": "The source examples consistently use `defineConfig(({ stage }) => ...)`, so the presence of `stage` is grounded. The narrower claim that it is specifically the value passed via `--stage` is plausible but not directly established by the provided source beyond examples of deploy commands using `--stage`.",
+              "suggestedFix": "Keep the claim if the configuration-files page or config type source supports it. Otherwise, phrase as: “The `defineConfig` callback receives the current `stage` value.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Region-scoped resources (like secrets and ACM certificates) must exist in the target region.",
+              "reason": "This is generally true AWS context, but the provided Stacktape sources for this page only show region flags and stage-specific secret examples. They do not specifically mention ACM certificates or a Stacktape requirement that these resources already exist in the target region.",
+              "suggestedFix": "Either remove the ACM certificate example or make it general AWS context: “Some referenced AWS resources are regional, so create stage-specific values in each AWS region you deploy to.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft avoids hand-authored Stacktape YAML and uses `<CodeBlock intellisense>` with the required `label: 'TypeScript'` tab for Stacktape configuration examples.",
+            "The draft correctly uses `stacktape info:stacks` instead of the stale `stacktape stack:list` command from the curated source.",
+            "The draft correctly includes the dev-mode deployment warning, which is grounded in the deploy command source.",
+            "All markdown cross-links appear to target routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 20, col 43: Argument of type '{ engine: RdsEnginePostgres; }' is not assignable to parameter of type 'RelationalDatabasePropsWithOverrides'.\n  Property 'credentials' is missing in type '{ engine: RdsEnginePostgres; }' but required in type 'RelationalDatabaseProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 19, col 49: Argument of type '{ engine: RdsEnginePostgres; }' is not assignable to parameter of type 'RelationalDatabasePropsWithOverrides'.\n  Property 'credentials' is missing in type '{ engine: RdsEnginePostgres; }' but required in type 'RelationalDatabaseProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 12, col 54: Cannot find name 'stage'. Did you mean 'Storage'?",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\stages-and-environments.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/configuration/stages-and-environments.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.3, hard blockers 4, advisory high 0, verifier medium 18"
+  "pipelineReviewSummary": "reviewer-avg 8.3, hard blockers 6, advisory high 0, verifier medium 13",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

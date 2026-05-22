@@ -2,7 +2,7 @@
   "pageId": "guardrails__security-and-data-protection",
   "pageRoute": "guardrails/security-and-data-protection",
   "startedAt": "2026-05-17T17:56:34.350Z",
-  "updatedAt": "2026-05-18T14:50:52.573Z",
+  "updatedAt": "2026-05-21T16:07:39.582Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1454,6 +1454,450 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/guardrails__security-and-data-protection/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Clear guardrails-vs-alarms distinction backed by a well-structured comparison table — exactly what a reader unfamiliar with AWS governance needs to understand the purpose before diving in.",
+            "Consistent 'When to enable / When the default is fine' pattern applied uniformly to every guardrail section — the reader always knows where to find the decision signal.",
+            "Working, realistic <CodeBlock intellisense> examples for each guardrail showing a compliant Stacktape configuration, not just abstract documentation.",
+            "Strong FAQ with good category mix: Stacktape-specific, underlying-AWS-service, and comparison questions across 10 entries.",
+            "Summary combination table at 'Combining security guardrails' is high-signal and citable — engine/tradeoff comparisons in tabular form are the most useful part of a governance page.",
+            "Peer H2 structure for 'When to use' and 'When NOT to use' is correct — they are independent decisions and the page treats them that way.",
+            "The `<Tip>` callout for 'start with these two guardrails' is genuinely opinionated and actionable rather than generic, which fits the target audience well."
+          ],
+          "problems": [
+            "The 'Security guardrail definitions' section shows isolated TypeScript object literals (e.g. `{ type: 'require-vpc-databases', properties: { enabled: true } }`) that are not valid standalone TypeScript and cannot be pasted into any file. Guardrails are console-managed, but the section heading and code formatting look like a config recipe to a first-time reader. There is no prose saying 'this is illustrative only — you cannot place these in stacktape.ts'. A beginner will be confused about what to do with these snippets.",
+            "The claim that `require-vpc-databases` accepts accessibility modes `'vpc'` and `'scoping-workloads-in-vpc'` is not grounded in guardrails.d.ts. The source only states 'all databases must use VPC-only accessibility' without specifying which accessibility mode values satisfy the guardrail. These mode identifiers come from the relational-database types, not the guardrail source — if the guardrail runtime validates a different set of modes, the docs would be wrong.",
+            "The claim that `require-vpc-databases` specifically covers OpenSearch domains is not directly supported by the guardrail source, which says 'all databases' without naming resource types. The page asserts OpenSearch is in scope in both the section prose and the FAQ without grounding.",
+            "The `//` comment labels inside the TypeScript fenced block ('// require-* guardrails — enabled toggle', '// Restriction guardrails — allowlist') function as section dividers rather than code the user would type. While this doesn't technically violate the shell-specific `#` comment rule, the comments land in the copy buffer and make the snippet look like structured example code when it is only illustrative.",
+            "'How security guardrails work' is a 5-word sentence-form H2. Style guidance recommends short noun-form labels (1-5 words). The current heading is at the boundary; 'How guardrails work' or just 'Overview' would be tighter."
+          ],
+          "mandatoryFixes": [
+            "Reframe the 'Security guardrail definitions' section so a first-time reader understands these object literals are illustrative shapes — not config code. Add a sentence explicitly stating 'These definitions are entered in the Stacktape Console, not in your stacktape.ts file.' Alternatively, replace the raw fenced block entirely with a prose description and a link to the Console guardrails page, since no standalone code snippet can demonstrate console-managed configuration.",
+            "Remove or qualify the specific accessibility mode values (`'vpc'` and `'scoping-workloads-in-vpc'`) from the require-vpc-databases section and from the FAQ, because guardrails.d.ts does not enumerate which values satisfy the guardrail. Replace with source-grounded phrasing: 'the database must be configured for VPC-only access — see the relational database page for the supported accessibility modes' with a link.",
+            "Either remove the OpenSearch domain claim from both the require-vpc-databases section body and the FAQ answer (since guardrails.d.ts is silent on which resource types are covered), or source it from a runtime validator that explicitly lists the covered resource types. If unsourced, write narrowly: 'databases configured with public accessibility are blocked' without naming specific resource types the guardrail does or does not cover."
+          ],
+          "optionalImprovements": [
+            "Move the `//` section-label comments out of the TypeScript fenced block in 'Security guardrail definitions' into prose labels above each sub-group. The code block should contain only the object literals a reader might reference, not explanatory labels that land in the copy buffer.",
+            "Shorten 'How security guardrails work' to 'How guardrails work' or 'Overview' to bring the H2 in line with the 1-5 word noun-form convention.",
+            "The 'Security guardrail definitions' fenced block currently lists only 6 of the 15 guardrail types. Add a note that the 6 shown are the security-focused subset and that the full 15-type list appears on the guardrails overview page, so a reader doesn't assume the list is exhaustive.",
+            "Consider adding a short 'Error output' example (just the GUARDRAIL error message shape) in the 'How guardrails work' section — a first-time reader benefits from knowing what the failure looks like before they've ever triggered one, so it's not a surprise when it happens."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Guardrail vs. alarm distinction is established early with a clear comparison table and maintained throughout — a production engineer can immediately understand the mental model without wading through prose.",
+            "Per-guardrail 'when to enable / when the default is fine' framing is applied consistently across all six guardrail sections, giving decision support rather than just configuration instructions.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]}> — no fenced YAML, no StacktapeConfig type, no defineConfig inside a raw TypeScript fence.",
+            "FAQ section covers all three required categories: Stacktape-specific mechanics, underlying AWS service behavior (WAF, SQS DLQ, RDS deletion protection), and comparison/decision questions. 10 entries with appropriate depth.",
+            "'Combining security guardrails' table gives a clean single-page production baseline — the 'Recommended for' column is actionable and appropriately opinionated.",
+            "No marketing language; all sections stay concrete and behavior-focused.",
+            "Cross-links to related guardrails pages (deployment, resource-limits, databases) are well-placed without over-coupling this page to them."
+          ],
+          "problems": [
+            "The `require-vpc-databases` section asserts specific accessibility mode values — `'vpc'` and `'scoping-workloads-in-vpc'` — as the two modes that satisfy the guardrail. These strings do not appear in the provided source file (`guardrails.d.ts`). The guardrail type only states 'VPC-only accessibility (no public internet access)'. If the mode strings are wrong or the set is incomplete, a production engineer will misconfigure a database and be puzzled when the guardrail still blocks it.",
+            "The `require-dead-letter-queue` code example uses `redrivePolicy: { deadLetterQueue: 'deadLetterQueue', maxReceiveCount: 3 }`. The guardrails source only confirms that `redrivePolicy` must exist — it says nothing about sub-property names or types. The specific property names `deadLetterQueue` and `maxReceiveCount` are not verifiable from the provided source. If the actual SqsQueue type uses different property names, the example silently breaks.",
+            "The 'Security guardrail definitions' section uses a fenced TypeScript block showing raw object shapes without any prose clarifying that these are Console-managed policy definitions — not entries in `stacktape.ts`. A production engineer who has only just read that 'guardrails are not defined in your project's stacktape.ts config file' will encounter this code block and have no anchor for where it comes from or how it relates to their workflow. The block provides useful schema reference but lacks context.",
+            "The `RdsEnginePostgres16` class name in the VPC database and deletion-protection examples is not confirmed in the provided source files. While it follows the stated `RdsEngine*` prefix convention, the exact name needs type-checker confirmation. If the correct name is `RdsEnginePostgres` or similar, both examples will produce a type error."
+          ],
+          "mandatoryFixes": [
+            "Verify the specific accessibility mode strings (`'vpc'`, `'scoping-workloads-in-vpc'`) against the relational-database type definitions. If they are correct, add a one-sentence note directing the reader to the relational-database page for the full list of accessibility modes — do not leave the claim unsourced. If they cannot be confirmed from source, replace the specific string literals with a prose reference to the relational-database page accessibility options rather than asserting the exact values inline.",
+            "Add a clarifying sentence immediately before the 'Security guardrail definitions' fenced TypeScript block stating that these object shapes represent the guardrail policy format configured in the Stacktape Console — they are not added to `stacktape.ts`. Without this, the block is ambiguous for any reader who has not already internalized that guardrails live only in the Console.",
+            "Verify `redrivePolicy` sub-property names (`deadLetterQueue`, `maxReceiveCount`) against the actual `SqsQueue` type definition. If the property names differ from what the SqsQueue type specifies, correct the dead-letter queue example. If they are correct, a brief reference to the SqsQueue docs page for the full redrivePolicy structure would prevent readers from guessing at other sub-properties."
+          ],
+          "optionalImprovements": [
+            "The `database-engine-restriction` section lists only `['postgres', 'aurora-postgresql']` as example values. Even a brief parenthetical noting the other common identifiers (e.g., `'mysql'`, `'aurora-mysql'`) would reduce navigation friction for teams evaluating non-Postgres stacks without requiring them to visit the database guardrails page.",
+            "The `<Tip>` callout recommending a roll-out order for guardrails is genuinely useful. Consider extending it with a one-line note for teams migrating existing stacks: e.g., 'For existing stacks, run preview-changes first to surface which resources would be blocked before enabling a new guardrail organization-wide'.",
+            "The `maxReceiveCount: 3` value in the dead-letter queue example is presented as typical without any sourced basis. Reframe it as an illustrative value ('3 in this example') rather than implicitly endorsing it as a general recommendation.",
+            "Consider whether the `<ApiReference>` component supports rendering union types. If `GuardrailDefinition` can be referenced, adding it would give readers a single lookup point for any guardrail's exact property structure, which fits the governance page's role as an authoritative reference. If the component doesn't handle unions well, omitting it (current state) is correct."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and close to the required 40-75 word range.",
+            "Headings are compact and scannable, with useful separation between preventive guardrails and reactive alarms.",
+            "The page gives readers practical decision guidance for each security guardrail instead of only listing properties.",
+            "The FAQ is broad enough for answer engines, mixing Stacktape-specific questions, AWS-context questions, and comparison/decision questions."
+          ],
+          "problems": [
+            "Many Stacktape-specific behavioral claims are not grounded in the provided source file, including Console management, organization-level scope, validation during deploy/delete/preview-changes, fetching policies, GUARDRAIL error behavior, and no-infrastructure-change guarantees.",
+            "Several resource-specific enforcement details exceed the source: require-vpc-databases applying specifically to relational databases and OpenSearch, accepted accessibility modes, default internet access, customDomains array requirements, WAF reference checks, and engine-family-versus-version behavior are not stated in guardrails.d.ts.",
+            "Stacktape config examples rely on resource class names and properties that are not present in the provided source list. The examples may be valid elsewhere, but this review source only grounds guardrail definitions.",
+            "The Security guardrail definitions code block is not copy-paste runnable as a standalone artifact; it shows loose object literals without explaining where they can actually be entered.",
+            "The page says there are \"all 15 guardrail types\" and categorizes them across pages. The count is grounded by the union type, but the linked page taxonomy and category grouping are not grounded by the provided source.",
+            "Some AWS/security claims are useful but too broad for the given source, such as SOC 2/HIPAA/PCI-DSS applicability, WAF protection details, and typical maxReceiveCount values."
+          ],
+          "mandatoryFixes": [
+            "Ground or remove Stacktape-specific lifecycle claims that are not in types/stacktape-config/guardrails.d.ts. In particular, revise claims about Stacktape Console configuration, organization scope, CLI command validation, fetched policies, GUARDRAIL errors, and rollback/no-change behavior unless supporting source files are provided.",
+            "Replace over-specific require-vpc-databases wording with the exact source-grounded fact: when enabled, all databases must use VPC-only accessibility with no public internet access. Do not name resource classes, accepted accessibilityMode literals, or defaults unless those source files are included.",
+            "Revise require-waf to the exact grounded fact: when enabled, all application load balancers must have a web application firewall attached. Do not claim the guardrail only checks that a reference exists unless validator/runtime source supports that behavior.",
+            "Revise require-custom-domain to the exact grounded fact: when enabled, public-facing web services and hosting buckets must have a custom domain configured. Do not claim an array length or specific property path unless grounded by resource source files.",
+            "Revise database-engine-restriction to the exact grounded fact: allowedEngines lists database engine types that are allowed and others are blocked. Do not claim it operates on engine families rather than versions unless source supports that distinction.",
+            "Either provide source files for the Stacktape resource examples or remove/soften them. With only guardrails.d.ts, examples should focus on guardrail definition shapes rather than unsupported resource configurations."
+          ],
+          "optionalImprovements": [
+            "Turn the guardrail definition examples into a small table with type, property, and source-grounded effect. That would be more extractable than loose TypeScript object literals.",
+            "Add a concise \"Supported guardrails\" table near the top listing all 15 guardrail types from the union type, then mark which ones this security page covers.",
+            "Keep the decision guidance, but phrase it as operational advice rather than Stacktape-enforced fact when the source only defines the guardrail property.",
+            "Shorten or remove repeated links to the Stacktape Console unless Console source files are provided. A single cautious mention is enough if source grounding is thin."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided guardrail type definitions, but it overstates several Stacktape-specific guardrail behaviors beyond what the authoritative `guardrails.d.ts` source supports. The main risks are broadening exact guardrail scopes and adding enforcement details not present in the type definitions.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Does the require-vpc-databases guardrail apply to all database types? Yes. When enabled, the guardrail requires that all databases in the stack use VPC-only accessibility with no public internet access.”",
+              "reason": "The source says “all databases,” but the only specific database-related scope it defines elsewhere is relational databases for deletion protection. The draft’s FAQ answer turns this into an absolute “all database types” answer, which can mislead readers about which resource types are validated, especially because the source does not enumerate affected resource classes.",
+              "suggestedFix": "Narrow the answer to the exact source wording: “When enabled, `require-vpc-databases` requires databases covered by the guardrail to use VPC-only accessibility with no public internet access.” Avoid claiming every database-like resource type is covered unless runtime validator source proves it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### When enabled, all databases must use VPC-only accessibility (no public internet access)."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“The `database-engine-restriction` guardrail ... operates on engine families (like `postgres` or `aurora-postgresql`), not on specific engine versions.” and “`postgres` covers all RDS PostgreSQL versions.”",
+              "reason": "The authoritative guardrail type only says `allowedEngines?: string[]` and gives example strings. It does not define engine-family semantics, version matching, or coverage of all RDS PostgreSQL versions. That behavior would materially affect how readers configure the allowlist.",
+              "suggestedFix": "Say only that `allowedEngines` lists allowed database engine types and that other engine types are blocked. Use the examples from source, but do not describe family/version matching unless runtime validator source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### Database engine types that are allowed (e.g., `[\"postgres\", \"aurora-postgresql\"]`). Others are blocked."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Any stack containing a blocked resource type is rejected.”",
+              "reason": "The source defines `blockedResourceTypes` as resource types that are blocked, but it does not specify the exact enforcement unit or error outcome as “any stack containing” such a resource being rejected. The wording is plausible, but stronger than the provided source.",
+              "suggestedFix": "Use source-level wording: “The `blockedResourceTypes` list names resource types that are blocked, for example `open-search-domain` or `redis-cluster`.” Avoid describing the exact rejection mechanics unless validator or CLI source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### Resource types that are blocked (e.g., `[\"open-search-domain\", \"redis-cluster\"]`)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“WAF on load balancers” in the opening paragraph and SEO description.",
+              "reason": "The guardrail source scopes `require-waf` to application load balancers, not all load balancers. Saying “load balancers” can incorrectly imply network load balancers or other load balancer types are covered.",
+              "suggestedFix": "Change both mentions to “WAF on application load balancers.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### When enabled, all application load balancers must have a web application firewall attached."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Guardrails add a validation step to every deployment” and “slow iteration.”",
+              "reason": "The provided authoritative source defines guardrail shapes and property meanings, but it does not describe CLI/deployment execution behavior, validation timing, or performance impact. The statement may be reasonable, but it is not grounded in the provided source files.",
+              "suggestedFix": "Rephrase as guidance without asserting implementation timing: “Guardrails are useful when policy enforcement matters more than unrestricted iteration. In early prototypes, strict policies can create extra configuration work.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailDefinition =\n  | StageRestrictionGuardrail\n  | RegionRestrictionGuardrail\n  | CommandRestrictionGuardrail\n  | ResourceTypeRestrictionGuardrail\n  | RequireVpcDatabasesGuardrail\n  | RequireDeletionProtectionGuardrail\n  | RequireDeadLetterQueueGuardrail\n  | FunctionMemoryLimitGuardrail\n  | FunctionTimeoutLimitGuardrail\n  | ContainerResourceLimitGuardrail\n  | DatabaseEngineRestrictionGuardrail\n  | DatabaseInstanceRestrictionGuardrail\n  | RequireWafGuardrail\n  | RequireCustomDomainGuardrail\n  | ResourceCountLimitGuardrail;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The guardrail only verifies that the reference exists” for `require-waf`.",
+              "reason": "The source says application load balancers must have a web application firewall attached. It does not specify whether validation only checks existence of a reference, validates attachment resolution, or validates any nested firewall configuration.",
+              "suggestedFix": "Say: “The `require-waf` guardrail requires application load balancers to have a web application firewall attached. The specific AWS WAF rules are configured on the firewall resource.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### When enabled, all application load balancers must have a web application firewall attached."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `customDomains` array must contain at least one entry for web services and hosting buckets to satisfy this guardrail.”",
+              "reason": "The guardrail source requires public-facing web services and hosting buckets to have a custom domain configured, but it does not specify the exact property name or array cardinality used to detect compliance. That property-level assertion comes from resource types not included in the authoritative source for this page.",
+              "suggestedFix": "Keep the requirement at the guardrail level: “To satisfy this guardrail, public-facing web services and hosting buckets need a custom domain configured.” Let the resource page explain the exact `customDomains` shape.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### When enabled, public-facing web services and hosting buckets must have a custom domain configured."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft uses fenced `typescript` code for raw guardrail definition snippets.",
+              "reason": "The forbidden Stacktape config pattern applies to Stacktape configuration examples using `defineConfig` and resource classes. These snippets are not full Stacktape config examples, but they are Stacktape policy-shaped objects and may be confused with hand-authored configuration. This is not a factual error, but it may fail stricter MDX/example linting depending on how the docs pipeline classifies guardrail policy snippets.",
+              "suggestedFix": "Either keep the snippets clearly framed as object-shape examples, or convert them to prose/table form to avoid any ambiguity with Stacktape config examples.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly keeps “When to use” and “When NOT to use” as peer H2 sections.",
+            "The draft correctly distinguishes guardrails as preventive policy from alarms as reactive monitoring.",
+            "The draft uses valid documentation routes for the cross-links checked against the provided navigation index.",
+            "The draft avoids hand-authored YAML Stacktape configuration and uses `<CodeBlock intellisense>` for Stacktape resource configuration examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided guardrail type definitions, but it includes several Stacktape-specific behavioral claims that are not grounded in the authoritative `guardrails.d.ts` source. The highest-impact problems are over-specific enforcement mechanics and resource-scope claims that go beyond what the guardrail definitions state.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Each guardrail has a `type` and a `properties` object. The property shape depends on the guardrail type: `require-*` guardrails use an `enabled` boolean toggle, restriction guardrails use either allowlists or blocklists, and limit guardrails use numeric maximums.”",
+              "reason": "This page is specifically about security and data-protection guardrails, but the sentence generalizes across all guardrail types and says “restriction guardrails” broadly use allowlists or blocklists. In the actual source, the security/data-protection restriction shown here is only `database-engine-restriction`, and it uses `allowedEngines`; `resource-type-restriction` is a deployment guardrail, not a security/data-protection guardrail. The broader taxonomy is true across the full union, but the page’s “security guardrail definitions” framing makes the scope ambiguous and could imply blocklist-style security guardrails exist on this page.",
+              "suggestedFix": "Narrow the wording: “For the security and data-protection guardrails on this page, `require-*` guardrails use an optional `enabled` boolean, and `database-engine-restriction` uses an optional `allowedEngines` allowlist. Other guardrail categories use different property shapes.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type DatabaseEngineRestrictionGuardrail = {\n  type: 'database-engine-restriction';\n  properties: {\n    /**\n     * #### Database engine types that are allowed (e.g., `[\"postgres\", \"aurora-postgresql\"]`). Others are blocked.\n     */\n    allowedEngines?: string[];\n  };\n};"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type ResourceTypeRestrictionGuardrail = {\n  type: 'resource-type-restriction';\n  properties: {\n    /**\n     * #### Resource types that are blocked (e.g., `[\"open-search-domain\", \"redis-cluster\"]`).\n     */\n    blockedResourceTypes?: StpResourceType[];\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Guardrails add a validation step to every deployment.”",
+              "reason": "The authoritative guardrail type source defines guardrail shapes and what each policy means, but it does not state that every deployment performs an additional validation step. The secondary generated docs say guardrails validate `deploy`, `delete`, and `preview-changes`, but the draft’s wording is narrower and operationally specific without support from the authoritative source requested for this page.",
+              "suggestedFix": "Write cautiously: “Guardrails are intended to prevent non-compliant configurations from being used; in practice, that means teams should expect policy checks during guarded operations.” Or cite only what the source defines: “Guardrails define preventive requirements such as VPC-only databases or deletion protection.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailDefinition =\n  | StageRestrictionGuardrail\n  | RegionRestrictionGuardrail\n  | CommandRestrictionGuardrail\n  | ResourceTypeRestrictionGuardrail\n  | RequireVpcDatabasesGuardrail\n  | RequireDeletionProtectionGuardrail\n  | RequireDeadLetterQueueGuardrail\n  | FunctionMemoryLimitGuardrail\n  | FunctionTimeoutLimitGuardrail\n  | ContainerResourceLimitGuardrail\n  | DatabaseEngineRestrictionGuardrail\n  | DatabaseInstanceRestrictionGuardrail\n  | RequireWafGuardrail\n  | RequireCustomDomainGuardrail\n  | ResourceCountLimitGuardrail;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Any relational database without this flag fails the guardrail.”",
+              "reason": "The source says that when enabled, all relational databases must have `deletionProtection` set to `true`. It does not describe the failure mode as “fails the guardrail” or define what operational result occurs. This is likely directionally correct, but it goes beyond the provided type/JSDoc wording.",
+              "suggestedFix": "Use the source-grounded wording: “When `require-deletion-protection` is enabled, every relational database must set `deletionProtection: true`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type RequireDeletionProtectionGuardrail = {\n  type: 'require-deletion-protection';\n  properties: {\n    /**\n     * #### When enabled, all relational databases must have `deletionProtection` set to `true`.\n     */\n    enabled?: boolean;\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The guardrail only verifies that the reference exists — you still need to configure the WAF rules on the `WebAppFirewall` resource to define what threats are blocked.”",
+              "reason": "The authoritative source only states that all application load balancers must have a web application firewall attached. It does not specify implementation details such as verifying only reference existence or whether rule configuration is ignored by the guardrail.",
+              "suggestedFix": "Narrow to the sourced requirement: “When `require-waf` is enabled, application load balancers must have a web application firewall attached. The specific request filtering behavior depends on the WebAppFirewall configuration.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type RequireWafGuardrail = {\n  type: 'require-waf';\n  properties: {\n    /**\n     * #### When enabled, all application load balancers must have a web application firewall attached.\n     */\n    enabled?: boolean;\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `database-engine-restriction` guardrail ... operates on engine families (like `postgres` or `aurora-postgresql`), not on specific engine versions.”",
+              "reason": "The source says `allowedEngines` contains database engine types and gives examples, but it does not define those strings as “engine families” or state that specific engine versions are not supported. The claim may be true elsewhere, but it is not grounded in the provided authoritative source.",
+              "suggestedFix": "Use the source wording: “The `database-engine-restriction` guardrail uses an `allowedEngines` list of database engine type strings, such as `postgres` and `aurora-postgresql`; engines not on the list are blocked.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type DatabaseEngineRestrictionGuardrail = {\n  type: 'database-engine-restriction';\n  properties: {\n    /**\n     * #### Database engine types that are allowed (e.g., `[\"postgres\", \"aurora-postgresql\"]`). Others are blocked.\n     */\n    allowedEngines?: string[];\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Does the require-vpc-databases guardrail apply to all database types? Yes. When enabled, the guardrail requires that all databases in the stack use VPC-only accessibility with no public internet access. Any database configured without VPC-only accessibility fails the check.”",
+              "reason": "The first sentence answers “all database types” with an unconditional “Yes.” The source says “all databases,” but it does not enumerate resource types covered by “databases.” The generated secondary doc actually narrows this to relational databases and OpenSearch domains, so the draft’s FAQ could overstate coverage.",
+              "suggestedFix": "Avoid “all database types” unless the implementation source enumerates them. A safer answer is: “The guardrail definition says that, when enabled, all databases must use VPC-only accessibility with no public internet access. Check the relevant database resource page for how that resource expresses accessibility.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type RequireVpcDatabasesGuardrail = {\n  type: 'require-vpc-databases';\n  properties: {\n    /**\n     * #### When enabled, all databases must use VPC-only accessibility (no public internet access).\n     */\n    enabled?: boolean;\n  };\n};"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/guardrails/security-and-data-protection.md",
+                  "quote": "The `require-vpc-databases` guardrail checks both [relational databases](/resources/databases/relational-database) and [OpenSearch domains](/resources/databases/opensearch). Both resource types must use VPC-only accessibility when this guardrail is enabled."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Several Stacktape config examples use resource properties and classes that are not present in the provided source files, including `RdsEnginePostgres16`, `RelationalDatabase.accessibility.accessibilityMode`, `SqsQueue.redrivePolicy`, `ApplicationLoadBalancer.useFirewall`, `WebService.customDomains`, and `StacktapeImageBuildpackPackaging`.",
+              "reason": "The source list for this verification only includes guardrail definitions and a generated page summary, not the resource type definitions for databases, queues, load balancers, web services, or packaging. The examples may be valid in the broader Stacktape type system, but they cannot be fully verified from the provided sources.",
+              "suggestedFix": "Either include the relevant resource type source files in the verifier input or keep the examples but avoid making extra constraints around unsupported properties beyond the guardrail requirement itself.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `## When NOT to use` as a peer H2 rather than nesting it under `When to use`.",
+            "All cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "The draft avoids hand-authored YAML Stacktape configuration and uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape config examples.",
+            "The six security/data-protection guardrail names in the draft match the guardrail union in `types/stacktape-config/guardrails.d.ts`: `require-vpc-databases`, `require-deletion-protection`, `require-dead-letter-queue`, `require-waf`, `require-custom-domain`, and `database-engine-restriction`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 1, col 44: '\"stacktape\"' has no exported member named 'RdsEnginePostgres16'. Did you mean 'RdsEnginePostgres'?",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 4, col 47: Argument of type '{ engine: any; accessibility: { accessibilityMode: \"vpc\"; }; }' is not assignable to parameter of type 'RelationalDatabasePropsWithOverrides'.\n  Property 'credentials' is missing in type '{ engine: any; accessibility: { accessibilityMode: \"vpc\"; }; }' but required in type 'RelationalDatabaseProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): `new RdsEnginePostgres16(...)` references an unknown class.",
+              "reason": "`RdsEnginePostgres16` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `RdsEnginePostgres16` is meant to be a custom class, define it in the example or remove the example."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 1, col 44: '\"stacktape\"' has no exported member named 'RdsEnginePostgres16'. Did you mean 'RdsEnginePostgres'?",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 4, col 47: Argument of type '{ engine: any; deletionProtection: true; }' is not assignable to parameter of type 'RelationalDatabasePropsWithOverrides'.\n  Property 'credentials' is missing in type '{ engine: any; deletionProtection: true; }' but required in type 'RelationalDatabaseProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): `new RdsEnginePostgres16(...)` references an unknown class.",
+              "reason": "`RdsEnginePostgres16` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `RdsEnginePostgres16` is meant to be a custom class, define it in the example or remove the example."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 8, col 7: Object literal may only specify known properties, and 'deadLetterQueue' does not exist in type 'SqsQueueRedrivePolicy'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 7, col 9: Object literal may only specify known properties, and 'deadLetterQueue' does not exist in type 'SqsQueueRedrivePolicy'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 4, col 42: Argument of type '{}' is not assignable to parameter of type 'WebAppFirewallPropsWithOverrides'.\n  Property 'scope' is missing in type '{}' but required in type 'WebAppFirewallProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 4, col 42: Argument of type '{}' is not assignable to parameter of type 'WebAppFirewallPropsWithOverrides'.\n  Property 'scope' is missing in type '{}' but required in type 'WebAppFirewallProps'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1466,8 +1910,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\guardrails\\security-and-data-protection.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/guardrails/security-and-data-protection.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.3, hard blockers 7, advisory high 0, verifier medium 16"
+  "pipelineReviewSummary": "reviewer-avg 7.3, hard blockers 9, advisory high 0, verifier medium 16",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

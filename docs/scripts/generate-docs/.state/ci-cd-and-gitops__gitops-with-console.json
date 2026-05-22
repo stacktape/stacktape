@@ -2,7 +2,7 @@
   "pageId": "ci-cd-and-gitops__gitops-with-console",
   "pageRoute": "ci-cd-and-gitops/gitops-with-console",
   "startedAt": "2026-05-16T12:30:33.991Z",
-  "updatedAt": "2026-05-16T13:14:30.434Z",
+  "updatedAt": "2026-05-22T07:02:21.442Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1712,20 +1712,403 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/ci-cd-and-gitops__gitops-with-console/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-grounded accuracy throughout: the stage name `pr-{#number}`, the `isTemporaryForPr` filtering, the `Promise.all` execution model, the `deleteStackAfterPrClose` behavior, and the two badge labels ('PR Opened' / 'Push to Branch') all map precisely to the console-app source files.",
+            "The 'Typical setup' table near the end is excellent for the target audience — it shows three configurations in parallel so the reader can mentally model their own project without re-reading prose.",
+            "Build runners comparison table cleanly distinguishes CodeBuild from EC2 runners as required by the section instructions, and gives an opinionated recommendation ('CodeBuild for most teams').",
+            "FAQ contains exactly 10 Q&A pairs and correctly mixes all three required categories: Stacktape-specific, AWS service use-case, and comparison/choosing questions.",
+            "'When NOT to use' is a peer H2 (correct hierarchy) and makes a concrete redirect to custom CI/CD rather than leaving the reader hanging.",
+            "The auto-delete section ends with a concrete opinion ('Enable auto-delete unless…') — decision support rather than configuration-only."
+          ],
+          "problems": [
+            "Prerequisites section lists 'The Stacktape GitHub App connected' as the critical first prerequisite but provides no link to where or how to connect it. For a first-time user this is the actual blocker — they cannot proceed without finding this step on their own. The Console source file confirms the GitHub App integration is required (repo owner/name resolution, webhook delivery), yet the page doesn't surface the path to complete this prerequisite.",
+            "Navigation instructions throughout ('Navigate to your project's GitOps page', 'Create a GitOps configuration in the Console') give no route hint or breadcrumb. The Console source shows the route anchored to `/projects/{projectName}/gitops`. A new user who has never opened the Console has no clear path.",
+            "`<FlowDiagram>` is not in the documented MDX component palette (the style guide lists Info, Tip, Warning, CodeBlock, ApiReference, ReferenceableParams, FeatureComparisonTable). If this component does not exist in the docs framework the entire 'Webhook flow' section renders as broken JSX with no fallback content.",
+            "The 'Webhook flow' section adds internal implementation detail (Promise.all, error counting, createGitConfigurationForPR) that is more useful for a contributor debugging the handler than for a developer trying to use GitOps. For the stated audience (first-time, low AWS experience), this section increases cognitive load without helping them act."
+          ],
+          "mandatoryFixes": [
+            "Add a direct link to the GitHub App connection/installation docs in the Prerequisites section. The current wording ('The Stacktape GitHub App connected') leaves the reader with no path forward. At minimum, add a sentence like 'See [Connecting GitHub](/stacktape-console/connecting-github) to complete this step' (adjust the link to the real route once confirmed).",
+            "Verify that `<FlowDiagram>` is a supported component in this docs framework before publishing. If it is not, replace it with a numbered list or a markdown table describing the four event-flow steps. Leaving an unresolved custom component risks a broken render for all users."
+          ],
+          "optionalImprovements": [
+            "Add the Console route pattern for the GitOps page (e.g., 'in the Stacktape Console at `/projects/{your-project}/gitops`') so first-time users can navigate directly.",
+            "Demote or collapse the 'Webhook flow' section — move it to the end of the page or label it 'Under the hood' to signal it's for advanced/debugging readers, not the happy path.",
+            "The prerequisites could be ordered by dependency: (1) GitHub App connection, (2) connected AWS account, (3) config file. Currently they are listed in a different order that suggests AWS account comes first, which can mislead users who set up AWS but haven't touched the GitHub App yet.",
+            "Consider adding a one-sentence note in the 'Push-to-deploy' section about the config file path option — the Console form likely asks for a config file path and new users may not know they can specify a non-default path.",
+            "The 'Managing configurations' section's warning about deleting a configuration not affecting running stages is correct and useful, but could also mention that you can re-create a configuration for the same branch/stage — this is a common recovery action after an accidental delete."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-grounded details add production-relevant precision: `pr-{#number}` naming convention is confirmed directly from `gitDeploymentConfig.stage || 'pr-{#number}'` in the source; the `isTemporaryForPr` filter behavior is accurately described; `Promise.all` processing and error-count response format are exact matches to the Lambda handler.",
+            "Column headers in the 'Managing configurations' table exactly match the `ElevatedTable` `columnHeaders` prop in `GitOps.tsx` — readers won't be confused by a mismatch between the page and the actual Console.",
+            "PR close mechanics are correctly split: `createGitConfigurationForPR` on open, `deleteGitConfigurationForPR` on close, and `deleteStackAfterPrClose` guard on stack deletion — the page describes this three-part lifecycle accurately.",
+            "The 'Webhook flow' section accurately traces the handler execution path from GitHub event → `getActionsToPerform` → `Promise.all` → error collection → response body, grounded directly in the Lambda source.",
+            "The FAQ has exactly 10 Q&A pairs spanning all three required categories (Stacktape-specific, underlying AWS service, and choosing/comparison), and answers are concrete enough to stand alone as search snippets.",
+            "The 'Typical setup' table at the end is highly practical — the three-row prod/staging/PR-preview pattern is a realistic starting point any team can copy directly."
+          ],
+          "problems": [
+            "The `<FlowDiagram>` MDX component used in the 'Webhook flow' section is not mentioned in the style guide, the project component inventory, or any example page. If this component does not exist in the docs rendering system, the entire section silently fails to render, leaving readers with a blank block where the flow diagram should be. This is a practical deployment risk.",
+            "The Prerequisites section lists 'The Stacktape GitHub App connected' as step 1 but provides no link to the page or Console flow where a user actually connects it. For a reader who hasn't done this yet, the prerequisite is a dead end.",
+            "The build runners comparison table (CodeBuild vs EC2 with startup time and billing model columns) is not grounded in the source files provided for this page. The content is plausible and correctly delegated to `/ci-cd-and-gitops/build-runners`, but the table's specific claims (e.g. 'per-minute billing', 'near-instant' EC2 startup) are not verifiable from the provided source. If those facts are wrong on the build-runners page, this page silently repeats them."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace `<FlowDiagram>` with a numbered markdown list or a simple markdown table. The content (four steps: push → event match → deploy/delete → PR bookkeeping) is accurate and valuable, but the non-standard component is a rendering risk. If `<FlowDiagram>` is confirmed to exist in the docs system, keep it — otherwise replace immediately.",
+            "Add a link in prerequisite step 1 ('The Stacktape GitHub App connected') pointing to the relevant Console page or guide that walks through the GitHub App installation flow. The reader hitting this prerequisite for the first time has no path forward without that link.",
+            "The 'Setting up push-to-deploy' subsection says 'Navigate to your project's GitOps page' but doesn't say how to get there (project list → project → GitOps tab, or similar). One sentence of orientation reduces friction for first-time users without adding noise for experienced ones.",
+            "The 'Webhook flow' Info callout notes that `workflow_job` events are handled separately for self-hosted GitHub Actions runners. Consider moving this note to the 'When NOT to use' section or the Build runners section where the distinction is more actionable — in the Webhook flow section it reads as a tangent.",
+            "The 'When NOT to use' section recommends `stacktape deploy` for occasional/manual deployments but doesn't mention the Console's one-click deploy option (if it exists), which some readers may prefer over the CLI. If the Console supports ad-hoc deploys, a one-line mention would round out the comparison.",
+            "The FAQ answer to 'What happens if a GitOps action fails?' lists possible failure causes (invalid config, missing secrets, AWS permission issues) but doesn't tell readers where in the Console to find the deployment error output. A pointer to where to view deployment logs in the Console (or a link to `stacktape debug:logs`) would make this answer actionable."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is precisely 47 words, fully self-contained, and answers 'what is this and why does it matter' without any meta-framing — strong AEO snippet.",
+            "Console UI details are tightly source-grounded: button label 'New GitOps configuration', column headers ('Deployment trigger', 'From branch', 'Stage name', 'Region', 'AWS Account'), stage name fallback `pr-{#number}`, and `isTemporaryForPr` filter all match the GitOps.tsx source exactly.",
+            "Webhook flow section accurately reflects the handler's `Promise.all` processing, `PULL_REQUEST_OPENED`/`PULL_REQUEST_CLOSED` event types, `createGitConfigurationForPR`/`deleteGitConfigurationForPR` calls, and `deleteStackAfterPrClose` guard — all verifiable in the source.",
+            "Build runners comparison table provides decision support with concrete tradeoffs (cold start, billing model, maintenance overhead) and an opinionated recommendation (CodeBuild for most teams).",
+            "Opinionated guidance throughout: 'Enable auto-delete unless you have a specific reason to keep preview stages around after merge' is concrete and actionable.",
+            "Warning callout about configuration deletion not affecting deployed stages is a high-value gotcha that will prevent user confusion.",
+            "Typical setup table synthesizes a realistic multi-environment config (prod + staging + PR previews) that looks like something a real team would adopt.",
+            "'When to use' and 'When NOT to use' are correctly structured as peer H2 sections, not nested."
+          ],
+          "problems": [
+            "FAQ is heavily Stacktape-specific: 7–8 of the 10 questions are about Stacktape mechanics, leaving only 1 AWS use-case question (CodeBuild pricing) and 1–2 comparison questions. The FAQ misses high-intent searches like 'What is GitOps?', 'How do GitHub webhooks work for CI/CD?', 'GitOps vs GitHub Actions for AWS', 'How does push-based deployment compare to pull-based?'. A Stacktape-centric FAQ fails the audience who arrives from a general search.",
+            "The `<FlowDiagram>` MDX component used in the 'Webhook flow' section is not a documented or confirmed Stacktape docs component. If it doesn't exist in the MDX component library, the entire section renders as broken markup. No example page is provided to confirm its use in this docs system.",
+            "The 'Webhook flow' section's use of `<FlowDiagram>` makes it essentially non-extractable by AI engines — structured component data is invisible to citation engines. The same four-step flow described as an ordered list or table would be fully extractable and still scannable.",
+            "The FAQ answer for 'What happens if a GitOps action fails?' references 'stacktape debug:logs' but does not link it to `/cli/debug-logs` as required by the cross-page consistency rule ('always link the first mention of a CLI command to its CLI reference page')."
+          ],
+          "mandatoryFixes": [
+            "Rebalance the FAQ to span all three required categories. Replace 4–5 Stacktape-specific questions with: at least 3 AWS use-case questions (e.g., 'What is GitOps and how does it work?', 'How do GitHub webhooks trigger CI/CD pipelines?', 'What AWS services does Stacktape GitOps use under the hood?') and at least 2 choosing/comparison questions (e.g., 'When should I use GitOps with Console vs. GitHub Actions?', 'How does push-based GitOps compare to pull-based GitOps?'). The current FAQ is ~80% Stacktape-specific and will miss the high-intent searches that bring readers to the page.",
+            "Verify that `<FlowDiagram>` is a real MDX component in the Stacktape docs system. If it is not confirmed, replace it with a markdown ordered list or a two-column table (Step | What happens) so the webhook flow content remains readable in all rendering environments and extractable by citation engines.",
+            "Add the missing link to /cli/debug-logs in the FAQ answer for 'What happens if a GitOps action fails?' — the first mention of `stacktape debug:logs` must link to its CLI reference page per the cross-page consistency rule."
+          ],
+          "optionalImprovements": [
+            "The 'Prerequisites' section could explicitly state how to connect the GitHub App (a link to the GitHub App connection flow in the Console) so readers who haven't done it know where to start.",
+            "The 'When to use' section repeats the same idea across three bullets ('no pipeline to maintain', 'managed deployment flow triggered directly from Git events', 'no CI pipeline files'). Consolidate to avoid repetition and use the freed space for a concrete signal like team size or deployment frequency.",
+            "Add a one-sentence troubleshooting anchor to the 'Managing configurations' or 'Webhook flow' section listing the most common reason a push doesn't trigger a deployment (e.g., GitHub App not connected, branch name mismatch, no matching GitOps configuration). This addresses a frequent reader question without requiring a full troubleshooting section.",
+            "The build runners table uses 'Startup' as a column label that implies latency but the values ('Provisions on demand', 'Near-instant') are prose descriptions. A concrete data signal (e.g., 'typically 1–3 min' vs. 'seconds') would be more extractable and useful for decision-making, if supported by the build-runners source page."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided Console and GitHub App handler sources. The main factual problem is an overbroad failure-handling claim: the handler catches and summarizes PR bookkeeping and PR-close deletion errors, but the shown source does not catch deployment errors in the same way.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The Webhook flow and FAQ say the handler returns a response indicating whether all actions succeeded or how many failed, and frame GitOps action failures as individually captured and reported.",
+              "reason": "The source only catches errors for PR bookkeeping and PR-close deletion. `startDeployment` is returned without a per-action `.catch`, so a deployment failure is not captured in the `errors` array shown in this handler. The draft should not imply all GitOps action failures are summarized in the handler response.",
+              "suggestedFix": "Narrow the wording to: \"PR bookkeeping errors and PR-close deletion errors are captured individually and summarized in the response. The deployment start call is not wrapped in that same per-action error handler in the GitHub App handler source.\" In the FAQ, avoid saying generic GitOps action failures are reported in the response summary.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts",
+                  "quote": "return startDeployment({ deploymentConfigData });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts",
+                  "quote": "if (deletionConfigData.deleteStackAfterPrClose) {\n            return startDeletion({ deletionConfigData }).catch((err) => errorHandler(err, deletionConfigData));\n          }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts",
+                  "quote": "body: JSON.stringify({ message: errors.length ? `Failed to process ${errors.length} actions.` : 'Success.' })"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Console table columns and labels are grounded in `GitOps.tsx`: Deployment trigger, From branch, Stage name, Region, AWS Account, `Push to Branch`, `PR Opened`, and the `pr-{#number}` fallback are all visible in source.",
+            "The draft correctly states that temporary PR GitOps configurations are filtered out of the visible list; `GitOps.tsx` filters `config => !config.isTemporaryForPr`.",
+            "The draft correctly distinguishes GitOps deployment events from `workflow_job` events for self-hosted GitHub Actions runners; the GitHub App handler branches on `isWorkflowJobEvent(body)` before GitOps action matching.",
+            "All checked cross-links point to routes present in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 6,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/ci-cd-and-gitops__gitops-with-console/iteration-6.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-grounded accuracy throughout: the stage name `pr-{#number}`, the `isTemporaryForPr` filtering, the `Promise.all` execution model, the `deleteStackAfterPrClose` behavior, and the two badge labels ('PR Opened' / 'Push to Branch') all map precisely to the console-app source files.",
+            "The 'Typical setup' table near the end is excellent for the target audience — it shows three configurations in parallel so the reader can mentally model their own project without re-reading prose.",
+            "Build runners comparison table cleanly distinguishes CodeBuild from EC2 runners as required by the section instructions, and gives an opinionated recommendation ('CodeBuild for most teams').",
+            "FAQ contains exactly 10 Q&A pairs and correctly mixes all three required categories: Stacktape-specific, AWS service use-case, and comparison/choosing questions.",
+            "'When NOT to use' is a peer H2 (correct hierarchy) and makes a concrete redirect to custom CI/CD rather than leaving the reader hanging.",
+            "The auto-delete section ends with a concrete opinion ('Enable auto-delete unless…') — decision support rather than configuration-only."
+          ],
+          "problems": [
+            "Prerequisites section lists 'The Stacktape GitHub App connected' as the critical first prerequisite but provides no link to where or how to connect it. For a first-time user this is the actual blocker — they cannot proceed without finding this step on their own. The Console source file confirms the GitHub App integration is required (repo owner/name resolution, webhook delivery), yet the page doesn't surface the path to complete this prerequisite.",
+            "Navigation instructions throughout ('Navigate to your project's GitOps page', 'Create a GitOps configuration in the Console') give no route hint or breadcrumb. The Console source shows the route anchored to `/projects/{projectName}/gitops`. A new user who has never opened the Console has no clear path.",
+            "`<FlowDiagram>` is not in the documented MDX component palette (the style guide lists Info, Tip, Warning, CodeBlock, ApiReference, ReferenceableParams, FeatureComparisonTable). If this component does not exist in the docs framework the entire 'Webhook flow' section renders as broken JSX with no fallback content.",
+            "The 'Webhook flow' section adds internal implementation detail (Promise.all, error counting, createGitConfigurationForPR) that is more useful for a contributor debugging the handler than for a developer trying to use GitOps. For the stated audience (first-time, low AWS experience), this section increases cognitive load without helping them act."
+          ],
+          "mandatoryFixes": [
+            "Add a direct link to the GitHub App connection/installation docs in the Prerequisites section. The current wording ('The Stacktape GitHub App connected') leaves the reader with no path forward. At minimum, add a sentence like 'See [Connecting GitHub](/stacktape-console/connecting-github) to complete this step' (adjust the link to the real route once confirmed).",
+            "Verify that `<FlowDiagram>` is a supported component in this docs framework before publishing. If it is not, replace it with a numbered list or a markdown table describing the four event-flow steps. Leaving an unresolved custom component risks a broken render for all users."
+          ],
+          "optionalImprovements": [
+            "Add the Console route pattern for the GitOps page (e.g., 'in the Stacktape Console at `/projects/{your-project}/gitops`') so first-time users can navigate directly.",
+            "Demote or collapse the 'Webhook flow' section — move it to the end of the page or label it 'Under the hood' to signal it's for advanced/debugging readers, not the happy path.",
+            "The prerequisites could be ordered by dependency: (1) GitHub App connection, (2) connected AWS account, (3) config file. Currently they are listed in a different order that suggests AWS account comes first, which can mislead users who set up AWS but haven't touched the GitHub App yet.",
+            "Consider adding a one-sentence note in the 'Push-to-deploy' section about the config file path option — the Console form likely asks for a config file path and new users may not know they can specify a non-default path.",
+            "The 'Managing configurations' section's warning about deleting a configuration not affecting running stages is correct and useful, but could also mention that you can re-create a configuration for the same branch/stage — this is a common recovery action after an accidental delete."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Source-grounded details add production-relevant precision: `pr-{#number}` naming convention is confirmed directly from `gitDeploymentConfig.stage || 'pr-{#number}'` in the source; the `isTemporaryForPr` filter behavior is accurately described; `Promise.all` processing and error-count response format are exact matches to the Lambda handler.",
+            "Column headers in the 'Managing configurations' table exactly match the `ElevatedTable` `columnHeaders` prop in `GitOps.tsx` — readers won't be confused by a mismatch between the page and the actual Console.",
+            "PR close mechanics are correctly split: `createGitConfigurationForPR` on open, `deleteGitConfigurationForPR` on close, and `deleteStackAfterPrClose` guard on stack deletion — the page describes this three-part lifecycle accurately.",
+            "The 'Webhook flow' section accurately traces the handler execution path from GitHub event → `getActionsToPerform` → `Promise.all` → error collection → response body, grounded directly in the Lambda source.",
+            "The FAQ has exactly 10 Q&A pairs spanning all three required categories (Stacktape-specific, underlying AWS service, and choosing/comparison), and answers are concrete enough to stand alone as search snippets.",
+            "The 'Typical setup' table at the end is highly practical — the three-row prod/staging/PR-preview pattern is a realistic starting point any team can copy directly."
+          ],
+          "problems": [
+            "The `<FlowDiagram>` MDX component used in the 'Webhook flow' section is not mentioned in the style guide, the project component inventory, or any example page. If this component does not exist in the docs rendering system, the entire section silently fails to render, leaving readers with a blank block where the flow diagram should be. This is a practical deployment risk.",
+            "The Prerequisites section lists 'The Stacktape GitHub App connected' as step 1 but provides no link to the page or Console flow where a user actually connects it. For a reader who hasn't done this yet, the prerequisite is a dead end.",
+            "The build runners comparison table (CodeBuild vs EC2 with startup time and billing model columns) is not grounded in the source files provided for this page. The content is plausible and correctly delegated to `/ci-cd-and-gitops/build-runners`, but the table's specific claims (e.g. 'per-minute billing', 'near-instant' EC2 startup) are not verifiable from the provided source. If those facts are wrong on the build-runners page, this page silently repeats them."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace `<FlowDiagram>` with a numbered markdown list or a simple markdown table. The content (four steps: push → event match → deploy/delete → PR bookkeeping) is accurate and valuable, but the non-standard component is a rendering risk. If `<FlowDiagram>` is confirmed to exist in the docs system, keep it — otherwise replace immediately.",
+            "Add a link in prerequisite step 1 ('The Stacktape GitHub App connected') pointing to the relevant Console page or guide that walks through the GitHub App installation flow. The reader hitting this prerequisite for the first time has no path forward without that link.",
+            "The 'Setting up push-to-deploy' subsection says 'Navigate to your project's GitOps page' but doesn't say how to get there (project list → project → GitOps tab, or similar). One sentence of orientation reduces friction for first-time users without adding noise for experienced ones.",
+            "The 'Webhook flow' Info callout notes that `workflow_job` events are handled separately for self-hosted GitHub Actions runners. Consider moving this note to the 'When NOT to use' section or the Build runners section where the distinction is more actionable — in the Webhook flow section it reads as a tangent.",
+            "The 'When NOT to use' section recommends `stacktape deploy` for occasional/manual deployments but doesn't mention the Console's one-click deploy option (if it exists), which some readers may prefer over the CLI. If the Console supports ad-hoc deploys, a one-line mention would round out the comparison.",
+            "The FAQ answer to 'What happens if a GitOps action fails?' lists possible failure causes (invalid config, missing secrets, AWS permission issues) but doesn't tell readers where in the Console to find the deployment error output. A pointer to where to view deployment logs in the Console (or a link to `stacktape debug:logs`) would make this answer actionable."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is precisely 47 words, fully self-contained, and answers 'what is this and why does it matter' without any meta-framing — strong AEO snippet.",
+            "Console UI details are tightly source-grounded: button label 'New GitOps configuration', column headers ('Deployment trigger', 'From branch', 'Stage name', 'Region', 'AWS Account'), stage name fallback `pr-{#number}`, and `isTemporaryForPr` filter all match the GitOps.tsx source exactly.",
+            "Webhook flow section accurately reflects the handler's `Promise.all` processing, `PULL_REQUEST_OPENED`/`PULL_REQUEST_CLOSED` event types, `createGitConfigurationForPR`/`deleteGitConfigurationForPR` calls, and `deleteStackAfterPrClose` guard — all verifiable in the source.",
+            "Build runners comparison table provides decision support with concrete tradeoffs (cold start, billing model, maintenance overhead) and an opinionated recommendation (CodeBuild for most teams).",
+            "Opinionated guidance throughout: 'Enable auto-delete unless you have a specific reason to keep preview stages around after merge' is concrete and actionable.",
+            "Warning callout about configuration deletion not affecting deployed stages is a high-value gotcha that will prevent user confusion.",
+            "Typical setup table synthesizes a realistic multi-environment config (prod + staging + PR previews) that looks like something a real team would adopt.",
+            "'When to use' and 'When NOT to use' are correctly structured as peer H2 sections, not nested."
+          ],
+          "problems": [
+            "FAQ is heavily Stacktape-specific: 7–8 of the 10 questions are about Stacktape mechanics, leaving only 1 AWS use-case question (CodeBuild pricing) and 1–2 comparison questions. The FAQ misses high-intent searches like 'What is GitOps?', 'How do GitHub webhooks work for CI/CD?', 'GitOps vs GitHub Actions for AWS', 'How does push-based deployment compare to pull-based?'. A Stacktape-centric FAQ fails the audience who arrives from a general search.",
+            "The `<FlowDiagram>` MDX component used in the 'Webhook flow' section is not a documented or confirmed Stacktape docs component. If it doesn't exist in the MDX component library, the entire section renders as broken markup. No example page is provided to confirm its use in this docs system.",
+            "The 'Webhook flow' section's use of `<FlowDiagram>` makes it essentially non-extractable by AI engines — structured component data is invisible to citation engines. The same four-step flow described as an ordered list or table would be fully extractable and still scannable.",
+            "The FAQ answer for 'What happens if a GitOps action fails?' references 'stacktape debug:logs' but does not link it to `/cli/debug-logs` as required by the cross-page consistency rule ('always link the first mention of a CLI command to its CLI reference page')."
+          ],
+          "mandatoryFixes": [
+            "Rebalance the FAQ to span all three required categories. Replace 4–5 Stacktape-specific questions with: at least 3 AWS use-case questions (e.g., 'What is GitOps and how does it work?', 'How do GitHub webhooks trigger CI/CD pipelines?', 'What AWS services does Stacktape GitOps use under the hood?') and at least 2 choosing/comparison questions (e.g., 'When should I use GitOps with Console vs. GitHub Actions?', 'How does push-based GitOps compare to pull-based GitOps?'). The current FAQ is ~80% Stacktape-specific and will miss the high-intent searches that bring readers to the page.",
+            "Verify that `<FlowDiagram>` is a real MDX component in the Stacktape docs system. If it is not confirmed, replace it with a markdown ordered list or a two-column table (Step | What happens) so the webhook flow content remains readable in all rendering environments and extractable by citation engines.",
+            "Add the missing link to /cli/debug-logs in the FAQ answer for 'What happens if a GitOps action fails?' — the first mention of `stacktape debug:logs` must link to its CLI reference page per the cross-page consistency rule."
+          ],
+          "optionalImprovements": [
+            "The 'Prerequisites' section could explicitly state how to connect the GitHub App (a link to the GitHub App connection flow in the Console) so readers who haven't done it know where to start.",
+            "The 'When to use' section repeats the same idea across three bullets ('no pipeline to maintain', 'managed deployment flow triggered directly from Git events', 'no CI pipeline files'). Consolidate to avoid repetition and use the freed space for a concrete signal like team size or deployment frequency.",
+            "Add a one-sentence troubleshooting anchor to the 'Managing configurations' or 'Webhook flow' section listing the most common reason a push doesn't trigger a deployment (e.g., GitHub App not connected, branch name mismatch, no matching GitOps configuration). This addresses a frequent reader question without requiring a full troubleshooting section.",
+            "The build runners table uses 'Startup' as a column label that implies latency but the values ('Provisions on demand', 'Near-instant') are prose descriptions. A concrete data signal (e.g., 'typically 1–3 min' vs. 'seconds') would be more extractable and useful for decision-making, if supported by the build-runners source page."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided GitOps Console and GitHub App sources, but several claims go beyond the authoritative inline source, especially around Console modal fields, GitLab/custom runner behavior, and deployment failure reporting.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“You can call Stacktape CLI commands as steps inside GitHub Actions, GitLab CI, or any other pipeline runner.”",
+              "reason": "The provided sources only show GitHub App webhook handling and GitHub workflow_job handling. They do not support a GitLab CI claim on this page. Because this is a GitOps/CI choice claim, it affects what integration path a reader may choose.",
+              "suggestedFix": "Narrow the sentence to supported/custom CI in general, or say that custom CI/CD can call Stacktape CLI commands without naming GitLab unless a CLI/custom-CI source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts",
+                  "quote": "// Handle GitHub Actions workflow_job events (self-hosted runner)\n  if (isWorkflowJobEvent(body)) {\n    try {\n      await handleWorkflowJobEvent(body);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Push-to-deploy is configured from your project's GitOps page in the Stacktape Console. Click New GitOps configuration to open the creation modal.” and “PR preview configurations are created from the same New GitOps configuration modal … using the PR Opened trigger.”",
+              "reason": "The GitOps page source supports the New GitOps configuration button and the existence of CreateGitOpsConfigModal, but the provided CreateGitOpsConfigModal source is not included. The draft describes modal contents and the trigger-selection flow that are not visible in the provided Console source.",
+              "suggestedFix": "Keep the button/listing claims, but avoid describing modal fields or selection mechanics unless CreateGitOpsConfigModal is included. For example: “Create a GitOps configuration from the GitOps page. Saved configurations appear with either Push to Branch or PR Opened as the deployment trigger.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "<Button\n          rootCss={{ height: '34px' }}\n          icon={<BiPlus css={{ marginRight: '-4px', marginLeft: '-8px', marginTop: '2px' }} size={22} />\n          visualType=\"primary\"\n          width=\"250px\"\n          text=\"New GitOps configuration\"\n          onClick={() => setIsCreateNewOpen(true)}\n        />"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "{isCreateNewOpen && (\n            <CreateGitOpsConfigModal\n              onSuccess={gitDeploymentConfigsQuery.refetch}\n              isOpen={isCreateNewOpen}\n              setIsOpen={setIsCreateNewOpen}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Deployment failures themselves surface in the deployment output for the affected stage rather than as part of that webhook response summary.”",
+              "reason": "The GitHub App handler source shows startDeployment is returned without the per-action catch used for PR bookkeeping and deletion, but it does not show where deployment failures surface. The statement about deployment output is an unsupported diagnostics claim.",
+              "suggestedFix": "Narrow to the grounded behavior: “The handler catches PR bookkeeping errors and PR-close deletion errors in its response summary; the deployment start call is not wrapped in that same per-action error handler in the GitHub App handler source.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts",
+                  "quote": "await createGitConfigurationForPR({ deploymentConfigData }).catch((err) =>\n            errorHandler(err, deploymentConfigData)\n          );\n        }\n        return startDeployment({ deploymentConfigData });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts",
+                  "quote": "body: JSON.stringify({ message: errors.length ? `Failed to process ${errors.length} actions.` : 'Success.' })"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Common failure causes include invalid Stacktape configuration, missing secrets, or AWS permission issues on the connected account.”",
+              "reason": "The provided GitHub App handler source only logs errors and returns a summarized response. It does not enumerate common deployment failure causes. These may be plausible, but they are not grounded in the provided sources for this page.",
+              "suggestedFix": "Remove the specific list or replace it with a cautious sentence such as: “Use the deployment output and linked observability tools to inspect the failing deployment.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts",
+                  "quote": "const errorHandler = (error, operationConfig) => {\n    errors.push(error);\n    logger.error('Failed to react to Github event.', { error, operationConfig } as any);\n  };"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Do I need to install anything in my repository to use GitOps? No changes to your repository code are needed.”",
+              "reason": "The provided sources show the Console derives repository owner/name from projectDetails.gitUrl and the handler receives GitHub webhooks. They do not support a broad “no changes” requirement claim, and the same answer also says a valid Stacktape config file is needed.",
+              "suggestedFix": "Narrow the claim: “The provided Console source does not show a repository-side pipeline file requirement. Your project still needs repository metadata and a valid Stacktape configuration file.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "const { repositoryName, repositoryOwner } = projectDetailsQuery.isFetched\n    ? getRepositoryDetailsFromGitUrl(projectDetails!.gitUrl!)\n    : { repositoryName: null, repositoryOwner: null };"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/index.ts",
+                  "quote": "const body = JSON.parse(event.body || '{}');\n  console.info('Event body: ', body);"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“A typical Stacktape deployment takes a few minutes depending on stack complexity and packaging mode.”",
+              "reason": "This timing estimate is not present in the provided sources. It is not a Stacktape API/configuration claim, but a concrete duration can become stale or vary widely by project.",
+              "suggestedFix": "Remove the timing estimate or make it qualitative: “Deployment duration depends on stack complexity and packaging mode.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly keeps “When to use” and “When NOT to use” as peer H2 sections.",
+            "The draft uses only valid routes from the provided documentation navigation index for its markdown links.",
+            "The Console table columns and trigger labels match GitOps.tsx: Deployment trigger, From branch, Stage name, Region, AWS Account, with Push to Branch and PR Opened badges.",
+            "The draft correctly distinguishes Console GitOps from self-hosted GitHub Actions runner workflow_job handling, which is separate in the GitHub App handler source.",
+            "The webhook-flow description that PR-open creates a temporary configuration and PR-close removes it is grounded in the GitHub App handler comments and calls."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\ci-cd-and-gitops\\gitops-with-console.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/ci-cd-and-gitops/gitops-with-console.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 2, advisory high 0, verifier medium 12"
+  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 1, advisory high 0, verifier medium 4",
+  "refinementAttempts": 2,
+  "refinementStalled": true
 }

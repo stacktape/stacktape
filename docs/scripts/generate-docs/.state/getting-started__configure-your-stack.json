@@ -2,7 +2,7 @@
   "pageId": "getting-started__configure-your-stack",
   "pageRoute": "getting-started/configure-your-stack",
   "startedAt": "2026-05-15T16:45:16.050Z",
-  "updatedAt": "2026-05-15T17:39:22.368Z",
+  "updatedAt": "2026-05-22T01:15:53.327Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1510,14 +1510,356 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/getting-started__configure-your-stack/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is self-contained, within the 40–75 word target, and directly answers 'what is this and why does it matter' without meta-framing.",
+            "Code examples are realistic and annotated with detailed inline bullet-point explanations — the first-timer can read one block and understand what every line does.",
+            "Stage-based conditional configuration example is an excellent teaching device: it shows a real production pattern (cheap dev, bigger prod) rather than a toy example.",
+            "All three config-creation paths (CLI init, AI generation, visual editor) are covered with appropriate depth and honest placement — CLI init is recommended as the default, Console alternatives are clearly secondary.",
+            "Skip-ahead callout at the top and 'Next →' link at the bottom correctly bracket the linear flow as required by the getting-started section instructions.",
+            "`connectTo` env-var injection is explained with concrete, correctly formatted names (`STP_DATABASE_CONNECTION_STRING`) that match the resource key used in the code example."
+          ],
+          "problems": [
+            "The `cliArgs` context property is typed as `Record<string, string | number | boolean>` with description 'Arguments passed via the --arg flag'. The curated docs source (`typescript-config.mdx`) shows `string[]` with description 'Additional CLI arguments after --'. Neither the `_root.d.ts` nor `__helpers.d.ts` source files contain the `defineConfig` callback context type, so neither claim can be fully verified. The mismatch is a factual accuracy concern that should be resolved against the authoritative TypeScript definition.",
+            "`$Secret('db-password')` is used in the second code example but is only described as referencing 'a secret stored in the Stacktape Console'. A first-time user has no idea how to create that secret, what the Console looks like, or what the prerequisite steps are — the example is not fully runnable without that context.",
+            "The 'Beyond resources' section compresses five advanced features (hooks, scripts, variables, directives, deployment settings) into a single dense paragraph. For a first-timer who hasn't deployed anything yet, this section adds cognitive load without a clear action. It reads more like a table of contents than guidance."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Resolve the `cliArgs` discrepancy: locate the TypeScript definition for the `defineConfig` callback context (likely in `src/` or `types/`), then update the type column and description in the context properties table to match the authoritative source. If it is `Record<string, string | number | boolean>`, update the description from 'passed via the --arg flag' to be precise about the flag syntax. If it is `string[]`, correct the type column.",
+            "Add one sentence or a parenthetical link near the `$Secret('db-password')` usage in the second example pointing to how to create a secret — e.g., 'Create this secret under the Secrets section of the [Stacktape Console](/configuration/secrets) before deploying.' A first-timer will hit this blocker on their first real deploy.",
+            "Trim 'Beyond resources' to the two or three most common follow-up needs for a new user (typically hooks for migrations, and scripts) and replace the rest with a single link to the configuration reference. This reduces first-deploy anxiety without cutting useful information.",
+            "Add a one-sentence callout that `connectTo` array values must exactly match the key used in the `resources` return object — e.g., `connectTo: ['database']` works because the resource is exported as `resources: { database }`. This is the most common source of beginner errors with this feature.",
+            "The `<Tip>` callout recommending a starting path lists three options (init, existing codebase AI gen, understanding the format). Pick one as the unambiguous default for the prose and present the others as secondary. The current framing asks the reader to make a meta-decision before they've seen any content."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "First paragraph is concise and self-contained — clearly explains what stacktape.ts does and why it matters without meta-framing.",
+            "Skip-ahead <Info> callout at the top is correctly placed and useful for returning users navigating the linear flow.",
+            "Line-by-line prose explanation of the first code example (defineConfig, resource classes, packaging, integration, resources return) is genuinely useful and not just a code dump.",
+            "Stage-based configuration example in 'Adapt config per stage' is realistic and production-relevant — the isProduction conditional pattern is exactly what engineers reach for first.",
+            "Context properties table is well-formatted and descriptive; linking it to the defineConfig callback makes it easy to scan.",
+            "connectTo env var claim ('STP_DATABASE_CONNECTION_STRING', 'STP_DATABASE_HOST') correctly matches the resource-access JSDoc for a resource named 'database' — no invented variable names.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript — no forbidden YAML blocks or fenced TS config patterns anywhere.",
+            "Page ends with the required 'Next →' link, and preserves the linear getting-started flow correctly."
+          ],
+          "problems": [
+            "The `profile` context property is listed in the context properties table ('Locally-configured AWS profile, if set') but is not present in any of the provided source files (_root.d.ts, __helpers.d.ts, typescript-config.mdx). This is an ungrounded claim that could mislead engineers who rely on it.",
+            "The `cliArgs` type in the context properties table is shown as `Record<string, string | number | boolean>` ('Arguments passed via the --arg flag'), but the curated-docs source (typescript-config.mdx) documents it as `string[]` ('Additional CLI arguments after --'). The two entries describe different mechanisms. Without the authoritative defineConfig TypeScript type in the provided sources, this inconsistency is unresolved and could cause incorrect configuration.",
+            "The page substantially exceeds the 400–800-word prose target mandated by the getting-started section instructions. The 'Console alternatives' section alone adds two full subsections with screenshot components, pushing the page well past what a first-time reader should process in a single step. This dilutes focus for the onboarding flow.",
+            "Console screenshot references (/static/screenshots/ai-config-generation.png and /static/screenshots/config-editor.png) are embedded with <ConsoleScreenshot> but there is no confirmation these assets exist at those paths. If they render as broken images in the published page, the section becomes misleading."
+          ],
+          "mandatoryFixes": [
+            "Resolve the cliArgs type discrepancy: verify against the authoritative defineConfig TypeScript signature (not the curated docs) whether cliArgs is string[] (variadic post-'--' args) or Record<string, string|number|boolean> (--arg key=value pairs). Update both the type column and the description column in the context properties table to match the verified source.",
+            "Remove or ground the `profile` context property row: it appears in no provided source file. Either find the authoritative TypeScript definition that includes it and cite it, or remove the row entirely rather than leave an unsupported claim in a production-facing table."
+          ],
+          "optionalImprovements": [
+            "Trim the page closer to the 400–800-word prose target. The 'Console alternatives' section (AI config generation + Config editor) could be collapsed to a single short paragraph with links, removing the two <ConsoleScreenshot> blocks. The 'Install the package' section could be a one-liner callout rather than its own H2. These sections are useful but belong more naturally in the Console overview or a dedicated setup page, not the first getting-started step.",
+            "Verify screenshot asset paths before publication; if the screenshots don't exist yet, replace <ConsoleScreenshot> blocks with a note that screenshots are forthcoming rather than embedding broken image references.",
+            "The <Tip> callout recommending 'stacktape init' duplicates the 'Quick-start with stacktape init' H2 section that appears later. Consider collapsing to one or the other — the section instructions say the getting-started flow should be opinionated, so picking init as the default path in prose (without a separate Tip banner) is cleaner.",
+            "The 'Beyond resources' section bullet list is useful but mixes prose labels with parenthetical detail in an inconsistent rhythm. Converting to a two-column table (section name | when to use it) would be more scannable for engineers who already have a working config and are growing into these features."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first opening paragraph is self-contained (~55 words), clearly states what stacktape.ts is and why it matters — strong AEO snippet target.",
+            "No mandatory style violations: all Stacktape config examples use <CodeBlock intellisense tabs={[...]}> with TypeScript label; no fenced YAML resource maps; no StacktapeConfig type usage.",
+            "Skip-ahead link (<Info> callout) and next-step link are both present and correctly placed, satisfying the getting-started section linear flow requirement.",
+            "Context properties table is concrete and scannable — property names, types, and descriptions all grounded in the provided source structure.",
+            "The 'what each piece does' bullet list after the first code example explains non-obvious properties (defineConfig callback, HttpApiIntegration.httpApiGatewayName matching the resource key, StacktapeLambdaBuildpackPackaging) with appropriate precision.",
+            "connectTo env var example correctly derives names from the resource key: resource named 'database' → STP_DATABASE_CONNECTION_STRING, STP_DATABASE_HOST — consistent with the connectTo JSDoc in __helpers.d.ts.",
+            "Opinionated recommended path: prose picks 'stacktape init' as the starting point but clearly positions Console alternatives, meeting the section instruction to be opinionated while surfacing alternatives.",
+            "Console alternatives section is grounded in ConfigEditorPage.tsx: repository type selection (PUBLIC/PRIVATE), git URL input, and branch picker all confirmed in the source component."
+          ],
+          "problems": [
+            "The 'profile' property in the context properties table is not grounded in any provided source file. The defineConfig callback signature is not shown in the inline sources (_root.d.ts describes config shape, not the callback). This property may be invented or at minimum is unverifiable from the given sources.",
+            "cliArgs type discrepancy: draft shows Record<string, string | number | boolean> (described as '--arg flag arguments') while the curated source typescript-config.mdx shows string[] (described as 'Additional CLI arguments after --'). The curated source is lower priority, but the draft's claim is also unsourced since no defineConfig type signature is visible.",
+            "$Secret description reads 'references a secret stored in the Stacktape Console' — imprecise. $Secret resolves a value from AWS Secrets Manager; the Console provides a UI to manage those secrets but does not store them. The distinction matters for users troubleshooting missing values.",
+            "The page prose significantly exceeds the 400-800 word getting-started target. While the content is substantive rather than padded, the section instruction is explicit. Sections like 'Beyond resources' could be condensed to a short bulleted list rather than a long prose paragraph.",
+            "Focus markers in the first code example place [!code focus-start] after the import block, leaving imports visible (dimmed) in the rendered snippet. The style guide says imports 'should be hidden from the rendered snippet with focus markers,' implying the focus block should wrap the entire content so imports are de-emphasized below render focus, not shown above it."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify the 'profile' and 'cliArgs' context properties against the actual defineConfig callback type signature (not shown in provided sources). If 'profile' is not in the type, remove it from the table. If cliArgs is string[], correct the type shown.",
+            "Replace '$Secret references a secret stored in the Stacktape Console' with '$Secret resolves a value from AWS Secrets Manager — the Console provides a UI to create and manage those secrets, keeping credentials out of your config file.'",
+            "Move [!code focus-start] to before the import block (or use a different highlight strategy) so the import lines appear dimmed rather than rendered prominently above the focused content, matching the style guide's 'hide with focus markers' guidance.",
+            "Trim the 'Beyond resources' section to a compact bullet list (hooks, scripts, variables, directives, deploymentConfig) with one link each, then cut the long parenthetical prose. This brings total word count closer to the 400-800 word getting-started target.",
+            "The <Tip> recommended-path callout is somewhat long (three sentences). Tighten to one sentence: 'Run stacktape init for a new project, or use AI config generation in the Console if you already have a codebase.' This improves scannability for returning readers who just want the path.",
+            "The 'Adapt config per stage' section jumps straight into the production/dev branching example without a 'when the default is fine' signal — add a one-line note that single-stage or prototype projects can omit stage conditionals entirely until the need arises, to avoid overengineering concerns."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided sources and follows the TypeScript CodeBlock requirements. The main factual risks are around the `defineConfig` context table and some Console/editor capabilities that are stated more specifically than the provided Console source supports.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The full set of properties available in the `defineConfig` callback” includes `awsProfile`, `cliArgs` as `StacktapeArgs`, and says `cliArgs` includes `stage`, `region`, `configPath`, etc.",
+              "reason": "The provided sources do not support this exact context shape. The curated TypeScript config source lists `stage`, `region`, `projectName`, `command`, and `cliArgs`, with `cliArgs` described as `string[]`; the generated page source lists `profile`, not `awsProfile`, and describes `cliArgs` differently. Calling the table “the full set” makes the unsupported fields and types publication-risky.",
+              "suggestedFix": "Narrow the wording to “commonly used context properties include…” and remove or cautiously phrase unsupported fields. If keeping `awsProfile`, replace it with the source-backed `profile` only if verified against the actual `defineConfig` type source. Avoid claiming a full set unless the `defineConfig` type source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/typescript-config.mdx",
+                  "quote": "export default defineConfig(({ stage, region, projectName, command, cliArgs }) => {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/typescript-config.mdx",
+                  "quote": "| `cliArgs`     | `string[]` | Additional CLI arguments after `--`              |"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/getting-started/configure-your-stack.md",
+                  "quote": "| `profile`     | `string \\| undefined`                            | Locally-configured AWS profile, if set                     |"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A browser-based editor with IntelliSense, live validation, and price estimation. Open a saved config template, edit it, and save changes.”",
+              "reason": "The Console source supports selecting templates, editing template content, AI generation controls, and saving changes, but the provided `ConfigEditorPage` source does not itself support the specific claims about IntelliSense, live validation, or price estimation. Those may be implemented inside the lazily loaded `ConfigEditor` component, but that component source is not provided.",
+              "suggestedFix": "Ground the sentence in the visible source: “The Config Editor lets you select a saved template, edit its config, and save changes in the Console.” Keep IntelliSense/live validation/price estimation only if the `ConfigEditor` component source is included and supports those capabilities.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const ConfigEditor = lazy(() => {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const onSaveChanges = useCallback(\n    async (config: string) => {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "<TemplateSelect\n          setSelectedTemplate={setSelectedTemplate as any}\n          selectedTemplate={selectedTemplate as Template | null}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“Select a Git repository (public or private) and branch in the Console. Stacktape analyzes the codebase and generates a config draft for your review.”",
+              "reason": "The provided Console source supports selecting public/private repository type, repository URL or private repo, branch, and starting `startAiGen`, but it does not show the output/review flow or prove that the generated result is specifically a `stacktape.ts` draft for review. The claim is likely directionally correct, but more specific than the source provided.",
+              "suggestedFix": "Phrase more cautiously: “The Console AI config flow lets you choose a public or private Git repository and branch, then starts config generation for that project.” Add the draft/review wording only if the AI generation result UI source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const startAiGenPublicMutation = trpc.startAiGen.useMutation();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "label=\"Git repository\""
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "label=\"Branch\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `httpApiGatewayName` value (`'api'`) must match the key used in the `resources` return object.”",
+              "reason": "The provided source files do not include the `HttpApiIntegration` type or validator that would establish this constraint. The curated example uses `api.resourceName`, while the draft uses a string and asserts a matching rule. This may be true in the broader codebase, but it is not grounded in the provided sources.",
+              "suggestedFix": "Either cite/include the `HttpApiIntegration` type source, or narrow the explanation to avoid a hard constraint: “The integration points the function at the `api` gateway created above.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/typescript-config.mdx",
+                  "quote": "httpApiGatewayName: api.resourceName,"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "No hand-authored Stacktape YAML examples were present.",
+            "Stacktape configuration examples use `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab.",
+            "The `resources` section being required is directly supported by `_root.d.ts`.",
+            "The `connectTo` environment variable pattern and the concrete `STP_DATABASE_CONNECTION_STRING` / `STP_DATABASE_HOST` examples are consistent with the provided `ResourceAccessProps` source for a resource named `database`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided sources and follows the required TypeScript CodeBlock pattern. The main factual risks are around unsupported specifics for the defineConfig context, Console/editor capabilities, and one invalid CLI command inherited from source comments but contradicted by the provided docs canon.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "`View logs with stacktape logs or in the Stacktape Console.` appears in the source-backed logging description and the draft links observability/logging elsewhere by implication through configuration guidance.",
+              "reason": "The documentation rules explicitly require `stacktape debug:logs`, not `stacktape logs`. The provided type source contains stale JSDoc text, but the prompt's canonical generated-doc facts say this exact command must not be used. If this wording is copied into the page or referenced from this draft's configuration guidance, it would teach the wrong CLI command.",
+              "suggestedFix": "Use `stacktape debug:logs` and link first mention to `/cli/debug-logs`. Do not write `stacktape logs`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "View logs with `stacktape logs` or in the Stacktape Console."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The full set of properties available in the `defineConfig` callback” includes `awsProfile`, and describes `cliArgs` as `StacktapeArgs` with `stage`, `region`, and `configPath`.",
+              "reason": "The provided source material only grounds `stage`, `region`, `projectName`, `command`, and `cliArgs` in the curated TypeScript config page. The generated page variant lists `profile`, not `awsProfile`, and describes `cliArgs` differently. Calling the table the “full set” makes unsupported fields and types look authoritative.",
+              "suggestedFix": "Narrow the wording to “Common context properties include...” and remove or soften `awsProfile` unless the actual `defineConfig` type source is provided. Avoid claiming the exact `cliArgs` type or contents from these sources.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/typescript-config.mdx",
+                  "quote": "export default defineConfig(({ stage, region, projectName, command, cliArgs }) => {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/getting-started/configure-your-stack.md",
+                  "quote": "| `profile`     | `string \\| undefined`                            | Locally-configured AWS profile, if set                     |"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A browser-based editor with IntelliSense, live validation, and price estimation. Open a saved config template, edit it, and save changes.”",
+              "reason": "The provided Console source grounds a ConfigEditor component, template selection, saving template content, AI generation controls, and region passing. It does not show price estimation or live validation behavior. The screenshot alt/caption repeats the price-estimation claim without source support in the provided files.",
+              "suggestedFix": "Keep the grounded parts: browser-based config editor, template selection, AI generation controls, and saving changes. Remove “price estimation” and “live validation” unless component source for `ConfigEditor` or related pricing/validation implementation is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "<ConfigEditor\n            height=\"min(calc(100vh - 203px), 600px)\"\n            rootCss={rootCss}\n            region={primaryRegion}\n            disableLoadingIndicator"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ConfigEditorPage/ConfigEditorPage.tsx",
+                  "quote": "const onSaveChanges = useCallback(\n    async (config: string) => {\n      const updatedTemplate = await updateTemplateMutation.mutateAsync({"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`HttpApiIntegration` routes HTTP requests through the API Gateway to the function. The `httpApiGatewayName` value (`'api'`) must match the key used in the `resources` return object.”",
+              "reason": "The provided source files do not include the `HttpApiIntegration` type or validator. The curated TypeScript config example uses `api.resourceName`, not a literal resource key, so the exact “must match the key” requirement is not grounded by the available sources.",
+              "suggestedFix": "Either change the example to `httpApiGatewayName: api.resourceName` to match the curated source, or soften the explanation to say the integration points at the API Gateway resource name without asserting the key-matching rule unless the integration type source is available.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/typescript-config.mdx",
+                  "quote": "new HttpApiIntegration({\n        httpApiGatewayName: api.resourceName,\n        method: 'GET',\n        path: '/'\n      })"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`stacktape init` scaffolds a project with a working `stacktape.ts` and application code from a starter template... The command walks you through selecting a starter.”",
+              "reason": "The provided source files show Console starter project selection and the generated docs repeat the claim, but there is no CLI command source for `init` in the source list. CLI behavior is supposed to be verified against command source when available; here, the claim is only weakly grounded.",
+              "suggestedFix": "Write more cautiously: “`stacktape init` is the CLI starter command for creating an initial project setup.” Keep detailed claims about prompts/templates only if `src/commands/init/index.ts` or generated CLI reference source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/DeployNewProject/StarterProject/StarterProjectSelect.tsx",
+                  "quote": "<h2 css={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '0px' }}>Select a starter project</h2>"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/getting-started/configure-your-stack.md",
+                  "quote": "[`stacktape init`](/cli/init) scaffolds a project with a working `stacktape.ts` and application code from a starter template:"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape reads this file when you deploy, run dev mode, or manage resources.”",
+              "reason": "The provided root config type and generated page support that `resources` define infrastructure and that Stacktape creates/manages resources, but the phrase “manage resources” is broad and not tied to a specific documented command or behavior in the provided source list.",
+              "suggestedFix": "Use narrower wording: “Stacktape reads this file for commands such as deploy and dev mode.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `stacktape` package provides typed resource classes and directive functions such as `$Secret` and `$ResourceParam`.”",
+              "reason": "The provided curated docs list those directive imports, but the provided type source excerpt does not define the package export surface. This is likely true, but the factual grounding in the supplied sources is indirect.",
+              "suggestedFix": "Keep if the deterministic code-block validator confirms the imports. Otherwise phrase as “The examples import resource classes and directive functions from `stacktape`...”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` for Stacktape config examples and does not hand-author YAML.",
+            "The draft preserves the Getting Started order and ends with the required next-step link to `/getting-started/use-the-dev-mode`.",
+            "The `connectTo` environment variable examples correctly use the resource-name-dependent form for a resource named `database`: `STP_DATABASE_CONNECTION_STRING` and `STP_DATABASE_HOST`.",
+            "The draft avoids nesting `When NOT to use` under `When to use`; this page does not include those resource-page sections."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 35, col 17: Type '\"database\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
@@ -1525,5 +1867,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\getting-started\\configure-your-stack.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 2, advisory high 0, verifier medium 8"
+  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 2, advisory high 0, verifier medium 8",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

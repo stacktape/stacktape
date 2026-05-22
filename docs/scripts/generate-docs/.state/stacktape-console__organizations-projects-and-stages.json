@@ -2,7 +2,7 @@
   "pageId": "stacktape-console__organizations-projects-and-stages",
   "pageRoute": "stacktape-console/organizations-projects-and-stages",
   "startedAt": "2026-05-17T20:04:51.718Z",
-  "updatedAt": "2026-05-17T20:21:31.132Z",
+  "updatedAt": "2026-05-22T02:36:06.359Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1008,6 +1008,800 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/stacktape-console__organizations-projects-and-stages/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong source grounding throughout — project card fields (name, Git URL, stage count, last deployment, monthly cost), sorting behavior, compute type table, and permissions strings all verified against ProjectsList.tsx and ProjectOverview.tsx.",
+            "The build runner compute types table exactly mirrors the COMPUTE_TYPES array in source (2/4 CPU, 4/8/16/32/144 GB memory) — no invented values.",
+            "The project settings dropdown options (Configure Git deployments, Configure Runner, Configure GitHub Actions runner, Delete project) accurately reflect the conditional rendering logic in ProjectOverview.tsx, including the correct conditions for when each option appears.",
+            "Permissions table is accurate and uses the exact permission strings from source: projects:delete, projects:update-settings, deployments:delete-non-production, org:manage-codebuild-settings.",
+            "Dev-mode stage sorting behavior is correctly documented from source (isDevStack stages sorted last in the sidebar).",
+            "Warning callout about orphaned resources on project deletion is source-grounded and practically important for the audience.",
+            "Troubleshooting section addresses real scenarios grounded in the source: dismissFailedStageMutation (failed stages), deleteUndeployedStageMutation (non-deployed stages), and CUR 24-hour delay from Explanations.tsx.",
+            "FAQ spans all three required categories — Stacktape-specific, AWS-service questions (cost data, CUR delay), and comparison questions (project vs stage, multiple orgs). The 10-entry FAQ is complete and useful.",
+            "No forbidden YAML config blocks, StacktapeConfig patterns, or fenced TypeScript containing defineConfig — correct for a console page.",
+            "The Info callout clarifying 'stages = environments' terminology is helpful for the target audience and matches Explanations.tsx wording exactly."
+          ],
+          "problems": [
+            "MANDATORY: `## Walkthrough: creating a project and deploying a stage` is 8 words — the style guide requires most H2s to be 1-5 word compact labels. This triggers the mandatory heading-length penalty.",
+            "MANDATORY: Several Troubleshooting H3s are overly long and read like full sentences: `### Git repository not connected message on a project card` (10 words), `### Project card shows $0/mo despite active resources` (9 words). Style guide mandates compact labels.",
+            "`stacktape project:create` and the linked `/cli/project-create` do not appear in the provided source files or in the visible git status (which shows org-create, org-delete, org-list — but no project-create). This is likely an invented CLI command unsupported by the source.",
+            "`<FlowDiagram>` and `<ConsoleScreenshot>` are not in the documented MDX component palette (style guide examples show Info, Warning, CodeBlock, ApiReference, ReferenceableParams, FeatureComparisonTable). If either component doesn't exist, sections silently break.",
+            "Section instructions say 'Do not invent screenshots or UI flows not present in source.' The ConsoleScreenshot paths (`/static/screenshots/console-projects-page.png`, `/static/screenshots/console-project-overview.png`) reference assets not confirmed in any provided source file.",
+            "The organizations section is thin on grounded detail — the source files do not show a dedicated organizations page; org-level behavior is only visible through the projects page's CodeBuild settings modal. The prose slightly overstates what the Console exposes for org management."
+          ],
+          "mandatoryFixes": [
+            "Shorten `## Walkthrough: creating a project and deploying a stage` to a compact 1-5 word H2 label, e.g., `## Getting started` or `## First deployment`. Long H2s hurt scannability and violate the style guide's heading-length rule.",
+            "Shorten overly long Troubleshooting H3 headings to compact labels: `### Git repository not connected message on a project card` → `### Git repository not connected`; `### Project card shows $0/mo despite active resources` → `### Cost shows $0 for active stage`.",
+            "Remove or rewrite the claim 'You can also create a project from the CLI with `stacktape project:create`' and its `/cli/project-create` link. This command is not visible in any provided source file. If the command is real, verify against CLI source and link to the correct page; if not, remove the sentence."
+          ],
+          "optionalImprovements": [
+            "Verify that `<FlowDiagram>` and `<ConsoleScreenshot>` are real components in the Stacktape docs MDX palette before publishing. If `<FlowDiagram>` doesn't exist, replace with a simple bullet list or a prose-based hierarchy description. If `<ConsoleScreenshot>` doesn't exist or the screenshot paths are wrong, remove those blocks — broken image components harm first-time reader trust.",
+            "The organizations section says 'everything you see is scoped to the currently selected organization' but doesn't explain how to switch organizations or where that control lives in the Console. Even a single sentence grounding this in the UI (e.g., 'the active organization is shown in the top-left of the Console header') would close an obvious follow-up question.",
+            "The walkthrough Step 1 says 'click Create new project' and then says 'The menu includes an option to create an empty project' — the source (`NewProjectMenu` with `showAddEmptyProject`) shows this is a dropdown menu, not a simple button. Wording like 'open the Create new project dropdown and choose Create empty project' would be more precise.",
+            "Consider removing the `<FlowDiagram>` at the top of 'How the hierarchy works' if the component isn't confirmed. The H2 intro plus the three H3 subsections already communicate the hierarchy clearly without a diagram. Avoid visual noise that may not render.",
+            "The redeploying section is brief. Adding one sentence clarifying that the redeploy uses the same commit that was last deployed (not HEAD) would help readers understand when this feature is useful versus running a fresh deploy from the CLI."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All factual claims about project card content (name, git URL, stage count, last deployment time, cost + trend indicator) are grounded directly in `ProjectsList.tsx` — no invented behavior.",
+            "Permissions table (`projects:delete`, `projects:update-settings`, `deployments:delete-non-production`, `org:manage-codebuild-settings`) matches the `hasPermission(...)` calls in the source code exactly.",
+            "CodeBuild compute types table (SMALL through 2XLARGE with CPU/memory) is sourced verbatim from the `COMPUTE_TYPES` array in `ProjectsList.tsx`.",
+            "Delete project confirmation behavior (warns when deployed stages exist, shows 'Proceed anyway' instead of 'Confirm') accurately reflects the `ConfirmationModal` logic in `ProjectOverview.tsx`.",
+            "Dev-mode stage sorting behavior (dev stacks go last, regular stages sort by recency) correctly reflects the `sortedDeployedStages` comparator.",
+            "Non-deployed stage and failed stage dismissal flows are correctly described and match the `deleteUndeployedStageMutation` and `dismissFailedStageMutation` patterns.",
+            "Cost data delay explanation ('up to 24 hours') sourced from `Explanations.tsx` `costsPerStack` entry.",
+            "FAQ question mix covers Stacktape-specific, AWS-service, and choosing/comparison categories as required — particularly strong on the Stacktape-org vs AWS-account distinction.",
+            "Troubleshooting section addresses real failure modes visible in the source (failed stage sidebar clutter, cost showing $0, Git URL missing) without inventing scenarios."
+          ],
+          "problems": [
+            "The `<FlowDiagram>` MDX component used in the opening section is not referenced in any provided source file, style guide, or component palette documentation. If it does not exist in the docs component system, the opening visual fails to render entirely, stranding the reader with a broken page opening.",
+            "The `stacktape project:create` CLI command is linked to `/cli/project-create`, but this command does not appear in the provided git status diff (which does show `org-create.mdx`, `org-list.mdx`, `org-delete.mdx` confirming those exist). The existence of `project:create` as a CLI command cannot be confirmed from the provided sources. A dead link here sends a shipping engineer to a 404.",
+            "The project-level 'Configure Runner' settings dropdown item is mentioned in the settings table with description 'Override organization-level build runner settings for this project', but the `RunnerConfigModal` implementation is not in the provided sources. The page gives no detail about what project-level runner overrides can actually be set — a gap for engineers trying to configure per-project runners.",
+            "The `<ConsoleScreenshot>` component is used twice but is not documented in any provided style guide or component palette. If it is not a valid docs component, both screenshot callouts silently fail to render."
+          ],
+          "mandatoryFixes": [
+            "Verify that `<FlowDiagram steps={[...]} />` is a valid, exported component in the Stacktape docs component library before publishing. If it is not, replace the diagram with a short prose paragraph or a markdown table describing the three-level hierarchy. A broken component in the opening section is a hard blocker for any reader.",
+            "Verify that `stacktape project:create` exists as a CLI command (i.e., that `/cli/project-create` is a real docs route). The git status confirms `org-create`, `org-list`, and `org-delete` exist as CLI pages, but `project-create` does not appear. If the command does not exist, remove the CLI reference from Step 1 of the walkthrough rather than leaving a dead link."
+          ],
+          "optionalImprovements": [
+            "Add a one-paragraph description of what project-level 'Configure Runner' (the `RunnerConfigModal`) allows — even if just 'override the org-level CodeBuild compute type and base image for this project only'. Engineers reaching the settings dropdown will want to know what it controls before clicking.",
+            "Confirm that `<ConsoleScreenshot>` is a valid docs component. If not, replace the two screenshot blocks with `<Info>` callouts describing what the reader would see, or remove them — screenshot paths like `/static/screenshots/console-projects-page.png` also need to resolve to real assets.",
+            "The `BuildRunnerForm` in source submits an `ec2RunnerAdditionalBuildCommands` field that is not rendered in the JSX form. If this field becomes a rendered field in a future release, the 'Configure build runners' section will need updating. A brief note that EC2 runner-specific commands are configurable separately (via the project-level Configure Runner modal, not the org-level modal) would prevent confusion.",
+            "Confirm that `/configuration/stages-and-environments` is a live docs route — it is referenced three times (Info callout, FAQ, related features) and cannot be verified from the provided sources.",
+            "The walkthrough Step 2 says to click 'New stage' in the 'left sidebar'. The source confirms this is a `<Button text='New stage'>` rendered in the sidebar. Consider being explicit that this button opens a modal (the `CreateNewStageForm` modal) rather than navigating to a new page, so engineers know what to expect."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 6,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The opening paragraph is self-contained, concrete, and within the target length for answer extraction.",
+            "The page explains the organization → project → stage hierarchy in terms a developer can act on, and it uses the canonical Stacktape term \"stage\" consistently.",
+            "The build-runner section is unusually concrete and source-grounded: it names the visible Console control, permission gate, form fields, and compute type table from the provided source.",
+            "The project settings table is useful and mostly grounded in the project overview source, including permission-gated settings and Git-repository-dependent menu items.",
+            "The FAQ covers several real reader questions and links to relevant follow-up pages."
+          ],
+          "problems": [
+            "Several H2 sections are not self-contained for AI extraction. \"How the hierarchy works\" starts with a component instead of an explanatory paragraph, while \"Common tasks\" and \"Troubleshooting\" jump straight into H3s without a section-level answer paragraph.",
+            "The page invents or over-specifies Console behavior not present in the supplied source files: screenshot paths, detailed stage overview tabs, deployment progress behavior, Git deployment setup details, and some project creation flow details are not grounded in the provided Console source.",
+            "The claim that stages have their own secrets is unsupported by the provided source. Explanations.tsx says stages have their own resources, but does not mention secrets.",
+            "The FAQ claim that moving projects between organizations is not currently supported is not grounded in the provided source files.",
+            "The FAQ claim that the stage name becomes part of every AWS resource identifier is too broad. The source supports a stack name pattern of `${projectName}-${stage}`, not every downstream AWS resource identifier.",
+            "Some paragraphs use broad absolutes that exceed the source, such as \"Stages within the same project share no resources: each gets its own databases, functions, containers, and networking\" when the source examples name resources generally but do not prove every listed resource class in all cases.",
+            "The H2 \"Walkthrough: creating a project and deploying a stage\" is longer and more procedural than the compact noun-form heading style requested for extractable docs.",
+            "The FAQ is useful but weighted heavily toward Stacktape-specific hierarchy questions. For a Console page this is acceptable, but it could better address operational search intent such as cost visibility, AWS account boundaries, and CLI-vs-Console deployment choices."
+          ],
+          "mandatoryFixes": [
+            "Add a self-contained opening paragraph immediately under each H2 that currently starts with a component or H3, especially \"How the hierarchy works\", \"Common tasks\", and \"Troubleshooting\".",
+            "Remove or replace unsupported screenshot components unless the screenshot assets and UI states are included in the source set. Do not invent screenshots or imply verified visual states without source.",
+            "Narrow the stage isolation wording to the source-backed claim: stages are isolated deployments with their own resources; do not specifically add secrets unless source files for secrets/stage scoping are provided.",
+            "Replace the unsupported \"moving projects between organizations is not currently supported\" FAQ answer with a source-grounded answer, or omit that FAQ.",
+            "Rewrite \"stage name becomes part of every AWS resource identifier\" to the source-backed stack naming claim: ProjectOverview constructs `stackName` as `${projectName}-${stage}`. Avoid claiming every AWS resource identifier includes the stage name.",
+            "Remove or soften Console workflow details that are not visible in the supplied source, including branch-to-stage mappings, auto-deploy setup steps, deployment progress details, and detailed overview tabs unless additional source files are provided."
+          ],
+          "optionalImprovements": [
+            "Rename \"Walkthrough: creating a project and deploying a stage\" to a shorter H2 such as \"Project setup\" or \"Stage deployment\".",
+            "Add a small table comparing organization, project, and stage. The FlowDiagram is helpful visually, but a table is easier for search engines and coding assistants to extract.",
+            "In the project-card section, explicitly say the cost trend can show \"No spend\", \"New spend\", a percent change, or \"Flat\", matching the source logic.",
+            "Consider moving CLI deployment details into a short \"CLI deployment\" subsection and keeping Console-only walkthrough steps separate.",
+            "Tighten FAQ answers that repeat earlier sections, especially project vs stage and stage isolation, so the FAQ adds decision value instead of restating the hierarchy."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Console source and generated page notes, but it makes several Console-specific claims that go beyond the actual source files. The main risks are unsupported UI screenshots/components, unsupported organization and project migration behavior, and a few overly specific deployment/deletion statements.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The page includes two `<ConsoleScreenshot>` components with specific screenshot paths and captions: `/static/screenshots/console-projects-page.png` and `/static/screenshots/console-project-overview.png`.",
+              "reason": "The provided source files do not include these screenshot assets or any evidence that these paths exist. Console page guidance says not to invent screenshots. This would likely break or mislead the page if the assets are not present.",
+              "suggestedFix": "Remove the screenshot components unless the screenshot files are included in the source set or asset manifest. If screenshots are available elsewhere, add those files to the source list for verification.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "<PageHeadline\n          headline=\"Projects\""
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "<SmallHeadline text=\"Project\" rootCss={{ marginLeft: '-2px' }} />"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Moving projects between organizations is not currently supported. To relocate a project, create a new project in the target organization with the same Git repository, deploy stages there, then delete the old project and its stages from the original organization.”",
+              "reason": "None of the provided Console source files document moving projects between organizations or an official relocation workaround. This is a Stacktape-specific capability claim and migration instruction that would affect user actions.",
+              "suggestedFix": "Remove the FAQ entry or narrow it to: “Project moves between organizations are not documented in the Console source for this page.” Avoid prescribing a migration workflow unless sourced.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const deleteProjectMutation = trpc.deleteProject.useMutation();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "const selectedOrg = useGlobalStore((store) => store.selectedOrganization);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“In the Console, everything you see is scoped to the currently selected organization — projects, costs, alarms, and team settings all belong to the active organization. Switching organizations shows a different set of projects.”",
+              "reason": "The Projects page source grounds projects as selected-organization scoped, and project card costs are derived from stages in those projects. The provided source does not ground the broader claims about team settings or all Console content being scoped this way.",
+              "suggestedFix": "Narrow the sentence to what the source shows: “On the Projects page, the Console loads projects for the currently selected organization; project cards aggregate stage status and costs for those projects.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "const selectedOrg = useGlobalStore((store) => store.selectedOrganization);\n  const projectsQuery = trpc.projects.useQuery({ organizationId: selectedOrg!.id });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "const thisMonthTotalCosts = sum(project.stages.map((stage) => stage.thisMonthCosts?.total || 0));"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Organization-level build runner settings control the default CodeBuild compute type and base image for deployments.” / “These defaults apply to all projects in the organization unless overridden at the project level.”",
+              "reason": "The source shows organization CodeBuild settings can be edited, and the project page imports a runner config modal. It does not show the deployment-time inheritance behavior or that organization settings apply to all projects unless overridden.",
+              "suggestedFix": "Phrase only the sourced UI behavior here: “The Projects page has organization-level CodeBuild settings for compute type, base image, and additional install commands. Project settings also include a Configure Runner option.” Link to Build runners for inheritance details.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "<FormSelectInput\n          options={computeTypeOptions}\n          icon={BiServer}\n          control={control}\n          disabled={updateCodebuildSettingsMutation.isPending}\n          label=\"Codebuild compute type\""
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "<DropdownButton\n                      key=\"configure-runner\"\n                      rootCss={projectSettingsDropdownCss}\n                      onClick={() => {\n                        setIsRunnerConfigModalOpen(true);\n                      }}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The project view refetches project details while open so deployment status stays current.”",
+              "reason": "The source refetches `projectDetails` every 6000 ms only when the current route is not the create-new-stage page. The draft states the behavior unconditionally.",
+              "suggestedFix": "Write: “The project view refetches project details periodically while normal project routes are open; the create-new-stage route disables that interval.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const projectDetailsQuery = trpc.projectDetails.useQuery(\n    {\n      name: projectName!,\n      organizationId: selectedOrg!.id\n    },\n    {\n      refetchInterval: isCreateNewStagePage ? false : 6000\n    }\n  );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Among deployed stages, dev-mode stacks (created via `stacktape dev`) are sorted after regular deployed stages.”",
+              "reason": "In the rendered stage list, undeployed stages with an id are placed before sorted deployed stages. The “dev stacks go last” sorting applies inside `sortedDeployedStages`, not necessarily among all sidebar entries. The wording is close but should stay scoped to deployed stages only wherever repeated.",
+              "suggestedFix": "Keep the “among deployed stages” qualifier everywhere this claim appears. Avoid saying dev-mode stacks are sorted after all regular stage entries in the sidebar.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const sortedDeployedStages = [...deployedStages].sort((a, b) => {\n    // Dev stacks go last\n    if (a.isDevStack && !b.isDevStack) return 1;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const stageEntries: {\n    stage: string;\n    isNonDeployed: boolean;\n    deployedData: (typeof sortedDeployedStages)[number] | null;\n    undeployedData: any;\n  }[] = [\n    ...operationOnlyStages.map((op) => ({\n      stage: op.stage,\n      isNonDeployed: true,\n      deployedData: null,\n      undeployedData: null\n    })),\n    ...undeployedWithId.map((s: any) => ({\n      stage: s.name as string,\n      isNonDeployed: true,\n      deployedData: null,\n      undeployedData: s\n    })),\n    ...sortedDeployedStages.map((s) => ({\n      stage: s.stage,\n      isNonDeployed: false,\n      deployedData: s,\n      undeployedData: null\n    }))"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Non-deployed stages (created in the Console but never deployed) can be removed directly from the sidebar. This only removes the Console record — no AWS resources are affected because none were created.”",
+              "reason": "The source grounds that non-deployed stages can be deleted through a mutation and confirmation modal. It does not prove the data model guarantee that no AWS resources exist or that only a Console record is removed.",
+              "suggestedFix": "Narrow to the UI behavior: “Non-deployed stages can be removed from the sidebar with the delete confirmation. Because these entries are not deployed stages in the project view, use `stacktape delete` for any stage that has deployed AWS resources.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const deleteUndeployedStageMutation = trpc.deleteUndeployedStage.useMutation();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "heading={`Delete non-deployed stage ${undeployedStageToDelete.name}`}\n          isLoading={deleteUndeployedStageMutation.isPending || projectDetailsQuery.isFetching}\n          message=\"Are you sure you want to proceed?\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Console looks up a stage's deployed stack using a stack name formed from the project name and the stage name. For example, a project named `my-app` with stage `prod` maps to a stack named `my-app-prod`.”",
+              "reason": "The source shows the project overview component constructs `stackName` as `${projectName}-${stage}` for finding the selected deployed stage. It does not establish a general Console lookup contract or AWS stack naming behavior beyond this component.",
+              "suggestedFix": "Narrow the claim: “In the project overview source, the selected stack is matched using `${projectName}-${stage}`, so names like `my-app` and `prod` are treated as `my-app-prod` in that view.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const stackName = `${projectName}-${stage}`;\n  const partialStackDetails = deployedStages.find(\n    (deployedStage: TrpcSerialized<DeployedStage>) => deployedStage.stackName === stackName\n  );"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses the canonical `stage` terminology and grounds the project/stage definitions in `Explanations.tsx`.",
+            "The Projects page filtering, sorting by latest stage update, project card Git URL, last deployed time, monthly cost, and trend indicator are broadly supported by `ProjectsList.tsx`.",
+            "The project settings dropdown items and permissions are mostly grounded in `ProjectOverview.tsx`.",
+            "All markdown cross-links checked against the provided navigation index point to listed routes."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided Console source, especially around project/stage definitions, project cards, stage navigation, build-runner settings, and permission-gated controls. The main problems are unsupported Console flows and a few claims that overstate what the source proves.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“To delete a deployed stage, use `stacktape delete` from the CLI. Deletion removes all AWS resources associated with that stage — databases, functions, containers, networking, and the CloudFormation stack.” The FAQ repeats this with “storage” and “irreversible.”",
+              "reason": "The provided Console source only shows Console handling for deleting undeployed stages, dismissing failed stages, and deleting projects. It does not include CLI `stacktape delete` behavior or prove the exact AWS resource deletion scope. This is a Stacktape-specific behavior claim that would affect reader actions.",
+              "suggestedFix": "Narrow the claim to what this page’s source supports: the Console can remove non-deployed stage records and dismiss failed stage entries; deployed stage deletion is handled by the CLI and should link to `/cli/delete` without restating exact deletion semantics unless CLI source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "{undeployedStageToDelete && (\n        <ConfirmationModal\n          isOpen\n          setIsOpen={setUndeployedStageToDelete}\n          onConfirmed={async () => {\n            await deleteUndeployedStageMutation.mutateAsync({"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "{failedStageToDelete && (\n        <ConfirmationModal\n          isOpen\n          setIsOpen={setFailedStageToDelete}\n          onConfirmed={async () => {\n            await dismissFailedStageMutation.mutateAsync({"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Deleting a project does not automatically delete its deployed stages. Delete all stages first to avoid orphaned AWS resources that continue incurring costs.”",
+              "reason": "The source proves the Console warns that deleting stages first is advised when deployed stages exist, but it does not prove that project deletion leaves orphaned AWS resources or that those resources continue incurring costs. That is a strong Stacktape-specific deletion behavior claim.",
+              "suggestedFix": "Use the source-grounded wording: “If a project still has deployed stages, the Console warns that it is advised to delete them before continuing and requires explicit confirmation.” Avoid claiming orphaned resources unless backed by deletion/controller source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "message={\n              hasDeployedStages ? (\n                <span>\n                  This project still has {deployedStages.length} stages deployed.\n                  <br />\n                  It's advised to delete them before continuing.\n                </span>"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "confirmButtonText={hasDeployedStages ? 'Proceed anyway' : 'Confirm'}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“In the Console, everything you see is scoped to the currently selected organization — projects, costs, alarms, and team settings all belong to the active organization. Switching organizations shows a different set of projects.”",
+              "reason": "The provided source supports Projects being queried by selected organization and build-runner settings coming from the selected organization. It does not substantiate the broader “everything you see,” alarms, or team settings claims for this page.",
+              "suggestedFix": "Narrow to what is shown in the provided files: “The Projects page loads projects for the selected organization, and organization-level build-runner settings are read from the selected organization.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "const selectedOrg = useGlobalStore((store) => store.selectedOrganization);\n  const projectsQuery = trpc.projects.useQuery({ organizationId: selectedOrg!.id });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "const defaultSelectedComputeType = computeTypeOptions.find(\n    (computeType) => computeType.value === selectedOrg?.codebuildComputeType\n  );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Once a stage is created, clicking it in the sidebar navigates to the deployment setup.”",
+              "reason": "The source supports that clicking a non-deployed stage navigates either to `create-new-stage/{stage}` or `create-new-stage-using-cli/{stage}` based on whether a Git repository is connected. It does not show what the CreateNewStageForm does after creating a stage, so the “once created” part is not grounded by the provided files.",
+              "suggestedFix": "Rephrase around sidebar behavior only: “Clicking a non-deployed stage in the sidebar opens Git-based deployment setup when a Git repository is connected, or CLI-based deployment instructions when no repository is connected.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "if (stack.isNonDeployed) {\n                    if (stack.lastStackOperationId) {\n                      navigate(\n                        `/projects/${projectName}/${stack.stage}/deployment-detail/${stack.lastStackOperationId}?tab=logs`\n                      );\n                    } else if (projectDetails.hasGitRepoConnected) {\n                      navigate(`/projects/${projectDetails.name}/create-new-stage/${stack.stage}`);\n                    } else {\n                      navigate(`/projects/${projectDetails.name}/create-new-stage-using-cli/${stack.stage}`);\n                    }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Run `stacktape deploy` with `--projectName` and `--stage` flags, or trigger a deployment through GitOps.”",
+              "reason": "The provided source for this Console page does not include CLI command definitions or deployment flag names. The documentation index proves `/cli/deploy` exists, but not the exact flag spelling. Console docs should link to the CLI reference instead of asserting flags without CLI source.",
+              "suggestedFix": "Keep the example if independently validated by the CLI source, or narrow to: “Use the deploy CLI workflow or GitOps; see `/cli/deploy` for the exact options.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "<p>This command will deploy your stage (environment) to AWS.</p>"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "To delete the stage (environment), you can then simply run <b>stacktape delete</b> command with the same\n        options."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For most projects, `BUILD_GENERAL1_SMALL` or `BUILD_GENERAL1_MEDIUM` is sufficient. Use larger sizes for projects with heavy compilation.”",
+              "reason": "The source lists available compute types and their CPU/memory, but it does not support the recommendation that SMALL or MEDIUM is sufficient for most projects. This may be reasonable guidance, but it is not grounded in the provided source files.",
+              "suggestedFix": "Either remove the “most projects” recommendation or frame it as cautious guidance: “Start with the smaller CodeBuild compute types and increase the size if builds run out of CPU or memory,” if that advice is acceptable as general AWS build-runner guidance.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "const COMPUTE_TYPES = [\n  { name: 'BUILD_GENERAL1_SMALL', resources: { cpu: 2, memory: 4 } },\n  { name: 'BUILD_GENERAL1_MEDIUM', resources: { cpu: 4, memory: 8 } },\n  { name: 'BUILD_GENERAL1_LARGE', resources: { cpu: 8, memory: 16 } },\n  { name: 'BUILD_GENERAL1_XLARGE', resources: { cpu: 16, memory: 32 } },\n  { name: 'BUILD_GENERAL1_2XLARGE', resources: { cpu: 72, memory: 144 } }\n];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Dismissing [a failed stage] removes the deployment history for that stage from the sidebar. On the next successful deployment, the stage returns to normal status.”",
+              "reason": "The source supports a confirmation message saying dismissing a failed stage removes deployment history for that stage. It does not prove the later behavior after a future successful deployment.",
+              "suggestedFix": "Keep only the grounded part: “The dismiss confirmation says this removes the deployment history for that stage.” Avoid predicting future status unless backend/source confirms it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "heading={`Dismiss failed stage \"${failedStageToDelete.stage}\"`}\n          isLoading={dismissFailedStageMutation.isPending || projectDetailsQuery.isFetching}\n          message=\"This will remove the deployment history for this stage. Are you sure?\""
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Can I move a project between organizations? Moving projects between organizations is not currently supported.”",
+              "reason": "No provided source file mentions moving projects between organizations either way. The claim may be true, but the provided source is silent, and this is a Stacktape-specific capability statement.",
+              "suggestedFix": "Remove this FAQ entry unless project-move/controller source is provided, or phrase as “This page’s Console source does not show a project-move action.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "Project and stage definitions are well grounded in `Explanations.tsx`, including the 1:1 Git repository guidance and stage isolation language.",
+            "The Projects page details are mostly accurate: project name, Git URL fallback, stage count, last deployed timestamp, monthly cost display, fuzzy filtering by name/Git URL, and sorting by most recently updated stage are all visible in `ProjectsList.tsx`.",
+            "The build-runner settings section correctly reflects the visible Console controls, permission gate, form fields, and compute type table from `ProjectsList.tsx`.",
+            "Project settings options and permission gating are accurately reflected from `ProjectOverview.tsx`, including Git-dependent visibility for Git deployment and GitHub Actions runner entries.",
+            "The documented routes for deployed stage overview and redeploy deployment-detail logs match the route construction in `ProjectOverview.tsx`, and all markdown cross-links point to routes present in the navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/stacktape-console__organizations-projects-and-stages/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong source grounding throughout — project card fields (name, Git URL, stage count, last deployment, monthly cost), sorting behavior, compute type table, and permissions strings all verified against ProjectsList.tsx and ProjectOverview.tsx.",
+            "The build runner compute types table exactly mirrors the COMPUTE_TYPES array in source (2/4 CPU, 4/8/16/32/144 GB memory) — no invented values.",
+            "The project settings dropdown options (Configure Git deployments, Configure Runner, Configure GitHub Actions runner, Delete project) accurately reflect the conditional rendering logic in ProjectOverview.tsx, including the correct conditions for when each option appears.",
+            "Permissions table is accurate and uses the exact permission strings from source: projects:delete, projects:update-settings, deployments:delete-non-production, org:manage-codebuild-settings.",
+            "Dev-mode stage sorting behavior is correctly documented from source (isDevStack stages sorted last in the sidebar).",
+            "Warning callout about orphaned resources on project deletion is source-grounded and practically important for the audience.",
+            "Troubleshooting section addresses real scenarios grounded in the source: dismissFailedStageMutation (failed stages), deleteUndeployedStageMutation (non-deployed stages), and CUR 24-hour delay from Explanations.tsx.",
+            "FAQ spans all three required categories — Stacktape-specific, AWS-service questions (cost data, CUR delay), and comparison questions (project vs stage, multiple orgs). The 10-entry FAQ is complete and useful.",
+            "No forbidden YAML config blocks, StacktapeConfig patterns, or fenced TypeScript containing defineConfig — correct for a console page.",
+            "The Info callout clarifying 'stages = environments' terminology is helpful for the target audience and matches Explanations.tsx wording exactly."
+          ],
+          "problems": [
+            "MANDATORY: `## Walkthrough: creating a project and deploying a stage` is 8 words — the style guide requires most H2s to be 1-5 word compact labels. This triggers the mandatory heading-length penalty.",
+            "MANDATORY: Several Troubleshooting H3s are overly long and read like full sentences: `### Git repository not connected message on a project card` (10 words), `### Project card shows $0/mo despite active resources` (9 words). Style guide mandates compact labels.",
+            "`stacktape project:create` and the linked `/cli/project-create` do not appear in the provided source files or in the visible git status (which shows org-create, org-delete, org-list — but no project-create). This is likely an invented CLI command unsupported by the source.",
+            "`<FlowDiagram>` and `<ConsoleScreenshot>` are not in the documented MDX component palette (style guide examples show Info, Warning, CodeBlock, ApiReference, ReferenceableParams, FeatureComparisonTable). If either component doesn't exist, sections silently break.",
+            "Section instructions say 'Do not invent screenshots or UI flows not present in source.' The ConsoleScreenshot paths (`/static/screenshots/console-projects-page.png`, `/static/screenshots/console-project-overview.png`) reference assets not confirmed in any provided source file.",
+            "The organizations section is thin on grounded detail — the source files do not show a dedicated organizations page; org-level behavior is only visible through the projects page's CodeBuild settings modal. The prose slightly overstates what the Console exposes for org management."
+          ],
+          "mandatoryFixes": [
+            "Shorten `## Walkthrough: creating a project and deploying a stage` to a compact 1-5 word H2 label, e.g., `## Getting started` or `## First deployment`. Long H2s hurt scannability and violate the style guide's heading-length rule.",
+            "Shorten overly long Troubleshooting H3 headings to compact labels: `### Git repository not connected message on a project card` → `### Git repository not connected`; `### Project card shows $0/mo despite active resources` → `### Cost shows $0 for active stage`.",
+            "Remove or rewrite the claim 'You can also create a project from the CLI with `stacktape project:create`' and its `/cli/project-create` link. This command is not visible in any provided source file. If the command is real, verify against CLI source and link to the correct page; if not, remove the sentence."
+          ],
+          "optionalImprovements": [
+            "Verify that `<FlowDiagram>` and `<ConsoleScreenshot>` are real components in the Stacktape docs MDX palette before publishing. If `<FlowDiagram>` doesn't exist, replace with a simple bullet list or a prose-based hierarchy description. If `<ConsoleScreenshot>` doesn't exist or the screenshot paths are wrong, remove those blocks — broken image components harm first-time reader trust.",
+            "The organizations section says 'everything you see is scoped to the currently selected organization' but doesn't explain how to switch organizations or where that control lives in the Console. Even a single sentence grounding this in the UI (e.g., 'the active organization is shown in the top-left of the Console header') would close an obvious follow-up question.",
+            "The walkthrough Step 1 says 'click Create new project' and then says 'The menu includes an option to create an empty project' — the source (`NewProjectMenu` with `showAddEmptyProject`) shows this is a dropdown menu, not a simple button. Wording like 'open the Create new project dropdown and choose Create empty project' would be more precise.",
+            "Consider removing the `<FlowDiagram>` at the top of 'How the hierarchy works' if the component isn't confirmed. The H2 intro plus the three H3 subsections already communicate the hierarchy clearly without a diagram. Avoid visual noise that may not render.",
+            "The redeploying section is brief. Adding one sentence clarifying that the redeploy uses the same commit that was last deployed (not HEAD) would help readers understand when this feature is useful versus running a fresh deploy from the CLI."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All factual claims about project card content (name, git URL, stage count, last deployment time, cost + trend indicator) are grounded directly in `ProjectsList.tsx` — no invented behavior.",
+            "Permissions table (`projects:delete`, `projects:update-settings`, `deployments:delete-non-production`, `org:manage-codebuild-settings`) matches the `hasPermission(...)` calls in the source code exactly.",
+            "CodeBuild compute types table (SMALL through 2XLARGE with CPU/memory) is sourced verbatim from the `COMPUTE_TYPES` array in `ProjectsList.tsx`.",
+            "Delete project confirmation behavior (warns when deployed stages exist, shows 'Proceed anyway' instead of 'Confirm') accurately reflects the `ConfirmationModal` logic in `ProjectOverview.tsx`.",
+            "Dev-mode stage sorting behavior (dev stacks go last, regular stages sort by recency) correctly reflects the `sortedDeployedStages` comparator.",
+            "Non-deployed stage and failed stage dismissal flows are correctly described and match the `deleteUndeployedStageMutation` and `dismissFailedStageMutation` patterns.",
+            "Cost data delay explanation ('up to 24 hours') sourced from `Explanations.tsx` `costsPerStack` entry.",
+            "FAQ question mix covers Stacktape-specific, AWS-service, and choosing/comparison categories as required — particularly strong on the Stacktape-org vs AWS-account distinction.",
+            "Troubleshooting section addresses real failure modes visible in the source (failed stage sidebar clutter, cost showing $0, Git URL missing) without inventing scenarios."
+          ],
+          "problems": [
+            "The `<FlowDiagram>` MDX component used in the opening section is not referenced in any provided source file, style guide, or component palette documentation. If it does not exist in the docs component system, the opening visual fails to render entirely, stranding the reader with a broken page opening.",
+            "The `stacktape project:create` CLI command is linked to `/cli/project-create`, but this command does not appear in the provided git status diff (which does show `org-create.mdx`, `org-list.mdx`, `org-delete.mdx` confirming those exist). The existence of `project:create` as a CLI command cannot be confirmed from the provided sources. A dead link here sends a shipping engineer to a 404.",
+            "The project-level 'Configure Runner' settings dropdown item is mentioned in the settings table with description 'Override organization-level build runner settings for this project', but the `RunnerConfigModal` implementation is not in the provided sources. The page gives no detail about what project-level runner overrides can actually be set — a gap for engineers trying to configure per-project runners.",
+            "The `<ConsoleScreenshot>` component is used twice but is not documented in any provided style guide or component palette. If it is not a valid docs component, both screenshot callouts silently fail to render."
+          ],
+          "mandatoryFixes": [
+            "Verify that `<FlowDiagram steps={[...]} />` is a valid, exported component in the Stacktape docs component library before publishing. If it is not, replace the diagram with a short prose paragraph or a markdown table describing the three-level hierarchy. A broken component in the opening section is a hard blocker for any reader.",
+            "Verify that `stacktape project:create` exists as a CLI command (i.e., that `/cli/project-create` is a real docs route). The git status confirms `org-create`, `org-list`, and `org-delete` exist as CLI pages, but `project-create` does not appear. If the command does not exist, remove the CLI reference from Step 1 of the walkthrough rather than leaving a dead link."
+          ],
+          "optionalImprovements": [
+            "Add a one-paragraph description of what project-level 'Configure Runner' (the `RunnerConfigModal`) allows — even if just 'override the org-level CodeBuild compute type and base image for this project only'. Engineers reaching the settings dropdown will want to know what it controls before clicking.",
+            "Confirm that `<ConsoleScreenshot>` is a valid docs component. If not, replace the two screenshot blocks with `<Info>` callouts describing what the reader would see, or remove them — screenshot paths like `/static/screenshots/console-projects-page.png` also need to resolve to real assets.",
+            "The `BuildRunnerForm` in source submits an `ec2RunnerAdditionalBuildCommands` field that is not rendered in the JSX form. If this field becomes a rendered field in a future release, the 'Configure build runners' section will need updating. A brief note that EC2 runner-specific commands are configurable separately (via the project-level Configure Runner modal, not the org-level modal) would prevent confusion.",
+            "Confirm that `/configuration/stages-and-environments` is a live docs route — it is referenced three times (Info callout, FAQ, related features) and cannot be verified from the provided sources.",
+            "The walkthrough Step 2 says to click 'New stage' in the 'left sidebar'. The source confirms this is a `<Button text='New stage'>` rendered in the sidebar. Consider being explicit that this button opens a modal (the `CreateNewStageForm` modal) rather than navigating to a new page, so engineers know what to expect."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 6,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The opening paragraph is self-contained, concrete, and within the target length for answer extraction.",
+            "The page explains the organization → project → stage hierarchy in terms a developer can act on, and it uses the canonical Stacktape term \"stage\" consistently.",
+            "The build-runner section is unusually concrete and source-grounded: it names the visible Console control, permission gate, form fields, and compute type table from the provided source.",
+            "The project settings table is useful and mostly grounded in the project overview source, including permission-gated settings and Git-repository-dependent menu items.",
+            "The FAQ covers several real reader questions and links to relevant follow-up pages."
+          ],
+          "problems": [
+            "Several H2 sections are not self-contained for AI extraction. \"How the hierarchy works\" starts with a component instead of an explanatory paragraph, while \"Common tasks\" and \"Troubleshooting\" jump straight into H3s without a section-level answer paragraph.",
+            "The page invents or over-specifies Console behavior not present in the supplied source files: screenshot paths, detailed stage overview tabs, deployment progress behavior, Git deployment setup details, and some project creation flow details are not grounded in the provided Console source.",
+            "The claim that stages have their own secrets is unsupported by the provided source. Explanations.tsx says stages have their own resources, but does not mention secrets.",
+            "The FAQ claim that moving projects between organizations is not currently supported is not grounded in the provided source files.",
+            "The FAQ claim that the stage name becomes part of every AWS resource identifier is too broad. The source supports a stack name pattern of `${projectName}-${stage}`, not every downstream AWS resource identifier.",
+            "Some paragraphs use broad absolutes that exceed the source, such as \"Stages within the same project share no resources: each gets its own databases, functions, containers, and networking\" when the source examples name resources generally but do not prove every listed resource class in all cases.",
+            "The H2 \"Walkthrough: creating a project and deploying a stage\" is longer and more procedural than the compact noun-form heading style requested for extractable docs.",
+            "The FAQ is useful but weighted heavily toward Stacktape-specific hierarchy questions. For a Console page this is acceptable, but it could better address operational search intent such as cost visibility, AWS account boundaries, and CLI-vs-Console deployment choices."
+          ],
+          "mandatoryFixes": [
+            "Add a self-contained opening paragraph immediately under each H2 that currently starts with a component or H3, especially \"How the hierarchy works\", \"Common tasks\", and \"Troubleshooting\".",
+            "Remove or replace unsupported screenshot components unless the screenshot assets and UI states are included in the source set. Do not invent screenshots or imply verified visual states without source.",
+            "Narrow the stage isolation wording to the source-backed claim: stages are isolated deployments with their own resources; do not specifically add secrets unless source files for secrets/stage scoping are provided.",
+            "Replace the unsupported \"moving projects between organizations is not currently supported\" FAQ answer with a source-grounded answer, or omit that FAQ.",
+            "Rewrite \"stage name becomes part of every AWS resource identifier\" to the source-backed stack naming claim: ProjectOverview constructs `stackName` as `${projectName}-${stage}`. Avoid claiming every AWS resource identifier includes the stage name.",
+            "Remove or soften Console workflow details that are not visible in the supplied source, including branch-to-stage mappings, auto-deploy setup steps, deployment progress details, and detailed overview tabs unless additional source files are provided."
+          ],
+          "optionalImprovements": [
+            "Rename \"Walkthrough: creating a project and deploying a stage\" to a shorter H2 such as \"Project setup\" or \"Stage deployment\".",
+            "Add a small table comparing organization, project, and stage. The FlowDiagram is helpful visually, but a table is easier for search engines and coding assistants to extract.",
+            "In the project-card section, explicitly say the cost trend can show \"No spend\", \"New spend\", a percent change, or \"Flat\", matching the source logic.",
+            "Consider moving CLI deployment details into a short \"CLI deployment\" subsection and keeping Console-only walkthrough steps separate.",
+            "Tighten FAQ answers that repeat earlier sections, especially project vs stage and stage isolation, so the FAQ adds decision value instead of restating the hierarchy."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided Console source, especially around the organization/project/stage hierarchy, project filtering, build runner settings, permission gates, and stage navigation. The main problems are a few Console UI/behavior claims that go beyond the provided source or contradict the component code.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Among deployed stages, dev-mode stacks (created via [`stacktape dev`](/cli/dev)) are sorted after regular deployed stages. This keeps actively deployed production and staging environments visible at the top.”",
+              "reason": "The source shows deployed stages are sorted after undeployed stages with IDs, not necessarily at the top of the sidebar. Within deployed stages, dev stacks are sorted after non-dev stacks, but the draft omits the preceding undeployed-stage ordering and overstates the visible ordering.",
+              "suggestedFix": "Narrow the wording: “Within the deployed-stage group, dev-mode stacks are sorted after regular deployed stages. The sidebar can also include non-deployed or operation-only stage entries.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const stageEntries: {\n    stage: string;\n    isNonDeployed: boolean;\n    deployedData: (typeof sortedDeployedStages)[number] | null;\n    undeployedData: any;\n  }[] = [\n    ...operationOnlyStages.map((op) => ({\n      stage: op.stage,\n      isNonDeployed: true,\n      deployedData: null,\n      undeployedData: null\n    })),\n    ...undeployedWithId.map((s: any) => ({\n      stage: s.name as string,\n      isNonDeployed: true,\n      deployedData: null,\n      undeployedData: s\n    })),\n    ...sortedDeployedStages.map((s) => ({\n      stage: s.stage,\n      isNonDeployed: false,\n      deployedData: s,\n      undeployedData: null\n    }))"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const sortedDeployedStages = [...deployedStages].sort((a, b) => {\n    // Dev stacks go last\n    if (a.isDevStack && !b.isDevStack) return 1;\n    if (!a.isDevStack && b.isDevStack) return -1;\n    return new Date(b.lastUpdateTime!).getTime() - new Date(a.lastUpdateTime!).getTime();\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Run [`stacktape deploy`](/cli/deploy) with `--projectName` and `--stage` flags…”",
+              "reason": "The provided source files for this page do not include CLI command definitions or deploy flag definitions. The navigation index confirms the `/cli/deploy` route exists, but the source list does not substantiate the exact flag names.",
+              "suggestedFix": "Either remove the explicit flag names from this Console page or phrase the CLI example as an example invocation while leaving exact CLI semantics to the linked deploy reference.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "<p>This command will deploy your stage (environment) to AWS.</p>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The menu includes an option to create an empty project.”",
+              "reason": "The Projects page passes `showAddEmptyProject` to `NewProjectMenu`, but the provided source does not include `NewProjectMenu` implementation or any visible menu item label. The draft names the menu option behavior more specifically than the available source supports.",
+              "suggestedFix": "Write from the visible source: “The Projects page includes a Create new project menu; in this page configuration, the menu is configured to show the empty-project path.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "<NewProjectMenu\n              dropdownButtonText=\"Create new project\"\n              location=\"projects-page\"\n              key=\"1\"\n              showAddEmptyProject\n              buttonCss={{ marginRight: '0px' }}\n            />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For per-project runner overrides, see project settings below.” and “Configure Runner | Always | Override organization-level build runner settings for this project.”",
+              "reason": "The provided ProjectOverview source shows a `Configure Runner` menu item that opens `RunnerConfigModal`, but the modal implementation is not in the source list. The claim that it overrides organization-level settings is not grounded in the provided files.",
+              "suggestedFix": "Limit the page to the visible UI: “Configure Runner opens the project runner configuration modal.” If the override behavior should be documented, include `RunnerConfigModal` source in the page source list.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "<DropdownButton\n                      key=\"configure-runner\"\n                      rootCss={projectSettingsDropdownCss}\n                      onClick={() => {\n                        setIsRunnerConfigModalOpen(true);\n                      }}\n                    >\n                      <BiServer css={{ marginLeft: '4px', marginRight: '11px' }} size={20} />\n                      <span>Configure Runner</span>\n                    </DropdownButton>"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "{isRunnerConfigModalOpen && (\n          <RunnerConfigModal\n            isOpen={isRunnerConfigModalOpen}\n            setIsOpen={setIsRunnerConfigModalOpen}\n            projectDetails={projectDetails}\n          />\n        )}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When no projects exist yet, the page displays an empty state prompting you to create one.”",
+              "reason": "The Projects page empty state text is only “No projects created yet.” The source does not show a prompt to create one in the empty state itself, even though the page header has a create menu.",
+              "suggestedFix": "Change to: “When no projects exist yet, the page displays `No projects created yet.`”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "{projects.length === 0 && projectsQuery.isSuccess && (\n          <div css={{ textAlign: 'center', marginTop: '10px', ...boxStyle, padding: '12px 0px' }}>\n            <p css={{}}>No projects created yet.</p>\n          </div>\n        )}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without a connected repository, stages must be deployed via the CLI rather than through GitOps.”",
+              "reason": "The source supports that clicking a non-deployed stage without a connected Git repo navigates to a `create-new-stage-using-cli` route. It does not prove a broader “must be deployed via CLI” requirement for all stages or all workflows.",
+              "suggestedFix": "Narrow the statement to the observed Console path: “When a project has no connected Git repository, the Console sends non-deployed stage setup to the CLI-based deployment instructions.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "} else if (projectDetails.hasGitRepoConnected) {\n                      navigate(`/projects/${projectDetails.name}/create-new-stage/${stack.stage}`);\n                    } else {\n                      navigate(`/projects/${projectDetails.name}/create-new-stage-using-cli/${stack.stage}`);\n                    }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The Console looks up a stage's deployed stack using a stack name formed from the project name and the stage name. For example, a project named `my-app` with stage `prod` maps to a stack named `my-app-prod`.”",
+              "reason": "The ProjectOverview component constructs `stackName = `${projectName}-${stage}`` for lookup in that view, which supports the local lookup behavior. The draft may read as a global Stacktape stack-naming rule; the provided source only establishes this Console component’s lookup convention.",
+              "suggestedFix": "Keep the claim scoped to this page: “In this project overview view, the Console looks up the selected stage with a stack name formatted as `{projectName}-{stage}`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const stackName = `${projectName}-${stage}`;\n  const partialStackDetails = deployedStages.find(\n    (deployedStage: TrpcSerialized<DeployedStage>) => deployedStage.stackName === stackName\n  );"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses the canonical organization → project → stage hierarchy from `Explanations.tsx`.",
+            "The project list claims about filtering by project name or Git URL, sorting by latest stage update time, and project card cost trend display are grounded in `ProjectsList.tsx`.",
+            "The build runner compute-type table matches the `COMPUTE_TYPES` array in `ProjectsList.tsx`.",
+            "The access-control table matches the permission checks visible in `ProjectsList.tsx` and `ProjectOverview.tsx`.",
+            "The draft avoids forbidden Stacktape config patterns; this Console page has no hand-authored Stacktape YAML or plain-object `StacktapeConfig` examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided Console source, especially around project cards, stage navigation, build-runner settings, and permission-gated controls. I found several places where it overstates Console behavior or asserts details not present in the supplied source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"The project view refetches project details while open so deployment status stays current.\"",
+              "reason": "The source only shows periodic refetching when the route is not the create-new-stage page. The draft states this as unconditional while the source explicitly disables refetching on create-new-stage pages.",
+              "suggestedFix": "Narrow the wording: \"On most project detail routes, the Console refetches project details periodically so deployment status can update while the page is open.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "refetchInterval: isCreateNewStagePage ? false : 6000"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"The left sidebar lists all stages — deployed, in-progress, and not yet deployed.\"",
+              "reason": "The sidebar does not list every possible stage record. It excludes operation-only stages whose last operation was delete, stages with invalid names, and completed successful operation-only stages that are not in deployed or undeployed lists. The source comments call those completed operation-only stages \"ghosts\" and intentionally do not show them.",
+              "suggestedFix": "Write more narrowly: \"The left sidebar lists deployed stages, undeployed stages known to the Console, and recent in-progress or failed operation-only stages.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "// Only show operation-only stages that are currently in progress (actively deploying)\n    // or whose last operation failed recently (so the user can see the failure and retry)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "if (op.command?.includes('delete')) return false;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"Among deployed stages, dev-mode stacks (created via [`stacktape dev`](/cli/dev)) are sorted after regular deployed stages.\"",
+              "reason": "The source sorts dev stacks after regular stacks, but the final sidebar order inserts operation-only stages and undeployed stages with IDs before sorted deployed stages. The draft's \"among deployed stages\" wording is okay narrowly, but surrounding prose says this keeps production and staging visible at the top, which is not always true if operation-only or undeployed stages exist.",
+              "suggestedFix": "Keep the narrow source-backed part and remove the stronger implication: \"Deployed dev-mode stacks are sorted after other deployed stages.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "// Dev stacks go last\n    if (a.isDevStack && !b.isDevStack) return 1;\n    if (!a.isDevStack && b.isDevStack) return -1;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const stageEntries: {\n    stage: string;\n    isNonDeployed: boolean;\n    deployedData: (typeof sortedDeployedStages)[number] | null;\n    undeployedData: any;\n  }[] = [\n    ...operationOnlyStages.map((op) => ({\n      stage: op.stage,\n      isNonDeployed: true,\n      deployedData: null,\n      undeployedData: null\n    })),\n    ...undeployedWithId.map((s: any) => ({\n      stage: s.name as string,\n      isNonDeployed: true,\n      deployedData: null,\n      undeployedData: s\n    })),\n    ...sortedDeployedStages.map((s) => ({\n      stage: s.stage,\n      isNonDeployed: false,\n      deployedData: s,\n      undeployedData: null\n    }))"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The Console uses roles and permissions to control what team members can do within an organization.\"",
+              "reason": "The supplied source supports permission checks for specific UI controls, but it does not document organization-wide role semantics or how team members are controlled. The draft can safely discuss the concrete permissions visible in this page without generalizing to the whole organization access model.",
+              "suggestedFix": "Change to: \"The Projects and project overview pages hide or show several controls based on the current user's permissions.\" Then keep the permission table.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const { hasPermission } = useCurrentUserPermissions();\n  const canDeleteProject = hasPermission('projects:delete');\n  const canDeleteNonProduction = hasPermission('deployments:delete-non-production');\n  const canUpdateProjectSettings = hasPermission('projects:update-settings');"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectsList.tsx",
+                  "quote": "const canManageCodebuildSettings = hasPermission('org:manage-codebuild-settings');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Dismissing removes the deployment history for that stage from the sidebar. On the next successful deployment, the stage returns to normal status.\"",
+              "reason": "The confirmation modal message supports that dismissing removes deployment history for the failed stage, but the source does not state what happens on the next successful deployment or that the stage returns to normal status.",
+              "suggestedFix": "Remove the unsupported recovery claim or narrow it: \"Dismissing removes the deployment history for that failed stage entry from the sidebar.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "heading={`Dismiss failed stage \"${failedStageToDelete.stage}\"`}\n          isLoading={dismissFailedStageMutation.isPending || projectDetailsQuery.isFetching}\n          message=\"This will remove the deployment history for this stage. Are you sure?\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Cost data comes from AWS Cost and Usage Reports, which can take up to 24 hours to appear. Newly deployed stages may show zero cost until the next billing cycle report is processed.\"",
+              "reason": "The provided source supports daily Cost and Usage Report generation that may take up to a day to appear, but it does not support \"next billing cycle\". That wording could incorrectly imply monthly billing-cycle timing rather than daily report latency.",
+              "suggestedFix": "Use the source wording: \"Reports are generated daily from AWS Cost and Usage Reports and may take up to a day to appear, so newly deployed stages can temporarily show zero cost.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "Reports are generated daily from AWS Cost and Usage Reports and may take up to a day to appear."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Keep stage names short and descriptive so the resulting stack name is easy to recognize.\"",
+              "reason": "The source supports forming `stackName` as project name plus stage name, but the recommendation about short/descriptive stage names and recognizability is author guidance, not a Console behavior. If kept, it should be framed as advice rather than a source-backed Console fact.",
+              "suggestedFix": "Anchor the factual claim and keep the advice separate: \"The Console looks up deployed stack details with a stack name formed as `${projectName}-${stage}`. Short, descriptive stage names make those stack names easier for humans to scan.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/ProjectOverview.tsx",
+                  "quote": "const stackName = `${projectName}-${stage}`;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"If no Git repository is connected, the Console shows CLI-based deployment instructions instead.\" and \"Without a connected repository, stages must be deployed via the CLI rather than through GitOps.\"",
+              "reason": "The routing source supports navigating to `create-new-stage-using-cli` when no Git repository is connected, but the provided files do not include the destination page content or explicitly prove the exact instructions shown there. The claim is likely directionally correct but should be phrased as route behavior rather than page-content behavior.",
+              "suggestedFix": "Write: \"If no Git repository is connected, the Console routes to `/projects/{project}/create-new-stage-using-cli/{stage}`.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly avoids forbidden Stacktape config examples, hand-authored YAML, and plain-object `StacktapeConfig` style.",
+            "The documented Projects page filter, sorting by latest stage update, project card Git URL fallback, last deployed timestamp, and monthly cost trend are grounded in `ProjectsList.tsx`.",
+            "The build-runner settings section matches the visible organization-level modal fields and compute type table in `ProjectsList.tsx`.",
+            "The project settings dropdown entries and permission gates are mostly grounded in `ProjectOverview.tsx`, including Git deployment settings, runner configuration, GitHub Actions runner configuration, and project deletion.",
+            "All checked markdown links point to routes present in the provided documentation navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1020,8 +1814,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\stacktape-console\\organizations-projects-and-stages.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/stacktape-console/organizations-projects-and-stages.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.3, hard blockers 7, advisory high 0, verifier medium 16"
+  "pipelineReviewSummary": "reviewer-avg 7.3, hard blockers 2, advisory high 0, verifier medium 11",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

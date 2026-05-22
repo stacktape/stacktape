@@ -2,7 +2,7 @@
   "pageId": "resources__networking__cdn",
   "pageRoute": "resources/networking/cdn",
   "startedAt": "2026-05-15T21:06:27.893Z",
-  "updatedAt": "2026-05-16T10:13:17.924Z",
+  "updatedAt": "2026-05-22T00:43:48.949Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1260,20 +1260,188 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__networking__cdn/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no fenced YAML or raw TypeScript blocks. Zero mandatory style violations.",
+            "Decision support is strong throughout: every opt-in feature (price class, firewall, cache invalidation, forwarding) includes concrete 'when to enable / when to skip' guidance and a tradeoff signal.",
+            "Covers every property in CdnConfiguration (enabled, cachingOptions, forwardingOptions, routeRewrites, customDomains, edgeFunctions, cloudfrontPriceClass, defaultRoutePrefix, errorDocument, indexDocument, disableInvalidationAfterDeploy, useFirewall) and all five route rewrite origin types, grounded in source types.",
+            "Tables are used effectively for comparisons: price classes, route origin types, edge function hook points, and referenceable params — all high-signal and scannable.",
+            "FAQ has exactly 10 questions with good category spread: Stacktape-specific (#2, #3, #4, #5, #9), AWS-general (#1, #7, #8, #10), and choosing/comparison (#6).",
+            "The Warning about onOriginRequest internal use is important safety information, correctly cites the source JSDoc warning, and is well-placed.",
+            "Exactly one <ApiReference definitionName=\"CdnConfiguration\" /> — placed conventionally at the bottom before FAQ.",
+            "Both the API-backed CDN and bucket-backed CDN basic examples are realistic and copyable, with a concrete property-value anchor explanation for cloudfrontPriceClass in the bucket example."
+          ],
+          "problems": [
+            "'Comma-separated list' format description for cdnCustomDomains and cdnCustomDomainUrls referenceable params is not grounded in source — CdnReferenceableParam is just a union of string literal identifiers; the actual format of these values at runtime is not documented in the provided source files.",
+            "The prose reference to 'stacktape param:get' (/cli/param-get) in the Basic example section is unverified — the provided source files don't include this CLI command, and the style guide only explicitly names 'stacktape debug:logs'. If the command does not exist, this is a broken link.",
+            "The Warning about the Authorization header says to add it to 'cachingOptions.cacheKeyParameters.headers', but the source JSDoc says only 'cachingOptions.cacheKeyParameters' — the page adds specificity about the .headers sub-property that is a reasonable inference but not verbatim in the source.",
+            "The 'Document defaults' section is extremely thin (~3 sentences) and reads more like an appendix item than a standalone H2. It adds no decision support or tradeoff — just restates what the source says about indexDocument and errorDocument defaults. For a first-time user this section offers little value and could be collapsed into the Basic example / bucket section or omitted."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove 'Comma-separated list' from the referenceable params table descriptions for cdnCustomDomains and cdnCustomDomainUrls — use 'list' or 'one or more' without specifying a format not present in the source.",
+            "Verify that 'stacktape param:get' (/cli/param-get) is a real CLI command. If it does not exist, remove the reference or replace with the correct command name.",
+            "Fold the 'Document defaults' section into the bucket-backed CDN example in 'Basic example' (where indexDocument and errorDocument are most relevant) and remove the standalone H2 — it is too thin to justify its own section and breaks page rhythm.",
+            "Add one or two sentences to the Basic example section showing how a first-time user actually consumes the CDN URL after deploy — e.g., surfacing it via stackConfig.outputs so it prints in the terminal. Many first-time users will deploy, wonder where the URL is, and not immediately know to use $ResourceParam in outputs.",
+            "The Authorization header Warning in the Forwarding section could cite the exact path more carefully: the source says 'cachingOptions.cacheKeyParameters', and the specific sub-property is .headers.whitelist. Consider being precise ('add it to cachingOptions.cacheKeyParameters.headers.whitelist') or staying at the source level of specificity ('add it to cachingOptions.cacheKeyParameters')."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive, source-grounded coverage of all CDN configuration options — caching, forwarding, route rewrites, edge functions, price class, firewall, and custom domains all get working examples and decision guidance.",
+            "Strong use of tables for structured comparisons: price classes, route origin types, edge function hook timings, and referenceable parameters make the right option easy to find.",
+            "Well-placed warnings on operationally important gotchas: the Authorization header forwarding requirement, the onOriginRequest internal-use caveat, and the ACM us-east-1 constraint are exactly what a reader needs before hitting production.",
+            "Decision support throughout — each opt-in feature section covers when to enable it, when the default is fine, and a cost or tradeoff signal. The Firewall and Price class sections are particularly well-structured.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service use-case, and comparison), and answers are appropriately concise and citation-friendly.",
+            "Code examples are realistic and copyable with property-value anchors: every non-obvious value in examples (PriceClass_100, defaultTTL, cacheMethods) gets a prose explanation."
+          ],
+          "problems": [
+            "The 'Document defaults' section is three sentences with no code example and no guidance on when a reader would change these values from the defaults. It reads as a thin config reference fragment rather than actionable guidance. The API reference already documents the same defaults.",
+            "Missing operational gotcha: new CloudFront distributions and major config changes (price class, custom domains) propagate asynchronously and can take time before fully effective. This is directly relevant to dev workflow and deployment expectations, but the page only mentions it in the context of cache invalidation in FAQ answer 8, not proactively where readers need it (e.g., basic example section or When NOT to use).",
+            "Lambda function CDN attachment: the basic example section and intro claim CDN can attach to a Lambda function, but the route rewrite `CdnLambdaFunctionOrigin` source specifically notes the function must have `url.enabled: true`. It is not clear from the page whether this constraint also applies when CDN is the top-level attachment to a Lambda function rather than a rewrite target — this ambiguity could cause a runtime failure for readers."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Expand or absorb the 'Document defaults' section: either add a short code example showing how to customize `indexDocument` and `errorDocument` and explain when you would (e.g., 404.html override for React SPAs, custom error pages), or merge the content into the bucket CDN basic example where it is directly relevant and remove the standalone section.",
+            "Add a propagation-time note in the basic example or the When NOT to use section: new CloudFront distributions and major config changes can take time to propagate globally. Readers iterating on CDN configuration during development will hit this and may be confused about why changes are not taking effect.",
+            "Clarify the Lambda function `url.enabled: true` constraint: the route rewrite docs are explicit about the requirement, but the top-level CDN-on-Lambda scenario is not addressed. Either confirm the same constraint applies and add a note in the basic example, or clarify it does not apply at the top level. Ambiguity here causes a hard-to-debug deployment failure.",
+            "Consider moving `<ApiReference definitionName=\"CdnConfiguration\" />` to just above the FAQ: because CDN is a sub-property rather than a standalone resource, some readers arrive to look up a specific property name. Positioning the API reference near the end of prose content (before FAQ) gives those readers a clear 'look it up here' anchor without interrupting the tutorial flow.",
+            "The Forwarding section's list of header forwarding strategies (none, whitelist, allViewer, allViewerAndWhitelistCloudFront, allExcept) appears in dense prose. A small table — mode, effect, when to use — would make this easier to scan, matching the treatment given to price classes and route types."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive union-type coverage: all five `routeTo` origin types documented in a table; all cookie/header/query-string forwarding variants (none, whitelist, allViewer, allViewerAndWhitelistCloudFront, allExcept, allExcept) named explicitly in prose.",
+            "Tables used where they matter most: price class tradeoffs, route origin types, edge function hook timing, referenceable parameters — all tabularized, making citation easy.",
+            "Decision support is explicit for every opt-in feature: Firewall has 'When to enable / When to skip' bullets; price class has an opinionated Tip; cache invalidation explains the default and the tradeoff for disabling.",
+            "All six CDN referenceable parameters from the source (`cdnDomain`, `cdnUrl`, `cdnCustomDomains`, `cdnCustomDomainUrls`, `cdnCanonicalDomain`, `cdnCanonicalUrl`) are tabularized and match the source type exactly.",
+            "Warning callouts correctly flag the two important gotchas sourced directly from the type JSDoc: `Authorization` header must go through cache-key parameters, and `onOriginRequest` is used internally by Stacktape.",
+            "10-question FAQ spans all three required categories (Stacktape-specific, AWS use-case, and choosing/comparison), including pricing, propagation behavior, and WAF tradeoffs.",
+            "Examples are realistic and copy-paste ready: consistent resource names, no `<fill-in-here>` placeholders, imports visible in source but hidden behind focus markers.",
+            "No marketing language, no hollow claims — language is concrete, pragmatic, and opinionated throughout.",
+            "Answer-first paragraph is well within the 40-75 word target and self-contained, suitable for AI extraction.",
+            "Route rewrites section clearly differentiates `routeTo` property names (`bucketName`, `httpApiGatewayName`, etc.) as Stacktape resource keys, not AWS physical names — a real gotcha explained correctly."
+          ],
+          "problems": [
+            "The 'Document defaults' section (indexDocument / errorDocument) is effectively two sentences with no code example and no decision-support context. It reads like a thin reference entry rather than a guide section. For an audience trying to decide whether to configure these, there is no signal about when the defaults are wrong and no example showing how to set them.",
+            "The Basic example section mentions `$ResourceParam('myApi', 'cdnUrl')` and `stackConfig.outputs` in a subordinate aside, but does not show the wiring. A reader seeing this for the first time has no path to complete the task — this should either be shown inline or deferred explicitly to a cross-link.",
+            "The 'When to use' section's bullet list is pattern-based but has no concrete latency or cost signal. 'Lower latency' without an order-of-magnitude reference is vague for a reader deciding whether CDN is worth the complexity for their use case.",
+            "The cache key section's cookie mode `allExcept` is mentioned in the source type (`CacheKeyCookies.allExcept`) but not named in the prose listing of cookie options ('The options are `none`, `all`, `whitelist`, or `allExcept`'). The prose does mention it but only as part of the cache key description — the forwarding section's cookie options ('the supported modes are `none`, `whitelist`, and `all`') is incomplete because `ForwardCookies` does not include `allExcept`, which is correct, but the asymmetry between caching cookie options and forwarding cookie options is never explained."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Expand the 'Document defaults' section: add a one-paragraph explanation of when the defaults are insufficient (multi-page apps vs SPAs, custom 404 pages), and add a short code example showing both `indexDocument` and `errorDocument` set together. Currently the section is too thin to justify its H2 status.",
+            "In the Referenceable parameters section, show a concrete `stackConfig.outputs` snippet using `$ResourceParam('myApi', 'cdnUrl')` so readers see the end-to-end wiring rather than an inline reference with no example.",
+            "Add one concrete latency signal to the 'When to use' section — for example, 'users in Asia or South America hitting a US-East origin typically see 100–300 ms round-trip savings from the nearest CloudFront edge' — to give readers a quantitative anchor for the CDN decision.",
+            "In the 'When to use' bullets, the 'edge authentication' bullet mentions edge functions but does not link to the edge function docs. Add a parenthetical link to `/resources/compute/edge-function` at first mention.",
+            "The forwarding section's `Authorization` header Warning is important but positioned mid-section. Consider elevating it to an `<Info>` callout near the top of the Forwarding section, since it catches a large class of auth bugs early.",
+            "The 'Cache key' H3 explains the options via prose enumeration. Adding a small table (cookie modes: none/whitelist/allExcept/all; header modes: none/whitelist; query-string modes: all/none/whitelist) would make it more scannable and consistent with the style used in other sections.",
+            "The 'Route rewrites' code example uses `routeTo.properties.bucketName: 'assetsBucket'` where `assetsBucket` is the Stacktape resource key. The prose explains this correctly, but placing this clarification before the code block rather than after would reduce confusion on first read."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly well-grounded in the provided CDN type sources. I found one material overstatement around edge functions that should be narrowed so readers do not assume every edge hook avoids the origin.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Edge functions run custom code at CloudFront edge locations on each CDN request or response, without hitting your origin.”",
+              "reason": "Only `onRequest` is documented as able to return before hitting the origin. `onOriginRequest` runs before forwarding to the origin after a cache miss, and `onOriginResponse` runs after the origin responds, so the blanket “without hitting your origin” claim is wrong for several hook points.",
+              "suggestedFix": "Change the opening to: “Edge functions run custom code at CloudFront hook points on CDN requests and responses. `onRequest` can return early before the origin is contacted; origin hooks run around cache misses and origin responses.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/cdn.d.ts",
+                  "quote": "Use to modify the request, add auth checks, or return an immediate response without hitting the origin."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/cdn.d.ts",
+                  "quote": "Only runs on cache misses. Use to modify the request before it reaches your origin."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/cdn.d.ts",
+                  "quote": "Name of an `edge-lambda-function` to run after the origin responds (before caching)."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and avoid hand-authored YAML.",
+            "The supported CDN parent resources match `StpCdnAttachableResourceType`: bucket, application-load-balancer, http-api-gateway, and function.",
+            "Caching defaults, price classes, forwarding options, route rewrite origin variants, custom domain behavior, cache invalidation, and referenceable parameter names are consistent with the provided CDN type source."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\networking\\cdn.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 2, advisory high 0, verifier medium 4"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/resources/networking/cdn.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T00:43:48.949Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/cdn.d.ts": "b63c1f4bb77e738e32490718c32759e52decec06",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts": "242cf94f68a3f84aa3afefe69f69152a524f95d6",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/resources/networking/cdn.md": "524875190c78dde6f0013c1deb9a72de80050ef5",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/config-reference/cdn.md": "dbe250cf220c8f75845e733afc8d2289dfe1a389"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

@@ -2,7 +2,7 @@
   "pageId": "resources__frontend__solidstart",
   "pageRoute": "resources/frontend/solidstart",
   "startedAt": "2026-05-14T06:27:50.875Z",
-  "updatedAt": "2026-05-15T13:06:46.962Z",
+  "updatedAt": "2026-05-22T00:57:36.926Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1607,20 +1607,287 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__frontend__solidstart/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong 'When NOT to use' section with concrete alternatives linked to the relevant Stacktape resources by name",
+            "Working, copyable code examples in every configuration section except CDN — the progression from minimal to complete is clear",
+            "connectTo + database example is realistic and explains all companion props (joinDefaultVpc, RdsEnginePostgres, instanceSize) so a first-timer can copy it whole",
+            "Property-value anchors are thorough throughout — db.t4g.micro, memory: 2048, timeout: 25 are all contextualized in prose rather than left as magic values",
+            "FAQ has exactly 10 well-distributed questions spanning Stacktape-specific, AWS use-case, and choosing/comparison categories",
+            "No forbidden patterns found: no YAML Stacktape config blocks, no StacktapeConfig type import, no fenced TypeScript blocks containing defineConfig or resource classes",
+            "ApiReference uses the correct definitionName (SolidStartWebProps matching the source type) and appears exactly once at the bottom"
+          ],
+          "problems": [
+            "PADDING — The 'When to use' intro sentence ('The SolidStart resource is the right choice when your frontend is a SolidStart app that needs server rendering. Set appDirectory to the directory containing app.config.ts, and Stacktape wires the SSR function, static asset bucket, and CDN automatically.') is almost word-for-word the second sentence of the opening paragraph. This is backbone padding that restates prior content.",
+            "MISSING EXAMPLE — The CDN section is the only opt-in-feature section on the page that omits a working code example. Per the per-variant and opt-in-feature depth requirements, every opt-in section needs: opening paragraph + working example + tradeoff/depth sentences. The section tells readers 'tune CDN caching when...' but never shows how.",
+            "'Solid's reactive SSR' bullet in 'When to use' is framework advocacy ('SolidStart's fine-grained reactivity produces fast SSR') rather than a Stacktape decision signal — it does not help the reader decide which Stacktape resource to use and reads as filler.",
+            "Focus markers are inconsistently applied: basic example and build/dev hide imports with [!code focus-start/end], but the firewall, static files, environment variables, and CDN examples expose imports with no markers, creating visual inconsistency.",
+            "appDirectory explanation appears three times across the page (opening paragraph second sentence, 'When to use' intro, basic example prose follow-up) — twice is the most a single fact should appear."
+          ],
+          "mandatoryFixes": [
+            "BACKBONE PADDING — Remove or heavily rewrite the two-sentence intro of 'When to use' that restates the opening paragraph almost verbatim. The section should begin directly with the bulleted use cases. Completeness is penalized for this padding.",
+            "MISSING CDN EXAMPLE — Add a working <CodeBlock intellisense> example to the CDN section showing at least one concrete cdn configuration (e.g., a path-level TTL override or disabling cache on SSR routes). Without an example, the section is configuration-without-guidance for an opt-in feature. Completeness is penalized."
+          ],
+          "optionalImprovements": [
+            "Remove or replace the 'Solid's reactive SSR' bullet with a Stacktape-relevant decision signal, e.g., 'You want Lambda auto-scaling and pay-per-request pricing rather than running a persistent container for a SolidStart frontend.'",
+            "Apply focus markers consistently across all examples: either hide imports in every example or in none — the current mix-and-match creates visual noise.",
+            "The basic example follow-up prose repeats 'Set appDirectory to the directory containing app.config.ts' for the third time on the page; trim it to just note the default value ('defaults to \".\"') since the opening paragraph already explained the rest.",
+            "The 'Server Lambda' section says 'Set joinDefaultVpc: true when the SSR Lambda must reach VPC-protected resources' without linking to a VPC/networking reference — first-timers may not know what this means; a link or one-sentence explanation of VPC access would help.",
+            "Consider adding a one-sentence callout mentioning the nested resources SolidStartWeb exposes (bucket and serverFunction) so advanced users know they can reference those via $ResourceParam() — the source shows _nestedResources: { bucket, serverFunction }."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is self-contained and answers 'what is this and why does it matter' in under 75 words — suitable for AI engine extraction.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with a single TypeScript tab. No fenced YAML Stacktape configs, no StacktapeConfig type, no plain fenced TypeScript with defineConfig anywhere.",
+            "Single <ApiReference definitionName='SolidStartWebProps' /> matches the source type exactly and is placed at the bottom of a tutorial-style page.",
+            "Database connectivity example is realistic: includes the VPC join requirement (joinDefaultVpc: true), uses a plausible resource name (mainDatabase), and applies the STP_MAIN_DATABASE_* env var naming pattern correctly against the connectTo JSDoc.",
+            "FAQ covers all three required categories — Stacktape-specific (custom domains, WAF, appDirectory), AWS use-case (cold start, cost model), and comparison (SolidStart vs static hosting, SolidStart vs web service, SolidStart vs Next.js) — with exactly 10 pairs.",
+            "When NOT to use section gives four concrete alternatives with links, including other SSR framework resources, rather than vague guidance.",
+            "Custom domains and firewall section covers decision criteria (when to enable, when to skip, cost signal), has a code example, and names the WAF scope constraint (scope: 'cdn')."
+          ],
+          "problems": [
+            "Repetition: The opening paragraph and the first paragraph of 'When to use' both contain nearly identical sentences about pointing appDirectory at app.config.ts. 'Set `appDirectory` to the directory containing `app.config.ts`, and Stacktape handles...' appears in the intro; 'Set `appDirectory` to the directory containing `app.config.ts`, and Stacktape wires...' appears again in 'When to use'. This restates rather than adds.",
+            "CDN section has no code example. The section mentions 'cache TTL options and path-level overrides' in a parenthetical reference to the API reference, but a reader who needs to tune CDN caching (the stated scenario) cannot see what properties they would actually set. Per documentation-quality discipline, opt-in sections need at least one working example.",
+            "RelationalDatabase env vars are listed as CONNECTION_STRING, HOST, PORT — but the connectTo JSDoc in __helpers.d.ts also documents JDBC_CONNECTION_STRING for RelationalDatabase. The page omits it. Framing as 'documented parameters include' weakens the precision without correcting the gap.",
+            "'SolidStart monorepos' bullet in 'When to use' describes configuration guidance (set appDirectory to the workspace), not a use-case rationale. A 'when to use' section should answer when to choose this resource — a note about monorepo support belongs in the Basic example section or a prose aside, not as a use-case bullet."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or rewrite the redundant appDirectory sentence at the top of 'When to use'. The section's opening should lead directly with decision criteria ('Use SolidStart when your app requires dynamic per-request rendering…'), not repeat the intro paragraph.",
+            "Add a CDN code example — even a minimal one showing a single cache TTL override — so the reader can act on the section rather than being routed to the API reference for the entire surface.",
+            "Add JDBC_CONNECTION_STRING to the list of injected env vars documented for RelationalDatabase in the connectTo section, or change the phrasing from 'documented parameters include' to something that signals the list is partial.",
+            "Replace the 'SolidStart monorepos' use-case bullet with a genuine scenario, such as 'Apps that fetch data or check authentication state during SSR before sending the page to the browser' — monorepo support is a setup detail, not a reason to choose this resource.",
+            "The 'When the default is fine' counterpoint is missing from the Server Lambda section — consider one sentence noting that 512 MB is fine for apps that do lightweight data fetching, to help readers avoid over-provisioning.",
+            "FAQ answer for 'How does Lambda cold start affect SolidStart SSR?' could mention that CloudFront caching for cacheable SSR routes (when enabled) shields most users from cold starts entirely, tying the cold-start and CDN topics together."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Strong, self-contained 52-word opening paragraph that directly answers what the resource is and why it matters — extractable verbatim as a Featured Snippet.",
+            "All H2 sections open with self-contained first paragraphs that name the concept explicitly ('A Stacktape SolidStart resource serves SSR through an AWS Lambda function...') rather than using pronouns or antecedent-dependent openers.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'` — no forbidden YAML blocks, no plain-object StacktapeConfig style, no fenced TypeScript blocks.",
+            "Exactly one `<ApiReference definitionName=\"SolidStartWebProps\" />` placed at the bottom — correct definitionName matches the Props type from the source.",
+            "'When to use' and 'When NOT to use' are correctly structured as peer H2 sections, not nested.",
+            "Decision support is present for all major opt-in features: custom domains (when/why/tradeoff), useFirewall (when/cost/opinion), CDN (when/default-is-fine/tradeoff). Each avoids circular language.",
+            "FAQ has exactly 10 questions with good category spread: Stacktape-specific ('Where should appDirectory point?'), AWS use-case ('How does Lambda cold start affect SSR?', 'How much does hosting cost?'), and comparison ('Static hosting vs SolidStart resource?', 'Web service vs SolidStart resource?', 'SolidStart vs Next.js on Stacktape?').",
+            "Tunable values in code examples are anchored in prose — `memory: 2048`, `timeout: 25`, `instanceSize: 'db.t4g.micro'`, `version: '16.6'` all have surrounding 1-2 sentence explanations.",
+            "Code examples are realistic and copyable with no placeholder values; the database connectivity example is particularly complete, showing the full resource graph including RdsEnginePostgres, connectTo, and joinDefaultVpc."
+          ],
+          "problems": [
+            "CDN section (##) lacks a code example. The section provides good decision support prose but defers all configuration detail to the API reference with 'See the API reference below.' For the subset of readers who do need to tune CDN cache settings, there is no working example to copy. Per the documentation-quality rules, opt-in feature sections must contain a working example — prose alone is not sufficient.",
+            "The 'When to use' section's opening sentence ('Set `appDirectory` to the directory containing `app.config.ts`, and Stacktape wires the SSR function, static asset bucket, and CDN automatically') partially restates the intro paragraph verbatim. This wastes the first sentence of the section and reduces its self-contained extractability — the section opener should deliver new signal.",
+            "The connectTo env-var prose lists `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT` but omits `STP_MAIN_DATABASE_JDBC_CONNECTION_STRING`, which is documented in the connectTo JSDoc for RelationalDatabase. Incomplete enumeration could mislead Java/JDBC-stack readers."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a minimal `<CodeBlock intellisense>` to the CDN section showing at least one concrete `cdn` property in action — for example, a path-level TTL override or a cacheMode setting — so readers who need to tune CDN behavior have a starting point rather than a cold API reference.",
+            "Replace the redundant opening sentence of 'When to use' with a sentence that adds new information (e.g., explicitly contrasting when SSR is needed versus when static export suffices) rather than restating the intro.",
+            "Add `STP_MAIN_DATABASE_JDBC_CONNECTION_STRING` to the prose list of injected environment variables in the 'Connecting resources' section to match the connectTo JSDoc for RelationalDatabase and serve Java/Spring Boot users.",
+            "The 'Build and dev' section explains `buildCommand` and `dev.command` well but does not mention what happens to the build output — briefly noting that Stacktape uploads the Vinxi build output to S3 and Lambda automatically would round out the mental model.",
+            "Consider noting in the 'Server Lambda' section that `serverLambda.timeout` has an AWS Lambda maximum of 15 minutes (900 seconds), so readers setting very long timeouts understand the hard ceiling without hitting it at deploy time."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the SolidStart source shape, uses the required CodeBlock pattern, and keeps the API reference name correct. The main factual risks are inherited Lambda details, CDN behavior, and nested-property details that are not present in the provided SolidStart sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS Lambda allocates CPU proportionally to memory — 1,769 MB corresponds to 1 vCPU.” “Increase `memory` ... doubling memory also doubles available CPU.” “the function loses direct internet access when joined to the default VPC.”",
+              "reason": "The provided SolidStart source only says `serverLambda` customizes memory, timeout, VPC, and logging. It does not provide the 1,769 MB/vCPU number, the doubling claim, or the internet-access caveat for `joinDefaultVpc`. For SSR frontend resource pages, inherited Lambda numeric details should be linked to the Lambda page rather than restated unless they appear in this page’s source.",
+              "suggestedFix": "Replace the detailed Lambda sizing and VPC behavior claims with a narrower sentence: “The SSR function inherits memory, timeout, VPC, and logging behavior from Stacktape Lambda functions; see the Lambda function page for the detailed knobs and limits.” Keep the example if it type-checks, but remove the unsupported numeric and internet-access claims.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/solidstart-web.d.ts",
+                  "quote": "/**\n   * #### Customize the SSR Lambda function (memory, timeout, VPC, logging).\n   */\n  serverLambda?: SsrWebServerLambdaConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Most teams can leave `cdn` unset — the defaults handle standard SSR caching and cache invalidation on deploy.” “See the API reference below for the full `cdn` property surface including cache TTL options and path-level overrides.”",
+              "reason": "The source supports that `cdn` configures CDN cache controls for SSR routes and specific path patterns. It does not state default SSR caching behavior, deploy-time cache invalidation, or TTL options. The invalidation claim is especially actionable because it may make readers rely on behavior not grounded in the provided source.",
+              "suggestedFix": "Narrow the wording to: “The `cdn` property configures cache controls for SSR routes and specific path patterns. Leave `cdn` unset unless you need custom cache behavior for particular routes.” Only mention invalidation or TTLs if the nested `SsrWebCdnConfig` source is provided and confirms them.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/solidstart-web.d.ts",
+                  "quote": "/**\n   * #### CDN cache controls for SSR routes and specific path patterns.\n   */\n  cdn?: SsrWebCdnConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The “Build and dev” section documents `dev.command`, including “Override `dev.command` when your monorepo expects a workspace-aware dev script” and “`dev.command` only affects `stacktape dev`; it does not change the deployed build.”",
+              "reason": "The provided source confirms that `dev` configures the dev server for `stacktape dev` and defaults to `vinxi dev`, but it does not show the nested `command` property or the exact statement that `dev.command` has no effect on deployed builds. That nested property may be valid, but it is not grounded in the provided source list.",
+              "suggestedFix": "Either provide/source the `SsrWebDevConfig` definition, or narrow the prose to the source-backed claim: “`dev` configures the local dev server used by `stacktape dev`; the SolidStart resource defaults to `vinxi dev`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/solidstart-web.d.ts",
+                  "quote": "/**\n   * #### Dev server config for `stacktape dev`. Defaults to `vinxi dev`.\n   */\n  dev?: SsrWebDevConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Both deploy with the same underlying architecture: Lambda for SSR, S3 for static assets, and CloudFront for CDN.”",
+              "reason": "The provided source confirms the SolidStart architecture, but it does not include the Next.js resource source needed to verify that the Next.js resource uses an equivalent model. This is a Stacktape-specific comparison and should be grounded by the Next.js source or made less specific.",
+              "suggestedFix": "Change the answer to: “The Next.js resource has its own framework-specific configuration surface. Choose based on the framework your team uses and the framework-level features you need.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/solidstart-web.d.ts",
+                  "quote": "/**\n * #### Deploy a SolidStart SSR app with Lambda (AWS adapter), S3 for static assets, and CloudFront CDN.\n */\ninterface SolidStartWeb {"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />` for Stacktape config examples and avoids hand-authored YAML.",
+            "`<ApiReference definitionName=\"SolidStartWebProps\" />` matches the page metadata/type name and includes the required `Props` suffix.",
+            "The top-level SolidStart claims about `appDirectory`, `buildCommand`, `environment`, `customDomains`, `serverLambda`, `useFirewall`, `dev`, `fileOptions`, `cdn`, and `connectTo` are generally aligned with the provided `SolidStartWebProps` and `ResourceAccessProps` sources.",
+            "The draft correctly scopes `useFirewall` for SolidStart to a CDN-scoped web application firewall, rather than flattening firewall constraints from other resource types."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 12, col 37: Cannot find name 'db'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 12, col 37: Argument of type 'number' is not assignable to parameter of type 'string'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 12, col 40: Cannot find name 'password'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 17, col 19: Type 'RelationalDatabase' is not assignable to type 'string'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 22: Object literal may only specify known properties, and '\"APP_ENV\"' does not exist in type 'EnvironmentVar[]'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 69: Cannot find name 'stripe'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 69: Argument of type 'number' is not assignable to parameter of type 'string'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 76: Cannot find name 'key'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\frontend\\solidstart.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 2, advisory high 0, verifier medium 14"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/resources/frontend/solidstart.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T00:57:36.926Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/solidstart-web.d.ts": "9f8356e094ec43963ee5d3867f7d863f8ef425b0",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts": "242cf94f68a3f84aa3afefe69f69152a524f95d6",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/resources/frontend/solidstart.md": "dbc65e553046b55b95d54673e5318cd0b6d9e089",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/config-reference/solidstart-web.md": "1c6b6c8cc539fbc6df59ec865968ddc9c322b9fa"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

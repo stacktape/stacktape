@@ -2,7 +2,7 @@
   "pageId": "cli__debug__metrics",
   "pageRoute": "cli/debug-metrics",
   "startedAt": "2026-05-17T22:05:43.901Z",
-  "updatedAt": "2026-05-17T22:14:04.637Z",
+  "updatedAt": "2026-05-22T06:45:31.428Z",
   "iterations": [
     {
       "iteration": 1,
@@ -677,6 +677,407 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/cli__debug__metrics/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurate metrics table covering all four supported resource types (function, multi-container-workload, relational-database, http-api-gateway) with the correct CloudWatch metric names exactly as defined in METRIC_CONFIGS in src/commands/debug-metrics/index.ts — including ConcurrentExecutions for Lambda, ReadLatency/WriteLatency for RDS, and IntegrationLatency for HTTP API Gateway.",
+            "Agent-mode output payload fields (resource, metric, period, stat, unit, datapoints) are documented precisely and match the JSON.stringify payload in the source command.",
+            "Relative time shorthand suffixes (h, m, d, s) are explicitly documented and match the regex in the source: /^(\\d+)([hmds])$/.",
+            "Six varied, realistic, copyable examples covering error counts, CPU, p99 latency, agent mode, custom aggregation periods, and absolute timestamps — each in its own bash block with no copy-button trap.",
+            "FAQ section has eight questions spanning Stacktape-specific questions, AWS service behavior (CloudWatch pricing), and comparison questions (metrics vs alarms) — good category coverage.",
+            "No mandatory style violations found: no YAML resource blocks, no StacktapeConfig plain-object usage, no fenced TypeScript blocks with defineConfig, no multi-command bash blocks, no explanatory # comments inside shell blocks."
+          ],
+          "problems": [
+            "The 'Key flags' subsection appears inside the 'Usage' H2 and covers --startTime, --period, and --stat with narrative prose — the same flags are then documented again in the <CliCommandsApiReference> below. This creates structural redundancy: a first-time reader scanning the page sees flag descriptions twice and may not realize the reference table is the authoritative source.",
+            "Output mode documentation is split across two subsections ('Output modes' covers --agent and --outputFormat; 'Key flags' covers --startTime, --period, --stat). A reader looking for all optional flag context must read both subsections before reaching the reference. Consolidating into a single 'Options' narrative section would reduce back-and-forth scanning.",
+            "The page never explicitly states the command does NOT require a stacktape.yml config file (commandRequiresConfig: false in source). For a first-time user, this is a non-obvious fact: every other deploy-related command requires a config, so they may wonder whether to prepare one before running debug:metrics.",
+            "The FAQ answer to 'Can I query custom CloudWatch metrics?' recommends debug:aws-sdk as an alternative — but debug:aws-sdk is restricted to read-only List*/Get*/Describe*/Head* operations and does not expose GetMetricData. The suggestion may mislead users into thinking debug:aws-sdk can fetch custom metrics when it cannot call GetMetricData directly."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Explicitly note near the top (e.g., after the first paragraph) that debug:metrics does not require a stacktape.yml config file — you only need --stage, --region, --resourceName, and --metric. This reassures users who are unfamiliar with which commands require a config.",
+            "Collapse 'Output modes' and 'Key flags' into a single 'Options overview' subsection (or fold both into prose above the <CliCommandsApiReference>) to eliminate the dual-description of optional flags and tighten the page.",
+            "Fix the FAQ answer to 'Can I query custom CloudWatch metrics?': debug:aws-sdk allows only List*/Get*/Describe*/Head* read-only operations and cannot call GetMetricData. Remove the debug:aws-sdk suggestion for custom metrics and instead direct users to the AWS CloudWatch Console or the AWS CLI directly.",
+            "Add a one-line note that the stat alias conflict exists in source (both --stat and --startTime are aliased to 'st') — or omit aliases entirely from the prose to avoid confusion, since the <CliCommandsApiReference> exposes them in the reference table.",
+            "The FAQ question 'How does relative time parsing work for --startTime?' could include a note that the regex only matches single numeric values (e.g., '1h', '30m') — compound values like '1h30m' are not supported. This prevents a common user mistake."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Supported metrics table is accurate and complete against METRIC_CONFIGS in src/commands/debug-metrics/index.ts — ConcurrentExecutions (Lambda) and IntegrationLatency (API Gateway) are correctly included even though they're missing from the commands.ts description string.",
+            "Defaults are accurately sourced: period=300, stat=Average, startTime=1h ago, all from the implementation code.",
+            "Agent mode JSON payload fields (resource, metric, period, stat, unit, datapoints with timestamp/value) are documented precisely matching the tuiManager.info output in the source.",
+            "Relative time unit parsing (h/m/d/s) accurately reflects the regex and ms-multiplier map in the implementation.",
+            "Error behavior is correctly documented for both unsupported resource types and invalid metric names, matching the ExpectedError throws in the source.",
+            "Each example block is a single command with prose introducing it — no multi-command blocks with comment labels that would break the copy button.",
+            "FAQ spans all three required categories: Stacktape-specific, AWS-specific (CloudWatch pricing), and comparison (debug:metrics vs debug:alarms).",
+            "CliCommandsApiReference component is used correctly with sortedArgs — no hand-authored flags table.",
+            "No forbidden patterns: no YAML Stacktape config, no StacktapeConfig type, no fenced TypeScript with defineConfig."
+          ],
+          "problems": [
+            "The `startTime` entry in sortedArgs carries the description 'The start time from which to print logs' — a copy-paste artifact from debug:logs. This is reproduced verbatim in the auto-generated flags reference component, which will mislead readers consulting the reference table.",
+            "The Console FAQ answer ('The Stacktape Console provides a graphical metrics view for deployed resources') is not grounded in any provided source file — no console-app source was included. The claim is cautious but still asserted as fact.",
+            "The 'Key flags' section is nested as H3 under the 'Usage' H2, creating a hierarchy that implies key flags are a sub-topic of usage examples rather than a peer reference section. This buries critical default information in a sub-heading."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the copy-pasted startTime description in sortedArgs: change 'The start time from which to print logs' to 'The start time from which to fetch metrics' to match the command's actual purpose.",
+            "Qualify the Console FAQ answer with hedging language ('The Stacktape Console includes resource monitoring views — see [Metrics](/observability/metrics) for details') rather than asserting Console UI behavior without a source-grounded basis.",
+            "Promote the 'Key flags' section from H3 (under Usage) to its own H2, or fold it directly into the flags reference prose as a short intro paragraph. As a H3 under 'Usage' it reads like part of the usage walkthrough rather than a standalone reference on important optional flags.",
+            "The --outputFormat flag description in the intro prose ('Two flags change the output behavior') is slightly misleading since --agent and --outputFormat are separate flags but the bullet list starts with --agent. Consider rephrasing to 'Two flags change output mode' with --outputFormat listed first as the general mechanism and --agent as the shorthand.",
+            "The sortedArgs for `stat` lists allowed values as ['Sum', 'Average', 'Maximum', 'Minimum', 'p99'] in the prose but the actual flag definition accepts any string (it's passed directly to CloudWatch). Consider noting in the prose that any CloudWatch-supported statistic string is accepted, not just those five, so users know they can pass 'p95', 'p50', etc."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and clearly states what `stacktape debug:metrics` does.",
+            "The Usage section shows a realistic command with all required flags: `--stage`, `--region`, `--resourceName`, and `--metric`.",
+            "The supported metrics table is highly scannable and mostly grounded in the runtime `METRIC_CONFIGS` source, including the extra runtime metrics missing from the generated CLI summary.",
+            "Examples are one command per shell block, copyable, and cover common Lambda, RDS, API Gateway, ECS, relative time, absolute time, period, and stat cases."
+          ],
+          "problems": [
+            "The page makes unsupported output-format claims. The runtime source only branches on `isAgentMode()` and prints pretty JSON in agent mode; it does not show `--outputFormat`, `tty`, `plain`, JSONL/NDJSON, TTY auto-detection, or one-object-per-line output for `debug:metrics`.",
+            "The flags reference appears to include `agent` and `outputFormat`, but `src/config/cli/commands.ts` for `debug:metrics` does not list those flags explicitly and the provided runtime command source does not document `--outputFormat` behavior for this command.",
+            "The draft says the agent payload contains chronologically sorted `datapoints` and lists fields, which is mostly grounded, but it calls the output JSONL/NDJSON even though the implementation prints a single pretty-printed JSON object through `tuiManager.info`.",
+            "The `--startTime` prose says it accepts number or string-like values and defaults to 1 hour ago, but the command runtime type treats `startTime` as a string and only documents relative strings or `new Date(args.startTime)`. The generated flag description says “from which to print logs,” which the page should avoid repeating or should correct cautiously from runtime behavior.",
+            "The FAQ includes unsupported pricing specifics: “first 1 million API requests per month” and “pricing is per 1,000 metric data points returned” are not present in the provided Stacktape source files. For this review, AWS FAQ context can mention the pricing model generally, but concrete pricing details should not be asserted without a provided pricing source.",
+            "The FAQ claims the Stacktape Console provides a graphical metrics view for deployed resources, but no `console-app` source is provided. This violates the Console-flow/source-grounding rule for UI behavior.",
+            "The page says `debug:alarms` shows CloudWatch alarms configured for your stack; the source says it shows all alarms configured for the stack, so this is acceptable, but the comparison section could be tighter by sticking to the source wording."
+          ],
+          "mandatoryFixes": [
+            "Replace the Output modes section with source-grounded wording: say that normal mode prints a terminal metrics chart via `printMetricsChart`, and agent mode prints a JSON object when agent mode is active. Do not claim JSONL/NDJSON, `plain`, `tty`, TTY auto-detection, or `--outputFormat` behavior unless those are grounded in provided source.",
+            "Remove `--outputFormat` from prose unless the provided command args source actually includes it for `debug:metrics`. If the generated `<CliCommandsApiReference>` data is meant to be authoritative, reconcile it with `src/config/cli/commands.ts` before publication.",
+            "Correct the `--agent` description to match runtime behavior: agent mode outputs a single JSON object with `resource`, `metric`, `period`, `stat`, `unit`, and sorted `datapoints`; do not call it JSONL/NDJSON or one JSON object per line.",
+            "Remove or soften the concrete CloudWatch pricing claims unless a provided pricing source supports them. Keep only general wording such as “CloudWatch metric API calls may be billed by AWS; check current AWS CloudWatch pricing for your region.”",
+            "Remove the Stacktape Console metrics claim or replace it with a generic link only if a provided Console or observability source supports that page. Do not describe Console capabilities from inference."
+          ],
+          "optionalImprovements": [
+            "Add a short note explaining how Stacktape resolves the CloudWatch metric dimension from the deployed resource: Lambda and ECS use `${stackName}-${resourceName}`, RDS uses `instanceId` when available, and HTTP API Gateway uses `apiId` when available. This is grounded in `src/commands/debug-metrics/index.ts` and helps users understand mismatches.",
+            "Shorten “Supported resource types and metrics” to “Supported metrics” for a more compact H3, though the current heading is acceptable.",
+            "Consider moving the “Key flags” material before “Output modes” after correction, because `--startTime`, `--period`, and `--stat` are core command behavior while agent output is secondary.",
+            "Mention that an unsupported resource type returns an error listing supported types, and an invalid metric returns an error listing available metrics for that resource type; this is useful and directly grounded in the runtime source."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided `debug:metrics` command source. The main factual risk is around output formatting and the Stacktape Console metrics claim; the runtime implementation supports agent-mode JSON output, but not the broader output-format behavior implied by the embedded flag prose, and no Console source is provided for graphical metrics views.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Pass `--agent` to disable the chart and instead print a single JSON object …” and “Get machine-readable output for programmatic consumption” are acceptable, but the page’s generated flags prose also says `--agent` “Uses strict JSONL/NDJSON output (one JSON object per line)” and `--outputFormat jsonl` controls machine-readable output for this command.",
+              "reason": "The `debug:metrics` implementation only branches on `isAgentMode()` and prints `JSON.stringify(..., null, 2)` through `tuiManager.info`. The provided command implementation does not inspect `outputFormat`, and its agent output is pretty-printed JSON, not NDJSON.",
+              "suggestedFix": "Keep the page prose narrowly aligned to the implementation: say `--agent` prints a JSON object instead of the chart. Avoid adding any custom prose claiming `debug:metrics` itself honors `--outputFormat jsonl` unless verified elsewhere. If the auto-generated reference includes generic global-flag text, do not reinforce it in hand-authored prose.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify(\n        {\n          resource: resourceName,\n          metric,\n          period,\n          stat,\n          unit: results[0]?.Label || '',\n          datapoints\n        },\n        null,\n        2\n      )\n    );\n  } else {\n    printMetricsChart({ metric, resourceName, stat, period, datapoints });\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I view metrics in the Stacktape Console instead of the CLI? Yes. The Stacktape Console provides a graphical metrics view for deployed resources.”",
+              "reason": "No `console-app` source is included for this page, and the verifier instructions require Console UI behavior to be grounded in console-app source rather than inferred from docs navigation or CLI behavior.",
+              "suggestedFix": "Narrow the claim to avoid describing Console UI behavior, for example: “For broader observability workflows, see [Metrics](/observability/metrics). Use `debug:metrics` when you want metric data from the terminal.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify(\n        {\n          resource: resourceName,\n          metric,\n          period,\n          stat,\n          unit: results[0]?.Label || '',\n          datapoints\n        },\n        null,\n        2\n      )\n    );\n  } else {\n    printMetricsChart({ metric, resourceName, stat, period, datapoints });\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The JSON payload contains … `unit` …”",
+              "reason": "The implementation sets the `unit` field to `results[0]?.Label || ''`, which is the CloudWatch metric data result label in the AWS SDK shape, not necessarily a metric unit. The page may lead readers to expect a CloudWatch unit such as Count, Percent, or Milliseconds.",
+              "suggestedFix": "Rename the prose description to match the implementation more cautiously: “includes `unit` as reported by the command, plus a chronologically sorted `datapoints` array…” or avoid explaining the exact semantic meaning of `unit`.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“If you pass a resource of a different type, the command returns an error listing the supported types.”",
+              "reason": "This is true for unsupported resource types, but a missing or unknown resource name follows a different path and throws `stpErrors.e98`. The wording could be read as covering every non-supported or mistyped resource reference.",
+              "suggestedFix": "Say: “If the resource exists but its resource type is unsupported, the command returns an error listing the supported types.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required flags in the usage example match `requiredArgs: ['stage', 'region', 'resourceName', 'metric']`.",
+            "The supported metrics table matches the runtime `METRIC_CONFIGS` in `src/commands/debug-metrics/index.ts`, including metrics that are more complete than the high-level command description.",
+            "The default `period = 300`, default `stat = 'Average'`, and default start time of one hour ago are correctly grounded in the command implementation.",
+            "The relative `--startTime` units `h`, `m`, `d`, and `s` are correctly grounded in the implementation’s regular expression and unit map.",
+            "All internal documentation links used by the draft appear in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided debug:metrics implementation, especially the supported resource types, metric names, required flags, default period/stat, and startTime parsing. I found two concrete issues where the page overstates or contradicts the command source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The Stacktape Console provides a graphical metrics view for deployed resources.”",
+              "reason": "No console-app source is provided for this page, and the CLI/debug-metrics sources do not document any Stacktape Console metrics UI. The page may link to the observability metrics docs, but it should not assert Console UI capabilities without console source grounding.",
+              "suggestedFix": "Narrow the answer to the CLI and link to `/observability/metrics` without claiming a specific Console view, for example: “For a broader metrics workflow, see [Metrics](/observability/metrics). Use the CLI when you want metric data from the terminal.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify(\n        {\n          resource: resourceName,\n          metric,\n          period,\n          stat,\n          unit: results[0]?.Label || '',\n          datapoints\n        },\n        null,\n        2\n      )\n    );\n  } else {\n    printMetricsChart({ metric, resourceName, stat, period, datapoints });\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“AWS CloudWatch charges per `GetMetricData` API call. The first 1 million API requests per month are included in the AWS Free Tier. Beyond that, pricing is per 1,000 metric data points returned.”",
+              "reason": "The provided Stacktape sources do not contain CloudWatch pricing. More importantly, the pricing wording is likely wrong because it mixes API request pricing with metric-data-point pricing. The source only confirms the command calls CloudWatch GetMetricData; it does not support specific pricing units or free-tier quantities.",
+              "suggestedFix": "Remove the specific pricing units and free-tier number, or replace with a cautious non-numeric statement: “`debug:metrics` calls CloudWatch GetMetricData. For occasional debugging this is usually low cost, but check the AWS CloudWatch pricing page for current API pricing.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "const results = await awsSdkManager.getMetricData({\n    metricQueries: [metricQuery],\n    startTime,\n    endTime\n  });"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The supported resource types and metric lists match `METRIC_CONFIGS` in `src/commands/debug-metrics/index.ts`.",
+            "The required flags `stage`, `region`, `resourceName`, and `metric` match `commandDefinitions['debug:metrics'].requiredArgs`.",
+            "The documented defaults for `period = 300`, `stat = 'Average'`, and default start time of one hour ago match the command implementation.",
+            "The relative `--startTime` formats `h`, `m`, `d`, and `s` are grounded in the command’s regex parsing.",
+            "All internal documentation links used in the draft exist in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/cli__debug__metrics/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Accurate metrics table covering all four supported resource types (function, multi-container-workload, relational-database, http-api-gateway) with the correct CloudWatch metric names exactly as defined in METRIC_CONFIGS in src/commands/debug-metrics/index.ts — including ConcurrentExecutions for Lambda, ReadLatency/WriteLatency for RDS, and IntegrationLatency for HTTP API Gateway.",
+            "Agent-mode output payload fields (resource, metric, period, stat, unit, datapoints) are documented precisely and match the JSON.stringify payload in the source command.",
+            "Relative time shorthand suffixes (h, m, d, s) are explicitly documented and match the regex in the source: /^(\\d+)([hmds])$/.",
+            "Six varied, realistic, copyable examples covering error counts, CPU, p99 latency, agent mode, custom aggregation periods, and absolute timestamps — each in its own bash block with no copy-button trap.",
+            "FAQ section has eight questions spanning Stacktape-specific questions, AWS service behavior (CloudWatch pricing), and comparison questions (metrics vs alarms) — good category coverage.",
+            "No mandatory style violations found: no YAML resource blocks, no StacktapeConfig plain-object usage, no fenced TypeScript blocks with defineConfig, no multi-command bash blocks, no explanatory # comments inside shell blocks."
+          ],
+          "problems": [
+            "The 'Key flags' subsection appears inside the 'Usage' H2 and covers --startTime, --period, and --stat with narrative prose — the same flags are then documented again in the <CliCommandsApiReference> below. This creates structural redundancy: a first-time reader scanning the page sees flag descriptions twice and may not realize the reference table is the authoritative source.",
+            "Output mode documentation is split across two subsections ('Output modes' covers --agent and --outputFormat; 'Key flags' covers --startTime, --period, --stat). A reader looking for all optional flag context must read both subsections before reaching the reference. Consolidating into a single 'Options' narrative section would reduce back-and-forth scanning.",
+            "The page never explicitly states the command does NOT require a stacktape.yml config file (commandRequiresConfig: false in source). For a first-time user, this is a non-obvious fact: every other deploy-related command requires a config, so they may wonder whether to prepare one before running debug:metrics.",
+            "The FAQ answer to 'Can I query custom CloudWatch metrics?' recommends debug:aws-sdk as an alternative — but debug:aws-sdk is restricted to read-only List*/Get*/Describe*/Head* operations and does not expose GetMetricData. The suggestion may mislead users into thinking debug:aws-sdk can fetch custom metrics when it cannot call GetMetricData directly."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Explicitly note near the top (e.g., after the first paragraph) that debug:metrics does not require a stacktape.yml config file — you only need --stage, --region, --resourceName, and --metric. This reassures users who are unfamiliar with which commands require a config.",
+            "Collapse 'Output modes' and 'Key flags' into a single 'Options overview' subsection (or fold both into prose above the <CliCommandsApiReference>) to eliminate the dual-description of optional flags and tighten the page.",
+            "Fix the FAQ answer to 'Can I query custom CloudWatch metrics?': debug:aws-sdk allows only List*/Get*/Describe*/Head* read-only operations and cannot call GetMetricData. Remove the debug:aws-sdk suggestion for custom metrics and instead direct users to the AWS CloudWatch Console or the AWS CLI directly.",
+            "Add a one-line note that the stat alias conflict exists in source (both --stat and --startTime are aliased to 'st') — or omit aliases entirely from the prose to avoid confusion, since the <CliCommandsApiReference> exposes them in the reference table.",
+            "The FAQ question 'How does relative time parsing work for --startTime?' could include a note that the regex only matches single numeric values (e.g., '1h', '30m') — compound values like '1h30m' are not supported. This prevents a common user mistake."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Supported metrics table is accurate and complete against METRIC_CONFIGS in src/commands/debug-metrics/index.ts — ConcurrentExecutions (Lambda) and IntegrationLatency (API Gateway) are correctly included even though they're missing from the commands.ts description string.",
+            "Defaults are accurately sourced: period=300, stat=Average, startTime=1h ago, all from the implementation code.",
+            "Agent mode JSON payload fields (resource, metric, period, stat, unit, datapoints with timestamp/value) are documented precisely matching the tuiManager.info output in the source.",
+            "Relative time unit parsing (h/m/d/s) accurately reflects the regex and ms-multiplier map in the implementation.",
+            "Error behavior is correctly documented for both unsupported resource types and invalid metric names, matching the ExpectedError throws in the source.",
+            "Each example block is a single command with prose introducing it — no multi-command blocks with comment labels that would break the copy button.",
+            "FAQ spans all three required categories: Stacktape-specific, AWS-specific (CloudWatch pricing), and comparison (debug:metrics vs debug:alarms).",
+            "CliCommandsApiReference component is used correctly with sortedArgs — no hand-authored flags table.",
+            "No forbidden patterns: no YAML Stacktape config, no StacktapeConfig type, no fenced TypeScript with defineConfig."
+          ],
+          "problems": [
+            "The `startTime` entry in sortedArgs carries the description 'The start time from which to print logs' — a copy-paste artifact from debug:logs. This is reproduced verbatim in the auto-generated flags reference component, which will mislead readers consulting the reference table.",
+            "The Console FAQ answer ('The Stacktape Console provides a graphical metrics view for deployed resources') is not grounded in any provided source file — no console-app source was included. The claim is cautious but still asserted as fact.",
+            "The 'Key flags' section is nested as H3 under the 'Usage' H2, creating a hierarchy that implies key flags are a sub-topic of usage examples rather than a peer reference section. This buries critical default information in a sub-heading."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the copy-pasted startTime description in sortedArgs: change 'The start time from which to print logs' to 'The start time from which to fetch metrics' to match the command's actual purpose.",
+            "Qualify the Console FAQ answer with hedging language ('The Stacktape Console includes resource monitoring views — see [Metrics](/observability/metrics) for details') rather than asserting Console UI behavior without a source-grounded basis.",
+            "Promote the 'Key flags' section from H3 (under Usage) to its own H2, or fold it directly into the flags reference prose as a short intro paragraph. As a H3 under 'Usage' it reads like part of the usage walkthrough rather than a standalone reference on important optional flags.",
+            "The --outputFormat flag description in the intro prose ('Two flags change the output behavior') is slightly misleading since --agent and --outputFormat are separate flags but the bullet list starts with --agent. Consider rephrasing to 'Two flags change output mode' with --outputFormat listed first as the general mechanism and --agent as the shorthand.",
+            "The sortedArgs for `stat` lists allowed values as ['Sum', 'Average', 'Maximum', 'Minimum', 'p99'] in the prose but the actual flag definition accepts any string (it's passed directly to CloudWatch). Consider noting in the prose that any CloudWatch-supported statistic string is accepted, not just those five, so users know they can pass 'p95', 'p50', etc."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and clearly states what `stacktape debug:metrics` does.",
+            "The Usage section shows a realistic command with all required flags: `--stage`, `--region`, `--resourceName`, and `--metric`.",
+            "The supported metrics table is highly scannable and mostly grounded in the runtime `METRIC_CONFIGS` source, including the extra runtime metrics missing from the generated CLI summary.",
+            "Examples are one command per shell block, copyable, and cover common Lambda, RDS, API Gateway, ECS, relative time, absolute time, period, and stat cases."
+          ],
+          "problems": [
+            "The page makes unsupported output-format claims. The runtime source only branches on `isAgentMode()` and prints pretty JSON in agent mode; it does not show `--outputFormat`, `tty`, `plain`, JSONL/NDJSON, TTY auto-detection, or one-object-per-line output for `debug:metrics`.",
+            "The flags reference appears to include `agent` and `outputFormat`, but `src/config/cli/commands.ts` for `debug:metrics` does not list those flags explicitly and the provided runtime command source does not document `--outputFormat` behavior for this command.",
+            "The draft says the agent payload contains chronologically sorted `datapoints` and lists fields, which is mostly grounded, but it calls the output JSONL/NDJSON even though the implementation prints a single pretty-printed JSON object through `tuiManager.info`.",
+            "The `--startTime` prose says it accepts number or string-like values and defaults to 1 hour ago, but the command runtime type treats `startTime` as a string and only documents relative strings or `new Date(args.startTime)`. The generated flag description says “from which to print logs,” which the page should avoid repeating or should correct cautiously from runtime behavior.",
+            "The FAQ includes unsupported pricing specifics: “first 1 million API requests per month” and “pricing is per 1,000 metric data points returned” are not present in the provided Stacktape source files. For this review, AWS FAQ context can mention the pricing model generally, but concrete pricing details should not be asserted without a provided pricing source.",
+            "The FAQ claims the Stacktape Console provides a graphical metrics view for deployed resources, but no `console-app` source is provided. This violates the Console-flow/source-grounding rule for UI behavior.",
+            "The page says `debug:alarms` shows CloudWatch alarms configured for your stack; the source says it shows all alarms configured for the stack, so this is acceptable, but the comparison section could be tighter by sticking to the source wording."
+          ],
+          "mandatoryFixes": [
+            "Replace the Output modes section with source-grounded wording: say that normal mode prints a terminal metrics chart via `printMetricsChart`, and agent mode prints a JSON object when agent mode is active. Do not claim JSONL/NDJSON, `plain`, `tty`, TTY auto-detection, or `--outputFormat` behavior unless those are grounded in provided source.",
+            "Remove `--outputFormat` from prose unless the provided command args source actually includes it for `debug:metrics`. If the generated `<CliCommandsApiReference>` data is meant to be authoritative, reconcile it with `src/config/cli/commands.ts` before publication.",
+            "Correct the `--agent` description to match runtime behavior: agent mode outputs a single JSON object with `resource`, `metric`, `period`, `stat`, `unit`, and sorted `datapoints`; do not call it JSONL/NDJSON or one JSON object per line.",
+            "Remove or soften the concrete CloudWatch pricing claims unless a provided pricing source supports them. Keep only general wording such as “CloudWatch metric API calls may be billed by AWS; check current AWS CloudWatch pricing for your region.”",
+            "Remove the Stacktape Console metrics claim or replace it with a generic link only if a provided Console or observability source supports that page. Do not describe Console capabilities from inference."
+          ],
+          "optionalImprovements": [
+            "Add a short note explaining how Stacktape resolves the CloudWatch metric dimension from the deployed resource: Lambda and ECS use `${stackName}-${resourceName}`, RDS uses `instanceId` when available, and HTTP API Gateway uses `apiId` when available. This is grounded in `src/commands/debug-metrics/index.ts` and helps users understand mismatches.",
+            "Shorten “Supported resource types and metrics” to “Supported metrics” for a more compact H3, though the current heading is acceptable.",
+            "Consider moving the “Key flags” material before “Output modes” after correction, because `--startTime`, `--period`, and `--stat` are core command behavior while agent output is secondary.",
+            "Mention that an unsupported resource type returns an error listing supported types, and an invalid metric returns an error listing available metrics for that resource type; this is useful and directly grounded in the runtime source."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the debug:metrics command implementation and CLI command definition. The main factual risks are around claims about `--agent`/JSONL behavior and CloudWatch pricing specifics that are not supported by the provided Stacktape source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Pass `--agent` to disable the chart and instead print a single JSON object” and “The JSON payload contains…”",
+              "reason": "The command implementation does print a JSON-stringified payload in agent mode, but the CLI flag metadata describes `--agent` as JSONL/NDJSON output and the generated options table says `--agent` implies `--outputFormat jsonl`. The draft’s prose asserts a single JSON object without acknowledging the flag’s documented JSONL output mode, which can mislead readers writing parsers.",
+              "suggestedFix": "Phrase narrowly: “In agent mode, `debug:metrics` skips `printMetricsChart` and writes a machine-readable payload with `resource`, `metric`, `period`, `stat`, `unit`, and `datapoints`. The global `--agent` flag also implies `--outputFormat jsonl`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify(\n        {\n          resource: resourceName,\n          metric,\n          period,\n          stat,\n          unit: results[0]?.Label || '',\n          datapoints\n        },\n        null,\n        2\n      )\n    );\n  } else {\n    printMetricsChart({ metric, resourceName, stat, period, datapoints });\n  }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts",
+                  "quote": "longDescription\": \"<p>Optimizes CLI output for programmatic/LLM consumption:</p>\\n<ul>\\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\\n<li>Disables interactive terminal UI</li>\\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)</li>\\nFor dev command: also enables HTTP server for programmatic control.</li>\\n</ul>\\n\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The first 1 million API requests per month are included in the AWS Free Tier. Beyond that, pricing is per 1,000 metric data points returned.”",
+              "reason": "No pricing source is provided for CloudWatch, and this is a concrete pricing claim. The page may mention that CloudWatch metric retrieval can incur AWS CloudWatch API charges, but specific Free Tier quantities and billing units need a source or should be removed.",
+              "suggestedFix": "Replace with a cautious line such as: “CloudWatch metric retrieval can incur AWS CloudWatch API charges, so check the current AWS CloudWatch pricing page for your region if you plan to automate frequent queries.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts",
+                  "quote": "'debug:metrics': {\n    description: `Fetch CloudWatch metrics for a deployed resource.\n\nSupported metrics by resource type:\n- Lambda: Invocations, Errors, Duration, Throttles\n- ECS: CPUUtilization, MemoryUtilization\n- RDS: CPUUtilization, DatabaseConnections, FreeStorageSpace\n- API Gateway: Count, 4XXError, 5XXError, Latency`"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "const results = await awsSdkManager.getMetricData({\n    metricQueries: [metricQuery],\n    startTime,\n    endTime\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“For typical debugging use — querying one metric a few times a day — the cost is negligible.”",
+              "reason": "This is reasonable guidance, but it is not grounded in the provided source files and depends on current AWS pricing and usage volume. Because the same FAQ already links to AWS pricing, the unsupported qualitative cost claim is unnecessary.",
+              "suggestedFix": "Remove “negligible” or narrow it to “usually small compared with continuously polling many metrics, but verify current AWS CloudWatch pricing for your usage pattern.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The supported resource types and metric names match the `METRIC_CONFIGS` implementation in `src/commands/debug-metrics/index.ts`.",
+            "The required flags `stage`, `region`, `resourceName`, and `metric` match the `debug:metrics` command definition.",
+            "The default `period` of `300`, default `stat` of `Average`, and default start time of one hour ago are grounded in the command implementation.",
+            "The relative `--startTime` formats `h`, `m`, `d`, and `s` are grounded in the command implementation’s regular expression.",
+            "The page uses the required `<CliCommandsApiReference command=\"debug:metrics\" ... />` component and does not contain forbidden Stacktape YAML or config examples."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -689,8 +1090,16 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\debug-metrics.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.1, hard blockers 4, advisory high 0, verifier medium 9"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/cli/debug-metrics.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T06:45:31.428Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts": "ba86ee8a4ab9b75f5c9fb0c38e72801c8684805d",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/cli/debug-metrics.md": "51cbae17d6654789e8e3ae41150a6ff5008a9b97"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

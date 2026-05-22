@@ -2,7 +2,7 @@
   "pageId": "observability__issues",
   "pageRoute": "observability/issues",
   "startedAt": "2026-05-17T16:06:21.929Z",
-  "updatedAt": "2026-05-17T16:23:03.966Z",
+  "updatedAt": "2026-05-21T17:32:28.254Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1019,6 +1019,321 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/observability__issues/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All six error type labels (uncaught, caught, unhandled_rejection, exit_error, handler_not_found, panic) are documented correctly and match the source code in IssuesPage.tsx exactly.",
+            "Console UI walkthrough is thoroughly grounded in the IssuesPage.tsx source — summary cards, filter fields, table columns, pagination default of 20 items, and row-click navigation are all confirmed by the source.",
+            "CLI examples use correct flag names (--projectName, --stage, --issueStatus, --limit) and the default limit of 25 verified against `limit ?? 25` in issues-list/index.ts.",
+            "The agent-mode JSON field list (id, status, errorMessage, errorType, functionName, project, stage, occurrenceCount, lastOccurrence) matches what the source actually outputs.",
+            "The status color coding (red/green/gray) and the permission guard for the Configure button (`projects:update-settings`) are both source-grounded facts surfaced as useful signals for the reader.",
+            "The comparison table (Issues vs logs vs alarms) adds meaningful context for where Issues fits alongside other Stacktape observability tools, helping readers avoid duplicating tooling.",
+            "FAQ covers all three required categories: Stacktape-specific setup questions, AWS service cost context, and choosing/comparison against Sentry/Bugsnag.",
+            "The Warning callout about CLI 3.8.0 being required after enabling monitoring is a well-placed, actionable gotcha that first-time users will frequently hit.",
+            "The Limitations section proactively addresses false positives from log-based detection, which is a real gap that readers need to know before committing to Issues as their sole error tracking tool."
+          ],
+          "problems": [
+            "The claim that the table 'sorts by last-seen timestamp descending' is not fully confirmed by the provided source. The source sets `defaultSortColumnIndex={0}` (confirming the sort column is Last seen) but does not specify sort direction in the provided code.",
+            "The `<ConsoleScreenshot>` MDX component is used but is not listed in the style guide's component palette, nor confirmed in the Console source files. If this component does not exist in the MDX runtime, the block will render as raw text or throw an error.",
+            "The setup modal's four settings (Organization-wide enable, Per-project enable, Enabled stages, Event sampling rate) are inferred from the props passed to `<IssuesSetupModal>` — the modal's own source was not provided. The settings are reasonable inferences but one level removed from authoritative source."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Confirm and either correct or qualify the default sort direction claim ('sorts by last-seen timestamp descending'). If the sort direction isn't specified in the source, drop 'descending' from the sentence to avoid an ungrounded claim.",
+            "Verify that `<ConsoleScreenshot>` is a real MDX component registered in the docs renderer. If it isn't, replace it with a standard markdown image (`![alt](path)`) or remove the block entirely. A broken component silently renders nothing, which is worse than no screenshot.",
+            "The 'Enabling issue monitoring' section mentions the modal but the modal source wasn't available. If any of the four settings labels or their descriptions turn out to differ from the real modal UI, they'll need adjustment. Consider scoping the wording slightly — e.g. 'the modal includes settings for...' — rather than enumerating them as a definitive four-item list.",
+            "The `<Tip>` about CI/CD pipeline usage (auto-resolving issues after deploy) is useful but abstract. Adding a one-line concrete example of using `--issueStatus OPEN` as a gate before a promote step would make it immediately actionable.",
+            "Consider adding a brief note in the 'Enabling issue monitoring' section clarifying that each stage must be redeployed individually — if a project has three stages (dev, staging, production), all three need a fresh deploy. The current wording says 'redeploy each target stage' but new users may not realize this applies per-stage, not per-project."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All error type labels exactly match the source's `errorTypeLabels` map (uncaught, caught, unhandled_rejection, exit_error, handler_not_found, panic) — no invented types.",
+            "CLI defaults are verified against source: `limit ?? 25` in issues-list/index.ts, `perPageAmount` starts at 20 in IssuesPage.tsx, status filter defaults to 'OPEN'. All three match the doc.",
+            "CLI vs Console separation is clean throughout — the observability section instruction 'never blur the two' is honored with dedicated H2 sections.",
+            "Agent-mode JSON field names match what the CLI source returns (id, status, errorMessage, errorType, functionName, project, stage, occurrenceCount, lastOccurrence).",
+            "Console table columns match the source's `columnHeaders` array exactly: Last seen, Error, Type, Resource, Project / Stage, Count, Status.",
+            "Stage dropdown behavior (built from deployed + undeployed stages + existing issues) is sourced precisely from the `stageOptions` useMemo in IssuesPage.tsx.",
+            "The permission `projects:update-settings` is used verbatim from `hasPermission('projects:update-settings')` in the source.",
+            "FAQ spans all three required categories: Stacktape-specific (enabling, redeploying, permissions), AWS-service (cost, CloudWatch subscription filters), and comparison (vs Sentry/Bugsnag, vs alarms).",
+            "The comparison table (Issues vs logs vs alarms) is high-signal and actionable — it answers the real decision a reader faces without marketing language.",
+            "No YAML config blocks, no StacktapeConfig type pattern, no fenced TypeScript Stacktape config — all format rules observed."
+          ],
+          "problems": [
+            "The IssuesSetupModal configuration table ('four settings') is inferred from the modal component's props (issuesAllProjectsEnabled, issuesEnabledStages, issuesEventSamplingRate, per-project issuesEnabled) since IssuesSetupModal.tsx was not in the provided sources. The four-setting description is plausible, but 'Leave empty to monitor all stages' for the Enabled stages field is an inference not directly verified from source. Minor risk of inaccuracy.",
+            "H2 headings 'Viewing issues in the Console' and 'Managing issues from the CLI' are slightly wordy compared to short noun-form labels the style guide recommends (1-5 words). Not a hard violation but reduces scannability under the style guide rubric.",
+            "The <ConsoleScreenshot> component appears without precedent in the provided example guidance — no example page was supplied, so drift cannot be formally assessed, but the component's usage (with detailed alt text and caption) looks correct in principle."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Shorten H2s: 'Viewing issues in the Console' → 'Console view'; 'Managing issues from the CLI' → 'CLI commands'. Keeps the style guide's 1-5 word label preference.",
+            "Scope the IssuesSetupModal configuration table with a hedging phrase (e.g., 'The configuration panel includes the following settings:') rather than asserting the exact count as a hard fact, since the modal source was not available for verification.",
+            "The 'Enabling issue monitoring' section could note that 'Enabled stages' accepting an empty list to monitor all stages is documented behavior — or omit that detail if it can't be confirmed from modal source, replacing it with a link to the Console.",
+            "The Limitations section is useful but short. Consider adding that Issues only captures errors from resources whose logs flow through CloudWatch Logs — this sets correct expectations for resources with custom log routing."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, specific, and suitable for extraction.",
+            "The page distinguishes Console usage from CLI usage better than most observability pages, with separate sections for Console viewing and CLI listing.",
+            "Tables make the error types, statuses, Console columns, and Issues/logs/alarms comparison easy to scan.",
+            "Shell examples follow the one-command-per-block rule and avoid copy-buffer comments."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source files, including `issues:resolve`, `issues:ignore`, and `issues:reopen` commands, status-change behavior, issue detail behavior beyond row navigation, API-key authentication for all issue commands, and CI/CD usage patterns.",
+            "The setup modal details are over-specified from `IssuesPage.tsx`; the source shows `IssuesSetupModal` props and the Configure Issues button, but not the modal's visible labels or exact interaction flow.",
+            "The error type descriptions go beyond the source. The source only provides labels for `uncaught`, `caught`, `unhandled_rejection`, `exit_error`, `handler_not_found`, and `panic`, not the explanatory meanings for each type.",
+            "Cost content appears in the FAQ despite the section instructions saying cost is separate and should link to `/managing-costs/*` if needed.",
+            "The page claims sorting by last-seen timestamp descending, but the provided source only shows `defaultSortColumnIndex={0}` and does not establish descending order.",
+            "The Issues vs logs vs alarms table contains claims outside the provided source, especially alarm behavior, notifications, and logs being always on.",
+            "The FAQ is broad and useful, but multiple answers repeat unsupported operational claims, especially around cost, CI/CD automation, permissions beyond configure access, and dedicated APM comparisons."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported CLI-management claims unless source files for `issues-resolve`, `issues-ignore`, and `issues-reopen` are provided. From the supplied CLI source, only `stacktape issues:list`, its filters, default limit 25, table output, and agent-mode JSON output are grounded.",
+            "Rewrite the setup section to state only what `IssuesPage.tsx` proves: the Console shows a Configure Issues button when the user has `projects:update-settings`, passes organization-wide/project/stage/sampling settings to `IssuesSetupModal`, new projects start with Issues off, and matching stages need CLI 3.8.0+ redeployment before AWS log subscriptions are added.",
+            "Remove the FAQ cost answer or replace it with a brief pointer to `/managing-costs/overview`; do not discuss added AWS cost or processing-volume cost in this observability page.",
+            "Replace detailed error-type definitions with cautious wording that these are the labels displayed by the Console/CLI, unless source for classification semantics is added.",
+            "Remove or qualify the descending-sort claim; the supplied source does not prove sort direction.",
+            "Revise the Issues vs logs vs alarms comparison so every Stacktape-specific statement is grounded by supplied source, or provide the logs and alarms source files."
+          ],
+          "optionalImprovements": [
+            "Add a short “CLI support” table showing only sourced `issues:list` flags: `--projectName`, `--stage`, `--issueStatus`, and `--limit`.",
+            "Tighten the FAQ by keeping questions that are grounded by the page source and moving speculative comparisons with Sentry, Datadog, and Bugsnag into a cautious “When not to use” paragraph.",
+            "Consider adding a brief source-grounded note that non-agent CLI output truncates error messages longer than 60 characters, while agent mode prints raw JSON.",
+            "Use more cautious language around “no additional SDK” and “no third-party error tracking service” unless the detection pipeline source confirms that no application instrumentation is ever needed."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided Console and CLI sources. The main factual risks are over-specific claims about issue-detail/status-change behavior, API-key behavior, and cost/detection internals that are not grounded in the authoritative source files provided for this page.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Both statuses can be reverted to Open if the error recurs or you change your mind.”",
+              "reason": "The provided sources show a Console issues list and the existence of CLI reference routes in the navigation index, but they do not include source for `issues:resolve`, `issues:ignore`, `issues:reopen`, or the issue detail page. The draft can safely say a CLI command exists for reopening, but the broader behavior that resolved/ignored issues can be reverted because an error recurs is not grounded in the provided source.",
+              "suggestedFix": "Narrow to the source-grounded behavior: “The CLI reference includes a separate `issues:reopen` command for moving an issue back to Open.” Remove the “if the error recurs” behavior unless issue-detail or command source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/IssuesPage/IssuesPage.tsx",
+                  "quote": "rowActions={issues.map((issue) => () => navigate(`/issues/${issue.id}`))}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/issues-list/index.ts",
+                  "quote": "export const commandIssuesList = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“These commands use your configured API key and work in non-interactive environments like CI/CD pipelines and AI coding assistants.”",
+              "reason": "The `issues:list` command initializes the API client with `globalStateManager.apiKey`, but the provided source only covers `issues:list`, not the status-change commands. The CI/CD and AI coding assistant environment claim is also not shown in the command source; only agent-mode JSON output is grounded.",
+              "suggestedFix": "Limit the claim to `issues:list`: “`stacktape issues:list` initializes the Stacktape API client with the configured API key. In agent mode, it prints raw JSON for programmatic use.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/issues-list/index.ts",
+                  "quote": "await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/issues-list/index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify(issues, null, 2));\n  } else {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Clicking any row navigates to the issue detail page for that specific error.”",
+              "reason": "The Console source shows row actions navigate to `/issues/${issue.id}`, but the provided source does not include the route/page implementation proving that destination is an issue detail page or what it displays.",
+              "suggestedFix": "Write more narrowly: “Clicking a row navigates to `/issues/{issue.id}` in the Console.” If the detail page source is available, include it in the source list before describing the page as a detail view.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/IssuesPage/IssuesPage.tsx",
+                  "quote": "rowActions={issues.map((issue) => () => navigate(`/issues/${issue.id}`))}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The detection mechanism uses AWS CloudWatch Logs subscription filters, which route matching log events to the processing system.”",
+              "reason": "The Console source says AWS log subscriptions are added after deployment, but it does not say they are CloudWatch Logs subscription filters or that they route only matching log events. That more specific AWS implementation is not grounded in the provided authoritative source.",
+              "suggestedFix": "Use the exact source-grounded wording: “Matching stages need to be deployed with Stacktape CLI 3.8.0 or newer before AWS log subscriptions are added.” Avoid naming CloudWatch Logs subscription filters unless implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/IssuesPage/IssuesPage.tsx",
+                  "quote": "Matching stages need to be\n            deployed with Stacktape CLI 3.8.0 or newer before AWS log subscriptions are added."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For most workloads this adds minimal cost. High-volume stages with noisy error logs may see higher processing volume — lowering the event sampling rate reduces this.”",
+              "reason": "The provided source files do not contain pricing, billing, or processing-cost behavior for Issues. The page metadata explicitly says cost should be a separate section for observability pages; this FAQ answer introduces unsupported cost guidance on the Issues page.",
+              "suggestedFix": "Remove the cost estimate and link to cost docs only. For example: “Issue monitoring uses log subscriptions added during deployment. For cost planning, see [Managing Costs](/managing-costs/overview).”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/IssuesPage/IssuesPage.tsx",
+                  "quote": "issuesEventSamplingRate={selectedOrg.issuesEventSamplingRate || 100}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/IssuesPage/IssuesPage.tsx",
+                  "quote": "Matching stages need to be\n            deployed with Stacktape CLI 3.8.0 or newer before AWS log subscriptions are added."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The sampling rate controls what fraction of detected error events the system processes. At 100 (the default), every error is captured. Lowering the rate reduces processing volume during traffic bursts but makes occurrence counts approximate rather than exact.”",
+              "reason": "The Console source grounds the existence of `issuesEventSamplingRate` and the fallback value `100`, but it does not define the unit, range, semantics, or count accuracy implications. The generated LLM doc repeats this wording, but no authoritative implementation source is provided.",
+              "suggestedFix": "Keep only the grounded part unless implementation source is added: “The setup modal receives an event sampling rate setting and falls back to 100 when the organization has no saved value.” Or omit the section.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape Issues detects errors from log output” and “Issues relies on detecting error patterns from log output.”",
+              "reason": "The sources mention AWS log subscriptions and runtime errors, but they do not define the pattern-detection logic or prove that Issues only detects errors from log output. This is probably directionally correct, but the provided source is thin for the stronger limitation wording.",
+              "suggestedFix": "Narrow the wording to the sourced mechanism: “Issues requires AWS log subscriptions added during deployment, so errors that never reach subscribed logs may not appear.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses only valid documentation routes from the provided navigation index.",
+            "The Console filters, default status filter, summary cards, table columns, 20-item default pagination, and filter reset behavior are grounded in `IssuesPage.tsx`.",
+            "The CLI `issues:list` examples use source-grounded flags: `projectName`, `stage`, `issueStatus`, and `limit`.",
+            "The draft avoids forbidden Stacktape config examples, YAML config blocks, and plain-object `StacktapeConfig` style."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Issues Console and CLI sources. The main problems are two overstatements about CLI/error-type behavior and one unsupported comparison against third-party APM tools.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Each issue carries an error-type label shown in both the Console table and the CLI output.”",
+              "reason": "The Console maps raw error type keys to friendly labels, but the `issues:list` CLI prints `issue.errorType` directly. The provided CLI source does not show the friendly labels being applied in CLI output.",
+              "suggestedFix": "Say that the Console displays friendly error-type labels, while the CLI includes the issue's `errorType` value. If you keep the label table, scope it to the Console or phrase it as “Stacktape uses these error types.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/IssuesPage/IssuesPage.tsx",
+                  "quote": "const errorTypeLabels: Record<string, string> = {\n  uncaught: 'Uncaught',\n  caught: 'Caught',\n  unhandled_rejection: 'Unhandled Rejection',\n  exit_error: 'Exit Error',\n  handler_not_found: 'Handler Not Found',\n  panic: 'Panic'\n};"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/issues-list/index.ts",
+                  "quote": "tuiManager.printTable({\n      header: ['ID', 'Status', 'Error', 'Type', 'Function', 'Project', 'Stage', 'Count', 'Last seen'],\n      rows: issues.map((issue) => [\n        issue.id,\n        issue.status,\n        issue.errorMessage.length > 60 ? `${issue.errorMessage.slice(0, 60)}...` : issue.errorMessage,\n        issue.errorType,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Use the label to group similar errors at a glance and to filter your triage queue.”",
+              "reason": "The provided Console source exposes status, search, project, and stage filters. The provided CLI source exposes project, stage, issueStatus, and limit. Neither source shows filtering by error type or error-type label.",
+              "suggestedFix": "Change this to “Use the label to recognize similar errors at a glance.” If you discuss filtering, list only status, search, project, and stage for Console, and project, stage, status, and limit for `issues:list`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/IssuesPage/IssuesPage.tsx",
+                  "quote": "const [statusFilter, setStatusFilter] = useState<'ALL' | 'OPEN' | 'RESOLVED' | 'IGNORED'>('OPEN');\n  const [projectFilter, setProjectFilter] = useState<Option<string>>(allProjectsOption);\n  const [stageFilter, setStageFilter] = useState<Option<string>>(allStagesOption);\n  const [searchFilter, setSearchFilter] = useState('');"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/issues-list/index.ts",
+                  "quote": "const { projectName, stage, issueStatus, limit } = globalStateManager.args;\n\n  const issues = await stacktapeTrpcApiManager.apiClient.listIssues({\n    project: projectName,\n    stage,\n    status: issueStatus as 'OPEN' | 'RESOLVED' | 'IGNORED' | undefined,\n    limit: limit ?? 25\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape Issues is a lightweight, built-in error inbox with no SDK integration, no separate billing, and no external data egress.”",
+              "reason": "The sources support no third-party error tracking service and log-subscription-based capture, but they do not support “no separate billing” or “no external data egress.” The draft also says issue detection routes matching log events to a processing system, so the data-egress claim is too strong without a source defining where that system runs and how billing works.",
+              "suggestedFix": "Narrow the comparison to sourced behavior: “Stacktape Issues is built in and does not require adding a Sentry or Bugsnag SDK. It detects errors from log output, so it provides less in-process context than an APM tool.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/observability/issues.md",
+                  "quote": "Manage issues without integrating a third-party error tracking service."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/observability/issues.md",
+                  "quote": "The detection mechanism uses AWS CloudWatch Logs subscription filters, which route matching log events to the processing system."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The table paginates at 20 items per page by default and sorts by last-seen timestamp descending.”",
+              "reason": "The 20-items default is grounded by `useState(20)`, and the default sort column is grounded by `defaultSortColumnIndex={0}`. The provided source does not show the default sort direction of `ElevatedTable`, so “descending” is not grounded in the provided files.",
+              "suggestedFix": "Write “The table paginates at 20 items per page by default and uses Last seen as the default sort column,” or omit the sort-direction claim unless `ElevatedTable` source is available.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/IssuesPage/IssuesPage.tsx",
+                  "quote": "const [perPageAmount, setPerPageAmount] = useState(20);"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/IssuesPage/IssuesPage.tsx",
+                  "quote": "defaultSortColumnIndex={0}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses the documented `stacktape debug:logs` command and links it to `/cli/debug-logs`.",
+            "The `issues:list` examples and default limit of 25 are grounded in the CLI source.",
+            "The Console filtering, pagination default, summary cards, permission-gated Configure Issues button, and stage option behavior are largely grounded in `IssuesPage.tsx`.",
+            "The page avoids forbidden Stacktape configuration examples and does not introduce hand-authored YAML or plain-object `StacktapeConfig` examples."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -1031,8 +1346,15 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\observability\\issues.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.8, hard blockers 6, advisory high 0, verifier medium 16"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/observability/issues.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-21T17:32:28.254Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/console-app/src/pages/IssuesPage/IssuesPage.tsx": "3c6f4195bac1383cef7c5f90747094e9da99b28a",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/issues-list/index.ts": "ca6982c1ae0fba797e512d3b87b8db7c265d986a",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/observability/issues.md": "1f35f683e502aa9917fbc4b4dccabcfc7576a17e"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

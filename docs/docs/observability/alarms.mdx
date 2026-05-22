@@ -2,9 +2,9 @@
 title: 'Alarms'
 order: 3
 seoTitle: 'CloudWatch Alarms for AWS Resources | Stacktape Docs'
-seoDescription: 'Configure CloudWatch alarms for Lambda functions, databases, API gateways, load balancers, and SQS queues. Set thresholds, evaluation windows, and Slack/email/webhook notifications.'
+seoDescription: 'Configure CloudWatch alarms for Lambda functions, databases, API gateways, load balancers, and SQS queues. Set thresholds, evaluation windows, and notifications.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.4, hard blockers 7, advisory high 1, verifier medium 13'
+pipelineReviewSummary: 'reviewer-avg 7.4, hard blockers 10, advisory high 0, verifier medium 9'
 ---
 
 # Alarms
@@ -35,7 +35,7 @@ Alarms are not the right tool for every monitoring need:
 
 ## Supported resources
 
-Stacktape supports inline alarms on six resource types. Each resource accepts a specific set of trigger types:
+Stacktape supports inline alarms on five resource types. Each resource accepts a specific set of trigger types:
 
 | Resource | Config property | Accepted alarm triggers |
 |---|---|---|
@@ -44,13 +44,8 @@ Stacktape supports inline alarms on six resource types. Each resource accepts a 
 | [HTTP API Gateway](/resources/networking/http-api-gateway) | `alarms` | `http-api-gateway-error-rate`, `http-api-gateway-latency` |
 | [Application Load Balancer](/resources/networking/application-load-balancer) | `alarms` | `application-load-balancer-error-rate`, `application-load-balancer-unhealthy-targets`, `application-load-balancer-custom` |
 | [SQS queue](/resources/messaging/sqs-queue) | `alarms` | `sqs-queue-received-messages-count`, `sqs-queue-not-empty` |
-| [Web service](/resources/compute/web-service) | `alarms` | HTTP API Gateway triggers OR Application Load Balancer triggers (depends on which networking mode the web service uses) |
 
-<Info>
-
-Web services accept alarm triggers from their underlying networking resource. If you configure your web service with `loadBalancing: 'application-load-balancer'`, use ALB trigger types. Otherwise, HTTP API Gateway triggers apply. Global alarm rules target the underlying resource types (HTTP API Gateway, Application Load Balancer) — not web services directly.
-
-</Info>
+Global alarm rules target these same five resource types. To monitor traffic for a [web service](/resources/compute/web-service), attach alarms to the underlying [HTTP API Gateway](/resources/networking/http-api-gateway) or [Application Load Balancer](/resources/networking/application-load-balancer) resource that fronts it.
 
 ## Trigger types
 
@@ -290,19 +285,9 @@ For database storage alarms, the defaults (`period: 60`, `evaluationPeriods: 1`,
 
 ## Notification targets
 
-Each alarm can send notifications to one or more targets when it fires. Stacktape supports five notification integration types:
+Each alarm can send notifications to one or more targets when it fires by configuring the `notificationTargets` array. Stacktape supports Slack, MS Teams, email, Discord, and webhook integration types.
 
-| Type | Key property | Notes |
-|---|---|---|
-| `slack` | `conversationId` + `accessToken` | Requires a Slack app with `chat:write` scope |
-| `ms-teams` | `webhookUrl` | Uses an Incoming Webhook connector |
-| `email` | `sender` + `recipient` | Both addresses required |
-| `discord` | `webhookUrl` | Uses a channel webhook |
-| `webhook` | `url` | Optional HMAC-SHA256 signing via `secret` |
-
-Notification targets are configured via the `notificationTargets` array on each alarm. For Slack, Teams, Discord, and webhook integrations, store credentials using [`$Secret()`](/configuration/directives) references.
-
-For a detailed guide on setting up each integration type, see [alert channels](/observability/alert-channels).
+For the full setup guide — including required scopes, webhook formats, credential handling via [`$Secret()`](/configuration/directives), and per-integration configuration properties — see [alert channels](/observability/alert-channels).
 
 ### Alarm description
 
@@ -310,7 +295,7 @@ Use the optional `description` property on an alarm to include a custom message 
 
 ### History tracking
 
-Alarm state changes appear in [alert history](/observability/alert-history) by default. Set `includeInHistory: false` on an alarm to exclude it — useful for noisy development-stage alarms that would clutter the history view.
+The `includeInHistory` property controls whether alarm state changes appear in monitoring history. It defaults to `true`. Set it to `false` on alarms whose state transitions you don't want recorded.
 
 ## Global alarm rules
 
@@ -340,7 +325,7 @@ At deploy time, Stacktape combines global alarm rules with inline alarms defined
 
 ### Disabling global alarms on specific resources
 
-If a global alarm rule doesn't make sense for a particular resource, use `disabledGlobalAlarms` to opt out by alarm name. This property is available on Lambda functions, relational databases, HTTP API Gateways, Application Load Balancers, SQS queues, and web services.
+If a global alarm rule doesn't make sense for a particular resource, use `disabledGlobalAlarms` to opt out by alarm name. This property is available on the five alarm-enabled resource types: Lambda functions, relational databases, HTTP API Gateways, Application Load Balancers, and SQS queues.
 
 This is useful when a resource has unusual characteristics — for example, a scheduled Lambda that runs long by design and would constantly trip a duration alarm:
 
@@ -375,24 +360,10 @@ The `disabledGlobalAlarms` array takes the alarm names as configured in the Cons
 
 ### CLI
 
-Use [`stacktape debug:alarms`](/cli/debug-alarms) to view the current state of all CloudWatch alarms for a deployed stack. The command shows each alarm's state (`OK`, `ALARM`, or `INSUFFICIENT_DATA`), the associated resource, metric name, threshold, comparison operator, and last update time.
-
-List all alarms for a stage:
+Use [`stacktape debug:alarms`](/cli/debug-alarms) to view CloudWatch alarms for a deployed stack. See the [CLI reference](/cli/debug-alarms) for the full list of flags and output details.
 
 ```bash
 stacktape debug:alarms --stage production --region eu-west-1
-```
-
-Filter by resource name to see alarms for a specific resource:
-
-```bash
-stacktape debug:alarms --stage production --region eu-west-1 --resourceName mainDb
-```
-
-Filter by alarm state to see only alarms currently firing:
-
-```bash
-stacktape debug:alarms --stage production --region eu-west-1 --state ALARM
 ```
 
 <Info>
@@ -409,15 +380,11 @@ The Stacktape Console provides an alarm rules page where you can view all global
 
 Alarm state changes can be used as event sources for [Lambda functions](/resources/compute/lambda-function). This enables automated remediation workflows. See [alarms as triggers](/configuration/triggers/alarms-as-triggers) for configuration details.
 
-## API reference
-
-<ApiReference definitionName="AlarmDefinitionBase" />
-
 ## FAQ
 
 ### Which resources support inline alarms?
 
-Stacktape supports inline alarms on [Lambda functions](/resources/compute/lambda-function), [relational databases](/resources/databases/relational-database), [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [SQS queues](/resources/messaging/sqs-queue), and [web services](/resources/compute/web-service). Web services accept the trigger types of their underlying networking resource (API Gateway or ALB). Global alarm rules target the five core resource types listed in the [supported resources](#supported-resources) table.
+Stacktape supports inline alarms on [Lambda functions](/resources/compute/lambda-function), [relational databases](/resources/databases/relational-database), [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), and [SQS queues](/resources/messaging/sqs-queue). Global alarm rules target the same five resource types. To monitor a [web service](/resources/compute/web-service), attach alarms to the HTTP API Gateway or Application Load Balancer resource that fronts it.
 
 ### How much do CloudWatch alarms cost?
 

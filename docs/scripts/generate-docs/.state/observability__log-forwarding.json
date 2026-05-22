@@ -2,7 +2,7 @@
   "pageId": "observability__log-forwarding",
   "pageRoute": "observability/log-forwarding",
   "startedAt": "2026-05-17T16:48:17.716Z",
-  "updatedAt": "2026-05-17T17:02:11.887Z",
+  "updatedAt": "2026-05-22T00:27:16.723Z",
   "iterations": [
     {
       "iteration": 1,
@@ -869,6 +869,627 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/observability__log-forwarding/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three destination types (Datadog, Highlight.io, HTTP endpoint) are documented with working, realistic code examples that follow the $Secret() pattern consistently — a first-timer can copy any example and start immediately.",
+            "The 'When to use' / 'When NOT to use' sections are peer H2s (not nested) and give concrete, opinionated guidance. The 'When NOT to use' section correctly names the alternative (built-in stacktape debug:logs) rather than just saying 'skip it'.",
+            "The destination comparison table ('Choosing a destination') is the kind of side-by-side summary that helps readers make a decision in 30 seconds — covers setup complexity, configurable retry, GZIP, custom metadata, and best-fit scenarios.",
+            "The FAQ covers all three required categories: Stacktape-specific questions (log format, forwarding vs CloudWatch), AWS-service questions (Firehose pricing, what happens when endpoint is down), and choosing questions (Datadog type vs HTTP endpoint type for Datadog). 10 entries, all genuinely distinct.",
+            "The 'How it works' section adds real architectural value: the numbered CloudWatch→Firehose→HTTPS→S3-backup flow explains WHY there is a backup bucket and what it means, which directly answers the 'what happens if my endpoint is down' question before the reader even reaches the FAQ.",
+            "No forbidden YAML blocks, no StacktapeConfig type imports, no fenced TypeScript blocks containing defineConfig — all Stacktape config examples are correctly wrapped in <CodeBlock intellisense tabs={[...]}/>.",
+            "The supported destinations table at the top of the configuration section is a fast-path anchor for readers who already know what they want — they can scan the table and jump straight to their destination section."
+          ],
+          "problems": [
+            "The <ApiReference definitionName=\"HttpEndpointLogForwardingProps\" /> covers only one of the three destination types on this page. Readers who finish the Datadog or Highlight.io sections and reach the API reference will not find those properties documented there. The page's root type should be LogForwardingBase (which holds the union of all three forwarding types), so the component's built-in drill-down can reach all three. Using only HttpEndpointLogForwardingProps leaves two-thirds of the documented surface outside the reference.",
+            "The Datadog section uses two separate CodeBlock examples (basic + EU endpoint override) where a single example with a prose sentence explaining the endpointUrl override would be cleaner. A first-timer scanning the page sees two full defineConfig blocks for the same destination, which adds cognitive load without meaningful new patterns.",
+            "The 'Logs remain in CloudWatch' subsection inside 'How it works' restates content already in the intro paragraph ('Forwarding creates a copy of log events') and the first FAQ Q&A ('Do forwarded logs still appear in CloudWatch?'). The repetition offers no new detail and pads the section.",
+            "The FAQ answer to 'Can I forward logs from a relational database or Redis cluster?' is deliberately vague: 'Resources that produce CloudWatch Logs and expose a logging property with logForwarding support this feature.' This does not name which resources qualify and leaves the reader no better off than before asking. Either name the resource types or link to a page that does.",
+            "The H2 'When to use log forwarding' and 'When NOT to use log forwarding' are 7 words each — above the recommended 1-5 word limit for H2 headings. The style guide targets short noun-form labels; these read as full sentences. Shorter forms like 'When to use' / 'When not to use' are conventional enough to be unambiguous in context."
+          ],
+          "mandatoryFixes": [
+            "Change <ApiReference definitionName=\"HttpEndpointLogForwardingProps\" /> to use the page's root type. Based on the source file, LogForwardingBase is the interface that owns the logForwarding union of all three destination types (DatadogLogForwarding | HighlightLogForwarding | HttpEndpointLogForwarding). Using that as the definitionName lets the component's drill-down reach all three forwarding types, which matches the page's full scope. Using only HttpEndpointLogForwardingProps means Datadog and Highlight properties are absent from the reference section."
+          ],
+          "optionalImprovements": [
+            "Collapse the two Datadog code examples into one. Keep the basic example with apiKey, then add a single prose sentence like: 'For EU-region Datadog accounts, set endpointUrl to https://aws-kinesis-http-intake.logs.datadoghq.eu/v1/input.' This preserves the information without a second full defineConfig block.",
+            "Remove or merge the 'Logs remain in CloudWatch' subsection inside 'How it works' — its content is fully covered by the intro and FAQ. If retained, replace it with a concrete call-out: which CloudWatch commands or Console views remain usable alongside forwarding (link to /cli/debug-logs and the Console logs page).",
+            "Improve the vague FAQ answer about relational databases and Redis. Either name which resource types expose logging.logForwarding (e.g. LambdaFunction, WebService, WorkerService, etc.) or say explicitly 'check each resource's API reference for a logging property — if it exists, logForwarding is supported within it' and link to the API reference page for one example resource.",
+            "The <Tip> callout ('Check the backup S3 bucket periodically') could be folded into the Failure handling prose with no loss — it doesn't need the visual callout treatment since it's already inside a dedicated subsection. Reducing callout use keeps the page's visual weight consistent.",
+            "Shorten H2 headings 'When to use log forwarding' and 'When NOT to use log forwarding' to 'When to use' and 'When not to use'. The page context makes the subject (log forwarding) clear without appending it to every heading.",
+            "Add a one-sentence pricing callout near the top of the page anchored to the source's JSDoc: 'Kinesis Data Firehose charges approximately $0.03/GB of data ingested; failed deliveries incur S3 storage costs for the backup bucket.' The source file's JSDoc for logForwarding includes this figure and it helps readers make a cost-conscious decision before configuring forwarding."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "All three destination types are covered with working code examples, not just the first one — this is genuinely complete on the happy path.",
+            "The comparison table (Choosing a destination) concisely surfaces retry/GZIP/metadata support differences across types, which is exactly what an engineer needs before picking a type.",
+            "Failure handling is documented explicitly: retry duration, backup S3 bucket, what 'failed deliveries' means — this is the kind of operational detail that matters at 2am.",
+            "The FAQ covers a genuinely useful spread: format, downtime behavior, cost, destination choice, filtering — all questions an engineer would actually search for.",
+            "EU Datadog endpoint is called out with a concrete example — a common gotcha that would otherwise require reading Datadog's own docs.",
+            "The $Secret() directive is correctly used and reinforced in every example, never hardcoded keys.",
+            "The 'When NOT to use' section is peer H2 (not nested under 'When to use') as required."
+          ],
+          "problems": [
+            "The `<ApiReference definitionName=\"HttpEndpointLogForwardingProps\" />` at the bottom covers only one of three destination types. An engineer looking up DatadogLogForwardingProps or HighlightLogForwardingProps will find nothing in the API reference section — the two simpler (and most commonly used) destination configs are absent. The correct root type is `LogForwardingBase`, whose `logForwarding` union property drills into all three variants.",
+            "The page never tells the reader which Stacktape resource types support `logging.logForwarding`. An engineer working on a RelationalDatabase or RedisCluster cannot determine from this page whether those resources expose the `logging` block with `logForwarding`. This is the most common practical question a reader will arrive with.",
+            "FAQ question 10 ('Can I forward logs from a relational database or Redis cluster?') gives a circular non-answer: 'Resources that produce CloudWatch Logs and expose a `logging` property with `logForwarding` support this feature.' The engineer asking this question already knows that — they want to know whether their specific resource type qualifies.",
+            "The 'Logs remain in CloudWatch' subsection inside 'How it works' repeats a point already made in 'When NOT to use log forwarding'. This is padding inside an otherwise useful section.",
+            "The source JSDoc on `LogForwardingBase.logForwarding` documents a concrete price ('~$0.03/GB') that is never surfaced prominently. The FAQ answer about Firehose cost uses vague 'a few dollars per month' language instead of citing the source figure."
+          ],
+          "mandatoryFixes": [
+            "Replace `<ApiReference definitionName=\"HttpEndpointLogForwardingProps\" />` with `<ApiReference definitionName=\"LogForwardingBase\" />`. The page documents all three destination types but the current ApiReference only exposes HTTP endpoint properties. `LogForwardingBase` is the root interface whose `logForwarding` union covers all three variants — engineers looking up Datadog or Highlight properties will find them through its drill-down. Using a leaf props type as the page-level API reference leaves two thirds of the documented surface invisible in the reference section."
+          ],
+          "optionalImprovements": [
+            "Add a one-paragraph section (or a callout near the top) listing which Stacktape resource types expose `logging.logForwarding`. Even a partial list (LambdaFunction, WebService, WorkerService, etc.) prevents engineers from wasting a deploy cycle discovering an unsupported resource type.",
+            "Replace the circular FAQ answer 10 with either a concrete list of supported resource types or an honest 'check the resource's API reference for a `logging.logForwarding` property' instruction. The current phrasing adds no information.",
+            "Surface the source-documented Firehose price (~$0.03/GB) in an `<Info>` callout near the top of the page, consistent with the JSDoc on `LogForwardingBase.logForwarding`. The FAQ currently soft-pedals this with 'a few dollars per month' which understates predictability for high-volume log producers.",
+            "Trim or fold 'Logs remain in CloudWatch' into the opening description of 'How it works' rather than a standalone H3 — it's one sentence of new content wrapped in a Tip callout and a paragraph that already appeared in 'When NOT to use'.",
+            "The two Datadog code examples (US and EU) could be collapsed into a single example using a comment-free inline `endpointUrl` override, reducing the page's CodeBlock count from 5 to 4 without losing any information. The current structure implies EU is an unusual edge case requiring a separate resource definition, when it is just a single property override."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and within the expected snippet length.",
+            "Destination variants are named clearly, and the comparison table helps readers choose between Datadog, Highlight.io, and a custom HTTP endpoint.",
+            "The page correctly avoids hand-authored YAML and uses <CodeBlock intellisense tabs={[...]}/> for Stacktape config examples.",
+            "The custom HTTP endpoint section explains the important supported properties, including defaults for gzipEncodingEnabled and retryDuration that are present in the source."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source file, including CloudWatch subscription mechanics, near-real-time delivery, encrypted backup S3 buckets, log record format, successfully delivered logs not being duplicated to S3, and Stacktape Console visibility.",
+            "The config examples import and instantiate DatadogLogForwarding, HighlightLogForwarding, and HttpEndpointLogForwarding classes, but the provided source only defines interfaces and props shapes for these destination types. As written, the examples may not be copy-paste runnable.",
+            "The page claims the logForwarding property is configured within a resource's logging configuration, but the only provided source shows LogForwardingBase and does not prove which resources expose it or the exact nesting path.",
+            "The FAQ contains unsupported AWS and third-party integration claims, such as Grafana Cloud accepting Firehose-formatted log delivery, Datadog and Highlight parsing the format natively, and Firehose having no delivery stream resource charge.",
+            "The API reference only points to HttpEndpointLogForwardingProps even though the page covers the full logForwarding union, Datadog props, and Highlight props. This leaves two destination types under-documented.",
+            "The page includes cost content in multiple places despite the observability instruction saying cost is a separate section and should not be included here except as links to managing-costs pages.",
+            "Some destination examples set tunable values without enough source-grounded alternatives, especially WebService resources, WorkerService resources, cpu/memory values, and endpoint URLs beyond the defaults documented in the source."
+          ],
+          "mandatoryFixes": [
+            "Replace unsupported class-based log forwarding helper usage with a source-grounded configuration form, or cite source that proves DatadogLogForwarding, HighlightLogForwarding, and HttpEndpointLogForwarding are exported constructors before keeping those examples.",
+            "Remove or narrow unsupported claims about CloudWatch subscription filters, near-real-time delivery, log record format, encrypted S3 backup buckets, successful-delivery duplication behavior, Console log viewing, and third-party parser support unless additional source files prove them.",
+            "Correct the resource/nesting wording: say only that LogForwardingBase exposes an optional logForwarding property unless source files for specific resource logging blocks prove the exact logging.logForwarding path.",
+            "Revise the API reference strategy so the page exposes the full documented surface for log forwarding, not only HttpEndpointLogForwardingProps. If a root generated schema definition exists for LogForwardingBase, use that; otherwise explain all three prop types in prose without implying the API reference covers them all.",
+            "Move cost claims out of the observability content or reduce them to the source-grounded pricing line from the JSDoc with a link to /managing-costs/overview. Do not add unsupported estimates like 'a few dollars per month'."
+          ],
+          "optionalImprovements": [
+            "Add a short, source-grounded note near the top: log forwarding uses Kinesis Data Firehose at approximately ~$0.03/GB and failed deliveries go to a backup S3 bucket.",
+            "Trim the FAQ to questions the provided source can support, or clearly separate general AWS/third-party background from Stacktape-specific behavior.",
+            "Make the 'How it works' section more cautious: describe only the source-backed Firehose delivery stream and backup S3 behavior unless additional runtime code is provided.",
+            "Avoid naming third-party platforms like Splunk, New Relic, Mezmo, and Grafana Cloud as supported HTTP destinations unless source or vendor documentation is included; 'any HTTPS endpoint' is already grounded and sufficient.",
+            "Add a compact table of destination properties that includes defaults for Datadog endpointUrl, Highlight endpointUrl, gzipEncodingEnabled, and retryDuration."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is generally aligned with the provided log-forwarding type source and avoids the forbidden Stacktape config patterns. The main issues are unsupported claims about delivery format, encryption, all-logs behavior, and an API reference that only covers one destination variant instead of the full logForwarding union.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Firehose delivers logs in the CloudWatch Logs subscription filter format — each record contains the log group name, log stream name, and the raw log event message. Datadog and Highlight.io parse this format natively.”",
+              "reason": "The provided source only says Stacktape forwards CloudWatch logs through Kinesis Data Firehose to external destinations. It does not document the payload schema, record fields, or native parsing behavior by Datadog or Highlight.io.",
+              "suggestedFix": "Narrow this answer to the sourced behavior: logs are delivered through Kinesis Data Firehose to the configured HTTPS destination. If payload format matters, tell readers to validate the destination’s Firehose/CloudWatch Logs intake requirements.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“After retries are exhausted, failed batches are stored in an encrypted S3 backup bucket in your AWS account.”",
+              "reason": "The source supports that failed deliveries go to a backup S3 bucket, but it does not state that the bucket is encrypted. Encryption is a material security claim and should not be added without source support.",
+              "suggestedFix": "Remove “encrypted” unless a higher-priority source documents encryption. Write: “After retries are exhausted, failed batches are stored in a backup S3 bucket.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "Failed deliveries go to a backup S3 bucket."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "Total retry time (seconds) before sending failed logs to a backup S3 bucket."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“All log events from the resource's log group are forwarded to the configured destination.”",
+              "reason": "The source documents the absence of a filter property only indirectly by listing the logForwarding union and destination props. It does not explicitly define subscription-filter behavior or guarantee that every log event from the resource log group is forwarded.",
+              "suggestedFix": "Keep the supported part and avoid the exhaustive guarantee: “The documented logForwarding properties do not include a filter option. If you need filtering, apply it in the destination or ingestion layer.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "interface HttpEndpointLogForwardingProps {\n  /**\n   * #### HTTPS endpoint URL where logs are sent.\n   */\n  endpointUrl: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The API reference uses only `<ApiReference definitionName=\"HttpEndpointLogForwardingProps\" />` even though the page documents all three destination variants: `http-endpoint`, `datadog`, and `highlight`.",
+              "reason": "The page is about log forwarding as a union, not only the custom HTTP endpoint properties. Readers looking up Datadog or Highlight properties will not see their variant-specific props in the API reference.",
+              "suggestedFix": "Use an API reference that matches the page’s documented surface if available, or add concise source-grounded tables for `DatadogLogForwardingProps` and `HighlightLogForwardingProps` near the API reference. Do not leave the bottom reference implying only HTTP endpoint props exist.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "interface HighlightLogForwardingProps {\n  /**\n   * #### Your Highlight.io project ID (from the Highlight console).\n   */\n  projectId: string;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "interface DatadogLogForwardingProps {\n  /**\n   * #### Your Datadog API key. Store as `$Secret()` for security.\n   */\n  apiKey: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `endpointUrl` property accepts any valid Datadog intake endpoint.”",
+              "reason": "The source says the Datadog endpoint can be overridden and recommends the EU URL for EU accounts, but it does not define the accepted universe as “any valid Datadog intake endpoint.” That wording is broader than the source.",
+              "suggestedFix": "Write: “The optional `endpointUrl` overrides the default Datadog endpoint. Use the EU URL when your Datadog account is in the EU region.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "#### Datadog endpoint. Use the EU URL if your account is in the EU region.\n   * @default \"https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input\"\n   */\n  endpointUrl?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Project ID sent as `x-highlight-project` attribute.”",
+              "reason": "The authoritative type source only says the Highlight project ID is a required property and identifies the endpoint default. It does not specify the transport header or attribute name used for Highlight.",
+              "suggestedFix": "Remove the transport-level header name from the table. Use: “Project ID passed to Highlight.io” or “Project ID used by the Highlight destination.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "interface HighlightLogForwardingProps {\n  /**\n   * #### Your Highlight.io project ID (from the Highlight console).\n   */\n  projectId: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“There is no charge for the delivery stream resource itself — you pay only for the volume of log data processed.”",
+              "reason": "The provided Stacktape source includes only the approximate Firehose per-GB price. It does not document the full Firehose billing model or assert that the delivery stream resource itself has no separate charge.",
+              "suggestedFix": "Keep the sourced pricing line only: “Stacktape’s source notes Kinesis Data Firehose at approximately ~$0.03/GB, with regional variation.” Link to cost docs for broader billing guidance.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape config examples and does not hand-author YAML examples.",
+            "The three destination variants in the `logForwarding` union are all acknowledged: `http-endpoint`, `highlight`, and `datadog`.",
+            "The documented defaults for `gzipEncodingEnabled`, `retryDuration`, Datadog `endpointUrl`, and Highlight `endpointUrl` match the provided type source.",
+            "The first mention of `stacktape debug:logs` links to `/cli/debug-logs`, which is present in the navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided log-forwarding type source and uses the required TypeScript CodeBlock style for Stacktape config examples. The main factual risks are unsupported implementation details around Highlight metadata, provider-specific HTTP compatibility, S3 encryption/replay guarantees, and overly broad claims about which resources support forwarding.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Highlight.io | `highlight` | `projectId` | Project ID sent as `x-highlight-project` attribute”",
+              "reason": "The source only documents that Highlight forwarding requires a `projectId` and optionally an `endpointUrl`. It does not specify that Stacktape sends the project ID in an `x-highlight-project` attribute/header. This is a concrete transport-detail claim that readers could depend on when debugging or self-hosting Highlight.",
+              "suggestedFix": "Narrow the wording to the sourced fact: “Project ID required by the Highlight.io Firehose endpoint.” Avoid naming a header or attribute unless source code confirms it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "interface HighlightLogForwardingProps {\n  /**\n   * #### Your Highlight.io project ID (from the Highlight console).\n   */\n  projectId: string;\n  /**\n   * #### Highlight.io endpoint. Override for self-hosted or regional endpoints.\n   * @default \"https://pub.highlight.io/v1/logs/firehose\"\n   */\n  endpointUrl?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Can I use a custom HTTP endpoint for Grafana Cloud Logs? Yes. Grafana Cloud Logs accepts Firehose-formatted log delivery over HTTPS.”",
+              "reason": "The provided Stacktape source says the HTTP endpoint variant can send to any HTTP endpoint, but it does not document Grafana Cloud Logs compatibility or Firehose-formatted delivery support. This provider-specific compatibility claim could make readers choose a destination configuration that may not work as written.",
+              "suggestedFix": "Rephrase as a cautious Stacktape-specific answer: “Use `type: 'http-endpoint'` for services that expose an HTTPS Firehose-compatible ingestion endpoint. For Grafana Cloud, verify the exact endpoint URL, authentication method, and payload format in Grafana’s documentation.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "interface HttpEndpointLogForwardingProps {\n  /**\n   * #### HTTPS endpoint URL where logs are sent.\n   */\n  endpointUrl: string;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "* #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Most managed log platforms (Grafana Cloud, Splunk HEC, New Relic) accept GZIP.”",
+              "reason": "The source documents only that `gzipEncodingEnabled` compresses the request body with GZIP. It does not document which third-party platforms accept GZIP. This is an external compatibility claim attached to a Stacktape setting.",
+              "suggestedFix": "Use conditional wording: “Enable this only when your destination’s ingestion endpoint documents support for GZIP-encoded Firehose requests.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "  /**\n   * #### Compress request body with GZIP to reduce transfer costs.\n   * @default false\n   */\n  gzipEncodingEnabled?: boolean;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After retries are exhausted, failed batches are stored in an encrypted S3 backup bucket in your AWS account. Logs are not lost — they can be retrieved from S3 and replayed to your destination once it recovers.”",
+              "reason": "The source only says failed deliveries go to a backup S3 bucket. It does not state that the bucket is encrypted, that logs are guaranteed not to be lost, or that replay is supported by Stacktape. Those claims affect operational and compliance expectations.",
+              "suggestedFix": "Say: “After retries are exhausted, failed deliveries go to a backup S3 bucket. You can inspect that bucket when debugging delivery failures.” Remove “encrypted,” “not lost,” and “replayed” unless implementation source confirms them.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "* Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "   * #### Total retry time (seconds) before sending failed logs to a backup S3 bucket.\n   * @default 300"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The default endpoint is `https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input`, which targets Datadog's US region.”",
+              "reason": "The default URL is sourced, and the source says to use the EU URL for EU accounts, but it does not explicitly state that the default endpoint targets Datadog’s US region. This is likely true Datadog context, but the Stacktape source only supports “default endpoint” and “EU override.”",
+              "suggestedFix": "Write: “The default endpoint is `https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input`. Use the EU URL if your Datadog account is in the EU region.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "  /**\n   * #### Datadog endpoint. Use the EU URL if your account is in the EU region.\n   * @default \"https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input\"\n   */\n  endpointUrl?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“All log events from the resource's log group are forwarded to the configured destination.”",
+              "reason": "The source documents no filter option on `logForwarding`, but it also does not specify exact subscription filter behavior or that all log events are forwarded. The prompt explicitly warns against negative claims based only on omitted properties; this is similar because it turns an absent filter property into an exhaustive behavior claim.",
+              "suggestedFix": "Narrow to: “The documented `logForwarding` shape does not expose a filter option. If you need filtering, plan to filter at the destination or in your ingestion layer.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "interface HttpEndpointLogForwardingProps {\n  /**\n   * #### HTTPS endpoint URL where logs are sent.\n   */\n  endpointUrl: string;\n  /**\n   * #### Compress request body with GZIP to reduce transfer costs.\n   * @default false\n   */\n  gzipEncodingEnabled?: boolean;\n  /**\n   * #### Extra metadata sent in the `X-Amz-Firehose-Common-Attributes` header.\n   */\n  parameters?: { [paramName: string]: string };\n  /**\n   * #### Total retry time (seconds) before sending failed logs to a backup S3 bucket.\n   * @default 300\n   */\n  retryDuration?: number;\n  /**\n   * #### Auth credential sent in `X-Amz-Firehose-Access-Key` header. Store as `$Secret()` for security.\n   */\n  accessKey?: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I forward logs from a relational database or Redis cluster? Resources that produce CloudWatch Logs and expose a `logging` property with `logForwarding` support this feature.”",
+              "reason": "The provided source only defines the `LogForwardingBase` interface. It does not list relational database or Redis logging types, so the draft cannot imply those resource families support `logging.logForwarding` from this source set.",
+              "suggestedFix": "Keep the general rule and remove the resource examples: “Log forwarding is available on resource logging configurations that extend `LogForwardingBase`. Check the API reference for the specific resource before configuring it.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "interface LogForwardingBase {\n  /**\n   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n   *\n   * ---\n   *\n   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.\n   */\n  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“<Tip>Check the backup S3 bucket periodically if you suspect log delivery failures. The bucket is created automatically in your AWS account when log forwarding is enabled.</Tip>”",
+              "reason": "The source confirms failed deliveries go to a backup S3 bucket, and the generated prose says the bucket is in the AWS account, but the provided authoritative type source does not explicitly say the bucket is automatically created or how users locate it. This is plausible but not strongly grounded in the provided code-level source.",
+              "suggestedFix": "Use narrower wording: “Failed deliveries go to a backup S3 bucket. If delivery fails, inspect the deployed AWS resources for the Firehose backup bucket.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly documents the three supported `logForwarding` variants: `http-endpoint`, `datadog`, and `highlight`.",
+            "The HTTP endpoint properties, defaults for `gzipEncodingEnabled` and `retryDuration`, and the Datadog/Highlight default endpoint values match the provided type source.",
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and avoid hand-authored YAML or `StacktapeConfig` typed examples.",
+            "The first mention of `stacktape debug:logs` links to `/cli/debug-logs`, matching the documented CLI route."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 4, col 9: 'api' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 12, col 29: Cannot find name 'datadog'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 12, col 29: Argument of type 'number' is not assignable to parameter of type 'string'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 12, col 37: Block-scoped variable 'api' used before its declaration.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 12, col 41: Cannot find name 'key'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 16, col 29: Cannot find name 'datadog'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 16, col 29: Argument of type 'number' is not assignable to parameter of type 'string'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 16, col 37: Cannot find name 'api'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 16, col 41: Cannot find name 'key'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 3, col 29: Argument of type '() => void' is not assignable to parameter of type '(params: GetConfigParams) => StacktapeConfig'.\n  Type 'void' is not assignable to type 'StacktapeConfig'.\n    Type 'void' is not assignable to type 'Omit<StacktapeConfig, \"resources\" | \"cloudformationResources\" | \"scripts\">'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 4, col 9: 'api' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 4, col 19: No overload matches this call.\n  Overload 1 of 2, '(properties: LambdaFunctionProps): LambdaFunction', gave the following error.\n    Type 'number' is not assignable to type 'HttpEndpointLogForwardingProps'.\n  Overload 2 of 2, '(name: string, properties: LambdaFunctionProps): LambdaFunction', gave the following error.\n    Argument of type '{ packaging: StacktapeLambdaBuildpackPackaging; logging: { logForwarding: { type: \"http-endpoint\"; properties: number; production: any; }; }; }' is not assignable to parameter of type 'string'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 11, col 23: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 13, col 32: Cannot find name 'log'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 13, col 32: Argument of type 'number' is not assignable to parameter of type 'string'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 13, col 36: Cannot find name 'ingest'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 13, col 43: Block-scoped variable 'api' used before its declaration.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 13, col 47: Cannot find name 'key'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 16, col 25: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 17, col 15: No value exists in scope for the shorthand property 'x'. Either declare one or provide an initializer.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 17, col 16: ',' expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 17, col 17: Cannot find name 'source'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 17, col 23: ',' expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 17, col 36: ':' expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 18, col 15: No value exists in scope for the shorthand property 'x'. Either declare one or provide an initializer.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 18, col 16: ',' expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 18, col 17: Cannot find name 'environment'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 18, col 28: ',' expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 19, col 13: ':' expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 22, col 7: ',' expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 23, col 5: ',' expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 28, col 1: Declaration or statement expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 28, col 2: Declaration or statement expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -884,5 +1505,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\observability\\log-forwarding.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 6.8, hard blockers 3, advisory high 0, verifier medium 17"
+  "pipelineReviewSummary": "reviewer-avg 6.8, hard blockers 3, advisory high 0, verifier medium 17",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

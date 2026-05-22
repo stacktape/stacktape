@@ -2,7 +2,7 @@
   "pageId": "configuration__hooks-and-scripts",
   "pageRoute": "configuration/hooks-and-scripts",
   "startedAt": "2026-05-16T17:07:31.972Z",
-  "updatedAt": "2026-05-16T17:47:20.053Z",
+  "updatedAt": "2026-05-22T02:24:00.150Z",
   "iterations": [
     {
       "iteration": 1,
@@ -797,20 +797,577 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__hooks-and-scripts/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comparison table for the three script types (local-script, local-script-with-bastion-tunneling, bastion-script) immediately anchors the decision — reader knows which to reach for before reading any example.",
+            "All three script types have working, realistic code examples with concrete real-world scenarios (warm-cache, seed-data, redis-cli) — not toy examples.",
+            "Hooks lifecycle event table is exhaustive, well-labelled, and actionable — the 'Common use' column is especially helpful for a first-time reader.",
+            "Decision support is present throughout: explicit 'use X when Y, use Z when W' guidance appears in the script-type table, the bastion tunneling section, and the FAQ.",
+            "FAQ covers all three required categories: Stacktape-specific questions, underlying AWS/runtime questions (TypeScript/Python execution), and comparison questions (hooks vs deployment scripts, bastion tunneling vs bastion script). Ten entries, none synthetic.",
+            "The `skipOnCI` / `skipOnLocal` conditional execution section explains both flags and pairs them with the worked example in the hooks code block — so the feature is introduced, demonstrated, and applied in one flow.",
+            "The `assumeRoleOfResource` section appropriately marks itself as an advanced feature, names the credential injection mechanism, and lists the constraint (resource must be deployed first)."
+          ],
+          "problems": [
+            "Internal env-var inconsistency: the prose after the first `local-script` code block says `STP_UPLOADS_BUCKET_NAME`, but the 'Environment variables in scripts' section says connecting to a Bucket named `uploads` injects `STP_UPLOADS_NAME` and `STP_UPLOADS_ARN`. One of these names is wrong. This is a factual inconsistency within the same page that will confuse a first-time reader trying to access the variable in their code.",
+            "H2 'When to use deployment scripts instead' is 6 words and reads like a guidance phrase rather than a compact noun-form label. The style guide requires 1-5 word H2 labels. This section heading violates the overly-long-heading rule and drags down scannability.",
+            "The 'Environment variables in scripts' table lists variable suffix forms (NAME, ARN, HOST, etc.) without the `STP_[RESOURCE_NAME]_` prefix, making it ambiguous whether readers should prepend the prefix themselves. The prose example above gives `STP_UPLOADS_NAME` but the table reads as if NAME alone is the variable name."
+          ],
+          "mandatoryFixes": [
+            "Fix the env-var name inconsistency: the prose after the first code block says `STP_UPLOADS_BUCKET_NAME`; the 'Environment variables in scripts' section says `STP_UPLOADS_NAME`. Verify the correct variable name from the source (the `connectTo` JSDoc in `types/stacktape-config/__helpers.d.ts`) and use it consistently throughout the page, including in both locations and in the connectTo table.",
+            "Shorten the H2 'When to use deployment scripts instead' to a compact 1–5 word noun-form label, e.g. 'Deployment scripts' or 'vs Deployment scripts'. Per the style guide, H2 headings must not read like full sentences or guidance phrases."
+          ],
+          "optionalImprovements": [
+            "In the 'Environment variables in scripts' table, show full `STP_[RESOURCE_NAME]_` prefixed column headers or a header note like '(prefixed with STP_[RESOURCE_NAME]_)' so readers don't have to mentally assemble the variable name themselves.",
+            "The 'Assuming IAM roles' section lists a specific set of supported resource types (`function`, `batch-job`, `worker-service`, etc.). Consider a one-line note pointing to the API reference or source for the authoritative list, since this enumeration is hard to keep current in prose.",
+            "Add a one-sentence note in the `executeScript` / `executeScripts` description about how the runtime is resolved (e.g., Node for .ts files, Python interpreter for .py files) — the current FAQ mentions 'determined by `defaults:configure` or the system default' but this is buried; a single sentence in the main Scripts section would reduce confusion for first-time users.",
+            "The `<Warning>` about afterDeploy hook failures could add one sentence about writing idempotent migration scripts — this is a common gotcha (re-running a non-idempotent migration breaks data) that a first-time reader will hit."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three script types are covered with equal depth — each has its own example, a clear when-to-use signal, and explicit tradeoffs (e.g. 'Bastion scripts are limited to tools pre-installed on the bastion host — for most workflows, bastion tunneling is the better choice'). No variant is treated as a one-liner afterthought.",
+            "The lifecycle events table (beforeDeploy through afterDev with 'Common use' column) is immediately actionable for an engineer wiring up automation — covers every hook without requiring them to enumerate the CLI docs.",
+            "The FAQ spans all three required categories: Stacktape-specific, AWS/service-level, and comparison/choosing. Ten well-chosen questions; none feel padded.",
+            "The 'skipOnCI / skipOnLocal' section explicitly explains BOTH flags with concrete scenarios ('opening a browser' vs. 'uploading test reports'), which is exactly the kind of detail engineers get wrong the first time.",
+            "The 'When to use deployment scripts instead' section provides a genuine comparison rather than just linking away, helping engineers avoid over-engineering with a deployment-script resource when a local script is sufficient."
+          ],
+          "problems": [
+            "INTERNAL INCONSISTENCY — env var naming: The prose in the Local script section says connectTo injects 'STP_UPLOADS_BUCKET_NAME', but the Environment variables table lists Bucket as injecting 'NAME' and 'ARN' (which would map to STP_UPLOADS_NAME and STP_UPLOADS_ARN). An engineer configuring scripts will use one of these and their script will silently fail. Both cannot be correct.",
+            "UNGROUNDED specifics in assumeRoleOfResource: The page provides a specific enumerated list of supported resource types for role assumption ('function', 'batch-job', 'worker-service', 'web-service', 'private-service', 'multi-container-workload', plus all SSR types). This list is not in any provided source file. If any entry is missing or wrong, engineers debugging a broken script will waste significant time.",
+            "UNGROUNDED constraint claim: 'Each script must define exactly one execution method' is stated as a hard rule, but the LocalScript/BastionScript type definitions are not in the provided source files — this can't be verified and, if wrong, misleads engineers about what configurations are valid.",
+            "UNGROUNDED defaults: 'pipeStdio defaults to true' and 'cwd on bastion scripts defaults to /' are stated as facts not present in the provided source. Engineers relying on these defaults in production configs will be surprised if they're wrong.",
+            "The env vars table (Bucket, RelationalDatabase, RedisCluster, DynamoDbTable, SqsQueue with specific variable names) is stated without source grounding — the type definitions for these connectTo injections are not in the provided source files. The Bucket row is already internally contradicted by the prose."
+          ],
+          "mandatoryFixes": [
+            "Fix the internal contradiction between the prose ('STP_UPLOADS_BUCKET_NAME') and the Environment variables table ('NAME', 'ARN' for Bucket — implying STP_UPLOADS_NAME). Verify the correct variable name suffix from the connectTo JSDoc in types/stacktape-config/__helpers.d.ts and use it consistently in both locations. This is a concrete wrong claim that will break engineer scripts.",
+            "Either ground the assumeRoleOfResource supported resource types list against the LocalScript type definition, or rewrite the sentence to say 'the resource must be a workload type (Lambda function, container service, batch job, or SSR frontend) — check the API reference for the complete list.' An enumerated list that may be wrong or incomplete in this context is worse than a directive to check the source."
+          ],
+          "optionalImprovements": [
+            "Replace or prominently caveat the env vars table with a note that the connecting-resources page is the authoritative source for injected variable names — a partial inline table with potentially wrong names creates a maintenance hazard. Consider showing only one verified example (e.g., RelationalDatabase → CONNECTION_STRING) and linking to the full reference rather than listing all resource types.",
+            "Add one sentence about hook failure propagation: if a script in a multi-script hook exits non-zero, does the subsequent scripts run or does the hook abort? Engineers adding multi-step afterDeploy hooks (e.g., migrate then seed) need this behavior to be explicit. The FAQ only addresses 'what to do if afterDeploy fails' — not whether subsequent scripts in the same hook are affected.",
+            "The 'executeScript runtime is determined by defaults:configure' claim should be qualified with where to find the current defaults, since engineers setting up a CI pipeline need to know the fallback behavior when no default is configured.",
+            "The Info callout about beforeDelete/afterDelete only running when --configPath and --stage are provided could be elevated to a Warning — engineers who skip those flags and expect cleanup scripts to run will get silent non-execution with no error message."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Answer-first paragraph is concise (under 75 words) and self-contained — explains both concepts (scripts and hooks) and their relationship without meta-framing.",
+            "Script type comparison table at the top of the Scripts section immediately orients the reader before any prose deep-dive — one of the most extractable elements on the page.",
+            "All three script types (local-script, local-script-with-bastion-tunneling, bastion-script) are documented with roughly equal depth: an H3 header, a realistic code example, and prose covering tradeoffs and constraints. No variant is buried in a one-liner.",
+            "Lifecycle events table with 8 rows is comprehensive and scannable; each row names the hook, firing moment, and common use case — ideal for AI snippet extraction.",
+            "Decision support is present throughout: the script type table has a 'Best for' column, the skipOnCI/skipOnLocal section explains each flag's scenario, and the 'When to use deployment scripts instead' section closes the loop for the natural comparison.",
+            "FAQ spans all three required categories: Stacktape-specific questions (how do I run a migration?), use-case questions (what happens if afterDeploy fails?), and comparison questions (hooks vs deployment scripts?, bastion tunneling vs bastion script?). 10 pairs, no filler.",
+            "No forbidden patterns detected: no fenced YAML Stacktape config, no StacktapeConfig type import, no fenced TypeScript with defineConfig, no marketing language, no multi-command bash blocks.",
+            "assumeRoleOfResource section names the concrete list of supported resource types and explains the credential injection mechanism — actionable and specific.",
+            "All CodeBlock examples use the correct TypeScript + defineConfig + class-based form with focus markers and imports hidden from rendered view."
+          ],
+          "problems": [
+            "The environment variable table in 'Environment variables in scripts' shows partial variable suffixes (NAME, ARN, CONNECTION_STRING, HOST, PORT, etc.) without the STP_[RESOURCE_NAME]_ prefix in each row. Although the preceding prose states the pattern, the table column header 'Injected variables' implies these are the complete names. A reader extracting the table alone will be confused about whether to type `NAME` or `STP_UPLOADS_NAME`. The column header or each value should make the partial-suffix nature explicit.",
+            "The 'Running scripts manually' section consists of a single sentence, one code block, and a second sentence linking to the CLI reference. By AEO and completeness standards this is too thin — it has no prose about common flags (--stage, --region), no mention of what output looks like, and no decision context. It reads as a placeholder rather than a section.",
+            "The CLI link to `/cli/script-run` referenced in 'Running scripts manually' and the FAQ appears to be ungrounded — the git status shows `deployment-script-run.mdx` but no `script-run.mdx` or equivalent. If this page does not exist, the link is broken and reduces practical usefulness.",
+            "The bastion script code example uses `$STP_CACHE_HOST` and `$STP_CACHE_PORT` inline in a shell command inside `executeCommand`. The page never explains that these variables (injected by `connectTo: ['cache']`) are available in shell commands as standard environment variables. A reader unfamiliar with the connectTo injection mechanism may not know how the variable gets there at runtime.",
+            "No `<ApiReference>` component is present. While concept pages may omit it when no clear root type exists, the `scripts` and `hooks` top-level config sections are configurable types. Omitting the component entirely means readers have no drill-down path to the full property reference from this page — they must navigate elsewhere to discover options like `pipeStdio`, `workingDir`, or specific hook entry properties."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the environment variable table, rename the 'Injected variables' column to 'Injected variable suffixes' (or similar) and add a table caption or note: 'Each suffix is prefixed with STP_[RESOURCE_NAME]_ at runtime — e.g., STP_UPLOADS_NAME for a resource named uploads.' This prevents misreading the table as complete variable names.",
+            "Expand 'Running scripts manually' to 3-5 sentences: note that `--stage` and `--region` are required when targeting a non-default stack, mention that script output is printed to the terminal by default, and briefly note that non-zero exit codes surface as CLI errors. Also verify and correct the /cli/script-run link target.",
+            "In the bastion script example, add a sentence after the code block explaining that environment variables injected by `connectTo` (like `STP_CACHE_HOST`) are available as standard shell environment variables inside the command string, the same way they are in any shell process.",
+            "Consider adding a one-line ApiReference at the bottom of the page pointing to the Hooks and/or LocalScript props type so readers can drill into the full property list without navigating away. If the definitionName is available in the generated schema (e.g. `HooksProps`, `LocalScriptProps`), one compact ApiReference would cover it.",
+            "The `cwd` property on the `buildFrontend` script example is used but not explained in surrounding prose. Add a single sentence noting that `cwd` sets the working directory for the script process and defaults to the project root — this fulfills the property-value-anchor rule for non-obvious values.",
+            "The 'beforeBucketSync' and 'afterBucketSync' hooks in the lifecycle table are less commonly known than the deploy/delete hooks. A short parenthetical noting that these fire during `stacktape bucket:sync` would help readers who may not recognize the connection between the hook name and the CLI command."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided hooks-and-scripts source, but it drops two source-backed lifecycle/script capabilities and makes one unsupported runtime claim about script execution. The biggest factual gap is the missing bucket-sync hooks, because the page’s lifecycle-event table explicitly claims only deploy/delete/dev hooks exist.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Hooks correspond to the before and after phases of the deploy, delete, and dev commands” and the lifecycle table lists only `beforeDeploy`, `afterDeploy`, `beforeDelete`, `afterDelete`, `beforeDev`, and `afterDev`.",
+              "reason": "The provided source says hooks also correspond to bucket sync, with `beforeBucketSync` and `afterBucketSync`. Omitting them from a table framed as the lifecycle-event set would mislead readers configuring bucket sync automation.",
+              "suggestedFix": "Change the lead sentence to include bucket sync and add `beforeBucketSync` and `afterBucketSync` rows, using the wording from the source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "Hooks correspond to the before and after phases of the deploy, delete, dev, and bucket sync commands:"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "| `beforeBucketSync` | Before syncing bucket contents | Pre-processing assets |\n| `afterBucketSync` | After syncing bucket contents | Cache invalidation, notifications |"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A script runs a shell command (shown in the examples below via `executeCommand`) or a JS/TS/Python file.” and FAQ: “Scripts can run shell commands or JS/TS/Python files.”",
+              "reason": "The source distinguishes local scripts from bastion scripts: local scripts can execute JS/TS/Python files via `executeScript` or `executeScripts`, but bastion scripts cannot execute files directly. The draft’s broad statement applies file execution to all scripts.",
+              "suggestedFix": "Narrow the wording: local scripts support `executeCommand`, `executeCommands`, `executeScript`, and `executeScripts`; bastion scripts support `executeCommand` and `executeCommands` only.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "Bastion scripts only support `executeCommand` and `executeCommands` — they cannot execute JS/TS/Python files directly."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "Local scripts support `executeScript` (single file) and `executeScripts` (list of files) for running JS, TS, or Python."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft omits the source-backed `assumeRoleOfResource` capability for scripts, including supported resource types and temporary AWS credential injection.",
+              "reason": "The page explains script environment variables and resource access, but leaves out the documented mechanism for assuming a deployed resource role. That omission is material for readers running AWS SDK or CLI operations from scripts with the same permissions as a workload.",
+              "suggestedFix": "Add a short “Assuming IAM roles” section grounded in the source: explain `assumeRoleOfResource`, temporary AWS credentials, that the target resource must be deployed first, and the supported resource types.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "Scripts can assume the IAM role of a deployed resource using `assumeRoleOfResource`. This grants the script the same AWS permissions as the specified resource — useful for running AWS SDK operations locally with the correct access."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "Stacktape injects temporary AWS credentials as environment variables, automatically picked up by AWS SDKs and CLIs. The target resource must be deployed before the script runs."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "Supported resource types for role assumption: `function`, `batch-job`, `worker-service`, `web-service`, `private-service`, `multi-container-workload`, and all SSR frontend resources (`nextjs-web`, `astro-web`, `nuxt-web`, `sveltekit-web`, `solidstart-web`, `tanstack-web`, `remix-web`)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function — injected as environment variables like `STP_UPLOADS_NAME`.”",
+              "reason": "The provided source is internally inconsistent about the concrete bucket variable name for an `uploads` bucket: one section says `STP_UPLOADS_BUCKET_NAME`, while another says `STP_UPLOADS_NAME`. Without the authoritative `connectTo` JSDoc source, the exact concrete variable is ambiguous.",
+              "suggestedFix": "Avoid the concrete bucket variable here, or say variable names are resource-name dependent and refer readers to `/configuration/connecting-resources`. If keeping an example, verify it against the authoritative connectTo source.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape config examples and does not hand-author YAML config examples.",
+            "The draft correctly uses `defineConfig` and class-based resources rather than the deprecated plain-object `StacktapeConfig` style.",
+            "The `script:run` command and `/cli/script-run` link match the documentation navigation index.",
+            "The draft correctly keeps `When to use deployment scripts instead` linked to `/resources/advanced/deployment-scripts`, which exists in the navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided hooks-and-scripts sources and follows the required CodeBlock style. I found two substantive issues: one overgeneralizes script file execution across all script types, and one makes an exclusive environment-variable claim that omits `assumeRoleOfResource`.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Can scripts execute TypeScript or Python files directly? Yes. Scripts can run shell commands or JS/TS/Python files.”",
+              "reason": "This overgeneralizes execution support across all script types. The source distinguishes local scripts from bastion scripts: bastion scripts cannot execute JS/TS/Python files directly and only support command execution. A reader could incorrectly configure a `bastion-script` with file execution.",
+              "suggestedFix": "Change the FAQ answer to say local scripts and local scripts with bastion tunneling can execute JS/TS/Python files, while bastion scripts only support `executeCommand` and `executeCommands`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "Bastion scripts only support `executeCommand` and `executeCommands` — they cannot execute JS/TS/Python files directly."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“Scripts receive environment variables from two configurable sources.”",
+              "reason": "The draft lists `connectTo` and `environment`, but the provided source also documents `assumeRoleOfResource`, which injects temporary AWS credentials. The current wording is exclusive and leaves out a documented environment-variable source.",
+              "suggestedFix": "Either narrow the sentence to “Scripts commonly receive application-specific variables from two configurable sources” or add a short `assumeRoleOfResource` note explaining that it injects temporary AWS credentials when configured.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "When using `assumeRoleOfResource`, temporary AWS credentials are also injected."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML.",
+            "The main script type taxonomy matches the root config source: `local-script`, `local-script-with-bastion-tunneling`, and `bastion-script`.",
+            "The draft links only to routes present in the provided documentation navigation index.",
+            "The hook lifecycle coverage for deploy, delete, and dev is grounded in the root config comments and the generated page source."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 8, col 17: Type '\"uploads\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 8, col 19: Block-scoped variable 'uploads' used before its declaration.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 8, col 19: Variable 'uploads' is used before being assigned.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 4, col 34: Argument of type '{}' is not assignable to parameter of type 'RedisClusterPropsWithOverrides'.\n  Type '{}' is missing the following properties from type 'RedisClusterProps': instanceSize, defaultUserPassword",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 4, col 34: Argument of type '{}' is not assignable to parameter of type 'RedisClusterPropsWithOverrides'.\n  Type '{}' is missing the following properties from type 'RedisClusterProps': instanceSize, defaultUserPassword",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 4, col 34: Argument of type '{}' is not assignable to parameter of type 'RedisClusterPropsWithOverrides'.\n  Type '{}' is missing the following properties from type 'RedisClusterProps': instanceSize, defaultUserPassword",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 4, col 34: Argument of type '{}' is not assignable to parameter of type 'RedisClusterPropsWithOverrides'.\n  Type '{}' is missing the following properties from type 'RedisClusterProps': instanceSize, defaultUserPassword",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__hooks-and-scripts/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comparison table for the three script types (local-script, local-script-with-bastion-tunneling, bastion-script) immediately anchors the decision — reader knows which to reach for before reading any example.",
+            "All three script types have working, realistic code examples with concrete real-world scenarios (warm-cache, seed-data, redis-cli) — not toy examples.",
+            "Hooks lifecycle event table is exhaustive, well-labelled, and actionable — the 'Common use' column is especially helpful for a first-time reader.",
+            "Decision support is present throughout: explicit 'use X when Y, use Z when W' guidance appears in the script-type table, the bastion tunneling section, and the FAQ.",
+            "FAQ covers all three required categories: Stacktape-specific questions, underlying AWS/runtime questions (TypeScript/Python execution), and comparison questions (hooks vs deployment scripts, bastion tunneling vs bastion script). Ten entries, none synthetic.",
+            "The `skipOnCI` / `skipOnLocal` conditional execution section explains both flags and pairs them with the worked example in the hooks code block — so the feature is introduced, demonstrated, and applied in one flow.",
+            "The `assumeRoleOfResource` section appropriately marks itself as an advanced feature, names the credential injection mechanism, and lists the constraint (resource must be deployed first)."
+          ],
+          "problems": [
+            "Internal env-var inconsistency: the prose after the first `local-script` code block says `STP_UPLOADS_BUCKET_NAME`, but the 'Environment variables in scripts' section says connecting to a Bucket named `uploads` injects `STP_UPLOADS_NAME` and `STP_UPLOADS_ARN`. One of these names is wrong. This is a factual inconsistency within the same page that will confuse a first-time reader trying to access the variable in their code.",
+            "H2 'When to use deployment scripts instead' is 6 words and reads like a guidance phrase rather than a compact noun-form label. The style guide requires 1-5 word H2 labels. This section heading violates the overly-long-heading rule and drags down scannability.",
+            "The 'Environment variables in scripts' table lists variable suffix forms (NAME, ARN, HOST, etc.) without the `STP_[RESOURCE_NAME]_` prefix, making it ambiguous whether readers should prepend the prefix themselves. The prose example above gives `STP_UPLOADS_NAME` but the table reads as if NAME alone is the variable name."
+          ],
+          "mandatoryFixes": [
+            "Fix the env-var name inconsistency: the prose after the first code block says `STP_UPLOADS_BUCKET_NAME`; the 'Environment variables in scripts' section says `STP_UPLOADS_NAME`. Verify the correct variable name from the source (the `connectTo` JSDoc in `types/stacktape-config/__helpers.d.ts`) and use it consistently throughout the page, including in both locations and in the connectTo table.",
+            "Shorten the H2 'When to use deployment scripts instead' to a compact 1–5 word noun-form label, e.g. 'Deployment scripts' or 'vs Deployment scripts'. Per the style guide, H2 headings must not read like full sentences or guidance phrases."
+          ],
+          "optionalImprovements": [
+            "In the 'Environment variables in scripts' table, show full `STP_[RESOURCE_NAME]_` prefixed column headers or a header note like '(prefixed with STP_[RESOURCE_NAME]_)' so readers don't have to mentally assemble the variable name themselves.",
+            "The 'Assuming IAM roles' section lists a specific set of supported resource types (`function`, `batch-job`, `worker-service`, etc.). Consider a one-line note pointing to the API reference or source for the authoritative list, since this enumeration is hard to keep current in prose.",
+            "Add a one-sentence note in the `executeScript` / `executeScripts` description about how the runtime is resolved (e.g., Node for .ts files, Python interpreter for .py files) — the current FAQ mentions 'determined by `defaults:configure` or the system default' but this is buried; a single sentence in the main Scripts section would reduce confusion for first-time users.",
+            "The `<Warning>` about afterDeploy hook failures could add one sentence about writing idempotent migration scripts — this is a common gotcha (re-running a non-idempotent migration breaks data) that a first-time reader will hit."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All three script types are covered with equal depth — each has its own example, a clear when-to-use signal, and explicit tradeoffs (e.g. 'Bastion scripts are limited to tools pre-installed on the bastion host — for most workflows, bastion tunneling is the better choice'). No variant is treated as a one-liner afterthought.",
+            "The lifecycle events table (beforeDeploy through afterDev with 'Common use' column) is immediately actionable for an engineer wiring up automation — covers every hook without requiring them to enumerate the CLI docs.",
+            "The FAQ spans all three required categories: Stacktape-specific, AWS/service-level, and comparison/choosing. Ten well-chosen questions; none feel padded.",
+            "The 'skipOnCI / skipOnLocal' section explicitly explains BOTH flags with concrete scenarios ('opening a browser' vs. 'uploading test reports'), which is exactly the kind of detail engineers get wrong the first time.",
+            "The 'When to use deployment scripts instead' section provides a genuine comparison rather than just linking away, helping engineers avoid over-engineering with a deployment-script resource when a local script is sufficient."
+          ],
+          "problems": [
+            "INTERNAL INCONSISTENCY — env var naming: The prose in the Local script section says connectTo injects 'STP_UPLOADS_BUCKET_NAME', but the Environment variables table lists Bucket as injecting 'NAME' and 'ARN' (which would map to STP_UPLOADS_NAME and STP_UPLOADS_ARN). An engineer configuring scripts will use one of these and their script will silently fail. Both cannot be correct.",
+            "UNGROUNDED specifics in assumeRoleOfResource: The page provides a specific enumerated list of supported resource types for role assumption ('function', 'batch-job', 'worker-service', 'web-service', 'private-service', 'multi-container-workload', plus all SSR types). This list is not in any provided source file. If any entry is missing or wrong, engineers debugging a broken script will waste significant time.",
+            "UNGROUNDED constraint claim: 'Each script must define exactly one execution method' is stated as a hard rule, but the LocalScript/BastionScript type definitions are not in the provided source files — this can't be verified and, if wrong, misleads engineers about what configurations are valid.",
+            "UNGROUNDED defaults: 'pipeStdio defaults to true' and 'cwd on bastion scripts defaults to /' are stated as facts not present in the provided source. Engineers relying on these defaults in production configs will be surprised if they're wrong.",
+            "The env vars table (Bucket, RelationalDatabase, RedisCluster, DynamoDbTable, SqsQueue with specific variable names) is stated without source grounding — the type definitions for these connectTo injections are not in the provided source files. The Bucket row is already internally contradicted by the prose."
+          ],
+          "mandatoryFixes": [
+            "Fix the internal contradiction between the prose ('STP_UPLOADS_BUCKET_NAME') and the Environment variables table ('NAME', 'ARN' for Bucket — implying STP_UPLOADS_NAME). Verify the correct variable name suffix from the connectTo JSDoc in types/stacktape-config/__helpers.d.ts and use it consistently in both locations. This is a concrete wrong claim that will break engineer scripts.",
+            "Either ground the assumeRoleOfResource supported resource types list against the LocalScript type definition, or rewrite the sentence to say 'the resource must be a workload type (Lambda function, container service, batch job, or SSR frontend) — check the API reference for the complete list.' An enumerated list that may be wrong or incomplete in this context is worse than a directive to check the source."
+          ],
+          "optionalImprovements": [
+            "Replace or prominently caveat the env vars table with a note that the connecting-resources page is the authoritative source for injected variable names — a partial inline table with potentially wrong names creates a maintenance hazard. Consider showing only one verified example (e.g., RelationalDatabase → CONNECTION_STRING) and linking to the full reference rather than listing all resource types.",
+            "Add one sentence about hook failure propagation: if a script in a multi-script hook exits non-zero, does the subsequent scripts run or does the hook abort? Engineers adding multi-step afterDeploy hooks (e.g., migrate then seed) need this behavior to be explicit. The FAQ only addresses 'what to do if afterDeploy fails' — not whether subsequent scripts in the same hook are affected.",
+            "The 'executeScript runtime is determined by defaults:configure' claim should be qualified with where to find the current defaults, since engineers setting up a CI pipeline need to know the fallback behavior when no default is configured.",
+            "The Info callout about beforeDelete/afterDelete only running when --configPath and --stage are provided could be elevated to a Warning — engineers who skip those flags and expect cleanup scripts to run will get silent non-execution with no error message."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Answer-first paragraph is concise (under 75 words) and self-contained — explains both concepts (scripts and hooks) and their relationship without meta-framing.",
+            "Script type comparison table at the top of the Scripts section immediately orients the reader before any prose deep-dive — one of the most extractable elements on the page.",
+            "All three script types (local-script, local-script-with-bastion-tunneling, bastion-script) are documented with roughly equal depth: an H3 header, a realistic code example, and prose covering tradeoffs and constraints. No variant is buried in a one-liner.",
+            "Lifecycle events table with 8 rows is comprehensive and scannable; each row names the hook, firing moment, and common use case — ideal for AI snippet extraction.",
+            "Decision support is present throughout: the script type table has a 'Best for' column, the skipOnCI/skipOnLocal section explains each flag's scenario, and the 'When to use deployment scripts instead' section closes the loop for the natural comparison.",
+            "FAQ spans all three required categories: Stacktape-specific questions (how do I run a migration?), use-case questions (what happens if afterDeploy fails?), and comparison questions (hooks vs deployment scripts?, bastion tunneling vs bastion script?). 10 pairs, no filler.",
+            "No forbidden patterns detected: no fenced YAML Stacktape config, no StacktapeConfig type import, no fenced TypeScript with defineConfig, no marketing language, no multi-command bash blocks.",
+            "assumeRoleOfResource section names the concrete list of supported resource types and explains the credential injection mechanism — actionable and specific.",
+            "All CodeBlock examples use the correct TypeScript + defineConfig + class-based form with focus markers and imports hidden from rendered view."
+          ],
+          "problems": [
+            "The environment variable table in 'Environment variables in scripts' shows partial variable suffixes (NAME, ARN, CONNECTION_STRING, HOST, PORT, etc.) without the STP_[RESOURCE_NAME]_ prefix in each row. Although the preceding prose states the pattern, the table column header 'Injected variables' implies these are the complete names. A reader extracting the table alone will be confused about whether to type `NAME` or `STP_UPLOADS_NAME`. The column header or each value should make the partial-suffix nature explicit.",
+            "The 'Running scripts manually' section consists of a single sentence, one code block, and a second sentence linking to the CLI reference. By AEO and completeness standards this is too thin — it has no prose about common flags (--stage, --region), no mention of what output looks like, and no decision context. It reads as a placeholder rather than a section.",
+            "The CLI link to `/cli/script-run` referenced in 'Running scripts manually' and the FAQ appears to be ungrounded — the git status shows `deployment-script-run.mdx` but no `script-run.mdx` or equivalent. If this page does not exist, the link is broken and reduces practical usefulness.",
+            "The bastion script code example uses `$STP_CACHE_HOST` and `$STP_CACHE_PORT` inline in a shell command inside `executeCommand`. The page never explains that these variables (injected by `connectTo: ['cache']`) are available in shell commands as standard environment variables. A reader unfamiliar with the connectTo injection mechanism may not know how the variable gets there at runtime.",
+            "No `<ApiReference>` component is present. While concept pages may omit it when no clear root type exists, the `scripts` and `hooks` top-level config sections are configurable types. Omitting the component entirely means readers have no drill-down path to the full property reference from this page — they must navigate elsewhere to discover options like `pipeStdio`, `workingDir`, or specific hook entry properties."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the environment variable table, rename the 'Injected variables' column to 'Injected variable suffixes' (or similar) and add a table caption or note: 'Each suffix is prefixed with STP_[RESOURCE_NAME]_ at runtime — e.g., STP_UPLOADS_NAME for a resource named uploads.' This prevents misreading the table as complete variable names.",
+            "Expand 'Running scripts manually' to 3-5 sentences: note that `--stage` and `--region` are required when targeting a non-default stack, mention that script output is printed to the terminal by default, and briefly note that non-zero exit codes surface as CLI errors. Also verify and correct the /cli/script-run link target.",
+            "In the bastion script example, add a sentence after the code block explaining that environment variables injected by `connectTo` (like `STP_CACHE_HOST`) are available as standard shell environment variables inside the command string, the same way they are in any shell process.",
+            "Consider adding a one-line ApiReference at the bottom of the page pointing to the Hooks and/or LocalScript props type so readers can drill into the full property list without navigating away. If the definitionName is available in the generated schema (e.g. `HooksProps`, `LocalScriptProps`), one compact ApiReference would cover it.",
+            "The `cwd` property on the `buildFrontend` script example is used but not explained in surrounding prose. Add a single sentence noting that `cwd` sets the working directory for the script process and defaults to the project root — this fulfills the property-value-anchor rule for non-obvious values.",
+            "The 'beforeBucketSync' and 'afterBucketSync' hooks in the lifecycle table are less commonly known than the deploy/delete hooks. A short parenthetical noting that these fire during `stacktape bucket:sync` would help readers who may not recognize the connection between the hook name and the CLI command."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided source material and avoids the forbidden YAML/plain-object/fenced-TypeScript Stacktape config patterns. I found one high-impact configuration-shape problem in the script examples: `connectTo` is shown at the script object level, while the provided generated source examples place it inside `properties`.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft’s Stacktape config examples define script `connectTo` at the script object level, for example `seedBucket: { type: 'local-script', connectTo: ['uploads'], properties: { ... } }`, and the same pattern appears in the bastion-tunneling and bastion-script examples.",
+              "reason": "The provided source examples place `connectTo` inside the script `properties` object, not beside `type` and `properties`. If the draft is copied as-is, readers may put `connectTo` in the wrong location for scripts.",
+              "suggestedFix": "Move `connectTo` inside `properties` for every script example: `properties: { executeCommand: '...', connectTo: ['uploads'] }`. Keep workload/resource `connectTo` unchanged where it belongs on resources such as `LambdaFunction`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "seedBucket: {\n        type: 'local-script',\n        properties: {\n          executeCommand: 'node scripts/seed-data.js',\n          connectTo: ['uploads']\n        }\n      }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "warmCache: {\n        type: 'local-script-with-bastion-tunneling',\n        properties: {\n          bastionResource: 'bastion',\n          executeCommand: 'node scripts/warm-cache.js',\n          connectTo: ['cache']\n        }\n      }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[...]}>` for Stacktape configuration examples and does not hand-author YAML examples.",
+            "The draft’s cross-links point to routes present in the provided navigation index.",
+            "The draft correctly describes the three script types listed in the root config source: `local-script`, `local-script-with-bastion-tunneling`, and `bastion-script`.",
+            "The draft keeps `When to use deployment scripts instead` clearly separate from hooks and scripts, which helps readers decide between local lifecycle automation and cloud-executed deployment scripts."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided source files and follows the major formatting constraints for Stacktape config examples. I found two concrete Stacktape-specific issues that should be fixed before publication.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Use `skipOnCI` and `skipOnLocal` to differentiate — skip browser-opening locally, or skip notification scripts when running on your machine.”",
+              "reason": "The browser-opening example has the skip direction reversed. Source text says `skipOnCI: true` skips hooks in CI/CD and is useful for local-only actions like opening a browser. The draft tells readers to skip browser-opening locally, which would use the wrong conditional behavior.",
+              "suggestedFix": "Change the sentence to: “Use `skipOnCI` and `skipOnLocal` to differentiate — skip browser-opening in CI, or skip notification scripts when running on your machine.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "- **`skipOnCI: true`** — skips the hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI). Useful for interactive or local-only actions like opening a browser.\n- **`skipOnLocal: true`** — skips the hook when running locally; runs only in CI/CD. Useful for CI-only tasks like uploading test reports or sending notifications."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Scripts receive environment variables from two configurable sources.”",
+              "reason": "The draft presents `connectTo` and `environment` as the only configurable sources of script environment variables, but the provided source also documents `assumeRoleOfResource`, which injects temporary AWS credentials as environment variables. This matters for scripts that run AWS SDK or CLI operations with a deployed resource role.",
+              "suggestedFix": "Narrow the claim to “Scripts commonly receive environment variables from `connectTo` and `environment`,” and add a short `assumeRoleOfResource` note or section explaining that it injects temporary AWS credentials when configured.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "Scripts can assume the IAM role of a deployed resource using `assumeRoleOfResource`. This grants the script the same AWS permissions as the specified resource — useful for running AWS SDK operations locally with the correct access."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/hooks-and-scripts.md",
+                  "quote": "Stacktape injects temporary AWS credentials as environment variables, automatically picked up by AWS SDKs and CLIs."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab rather than fenced TypeScript or hand-authored YAML.",
+            "The page correctly uses the documented `stacktape script:run` command and links to `/cli/script-run`, which exists in the navigation index.",
+            "The three documented script types match the root config source: `local-script`, `local-script-with-bastion-tunneling`, and `bastion-script`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 8, col 17: Type '\"uploads\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 8, col 19: Block-scoped variable 'uploads' used before its declaration.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 8, col 19: Variable 'uploads' is used before being assigned.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 4, col 34: Argument of type '{}' is not assignable to parameter of type 'RedisClusterPropsWithOverrides'.\n  Type '{}' is missing the following properties from type 'RedisClusterProps': instanceSize, defaultUserPassword",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 4, col 34: Argument of type '{}' is not assignable to parameter of type 'RedisClusterPropsWithOverrides'.\n  Type '{}' is missing the following properties from type 'RedisClusterProps': instanceSize, defaultUserPassword",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 4, col 34: Argument of type '{}' is not assignable to parameter of type 'RedisClusterPropsWithOverrides'.\n  Type '{}' is missing the following properties from type 'RedisClusterProps': instanceSize, defaultUserPassword",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 4, col 34: Argument of type '{}' is not assignable to parameter of type 'RedisClusterPropsWithOverrides'.\n  Type '{}' is missing the following properties from type 'RedisClusterProps': instanceSize, defaultUserPassword",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\hooks-and-scripts.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/configuration/hooks-and-scripts.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 6, advisory high 0, verifier medium 3"
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 5, advisory high 0, verifier medium 5",
+  "refinementAttempts": 2,
+  "refinementStalled": true
 }

@@ -2,9 +2,9 @@
 title: 'Cost Optimization Tips'
 order: 4
 seoTitle: 'AWS Cost Optimization Tips | Stacktape Docs'
-seoDescription: 'Reduce your AWS bill with practical Stacktape cost optimization tips: ARM/Graviton, right-sizing Lambda and Fargate, spot instances, database engine selection, log retention, and budget alerts.'
+seoDescription: 'Reduce your AWS bill with practical Stacktape tips: ARM/Graviton, right-sizing, spot instances, database engine choice, log retention, and budget alerts.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.3, hard blockers 9, advisory high 0, verifier medium 13'
+pipelineReviewSummary: 'reviewer-avg 7.3, hard blockers 4, advisory high 0, verifier medium 13'
 ---
 
 # Cost Optimization Tips
@@ -27,90 +27,33 @@ Avoid `provisionedConcurrency` unless latency requirements demand it — each pr
 
 ### Container services: always-on cost
 
-[Web services](/resources/compute/web-service), [private services](/resources/compute/private-service), and [worker services](/resources/compute/worker-service) run 24/7 and bill continuously. AWS Fargate requires a minimum of 1 running instance — it cannot scale to zero. Before deploying a container service, confirm your workload genuinely needs an always-on process. If traffic is sporadic, a Lambda function with an [HTTP trigger](/configuration/triggers/http-triggers) is usually cheaper.
+A Stacktape [web service](/resources/compute/web-service) is a container running 24/7 with a public HTTPS URL, so it bills continuously regardless of traffic. [Private services](/resources/compute/private-service) and [worker services](/resources/compute/worker-service) follow the same always-on pattern — see their resource pages for specifics. Before deploying a container service, confirm your workload genuinely needs an always-on process. If traffic is sporadic, a Lambda function with an [HTTP trigger](/configuration/triggers/http-triggers) is usually cheaper.
 
-Right-size the `resources` block. Fargate bills for the CPU/memory combination you request, not what you actually use. Start small (`cpu: 0.25`, `memory: 512`) and increase only when metrics show resource pressure.
+Right-size the `resources` block. The container workload bills for the CPU/memory combination you request, not what you actually use. Start at the smallest combination that keeps your application responsive and scale up only when metrics show resource pressure.
 
 ### Batch jobs: pay only for runtime
 
 [Batch jobs](/resources/compute/batch-job) provision compute only while the job runs and release it when done. Use batch jobs for data processing, ML training, image encoding, or any task that runs to completion rather than serving ongoing traffic. Set `timeout` on jobs with a known upper bound so a stuck job is killed and retried instead of continuing to bill.
 
 <FeatureComparisonTable
-  columns={['Lambda function', 'Container service', 'Batch job']}
+  columns={['Lambda function', 'Web service', 'Batch job']}
   features={[
-    { name: 'Pricing model', values: { 'Lambda function': 'Per-invocation', 'Container service': 'Per-hour (24/7)', 'Batch job': 'Per-job runtime' } },
-    { name: 'Scale to zero', values: { 'Lambda function': true, 'Container service': false, 'Batch job': true } },
-    { name: 'Max run time', values: { 'Lambda function': '15 minutes', 'Container service': 'Unlimited', 'Batch job': 'Configurable with timeout' } },
-    { name: 'Best for traffic pattern', values: { 'Lambda function': 'Bursty / low', 'Container service': 'Steady / high', 'Batch job': 'Periodic tasks' } }
+    { name: 'Pricing model', values: { 'Lambda function': 'Per-invocation', 'Web service': 'Per-hour (24/7)', 'Batch job': 'Per-job runtime' } },
+    { name: 'Max run time', values: { 'Lambda function': '15 minutes', 'Web service': 'Unlimited', 'Batch job': 'Configurable with timeout' } },
+    { name: 'Best for traffic pattern', values: { 'Lambda function': 'Bursty / low', 'Web service': 'Steady / high', 'Batch job': 'Periodic tasks' } }
   ]}
 />
 
 ## Use ARM/Graviton architecture
 
-Switching from `x86_64` (the default) to `arm64` (AWS Graviton) saves ~20% on compute costs. Graviton processors often deliver better performance at the lower price point — a double benefit of lower cost and faster execution.
+AWS Graviton (`arm64`) instances are typically priced below comparable x86 (`x86_64`) instances across Lambda and Fargate. Where your application code supports it, choosing ARM reduces compute cost without changing behavior.
 
 ARM works with most application code without changes — Node.js, Python, Go, Java, and .NET all run natively on `arm64`. The main exception is native compiled binaries or Lambda layers built specifically for x86. If you use `stacktape-lambda-buildpack` packaging, Stacktape builds for the selected architecture automatically. With `custom-artifact` packaging, you must pre-compile for the target architecture yourself.
 
-Set `architecture: 'arm64'` on [Lambda functions](/resources/compute/lambda-function):
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
-
-// [!code focus-start]
-export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    architecture: 'arm64',
-    memory: 1024,
-    timeout: 30
-  });
-
-  return { resources: { api } };
-});
-// [!code focus-end]`
-    }
-  ]}
-/>
-
-For container-based resources ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service)), set `architecture: 'arm64'` in the `resources` block. This applies to Fargate workloads — when using EC2 `instanceTypes`, the `architecture` setting is ignored, so choose Graviton instance families (`c7g`, `m7g`, `r7g`) directly instead.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
-
-// [!code focus-start]
-export default defineConfig(() => {
-  const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
-      entryfilePath: './src/server.ts'
-    }),
-    resources: {
-      cpu: 0.5,
-      memory: 1024,
-      architecture: 'arm64'
-    }
-  });
-
-  return { resources: { api } };
-});
-// [!code focus-end]`
-    }
-  ]}
-/>
+See the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), and [batch job](/resources/compute/batch-job) pages for how to configure the architecture on each resource type.
 
 <Tip>
-Start every new project with `arm64`. Only switch to `x86_64` if you hit a specific compatibility issue — that's rare for modern application stacks.
+Start every new project on ARM where supported. Only fall back to x86 if you hit a specific compatibility issue — that's rare for modern application stacks.
 </Tip>
 
 ## Use spot instances for batch jobs
@@ -180,9 +123,9 @@ Set `timeout` to the lowest value your function needs. Timeouts don't affect cos
 
 ## Right-size container resources
 
-Fargate bills for the exact CPU/memory combination you request. Over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape debug:metrics`](/cli/debug-metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
+Container workloads bill for the exact CPU/memory combination you request. Over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape debug:metrics`](/cli/debug-metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
 
-Stacktape supports these Fargate vCPU values: `0.25`, `0.5`, `1`, `2`, `4`, `8`, and `16`. Each CPU tier has an allowed memory range. Start at the smallest combination that keeps your application responsive and scale up only when metrics justify it.
+Start at the smallest CPU/memory combination that keeps your application responsive and scale up only when metrics justify it. See the [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), and [worker service](/resources/compute/worker-service) pages for the supported CPU and memory values on each resource.
 
 For services with variable load, configure auto-scaling to add instances under pressure rather than over-provisioning a single large instance:
 
@@ -202,8 +145,7 @@ export default defineConfig(() => {
     }),
     resources: {
       cpu: 0.5,
-      memory: 1024,
-      architecture: 'arm64'
+      memory: 1024
     },
     scaling: {
       minInstances: 1,
@@ -221,7 +163,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `scaling.maxInstances` value caps how many instances Fargate can run simultaneously — this is your cost ceiling. Set it based on what your budget allows, not just what traffic might demand.
+The `scaling.maxInstances` value caps how many instances can run simultaneously — this is your cost ceiling. Set it based on what your budget allows, not just what traffic might demand.
 
 ## Choose the right database engine
 
@@ -261,14 +203,7 @@ You can restrict the CDN price class to reduce per-request cost in premium regio
 
 ## Reduce log retention
 
-CloudWatch log storage accumulates cost over time. Each resource type in Stacktape has a default log retention period:
-
-| Resource type | Default retention |
-|--------------|------------------|
-| Lambda function | 180 days |
-| Container workloads | 90 days |
-| Batch jobs | 90 days |
-| Relational databases | 90 days |
+CloudWatch log storage accumulates cost over time. [Batch job](/resources/compute/batch-job) logs default to 90 days of retention. Other resources have their own defaults, documented on their resource pages.
 
 For development and staging stages, 7–14 days of log retention is usually enough. For production, 30–60 days covers most debugging scenarios. Set `retentionDays` in the `logging` block of each resource:
 
@@ -278,22 +213,23 @@ For development and staging stages, 7–14 days of log retention is usually enou
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+      code: `import { defineConfig, BatchJob, CustomDockerfilePackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
+  const processor = new BatchJob({
+    container: {
+      packaging: new CustomDockerfilePackaging({
+        dockerfilePath: './Dockerfile'
+      })
+    },
+    resources: { cpu: 1, memory: 1920 },
     logging: {
       retentionDays: 14
-    },
-    memory: 512,
-    timeout: 10
+    }
   });
 
-  return { resources: { api } };
+  return { resources: { processor } };
 });
 // [!code focus-end]`
     }
@@ -324,7 +260,7 @@ Only enable `usePrivateSubnetsWithNAT` when you have a concrete requirement for 
 
 Running [`stacktape dev`](/local-development/dev-mode-overview) lets you iterate locally without deploying real AWS resources for every code change. Dev mode runs your functions and containers locally while connecting to deployed cloud resources (databases, queues, buckets). This avoids the cost of repeated full deployments and keeps your feedback loop fast.
 
-For [relational databases](/resources/databases/relational-database) and [DynamoDB](/resources/databases/dynamodb), dev mode can run a local Docker container. Set `dev.remote: true` only when you need to test against the actual deployed database — the local container is free while the deployed one bills continuously.
+For databases that support running locally during development, see [local databases in dev mode](/local-development/local-databases) — running a local instance avoids the cost of a deployed database while you iterate.
 
 ## Set up budget alerts
 
@@ -336,7 +272,7 @@ Start with two thresholds: 80% (early warning) and 100% (immediate action). Budg
 
 Use this checklist when reviewing a stack's cost profile:
 
-- [ ] Lambda functions and Fargate tasks use `arm64` architecture
+- [ ] Use ARM/Graviton architecture where supported
 - [ ] Lambda memory is profiled and right-sized (not left at default)
 - [ ] Container CPU/memory matches actual utilization (check metrics)
 - [ ] Auto-scaling is configured for container services with variable traffic
@@ -361,13 +297,13 @@ The Stacktape Console provides [per-resource cost breakdowns](/managing-costs/pe
 
 Stacktape charges a subscription fee that is separate from your AWS bill. AWS resources are billed directly by AWS to your connected AWS account. The Stacktape subscription covers the Console, GitOps, observability integrations, and the CLI tooling. See [billing and subscription](/stacktape-console/billing-and-subscription) for plan details.
 
-### Can Fargate containers scale to zero?
+### Can a Stacktape web service scale to zero?
 
-No. AWS Fargate requires a minimum of 1 running instance. Container-based resources ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service)) always have at least one instance running and billing. If your workload has periods of zero traffic, a [Lambda function](/resources/compute/lambda-function) is cheaper — it costs nothing when idle.
+No. A [web service](/resources/compute/web-service) is a container running 24/7 with a public HTTPS URL, so it always has at least one instance running and billing. If your workload has periods of zero traffic, a [Lambda function](/resources/compute/lambda-function) is cheaper — it costs nothing when idle.
 
 ### How much cheaper is ARM/Graviton?
 
-ARM-based (Graviton) compute is ~20% cheaper per unit than x86 across Lambda functions and Fargate containers. For Lambda, billing is per GB-second — the same function at the same memory costs ~20% less on `arm64`. For Fargate, the per-vCPU and per-GB-hour rates are ~20% lower. Most modern application runtimes (Node.js, Python, Go, Java, .NET) run on ARM without changes. The `architecture` property is ignored when using EC2 `instanceTypes` — choose Graviton instance families directly in that case.
+AWS prices Graviton (`arm64`) instances below comparable x86 instances across Lambda and Fargate, so switching architectures usually lowers compute cost without changing behavior. Most modern application runtimes (Node.js, Python, Go, Java, .NET) run on ARM without changes. See the [Lambda function](/resources/compute/lambda-function) and [web service](/resources/compute/web-service) pages for how to configure architecture on each resource.
 
 ### When should I use Aurora Serverless v2 vs standard RDS?
 

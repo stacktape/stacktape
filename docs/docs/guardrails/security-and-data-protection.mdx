@@ -2,30 +2,27 @@
 title: 'Security and Data Protection Guardrails'
 order: 102
 seoTitle: 'Security & Data Protection Guardrails | Stacktape Docs'
-seoDescription: 'Enforce security policies with Stacktape guardrails. Require VPC databases, deletion protection, WAF, dead-letter queues, custom domains, and approved database engines to block non-compliant deployments.'
+seoDescription: 'Enforce security policies with Stacktape guardrails: require VPC databases, deletion protection, WAF, dead-letter queues, custom domains, and approved engines.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.3, hard blockers 7, advisory high 0, verifier medium 16'
+pipelineReviewSummary: 'reviewer-avg 7.3, hard blockers 9, advisory high 0, verifier medium 16'
 ---
 
 # Security and Data Protection Guardrails
 
-Stacktape security guardrails are organization-level preventive policies configured in the [Stacktape Console](/stacktape-console/console-overview). They validate resource configurations against your team's security requirements — VPC-only database access, deletion protection, dead-letter queues, WAF on load balancers, custom domains, and approved database engines — and block non-compliant operations before any infrastructure changes occur.
+Stacktape security guardrails are preventive policy definitions that validate resource configurations against your team's security requirements — VPC-only database access, deletion protection, dead-letter queues, WAF on load balancers, custom domains, and approved database engines. Each guardrail has a `type` and a `properties` object that describes the requirement to enforce.
 
 ## How security guardrails work
 
-Security guardrails are preventive policy definitions that validate resource configurations and block non-compliant operations. This is fundamentally different from [alarms](/observability/alarms), which reactively notify you when a running system behaves unexpectedly at runtime.
+Security guardrails are preventive policy definitions that validate resource configurations. This is fundamentally different from [alarms](/observability/alarms), which reactively notify you when a running system behaves unexpectedly at runtime.
 
-Guardrails are managed at the organization level in the [Stacktape Console](/stacktape-console/console-overview) — they are not defined in your project's `stacktape.ts` config file. When any team member runs [`deploy`](/cli/deploy), [`delete`](/cli/delete), or [`preview-changes`](/cli/preview-changes), Stacktape fetches the organization's guardrail policies and validates the operation against them. If a guardrail check fails, the operation is blocked with a `GUARDRAIL` error identifying the violation — no infrastructure changes are made.
-
-Each guardrail has a `type` and a `properties` object. The property shape depends on the guardrail type: `require-*` guardrails use an `enabled` boolean toggle, restriction guardrails use either allowlists or blocklists, and limit guardrails use numeric maximums.
+Each guardrail has a `type` and a `properties` object. The property shape depends on the guardrail type: `require-*` guardrails use an `enabled` boolean toggle, restriction guardrails use either allowlists or blocklists, and limit guardrails use numeric maximums. `require-*` guardrails require that resources have specific settings enabled; restriction guardrails define which values are allowed or blocked for a given resource property.
 
 | Aspect | Guardrails | Alarms |
 |--------|-----------|--------|
 | **Purpose** | Prevent non-compliant configurations | Detect runtime anomalies |
-| **Timing** | Before infrastructure changes (preventive) | Runtime (reactive) |
-| **Action** | Blocks the operation | Sends notification |
+| **Timing** | Policy validation (preventive) | Runtime (reactive) |
+| **Action** | Enforces required settings or values | Sends notification |
 | **Scope** | Organization-wide policy | Per-resource monitoring |
-| **Managed in** | [Stacktape Console](/stacktape-console/console-overview) | Stacktape config or Console |
 
 ## Security guardrail definitions
 
@@ -43,7 +40,7 @@ Each security guardrail is an object with a `type` string and a `properties` obj
 { type: 'database-engine-restriction', properties: { allowedEngines: ['postgres', 'aurora-postgresql'] } }
 ```
 
-These definitions are configured per organization in the [Stacktape Console](/stacktape-console/console-overview) and apply to every deployment in that organization. See the [guardrails overview](/guardrails/overview) for the full list of all 15 guardrail types across deployment, security, resource-limit, and database categories.
+See the [guardrails overview](/guardrails/overview) for the full list of all 15 guardrail types across deployment, security, resource-limit, and database categories.
 
 ## When to use
 
@@ -59,7 +56,7 @@ Skip guardrails in early prototyping or single-developer projects where speed ma
 
 ## Require VPC databases
 
-The `require-vpc-databases` guardrail ensures all databases use VPC-only accessibility with no public internet access. When enabled, any [relational database](/resources/databases/relational-database) or [OpenSearch domain](/resources/databases/opensearch) configured without VPC-only accessibility is blocked. The accepted accessibility modes are `'vpc'` and `'scoping-workloads-in-vpc'` — any other mode (including the default `'internet'`) causes the operation to fail.
+The `require-vpc-databases` guardrail enforces that, when enabled, all databases must use VPC-only accessibility with no public internet access.
 
 **When to enable:** Enable in production stages or any organization handling sensitive data. VPC-only databases cannot be reached from the public internet, eliminating an entire class of network-based attack vectors. The tradeoff is that you need a [bastion host](/resources/security/bastion-host) or VPC-connected workloads to access the database for administration and debugging. For most production workloads, VPC-only is the right default.
 
@@ -97,7 +94,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `accessibilityMode` property controls how the database is reachable. Setting it to `'vpc'` restricts access to resources within the same VPC — workloads configured with [`connectTo`](/configuration/connecting-resources) connect automatically. The alternative `'scoping-workloads-in-vpc'` also satisfies this guardrail. The `instanceSize` property controls the compute and memory capacity — `db.t4g.micro` is a cost-effective choice for development and low-traffic production workloads. See the [relational database page](/resources/databases/relational-database) for supported instance sizes and accessibility modes.
+The `accessibilityMode` property controls how the database is reachable. Setting it to `'vpc'` restricts access to resources within the same VPC — workloads configured with [`connectTo`](/configuration/connecting-resources) connect automatically. The `instanceSize` property controls the compute and memory capacity — `db.t4g.micro` is a cost-effective choice for development and low-traffic production workloads. See the [relational database page](/resources/databases/relational-database) for supported instance sizes and accessibility modes.
 
 ## Require deletion protection
 
@@ -135,7 +132,7 @@ export default defineConfig(() => {
   ]}
 />
 
-Setting `deletionProtection: true` satisfies this guardrail. With deletion protection enabled, AWS RDS rejects API calls that would remove the database instance — this is an AWS-level safeguard independent of Stacktape. Any relational database without this flag is blocked by the guardrail.
+Setting `deletionProtection: true` satisfies this guardrail. With deletion protection enabled, AWS RDS rejects API calls that would remove the database instance — this is an AWS-level safeguard independent of Stacktape. Any relational database without this flag fails the guardrail.
 
 ## Require dead-letter queue
 
@@ -216,7 +213,7 @@ The `useFirewall` property references a [web application firewall](/resources/se
 
 ## Require custom domain
 
-The `require-custom-domain` guardrail ensures public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) have a [custom domain](/resources/networking/custom-domains) configured. Use it when production endpoints must be served from domains your team controls rather than auto-generated AWS URLs.
+When enabled, the `require-custom-domain` guardrail requires public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) to have a [custom domain](/resources/networking/custom-domains) configured. Use it when production endpoints must be served from domains your team controls rather than auto-generated AWS URLs.
 
 **When to enable:** Enable for production stages where URL stability, branding, and domain ownership matter. Custom domains give your users a predictable, professional endpoint. They also let you migrate backends without changing the URL your consumers depend on.
 
@@ -259,7 +256,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `customDomains` array must contain at least one entry for web services and hosting buckets to satisfy this guardrail. See the [custom domains page](/resources/networking/custom-domains) for domain configuration options including DNS setup and certificate provisioning.
+See the [custom domains page](/resources/networking/custom-domains) for domain configuration options including DNS setup and certificate provisioning.
 
 ## Database engine restriction
 
@@ -313,17 +310,9 @@ For a high-level overview of all 15 guardrail types, see the [guardrails overvie
 
 ## FAQ
 
-### Where are guardrails configured?
-
-Guardrails are configured at the organization level in the [Stacktape Console](/stacktape-console/console-overview), not in your project's `stacktape.ts` configuration file. This means guardrail policies apply to all deployments across the organization — individual projects cannot override them. When a team member runs [`deploy`](/cli/deploy), [`delete`](/cli/delete), or [`preview-changes`](/cli/preview-changes), the CLI fetches the organization's guardrails and validates the operation before making changes.
-
 ### How do guardrails differ from alarms?
 
-Guardrails are preventive — they validate resource configurations before infrastructure changes happen and block non-compliant operations. [Alarms](/observability/alarms) are reactive — they monitor running infrastructure and send notifications when metrics cross thresholds. Use guardrails to prevent insecure configurations from being deployed. Use alarms to detect unexpected behavior in already-deployed infrastructure. A production stack benefits from both.
-
-### What happens when a guardrail is violated?
-
-The operation is blocked before any infrastructure changes are made, and a `GUARDRAIL` error is returned identifying the specific violation — for example, which resource failed the check and what policy it violated. The resource configuration must be updated to satisfy the guardrail before the operation can proceed.
+Guardrails are preventive — they validate resource configurations against policy and require non-compliant configurations to be corrected. [Alarms](/observability/alarms) are reactive — they monitor running infrastructure and send notifications when metrics cross thresholds. Use guardrails to prevent insecure configurations from being deployed. Use alarms to detect unexpected behavior in already-deployed infrastructure. A production stack benefits from both.
 
 ### What is VPC-only database accessibility?
 
@@ -335,7 +324,7 @@ AWS WAF inspects incoming HTTP/HTTPS requests and blocks those matching configur
 
 ### Do security guardrails add cost to my AWS bill?
 
-Guardrails are organization-level policy checks — the costs come from the resources required to satisfy those policies, not from the guardrails themselves. For example, AWS WAF charges per rule and per request evaluated, and [custom domains](/resources/networking/custom-domains) require DNS configuration. VPC-only databases don't add direct cost, but workloads that need both VPC access and internet access may need additional networking configuration. Evaluate the cost of each required resource when planning which guardrails to enable.
+Guardrails are policy checks — the costs come from the resources required to satisfy those policies, not from the guardrails themselves. For example, AWS WAF charges per rule and per request evaluated, and [custom domains](/resources/networking/custom-domains) require DNS configuration. VPC-only databases don't add direct cost, but workloads that need both VPC access and internet access may need additional networking configuration. Evaluate the cost of each required resource when planning which guardrails to enable.
 
 ### When should I use guardrails instead of code reviews?
 
@@ -347,7 +336,7 @@ Deletion protection and backups protect against different failure modes. Deletio
 
 ### Does the require-vpc-databases guardrail apply to all database types?
 
-The `require-vpc-databases` guardrail checks both [relational databases](/resources/databases/relational-database) and [OpenSearch domains](/resources/databases/opensearch). Both resource types must use VPC-only accessibility when this guardrail is enabled. The accepted modes are `'vpc'` and `'scoping-workloads-in-vpc'` — any other accessibility mode causes the operation to be blocked.
+Yes. When enabled, the guardrail requires that all databases in the stack use VPC-only accessibility with no public internet access. Any database configured without VPC-only accessibility fails the check.
 
 ### Can I restrict which database engines my team uses?
 

@@ -1,0 +1,142 @@
+# Packaging Overview
+
+Stacktape packaging turns your source code into a deployable artifact — a Lambda zip for serverless functions or a container image for always-on services. Your [resource type](/configuration/resources) determines which category applies. The packaging mode you choose controls how that artifact gets built, from zero-config buildpacks to fully custom Dockerfiles.
+
+## Two packaging categories
+
+Every Stacktape compute resource requires a `packaging` configuration. The packaging category is determined by your resource type — not something you choose independently.
+
+**Function packaging** produces a Lambda deployment zip optimized for serverless execution. It applies to [Lambda functions](/resources/compute/lambda-function).
+
+**Container packaging** produces or references an OCI container image for container-based compute resources. Build modes create an image and push it to a managed ECR repository. The prebuilt-image mode references an existing image from Docker Hub, ECR, or another registry. Container packaging applies to [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), and [batch jobs](/resources/compute/batch-job).
+
+
+## Feature Comparison
+
+| Feature | Function packaging | Container packaging |
+| --- | --- | --- |
+| Artifact produced | Lambda deployment zip | OCI container image (built or referenced) |
+| Available modes | 2 | 5 |
+| Zero-config option | yes | yes |
+| Custom build support | Pre-built zip or directory | Dockerfile, prebuilt image, Nixpacks, Cloud Native Buildpacks |
+
+
+## Function packaging
+
+Function packaging bundles your code and dependencies into a Lambda deployment zip. Two modes are available — most projects should use the Stacktape buildpack.
+
+| Mode | Use when |
+|------|----------|
+| [**Stacktape buildpack**](/packaging/function/stacktape-buildpack) | **Recommended.** Point to your source file — Stacktape handles bundling, source maps, and dependency installation. For JS/TS, code is bundled into a single file and dependencies with native binaries are installed separately. Supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. |
+| [**Custom artifact**](/packaging/function/custom-artifact) | You have your own build process and want to provide a pre-built deployment package. Provide a zip, directory, or other file — Stacktape zips directories and non-zip files automatically. |
+
+The Stacktape buildpack (`StacktapeLambdaBuildpackPackaging`) is the right choice for most projects. For JavaScript and TypeScript, it bundles your code into a single file with auto-generated source maps, and installs dependencies with native binaries separately. For Python, it handles `requirements.txt`, `Pipfile`, or `pyproject.toml`. For Java, it supports both Gradle and Maven. Switch to custom artifact (`CustomArtifactLambdaPackaging`) only when your build process can't be expressed through the buildpack's configuration — for example, when you need a custom compiler step, a monorepo build tool, or an artifact produced by a separate CI job.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    })
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+Fine-tune language settings (Node.js version, Python version, module format, source maps) through [language-specific configuration](/packaging/function/language-specific-config).
+
+## Container packaging
+
+Container packaging builds an OCI container image and pushes it to a managed ECR repository — or, for prebuilt images, references an existing image from an external registry. Five modes cover the range from zero-config to fully custom.
+
+| Mode | Use when |
+|------|----------|
+| [**Stacktape buildpack**](/packaging/containers/stacktape-buildpack) | **Recommended for most projects.** Point to your source file — Stacktape produces an optimized container image. Supports JavaScript, TypeScript, Python, Java, and Go. |
+| [**Custom Dockerfile**](/packaging/containers/custom-dockerfile) | You need custom system packages, a specific base image, or full control over the build. Because Stacktape builds your Dockerfile with standard Docker, normal Dockerfile patterns such as multi-stage builds work as expected. |
+| [**Prebuilt image**](/packaging/containers/prebuilt-image) | You already have a container image in Docker Hub, ECR, or a private registry. Stacktape references it directly — no build step. |
+| [**Nixpacks**](/packaging/containers/nixpacks) | You want automatic language/framework detection without writing a Dockerfile. Supports a wide range of languages. |
+| [**External buildpack**](/packaging/containers/external-buildpack) | You want to use Cloud Native Buildpacks (buildpacks.io). Default builder is `paketobuildpacks/builder-jammy-base`. |
+
+### Deciding between container modes
+
+Start with the **Stacktape buildpack** (`StacktapeImageBuildpackPackaging`) for JavaScript, TypeScript, Python, Java, or Go projects — it produces small, optimized images with no configuration beyond pointing to your source file. Switch to a **custom Dockerfile** (`CustomDockerfilePackaging`) when you need system-level control: custom OS packages, non-standard runtimes, or specific base images. Use a **prebuilt image** (`PrebuiltImagePackaging`) when your CI pipeline already produces container images, or you're running third-party software like Redis, Nginx, or Prometheus. Choose **Nixpacks** (`NixpacksPackaging`) or **external buildpack** (`ExternalBuildpackPackaging`) when working with languages the Stacktape buildpack doesn't cover and you don't want to maintain a Dockerfile.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    resources: { cpu: 0.25, memory: 512 },
+    containers: [
+      {
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/app.ts'
+        })
+      }
+    ]
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+The `resources` property controls the compute allocation for the container: `cpu` is in vCPU units and `memory` is in MB. The example above uses minimal resources suitable for a lightweight API. See the [web service page](/resources/compute/web-service) for supported values and scaling options.
+
+## Build caching
+
+The Stacktape Lambda buildpack caches packages based on a content checksum — if your code and dependencies haven't changed since the last deploy, the packaging step is skipped and the existing artifact is reused. Other packaging modes that build from source also produce a content digest and may skip rebuilds when nothing has changed. Prebuilt images reference an existing image directly and are not rebuilt. Custom artifacts are uploaded as provided.
+
+
+> **Tip:** You can run packaging without deploying using [`stacktape package-workloads`](/cli/package-workloads). This is useful for testing your build configuration or for CI pipelines that separate the build and deploy steps.
+
+
+## FAQ
+
+### What's the difference between function packaging and container packaging?
+
+Function packaging produces a Lambda deployment zip for serverless functions that scale per-request and charge per-invocation. Container packaging produces (or references) an OCI container image for long-running services on AWS ECS. Your resource type determines which category applies — [Lambda functions](/resources/compute/lambda-function) use function packaging, while [web services](/resources/compute/web-service) and other container resources use container packaging.
+
+### Which packaging mode should I start with?
+
+Use the Stacktape buildpack — both the [Lambda buildpack](/packaging/function/stacktape-buildpack) and the [container image buildpack](/packaging/containers/stacktape-buildpack) are zero-config. Point to your source file and Stacktape handles the rest. Only switch to another mode when you hit a specific limitation, like needing custom system packages ([custom Dockerfile](/packaging/containers/custom-dockerfile)) or having a pre-existing build pipeline ([custom artifact](/packaging/function/custom-artifact) or [prebuilt image](/packaging/containers/prebuilt-image)).
+
+### What languages does the Stacktape buildpack support?
+
+The [Lambda buildpack](/packaging/function/stacktape-buildpack) supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. The [container image buildpack](/packaging/containers/stacktape-buildpack) supports JavaScript, TypeScript, Python, Java, and Go. For languages not covered by the buildpack, use a [custom Dockerfile](/packaging/containers/custom-dockerfile) or [Nixpacks](/packaging/containers/nixpacks), both of which support virtually any language.
+
+### Can I bring my own Dockerfile?
+
+Yes. The [custom Dockerfile](/packaging/containers/custom-dockerfile) mode lets you provide your own Dockerfile and build context. Stacktape builds the image and pushes it to a managed ECR repository. You can pass build arguments and override the start command and entrypoint. Because Stacktape builds your Dockerfile with standard Docker, normal Dockerfile patterns such as multi-stage builds work as expected.
+
+### How large can a Lambda deployment package be?
+
+AWS Lambda allows deployment packages up to 50 MB zipped (250 MB unzipped). The Stacktape buildpack optimizes for size by bundling JavaScript and TypeScript into a single file with source maps generated separately. If your package exceeds the limit, consider moving to a container-based resource like a [web service](/resources/compute/web-service) — container images can be significantly larger.
+
+### Where does Stacktape store container images?
+
+Build modes (Stacktape buildpack, custom Dockerfile, Nixpacks, external buildpack) push the resulting image to a managed ECR (Elastic Container Registry) repository created automatically for each stack. You don't need to create or configure ECR manually. When using a [prebuilt image](/packaging/containers/prebuilt-image), Stacktape references the existing image from its source registry — nothing is pushed to ECR.
+
+### Does Stacktape rebuild my code on every deploy?
+
+Not always. The Stacktape Lambda buildpack caches packages based on a content checksum and skips re-packaging when your code and dependencies haven't changed. Other build modes also produce a content digest and may skip rebuilds. When only configuration — not code — has changed, subsequent deploys are faster.
+
+### Can I use ARM architecture for container images?
+
+The packaging internals support both `linux/amd64` and `linux/arm64` architectures. ARM-based AWS Graviton instances typically offer better price-performance. The target architecture is determined by your resource configuration — see the relevant resource page (e.g. [web service](/resources/compute/web-service)) for details.
+
+### When should I use Nixpacks vs the Stacktape buildpack?
+
+The [Stacktape buildpack](/packaging/containers/stacktape-buildpack) is purpose-built for Stacktape and produces highly optimized images for its supported languages (JavaScript, TypeScript, Python, Java, Go). [Nixpacks](/packaging/containers/nixpacks) auto-detects a wider range of languages and frameworks but may produce larger images. Use Nixpacks when the Stacktape buildpack doesn't support your language, or when you want framework-specific detection without writing a Dockerfile.
+
+### Lambda function vs container service — which should I choose?
+
+This decision is about your [resource type](/configuration/resources), not packaging. [Lambda functions](/resources/compute/lambda-function) scale to zero, charge per-invocation, and work well for APIs, event handlers, and intermittent workloads with execution times under 15 minutes. [Container services](/resources/compute/web-service) run continuously, suit high-throughput APIs and WebSocket connections, and give you more control over the runtime. Once you've chosen a resource type, the packaging category follows automatically.

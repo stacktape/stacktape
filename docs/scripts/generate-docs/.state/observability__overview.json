@@ -2,7 +2,7 @@
   "pageId": "observability__overview",
   "pageRoute": "observability/overview",
   "startedAt": "2026-05-17T15:47:01.779Z",
-  "updatedAt": "2026-05-17T16:03:06.450Z",
+  "updatedAt": "2026-05-21T18:05:10.265Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1073,6 +1073,215 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/observability__overview/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The summary table at the top (Surface / CLI / Console / Config) is excellent — a first-time user can immediately see what exists and where to find it, without reading every section.",
+            "CLI vs Console distinction is maintained throughout every section and synthesized in a dedicated summary section, directly satisfying the section instructions.",
+            "CLI command examples are concrete and copyable with realistic flags (`--startTime 30m`, `--stat p99`, `--filter \"ERROR\"`). Each is isolated in its own fenced block — no multi-command copy-trap.",
+            "FAQ spans all three required categories: Stacktape-specific, underlying AWS service behavior, and choosing/comparison questions. The 10 entries are genuinely useful and not padded.",
+            "Issues section is well-grounded in the Explanations.tsx source, including the CLI v3.8.0 version gate, two-step activation model, fingerprint grouping, and subscription-filter slot limitation.",
+            "Log forwarding target table (Datadog / Highlight.io / HTTP endpoint) is clean and practical — readers can instantly see whether their preferred platform is supported.",
+            "Alert channels integration-type table with required config fields gives actionable detail without over-explaining.",
+            "The first paragraph is 51 words and self-contained — works as an AI Overview snippet."
+          ],
+          "problems": [
+            "No 'where to start' guidance for a developer who just deployed their first stack. The page maps the entire observability landscape but never says 'after your first deploy, run this to see your logs'. The target persona explicitly wants a clear path from 'what is this' to 'I have it running' — this page stops at 'what is this'.",
+            "The Issues section is significantly more detailed than every other section on the page, creating an imbalance. Technical details about high-volume protection percentages, sample rates, bounded invocation counts, and subscription-filter slot mechanics belong on the dedicated Issues page, not the overview. This depth will overwhelm first-time users scanning the overview.",
+            "The FAQ entry 'How much does observability cost on AWS?' contains zero useful content — it just redirects to /managing-costs/overview. Even a single sentence ('CloudWatch charges per GB ingested and per metric alarm; most small stacks stay within the free tier') would make the answer actionable. A pure redirect is a low-value FAQ entry.",
+            "The Metrics table lists specific CloudWatch metric names (Invocations, Errors, Duration, Throttles, ConcurrentExecutions, CPUUtilization, etc.) as Stacktape resource capabilities, but the provided source file (Explanations.tsx) does not enumerate these metrics. These claims should be grounded in a CLI source or types file — the source-grounding verifier may flag this.",
+            "The 'Alarms' section asserts 'Resource types that support config-time alarms: Lambda functions, relational databases, HTTP API Gateways, application load balancers, and SQS queues' without a grounding source in the provided files. This list should be verifiable from types/stacktape-config/alarms.d.ts, which is not in the provided source set."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short 'Quick start' note or Info callout near the top (after the table or as its own paragraph) pointing the first-time user to the single most useful first action: running `stacktape debug:logs` after deploying. One sentence is enough: 'If you just deployed your first stack, start with `stacktape debug:logs` — it shows everything your workload has written to CloudWatch since deployment.'",
+            "Trim the Issues section to a summary paragraph + a few key facts (what it detects, how to enable it, the CLI commands, the v3.8.0 requirement) and move the high-volume protection, sample-rate, and subscription-filter-slot details to the dedicated Issues page. The current depth is out of proportion with the other sections on an overview page.",
+            "Improve the cost FAQ answer with at least one concrete sentence about the free tier or pricing model (e.g., CloudWatch Logs free tier, alarm cost per month) so readers get useful context before being redirected. Per the section instruction, cost content belongs at /managing-costs/*, but the FAQ answer should still contain something readers can act on.",
+            "Consider renaming 'Observability surfaces' to 'What's available' or 'Overview' — the word 'surfaces' is slightly abstract for a first-time reader unfamiliar with the term.",
+            "Add a one-line note in the Metrics section acknowledging that custom application metrics (published via CloudWatch PutMetricData) can also be monitored — the current table implies only AWS-provided metrics are available, which may mislead readers building custom instrumentation.",
+            "The Alert history section mentions 'separate focused histories' (alarm history, notification history, budget history) but these are listed as sub-bullets of the unified view rather than getting brief description sentences. A one-sentence description per type would improve this section's standalone extractability for AI engines."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The observability surfaces summary table is excellent — engineers can find the CLI command or Console path for any surface in under 10 seconds, before reading a single paragraph of prose.",
+            "The Issues section accurately mirrors the source's nuanced coverage: enabling mechanics, two-step apply behavior, fingerprinting, supported languages, and limitations. No facts appear to be invented.",
+            "Strict CLI vs Console separation is maintained throughout every section — the section instruction's core requirement is fully met.",
+            "All bash blocks contain a single command with no inline explanatory comments, making every block copy-button safe.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-service behavior, choosing/comparison) with concrete, actionable answers. The FAQ is one of the stronger parts of the page.",
+            "The log forwarding ↔ issue detection subscription-filter slot conflict is called out in both the Issues and Log Forwarding sections — a real production gotcha that engineers must know before enabling both features."
+          ],
+          "problems": [
+            "Metrics section Console description says 'the Console surfaces metric-based alarm rules for resource metrics such as Lambda errors, database CPU usage, and API latency' — this describes alarm rules, not a metrics view. Placing it under the Metrics H2 conflates two distinct observability surfaces and implies the Console metrics view is just an alarm rules editor. An engineer looking for a standalone metrics dashboard will be confused or misled.",
+            "Alarms section enumerates 'Lambda functions, relational databases, HTTP API Gateways, application load balancers, and SQS queues' as resource types supporting config-time alarms. The provided source file (alarms.d.ts) was not available for grounding — this list may be incomplete or wrong. An engineer relying on it to decide which resources to alarm may miss supported types or configure an alarm on an unsupported type.",
+            "Issues section lists only log forwarding as a reason Stacktape skips issue detection for a workload. The Explanations.tsx source explicitly names additional exclusions: user-managed packaging, edge functions, and unsupported languages. An engineer using a custom Dockerfile or edge functions would not know their workload is excluded — a production-relevant omission.",
+            "Issues section omits the configurable percentage-based high-volume sampling knob. Explanations.tsx explicitly describes it: 'At 100%, every matching error event is processed. Lower percentages reduce detector work and Console reports during bursts, but occurrence counts become estimates and rare one-off errors are easier to miss.' This is a meaningful operational control that affects observability accuracy during error bursts.",
+            "Metrics table listing available metrics per resource type (Invocations, Errors, Duration, Throttles, etc.) is not grounded in any provided source file. These are accurate CloudWatch-native facts, but presenting them as a Stacktape documentation table without caveat implies Stacktape enforces or restricts them, which it does not."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Revise the Metrics section's Console paragraph to accurately separate metrics from alarms. If the Console does not have a standalone metrics view distinct from alarm rules, say so explicitly: 'The Console does not have a standalone metrics dashboard — metric visualization in the Console is surfaced through alarm rule configuration.' If it does have a separate metrics view, describe it accurately.",
+            "Expand the Issues section limitations list to include all source-documented exclusions: user-managed packaging, edge functions, and unsupported languages — not only log forwarding. A one-sentence bullet per exclusion is sufficient; engineers using custom Dockerfiles or edge Lambdas must know detection is skipped.",
+            "Add a sentence in the Issues section covering the percentage-based high-volume sampling control, e.g.: 'The Console also exposes a percentage-based sampling knob — at 100% every matching event is processed; lower values reduce load during error bursts at the cost of estimated occurrence counts and potential missed one-off errors.'",
+            "Remove the specific metric name enumeration from the Metrics table or move it to the dedicated /observability/metrics page. Replace with a one-liner like 'CloudWatch provides infrastructure metrics per resource type — see Metrics for the full list per resource.' This avoids presenting unsourced AWS facts as Stacktape-defined configuration.",
+            "Consider caveating the config-time alarms resource type list as 'including' rather than an exhaustive enumeration, or remove it entirely and link to the /observability/alarms page, until the alarms.d.ts source can confirm the complete list. As written, an engineer may conclude unsupported types do not work when in fact they might."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 4,
+            "practicalUsefulness": 4,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The page is easy to scan: short H2s, a useful surface-comparison table, and a broad FAQ with Stacktape, AWS-service, and choosing/comparison questions.",
+            "The draft correctly separates many CLI commands from Console surfaces in the overview table and uses the documented `stacktape debug:*` command names.",
+            "The Issues section is relatively well grounded in the provided Console explanation, including CLI v3.8.0 wiring, log-pattern detection, grouping, safety limits, and the subscription-filter tradeoff."
+          ],
+          "problems": [
+            "Large parts of the page are not grounded in the provided source file. The source only covers Console explanations for issues, channels, notifications, alarm rules/history/state, budgets, and related concepts; it does not substantiate most logs, metrics, CLI flag, supported metric, log forwarding, or external provider details.",
+            "The opening paragraph overgeneralizes that all observability surfaces read from the same CloudWatch data and require no extra infrastructure setup. The provided source supports CloudWatch for alarms/issues-related wiring, but not every listed surface, and issues/log forwarding require explicit enablement or configuration.",
+            "The Logs and Metrics sections contain detailed CLI behavior, flags, metric names, query behavior, and resource support that are not present in the provided source file.",
+            "The Alarms section lists config-time alarm resource support and per-resource `alarms` details without the required `types/stacktape-config/alarms.d.ts` source. The human instruction explicitly requires referencing both config-time definitions and Console alarm pages; the draft only has Console explanation source available.",
+            "The Alert channels section claims specific integration types and required configuration fields for Slack, Microsoft Teams, Email, Discord, and Webhook, but the provided source only says channels deliver to Slack, email, or webhook-like destinations at a high level.",
+            "The Log forwarding section is mostly unsupported by the provided source. Kinesis Data Firehose, S3 backup, supported targets, `logForwarding`, and provider-specific setup are not grounded in the supplied source file.",
+            "The FAQ includes unsupported or too-strong claims, especially “No additional infrastructure setup is required,” “No log data is lost,” custom metrics alarm behavior, Datadog/Highlight.io targets, and Firehose retry/S3 backup details.",
+            "The page has good breadth but thin source-backed decision support. Several sections describe what exists but do not give grounded tradeoffs or clear CLI-vs-Console boundaries from the supplied source."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify every technical claim not grounded in the provided source file, or add the missing authoritative sources. In particular, either supply `src/commands/debug-*`, observability page sources, `types/stacktape-config/alarms.d.ts`, and log-forwarding config sources, or narrow the page to what `console-app/src/Explanations.tsx` actually supports.",
+            "Correct the opening paragraph so it does not claim all observability surfaces use the same CloudWatch data or require no extra setup. Replace it with a narrower source-backed statement that Stacktape Console exposes issues, channels, notification rules, alarm rules, alarm state/history, and alert history, with issues using CloudWatch Logs subscriptions after deployment.",
+            "Revise the Alarms section to explicitly distinguish Console-managed alarm rules from config-time alarms using the actual config-time alarm source. If the config source is unavailable, remove the config-time resource-support list and per-resource `alarms` claims.",
+            "Remove unsupported CLI option details, metric lists, and Logs Insights behavior unless the corresponding CLI source files are provided. Keep only command names if they are sourced elsewhere, or mark the section as linking out rather than documenting behavior.",
+            "Rewrite the Log forwarding and Alert channels sections to match available sources, or add source files proving `logForwarding`, Kinesis Data Firehose, S3 backup behavior, supported targets, and integration field names.",
+            "Fix unsupported FAQ answers by replacing absolute claims with source-grounded wording. Do not state “No log data is lost” or “No additional infrastructure setup is required” unless source files prove those guarantees."
+          ],
+          "optionalImprovements": [
+            "Add a short “Best first step” paragraph near the top: use CLI debug commands for immediate investigation, use Console surfaces for team monitoring and alert routing. Keep the wording grounded in CLI and Console sources.",
+            "Turn the CLI vs Console section into a compact table so readers can compare logs, metrics, alarms, and issues faster.",
+            "Where source files are added, include one copyable example per CLI surface and keep each command in its own fenced block, as the draft already does.",
+            "Consider adding a short “Limitations” section for source-backed constraints: issues are log-pattern based, issue wiring changes on next deployment, and issue detection is skipped for workloads with Stacktape log forwarding configured."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the supplied observability sources, especially around Issues, alarm rules, alert channels, notifications, and the documented CLI command names. The main problems are a few over-broad statements that treat all observability surfaces as CloudWatch-backed data views, narrow Issues enablement to project-only scope, and overstate alert-history delivery status and log-forwarding durability.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Stacktape surfaces logs, metrics, alarms, issues, alert channels, notifications, and alert history through the CLI and Console — reading from the same AWS CloudWatch data your stack produces.”",
+              "reason": "The sentence overgeneralizes. Logs, metrics, alarms, and issue detection are CloudWatch-related, but alert channels are delivery destinations, notifications are deployment-event alerts, and alert history is a Console alert log rather than CloudWatch data produced by the stack.",
+              "suggestedFix": "Narrow the opening paragraph: say CloudWatch backs logs, metrics, alarms, and issue detection, while the Console also manages alert channels, deployment notifications, and alert history.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "Channels are the destinations where alerts get delivered"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "Notification rules let you get alerted when specific events happen"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "A unified log of all alerts across notifications, alarms, and budgets."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft describes Issues enablement as “Enabled per-project in Console” and says Issues work “beyond enabling it per-project in the Console.”",
+              "reason": "The Console source says Issues can be enabled for all projects, selected projects, and optionally specific stage names. Project-only wording is too narrow and omits stage scoping.",
+              "suggestedFix": "Write that Issues are managed in the Console and can be enabled for all projects, selected projects, and optionally specific stage names.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "You can enable all projects, selected projects, and optionally only specific stage names."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Console keeps a unified log of every alert sent across all surfaces — alarms, notifications, and budget alerts — with delivery status.”",
+              "reason": "The Console source supports a unified alert log, but it does not say the unified Alert History view includes delivery status. Delivery status is explicitly mentioned for focused notification and alarm histories, not for the unified alert-history explanation.",
+              "suggestedFix": "Say the Console keeps a unified log of alerts across notifications, alarms, and budgets. Then separately say alarm history and notification history include delivery status, if you want to keep that detail.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "A unified log of all alerts across notifications, alarms, and budgets."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "including their delivery status"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "including their delivery status"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“No log data is lost — you can reprocess from S3 later.”",
+              "reason": "The provided log-forwarding source supports automatic S3 backup for failed deliveries, but it does not support an absolute no-data-loss guarantee or a reprocessing guarantee. That stronger claim could mislead readers about failure modes.",
+              "suggestedFix": "Replace with: “Failed delivery batches are backed up to S3, which gives you a recovery path for delivery failures.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/observability/overview.md",
+                  "quote": "Failed deliveries are backed up to an S3 bucket automatically."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `stacktape debug:logs`, `stacktape debug:metrics`, and `stacktape debug:alarms` with valid documented routes.",
+            "The Issues section is strongly grounded in the Console source: CLI 3.8.0 wiring, subscription filters, supported languages, grouping, and limitations are represented accurately.",
+            "The draft avoids forbidden Stacktape config patterns; there are no hand-authored YAML config examples or fenced TypeScript Stacktape config blocks.",
+            "All internal markdown links point to routes present in the supplied documentation navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1085,8 +1294,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\observability\\overview.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/observability/overview.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 6.9, hard blockers 5, advisory high 3, verifier medium 13"
+  "pipelineReviewSummary": "reviewer-avg 6.9, hard blockers 0, advisory high 0, verifier medium 4",
+  "refinementAttempts": 1,
+  "refinementStalled": false
 }

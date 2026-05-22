@@ -2,7 +2,7 @@
   "pageId": "cli__package-workloads",
   "pageRoute": "cli/package-workloads",
   "startedAt": "2026-05-17T21:47:48.011Z",
-  "updatedAt": "2026-05-17T21:54:58.224Z",
+  "updatedAt": "2026-05-22T01:59:23.295Z",
   "iterations": [
     {
       "iteration": 1,
@@ -673,6 +673,153 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/cli__package-workloads/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Follows CLI section instruction rhythm precisely: lead paragraph → usage → CliCommandsApiReference → examples → when-to-use → related commands → FAQ.",
+            "Each shell command occupies its own fenced block — copy button works cleanly for every invocation.",
+            "Uses <CliCommandsApiReference> correctly with the full sorted args list.",
+            "Related commands section points to the three most relevant siblings (deploy, compile-template, preview-changes) with accurate descriptions.",
+            "Lead paragraph is concise and self-contained: it names the command, states what it does, and gives the primary use-case in under 60 words.",
+            "No style violations: no YAML Stacktape config blocks, no StacktapeConfig type, no fenced TypeScript with defineConfig, no marketing language, no comment-labeled multi-command bash blocks.",
+            "Examples section covers the most practically useful flag combinations (--configPath, --profile, --logLevel debug, --outputFormat jsonl) with a short prose sentence before each."
+          ],
+          "problems": [
+            "The FAQ answer to 'Can I package only specific workloads?' says 'The command's implementation supports selecting specific workloads for packaging' but provides no CLI flag, syntax, or confirmation that the feature is actually exposed to users. The source (index.ts) reads `onlyWorkloads` from `globalStateManager.args`, but the command definition in commands.ts does not list any such arg, and the `sortedArgs` in the CliCommandsApiReference don't include it either. This answer will confuse readers looking for a real flag.",
+            "The <Info> callout about `commandCanUseCache: false` is an internal implementation detail that is not actionable for the vast majority of users. It doesn't affect how the command is invoked or what it produces; it's noise that breaks the reader's flow between the Examples and When to use sections.",
+            "The 'When to use' section sits between Examples and Related commands. The CLI section instructions prescribe: lead → usage → reference → examples → related commands. 'When to use' is not a bad addition but its placement after examples — when it provides decision context that should precede examples — is mildly confusing."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace or remove the 'Can I package only specific workloads?' FAQ answer. Either (a) confirm the `onlyWorkloads` flag is a real CLI arg and show the syntax (`--onlyWorkloads lambda1,lambda2`), or (b) remove the FAQ entry entirely if the flag is not user-accessible. Do not leave the current half-answer that implies the feature exists without explaining how to use it.",
+            "Remove the <Info> callout about `commandCanUseCache: false`. If there is a meaningful user-facing implication (e.g. 'running this command twice will always re-package, it does not read from cache'), state that consequence in plain prose rather than surfacing an internal implementation flag name.",
+            "Move 'When to use' to just before or immediately after the lead paragraph, so a reader deciding whether to run the command gets that context before seeing the full CLI reference and examples."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Intro paragraph is concise, self-contained, and answers 'what and why' without meta-framing.",
+            "One-command-per-fenced-block discipline is followed perfectly throughout Examples — no multi-command blocks, no in-block comments.",
+            "The <Info> callout about commandCanUseCache: false is directly grounded in the command's source implementation.",
+            "Five distinct, realistic example invocations covering different real scenarios (CI, non-default config, debug logging, JSONL output, profile).",
+            "Related commands section links to the three closest siblings with accurate descriptions.",
+            "FAQ mixes Stacktape-specific and comparison-category questions appropriately for a narrow-scope CLI page."
+          ],
+          "problems": [
+            "The FAQ entry 'Can I package only specific workloads?' says 'the command's implementation supports selecting specific workloads for packaging' without naming any CLI flag. The source confirms onlyWorkloads is read from globalStateManager.args, but it is absent from the command's documented args in commands.ts and from the auto-generated sortedArgs in the draft. Implying the feature is user-accessible without a flag name is misleading; the answer should either identify the flag or say it is not exposed as a public CLI flag.",
+            "The <Info> callout describes an internal implementation detail using the internal identifier commandCanUseCache: false without translating it to user-facing meaning. The user impact — that packaging always runs fresh with no incremental build cache — is not stated, leaving the callout as noise for most readers.",
+            "The 'When to use' section appears after the Examples and CLI reference, separated from the intro by the full sortedArgs table. CLI section instructions call for the command description and when-to-use context before or alongside examples, not after. For a page this short, burying the motivation after the mechanics is a mild but real rhythm issue."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Rewrite the 'Can I package only specific workloads?' FAQ answer: if --onlyWorkloads is a real public flag (confirm against the full options source), document it with the exact flag name and syntax; if it is not exposed, say 'There is no CLI flag to target individual workloads — the command packages all compute resources defined in your configuration.'",
+            "Rewrite the <Info> callout in user-facing terms: 'package-workloads always runs a fresh packaging pass — no incremental build cache is used. Each invocation rebuilds all packaged artifacts from scratch.' Drop the internal identifier commandCanUseCache.",
+            "Move the 'When to use' section to immediately before or after the Usage section, before the CLI reference. Per the CLI page rhythm, motivation should precede the flag table, not follow it."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, concrete, and matches the command's purpose from the source.",
+            "Usage example shows the required `--stage` and `--region` flags, and the page uses the required `<CliCommandsApiReference command=\"package-workloads\" />` component instead of hand-authoring a flags table.",
+            "The page correctly distinguishes `package-workloads` from `deploy` and `compile-template`, and the `commandCanUseCache: false` note is grounded in the command implementation."
+          ],
+          "problems": [
+            "The FAQ claim \"The command's implementation supports selecting specific workloads\" is misleading for readers because the public command definition for `package-workloads` does not expose an `onlyWorkloads` argument in the shown CLI reference. The runtime reads `onlyWorkloads`, but the documented CLI args do not provide a user-facing flag for it.",
+            "Several H2 sections do not start with self-contained explanatory prose. `Usage` starts with a code block, `CLI reference` starts with a component, and `Related commands` starts with a list, which weakens extractability for answer engines.",
+            "The page says the command \"loads credentials and target stack information\" but does not explain the practical implication: it is not a deploy, but it still needs stack context and credentials before packaging.",
+            "The examples are useful but mostly repeat the same command shape; they do not explain what output or artifact inspection workflow the reader should expect after the command succeeds.",
+            "The FAQ is Stacktape-specific and command-specific, which is reasonable for a narrow CLI page, but it could better cover CI/debugging search intent without adding unsupported claims."
+          ],
+          "mandatoryFixes": [
+            "Remove or rewrite the FAQ entry \"Can I package only specific workloads?\" unless a public `onlyWorkloads` CLI argument is documented in the source. A safe replacement is: \"The public `package-workloads` command packages the compute resources in the initialized Stacktape configuration; the generated CLI reference does not document a workload-selection flag.\""
+          ],
+          "optionalImprovements": [
+            "Add one self-contained sentence before the Usage command, such as: \"A basic `package-workloads` run needs the target stage and AWS region so Stacktape can initialize the same stack context used by deployment.\"",
+            "Add a short paragraph before `<CliCommandsApiReference />` explaining that the table lists all accepted flags for this command and that `--stage` and `--region` are required.",
+            "Add a concise expectation after the first example: the command initializes configuration, runs the packaging manager, and prints a success message for the target stack when packaging completes.",
+            "Consider moving the `commandCanUseCache: false` note closer to Usage or Examples, because it affects how users interpret repeated local packaging runs.",
+            "Add one CI-oriented example sentence that stays source-grounded, such as using `--outputFormat jsonl` for machine-readable CLI output, without claiming artifact paths or cache behavior not shown in the source."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI command definition and implementation. I found one material unsupported claim around deployed stack requirements; the rest of the core command behavior, required flags, examples, generated API reference, and links are consistent with the sources provided.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Does package-workloads require a deployed stack? The command requires `--stage` and `--region` to identify the target stack context, but it does not create or update any deployed infrastructure. It only runs the packaging step.”",
+              "reason": "The source supports that the command loads target stack info and packages workloads, but it does not establish whether the target stack must already be deployed. The wording answers the FAQ in a way that implies no deployed stack is required, which is not grounded in the provided implementation or CLI command definition.",
+              "suggestedFix": "Narrow the answer: “The command requires `--stage` and `--region` because it loads target stack information before packaging. The provided source does not document whether the stack must already exist; the command itself does not run a deploy.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/package-workloads/index.ts",
+                  "quote": "await globalStateManager.loadTargetStackInfo();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/package-workloads/index.ts",
+                  "quote": "const packagedWorkloads = await packagingManager.packageAllWorkloads({\n    commandCanUseCache: false,\n    onlyWorkloads\n  });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts",
+                  "quote": "'package-workloads': {\n    description: `Packages your compute resources and prepares them for deployment.\n\nThis is useful for inspecting the packaged artifacts before deploying.`,\n    args: {\n      ...universalArgs,\n      ...stackArgs,\n      ...configDependentArgs\n    },\n    requiredArgs: ['stage', 'region'] as const\n  }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The command purpose and no-deploy framing are grounded in `src/config/cli/commands.ts` and the implementation, which only initializes config and calls the packaging manager.",
+            "The usage example includes both required arguments, `--stage` and `--region`, matching `requiredArgs: ['stage', 'region']`.",
+            "The `<CliCommandsApiReference command=\"package-workloads\" ... />` command name matches the page route and provided command definition.",
+            "The draft correctly says the command passes `commandCanUseCache: false` to the packaging manager.",
+            "All internal documentation links in the draft point to routes present in the provided navigation index.",
+            "The draft avoids forbidden Stacktape config example patterns; it contains no hand-authored Stacktape YAML, no `StacktapeConfig` object style, and no fenced TypeScript Stacktape config block."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -685,8 +832,16 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\package-workloads.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.4, hard blockers 1, advisory high 0, verifier medium 3"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/cli/package-workloads.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T01:59:23.295Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/package-workloads/index.ts": "441e2f92b7c1bf340accccf2cc0fe82306ef4873",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/cli/package-workloads.md": "a1229de79d87adf1d833d3bb0ed8c568cd3ecb8f"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

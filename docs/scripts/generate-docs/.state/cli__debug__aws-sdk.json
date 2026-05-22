@@ -2,7 +2,7 @@
   "pageId": "cli__debug__aws-sdk",
   "pageRoute": "cli/debug-aws-sdk",
   "startedAt": "2026-05-17T22:36:53.450Z",
-  "updatedAt": "2026-05-17T22:46:37.756Z",
+  "updatedAt": "2026-05-22T07:00:22.917Z",
   "iterations": [
     {
       "iteration": 1,
@@ -896,6 +896,452 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/cli__debug__aws-sdk/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations — no YAML Stacktape config, no StacktapeConfig type, no fenced TypeScript blocks containing defineConfig, no marketing language.",
+            "Read-only prefix list (List, Get, Describe, Head, Batch) matches the source code exactly and is stated prominently before and inside the Warning callout.",
+            "The Warning callout correctly identifies that Scan and FilterLogEvents — which appear in the AI-generated source description — are actually rejected by the command. Surfacing this saves real debugging pain.",
+            "Every bash example is in its own fenced block with a prose sentence above it. No copy-button traps.",
+            "Agent mode output (ok, service, command, data) matches the source implementation exactly.",
+            "'No config file required' section is grounded in commandRequiresConfig: false and adds genuine value for readers who expect standard stack context.",
+            "FAQ covers all three required categories: Stacktape-specific (config file, --input structure), AWS general (AccessDeniedException, multi-region querying), and comparison (debug:aws-sdk vs AWS CLI, vs specialized commands). 9 entries, all distinct."
+          ],
+          "problems": [
+            "The 'Discovering services and commands' section misrepresents error paths as discovery features. 'Run without --service to see the full list of supported service names' implies a deliberate help/discovery mode, but the source throws an ExpectedError whose hint happens to list supported services. A first-time reader who tries this will see an error, not a help screen, and may be confused.",
+            "Similarly, the bash block 'stacktape debug:aws-sdk --region eu-west-1 --service dynamodb' and the sentence 'This prints the supported DynamoDB operations' are inaccurate: omitting --command triggers a required-flag error; the DynamoDB command examples appear only as part of the error hint, not as normal output.",
+            "The 'Batch' prefix allows any command starting with 'Batch' (e.g. BatchWriteItem, BatchDeleteItem), which are write operations. The source code simply prefix-matches; the docs claim the command is safe for production because only read-only operations are allowed, which slightly overstates the safety guarantee for Batch-prefixed commands. This is a narrow edge case but worth noting on a safety-focused page."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reframe the 'Discovering services and commands' section to accurately describe error behavior: 'If --service is omitted, the command fails and lists supported service names in the error hint. If --command is omitted with a valid --service, the error hint includes example commands for that service.' Remove the bash block that shows a deliberately incomplete invocation as if it produces helpful output.",
+            "Add a one-sentence caveat to the 'Read-only enforcement' section: 'Note: the Batch prefix is matched by name only — BatchWriteItem and BatchDeleteItem would pass the check. In practice, AWS SDK will return an error if your credentials lack write permissions, but the CLI itself does not block Batch write commands by name.'",
+            "Mention --stage optionality more explicitly. Users familiar with other Stacktape commands will notice stage is absent from the basic usage example and wonder if it matters. A one-sentence note ('--stage is optional; omit it when using --profile or --awsAccount directly') removes doubt without cluttering the page.",
+            "The 'Output' section is very short (two paragraphs). Consider showing a truncated sample of actual JSON output for both normal and agent modes — even a 4-line snippet would help readers know what to expect when parsing in scripts.",
+            "The 'GetLogEvents' example requires knowing the exact log stream name (e.g. '2024/01/15/[$LATEST]abc123'), which is non-obvious for first-time users. A sentence noting that log stream names can be found via 'stacktape debug:logs' or the AWS Console would make this example more actionable."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Read-only prefix enforcement is accurately documented — all five prefixes (List, Get, Describe, Head, Batch) match the source constant READ_ONLY_PREFIXES exactly.",
+            "Agent-mode output shape (`ok`, `service`, `command`, `data`) is source-grounded against the tuiManager.info call in commands/debug-aws-sdk/index.ts.",
+            "The 'No config file required' section is correctly grounded in `commandRequiresConfig: false` from initializeStackServicesForWorkingWithDeployedStack.",
+            "Examples cover a wide spread of realistic AWS services (Lambda, DynamoDB, S3, ECS, CloudFormation, Secrets Manager, CloudWatch, CloudWatch Logs) with copyable, correctly-shaped --input JSON.",
+            "FAQ spans all three required categories: Stacktape-specific (config file, read-only), AWS service use-case (AccessDeniedException), and comparison (debug:aws-sdk vs AWS CLI).",
+            "Discovery flow (omitting --command to get service-specific example operations) is accurately described, matching the ExpectedError hint path in the source.",
+            "Shell blocks are one command per block with no explanatory # comments inside — style rule followed throughout."
+          ],
+          "problems": [
+            "The 'Discovering services and commands' section shows a bash block (`stacktape debug:aws-sdk --region eu-west-1 --service dynamodb`) that will fail with a required-argument error at runtime. The surrounding prose explains this correctly, but placing an error-triggering invocation in a fenced bash block without a clear 'this intentionally errors to show available commands' framing risks confusing readers who copy-paste it expecting output.",
+            "The Warning block lists only `GetItem` and `ListTables` as valid examples, and `Scan`, `Query`, `FilterLogEvents` as invalid — but omits `BatchGetItem` as a valid example despite the prose above the Warning correctly naming all five allowed prefixes including Batch. The Warning reads as if only Get/List/Describe/Head are accepted.",
+            "The ai-docs source (debug-aws-sdk.md, priority 3) contains a `Scan` and `FilterLogEvents` example command that would be rejected by the read-only enforcement. The draft page correctly warns about these in prose, but since the ai-docs source is listed as an authoritative hint file, a reader who reads both might be confused. The page would benefit from a brief note that Scan is a common mistake.",
+            "The `stage` and `projectName` flags appear in the CliCommandsApiReference as optional context flags, but the page never explains what they're used for in this command. Unlike most stack commands, debug:aws-sdk doesn't look up stack state — it goes directly to AWS. The role of stage/projectName here (likely unused or for credential scoping) is unexplained and could confuse users who supply them expecting resource filtering."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reframe the 'Discovering services and commands' bash block to make clear it intentionally triggers an error to expose the operation list — for example, add a prose sentence like 'Running the following will fail with a helpful error that lists supported operations for the service' before the block.",
+            "Add `BatchGetItem` (or a generic Batch-prefixed example) to the Warning block's list of valid operations so the Warning is consistent with the five-prefix rule stated in the prose above it.",
+            "Add a sentence in 'No config file required' (or in the CliCommandsApiReference description for stage/projectName) explaining that stage and projectName are accepted for credential resolution but do not filter results to a specific stack's resources.",
+            "Consider adding a one-liner about shell quoting: the --input examples use single-quoted JSON which works in bash/zsh but not in Windows cmd/PowerShell. Since the host platform is Windows, a brief note ('Use double-escaped quotes in PowerShell or wrap --input in a here-string') would prevent a common copy-paste failure for the target audience.",
+            "The FAQ answer for 'Can I query resources across multiple regions?' is accurate but could mention that --agent mode combined with a shell loop makes cross-region aggregation practical — a concrete pattern rather than just describing the limitation."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Clear command-focused structure: lead paragraph, usage, generated CLI reference, examples, related commands, and FAQ are all easy to scan.",
+            "Uses one command per shell block and avoids forbidden Stacktape config patterns.",
+            "The read-only prefix rule is surfaced prominently, including the important nuance that validation is prefix-based.",
+            "The FAQ is broad enough for a CLI page and covers Stacktape-specific usage, AWS CLI comparison, credentials, CI, and multi-region usage."
+          ],
+          "problems": [
+            "The page overstates safety: phrases like “without risk of accidental writes” and “without risk of accidental writes or data modification” are too strong for the runtime behavior. The source shows prefix matching only, and `Batch*` commands are allowed, so the page should describe this as a prefix-based guard rather than a semantic guarantee that every allowed AWS operation is non-mutating.",
+            "The opening paragraph says the command can “query any supported AWS service” and examples include services such as ECS, CloudFormation, Secrets Manager, and CloudWatch, but the provided source does not list the actual supported services. The runtime only exposes `getSupportedServices()` without the list, so concrete service coverage beyond examples in source should be narrowed or removed unless grounded by the executor source.",
+            "The draft says `debug:aws-sdk` “initializes debug-agent credentials automatically” in the AWS CLI comparison, but this is too implementation-oriented and potentially unclear for users. The source shows `initDebugAgentCredentials()` and `getDebugAgentCredentials()`, but the user-facing behavior should be phrased cautiously as credential resolution through Stacktape’s debug credential path.",
+            "The page claims `--agent` output is useful for “AI coding assistants” and machine-readable scripts. Agent mode behavior is grounded by source, but the AI assistant use case is not necessary and reads slightly promotional for a CLI reference.",
+            "The “Discovering services and commands” section says running without `--service` prints the list, but the source throws an `ExpectedError`. The detail may display supported services through the CLI error renderer, but “prints” is imprecise; write that Stacktape returns a missing-service error whose detail includes supported services.",
+            "The FAQ says malformed JSON returns “a parse error with guidance.” The source returns an `ExpectedError` titled `Invalid JSON in --input` with a specific hint, so the page should name that exact behavior rather than generic parse-error wording.",
+            "The page states the command gives “direct access to any supported AWS SDK v3 read-only operation.” Because the enforcement is prefix-based and the supported command list is hidden behind `getSupportedServices()`, this should be narrowed to “supported SDK command names that pass the allowed-prefix check.”",
+            "Several examples use realistic AWS services, but without the executor source they may be unsupported by Stacktape’s supported-service map. Unsupported examples would be actively harmful because users may copy commands that the CLI rejects."
+          ],
+          "mandatoryFixes": [
+            "Replace the absolute safety claims with source-grounded wording: the command rejects operation names that do not start with `List`, `Get`, `Describe`, `Head`, or `Batch`; it is a prefix-based guard, not a guarantee that every allowed AWS SDK operation is semantically read-only.",
+            "Remove or qualify ungrounded supported-service claims and examples. Keep examples only for services and commands grounded in the provided sources, or add the `aws-sdk-executor` source so the supported service map can be verified.",
+            "Change “Run without `--service` to see the full list” to say that omitting `--service` returns a missing-required-flag error whose detail includes supported services, matching `src/commands/debug-aws-sdk/index.ts`.",
+            "Reword the AWS CLI comparison so it does not imply broader safety or unsupported credential behavior. Anchor it to grounded behavior: Stacktape uses its configured AWS credential path, requires `--region`, and rejects command names outside the allowed prefixes."
+          ],
+          "optionalImprovements": [
+            "Move “No config file required” closer to Usage because it is a key decision point for this command.",
+            "Add a short table comparing `debug:aws-sdk`, `debug:dynamodb`, `debug:logs`, and the AWS CLI. This would make the choice between tools more extractable and scannable.",
+            "In the `--input` section, mention that the runtime parses `--input` with `JSON.parse` and defaults to an empty object when omitted.",
+            "Consider trimming the examples list to fewer, better-grounded examples. Too many unverified service examples reduce confidence more than they help.",
+            "Use more exact language for agent mode: the source prints pretty JSON containing `ok`, `service`, `command`, and `data`, rather than JSONL for this command’s command-specific output."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No high-severity factual or source-grounding issues found. The draft is well aligned with the CLI command definition and implementation for required flags, read-only prefix enforcement, missing-flag behavior, JSON input parsing, output shape, and no-config-file behavior.",
+          "issues": [],
+          "positiveFindings": [
+            "The read-only allowlist is correctly grounded in `src/commands/debug-aws-sdk/index.ts`, including the `Batch` prefix and the prefix-based caveat.",
+            "The draft correctly states that `--service`, `--command`, and `--region` are required according to `src/config/cli/commands.ts`.",
+            "The no-config-file claim is grounded in `initializeStackServicesForWorkingWithDeployedStack({ commandRequiresConfig: false })`.",
+            "Internal documentation links all point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the CLI command definition and implementation. The main problems are a few unsupported claims about exact supported AWS services/operations and one output-format claim that overstates what the implementation prints in agent mode.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"In agent mode (`--agent`), the command prints JSON containing `ok`, `service`, `command`, and `data` fields.\" and FAQ: \"Use `--agent` to get structured JSON output containing `ok`, `service`, `command`, and `data` fields.\"",
+              "reason": "The implementation prints pretty-printed JSON through `tuiManager.info`, not JSONL/NDJSON. The draft's field list is correct, but the page also inherits/mentions agent mode as machine-readable output; for this specific command, the command source shows formatted JSON with indentation, which may conflict with the broader `--agent` option description that says JSONL/NDJSON.",
+              "suggestedFix": "Narrow the wording to: \"With `--agent`, the command writes a JSON object with `ok`, `service`, `command`, and `data` fields.\" Avoid calling this command's output JSONL unless the command implementation changes.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-aws-sdk/index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify({ ok: true, service, command, data: result.data }, null, 2));\n  } else {\n    tuiManager.info(`${service}.${command} result:\\n`);\n    tuiManager.info(JSON.stringify(result.data, null, 2));\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Common services include `lambda`, `dynamodb`, `s3`, and `logs`.\" and examples using `ecs`, `cloudformation`, `secretsmanager`, and `cloudwatch`.",
+              "reason": "The provided sources do not include the `aws-sdk-executor` service registry, so the exact supported service names cannot be verified. The command imports `getSupportedServices()`, but the configured sources do not show which services are registered. Concrete service examples beyond those visible in command descriptions may be unsupported by the provided source set.",
+              "suggestedFix": "Keep examples that are present in `commands.ts` or the generated doc, or phrase cautiously: \"The exact list comes from `debug:aws-sdk` at runtime.\" Remove or qualify examples for services not shown in the available sources unless the service registry source is added.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-aws-sdk/index.ts",
+                  "quote": "import { executeAwsSdkCommand, getSupportedServices } from '@domain-services/debug-services/aws-sdk-executor';"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts",
+                  "quote": "AWS service name (e.g., lambda, dynamodb, s3, logs)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"This prints the supported DynamoDB operations (e.g. `ListTables`, `DescribeTable`, `GetItem`).\"",
+              "reason": "The implementation says missing `--command` returns example commands for the chosen service, but the provided sources do not show the DynamoDB operation list. The exact operations named in the draft are not grounded in the available source files.",
+              "suggestedFix": "Replace with: \"This returns example commands for the selected service when Stacktape recognizes the service.\" If you want to name DynamoDB operations, include the `aws-sdk-executor` source that defines them.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-aws-sdk/index.ts",
+                  "quote": "serviceCommands\n        ? `Example commands for ${service}: ${serviceCommands.join(', ')}`\n        : 'Provide a valid SDK command name'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Command names match AWS SDK v3 class names without the `Command` suffix — `ListFunctions` maps to `ListFunctionsCommand`.\"",
+              "reason": "The implementation passes the string `command` into `executeAwsSdkCommand`, but the provided sources do not show how command names are resolved to AWS SDK v3 command classes. This mapping is plausible, but not established by the available source files.",
+              "suggestedFix": "Phrase this as usage guidance tied to the documented option description: \"Use AWS SDK operation names such as `ListFunctions`, `Scan`, or `GetObject`.\" Avoid claiming the internal class-name mapping unless the executor source is available.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-aws-sdk/index.ts",
+                  "quote": "const result = await executeAwsSdkCommand(service, command, inputObj, {\n    region: awsRegion,\n    credentials: {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts",
+                  "quote": "longDescription: \"<p>AWS SDK command name (e.g., ListFunctions, Scan, GetObject).</p>\\n\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Both let you call AWS APIs. `debug:aws-sdk` initializes debug-agent credentials automatically, restricts operations to a read-only prefix allowlist, and integrates with Stacktape's credential management (`--profile`, `--awsAccount`).\"",
+              "reason": "The source supports debug-agent credential initialization and the read-only prefix check. It does not specifically show how `--profile` or `--awsAccount` are applied by this command, only that they are allowed arguments inherited through `stackArgs`. The credential selection behavior likely lives in initialization code that is not provided.",
+              "suggestedFix": "Narrow to: \"`debug:aws-sdk` uses Stacktape's command initialization and debug-agent credential helper, and accepts the standard `--profile` and `--awsAccount` flags.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-aws-sdk/index.ts",
+                  "quote": "initDebugAgentCredentials();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-aws-sdk/index.ts",
+                  "quote": "const credentials = await getDebugAgentCredentials();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts",
+                  "quote": "'debug:aws-sdk': {\n    description: `Execute read-only AWS SDK commands against deployed resources."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Execute read-only AWS SDK v3 commands from the Stacktape CLI. Safely inspect Lambda functions, DynamoDB tables, S3 buckets, and other AWS services in production.\"",
+              "reason": "The implementation enforces a prefix allowlist, but `Batch*` operations are allowed by name and the draft itself later warns that prefix matching is not a complete semantic read-only guarantee. The word \"Safely\" in the SEO description is stronger than the actual implementation guarantee.",
+              "suggestedFix": "Use more precise wording: \"Run prefix-allowed AWS SDK v3 inspection commands from the Stacktape CLI.\" Or mention the `Batch*` caveat in the safety framing.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"query any supported AWS service directly from your terminal\"",
+              "reason": "The source confirms a supported-service registry exists, but the provided files do not show whether every supported service can be queried with every read-prefixed operation or which services are included. The wording is broad but mostly bounded by \"supported\".",
+              "suggestedFix": "Use narrower wording: \"call read-prefixed operations for services supported by the command.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required flags `--region`, `--service`, and `--command` match `requiredArgs` for `debug:aws-sdk`.",
+            "The read-only prefix list `List`, `Get`, `Describe`, `Head`, and `Batch` matches the command implementation.",
+            "The `--input` JSON parsing behavior and invalid JSON error are accurately described.",
+            "The page uses one command per shell block and does not include forbidden Stacktape YAML or plain-object config examples.",
+            "All internal documentation links in the draft point to routes present in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/cli__debug__aws-sdk/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations — no YAML Stacktape config, no StacktapeConfig type, no fenced TypeScript blocks containing defineConfig, no marketing language.",
+            "Read-only prefix list (List, Get, Describe, Head, Batch) matches the source code exactly and is stated prominently before and inside the Warning callout.",
+            "The Warning callout correctly identifies that Scan and FilterLogEvents — which appear in the AI-generated source description — are actually rejected by the command. Surfacing this saves real debugging pain.",
+            "Every bash example is in its own fenced block with a prose sentence above it. No copy-button traps.",
+            "Agent mode output (ok, service, command, data) matches the source implementation exactly.",
+            "'No config file required' section is grounded in commandRequiresConfig: false and adds genuine value for readers who expect standard stack context.",
+            "FAQ covers all three required categories: Stacktape-specific (config file, --input structure), AWS general (AccessDeniedException, multi-region querying), and comparison (debug:aws-sdk vs AWS CLI, vs specialized commands). 9 entries, all distinct."
+          ],
+          "problems": [
+            "The 'Discovering services and commands' section misrepresents error paths as discovery features. 'Run without --service to see the full list of supported service names' implies a deliberate help/discovery mode, but the source throws an ExpectedError whose hint happens to list supported services. A first-time reader who tries this will see an error, not a help screen, and may be confused.",
+            "Similarly, the bash block 'stacktape debug:aws-sdk --region eu-west-1 --service dynamodb' and the sentence 'This prints the supported DynamoDB operations' are inaccurate: omitting --command triggers a required-flag error; the DynamoDB command examples appear only as part of the error hint, not as normal output.",
+            "The 'Batch' prefix allows any command starting with 'Batch' (e.g. BatchWriteItem, BatchDeleteItem), which are write operations. The source code simply prefix-matches; the docs claim the command is safe for production because only read-only operations are allowed, which slightly overstates the safety guarantee for Batch-prefixed commands. This is a narrow edge case but worth noting on a safety-focused page."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reframe the 'Discovering services and commands' section to accurately describe error behavior: 'If --service is omitted, the command fails and lists supported service names in the error hint. If --command is omitted with a valid --service, the error hint includes example commands for that service.' Remove the bash block that shows a deliberately incomplete invocation as if it produces helpful output.",
+            "Add a one-sentence caveat to the 'Read-only enforcement' section: 'Note: the Batch prefix is matched by name only — BatchWriteItem and BatchDeleteItem would pass the check. In practice, AWS SDK will return an error if your credentials lack write permissions, but the CLI itself does not block Batch write commands by name.'",
+            "Mention --stage optionality more explicitly. Users familiar with other Stacktape commands will notice stage is absent from the basic usage example and wonder if it matters. A one-sentence note ('--stage is optional; omit it when using --profile or --awsAccount directly') removes doubt without cluttering the page.",
+            "The 'Output' section is very short (two paragraphs). Consider showing a truncated sample of actual JSON output for both normal and agent modes — even a 4-line snippet would help readers know what to expect when parsing in scripts.",
+            "The 'GetLogEvents' example requires knowing the exact log stream name (e.g. '2024/01/15/[$LATEST]abc123'), which is non-obvious for first-time users. A sentence noting that log stream names can be found via 'stacktape debug:logs' or the AWS Console would make this example more actionable."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Read-only prefix enforcement is accurately documented — all five prefixes (List, Get, Describe, Head, Batch) match the source constant READ_ONLY_PREFIXES exactly.",
+            "Agent-mode output shape (`ok`, `service`, `command`, `data`) is source-grounded against the tuiManager.info call in commands/debug-aws-sdk/index.ts.",
+            "The 'No config file required' section is correctly grounded in `commandRequiresConfig: false` from initializeStackServicesForWorkingWithDeployedStack.",
+            "Examples cover a wide spread of realistic AWS services (Lambda, DynamoDB, S3, ECS, CloudFormation, Secrets Manager, CloudWatch, CloudWatch Logs) with copyable, correctly-shaped --input JSON.",
+            "FAQ spans all three required categories: Stacktape-specific (config file, read-only), AWS service use-case (AccessDeniedException), and comparison (debug:aws-sdk vs AWS CLI).",
+            "Discovery flow (omitting --command to get service-specific example operations) is accurately described, matching the ExpectedError hint path in the source.",
+            "Shell blocks are one command per block with no explanatory # comments inside — style rule followed throughout."
+          ],
+          "problems": [
+            "The 'Discovering services and commands' section shows a bash block (`stacktape debug:aws-sdk --region eu-west-1 --service dynamodb`) that will fail with a required-argument error at runtime. The surrounding prose explains this correctly, but placing an error-triggering invocation in a fenced bash block without a clear 'this intentionally errors to show available commands' framing risks confusing readers who copy-paste it expecting output.",
+            "The Warning block lists only `GetItem` and `ListTables` as valid examples, and `Scan`, `Query`, `FilterLogEvents` as invalid — but omits `BatchGetItem` as a valid example despite the prose above the Warning correctly naming all five allowed prefixes including Batch. The Warning reads as if only Get/List/Describe/Head are accepted.",
+            "The ai-docs source (debug-aws-sdk.md, priority 3) contains a `Scan` and `FilterLogEvents` example command that would be rejected by the read-only enforcement. The draft page correctly warns about these in prose, but since the ai-docs source is listed as an authoritative hint file, a reader who reads both might be confused. The page would benefit from a brief note that Scan is a common mistake.",
+            "The `stage` and `projectName` flags appear in the CliCommandsApiReference as optional context flags, but the page never explains what they're used for in this command. Unlike most stack commands, debug:aws-sdk doesn't look up stack state — it goes directly to AWS. The role of stage/projectName here (likely unused or for credential scoping) is unexplained and could confuse users who supply them expecting resource filtering."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Reframe the 'Discovering services and commands' bash block to make clear it intentionally triggers an error to expose the operation list — for example, add a prose sentence like 'Running the following will fail with a helpful error that lists supported operations for the service' before the block.",
+            "Add `BatchGetItem` (or a generic Batch-prefixed example) to the Warning block's list of valid operations so the Warning is consistent with the five-prefix rule stated in the prose above it.",
+            "Add a sentence in 'No config file required' (or in the CliCommandsApiReference description for stage/projectName) explaining that stage and projectName are accepted for credential resolution but do not filter results to a specific stack's resources.",
+            "Consider adding a one-liner about shell quoting: the --input examples use single-quoted JSON which works in bash/zsh but not in Windows cmd/PowerShell. Since the host platform is Windows, a brief note ('Use double-escaped quotes in PowerShell or wrap --input in a here-string') would prevent a common copy-paste failure for the target audience.",
+            "The FAQ answer for 'Can I query resources across multiple regions?' is accurate but could mention that --agent mode combined with a shell loop makes cross-region aggregation practical — a concrete pattern rather than just describing the limitation."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Clear command-focused structure: lead paragraph, usage, generated CLI reference, examples, related commands, and FAQ are all easy to scan.",
+            "Uses one command per shell block and avoids forbidden Stacktape config patterns.",
+            "The read-only prefix rule is surfaced prominently, including the important nuance that validation is prefix-based.",
+            "The FAQ is broad enough for a CLI page and covers Stacktape-specific usage, AWS CLI comparison, credentials, CI, and multi-region usage."
+          ],
+          "problems": [
+            "The page overstates safety: phrases like “without risk of accidental writes” and “without risk of accidental writes or data modification” are too strong for the runtime behavior. The source shows prefix matching only, and `Batch*` commands are allowed, so the page should describe this as a prefix-based guard rather than a semantic guarantee that every allowed AWS operation is non-mutating.",
+            "The opening paragraph says the command can “query any supported AWS service” and examples include services such as ECS, CloudFormation, Secrets Manager, and CloudWatch, but the provided source does not list the actual supported services. The runtime only exposes `getSupportedServices()` without the list, so concrete service coverage beyond examples in source should be narrowed or removed unless grounded by the executor source.",
+            "The draft says `debug:aws-sdk` “initializes debug-agent credentials automatically” in the AWS CLI comparison, but this is too implementation-oriented and potentially unclear for users. The source shows `initDebugAgentCredentials()` and `getDebugAgentCredentials()`, but the user-facing behavior should be phrased cautiously as credential resolution through Stacktape’s debug credential path.",
+            "The page claims `--agent` output is useful for “AI coding assistants” and machine-readable scripts. Agent mode behavior is grounded by source, but the AI assistant use case is not necessary and reads slightly promotional for a CLI reference.",
+            "The “Discovering services and commands” section says running without `--service` prints the list, but the source throws an `ExpectedError`. The detail may display supported services through the CLI error renderer, but “prints” is imprecise; write that Stacktape returns a missing-service error whose detail includes supported services.",
+            "The FAQ says malformed JSON returns “a parse error with guidance.” The source returns an `ExpectedError` titled `Invalid JSON in --input` with a specific hint, so the page should name that exact behavior rather than generic parse-error wording.",
+            "The page states the command gives “direct access to any supported AWS SDK v3 read-only operation.” Because the enforcement is prefix-based and the supported command list is hidden behind `getSupportedServices()`, this should be narrowed to “supported SDK command names that pass the allowed-prefix check.”",
+            "Several examples use realistic AWS services, but without the executor source they may be unsupported by Stacktape’s supported-service map. Unsupported examples would be actively harmful because users may copy commands that the CLI rejects."
+          ],
+          "mandatoryFixes": [
+            "Replace the absolute safety claims with source-grounded wording: the command rejects operation names that do not start with `List`, `Get`, `Describe`, `Head`, or `Batch`; it is a prefix-based guard, not a guarantee that every allowed AWS SDK operation is semantically read-only.",
+            "Remove or qualify ungrounded supported-service claims and examples. Keep examples only for services and commands grounded in the provided sources, or add the `aws-sdk-executor` source so the supported service map can be verified.",
+            "Change “Run without `--service` to see the full list” to say that omitting `--service` returns a missing-required-flag error whose detail includes supported services, matching `src/commands/debug-aws-sdk/index.ts`.",
+            "Reword the AWS CLI comparison so it does not imply broader safety or unsupported credential behavior. Anchor it to grounded behavior: Stacktape uses its configured AWS credential path, requires `--region`, and rejects command names outside the allowed prefixes."
+          ],
+          "optionalImprovements": [
+            "Move “No config file required” closer to Usage because it is a key decision point for this command.",
+            "Add a short table comparing `debug:aws-sdk`, `debug:dynamodb`, `debug:logs`, and the AWS CLI. This would make the choice between tools more extractable and scannable.",
+            "In the `--input` section, mention that the runtime parses `--input` with `JSON.parse` and defaults to an empty object when omitted.",
+            "Consider trimming the examples list to fewer, better-grounded examples. Too many unverified service examples reduce confidence more than they help.",
+            "Use more exact language for agent mode: the source prints pretty JSON containing `ok`, `service`, `command`, and `data`, rather than JSONL for this command’s command-specific output."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the CLI command definition and runtime implementation, especially required flags, input parsing, prefix-based read-only enforcement, and output shape. The main issues are a few overstatements around discovery, supported services, config-file naming, and JSONL output.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“This prints the supported DynamoDB operations (e.g. `ListTables`, `DescribeTable`, `GetItem`).”",
+              "reason": "The runtime does not print supported operations as normal command output. If `--command` is missing, it throws an `ExpectedError` whose detail contains example commands for a recognized service. Calling those examples “the supported DynamoDB operations” overstates what the source guarantees.",
+              "suggestedFix": "Write: “This returns a missing-command error whose detail includes example commands for DynamoDB, such as `ListTables`, `DescribeTable`, or `GetItem` when those are present in the supported-service metadata.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-aws-sdk/index.ts",
+                  "quote": "if (!command) {\n    const supported = getSupportedServices();\n    const serviceCommands = supported[service.toLowerCase()];\n    throw new ExpectedError(\n      'CLI',\n      'Missing required flag: --command',\n      serviceCommands\n        ? `Example commands for ${service}: ${serviceCommands.join(', ')}`\n        : 'Provide a valid SDK command name'\n    );\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Common services include `lambda`, `dynamodb`, `s3`, and `logs`.” and examples using `ecs`, `cloudformation`, `secretsmanager`, and `cloudwatch` as supported services.",
+              "reason": "The provided runtime source shows that supported services come from `getSupportedServices()`, but the actual supported service map is not included. The generated prose mentions `lambda`, `dynamodb`, `s3`, and `logs`, but not `ecs`, `cloudformation`, `secretsmanager`, or `cloudwatch`. The examples may be valid, but they are not grounded in the provided source files.",
+              "suggestedFix": "Either remove service-specific claims not visible in the provided sources, or phrase cautiously: “Supported services are listed by the command when `--service` is omitted. Examples below assume those service names are present in your CLI version.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-aws-sdk/index.ts",
+                  "quote": "const supported = getSupportedServices();\n      throw new ExpectedError(\n        'CLI',\n        'Missing required flag: --service',\n        `Supported services: ${Object.keys(supported).join(', ')}`\n      );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“With `--agent`, the command writes a JSON object…” and “With `--agent`, the command writes a JSON object with `ok`, `service`, `command`, and `data` fields…”",
+              "reason": "The command pretty-prints JSON with indentation in agent mode, not strict JSONL/NDJSON as implied elsewhere by the `agent` flag description. Calling it “a JSON object” is broadly true, but scripts expecting one-line JSONL from this specific command may be misled.",
+              "suggestedFix": "Write: “With `--agent`, this command prints pretty-formatted JSON containing `ok`, `service`, `command`, and `data` fields.” Avoid saying JSONL for this command unless the implementation changes.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-aws-sdk/index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(JSON.stringify({ ok: true, service, command, data: result.data }, null, 2));\n  } else {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts",
+                  "quote": "agent: agent.optional(),\n      outputFormat: outputFormat.optional(),"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Unlike [`deploy`](/cli/deploy) or [`dev`](/cli/dev), this command does not require a `stacktape.ts` or `stacktape.yml` file.”",
+              "reason": "The runtime supports `commandRequiresConfig: false`, so the core claim is correct. However, the command-definition source for deploy/dev specifically mentions `stacktape.yml`, not `stacktape.ts`; the draft’s explicit `stacktape.ts` mention is not grounded by the provided CLI source for this page.",
+              "suggestedFix": "Keep the grounded behavior and narrow the file-name detail: “This command does not require a Stacktape configuration file.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape blocks command names whose prefix is not on the read-only allowlist before the request reaches AWS.”",
+              "reason": "The implementation validates the command name before calling `executeAwsSdkCommand`, so the ordering is grounded. The phrase “read-only allowlist” is slightly overconfident because the allowlist is prefix-based and includes `Batch`; the draft later caveats this correctly.",
+              "suggestedFix": "Prefer the narrower wording used later: “Stacktape blocks command names that do not start with the allowed prefixes before the request reaches AWS.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The required flags `--region`, `--service`, and `--command` match `requiredArgs` for `debug:aws-sdk`.",
+            "The `--input` JSON parsing behavior and malformed JSON error are accurately described.",
+            "The read-only prefix list correctly includes `List`, `Get`, `Describe`, `Head`, and `Batch`, matching the runtime implementation rather than the older command-description prose.",
+            "The normal output shape, including `<service>.<command> result:` followed by pretty-printed JSON, matches the runtime implementation.",
+            "The page uses the correct `<CliCommandsApiReference command=\"debug:aws-sdk\" ... />` component for the CLI options table.",
+            "All internal documentation links in the draft point to routes present in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -908,8 +1354,16 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\debug-aws-sdk.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.8, hard blockers 2, advisory high 0, verifier medium 12"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/cli/debug-aws-sdk.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T07:00:22.917Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/debug-aws-sdk/index.ts": "81fd23b0a7f7e8f2872bda017f386436e005b207",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/cli/debug-aws-sdk.md": "4a579554a9ccee7cef8e6fc2823b535750edbef6"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

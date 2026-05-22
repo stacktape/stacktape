@@ -2,7 +2,7 @@
   "pageId": "packaging__containers__prebuilt-image",
   "pageRoute": "packaging/containers/prebuilt-image",
   "startedAt": "2026-05-17T13:47:43.373Z",
-  "updatedAt": "2026-05-17T14:01:22.385Z",
+  "updatedAt": "2026-05-22T06:31:22.888Z",
   "iterations": [
     {
       "iteration": 1,
@@ -800,6 +800,347 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/packaging__containers__prebuilt-image/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Upfront comparison table covering all five container packaging modes gives the reader immediate orientation before diving into prebuilt-image specifics — exactly what a first-timer needs to locate this page in context.",
+            "Source-accurate delineation of batch-job limitations: the page correctly identifies that `PrebuiltImageBjPackagingProps` lacks `entryPoint` and `repositoryCredentialsSecretArn`, matching the source types precisely.",
+            "Multiple realistic, copyable `<CodeBlock intellisense>` examples spanning different resource types (WebService, WorkerService, PrivateService, MultiContainerWorkload, BatchJob) — the examples look like real team code, not synthetic toy configs.",
+            "Image tagging strategy table with a concrete tradeoff column is practical and citation-friendly. The `<Tip>` on immutable tags for production is opinionated and useful.",
+            "Strong FAQ section mixing Stacktape-specific questions, AWS service questions (Docker Hub rate limiting, ECS pull mechanics), and comparison questions — good AEO coverage.",
+            "Correct `<ApiReference definitionName=\"PrebuiltImageCwPackagingProps\" />` matching the source type exactly, placed once at the bottom.",
+            "All config examples correctly use `<CodeBlock intellisense tabs={[{label: 'TypeScript', ...}]} />` with no hand-authored YAML or fenced TypeScript config blocks.",
+            "When NOT to use section is a genuine peer H2 to When to use, not nested underneath it."
+          ],
+          "problems": [
+            "Minor factual issue in the batch jobs section: 'For batch jobs that need private registry access, use a custom Dockerfile mode instead' is misleading — the custom-dockerfile mode builds an image from source code; it doesn't help you reference a pre-existing private image at runtime. The actual correct advice is already in the same sentence ('push the image to Amazon ECR first'), which uses IAM-based auth and requires no credentials config. The 'custom Dockerfile instead' alternative should be removed or clarified."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the batch job private-registry workaround: remove 'use a custom Dockerfile mode instead' (custom-dockerfile builds from source, it doesn't solve runtime pull auth for prebuilt images). The correct and only workaround is 'push the image to Amazon ECR first, which uses the ECS task execution role for auth — no credentials property needed.'",
+            "The `<Info>` callout after the private registry example mentions Docker Hub rate limiting in the FAQ but not in the section body itself, where the reader is configuring credentials. Consider adding a one-liner there: 'Docker Hub anonymous pulls are rate-limited — even with `repositoryCredentialsSecretArn` set to Hub credentials, ECS counts each task pull against the plan quota.'",
+            "The basic example's prose after the code block says `image` accepts 'a Docker Hub short name, a full registry URL, or a GitHub Container Registry path' — consider adding one sentence on what happens if no tag is specified (Docker defaults to `latest`), since the example uses `httpd:latest` and readers may be tempted to omit the tag.",
+            "The multi-container workload example combines a buildpack container with a prebuilt-image sidecar, which is realistic and good — but a one-sentence note that mixing packaging modes within a single MultiContainerWorkload is fully supported and common would help first-timers who might assume all containers must use the same mode.",
+            "Consider mentioning in the 'Private registry images' section that the Secrets Manager secret must be in the same AWS region as the deployment. This is an AWS constraint that trips up teams working across regions."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All four properties from PrebuiltImageCwPackagingProps (image, command, repositoryCredentialsSecretArn, entryPoint) are documented with accurate source grounding — the CW vs BJ property split is captured correctly and surfaced in both the batch-job section and the Info callout.",
+            "Image tagging strategy table is high-signal production guidance that most packaging docs omit. The immutable-tag recommendation is opinionated and correct.",
+            "No forbidden patterns detected: no hand-authored YAML Stacktape config, no StacktapeConfig-typed plain objects, no fenced TypeScript defineConfig blocks, no multiple commands in a single bash block, no explanatory # comments inside shell blocks.",
+            "CodeBlock usage is correct throughout: all Stacktape config examples use <CodeBlock intellisense tabs={[{label: 'TypeScript', ...}]} />; application code uses plain fenced blocks.",
+            "FAQ satisfies the three-category requirement — Stacktape-specific ('Which resources support prebuilt image packaging?'), AWS mechanics ('How does ECS pull images from a public registry?'), and choosing/comparison ('When should I use prebuilt image vs custom Dockerfile?').",
+            "Container packaging modes comparison table near the top gives readers immediate context across all five modes and lets them navigate away if prebuilt isn't what they need.",
+            "First paragraph is self-contained (~60 words), names the resource, names the registry types, and explains the skip-build value proposition — extractable as an AI overview snippet."
+          ],
+          "problems": [
+            "Minor factual risk: The page advises batch jobs needing private registry access to 'use a custom Dockerfile mode instead'. Looking at CustomDockerfileBjImagePackagingProps in the source, it also lacks repositoryCredentialsSecretArn — the recommendation works because Stacktape builds and pushes to ECR (IAM handles pull auth), but this reasoning is not explained. A reader who doesn't know how ECR authentication works might follow the advice incorrectly.",
+            "The <ApiReference definitionName=\"PrebuiltImageCwPackagingProps\" /> covers only the container-workload variant. The batch-job variant (PrebuiltImageBjPackagingProps) is a distinct sub-type documented in source. The page correctly documents the subset limitation in prose, but readers using the API Reference alone will not see that batch jobs use a reduced set. This is a minor gap rather than a blocker.",
+            "The secret:create command link points to /cli/secret-create, which is not confirmed to exist in the provided sources. The JSDoc on repositoryCredentialsSecretArn does name the command, but the route is an assumption. If the route 404s, the reader is stranded."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the Batch jobs section, add one sentence explaining WHY the custom-Dockerfile advice works: 'When Stacktape builds the image and pushes to ECR, ECS uses the task execution role for pull auth — no registry credentials secret needed.' Without this, the recommendation reads as magic.",
+            "Consider adding a note near the ApiReference that the batch-job variant (PrebuiltImageBjPackagingProps) is a subset — specifically that entryPoint and repositoryCredentialsSecretArn are absent. Even a one-line note prevents reader confusion when they open the schema and see two types.",
+            "The private-registry bash example uses single quotes around a JSON value ('{}') — this fails on Windows shells. Since Stacktape runs on Windows too (and the host in this repo is Windows), either escape the JSON for cross-platform compatibility or add a prose callout about quoting differences."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly explains that prebuilt image packaging deploys an existing registry image without a Stacktape build step.",
+            "The page correctly uses TypeScript class-based Stacktape config inside <CodeBlock intellisense tabs={[...]} /> and avoids forbidden YAML or StacktapeConfig examples.",
+            "Container packaging variants are named in a comparison table, which gives readers a quick decision path before the prebuilt-image deep dive.",
+            "Examples are realistic and copyable, with separate coverage for public images, private registry credentials, command overrides, entryPoint overrides, multi-container workloads, and batch jobs.",
+            "The FAQ mixes Stacktape-specific, AWS/ECS operational, and comparison questions, which fits answer-engine extraction goals."
+          ],
+          "problems": [
+            "Several concrete claims are not grounded in the provided source file, including named registries such as GitHub Container Registry, third-party examples such as Redis and Prometheus, Docker Hub rate limits, image-size startup behavior, ECS scale-out pull behavior, and CI/security-scanning workflow recommendations. They may be true, but the hard requirement says every technical statement must be grounded in the provided source files.",
+            "The private registry CLI example uses `stacktape secret:create --secretName ... --secretValue ...`, but the provided source only says secrets can be created with `stacktape secret:create`; it does not ground the flags or exact invocation.",
+            "The page claims `entryPoint` and `repositoryCredentialsSecretArn` are available on web services, private services, worker services, and multi-container workloads, and unavailable on batch jobs. The batch-job property distinction is grounded by `PrebuiltImageBjPackagingProps` vs `PrebuiltImageCwPackagingProps`, but the specific mapping from Cw packaging to those named resources is not visible in the provided source file.",
+            "The \"smallest valid configuration\" example includes `resources: { cpu, memory }`, but the provided source only defines packaging props. If this page is judged only against the supplied source, the example’s required compute-resource shape is not fully source-grounded.",
+            "Some sections are framed as broad production advice rather than source-grounded documentation. The tagging strategy section is useful, but claims about deterministic deploys, config diffs, task restarts, and mutable tag drift go beyond the supplied type definitions.",
+            "The page uses both `<Info>` and `<Tip>` callouts without example-page guidance. This is not automatically wrong, but it may be palette drift if the packaging section’s maintained pattern uses only one callout style."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported technical claims unless another provided source file grounds them. In particular, revise claims about Docker Hub rate limits, image-size startup time, ECS restart behavior with mutable tags, and CI/security-scanning workflows, or add source support before publishing.",
+            "Ground the exact `stacktape secret:create` flags in CLI source, or replace the command example with cautious prose that only says the secret can be created with `stacktape secret:create`.",
+            "Either provide source grounding for which compute resources use `PrebuiltImageCwPackagingProps`, or phrase the availability claim in terms of the sourced prop shapes: container-workload prebuilt image packaging supports `image`, `command`, `repositoryCredentialsSecretArn`, and `entryPoint`; batch-job prebuilt image packaging supports `image` and `command`.",
+            "Re-check every claim in the private registry and image tagging sections against source. Replace unsupported operational assertions with source-grounded statements about `image`, `command`, `entryPoint`, and `repositoryCredentialsSecretArn`."
+          ],
+          "optionalImprovements": [
+            "Move the resource-applicability sentence into the opening paragraph so the first extracted snippet explicitly says this is for container resources, not Lambda functions.",
+            "Add a short property table for `image`, `command`, `entryPoint`, and `repositoryCredentialsSecretArn`; this would make the page more extractable and reduce repeated prose.",
+            "In the Basic example, briefly explain why `cpu: 0.25` and `memory: 512` are present, or use a compute-resource page link if those values are outside this page’s source scope.",
+            "Shorten a few paragraphs in the FAQ to keep each answer closer to 2-3 sentences and easier for answer engines to quote.",
+            "Consider replacing broad third-party examples like `postgres` and `redis` with examples that clearly fit long-running container workloads, or add a caveat that stateful data services usually need dedicated managed resources rather than arbitrary containers."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No concrete factual or source-grounding issues found in the draft against the provided sources.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft uses TypeScript `<CodeBlock intellisense>` examples rather than hand-authored YAML or fenced Stacktape config blocks.",
+            "The page correctly distinguishes `PrebuiltImageCwPackagingProps` from the batch-job shape: container workloads can use `repositoryCredentialsSecretArn` and `entryPoint`, while batch jobs are limited to `image` and `command`.",
+            "The draft covers all five container packaging modes shown in the source: Stacktape image buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack.",
+            "All markdown cross-links checked against the provided navigation index resolve to existing documented routes."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely grounded in the provided packaging type definitions and the generated prebuilt-image source page. I found a few issues where the draft goes beyond the authoritative type source or repeats secondary-source claims that are not backed by the provided command/resource source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Batch jobs support only `image` and `command`.” / “The batch-job prebuilt-image shape supports `image` and `command` — the `entryPoint` and `repositoryCredentialsSecretArn` properties are not available.”",
+              "reason": "The provided type source defines a separate batch-job prebuilt-image props type with only `image` and `command`, so the narrow property-set claim is correct for the props. However, the code examples use the same `PrebuiltImagePackaging` class for both container workloads and batch jobs, and the provided source does not show how that class maps to `PrebuiltImageBjPackagingProps` versus `PrebuiltImageCwPackagingProps`. The prose is acceptable if the actual class overload/type-checker enforces this, but from the provided source alone the class-level behavior is not visible.",
+              "suggestedFix": "Keep the distinction, but phrase it as “The batch-job prebuilt-image props shape contains `image` and `command`; `entryPoint` and `repositoryCredentialsSecretArn` are part of the container-workload props shape.” If the page relies on class overload behavior, ensure the deterministic code-block validator confirms the example class usage.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "interface PrebuiltImageBjPackagingProps {\n  /**\n   * #### The name or URL of the container image.\n   */\n  image: string; // image name or url\n  /**\n   * #### A command to be executed when the container starts.\n   *\n   * ---\n   *\n   * This overrides the `CMD` instruction in the Dockerfile.\n   *\n   * Example: `['/app/start.sh']`\n   */\n  command?: string[];\n}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "interface PrebuiltImageCwPackagingProps extends PrebuiltImageBjPackagingProps {\n  /**\n   * #### The ARN of a secret containing credentials for a private container registry.\n   *\n   * ---\n   *\n   * The secret must be a JSON object with `username` and `password` keys.\n   * You can create secrets using the `stacktape secret:create` command.\n   */\n  repositoryCredentialsSecretArn?: string;\n  /**\n   * #### A script to be executed when the container starts.\n   *\n   * ---\n   *\n   * This overrides the `ENTRYPOINT` instruction in the Dockerfile.\n   */\n  entryPoint?: string[];\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You can create the secret using the Stacktape CLI `secret:create` command with the `--secretName` and `--secretValue` flags.”",
+              "reason": "The authoritative CLI command source is not included. The packaging type source only says secrets can be created using `stacktape secret:create`; it does not document the `--secretName` or `--secretValue` flags. The draft’s exact flag names may be correct, but they are not supported by the provided authoritative source for CLI behavior.",
+              "suggestedFix": "Either verify the flags against `src/commands/secret-create/index.ts` / CLI command definitions, or narrow the sentence to “You can create the secret using the Stacktape CLI `secret:create` command” and avoid naming flags on this page.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "The secret must be a JSON object with `username` and `password` keys.\n   * You can create secrets using the `stacktape secret:create` command."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When ECS scales out or restarts tasks, it may pull a different image than what's running on existing tasks.”",
+              "reason": "The type source supports that Stacktape configures an image reference, but it does not specify ECS task image-pull behavior on scale-out or restart. This is plausible AWS background, but the statement is embedded in a Stacktape tagging recommendation and could be read as a Stacktape-specific rollout guarantee. It should be framed explicitly as underlying ECS/container-registry behavior.",
+              "suggestedFix": "Reword to: “Underneath, ECS resolves the configured image reference when starting tasks, so mutable tags such as `latest` can point to different image content over time.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "#### The name or URL of the container image."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "With `prebuilt-image`, you provide a reference to an existing container image."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `image` property accepts any valid container image reference.”",
+              "reason": "The source says the `image` property is “the name or URL of the container image” and comments “image name or url.” It does not define validation rules for “any valid container image reference.” The draft’s examples are reasonable, but “any valid” is broader than the provided type/JSDoc proves.",
+              "suggestedFix": "Use narrower wording: “The `image` property is the container image name or URL, such as a Docker Hub short name, an ECR image URL, or a GitHub Container Registry path.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The page correctly uses `defineConfig` and class-based resources rather than the plain-object `StacktapeConfig` style.",
+            "The page correctly keeps `When to use` and `When NOT to use` as peer H2 sections.",
+            "The API reference uses `PrebuiltImageCwPackagingProps`, which matches the container-workload prebuilt-image props type shown in the source.",
+            "The page acknowledges all five container packaging modes shown in the source file: Stacktape image buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'packaging' does not exist in type 'BatchJobProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'packaging' does not exist in type 'BatchJobProps'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/packaging__containers__prebuilt-image/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Upfront comparison table covering all five container packaging modes gives the reader immediate orientation before diving into prebuilt-image specifics — exactly what a first-timer needs to locate this page in context.",
+            "Source-accurate delineation of batch-job limitations: the page correctly identifies that `PrebuiltImageBjPackagingProps` lacks `entryPoint` and `repositoryCredentialsSecretArn`, matching the source types precisely.",
+            "Multiple realistic, copyable `<CodeBlock intellisense>` examples spanning different resource types (WebService, WorkerService, PrivateService, MultiContainerWorkload, BatchJob) — the examples look like real team code, not synthetic toy configs.",
+            "Image tagging strategy table with a concrete tradeoff column is practical and citation-friendly. The `<Tip>` on immutable tags for production is opinionated and useful.",
+            "Strong FAQ section mixing Stacktape-specific questions, AWS service questions (Docker Hub rate limiting, ECS pull mechanics), and comparison questions — good AEO coverage.",
+            "Correct `<ApiReference definitionName=\"PrebuiltImageCwPackagingProps\" />` matching the source type exactly, placed once at the bottom.",
+            "All config examples correctly use `<CodeBlock intellisense tabs={[{label: 'TypeScript', ...}]} />` with no hand-authored YAML or fenced TypeScript config blocks.",
+            "When NOT to use section is a genuine peer H2 to When to use, not nested underneath it."
+          ],
+          "problems": [
+            "Minor factual issue in the batch jobs section: 'For batch jobs that need private registry access, use a custom Dockerfile mode instead' is misleading — the custom-dockerfile mode builds an image from source code; it doesn't help you reference a pre-existing private image at runtime. The actual correct advice is already in the same sentence ('push the image to Amazon ECR first'), which uses IAM-based auth and requires no credentials config. The 'custom Dockerfile instead' alternative should be removed or clarified."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the batch job private-registry workaround: remove 'use a custom Dockerfile mode instead' (custom-dockerfile builds from source, it doesn't solve runtime pull auth for prebuilt images). The correct and only workaround is 'push the image to Amazon ECR first, which uses the ECS task execution role for auth — no credentials property needed.'",
+            "The `<Info>` callout after the private registry example mentions Docker Hub rate limiting in the FAQ but not in the section body itself, where the reader is configuring credentials. Consider adding a one-liner there: 'Docker Hub anonymous pulls are rate-limited — even with `repositoryCredentialsSecretArn` set to Hub credentials, ECS counts each task pull against the plan quota.'",
+            "The basic example's prose after the code block says `image` accepts 'a Docker Hub short name, a full registry URL, or a GitHub Container Registry path' — consider adding one sentence on what happens if no tag is specified (Docker defaults to `latest`), since the example uses `httpd:latest` and readers may be tempted to omit the tag.",
+            "The multi-container workload example combines a buildpack container with a prebuilt-image sidecar, which is realistic and good — but a one-sentence note that mixing packaging modes within a single MultiContainerWorkload is fully supported and common would help first-timers who might assume all containers must use the same mode.",
+            "Consider mentioning in the 'Private registry images' section that the Secrets Manager secret must be in the same AWS region as the deployment. This is an AWS constraint that trips up teams working across regions."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All four properties from PrebuiltImageCwPackagingProps (image, command, repositoryCredentialsSecretArn, entryPoint) are documented with accurate source grounding — the CW vs BJ property split is captured correctly and surfaced in both the batch-job section and the Info callout.",
+            "Image tagging strategy table is high-signal production guidance that most packaging docs omit. The immutable-tag recommendation is opinionated and correct.",
+            "No forbidden patterns detected: no hand-authored YAML Stacktape config, no StacktapeConfig-typed plain objects, no fenced TypeScript defineConfig blocks, no multiple commands in a single bash block, no explanatory # comments inside shell blocks.",
+            "CodeBlock usage is correct throughout: all Stacktape config examples use <CodeBlock intellisense tabs={[{label: 'TypeScript', ...}]} />; application code uses plain fenced blocks.",
+            "FAQ satisfies the three-category requirement — Stacktape-specific ('Which resources support prebuilt image packaging?'), AWS mechanics ('How does ECS pull images from a public registry?'), and choosing/comparison ('When should I use prebuilt image vs custom Dockerfile?').",
+            "Container packaging modes comparison table near the top gives readers immediate context across all five modes and lets them navigate away if prebuilt isn't what they need.",
+            "First paragraph is self-contained (~60 words), names the resource, names the registry types, and explains the skip-build value proposition — extractable as an AI overview snippet."
+          ],
+          "problems": [
+            "Minor factual risk: The page advises batch jobs needing private registry access to 'use a custom Dockerfile mode instead'. Looking at CustomDockerfileBjImagePackagingProps in the source, it also lacks repositoryCredentialsSecretArn — the recommendation works because Stacktape builds and pushes to ECR (IAM handles pull auth), but this reasoning is not explained. A reader who doesn't know how ECR authentication works might follow the advice incorrectly.",
+            "The <ApiReference definitionName=\"PrebuiltImageCwPackagingProps\" /> covers only the container-workload variant. The batch-job variant (PrebuiltImageBjPackagingProps) is a distinct sub-type documented in source. The page correctly documents the subset limitation in prose, but readers using the API Reference alone will not see that batch jobs use a reduced set. This is a minor gap rather than a blocker.",
+            "The secret:create command link points to /cli/secret-create, which is not confirmed to exist in the provided sources. The JSDoc on repositoryCredentialsSecretArn does name the command, but the route is an assumption. If the route 404s, the reader is stranded."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In the Batch jobs section, add one sentence explaining WHY the custom-Dockerfile advice works: 'When Stacktape builds the image and pushes to ECR, ECS uses the task execution role for pull auth — no registry credentials secret needed.' Without this, the recommendation reads as magic.",
+            "Consider adding a note near the ApiReference that the batch-job variant (PrebuiltImageBjPackagingProps) is a subset — specifically that entryPoint and repositoryCredentialsSecretArn are absent. Even a one-line note prevents reader confusion when they open the schema and see two types.",
+            "The private-registry bash example uses single quotes around a JSON value ('{}') — this fails on Windows shells. Since Stacktape runs on Windows too (and the host in this repo is Windows), either escape the JSON for cross-platform compatibility or add a prose callout about quoting differences."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly explains that prebuilt image packaging deploys an existing registry image without a Stacktape build step.",
+            "The page correctly uses TypeScript class-based Stacktape config inside <CodeBlock intellisense tabs={[...]} /> and avoids forbidden YAML or StacktapeConfig examples.",
+            "Container packaging variants are named in a comparison table, which gives readers a quick decision path before the prebuilt-image deep dive.",
+            "Examples are realistic and copyable, with separate coverage for public images, private registry credentials, command overrides, entryPoint overrides, multi-container workloads, and batch jobs.",
+            "The FAQ mixes Stacktape-specific, AWS/ECS operational, and comparison questions, which fits answer-engine extraction goals."
+          ],
+          "problems": [
+            "Several concrete claims are not grounded in the provided source file, including named registries such as GitHub Container Registry, third-party examples such as Redis and Prometheus, Docker Hub rate limits, image-size startup behavior, ECS scale-out pull behavior, and CI/security-scanning workflow recommendations. They may be true, but the hard requirement says every technical statement must be grounded in the provided source files.",
+            "The private registry CLI example uses `stacktape secret:create --secretName ... --secretValue ...`, but the provided source only says secrets can be created with `stacktape secret:create`; it does not ground the flags or exact invocation.",
+            "The page claims `entryPoint` and `repositoryCredentialsSecretArn` are available on web services, private services, worker services, and multi-container workloads, and unavailable on batch jobs. The batch-job property distinction is grounded by `PrebuiltImageBjPackagingProps` vs `PrebuiltImageCwPackagingProps`, but the specific mapping from Cw packaging to those named resources is not visible in the provided source file.",
+            "The \"smallest valid configuration\" example includes `resources: { cpu, memory }`, but the provided source only defines packaging props. If this page is judged only against the supplied source, the example’s required compute-resource shape is not fully source-grounded.",
+            "Some sections are framed as broad production advice rather than source-grounded documentation. The tagging strategy section is useful, but claims about deterministic deploys, config diffs, task restarts, and mutable tag drift go beyond the supplied type definitions.",
+            "The page uses both `<Info>` and `<Tip>` callouts without example-page guidance. This is not automatically wrong, but it may be palette drift if the packaging section’s maintained pattern uses only one callout style."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported technical claims unless another provided source file grounds them. In particular, revise claims about Docker Hub rate limits, image-size startup time, ECS restart behavior with mutable tags, and CI/security-scanning workflows, or add source support before publishing.",
+            "Ground the exact `stacktape secret:create` flags in CLI source, or replace the command example with cautious prose that only says the secret can be created with `stacktape secret:create`.",
+            "Either provide source grounding for which compute resources use `PrebuiltImageCwPackagingProps`, or phrase the availability claim in terms of the sourced prop shapes: container-workload prebuilt image packaging supports `image`, `command`, `repositoryCredentialsSecretArn`, and `entryPoint`; batch-job prebuilt image packaging supports `image` and `command`.",
+            "Re-check every claim in the private registry and image tagging sections against source. Replace unsupported operational assertions with source-grounded statements about `image`, `command`, `entryPoint`, and `repositoryCredentialsSecretArn`."
+          ],
+          "optionalImprovements": [
+            "Move the resource-applicability sentence into the opening paragraph so the first extracted snippet explicitly says this is for container resources, not Lambda functions.",
+            "Add a short property table for `image`, `command`, `entryPoint`, and `repositoryCredentialsSecretArn`; this would make the page more extractable and reduce repeated prose.",
+            "In the Basic example, briefly explain why `cpu: 0.25` and `memory: 512` are present, or use a compute-resource page link if those values are outside this page’s source scope.",
+            "Shorten a few paragraphs in the FAQ to keep each answer closer to 2-3 sentences and easier for answer engines to quote.",
+            "Consider replacing broad third-party examples like `postgres` and `redis` with examples that clearly fit long-running container workloads, or add a caveat that stateful data services usually need dedicated managed resources rather than arbitrary containers."
+          ]
+        }
+      ],
+      "verifierResults": [],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -812,8 +1153,14 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\packaging\\containers\\prebuilt-image.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.5, hard blockers 5, advisory high 0, verifier medium 6"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/packaging/containers/prebuilt-image.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T06:31:22.888Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/packaging/containers/prebuilt-image.md": "5f647f530850ebb139cbc21fb017f560a4806d09"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

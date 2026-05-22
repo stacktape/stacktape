@@ -2,7 +2,7 @@
   "pageId": "deployment-and-lifecycle__gradual-deployments",
   "pageRoute": "deployment-and-lifecycle/gradual-deployments",
   "startedAt": "2026-05-17T14:36:44.924Z",
-  "updatedAt": "2026-05-17T14:53:12.147Z",
+  "updatedAt": "2026-05-21T16:26:15.858Z",
   "iterations": [
     {
       "iteration": 1,
@@ -982,6 +982,379 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/deployment-and-lifecycle__gradual-deployments/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Lambda section is thorough and copy-paste ready: strategy reference table, basic example, lifecycle hook example with handler code, and clear tradeoff guidance all in one place.",
+            "The lifecycle hook handler pattern is a genuinely useful, realistic TypeScript snippet that shows exactly what the function must do — signal CodeDeploy success or failure.",
+            "Decision support is strong throughout: 'When to use' and 'When NOT to use' are concrete and opinionated, the FeatureComparisonTable gives a clear at-a-glance answer for which strategy to pick.",
+            "Cost section correctly distinguishes Lambda (no overhead) from web services (double capacity + ALB cost) with concrete numbers grounded in the source.",
+            "Rollback mechanics are explained clearly, including the distinction between automatic in-flight rollback vs the separate stacktape rollback CLI command.",
+            "CodeBlock components are correctly formatted — TypeScript tab label, intellisense flag, focus markers, no hand-authored YAML tabs."
+          ],
+          "problems": [
+            "Container workload strategies are severely under-documented: the section only says 'The exact strategy values are surfaced by TypeScript IntelliSense' instead of listing the five valid strings. A first-time user cannot know what to pass without an IDE open.",
+            "Critical naming trap undocumented: container workloads use `Linear10PercentEvery1Minutes` (plural) while Lambda uses `Linear10PercentEvery1Minute` (singular). Copying a Lambda strategy name for a web service will produce a silent or confusing deploy failure. The source explicitly warns about this.",
+            "Container workload strategies are a subset (5 options) not a superset of Lambda strategies — the draft implies they're the same set. `Canary10Percent10Minutes` and `Canary10Percent30Minutes` and all four Lambda linear names do not exist for containers.",
+            "`testListenerPort` on ContainerWorkloadDeploymentConfig is completely absent. The source shows a full example using it alongside `beforeAllowTrafficFunction` — this is unique to container workloads and improves pre-production validation considerably.",
+            "Multi-container workloads (`MultiContainerWorkload`) are mentioned only in the opening paragraph but never covered in the container strategy section. The source explicitly includes them as a supported resource.",
+            "FeatureComparisonTable 'Lambda options' row shows counts (4/4/1) but has no container options row, making the table asymmetric and misleading about what containers support.",
+            "Deploy time impact table only shows Lambda intervals with no container intervals column, even though the source table has both.",
+            "Lambda vs web service comparison table lists container strategies as 'Supported via `deployment` property' rather than '5', and omits the naming difference row present in the source.",
+            "FAQ entry about why strategy names differ between Lambda and containers is missing. This is the most likely question a first-time user hits when a linear strategy fails on a web service."
+          ],
+          "mandatoryFixes": [
+            "Add a container workload strategy reference table listing all five valid strings: `Canary10Percent5Minutes`, `Canary10Percent15Minutes`, `Linear10PercentEvery1Minutes`, `Linear10PercentEvery3Minutes`, `AllAtOnce`. This table must appear in the 'Web service strategies' section before the code example, parallel to the Lambda strategy table.",
+            "Document the naming difference explicitly: add an info callout (or dedicated paragraph) in the container section warning that `Linear10PercentEvery1Minutes` (with trailing 's') is the correct spelling for containers, distinct from Lambda's `Linear10PercentEvery1Minute`. Users copying Lambda strategy names to a web service will get a deploy error.",
+            "Add `testListenerPort` documentation to the container section: explain what it does (creates a separate ALB listener routing only to the replacement target group), when to use it (with `beforeAllowTrafficFunction` to test the new container before production traffic shifts), and include the container lifecycle hook + testListenerPort code example from the source.",
+            "Add `MultiContainerWorkload` to the container section scope — the section header and introductory paragraph currently say 'web services' only, but multi-container workloads expose the same `deployment` property.",
+            "Update FeatureComparisonTable to add a 'Container options' row showing 2 canary options, 2 linear options, and 1 AllAtOnce option.",
+            "Update the deploy time impact table to include container intervals (5 or 15 min for canary; 1 or 3 min per step for linear), matching the source table.",
+            "Update the Lambda vs web service comparison table: replace 'Supported via deployment property' with '5' in the Strategies available row, and add a 'Linear naming' row noting the singular/plural difference.",
+            "Add an FAQ entry: 'Why are strategy names different between Lambda and container workloads?' Answer must explain the singular/plural difference and direct users to copy strategy strings from the container-specific table rather than the Lambda table."
+          ],
+          "optionalImprovements": [
+            "Add a `<ApiReference definitionName='ContainerWorkloadDeploymentConfig' />` note or inline type summary so readers can discover the container deployment type without leaving the page. (If the schema exports this type; if not, document the five strategy strings inline in the table as the authoritative reference.)",
+            "The 'Rollback behavior' section describes Lambda and web service rollback accurately but could add one sentence specifically about what happens when container health checks fail (containers never become healthy → deployment stops, traffic stays on old version) — this is a distinct failure mode not covered in the current text.",
+            "Consider adding a 'Multi-container workloads' subsection or callout pointing to the multi-container workload page for teams running multiple containers behind a single ALB, since the deployment config there is identical but the resource type is different.",
+            "FAQ entry 'Can I use gradual deployments with HTTP API Gateway?' could add a one-sentence note that multi-container workloads also require ALB for the same reason, not just web services."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 6,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Lambda function strategies section is thorough and well-structured: the strategy reference table is accurate, canary/linear/AllAtOnce distinctions are explained with concrete tradeoffs, and the lifecycle hook handler example with CodeDeploy signaling is exactly what a developer needs.",
+            "The cost considerations section is precise and source-grounded — ALB vs http-api-gateway cost comparison, the double-capacity window for containers, and Lambda's zero-overhead are all accurate and actionable.",
+            "The 'When to use / When NOT to use' sections are opinionated and concrete, covering the right cases (background workers, early dev, NLB incompatibility).",
+            "The lifecycle hook handler code block is correct application code in a fenced typescript block (not wrapped in CodeBlock), and the CodeDeploy signaling pattern is accurate.",
+            "FAQ covers a useful spread of questions and answers are concise and standalone."
+          ],
+          "problems": [
+            "Container strategy reference table is completely absent. The web service section says 'the exact strategy values are surfaced by TypeScript IntelliSense' instead of listing the 5 supported strategies. A developer configuring a web service deployment has no way to know the valid values from this page. The LLM source lists them explicitly: Canary10Percent5Minutes, Canary10Percent15Minutes, Linear10PercentEvery1Minutes, Linear10PercentEvery3Minutes, AllAtOnce.",
+            "Critical naming gotcha is missing: container workloads use Linear10PercentEvery1Minutes (plural 's') while Lambda uses Linear10PercentEvery1Minute (no 's'). Copying the Lambda strategy name to a web service config will cause a deployment failure. The LLM source flags this explicitly; the draft omits it entirely.",
+            "Multi-container workloads are omitted. The LLM source states gradual deployments work for both web services AND multi-container workloads. The draft only mentions web services in the container strategies section and the comparison table.",
+            "testListenerPort property is not documented at all. The LLM source describes this as a distinct container-workload feature: it creates a separate ALB listener routing exclusively to the new target group, enabling the beforeAllowTrafficFunction to test the new version before production traffic shifts. Skipping it leaves a meaningful feature undiscovered.",
+            "Container lifecycle hooks example is absent. The Lambda section has a full working CodeBlock example with beforeAllowTrafficFunction. The web service section has no equivalent example, creating an asymmetric depth that undersells the container hooks.",
+            "The 'Lambda vs web service comparison' table incorrectly shows '—' for lifecycle hooks on web services. Web services support beforeAllowTrafficFunction and afterTrafficShiftFunction (plus testListenerPort). This is actively wrong and would mislead someone trying to add pre-flight validation to a web service deployment.",
+            "The FeatureComparisonTable in 'Choosing a strategy' shows Lambda options (4 canary, 4 linear) but has no row for container options (2 canary, 2 linear). The deploy time table also only shows Lambda intervals, omitting the container column (5/15 min canary, 1/3 min linear).",
+            "The rollback description for web services says 'if issues arise during the traffic shift, traffic rolls back automatically' — this is vague. The LLM source specifies the concrete triggers: beforeAllowTrafficFunction failure OR new containers failing to become healthy. The imprecise wording could mislead a developer who expects automatic metric-based rollback for containers (which Lambda supports but containers do not in the same way)."
+          ],
+          "mandatoryFixes": [
+            "Add a container strategy reference table in the 'Web service strategies' section listing all five strategy string values with their behavior: Canary10Percent5Minutes, Canary10Percent15Minutes, Linear10PercentEvery1Minutes (note plural), Linear10PercentEvery3Minutes, AllAtOnce. Remove the 'TypeScript IntelliSense' placeholder sentence.",
+            "Document the Linear naming difference prominently in the container strategies section (as a Warning callout or bolded note): Lambda uses Linear10PercentEvery1Minute (singular), container workloads use Linear10PercentEvery1Minutes (plural). A copy-paste mistake here causes a deployment failure.",
+            "Add a container lifecycle hooks example (CodeBlock intellisense) showing beforeAllowTrafficFunction and testListenerPort on a WebService, equivalent in depth to the Lambda lifecycle hooks example.",
+            "Update the 'Lambda vs web service comparison' table: web services DO support lifecycle hooks (beforeAllowTrafficFunction, afterTrafficShiftFunction, testListenerPort). Replace '—' with the correct hook property names.",
+            "Document testListenerPort: explain that it opens a separate ALB listener routing only to the new containers, enabling the beforeAllowTrafficFunction to send test requests against the new version before any production traffic shifts.",
+            "Expand the FeatureComparisonTable and deploy-time table to include container-specific intervals (canary: 5 or 15 min; linear: 1 or 3 min per step). Add a 'Container options' row to the comparison table.",
+            "Update the rollback section's container description to name the specific triggers: 'beforeAllowTrafficFunction signals failure' or 'new containers fail to pass health checks' — not the vague 'if issues arise'."
+          ],
+          "optionalImprovements": [
+            "Add a FAQ entry: 'Why are the strategy names different between Lambda and container workloads?' — the LLM source includes this and it addresses a common confusion point with a concrete production impact.",
+            "Rename the 'Web service strategies' H2 to 'Container workload strategies' to match the LLM source, and explicitly mention that multi-container workloads also support the deployment property.",
+            "The ApiReference shows LambdaDeploymentConfig but the page also covers ContainerWorkloadDeploymentConfig. Consider either noting that the container deployment config is similar (same hooks, different strategy strings) or moving the ApiReference to LambdaDeploymentConfig while linking the container type separately via a prose note.",
+            "The rollback FAQ answer for web services says 'traffic stays on original containers and new containers are removed' — this is correct and more precise than the rollback section body; consider aligning the body to the same level of specificity.",
+            "The 'Writing lifecycle hook functions' section comments inside the handler code block ('// Run your validation logic here') are kept in the fenced application code block — these are user-facing instructions the developer would retain, so they are acceptable. No change required, but consider adding a one-line note that the timeout on the hook function should exceed your slowest integration check, with a concrete example (e.g., 'if your DB connectivity check takes 10 s, set timeout to at least 30')."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and gives the main scope clearly: gradual traffic shifting for Lambda functions and ALB-backed web services.",
+            "Stacktape config examples use the required class-based `defineConfig` style inside `<CodeBlock intellisense tabs={[...]}/>` with the correct `label: 'TypeScript'`.",
+            "The Lambda strategy table is concrete and useful, with exact supported values from `LambdaDeploymentConfig`.",
+            "The page includes practical decision guidance for canary vs linear vs AllAtOnce, plus deploy-time and cost tradeoffs.",
+            "FAQ coverage is broad enough for search extraction, mixing Stacktape-specific, AWS-use-case, and choosing/comparison questions."
+          ],
+          "problems": [
+            "The web service strategy section is underdeveloped. It says TypeScript IntelliSense surfaces accepted values instead of naming the container/web-service strategy values available in the provided generated source. This weakens union-type coverage and makes the page less useful for readers comparing Lambda and web-service deployments.",
+            "The page omits multi-container workloads even though the generated source says gradual deployments are also supported for multi-container workloads using an application load balancer. If the page intentionally narrows to web services, that scope needs to be explicit; otherwise it is an important omission.",
+            "Container/web-service lifecycle hook behavior is missing or vague. The generated source describes `beforeAllowTrafficFunction`, `afterTrafficShiftFunction`, and `testListenerPort` for container workloads, but the draft only documents lifecycle hooks for Lambda functions.",
+            "`<ApiReference definitionName=\"LambdaDeploymentConfig\" />` only exposes the Lambda deployment config even though the page also documents web service deployments. A reader cannot inspect the web-service/container deployment shape from this page.",
+            "Several AWS timing and rollback claims look too specific for the provided source, especially “alias weight change propagates within seconds,” “ALB listener rule switches back ... within a minute,” and “if it times out without signaling, the deployment treats it as a failure.” These may be true AWS behavior, but the supplied Stacktape sources do not ground them clearly.",
+            "Some FAQ answers make unsupported cost estimates such as “adds pennies” or “a few dollars per deployment.” The source contains ALB and HTTP API approximate pricing, but not per-deployment Fargate cost examples.",
+            "The “How do I monitor the canary” FAQ suggests `stacktape debug:logs` can tail logs in real time. The command name is correct, but the provided source list does not include CLI source grounding for tailing behavior.",
+            "The page uses an application-code TypeScript block with explanatory `//` comments. This is allowed for authored code, but the placeholder-style comments make the lifecycle hook example less copy-paste complete for a production validation function."
+          ],
+          "mandatoryFixes": [
+            "Add a concrete web service/container strategy reference or otherwise explicitly narrow the page scope. Include the exact supported web-service/container strategy values from the provided generated source if documenting web services.",
+            "Document web-service/container lifecycle hooks with the same practical depth as Lambda hooks, including `beforeAllowTrafficFunction`, `afterTrafficShiftFunction`, and `testListenerPort`, or state clearly that this page only covers Lambda lifecycle hooks.",
+            "Fix the API reference coverage: either use the correct root definition for this page if one exists, or add prose/API-reference handling that does not leave web-service deployment configuration undocumented. Do not add multiple `<ApiReference>` blocks unless the docs system explicitly allows concept pages to do so.",
+            "Remove or soften unsupported timing and cost specifics: replace “within seconds,” “within a minute,” “adds pennies,” and “a few dollars” with source-grounded, cautious wording or omit the claims.",
+            "Ground the `stacktape debug:logs` behavior in CLI source before claiming real-time tailing, or rephrase to the documented safe form: use `stacktape debug:logs` to view logs."
+          ],
+          "optionalImprovements": [
+            "Add a compact table comparing Lambda strategies and web-service/container strategies side by side, including the singular/plural naming difference for `Linear10PercentEvery1Minute` vs `Linear10PercentEvery1Minutes`.",
+            "Mention multi-container workloads in the opening paragraph and comparison table if the final page is meant to cover all gradual deployment targets from the generated source.",
+            "Move the ALB cost context near the first web-service deployment mention so readers understand the main tradeoff before seeing the config example.",
+            "Make the lifecycle hook handler example more concrete by replacing placeholder comments with a minimal real check, or explicitly label it as a handler pattern rather than a complete smoke test.",
+            "Consider adding a short “Requirements” section listing: Lambda functions support gradual deployment directly; web services need `loadBalancing.type: 'application-load-balancer'`; HTTP API Gateway and network load balancer do not support web-service traffic shifting."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is generally aligned on Lambda gradual deployment strategy names, ALB requirements for web services, and config-example format. The main factual gaps are around container/web-service deployment capabilities: the draft omits multi-container workloads, hides the actual container strategy union, and incorrectly says web services have no lifecycle hooks.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The “Lambda vs web service comparison” table says web services have no lifecycle hooks: `Lifecycle hooks | beforeAllowTrafficFunction, afterTrafficShiftFunction | —`.",
+              "reason": "The provided source says container workloads support the same before/after lifecycle hook properties as Lambda, plus `testListenerPort`. Since web services use `ContainerWorkloadDeploymentConfig`, this table removes a supported web-service deployment feature.",
+              "suggestedFix": "Change the web-service lifecycle-hooks cell to mention `beforeAllowTrafficFunction`, `afterTrafficShiftFunction`, and `testListenerPort`. Add a short web-service lifecycle-hook section or link the explanation to the web-service strategy section.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/gradual-deployments.md",
+                  "quote": "Container workloads support the same `beforeAllowTrafficFunction` and `afterTrafficShiftFunction` hooks as Lambda. Additionally, the `testListenerPort` property creates a separate ALB listener that routes to the new version's target group."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "deployment?: ContainerWorkloadDeploymentConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft gives general strategy guidance that includes Lambda-only values such as `Canary10Percent10Minutes`, `Canary10Percent30Minutes`, and `Linear10PercentEvery10Minutes` without clearly scoping them to Lambda.",
+              "reason": "The source says container gradual deployments have only five strategies, with fewer interval options than Lambda. A web-service reader could copy a Lambda-only strategy value into `deployment.strategy` and get an invalid config.",
+              "suggestedFix": "Add a web-service/container strategy table with the five supported values, and scope the 10/30-minute canary and 10-minute linear guidance to Lambda functions only.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/gradual-deployments.md",
+                  "quote": "Container gradual deployments support five strategies with the same canary/linear/all-at-once pattern as Lambda, but with fewer time-interval options."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/gradual-deployments.md",
+                  "quote": "| `Canary10Percent5Minutes` | 10% immediately, remaining 90% after 5 minutes |\n| `Canary10Percent15Minutes` | 10% immediately, remaining 90% after 15 minutes |\n| `Linear10PercentEvery1Minutes` | 10% more every minute (full rollout in ~10 minutes) |\n| `Linear10PercentEvery3Minutes` | 10% more every 3 minutes (full rollout in ~30 minutes) |\n| `AllAtOnce` | Instant switch with no gradual shift |"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft frames gradual deployments as supported for Lambda functions and web services, and the comparison section only covers Lambda vs web services.",
+              "reason": "The source explicitly includes multi-container workloads as another supported container workload type. Omitting it makes the page look like web services are the only container-based target for gradual deployments.",
+              "suggestedFix": "Mention multi-container workloads in the opening paragraph and container/web-service sections, or explicitly state that this page focuses on Lambda and web-service examples while multi-container workloads use the same container deployment strategy family.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/gradual-deployments.md",
+                  "quote": "Stacktape supports gradual deployments for [Lambda functions](/resources/compute/lambda-function) and [web services](/resources/compute/web-service) (and [multi-container workloads](/resources/compute/multi-container-workload)) that use an [application load balancer](/resources/networking/application-load-balancer)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/gradual-deployments.md",
+                  "quote": "[Web services](/resources/compute/web-service) and [multi-container workloads](/resources/compute/multi-container-workload) support gradual deployments through the `deployment` property."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The FAQ claims rollback speed: “For Lambda functions, the alias weight change propagates within seconds” and “For web services, the ALB listener rule switches back ... within a minute.”",
+              "reason": "The provided Stacktape sources document automatic rollback behavior, but they do not provide rollback propagation timing. These concrete timing claims should not be stated as Stacktape documentation facts without a source.",
+              "suggestedFix": "Replace the timing numbers with cautious wording such as: “Rollback is handled at the traffic-routing layer; exact propagation time depends on AWS service behavior and active connections.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/functions.d.ts",
+                  "quote": "Instead of switching all traffic to the new version instantly, shift it gradually\n   * (canary or linear). If issues arise, traffic rolls back automatically."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "Gradual traffic shifting for safe deployments (canary, linear, or all-at-once).\n   *\n   * ---\n   *\n   * Requires `loadBalancing` type `application-load-balancer`."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Lambda strategy table matches the `LambdaDeploymentConfig.strategy` union in `functions.d.ts`.",
+            "The draft correctly states that web-service gradual deployments require `loadBalancing.type: 'application-load-balancer'`.",
+            "The Stacktape config examples use `<CodeBlock intellisense>` with a `TypeScript` tab and do not include hand-authored YAML or `StacktapeConfig` typed objects.",
+            "The ALB and HTTP API Gateway pricing context is grounded in the `WebServiceProps.loadBalancing` JSDoc."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the Lambda and web-service sources, but it drops important container-workload details from the provided gradual-deployments source and makes several Stacktape-specific claims about web-service rollout behavior, lifecycle hooks, and rollback mechanics that are not supported by the provided type sources.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"Stacktape supports gradual deployments for Lambda functions and web services that use an application load balancer.\"",
+              "reason": "The provided generated source says gradual deployments also apply to multi-container workloads. Stating only Lambda functions and web services reads as an exhaustive support list and would cause readers to miss a supported resource type.",
+              "suggestedFix": "Write that Stacktape supports gradual deployments for Lambda functions, web services, and multi-container workloads that use an application load balancer, or explicitly say the page focuses on Lambda functions and web services while linking to multi-container workloads.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/gradual-deployments.md",
+                  "quote": "Stacktape supports gradual deployments for [Lambda functions](/resources/compute/lambda-function) and [web services](/resources/compute/web-service) (and [multi-container workloads](/resources/compute/multi-container-workload)) that use an [application load balancer](/resources/networking/application-load-balancer)."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"For web services, the `deployment` property enables the same pattern through the ALB. If issues arise during the traffic shift, traffic rolls back to the previous version automatically.\"",
+              "reason": "The authoritative web-service type source only says web-service deployment is gradual traffic shifting and requires an application load balancer. The provided generated page supports narrower container rollback cases: hook failure or new containers failing health checks. It does not support the broad claim that any issues during a web-service traffic shift automatically roll traffic back.",
+              "suggestedFix": "Narrow the web-service rollback wording to supported cases: the deployment uses ALB-based traffic shifting; if a before-hook signals failure or new containers fail health checks, the deployment stops and traffic stays on the original version. Avoid claiming automatic rollback for unspecified issues.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "Gradual traffic shifting for safe deployments (canary, linear, or all-at-once).\n   *\n   * ---\n   *\n   * Requires `loadBalancing` type `application-load-balancer`."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/gradual-deployments.md",
+                  "quote": "For container workloads, the `deployment` property enables the same pattern through the ALB. If the `beforeAllowTrafficFunction` signals failure or new containers fail to become healthy, the deployment stops and traffic stays on the original version."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The draft says web services do not have lifecycle hooks: in the comparison table, \"Lifecycle hooks\" for web services is \"—\".",
+              "reason": "The provided gradual-deployments source says container workloads, including web services in that section, support `beforeAllowTrafficFunction`, `afterTrafficShiftFunction`, and `testListenerPort`. The draft’s comparison table directly contradicts that source and would incorrectly tell readers that hooks are Lambda-only.",
+              "suggestedFix": "Document container/web-service deployment hooks or remove the comparison row. If included, state that container workloads support `beforeAllowTrafficFunction`, `afterTrafficShiftFunction`, and `testListenerPort`, with the caveat that the exact property shape comes from `ContainerWorkloadDeploymentConfig`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/gradual-deployments.md",
+                  "quote": "Container workloads support the same `beforeAllowTrafficFunction` and `afterTrafficShiftFunction` hooks as Lambda. Additionally, the `testListenerPort` property creates a separate ALB listener that routes to the new version's target group."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The web-service section says strategy values are surfaced by TypeScript IntelliSense instead of listing the supported web-service/container strategy values.",
+              "reason": "The source provides the container strategy values, including the important spelling difference for `Linear10PercentEvery1Minutes`. Omitting them weakens union-type coverage and can mislead readers into reusing Lambda strategy names that are invalid for container workloads.",
+              "suggestedFix": "Add a web-service/container strategy table with `Canary10Percent5Minutes`, `Canary10Percent15Minutes`, `Linear10PercentEvery1Minutes`, `Linear10PercentEvery3Minutes`, and `AllAtOnce`; call out the singular/plural naming difference from Lambda.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/gradual-deployments.md",
+                  "quote": "| `Canary10Percent5Minutes` | 10% immediately, remaining 90% after 5 minutes |\n| `Canary10Percent15Minutes` | 10% immediately, remaining 90% after 15 minutes |\n| `Linear10PercentEvery1Minutes` | 10% more every minute (full rollout in ~10 minutes) |\n| `Linear10PercentEvery3Minutes` | 10% more every 3 minutes (full rollout in ~30 minutes) |\n| `AllAtOnce` | Instant switch with no gradual shift |"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/gradual-deployments.md",
+                  "quote": "Container strategies use slightly different naming than Lambda strategies. Note that `Linear10PercentEvery1Minutes` (with an \"s\") is the correct value for container workloads, while Lambda uses `Linear10PercentEvery1Minute` (no \"s\")."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"A normal deployment without the `deployment` property switches traffic immediately with no hook opportunity.\"",
+              "reason": "The source confirms lifecycle hooks exist inside `LambdaDeploymentConfig`, but it does not define behavior for a \"normal deployment without the deployment property\" or prove that no other hook opportunity exists. This is an unsupported Stacktape-specific contrast, not just general AWS context.",
+              "suggestedFix": "Say only that `AllAtOnce` uses the deployment lifecycle hook fields while avoiding claims about all normal deployments. For example: \"Use `AllAtOnce` when you want CodeDeploy lifecycle hooks without a gradual percentage ramp.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/functions.d.ts",
+                  "quote": "interface LambdaDeploymentConfig {\n  /**\n   * #### How traffic shifts from the old version to the new one.\n   *\n   * ---\n   *\n   * - **Canary**: Send 10% of traffic first, then all traffic after a wait period.\n   * - **Linear**: Shift 10% of traffic at regular intervals.\n   * - **AllAtOnce**: Instant switch (no gradual rollout).\n   */"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/functions.d.ts",
+                  "quote": "Function to run before traffic shifting begins (e.g., smoke tests).\n   *\n   * ---\n   *\n   * Must signal success/failure to CodeDeploy. If it fails, the deployment rolls back."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The `smokeTest` function runs before any traffic shifts. Use it for health checks, integration verification, or testing the new version against a staging database. If the function signals failure, the deployment rolls back — no user traffic ever reaches the broken version.\"",
+              "reason": "The source supports that `beforeAllowTrafficFunction` runs before traffic shifting and rolls back on failure, but it does not support the example-specific recommendation to test the new version against a staging database. A pre-traffic deployment hook is for validating the new deployed version; pointing it at a staging database may not validate production dependencies and is not grounded in source.",
+              "suggestedFix": "Replace \"testing the new version against a staging database\" with source-grounded examples such as smoke tests or validation logic. If mentioning databases, keep it generic: \"checking required dependencies\" rather than prescribing a staging database.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/functions.d.ts",
+                  "quote": "Function to run before traffic shifting begins (e.g., smoke tests).\n   *\n   * ---\n   *\n   * Must signal success/failure to CodeDeploy. If it fails, the deployment rolls back."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft uses `<ApiReference definitionName=\"LambdaDeploymentConfig\" />` on a page that also documents web-service deployments.",
+              "reason": "The Lambda API reference is valid for Lambda deployment settings, but the page also documents web-service/container deployment behavior. Because the provided source does not include the `ContainerWorkloadDeploymentConfig` type definition, it is unclear whether the page can render the corresponding API reference. Still, a single Lambda-only API reference may leave web-service deployment properties under-documented.",
+              "suggestedFix": "Either add prose that the API reference below covers Lambda deployment configuration only, or include the container deployment API reference if `ContainerWorkloadDeploymentConfig` is available in the generated schema.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"For Lambda functions, the alias weight change propagates within seconds. For web services, the ALB listener rule switches back to the original target group, which typically completes within a minute as connections drain from the new containers.\"",
+              "reason": "This is plausible AWS operational behavior, but the provided Stacktape sources do not support these rollback timing claims. The numbers are not necessary for configuration and may drift by workload or AWS behavior.",
+              "suggestedFix": "Remove the exact timing claims or frame them as general AWS behavior without promising a specific duration: \"Rollback is usually quick, but the exact timing depends on AWS propagation and connection draining.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and avoids hand-authored YAML.",
+            "The Lambda strategy table matches the `LambdaDeploymentConfig.strategy` union in `functions.d.ts`.",
+            "The draft correctly states that web-service gradual deployments require `loadBalancing.type: 'application-load-balancer'`, matching `web-services.d.ts`.",
+            "The draft correctly links only to routes that appear in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'containers' does not exist in type 'WebServiceProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'containers' does not exist in type 'WebServiceProps'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "failed",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -994,8 +1367,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\deployment-and-lifecycle\\gradual-deployments.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.0, hard blockers 7, advisory high 0, verifier medium 8"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/deployment-and-lifecycle/gradual-deployments.mdx",
+  "outcome": "failed",
+  "pipelineStatus": "did-not-pass",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "pipelineFailureSummary": "reviewer-avg 6.5, hard blockers 6, advisory high 0, verifier medium 6"
 }

@@ -2,7 +2,7 @@
   "pageId": "resources__security__user-auth-pool",
   "pageRoute": "resources/security/user-auth-pool",
   "startedAt": "2026-05-14T06:28:00.191Z",
-  "updatedAt": "2026-05-15T15:22:21.428Z",
+  "updatedAt": "2026-05-22T00:31:15.176Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1679,14 +1679,486 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__security__user-auth-pool/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations found — all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript, no YAML config blocks, no StacktapeConfig typed style.",
+            "Thorough and source-grounded coverage of all major features: verification, MFA, identity providers, hosted UI, OAuth, password policy, token lifetimes, custom attributes, firewall, and email configuration.",
+            "Tables are used effectively throughout (verification strategies, MFA factor types, Lambda hooks, token lifetimes, referenceable parameters) — well-suited for scannability and AI citation extraction.",
+            "Decision support is strong for every opt-in feature (Hosted UI, MFA, Firewall, custom domain) — each section covers when to enable, when to skip, and tradeoffs.",
+            "FAQ has exactly 10 questions spanning all three required categories: Stacktape-specific (connectTo env vars, sign-up restriction, custom claims), AWS use-case (Cognito pricing, SAML, email-link vs email-code), and choosing/comparison (Cognito vs Auth0/Clerk).",
+            "connectTo environment variable names are correctly scoped to the example resource name 'auth' — STP_AUTH_ID, STP_AUTH_CLIENT_ID, STP_AUTH_ARN — grounded in the JSDoc.",
+            "The two <Warning> callouts are well-placed and source-grounded: one for the reserved flags (confirmed in JSDoc), one for irreversible custom attributes (known AWS Cognito constraint).",
+            "ApiReference uses definitionName='UserAuthPoolProps' matching the source type exactly. Only one <ApiReference> on the page.",
+            "The Referenceable parameters section usefully distinguishes which params are auto-injected by connectTo (id, clientId, arn) versus which require $ResourceParam() — this is grounded by the JSDoc enumeration in __helpers.d.ts."
+          ],
+          "problems": [
+            "The 'Email configuration' section has no code example. It explains three properties (sesAddressArn, from, replyToEmailAddress) and inviteMessageConfig in prose, but unlike every other section on the page, there is no accompanying <CodeBlock> showing how to wire them together. A first-time reader cannot easily copy-paste a working SES configuration.",
+            "The 'Admin-only accounts' H3 is nested under 'Basic example'. Admin-only account creation is a distinct usage pattern (not an elaboration of the minimal example) and its own code example, tradeoffs, and unusedAccountValidityDays explanation justify promotion to H2.",
+            "The 'Referenceable parameters' section renders <ReferenceableParams resource='user-auth-pool' /> immediately followed by a hand-written prose paragraph and an identical manual table of the same six parameters. If the component already renders the parameters, the manual table is redundant and may confuse readers about which is authoritative.",
+            "The 'Multi-factor authentication' H2 heading is longer than the preferred 1-5 word compact label. 'MFA' would be consistent with the style guide preference for short labels like 'Scaling', 'Networking', 'Firewall'.",
+            "The 'Connecting to resources' section example creates an HttpApiGateway and uses an HttpApiIntegration trigger inside a section titled 'Connecting to resources'. The trigger configuration blurs the section's focus — a reader expecting to learn about connectTo env vars sees a trigger-setup example instead. The API-protection example in the next section already covers the trigger with authorizer, so this example could be simpler."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a code example to 'Email configuration' showing emailConfiguration.sesAddressArn, from, replyToEmailAddress, and inviteMessageConfig together in a single UserAuthPool instance — this is the only major section without one.",
+            "Promote 'Admin-only accounts' from H3 (under Basic example) to H2, positioned after the Basic example section. It has its own working code example, its own tradeoff (unusedAccountValidityDays nuance vs temporaryPasswordValidityDays), and is a common standalone pattern for internal tools.",
+            "In the 'Referenceable parameters' section, either remove the manual table (if <ReferenceableParams> already renders the parameters) or remove the <ReferenceableParams> component and keep only the manually annotated table — having both creates ambiguity about which is the rendered output.",
+            "Shorten 'Multi-factor authentication' H2 to 'MFA' to align with the 1-5 word heading style used by 'Verification', 'OAuth', 'Firewall', and 'Networking' on similar pages.",
+            "In 'Connecting to resources', simplify the code example to show only the connectTo relationship (UserAuthPool + LambdaFunction with connectTo: ['auth']) without the HttpApiGateway and trigger setup. Move or reference the gateway+authorizer example to the 'Protecting API routes' section where it belongs.",
+            "The pricing context line mentions 'Check current AWS Cognito pricing for exact regional rates' without any concrete number or range. If even a rough magnitude (e.g., 'free for the first 50,000 MAUs for direct sign-in, then fractions of a cent per MAU at volume') can be added from well-known AWS facts, it would anchor cost expectations without inventing numbers."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[{label: 'TypeScript', ...}]} /> — no forbidden YAML blocks or plain-object StacktapeConfig patterns anywhere.",
+            "connectTo env-var table is precisely correct per the source: only ID, CLIENT_ID, and ARN are documented as injected, and the page accurately separates the remaining referenceable params (providerUrl, domain, clientSecret) as $ResourceParam-only — avoiding the common over-enumeration error.",
+            "All six referenceable parameters (id, clientId, arn, domain, clientSecret, providerUrl) match the source type UserPoolReferencableParam exactly.",
+            "All ten Lambda hook types are documented accurately from the source UserPoolHooks interface, with a decision-quality table showing when each fires and its primary use case.",
+            "All four userVerificationType values (email-link, email-code, sms, none) and all three MFA factor types (SMS, SOFTWARE_TOKEN, EMAIL_OTP) are enumerated with per-variant guidance, per-variant requirements, and concrete recommendations.",
+            "The FAQ section contains exactly 10 Q&A pairs spanning all three required categories: Stacktape-specific questions, AWS service use-case questions, and choosing/comparison questions.",
+            "Warning components are used appropriately for real gotchas: the reserved requireEmailVerification/requirePhoneNumberVerification flags, and the custom attributes immutability constraint.",
+            "Per-section decision guidance is consistently present: each opt-in feature (Hosted UI, MFA, firewall, WAF, admin-only accounts) includes when-to-enable, when-to-skip, and a cost or tradeoff signal.",
+            "The identity provider section correctly sources the attributeMapping default (email -> email) from the source JSDoc and explains the allowOnlyExternalIdentityProviders mechanism via SupportedIdentityProviders.",
+            "Single <ApiReference definitionName=\"UserAuthPoolProps\" /> is correctly named to match the source type and correctly positioned at the bottom of the page."
+          ],
+          "problems": [
+            "The Referenceable parameters section contains both a <ReferenceableParams resource=\"user-auth-pool\" /> component and a manually written prose table listing the same six parameters. The prose table duplicates what the component renders, creating redundant content. The added sentence about which are auto-injected versus $ResourceParam-only is the only net-new value and could be delivered in one short sentence rather than a full duplicate table.",
+            "The Firewall section states 'The firewall must use scope: \\'regional\\' — Cognito user pools require a regional WAF web ACL. Using a CDN-scoped firewall will cause a deployment error.' The user-auth-pool source files do not mention the scope constraint or deployment error behavior. This is a real AWS constraint, but the phrasing 'will cause a deployment error' is a Stacktape-specific behavioral claim not grounded in the provided source. It should be attributed explicitly to AWS ('AWS WAF requires a regional web ACL for Cognito user pool associations') rather than stated as Stacktape behavior.",
+            "The email configuration section covers sesAddressArn, from, and replyToEmailAddress but does not mention inviteMessageConfig despite it being a first-class property at the same level (not nested under emailConfiguration). The section title is 'Email configuration' but inviteMessageConfig is a separate top-level prop. Readers configuring admin-created account flows would look for it there and not find it described."
+          ],
+          "mandatoryFixes": [
+            "Trim the duplicate content in the Referenceable parameters section. Keep the <ReferenceableParams resource=\"user-auth-pool\" /> component and add a single sentence noting that connectTo auto-injects ID, CLIENT_ID, and ARN while the remaining parameters (providerUrl, domain, clientSecret) require explicit $ResourceParam() usage. Remove the manually written table that duplicates the component output.",
+            "Reframe the firewall scope constraint as an AWS constraint rather than an ungrounded Stacktape behavioral claim. Replace 'The firewall must use scope: \\'regional\\' — Cognito user pools require a regional WAF web ACL. Using a CDN-scoped firewall will cause a deployment error.' with wording like 'AWS requires a regional WAF web ACL for Cognito user pool associations. The referenced WebAppFirewall resource must therefore use scope: \\'regional\\'. A CDN-scoped firewall targets CloudFront and cannot be associated with a Cognito user pool.'"
+          ],
+          "optionalImprovements": [
+            "Add a brief mention of inviteMessageConfig under the email configuration section (or as its own short subsection) since it is a sibling property at the UserAuthPoolProps level and engineers configuring admin account creation flows will look for customizing invitation emails near the other email settings.",
+            "The OAuth section explains allowedOAuthFlows values but could note that 'implicit' is a legacy flow and should be avoided in new applications — this is practical guidance engineers need when deciding between 'code' and 'implicit'.",
+            "The custom attributes Warning about immutability is accurate and valuable. Consider also noting that Cognito custom attribute names are prefixed with 'custom:' in the JWT claims (e.g., a schema attribute named 'role' appears as 'custom:role' in the token) — this is an operational gotcha engineers hit when writing preTokenGeneration hooks.",
+            "The lambda hooks section mentions that 'Stacktape handles the necessary permissions so Cognito can invoke the function' but does not specify how this is done (resource-based Lambda policy). Adding one sentence clarifying the mechanism helps engineers debug Lambda invocation errors from Cognito."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Excellent answer-first paragraph — self-contained, fact-dense, and citable by AI extractors at ~60 words.",
+            "Full union-type coverage: all four `userVerificationType` variants, all six identity provider types, all three MFA factor types, and both OAuth authorizer variants (`cognito` / `lambda`) are enumerated with tables.",
+            "Every major opt-in feature (Hosted UI, custom domain, firewall, MFA, admin-only accounts) has explicit 'when to enable / when to skip' guidance with a cost or tradeoff signal — satisfies decision-support discipline.",
+            "10-question FAQ with good category spread: Stacktape-specific (env vars, connectTo, admin accounts), AWS use-case (Cognito pricing, user migration, SAML), and comparison (Cognito vs Auth0, email-code vs email-link).",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with imports hidden before focus markers, no fenced YAML, no plain fenced TypeScript blocks, no `StacktapeConfig` type import.",
+            "Single `<ApiReference definitionName='UserAuthPoolProps' />` placed at the bottom — correct definitionName from the source types, no duplicate `<ApiReference>` blocks.",
+            "Peer H2 'When to use' / 'When NOT to use' sections — correctly not nested.",
+            "Every H2 section's opening paragraph names the concept explicitly ('A Stacktape user authentication pool integrates with...', 'Stacktape user authentication pools support four verification strategies...') — good self-contained extractability.",
+            "Tables for env vars, referenceable params, verification strategies, identity providers, MFA factors, Lambda hooks, and token lifetimes — high citation weight for AI extractors.",
+            "Lambda hooks section is comprehensive: all 10 hook types documented in a table with when-it-runs and use-case columns."
+          ],
+          "problems": [
+            "Unsupported negative env-var claim: In the 'Connecting to resources' section and in FAQ answer #3, the page asserts that `providerUrl`, `domain`, and `clientSecret` 'are not automatically injected as environment variables.' The source documents what IS injected for `UserAuthPool` (`ID`, `CLIENT_ID`, `ARN`) but is silent about what is NOT injected. This is a pattern the source-grounding verifier consistently flags as unsupported and it is a sourcing violation, not merely a prose preference.",
+            "The 'Email configuration' section has no code example, making it the thinnest section on the page. For a configuration area that requires both `sesAddressArn` and potentially `from` / `replyToEmailAddress`, the absence of a copy-paste snippet reduces practical value — especially because this configuration is required for `EMAIL_OTP` MFA.",
+            "The 'Referenceable parameters' section contains both the `<ReferenceableParams resource='user-auth-pool' />` component AND a hand-written prose table listing the same six parameters with descriptions. The duplication is confusing: readers don't know which one is authoritative, and the prose table risks drifting from the generated component output over time."
+          ],
+          "mandatoryFixes": [
+            "Remove the unsupported negative env-var claim. In 'Connecting to resources', replace 'The remaining parameters (`providerUrl`, `domain`, `clientSecret`) are available through `$ResourceParam()` for use in config directives, hooks, and scripts' — keep this positive statement — but delete the follow-up sentence in the Referenceable parameters section that says 'Of these, `connectTo` automatically injects `id`, `clientId`, and `arn` as environment variables. The remaining parameters... are available through `$ResourceParam()` but are not automatically injected as environment variables.' Replace with a purely positive framing: 'The remaining parameters (`providerUrl`, `domain`, `clientSecret`) are accessible via `$ResourceParam()` in config directives and scripts.' Do the same for FAQ answer #3 — remove the phrase 'but are not automatically injected as environment variables'. The source authorizes positive claims about what IS injected; negative claims about what is NOT are unsupported."
+          ],
+          "optionalImprovements": [
+            "Add a code example to the 'Email configuration' section showing `emailConfiguration.sesAddressArn`, `from`, and `replyToEmailAddress` configured together — this is the configuration path required for `EMAIL_OTP` MFA and production verification, and being the only section without an example makes it feel abandoned.",
+            "Simplify the 'Referenceable parameters' section: keep `<ReferenceableParams resource='user-auth-pool' />` and remove the hand-written prose table. Move the connectTo-vs-$ResourceParam context into the 'Connecting to resources' section where it's already explained well, so this section is not duplicated.",
+            "Shorten the H2 'Multi-factor authentication' to 'MFA' for compactness — the expanded form reads fine as a section heading but is longer than necessary given the page's otherwise compact heading style.",
+            "The 'Protecting API routes' section ends by describing the `lambda` authorizer as an alternative, which is good, but the surrounding prose is a bit long. Consider extracting that paragraph into a separate 'Authorizer types' subsection or linking more directly to the HTTP triggers reference page to keep this section focused on the Cognito JWT path.",
+            "Consider adding a brief note in the 'Identity providers' section explaining that `enableHostedUi: true` is typically required when using identity providers, since the OAuth redirect flow goes through the Hosted UI. Currently the identity providers example sets `enableHostedUi: true` without explaining why it's needed there — readers may copy the example without understanding the dependency."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly grounded in the provided UserAuthPool types and helper docs, with correct use of TypeScript CodeBlock examples and the correct ApiReference definition. The main issues are a few unsupported or overstated Stacktape-specific claims around referenceable parameters, identity provider defaults, Cognito hook permissions, and custom attribute immutability.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Additional values — `domain`, `providerUrl`, and `clientSecret` (when `generateClientSecret: true`) — are available as referenceable parameters ...” and the Referenceable parameters table lists `arn`, `providerUrl`, and `clientSecret`.",
+              "reason": "The authoritative generated referenceable-parameters section for this resource lists only `id`, `clientId`, and `domain`. Although the TypeScript union includes more values, the rendered ReferenceableParams source for this page only documents three available parameters, so claiming all six are exposed on this docs page contradicts the generated referenceable-parameters source.",
+              "suggestedFix": "Narrow the prose and table to the parameters shown by the generated reference: `id`, `clientId`, and `domain`. If the implementation intends to expose all six, the generated referenceable-parameters source should be fixed first.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/resources/security/user-auth-pool.md",
+                  "quote": "## Referenceable Parameters: `user-auth-pool`\nThese values can be referenced with `$ResourceParam(\"<<resource-name>>\", \"<<parameter-name>>\")`.\n\n| Parameter | Description | Usage |\n| --- | --- | --- |\n| `id` | Id of the userpool | `$ResourceParam(\"<<resource-name>>\", \"id\")` |\n| `clientId` | Id of the userpool | `$ResourceParam(\"<<resource-name>>\", \"clientId\")` |\n| `domain` | Domain of the userpool | `$ResourceParam(\"<<resource-name>>\", \"domain\")` |"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you omit `authorizeScopes`, Cognito/AWS default behavior applies.”",
+              "reason": "The IdentityProvider type says Stacktape uses a reasonable default per provider when `authorizeScopes` is omitted. The draft shifts this behavior to Cognito/AWS defaults, which is not what the source says and may mislead readers about where the default is chosen.",
+              "suggestedFix": "Write: “If you omit `authorizeScopes`, Stacktape uses a reasonable default per provider.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/user-pools.d.ts",
+                  "quote": "If omitted, Stacktape uses a reasonable default per provider (see\n   * [AWS::Cognito::UserPoolIdentityProvider](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cognito-userpoolidentityprovider))."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each hook value must be a Lambda function ARN. Stacktape handles the necessary permissions so Cognito can invoke the function.”",
+              "reason": "The source supports that each hook value must be a Lambda ARN and maps hooks to Cognito LambdaConfig, but it does not state that Stacktape automatically creates Cognito invoke permissions for those functions. That Stacktape-specific permission behavior is not grounded in the provided sources.",
+              "suggestedFix": "Keep the ARN requirement and remove or soften the permission claim, for example: “Each hook value must be a Lambda function ARN. The hooks map to Cognito’s `LambdaConfig`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/user-pools.d.ts",
+                  "quote": "Value must be the ARN of a Lambda function configured to handle the \"Custom Message\" trigger."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/user-pools.d.ts",
+                  "quote": "Internally this maps to the Cognito user pool `LambdaConfig`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Custom attributes cannot be removed or renamed after the user pool is created.”",
+              "reason": "The provided Stacktape source documents that `schema` translates into Cognito user pool Schema entries, but it does not document immutability of custom attributes after creation. This may be true as AWS background knowledge, but the warning is written as a strong resource behavior claim without source backing in the provided files.",
+              "suggestedFix": "Either remove the warning or frame it explicitly as Cognito behavior: “Cognito user pool schema changes are hard to reverse after creation, so plan custom attributes carefully before production.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/user-pools.d.ts",
+                  "quote": "Lets you define additional attributes (like `role`, `plan`, `companyId`, etc.) that are stored on each user,\n   * including their data type and validation constraints.\n   *\n   * These translate into the Cognito user pool `Schema` entries"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For single-page applications that call Cognito directly from the browser, use the `code` flow without a client secret (PKCE is handled automatically by the Cognito SDK).”",
+              "reason": "The source supports the available OAuth flows and that `generateClientSecret` is for trusted backends, but it does not mention PKCE or any Cognito SDK behavior. The PKCE sentence is an implementation claim outside the provided Stacktape source.",
+              "suggestedFix": "Remove the PKCE sentence or make it generic AWS/application guidance without attributing automatic handling to Stacktape or the SDK.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/user-pools.d.ts",
+                  "quote": "Asks Cognito to generate a secret for the user pool client. Use this when you have trusted backends (like APIs or server‑side apps)\n   * that can safely store a client secret and use confidential OAuth flows."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/user-pools.d.ts",
+                  "quote": "Specifies which OAuth 2.0 flows the user pool client is allowed to use:\n   *\n   * - `code`: Authorization Code flow (recommended for web apps and backends).\n   * - `implicit`: Implicit flow (legacy browser-only flow).\n   * - `client_credentials`: Server‑to‑server (no end user) machine credentials."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“The syntax is `$Secret('secretName')`, where the secret is created via the [`stacktape secret:create`](/cli/secret-create) command ...”",
+              "reason": "The documentation navigation index contains the route `/cli/secret-create`, but labels that page as the CLI reference for `secret:create`, not `stacktape secret:create`. The draft omits the colon in the command name.",
+              "suggestedFix": "Change the command text to `stacktape secret:create`.",
+              "evidence": [
+                {
+                  "file": "Documentation pages navigation index",
+                  "quote": "/cli/secret-create — CLI reference page for `secret:create`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Several Stacktape config examples instantiate `new HttpApiIntegration(...)`, but the provided `events.d.ts` source shows `HttpApiIntegration` as an interface with `type` and `properties`, not a class constructor.",
+              "reason": "The prompt’s class-name whitelist includes `HttpApiIntegration`, so the deterministic code-block validator may accept this. From the inline source alone, however, the constructor shape is not visible, so this cannot be verified directly from the provided TypeScript declarations.",
+              "suggestedFix": "No change if the code-block validator passes. If it fails, rewrite the trigger example using the documented class-based constructor shape expected by the current `stacktape` package.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[...]}>` for Stacktape configuration examples and avoids hand-authored YAML Stacktape config.",
+            "The API reference uses `<ApiReference definitionName=\"UserAuthPoolProps\" />`, matching the page’s resource props type.",
+            "The `connectTo` environment-variable names for the example resource `auth` correctly follow `STP_[RESOURCE_NAME]_[PARAM]`: `STP_AUTH_ID`, `STP_AUTH_CLIENT_ID`, and `STP_AUTH_ARN`.",
+            "The draft correctly documents the reserved verification flags and points readers to `userVerificationType` for current behavior.",
+            "The draft correctly scopes `useFirewall` to a user auth pool WAF association and does not flatten it into unrelated CDN or load-balancer firewall constraints."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 12, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 23, col 17: Type '\"auth\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 15, col 7: Object literal may only specify known properties, and 'triggers' does not exist in type 'LambdaFunctionProps'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 12, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 23, col 17: Type '\"auth\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 15, col 7: Object literal may only specify known properties, and 'triggers' does not exist in type 'LambdaFunctionProps'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 16, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 10, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #10 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #10 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #11 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #11 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #12 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #12 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #13 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'WebAppFirewallPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #13 (TypeScript): TypeScript type error.",
+              "reason": "line 11, col 5: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #13 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'WebAppFirewallPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #13 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 10, col 7: Object literal may only specify known properties, and 'properties' does not exist in type 'UserAuthPoolPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
@@ -1694,5 +2166,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\security\\user-auth-pool.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.6, hard blockers 2, advisory high 0, verifier medium 6"
+  "pipelineReviewSummary": "reviewer-avg 8.6, hard blockers 2, advisory high 0, verifier medium 6",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

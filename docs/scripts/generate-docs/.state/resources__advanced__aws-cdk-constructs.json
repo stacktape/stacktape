@@ -2,7 +2,7 @@
   "pageId": "resources__advanced__aws-cdk-constructs",
   "pageRoute": "resources/advanced/aws-cdk-constructs",
   "startedAt": "2026-05-17T13:19:43.096Z",
-  "updatedAt": "2026-05-17T13:36:13.365Z",
+  "updatedAt": "2026-05-22T01:57:00.774Z",
   "iterations": [
     {
       "iteration": 1,
@@ -839,6 +839,252 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__advanced__aws-cdk-constructs/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations: all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]}/>; application code uses plain fenced blocks.",
+            "The Limitations section is the best part of the page — explicitly calling out no connectTo, no $ResourceParam(), no overrides, no dev mode gives the reader a clear mental model before they run into surprises.",
+            "The Warning callout about $ResourceParam() and $Secret() directives resolving to CloudFormation intrinsic tokens (rather than plain strings) at synthesis time is a genuine production gotcha and is placed exactly where a reader would need it.",
+            "The When NOT to use comparison table (Stacktape native → cloudformationResources → overrides → AwsCdkConstruct) is effective decision support and concrete rather than circular.",
+            "Prerequisites section is short, actionable, and placed before the first example — prevents a common deployment failure.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service background, comparison/choosing) and 10 entries are all distinct and useful.",
+            "All three code examples (basic, named export, constructProperties) are realistic and show a complete round-trip: Stacktape config + the corresponding CDK construct class file."
+          ],
+          "problems": [
+            "The <ReferenceableParams resource=\"aws-cdk-construct\" /> section is present despite the page itself stating in the Limitations section that CDK constructs do not appear in the $ResourceParam() system. The StacktapeResourceReferenceableParam union type in __helpers.d.ts confirms no CDK construct param type exists. This section will either render empty or mislead the reader into thinking there is something to look up.",
+            "<FeatureComparisonTable> is used in the 'Comparison with raw CloudFormation' section but is not listed in any established MDX component palette in the system prompt instructions. If it is not a real doc component, the section will fail to render.",
+            "H2 heading 'Comparison with raw CloudFormation' is 5 words but in sentence-fragment form rather than compact noun-form — '7 words' violates the 1–5 word compact label guidance. Same issue with 'Passing props to constructs' (4 words but reads like a gerund sentence).",
+            "The 'Referenceable parameters' H2 section contradicts the Limitations section: including a <ReferenceableParams> block for a resource with explicitly documented absence of referenceable params is inconsistent and confusing for a first-time reader who might wonder what the component is showing them."
+          ],
+          "mandatoryFixes": [
+            "Remove the <ReferenceableParams resource=\"aws-cdk-construct\" /> section entirely. The page's own Limitations section correctly documents that CDK constructs have no referenceable parameters, and the StacktapeResourceReferenceableParam union in source confirms there is no CDK construct entry. Keeping the section contradicts the documented limitation and is likely to render empty.",
+            "Verify that <FeatureComparisonTable> is a supported MDX component in the Stacktape docs system. If it is not, replace it with a standard markdown table (identical columns/rows) to avoid a rendering failure in the 'Comparison with raw CloudFormation' section."
+          ],
+          "optionalImprovements": [
+            "Shorten the H2 heading 'Comparison with raw CloudFormation' to 'Escape hatch comparison' or 'CDK vs. raw CloudFormation' to match the 1–5 word compact label convention.",
+            "Shorten 'Passing props to constructs' to 'Construct props' for tighter heading rhythm.",
+            "Add one sentence to the Basic example section explaining what happens during stacktape deploy when a CDK construct is present — that Stacktape synthesizes the CDK construct into CloudFormation before upload. First-time readers have no mental model for the synthesis step.",
+            "The Warning about directives resolving to CloudFormation intrinsic functions says 'e.g., Fn::GetAtt' but $Secret() typically resolves to a Secrets Manager dynamic reference ({{resolve:secretsmanager:...}}), not Fn::GetAtt. Tighten this to say '$ResourceParam() resolves to a CloudFormation intrinsic (e.g., Fn::GetAtt) and $Secret() resolves to a Secrets Manager dynamic reference' for precision.",
+            "FAQ question 'What is AWS CDK?' has a closing sentence linking to '/configuration/overrides-and-escape-hatches' — this is an unexpected destination for a question about what CDK is. Consider linking to CDK documentation or replacing the link with a reference to the cloudformationResources page."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "The `<Warning>` block about $ResourceParam() and $Secret() directives resolving to CloudFormation intrinsic functions at synthesis time is exactly the production-critical gotcha this audience needs — it prevents a class of silent bugs that only surface after deploy.",
+            "The Limitations section is unusually thorough for an escape-hatch resource: it explicitly names connectTo, referenceable parameters, overrides, and dev mode as absent. A reader won't discover these gaps the hard way.",
+            "The decision table in 'When NOT to use' and the FeatureComparisonTable against cloudformationResources give concrete, actionable guidance rather than vague prose recommendations.",
+            "The Prerequisites section with an explicit install command is practical — CDK constructs silently fail without aws-cdk-lib and constructs; catching this before a confused deploy error is valuable.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service mechanics, and comparison/choosing) with 9 well-scoped questions. The 'CDK construct vs custom resource' entry is particularly useful since the two are easy to conflate.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with TypeScript as the source of truth. No forbidden YAML blocks or plain-object StacktapeConfig style found."
+          ],
+          "problems": [
+            "The `<ReferenceableParams resource=\"aws-cdk-construct\" />` section is likely to render empty: `AwsCdkConstruct` does not appear in the `StacktapeResourceReferenceableParam` union type in `__helpers.d.ts`. Including the component without confirming it emits content creates a visually empty backbone section, which violates the 'no padded backbone sections' rule.",
+            "The FAQ answer for 'How do I pass values from a CDK construct to other Stacktape resources?' suggests using `stackConfig.outputs`, but the mechanism is unexplained and likely misleading. CDK constructs don't expose referenceable parameters, so the value (e.g., a generated ARN) isn't accessible via $ResourceParam() to put into an output. The answer implies a path that doesn't exist without manual workarounds, which aren't shown.",
+            "The source file explicitly comments out `overrides?: ResourceOverrides` on the AwsCdkConstruct interface, confirming overrides are unavailable — but the page doesn't cite why. Saying 'Modify the CDK construct code directly instead' is correct but abrupt; a one-sentence explanation (e.g., 'Stacktape synthesizes the CDK output into the CloudFormation template, so there are no Stacktape-managed CF logical IDs to target with overrides') would prevent follow-up confusion."
+          ],
+          "mandatoryFixes": [
+            "Remove or replace the `<ReferenceableParams resource=\"aws-cdk-construct\" />` section. The AwsCdkConstruct type is absent from the StacktapeResourceReferenceableParam union in __helpers.d.ts, so the component will render empty. Either confirm the component handles missing resources gracefully and renders nothing (in which case remove the section heading and surrounding prose), or replace with a short prose note stating that CDK constructs do not expose referenceable parameters.",
+            "Fix the FAQ answer for 'How do I pass values from a CDK construct to other Stacktape resources?' — the suggested `stackConfig.outputs` path is not source-grounded for CDK constructs and implies a working mechanism that isn't described. Either (a) remove the stackConfig.outputs suggestion and replace with a frank statement that there is no built-in way to pass values out of a CDK construct to other Stacktape config directives, or (b) show a concrete working example using `stackConfig.outputs` with a CloudFormation export (CfnOutput in CDK) that proves the path works."
+          ],
+          "optionalImprovements": [
+            "The overrides limitation would benefit from one additional sentence explaining why overrides don't apply — that Stacktape synthesizes CDK output into CF without exposing logical IDs to Stacktape's override system. This removes the need for a reader to reason through it themselves.",
+            "The 'Passing props to constructs' heading uses a verb-gerund form while most other H2s are noun-form. Renaming to 'Construct properties' or 'Passing configuration' would be more consistent, though this is cosmetic.",
+            "The FAQ answer on 'What is AWS CDK?' ends with a link to overrides-and-escape-hatches, which is slightly off-topic for a 'what is CDK?' question. Linking to the CDK official docs or the comparison table on this page would be more relevant.",
+            "Consider adding one sentence in the Prerequisites section noting that `aws-cdk-lib` is a heavyweight dependency (~200 MB installed). Teams that use CDK constructs only once or twice might want to tree-shake or keep the CDK construct file isolated to avoid inflating other build outputs."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "Stacktape config examples use class-based `defineConfig` inside `<CodeBlock intellisense tabs={[...]}/>` with the required `TypeScript` label.",
+            "The page gives clear decision support between native Stacktape resources, `cloudformationResources`, overrides, and `AwsCdkConstruct`.",
+            "The `entryfilePath`, `exportName`, and `constructProperties` sections map well to the actual `AwsCdkConstructProps` shape.",
+            "FAQ is broad and useful, covering Stacktape-specific, CDK background, and comparison questions."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source files, including installing `aws-cdk-lib` and `constructs`, using npm package construct libraries, CDK L1/L2/L3 details, examples of unsupported AWS services, and the claim that CDK covers 200+ AWS services.",
+            "The page says native resources include alarms and dev mode support as a general contrast, but the provided source only proves CDK construct props and broad resource membership, not that every native resource has those integrations.",
+            "The `Limitations` section makes strong negative claims that are only partly grounded. The source shows `AwsCdkConstruct` lacks `overrides`, and `connectTo` does not enumerate CDK constructs, but it does not prove all Console, alarm, dev mode, or referenceable-parameter behavior stated in the page.",
+            "The `Referenceable parameters` section is likely misleading: `AwsCdkConstruct` is not present in `StacktapeResourceReferenceableParam`, so rendering `<ReferenceableParams resource=\"aws-cdk-construct\" />` may create an empty or unsupported section.",
+            "Some examples include tunable CDK values such as `OPENSEARCH_2_11`, `t3.small.search`, `dataNodes: 1`, `NODEJS_20_X`, and `Duration.minutes(5)` without explaining that these are CDK/AWS choices rather than Stacktape defaults or recommendations.",
+            "The Warning about directives resolving to CloudFormation intrinsic functions and arriving as CDK token strings is plausible, but not grounded in the provided source; the source only says `$ResourceParam()` and `$Secret()` directives can be used in `constructProperties`.",
+            "The comparison table is useful but includes unsupported claims such as no dependencies for `cloudformationResources`, full CDK construct ecosystem, and setup effort details beyond the source."
+          ],
+          "mandatoryFixes": [
+            "Remove the `Referenceable parameters` section unless the generated referenceable-parameter source proves `aws-cdk-construct` exposes parameters. Based on the provided source, `AwsCdkConstruct` is not in `StacktapeResourceReferenceableParam`.",
+            "Rewrite unsupported Stacktape-specific limitations narrowly: state only what the source proves, such as `AwsCdkConstructProps` only exposes `entryfilePath`, `exportName`, and `constructProperties`, while the `overrides` field is commented out in the type source.",
+            "Ground or remove package-installation and dependency claims. If keeping prerequisites, tie them cautiously to the fact that the entry file must export a `Construct` class and avoid asserting required package-manager steps unless another source proves them.",
+            "Replace or qualify unsupported examples of CDK-covered AWS services and the “200+ AWS services” claim, or cite a provided source that supports them.",
+            "Revise the directive warning to the grounded fact: `constructProperties` is forwarded as the third constructor argument and may use `$ResourceParam()` and `$Secret()` directives. Do not claim token behavior, `Fn::GetAtt`, or synthesis failure unless source files support it."
+          ],
+          "optionalImprovements": [
+            "Add a short sentence near the top saying no pricing data is provided for `AwsCdkConstruct`; costs come from the AWS resources created by the CDK construct, if source policy allows that general AWS context.",
+            "Tighten the FAQ answers that introduce broader CDK facts so they read as AWS/CDK background, not Stacktape-specific behavior.",
+            "Explain that the CDK code examples are illustrative CDK construct files, while the Stacktape-specific contract is the exported `Construct` class selected by `entryfilePath` and optional `exportName`.",
+            "Consider moving `<ApiReference definitionName=\"AwsCdkConstructProps\" />` above FAQ so readers can verify the small prop surface before reading edge-case guidance."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the AwsCdkConstruct source, and the Stacktape config examples follow the required TypeScript CodeBlock pattern. The main factual risks are over-broad claims about native resource integrations and unsupported guidance for moving values out of CDK constructs.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“To surface a value produced by a CDK construct (such as an ARN or URL) elsewhere in your stack, define it as a `stackConfig.outputs` entry” and the FAQ variant “you can define it as a `stackConfig.outputs` entry.”",
+              "reason": "The source confirms `AwsCdkConstruct` is not in the referenceable-parameter union and documents `stackConfig.outputs` only as custom output values, typically using directives. It does not document `stackConfig.outputs` as a way to extract values produced inside an `AwsCdkConstruct`, so this could send readers toward a configuration path the source does not support.",
+              "suggestedFix": "Say only that `AwsCdkConstruct` has no documented referenceable parameters. For values needed by other resources, keep the wiring inside the CDK construct, or use another explicitly documented Stacktape mechanism if the value can be expressed from supported directives. Do not present `stackConfig.outputs` as a guaranteed bridge from CDK-created resources.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "interface StackOutput {\n  /**\n   * #### Name of the output (used as the key in terminal and stack info file).\n   */\n  name: string;\n  /**\n   * #### Value to output. Typically a directive like `$ResourceParam('myApi', 'url')`.\n   */\n  value: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Native resources come with `connectTo` integration, referenceable parameters, alarms, and dev mode support. A CDK construct gets none of these.” The FAQ repeats: “Native resources integrate with `connectTo` … alarms, dev mode, and the Stacktape Console. A CDK construct gets none of these integrations.”",
+              "reason": "This overstates native resource support. The source shows alarms and dev mode are scoped to specific resource types, not every native Stacktape resource. The comparison should still recommend native resources when available, but it should avoid implying all native resources support every integration.",
+              "suggestedFix": "Replace with narrower wording such as: “Native Stacktape resources usually give you more Stacktape-managed behavior than CDK constructs, such as referenceable parameters, `connectTo` from supported workloads, alarms for supported resource types, and dev-mode behavior where that resource supports it.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type DevModeCapableResourceType = Subtype<StpResourceType, 'batch-job' | 'multi-container-workload' | 'function'>;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type StpAlarmEnabledResource =\n  | StpLambdaFunction\n  | StpRelationalDatabase\n  | StpHttpApiGateway\n  | StpApplicationLoadBalancer\n  | StpSqsQueue;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape directives like `$ResourceParam()` and `$Secret()` resolve to CloudFormation intrinsic function expressions (e.g., `Fn::GetAtt`) rather than plain string values. In CDK, these arrive as token strings in your constructor.”",
+              "reason": "The provided source only says `constructProperties` is forwarded as the third constructor argument and can use `$ResourceParam()` and `$Secret()` directives. It does not document the exact CloudFormation intrinsic representation, token-string behavior in CDK, or synthesis failure mode from parsing those values.",
+              "suggestedFix": "Keep the grounded part: `constructProperties` can use `$ResourceParam()` and `$Secret()` and is passed as the third constructor argument. Remove or heavily qualify the intrinsic/token-string explanation unless runtime implementation source is added to support it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/aws-cdk-construct.d.ts",
+                  "quote": "  /**\n   * #### Custom props passed to the construct's constructor.\n   *\n   * ---\n   *\n   * This object is forwarded as the third argument (`props`) to your construct class. Use `$ResourceParam()` and `$Secret()`\n   * directives here to pass dynamic values from other resources in your stack.\n   */\n  constructProperties?: any;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Importing from either `constructs` or `aws-cdk-lib` works.”",
+              "reason": "The source only states that the entry file must export a class extending `Construct` from `aws-cdk-lib`; it does not support the broader claim that both import sources work. The examples may still use the standard CDK `constructs` import, but the prose should not assert an unsupported equivalence.",
+              "suggestedFix": "Remove the “either works” sentence or narrow it to: “The source requirement is a class extending `Construct`; the example uses the standard CDK `constructs` import.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/aws-cdk-construct.d.ts",
+                  "quote": "   * Supports `.js` and `.ts` files. The file must export a class that extends `Construct` from `aws-cdk-lib`."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[...]}>` for Stacktape configuration examples and does not hand-author YAML config examples.",
+            "`<ApiReference definitionName=\"AwsCdkConstructProps\" />` matches the resource props type from the source.",
+            "The core property descriptions for `entryfilePath`, `exportName`, and `constructProperties` are largely grounded in `types/stacktape-config/aws-cdk-construct.d.ts`.",
+            "The draft keeps `When to use` and `When NOT to use` as peer H2 sections, which matches the required heading structure.",
+            "No invented cross-link routes were identified against the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 1, col 24: Module '\"stacktape\"' has no exported member 'AwsCdkConstruct'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 1, col 24: Module '\"stacktape\"' has no exported member 'AwsCdkConstruct'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 1, col 24: Module '\"stacktape\"' has no exported member 'AwsCdkConstruct'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -854,5 +1100,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\advanced\\aws-cdk-constructs.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 1, advisory high 2, verifier medium 12"
+  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 1, advisory high 2, verifier medium 12",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

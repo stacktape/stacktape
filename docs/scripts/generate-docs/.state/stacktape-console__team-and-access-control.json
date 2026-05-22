@@ -2,7 +2,7 @@
   "pageId": "stacktape-console__team-and-access-control",
   "pageRoute": "stacktape-console/team-and-access-control",
   "startedAt": "2026-05-17T20:37:42.299Z",
-  "updatedAt": "2026-05-17T20:47:44.084Z",
+  "updatedAt": "2026-05-21T18:02:08.962Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1093,6 +1093,220 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/stacktape-console__team-and-access-control/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All UI behaviors (permissions, status values, disable conditions, confirmation messages) are directly grounded in UsersPage.tsx — no invented behavior",
+            "Permissions table is a high-value addition for a first-time reader who needs to understand what their role can do",
+            "Troubleshooting section reuses actual UI tooltip strings from source (e.g. 'You do not have permission to invite members') making it reliable",
+            "Warning callout for personal-org limitation is well-placed and sourced, preventing a common gotcha",
+            "Tip about offboarding requiring both remove + revoke is practical, actionable, and grounded in the separate mutation paths in source",
+            "FAQ spans all three required categories: Stacktape-specific, underlying-service behavioral, and comparison/choosing questions",
+            "Status and MFA column behavior (Invited, External, Enabled, Disabled) is fully sourced from evaluateUserStatus logic"
+          ],
+          "problems": [
+            "H2 'What this part of the Console does' is 7 words in sentence form — violates the 1-5 word noun-form H2 label rule when a short label like 'Overview' or 'Users page' would work equally well. This is a mandatory style rule requiring a scannability penalty.",
+            "H2 'Walkthrough: inviting a team member' is borderline long (5+ words with qualifier). 'Inviting a member' is more compact and matches the noun-form convention.",
+            "Navigation instruction 'navigate to the Users page' omits the literal Console route path. Section instructions for Console pages require 'in the Stacktape Console, navigate to ...' with the literal route from console-app routing. No route is given.",
+            "FAQ answer for 'What roles are available in Stacktape?' is deliberately vague ('enforced server-side') which is source-appropriate but leaves the reader without a concrete mental model of the role hierarchy — even a brief note that at minimum Owner > Admin roles exist (derivable from the Admin-cannot-act-on-Owner source logic) would help."
+          ],
+          "mandatoryFixes": [
+            "Shorten H2 headings to 1-5 word noun-form labels: rename 'What this part of the Console does' to 'Overview' or 'Users page', and 'Walkthrough: inviting a team member' to 'Inviting a member'. Both headings read as full sentences when compact labels exist, violating the H2 scannability rule (penalize scannability by 1)."
+          ],
+          "optionalImprovements": [
+            "Add the literal Console route path to the navigation instruction (e.g. 'navigate to the Users page at /users or similar') per Console section instructions — even an approximate path helps readers find the page",
+            "The FAQ answer on roles could note that at least an Owner > Admin hierarchy exists (this is directly derivable from the Admin-cannot-act-on-Owner source check), giving readers more to act on without inventing undocumented role names",
+            "Consider briefly enumerating the less common Status values (ARCHIVED, COMPROMISED, RESET_REQUIRED, FORCE_CHANGE_PASSWORD) as a parenthetical note in the status column description — they exist in the source enum and a reader who sees one in production will wonder what it means",
+            "The first-paragraph intro (40-75 words) is good but ends on 'based on your own role' — this is slightly circular. Rewriting to 'based on which role your account holds' is clearer for a reader who doesn't yet know what roles exist",
+            "The ConsoleScreenshot component reference includes a screenshot path (/static/screenshots/console-users-page.png) — verify this asset exists in the project before publishing; broken image refs confuse first-time readers more than missing ones"
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All four permission gates (members:invite, members:remove, members:update-role, api-keys:revoke-all) are correctly identified and described, matching the source code exactly.",
+            "The Admin-cannot-act-on-Owner constraint is accurately documented from the conditional render logic in UsersPage.tsx.",
+            "The three invite-button disabled states (personal org, member limit, missing permission) match the source code conditions exactly, including the verbatim tooltip messages from the source.",
+            "Status and MFA column values (Invited, Confirmed, External provider, External/Enabled/Disabled MFA) are correctly derived from evaluateUserStatus() logic.",
+            "The revoke-keys confirmation message is quoted accurately from the source's ConfirmationModal message prop.",
+            "SERVICE_USER filter is correctly noted as the mechanism for hiding internal service accounts.",
+            "Troubleshooting section is entirely grounded in source: each scenario maps to a real code path (isPersonalOrg check, hasMaximumMembers, role gating, ADMIN+OWNER combo).",
+            "The Tip callout about 'remove and revoke are separate actions' is a genuinely useful production gotcha well worth surfacing.",
+            "FAQ mixes Stacktape-specific, Console behavior, and comparison questions as required."
+          ],
+          "problems": [
+            "MANDATORY STYLE VIOLATION: 'What this part of the Console does' is an overly long H2 heading that reads as a full sentence. The style guide requires H2s to be compact labels (1-5 words). Penalize scannability.",
+            "MANDATORY STYLE VIOLATION: 'Walkthrough: inviting a team member' is an overly long H2 heading. The colon-subtitle form still reads as a sentence fragment rather than a compact noun label. Penalize scannability.",
+            "The ConsoleScreenshot component (used with src='/static/screenshots/console-users-page.png') is not mentioned in the writer-surface component palette and references a static asset path not present in the provided source files. If the component and asset do not exist in the docs platform, this will render broken."
+          ],
+          "mandatoryFixes": [
+            "Shorten section headings to compact labels: rename 'What this part of the Console does' to 'Overview' or 'Users page'; rename 'Walkthrough: inviting a team member' to 'Inviting a member'. Keep most H2s to 1-5 words as required by the style guide."
+          ],
+          "optionalImprovements": [
+            "Verify that <ConsoleScreenshot> is a valid writer-surface MDX component and that the referenced screenshot asset exists before publishing. If either is unconfirmed, replace with a prose description of the UI layout.",
+            "The FAQ answer for 'What roles are available in Stacktape?' honestly says the full permission sets are server-side, but ROLE_LABELS and ROLE_TO_COLOR are imported in the source — if those maps are accessible in other source files, enumerate the canonical role names (e.g., OWNER, ADMIN, MEMBER) directly in the answer rather than leaving it vague.",
+            "Consider adding the literal Console route path (e.g., /users) to the 'Overview' / intro section per the section instructions: 'Prefer phrasing like in the Stacktape Console, navigate to ... with the literal route from console-app routing.' The current wording says 'navigate to the Users page' without the path."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "The page is easy to scan: H2s are compact, tables are used for permission gates, and common tasks are grouped logically.",
+            "Most visible Users page behavior is accurately reflected from the source: member table columns, service-user filtering, invite-button disabled states, action permissions, Admin-versus-Owner suppression, confirmation dialog copy, status/MFA display, and per-page member limit behavior.",
+            "No forbidden Stacktape config examples, YAML config blocks, StacktapeConfig usage, bad shell blocks, or ApiReference misuse appear."
+          ],
+          "problems": [
+            "The page invents a `<ConsoleScreenshot>` asset and visual screenshot claim not present in the provided source. The instructions explicitly say not to invent screenshots or UI flows not present in source.",
+            "Several claims depend on files not provided: invite form fields, email invitation confirmation flow, update-role form contents, and account settings behavior for MFA.",
+            "The statement that the full role/permission list is enforced server-side is not grounded in the provided source files. The source only shows client-side permission checks via `useCurrentUserPermissions()` and TRPC mutations being called.",
+            "The tip says removing a member does not guarantee their API keys stop working. The source shows separate UI actions for removal and key revocation, but does not prove API keys remain valid after member removal.",
+            "FAQ claims about CLI sessions, CI/CD pipelines failing on next request, external identity provider configuration, organization-wide MFA enforcement via an external provider, and Activity page behavior go beyond the provided UsersPage and Explanations source.",
+            "The page lacks the literal Console route from routing source. It repeatedly says “Users page,” which is understandable, but the instruction asks Console pages to prefer navigation phrasing grounded in routing files; those files were not provided.",
+            "Troubleshooting says users should remove and re-send an invitation if the email was lost. The source does not show resend behavior, invitation email delivery, or that remove-and-reinvite is the supported recovery path.",
+            "The page is useful, but it sometimes reads more definitive than the source supports; cautious wording is needed where only UI labels or imported component names are visible."
+          ],
+          "mandatoryFixes": [
+            "Remove the invented `<ConsoleScreenshot>` block unless the screenshot asset and screenshot usage are provided as source-grounded evidence.",
+            "Replace unsupported server-side enforcement wording with a source-grounded statement such as: “The Users page checks the current user’s permissions before showing invite, edit, revoke-key, and remove actions.”",
+            "Revise invite-flow claims to only state what the provided source proves: clicking `Invite new member` opens `InviteNewMemberForm`, and unconfirmed members display `Invited` in the table. Do not mention form fields or email confirmation unless sourced.",
+            "Revise update-role wording to avoid describing fields inside `UpdateMemberForm` unless that component source is provided.",
+            "Remove or narrow the API-key offboarding claim. The source proves revoking API keys and removing a member are separate actions on the Users page, but does not prove removal leaves API keys valid.",
+            "Remove or source the FAQ claims about CLI/CI behavior after API-key revocation, configuring external identity providers, external-provider MFA enforcement, and Activity page deployment auditing.",
+            "Remove the lost-invitation recovery recommendation or ground it in source that shows removing and reinviting is the intended flow."
+          ],
+          "optionalImprovements": [
+            "Add the actual Console route if routing source is available, for example “navigate to `/users`” only if that exact path is grounded.",
+            "Quote exact disabled tooltip text more sparingly; the page already includes enough detail, and shorter paraphrases would improve readability.",
+            "Add a short “Who can manage Owners?” note near Roles and permissions instead of repeating the Admin/Owner rule in multiple places.",
+            "If more source is available, include role labels from `ROLE_LABELS` and permissions from `permissions` utilities so the Roles section can be more complete without guessing."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided UsersPage and Explanations sources. I found a few unsupported or over-specific claims, mostly around behavior that is implied but not proven by the supplied Console code.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For complete offboarding, perform both.” and FAQ: “For complete offboarding, perform both: remove the member and revoke all of their API keys.”",
+              "reason": "The source shows separate UI actions and mutations for removing a member and revoking API keys, but it does not establish that removing a member leaves API keys active or that both actions are required for complete offboarding. This could materially affect an offboarding workflow.",
+              "suggestedFix": "Narrow the wording: “The Users page exposes removal and API-key revocation as separate actions. If you want to explicitly invalidate programmatic credentials before or during offboarding, use the revoke action as well.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/UsersPage/UsersPage.tsx",
+                  "quote": "const removeMemberFromOrganizationMutation = trpc.removeMemberFromOrganization.useMutation();\n  const revokeAllUserApiKeysMutation = trpc.revokeAllUserApiKeys.useMutation();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/UsersPage/UsersPage.tsx",
+                  "quote": "{canRevokeKeys && (\n                          <IconButton\n                            size={30}\n                            icon={<TbKeyOff size={15} />}\n                            onClick={() => setSelectedMemberForRevoke(member as any)}\n                            tooltipText=\"Revoke all API keys\"\n                          />\n                        )}\n                        {canRemove && (\n                          <IconButton\n                            size={30}\n                            icon={<RiDeleteBinLine size={15} />}\n                            onClick={() => setSelectedMemberForDeletion(member as any)}\n                            tooltipText=\"Remove member\"\n                          />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If the invitation needs to be re-sent, remove them and invite them again.”",
+              "reason": "The supplied UsersPage source shows inviting and removing members, but it does not document any resend-invitation behavior or establish that removing and re-inviting is the supported way to resend an invitation.",
+              "suggestedFix": "Remove the resend guidance or phrase it cautiously: “The provided Users page source does not show a resend-invitation action. If the invitation is stale, use the available remove and invite actions according to your organization’s process.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/UsersPage/UsersPage.tsx",
+                  "quote": "<InviteNewMemberForm isOpen={isInviteNewMemberModalOpen} setIsOpen={setIsInviteNewMemberModalOpen} />"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/UsersPage/UsersPage.tsx",
+                  "quote": "<ConfirmationModal\n        isOpen={!!selectedMemberForDeletion}\n        setIsOpen={setSelectedMemberForDeletion}\n        onConfirmed={onConfirmRemoveMember}\n        heading=\"Remove user from organization\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Contact Stacktape for details on configuring [external identity providers] for your organization.”",
+              "reason": "The source supports displaying an `External provider` status and MFA value, but it does not mention contacting Stacktape or any setup path for external identity providers.",
+              "suggestedFix": "Stop at what the UI source proves: “The Users page can show members with `External provider` status. Configuration details are not documented in the provided source.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/UsersPage/UsersPage.tsx",
+                  "quote": "'EXTERNAL_PROVIDER' = 'External provider'"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/UsersPage/UsersPage.tsx",
+                  "quote": "mfa: !baseUser && externalUser ? 'External' : mfaEnabled ? 'Enabled' : 'Disabled'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you use an external identity provider, MFA enforcement can be managed at the provider level.”",
+              "reason": "The source only shows that MFA is displayed as `External` when there is no base Cognito user and an external provider identity exists. It does not document identity-provider MFA enforcement behavior.",
+              "suggestedFix": "Replace with a narrower statement: “For externally authenticated members, the Users page shows MFA as `External`; enforcement behavior is not documented in the provided Console source.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/UsersPage/UsersPage.tsx",
+                  "quote": "mfa: !baseUser && externalUser ? 'External' : mfaEnabled ? 'Enabled' : 'Disabled',\n    status"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The Activity page shows a log of Stacktape CLI operations across your organization…”",
+              "reason": "The statement is grounded in `Explanations.tsx`, but the draft links no route and the provided navigation index contains no Stacktape Console Activity page route. As written, readers cannot navigate to the page from this documentation page.",
+              "suggestedFix": "Either omit the FAQ entry, or phrase it as a generic Console capability without implying a documented page route. If a route exists in console-app routing, include only after grounding it in the relevant source.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly grounds the Users table columns, service-account filtering, role badges, action permissions, disabled invite conditions, owner/admin UI restriction, and MFA/status display logic in UsersPage.tsx.",
+            "All markdown links in the draft point to routes present in the provided documentation navigation index.",
+            "The page avoids forbidden Stacktape configuration patterns; there are no YAML Stacktape examples, plain-object StacktapeConfig examples, or fenced TypeScript Stacktape config blocks."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -1105,8 +1319,15 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\stacktape-console\\team-and-access-control.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.4, hard blockers 5, advisory high 0, verifier medium 16"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/stacktape-console/team-and-access-control.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-21T18:02:08.962Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/console-app/src/pages/UsersPage/UsersPage.tsx": "418838a876996c60e56b34efb3b0d715e042d11b",
+    "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx": "3f2604010b1492917861d68a6940ceab8d04a693",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/stacktape-console/team-and-access-control.md": "0ad76a17202d7980a19eb32fe970ebba72abbd93"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

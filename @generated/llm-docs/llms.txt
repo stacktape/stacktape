@@ -1,0 +1,238 @@
+# Stacktape Documentation
+
+Stacktape is a deployment and infrastructure framework for defining application infrastructure in TypeScript or YAML and deploying it to AWS.
+
+## Docs Pages
+- [Build Runners](/ci-cd-and-gitops/build-runners) - source: docs/docs/ci-cd-and-gitops/build-runners.mdx
+- [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) - source: docs/docs/ci-cd-and-gitops/custom-ci-cd.mdx
+- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) - source: docs/docs/ci-cd-and-gitops/gitops-with-console.mdx
+- [CI/CD and GitOps Overview](/ci-cd-and-gitops/overview) - source: docs/docs/ci-cd-and-gitops/overview.mdx
+- [Self-Hosted GitHub Actions Runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) - source: docs/docs/ci-cd-and-gitops/self-hosted-github-actions-runners.mdx
+- [Stacks per Git Branch Pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) - source: docs/docs/ci-cd-and-gitops/stacks-per-git-branch-pattern.mdx
+- [aws-profile:create](/cli/aws-profile-create) - source: docs/docs/cli/aws-profile-create.mdx
+- [aws-profile:delete](/cli/aws-profile-delete) - source: docs/docs/cli/aws-profile-delete.mdx
+- [aws-profile:list](/cli/aws-profile-list) - source: docs/docs/cli/aws-profile-list.mdx
+- [aws-profile:update](/cli/aws-profile-update) - source: docs/docs/cli/aws-profile-update.mdx
+- [bastion:session](/cli/bastion-session) - source: docs/docs/cli/bastion-session.mdx
+- [bastion:tunnel](/cli/bastion-tunnel) - source: docs/docs/cli/bastion-tunnel.mdx
+- [bucket:sync](/cli/bucket-sync) - source: docs/docs/cli/bucket-sync.mdx
+- [cf-module:update](/cli/cf-module-update) - source: docs/docs/cli/cf-module-update.mdx
+- [cf:rollback](/cli/cf-rollback) - source: docs/docs/cli/cf-rollback.mdx
+- [codebuild:deploy](/cli/codebuild-deploy) - source: docs/docs/cli/codebuild-deploy.mdx
+- [compile-template](/cli/compile-template) - source: docs/docs/cli/compile-template.mdx
+- [container:session](/cli/container-session) - source: docs/docs/cli/container-session.mdx
+- [debug:alarms](/cli/debug-alarms) - source: docs/docs/cli/debug-alarms.mdx
+- [debug:aws-sdk](/cli/debug-aws-sdk) - source: docs/docs/cli/debug-aws-sdk.mdx
+- [debug:container-exec](/cli/debug-container-exec) - source: docs/docs/cli/debug-container-exec.mdx
+- [debug:dynamodb](/cli/debug-dynamodb) - source: docs/docs/cli/debug-dynamodb.mdx
+- [debug:logs](/cli/debug-logs) - source: docs/docs/cli/debug-logs.mdx
+- [debug:metrics](/cli/debug-metrics) - source: docs/docs/cli/debug-metrics.mdx
+- [debug:opensearch](/cli/debug-opensearch) - source: docs/docs/cli/debug-opensearch.mdx
+- [debug:redis](/cli/debug-redis) - source: docs/docs/cli/debug-redis.mdx
+- [debug:sql](/cli/debug-sql) - source: docs/docs/cli/debug-sql.mdx
+- [defaults:configure](/cli/defaults-configure) - source: docs/docs/cli/defaults-configure.mdx
+- [defaults:list](/cli/defaults-list) - source: docs/docs/cli/defaults-list.mdx
+- [delete](/cli/delete) - source: docs/docs/cli/delete.mdx
+- [deploy](/cli/deploy) - source: docs/docs/cli/deploy.mdx
+- [deployment-script:run](/cli/deployment-script-run) - source: docs/docs/cli/deployment-script-run.mdx
+- [dev:stop](/cli/dev-stop) - source: docs/docs/cli/dev-stop.mdx
+- [dev](/cli/dev) - source: docs/docs/cli/dev.mdx
+- [domain:add](/cli/domain-add) - source: docs/docs/cli/domain-add.mdx
+- [help](/cli/help) - source: docs/docs/cli/help.mdx
+- [info:operations](/cli/info-operations) - source: docs/docs/cli/info-operations.mdx
+- [info:stack](/cli/info-stack) - source: docs/docs/cli/info-stack.mdx
+- [info:stacks](/cli/info-stacks) - source: docs/docs/cli/info-stacks.mdx
+- [info:whoami](/cli/info-whoami) - source: docs/docs/cli/info-whoami.mdx
+- [init](/cli/init) - source: docs/docs/cli/init.mdx
+- [issues:ignore](/cli/issues-ignore) - source: docs/docs/cli/issues-ignore.mdx
+- [issues:list](/cli/issues-list) - source: docs/docs/cli/issues-list.mdx
+- [issues:reopen](/cli/issues-reopen) - source: docs/docs/cli/issues-reopen.mdx
+- [issues:resolve](/cli/issues-resolve) - source: docs/docs/cli/issues-resolve.mdx
+- [login](/cli/login) - source: docs/docs/cli/login.mdx
+- [logout](/cli/logout) - source: docs/docs/cli/logout.mdx
+- [mcp:add](/cli/mcp-add) - source: docs/docs/cli/mcp-add.mdx
+- [mcp](/cli/mcp) - source: docs/docs/cli/mcp.mdx
+- [org:create](/cli/org-create) - source: docs/docs/cli/org-create.mdx
+- [org:delete](/cli/org-delete) - source: docs/docs/cli/org-delete.mdx
+- [org:list](/cli/org-list) - source: docs/docs/cli/org-list.mdx
+- [package-workloads](/cli/package-workloads) - source: docs/docs/cli/package-workloads.mdx
+- [param:get](/cli/param-get) - source: docs/docs/cli/param-get.mdx
+- [preview-changes](/cli/preview-changes) - source: docs/docs/cli/preview-changes.mdx
+- [project:create](/cli/project-create) - source: docs/docs/cli/project-create.mdx
+- [projects:list](/cli/projects-list) - source: docs/docs/cli/projects-list.mdx
+- [rollback](/cli/rollback) - source: docs/docs/cli/rollback.mdx
+- [script:run](/cli/script-run) - source: docs/docs/cli/script-run.mdx
+- [secret:create](/cli/secret-create) - source: docs/docs/cli/secret-create.mdx
+- [secret:delete](/cli/secret-delete) - source: docs/docs/cli/secret-delete.mdx
+- [secret:get](/cli/secret-get) - source: docs/docs/cli/secret-get.mdx
+- [upgrade](/cli/upgrade) - source: docs/docs/cli/upgrade.mdx
+- [version](/cli/version) - source: docs/docs/cli/version.mdx
+- [Configuration Files](/configuration/configuration-files) - source: docs/docs/configuration/configuration-files.mdx
+- [Connecting Resources](/configuration/connecting-resources) - source: docs/docs/configuration/connecting-resources.mdx
+- [Directives](/configuration/directives) - source: docs/docs/configuration/directives.mdx
+- [Hooks and Scripts](/configuration/hooks-and-scripts) - source: docs/docs/configuration/hooks-and-scripts.mdx
+- [Overrides and Escape Hatches](/configuration/overrides-and-escape-hatches) - source: docs/docs/configuration/overrides-and-escape-hatches.mdx
+- [Referenceable Parameters](/configuration/referenceable-parameters) - source: docs/docs/configuration/referenceable-parameters.mdx
+- [Resources](/configuration/resources) - source: docs/docs/configuration/resources.mdx
+- [Secrets](/configuration/secrets) - source: docs/docs/configuration/secrets.mdx
+- [Stages and Environments](/configuration/stages-and-environments) - source: docs/docs/configuration/stages-and-environments.mdx
+- [Alarms as Triggers](/configuration/triggers/alarms-as-triggers) - source: docs/docs/configuration/triggers/alarms-as-triggers.mdx
+- [CloudWatch Logs](/configuration/triggers/cloudwatch-logs) - source: docs/docs/configuration/triggers/cloudwatch-logs.mdx
+- [DynamoDB Streams](/configuration/triggers/dynamodb-streams) - source: docs/docs/configuration/triggers/dynamodb-streams.mdx
+- [Event Bus Events](/configuration/triggers/event-bus-events) - source: docs/docs/configuration/triggers/event-bus-events.mdx
+- [HTTP Triggers](/configuration/triggers/http-triggers) - source: docs/docs/configuration/triggers/http-triggers.mdx
+- [Kafka Topics](/configuration/triggers/kafka-topics) - source: docs/docs/configuration/triggers/kafka-topics.mdx
+- [Kinesis Events](/configuration/triggers/kinesis-events) - source: docs/docs/configuration/triggers/kinesis-events.mdx
+- [Triggers Overview](/configuration/triggers/overview) - source: docs/docs/configuration/triggers/overview.mdx
+- [S3 Events](/configuration/triggers/s3-events) - source: docs/docs/configuration/triggers/s3-events.mdx
+- [Schedule Triggers](/configuration/triggers/schedule-triggers) - source: docs/docs/configuration/triggers/schedule-triggers.mdx
+- [SNS Events](/configuration/triggers/sns-events) - source: docs/docs/configuration/triggers/sns-events.mdx
+- [SQS Events](/configuration/triggers/sqs-events) - source: docs/docs/configuration/triggers/sqs-events.mdx
+- [Variables and Reuse](/configuration/variables-and-reuse) - source: docs/docs/configuration/variables-and-reuse.mdx
+- [Deploy-Time Parameters](/deployment-and-lifecycle/deploy-time-parameters) - source: docs/docs/deployment-and-lifecycle/deploy-time-parameters.mdx
+- [Deploying Stacks](/deployment-and-lifecycle/deploying-stacks) - source: docs/docs/deployment-and-lifecycle/deploying-stacks.mdx
+- [Deployment Scripts and Hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks) - source: docs/docs/deployment-and-lifecycle/deployment-scripts-and-hooks.mdx
+- [Destroying Stacks](/deployment-and-lifecycle/destroying-stacks) - source: docs/docs/deployment-and-lifecycle/destroying-stacks.mdx
+- [Gradual Deployments](/deployment-and-lifecycle/gradual-deployments) - source: docs/docs/deployment-and-lifecycle/gradual-deployments.mdx
+- [Multi-Region Deployments](/deployment-and-lifecycle/multi-region-deployments) - source: docs/docs/deployment-and-lifecycle/multi-region-deployments.mdx
+- [Previewing Changes](/deployment-and-lifecycle/previewing-changes) - source: docs/docs/deployment-and-lifecycle/previewing-changes.mdx
+- [Rollbacks](/deployment-and-lifecycle/rollbacks) - source: docs/docs/deployment-and-lifecycle/rollbacks.mdx
+- [CI/CD](/getting-started/ci-cd) - source: docs/docs/getting-started/ci-cd.mdx
+- [Configure Your Stack](/getting-started/configure-your-stack) - source: docs/docs/getting-started/configure-your-stack.mdx
+- [Deploy Your First Stage](/getting-started/deploy-your-first-stage) - source: docs/docs/getting-started/deploy-your-first-stage.mdx
+- [Going to Production](/getting-started/going-to-production) - source: docs/docs/getting-started/going-to-production.mdx
+- [Use the Dev Mode](/getting-started/use-the-dev-mode) - source: docs/docs/getting-started/use-the-dev-mode.mdx
+- [Using Console UI](/getting-started/using-console-ui) - source: docs/docs/getting-started/using-console-ui.mdx
+- [Database Guardrails](/guardrails/databases) - source: docs/docs/guardrails/databases.mdx
+- [Deployment Guardrails](/guardrails/deployment) - source: docs/docs/guardrails/deployment.mdx
+- [Guardrails Overview](/guardrails/overview) - source: docs/docs/guardrails/overview.mdx
+- [Resource Limit Guardrails](/guardrails/resource-limits) - source: docs/docs/guardrails/resource-limits.mdx
+- [Security and Data Protection Guardrails](/guardrails/security-and-data-protection) - source: docs/docs/guardrails/security-and-data-protection.mdx
+- [Introduction](/) - source: docs/docs/index.mdx
+- [Debug Commands Reference](/local-development/debug-commands-reference) - source: docs/docs/local-development/debug-commands-reference.mdx
+- [Debugging Containers](/local-development/debugging-containers) - source: docs/docs/local-development/debugging-containers.mdx
+- [Debugging Lambda Functions](/local-development/debugging-lambda-functions) - source: docs/docs/local-development/debugging-lambda-functions.mdx
+- [Dev Mode Overview](/local-development/dev-mode-overview) - source: docs/docs/local-development/dev-mode-overview.mdx
+- [Dev Mode with AI](/local-development/dev-mode-with-ai) - source: docs/docs/local-development/dev-mode-with-ai.mdx
+- [Local Databases](/local-development/local-databases) - source: docs/docs/local-development/local-databases.mdx
+- [Budgets](/managing-costs/budgets) - source: docs/docs/managing-costs/budgets.mdx
+- [Cost Dashboards](/managing-costs/dashboards) - source: docs/docs/managing-costs/dashboards.mdx
+- [Cost Optimization Tips](/managing-costs/optimization-tips) - source: docs/docs/managing-costs/optimization-tips.mdx
+- [Managing Costs Overview](/managing-costs/overview) - source: docs/docs/managing-costs/overview.mdx
+- [Per-Resource Cost Breakdown](/managing-costs/per-resource-breakdown) - source: docs/docs/managing-costs/per-resource-breakdown.mdx
+- [Alarms](/observability/alarms) - source: docs/docs/observability/alarms.mdx
+- [Alert Channels](/observability/alert-channels) - source: docs/docs/observability/alert-channels.mdx
+- [Alert History](/observability/alert-history) - source: docs/docs/observability/alert-history.mdx
+- [Issues](/observability/issues) - source: docs/docs/observability/issues.mdx
+- [Log Forwarding](/observability/log-forwarding) - source: docs/docs/observability/log-forwarding.mdx
+- [Logs](/observability/logs) - source: docs/docs/observability/logs.mdx
+- [Metrics](/observability/metrics) - source: docs/docs/observability/metrics.mdx
+- [Notifications](/observability/notifications) - source: docs/docs/observability/notifications.mdx
+- [Observability Overview](/observability/overview) - source: docs/docs/observability/overview.mdx
+- [Custom Dockerfile](/packaging/containers/custom-dockerfile) - source: docs/docs/packaging/containers/custom-dockerfile.mdx
+- [External Buildpack](/packaging/containers/external-buildpack) - source: docs/docs/packaging/containers/external-buildpack.mdx
+- [Nixpacks](/packaging/containers/nixpacks) - source: docs/docs/packaging/containers/nixpacks.mdx
+- [Prebuilt Image](/packaging/containers/prebuilt-image) - source: docs/docs/packaging/containers/prebuilt-image.mdx
+- [Stacktape Buildpack for Containers](/packaging/containers/stacktape-buildpack) - source: docs/docs/packaging/containers/stacktape-buildpack.mdx
+- [Custom Artifact](/packaging/function/custom-artifact) - source: docs/docs/packaging/function/custom-artifact.mdx
+- [Stacktape Buildpack for Lambda](/packaging/function/stacktape-buildpack) - source: docs/docs/packaging/function/stacktape-buildpack.mdx
+- [Packaging Overview](/packaging/overview) - source: docs/docs/packaging/overview.mdx
+- [AWS CDK Constructs](/resources/advanced/aws-cdk-constructs) - source: docs/docs/resources/advanced/aws-cdk-constructs.mdx
+- [Custom Resources](/resources/advanced/custom-resources) - source: docs/docs/resources/advanced/custom-resources.mdx
+- [Deployment Scripts](/resources/advanced/deployment-scripts) - source: docs/docs/resources/advanced/deployment-scripts.mdx
+- [Raw CloudFormation Resources](/resources/advanced/raw-cloudformation-resources) - source: docs/docs/resources/advanced/raw-cloudformation-resources.mdx
+- [Batch Job](/resources/compute/batch-job) - source: docs/docs/resources/compute/batch-job.mdx
+- [Edge Function](/resources/compute/edge-function) - source: docs/docs/resources/compute/edge-function.mdx
+- [Lambda Function](/resources/compute/lambda-function) - source: docs/docs/resources/compute/lambda-function.mdx
+- [Multi-Container Workload](/resources/compute/multi-container-workload) - source: docs/docs/resources/compute/multi-container-workload.mdx
+- [Private Service](/resources/compute/private-service) - source: docs/docs/resources/compute/private-service.mdx
+- [Web Service](/resources/compute/web-service) - source: docs/docs/resources/compute/web-service.mdx
+- [Worker Service](/resources/compute/worker-service) - source: docs/docs/resources/compute/worker-service.mdx
+- [DynamoDB](/resources/databases/dynamodb) - source: docs/docs/resources/databases/dynamodb.mdx
+- [MongoDB Atlas](/resources/databases/mongodb-atlas) - source: docs/docs/resources/databases/mongodb-atlas.mdx
+- [OpenSearch](/resources/databases/opensearch) - source: docs/docs/resources/databases/opensearch.mdx
+- [Redis](/resources/databases/redis) - source: docs/docs/resources/databases/redis.mdx
+- [Relational Database](/resources/databases/relational-database) - source: docs/docs/resources/databases/relational-database.mdx
+- [Upstash Redis](/resources/databases/upstash-redis) - source: docs/docs/resources/databases/upstash-redis.mdx
+- [Astro](/resources/frontend/astro) - source: docs/docs/resources/frontend/astro.mdx
+- [Next.js](/resources/frontend/nextjs) - source: docs/docs/resources/frontend/nextjs.mdx
+- [Nuxt](/resources/frontend/nuxt) - source: docs/docs/resources/frontend/nuxt.mdx
+- [Remix](/resources/frontend/remix) - source: docs/docs/resources/frontend/remix.mdx
+- [SolidStart](/resources/frontend/solidstart) - source: docs/docs/resources/frontend/solidstart.mdx
+- [Static Hosting](/resources/frontend/static-hosting) - source: docs/docs/resources/frontend/static-hosting.mdx
+- [SvelteKit](/resources/frontend/sveltekit) - source: docs/docs/resources/frontend/sveltekit.mdx
+- [TanStack Start](/resources/frontend/tanstack-start) - source: docs/docs/resources/frontend/tanstack-start.mdx
+- [Event Bus](/resources/messaging/event-bus) - source: docs/docs/resources/messaging/event-bus.mdx
+- [Kinesis Stream](/resources/messaging/kinesis-stream) - source: docs/docs/resources/messaging/kinesis-stream.mdx
+- [SNS Topic](/resources/messaging/sns-topic) - source: docs/docs/resources/messaging/sns-topic.mdx
+- [SQS Queue](/resources/messaging/sqs-queue) - source: docs/docs/resources/messaging/sqs-queue.mdx
+- [Application Load Balancer](/resources/networking/application-load-balancer) - source: docs/docs/resources/networking/application-load-balancer.mdx
+- [CDN](/resources/networking/cdn) - source: docs/docs/resources/networking/cdn.mdx
+- [Custom Domains](/resources/networking/custom-domains) - source: docs/docs/resources/networking/custom-domains.mdx
+- [HTTP API Gateway](/resources/networking/http-api-gateway) - source: docs/docs/resources/networking/http-api-gateway.mdx
+- [Network Load Balancer](/resources/networking/network-load-balancer) - source: docs/docs/resources/networking/network-load-balancer.mdx
+- [State Machine](/resources/orchestration/state-machine) - source: docs/docs/resources/orchestration/state-machine.mdx
+- [Bastion Host](/resources/security/bastion-host) - source: docs/docs/resources/security/bastion-host.mdx
+- [User Authentication Pool](/resources/security/user-auth-pool) - source: docs/docs/resources/security/user-auth-pool.mdx
+- [Web Application Firewall](/resources/security/web-application-firewall) - source: docs/docs/resources/security/web-application-firewall.mdx
+- [EFS Filesystem](/resources/storage/efs-filesystem) - source: docs/docs/resources/storage/efs-filesystem.mdx
+- [S3 Bucket](/resources/storage/s3-bucket) - source: docs/docs/resources/storage/s3-bucket.mdx
+- [AI Config Generation](/stacktape-console/ai-config-generation) - source: docs/docs/stacktape-console/ai-config-generation.mdx
+- [API Keys](/stacktape-console/api-keys) - source: docs/docs/stacktape-console/api-keys.mdx
+- [AWS Permissions Needed](/stacktape-console/aws-permissions) - source: docs/docs/stacktape-console/aws-permissions.mdx
+- [Billing and Subscription](/stacktape-console/billing-and-subscription) - source: docs/docs/stacktape-console/billing-and-subscription.mdx
+- [Connecting Your AWS Account](/stacktape-console/connecting-your-aws-account) - source: docs/docs/stacktape-console/connecting-your-aws-account.mdx
+- [Console Overview](/stacktape-console/console-overview) - source: docs/docs/stacktape-console/console-overview.mdx
+- [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages) - source: docs/docs/stacktape-console/organizations-projects-and-stages.mdx
+- [Team and Access Control](/stacktape-console/team-and-access-control) - source: docs/docs/stacktape-console/team-and-access-control.mdx
+- [Visual Config Editor](/stacktape-console/visual-config-editor) - source: docs/docs/stacktape-console/visual-config-editor.mdx
+- [Agent Mode in Dev](/using-with-ai/agent-mode-in-dev) - source: docs/docs/using-with-ai/agent-mode-in-dev.mdx
+- [AI Coding Assistant Integrations](/using-with-ai/ai-coding-assistant-integrations) - source: docs/docs/using-with-ai/ai-coding-assistant-integrations.mdx
+- [AI Config Generation](/using-with-ai/config-generation-from-repository) - source: docs/docs/using-with-ai/config-generation-from-repository.mdx
+- [MCP Server Setup](/using-with-ai/mcp-server-setup) - source: docs/docs/using-with-ai/mcp-server-setup.mdx
+- [Using Stacktape with AI](/using-with-ai/overview) - source: docs/docs/using-with-ai/overview.mdx
+
+## Config Reference
+- [Alarm Definition Base](/config-reference/alarms)
+- [Application Load Balancer](/config-reference/application-load-balancer) - resource type: application-load-balancer
+- [Astro Web](/config-reference/astro-web) - resource type: astro-web
+- [Aws Cdk Construct](/config-reference/aws-cdk-construct) - resource type: aws-cdk-construct
+- [Bastion](/config-reference/bastion) - resource type: bastion
+- [Batch Job](/config-reference/batch-job) - resource type: batch-job
+- [Bucket](/config-reference/bucket) - resource type: bucket
+- [Cdn Configuration](/config-reference/cdn) - resource type: cdn
+- [Convex](/config-reference/convex)
+- [Custom Resource Definition](/config-reference/custom-resource) - resource type: custom-resource
+- [Deployment Script](/config-reference/deployment-script) - resource type: deployment-script
+- [Dynamo Db Table](/config-reference/dynamo-db-table) - resource type: dynamo-db-table
+- [Edge Lambda Function](/config-reference/edge-lambda-function) - resource type: edge-lambda-function
+- [Efs Filesystem](/config-reference/efs-filesystem) - resource type: efs-filesystem
+- [Event Bus](/config-reference/event-bus) - resource type: event-bus
+- [Container Workload Load Balancer Integration](/config-reference/events)
+- [Lambda Function](/config-reference/function) - resource type: function
+- [Hosting Bucket](/config-reference/hosting-bucket) - resource type: hosting-bucket
+- [Http Api Gateway](/config-reference/http-api-gateway) - resource type: http-api-gateway
+- [Kinesis Stream](/config-reference/kinesis-stream) - resource type: kinesis-stream
+- [Log Forwarding Base](/config-reference/log-forwarding)
+- [Mongo Db Atlas Cluster](/config-reference/mongo-db-atlas-cluster) - resource type: mongo-db-atlas-cluster
+- [Container Workload](/config-reference/multi-container-workload) - resource type: multi-container-workload
+- [Network Load Balancer](/config-reference/network-load-balancer) - resource type: network-load-balancer
+- [Nextjs Web](/config-reference/nextjs-web) - resource type: nextjs-web
+- [Nuxt Web](/config-reference/nuxt-web) - resource type: nuxt-web
+- [Open Search Domain](/config-reference/open-search-domain) - resource type: open-search-domain
+- [Private Service](/config-reference/private-service) - resource type: private-service
+- [Redis Cluster](/config-reference/redis-cluster) - resource type: redis-cluster
+- [Relational Database](/config-reference/relational-database) - resource type: relational-database
+- [Remix Web](/config-reference/remix-web) - resource type: remix-web
+- [Sns Topic](/config-reference/sns-topic) - resource type: sns-topic
+- [Solid Start Web](/config-reference/solidstart-web) - resource type: solidstart-web
+- [Sqs Queue](/config-reference/sqs-queue) - resource type: sqs-queue
+- [Stacktape Config](/config-reference/stacktape-config) - resource type: stacktape-config
+- [State Machine](/config-reference/state-machine) - resource type: state-machine
+- [Svelte Kit Web](/config-reference/sveltekit-web) - resource type: sveltekit-web
+- [Tan Stack Web](/config-reference/tanstack-web) - resource type: tanstack-web
+- [Upstash Redis](/config-reference/upstash-redis) - resource type: upstash-redis
+- [User Auth Pool](/config-reference/user-auth-pool) - resource type: user-auth-pool
+- [Web App Firewall](/config-reference/web-app-firewall) - resource type: web-app-firewall
+- [Web Service](/config-reference/web-service) - resource type: web-service
+- [Worker Service](/config-reference/worker-service) - resource type: worker-service

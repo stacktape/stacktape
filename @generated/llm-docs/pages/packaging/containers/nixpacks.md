@@ -1,0 +1,634 @@
+# Nixpacks
+
+Nixpacks packaging (`NixpacksPackaging`) auto-detects your application's language and framework, then builds an optimized container image — no Dockerfile needed. It applies to [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), and [batch jobs](/resources/compute/batch-job).
+
+## When to use
+
+Choose Nixpacks when your language or framework is not covered by the [Stacktape container buildpack](/packaging/containers/stacktape-buildpack) (which supports JS/TS, Python, Java, and Go), or when you need more control over the build process than the Stacktape buildpack provides — custom start commands, build phases, or base image overrides.
+
+Concrete scenarios:
+
+- **Languages outside Stacktape buildpack coverage** — Nixpacks supports a wide range of languages and frameworks beyond what the Stacktape container buildpack handles. See the [Nixpacks providers documentation](https://nixpacks.com/docs/providers) for the full list.
+- **Custom start commands** — use `startCmd` to override the entry point without writing a Dockerfile.
+- **Fine-grained phase control** — add system packages (Nix or APT), custom build commands, and directory caching through `phases` without maintaining a full Dockerfile.
+- **Custom base images** — override the build image (`buildImage`) or runtime image (`startRunImage`) to match your environment requirements.
+
+## When NOT to use
+
+If your app is a standard Node.js, TypeScript, Python, Java, or Go service, the [Stacktape container buildpack](/packaging/containers/stacktape-buildpack) handles everything without external dependencies and produces optimized single-file bundles for JS/TS, which can result in smaller images.
+
+If your team already uses Docker and has established Dockerfile patterns, a [custom Dockerfile](/packaging/containers/custom-dockerfile) gives you full control — multi-stage builds, precise layer ordering, and compliance-certified base images.
+
+If your CI pipeline already produces container images, use a [prebuilt image](/packaging/containers/prebuilt-image) instead — Stacktape skips the build step entirely.
+
+Stacktape supports five container packaging modes:
+
+| Mode | Best for |
+|------|----------|
+| [Stacktape buildpack](/packaging/containers/stacktape-buildpack) | Standard apps in JS/TS, Python, Java, Go; zero config |
+| [Custom Dockerfile](/packaging/containers/custom-dockerfile) | Full control over the build and base image |
+| [Prebuilt image](/packaging/containers/prebuilt-image) | Image already exists in a registry |
+| **Nixpacks** | Auto-detected builds with optional phase customization; broad language support |
+| [External buildpack](/packaging/containers/external-buildpack) | Cloud Native Buildpacks (Paketo, Heroku) |
+
+## Basic example
+
+The only required property is `sourceDirectoryPath` — the directory containing your application source, relative to your Stacktape config file. Nixpacks inspects the directory, detects your language, installs dependencies, and builds the container image.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './'
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+Nixpacks auto-detects the language from files in the source directory (e.g., `package.json` for Node.js, `requirements.txt` for Python, `Cargo.toml` for Rust) and runs the appropriate build steps. No additional configuration is needed for most projects.
+
+## Start command
+
+By default, Nixpacks infers the start command from your project files (e.g., the `start` script in `package.json`, or the compiled binary for Go/Rust). Use `startCmd` to override this when you need a different command — for example, starting with a specific binary, passing flags, or running a production server on a specific port.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      startCmd: 'node dist/server.js --port 80'
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+`startCmd` replaces whatever Nixpacks would infer as the default entry point. For [web services](/resources/compute/web-service), make sure the command starts an HTTP server on port 80 (or the port configured in your resource).
+
+## Build and run images
+
+Nixpacks uses two images during the build: a **build image** (where compilation and dependency installation happen) and a **run image** (the final image your container runs on). Override either to control the base environment.
+
+### Build image
+
+Set `buildImage` when you need specific system libraries, tools, or a particular OS version available during compilation. For example, a project that links against specific native libraries might need a build image with the right headers installed.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WorkerService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './worker',
+      buildImage: 'ghcr.io/railwayapp/nixpacks:ubuntu-1704800471'
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return { resources: { worker } };
+});
+```
+
+
+Most projects do not need a custom build image. Override only when the default Nixpacks build image is missing a dependency required at compile time. See the [Nixpacks build image documentation](https://nixpacks.com/docs/configuration/file#build-image) for details.
+
+### Run image
+
+Set `startRunImage` to change the base image for the final container. This is useful for using smaller base images (slim, Alpine, distroless) or images with specific runtime requirements.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      startRunImage: 'node:20-slim'
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+> **Warning:** When customizing the run image, make sure it is compatible with the artifacts produced during the build phase. A binary compiled against glibc will not work on an Alpine (musl) run image. Similarly, a Python app built with system-level packages needs those packages present in the run image.
+
+
+## Runtime file filtering
+
+Use `startOnlyIncludeFiles` to limit which files from the build output are copied into the final runtime image. This reduces image size by excluding build artifacts, tests, documentation, and other files not needed at runtime.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      startOnlyIncludeFiles: ['dist/', 'node_modules/', 'package.json']
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+When set, all files **not** matching the listed paths are excluded from the runtime image. This is especially effective for compiled languages where only the output binary is needed, or for Node.js apps where you want to exclude source files and keep only the compiled `dist/` directory.
+
+## Providers
+
+Nixpacks uses **providers** to determine how to build and run your application. A provider encapsulates language- and framework-specific knowledge — which packages to install, how to compile, and how to start the app. By default, Nixpacks auto-detects the right provider from your project files. Use the `providers` property to override auto-detection when your project layout is ambiguous or you want to force a specific provider.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      providers: ['python']
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+You can specify multiple providers when your application uses more than one language (e.g., a Python backend that also needs a Node.js build step for frontend assets). The full list of available providers depends on your Nixpacks version — see the [Nixpacks providers documentation](https://nixpacks.com/docs/providers).
+
+
+> **Tip:** If auto-detection picks the wrong provider (common with monorepos or projects containing multiple language files), explicitly setting `providers` avoids surprising build behavior.
+
+
+## Build phases
+
+Build phases give you fine-grained control over the Nixpacks build process. Each phase can install system packages, run shell commands, and configure caching. Phases let you customize the build without writing a Dockerfile — you add exactly the steps you need on top of what Nixpacks auto-detects.
+
+Each phase has a `name` (required) and optional properties:
+
+| Property | Purpose |
+|----------|---------|
+| `cmds` | Shell commands to execute in this phase |
+| `nixPkgs` | Nix packages to install (e.g., `ffmpeg`, `imagemagick`) |
+| `nixLibs` | Nix libraries to include |
+| `nixOverlay` | Nix overlay files to apply |
+| `nixpkgsArchive` | Pin a specific Nixpkgs archive version |
+| `aptPkgs` | APT packages to install (for Debian/Ubuntu-based builds) |
+| `cacheDirectories` | Directories to cache between builds for faster rebuilds |
+| `onlyIncludeFiles` | Files to include in this phase; all others excluded |
+
+### Installing system dependencies
+
+Use `nixPkgs` or `aptPkgs` to install system-level tools your application needs at build time or runtime. This replaces the `RUN apt-get install` or Nix-based install patterns you would write in a Dockerfile.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const imageApi = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      phases: [
+        {
+          name: 'setup',
+          nixPkgs: ['ffmpeg', 'imagemagick'],
+          aptPkgs: ['libpq-dev']
+        }
+      ]
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return { resources: { imageApi } };
+});
+```
+
+
+Use `nixPkgs` when you want reproducible, version-pinned system packages. Use `aptPkgs` when the build image is Debian/Ubuntu-based and you need packages from the APT repository. Both can be used in the same phase.
+
+### Custom build commands
+
+Use `cmds` to run arbitrary shell commands during a phase. This is useful for generating code, compiling assets, running migrations, or any other build-time task.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      phases: [
+        {
+          name: 'build',
+          cmds: ['npm run build', 'npm run generate:types']
+        }
+      ]
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+### Build caching
+
+Use `cacheDirectories` on a phase to persist directories between builds. This speeds up subsequent builds by reusing downloaded dependencies, compiled artifacts, or generated caches. The directories listed are mounted as Docker cache mounts during the build.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      phases: [
+        {
+          name: 'install',
+          cmds: ['pip install -r requirements.txt'],
+          cacheDirectories: ['/root/.cache/pip']
+        }
+      ]
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+Common cache directories by language:
+
+| Language | Cache directory |
+|----------|----------------|
+| Python | `/root/.cache/pip` |
+| Node.js | `/root/.npm` or `node_modules/.cache` |
+| Rust | `/root/.cargo/registry`, `/app/target` |
+| Go | `/root/.cache/go-build`, `/go/pkg/mod` |
+
+### Phase file filtering
+
+Use `onlyIncludeFiles` on a phase to restrict which files from the source directory are visible during that phase. All other files are excluded. This is useful when a phase needs only a subset of your project — for example, an install phase that only needs the dependency lock file.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      phases: [
+        {
+          name: 'install',
+          cmds: ['npm ci'],
+          onlyIncludeFiles: ['package.json', 'package-lock.json']
+        },
+        {
+          name: 'build',
+          cmds: ['npm run build']
+        }
+      ]
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+### Pinning a Nixpkgs version
+
+Use `nixpkgsArchive` to pin a specific version of the Nixpkgs repository. This ensures reproducible builds by locking the exact versions of Nix packages installed during the phase.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      phases: [
+        {
+          name: 'setup',
+          nixPkgs: ['ffmpeg'],
+          nixpkgsArchive: 'a3a3dda3bacf61e8a39258a0ed9c924eeca8e293'
+        }
+      ]
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+The `nixpkgsArchive` value is a commit hash from the [nixpkgs repository](https://github.com/NixOS/nixpkgs). Most teams skip this unless they need bit-for-bit reproducible builds or a specific package version.
+
+## Combining multiple phases
+
+You can define multiple phases that run in sequence. This lets you split installation, build, and post-processing into distinct steps, each with its own packages, commands, and caching.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      startCmd: 'node dist/server.js',
+      startOnlyIncludeFiles: ['dist/', 'node_modules/', 'package.json'],
+      phases: [
+        {
+          name: 'install',
+          cmds: ['npm ci'],
+          cacheDirectories: ['/root/.npm']
+        },
+        {
+          name: 'build',
+          cmds: ['npm run build'],
+          nixPkgs: ['python3']
+        }
+      ]
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+This example installs dependencies in a cached phase, adds `python3` (needed by some native Node.js build tools like `node-gyp`) during the build phase, and limits the runtime image to only the compiled output.
+
+## Using with batch jobs
+
+Nixpacks packaging is available for [batch jobs](/resources/compute/batch-job). The batch job's `container` property accepts Nixpacks as one of its packaging options.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, BatchJob, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const etl = new BatchJob({
+    container: {
+      packaging: new NixpacksPackaging({
+        sourceDirectoryPath: './etl',
+        startCmd: 'python main.py'
+      })
+    },
+    resources: {
+      cpu: 2,
+      memory: 4096
+    }
+  });
+
+  return { resources: { etl } };
+});
+```
+
+
+Batch jobs run to completion and then stop — there is no persistent HTTP server. The `startCmd` should point to the script or binary that performs the job.
+
+## Using with multi-container workloads
+
+In a [multi-container workload](/resources/compute/multi-container-workload), each container in the `containers` array has its own `packaging` property. You can mix Nixpacks with other packaging modes in the same workload — for example, a Nixpacks-built application container alongside a prebuilt Redis sidecar.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  MultiContainerWorkload,
+  NixpacksPackaging,
+  PrebuiltImagePackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const app = new MultiContainerWorkload({
+    containers: [
+      {
+        name: 'api',
+        packaging: new NixpacksPackaging({
+          sourceDirectoryPath: './api'
+        })
+      },
+      {
+        name: 'redis',
+        packaging: new PrebuiltImagePackaging({
+          image: 'redis:7-alpine'
+        })
+      }
+    ],
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return { resources: { app } };
+});
+```
+
+
+## Full example
+
+This example demonstrates most Nixpacks properties together — a Python web service with custom phases, system dependencies, build caching, a custom run image, and runtime file filtering.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, NixpacksPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new NixpacksPackaging({
+      sourceDirectoryPath: './',
+      providers: ['python'],
+      startCmd: 'gunicorn app.main:app --bind 0.0.0.0:80',
+      startRunImage: 'python:3.12-slim',
+      startOnlyIncludeFiles: ['app/', 'requirements.txt'],
+      phases: [
+        {
+          name: 'setup',
+          aptPkgs: ['libpq-dev', 'gcc']
+        },
+        {
+          name: 'install',
+          cmds: ['pip install --no-cache-dir -r requirements.txt'],
+          cacheDirectories: ['/root/.cache/pip']
+        },
+        {
+          name: 'build',
+          cmds: ['python -m compileall app/']
+        }
+      ]
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+## FAQ
+
+### What languages does Nixpacks support?
+
+Nixpacks supports a wide range of languages and frameworks. The list depends on the Nixpacks version and is maintained by the Nixpacks project — see the [Nixpacks providers documentation](https://nixpacks.com/docs/providers) for the current list. Stacktape does not restrict which Nixpacks providers you can use.
+
+### When should I use Nixpacks vs a custom Dockerfile?
+
+Use Nixpacks when you want auto-detected builds without writing a Dockerfile and need more flexibility than the Stacktape buildpack offers — custom start commands, system packages via phases, or support for languages beyond JS/TS, Python, Java, and Go. Use a [custom Dockerfile](/packaging/containers/custom-dockerfile) when you need full control: multi-stage builds, specific layer ordering, compliance-certified base images, or complex build logic that phases cannot express.
+
+### How does Nixpacks differ from the Stacktape container buildpack?
+
+The [Stacktape container buildpack](/packaging/containers/stacktape-buildpack) is built and maintained by Stacktape. It produces optimized single-file bundles for JS/TS and supports JavaScript, TypeScript, Python, Java, and Go for container images. Nixpacks is an open-source tool with broader language support and offers `startCmd`, build phases, custom base images (`buildImage`, `startRunImage`), and runtime file filtering (`startOnlyIncludeFiles`). For the five languages the Stacktape buildpack covers, it tends to produce smaller and more optimized images.
+
+### Which Stacktape resources support Nixpacks packaging?
+
+Nixpacks packaging is available for all container-based compute resources: [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), and [batch jobs](/resources/compute/batch-job). It is not available for [Lambda functions](/resources/compute/lambda-function), which use [function packaging modes](/packaging/overview).
+
+### Can I install system packages during the build?
+
+Yes. Use `nixPkgs` to install Nix packages or `aptPkgs` to install APT packages within a build phase. For example, adding `nixPkgs: ['ffmpeg', 'imagemagick']` installs those tools during the build. These packages are available both at build time and in the final image (unless you use `startOnlyIncludeFiles` to exclude them from the runtime).
+
+### How do I reduce the final container image size?
+
+Use `startOnlyIncludeFiles` to include only the files needed at runtime (e.g., compiled binaries, production dependencies). Combine this with `startRunImage` set to a smaller base image like `node:20-slim` or `python:3.12-slim`. For compiled languages, you may only need the output binary in the runtime image.
+
+### What is a Nixpacks provider and when should I override it?
+
+A Nixpacks provider encapsulates language-specific build logic — package installation, compilation, and start command inference. By default, Nixpacks auto-detects the provider from your project files. Override the `providers` property when auto-detection picks the wrong language (common in monorepos or projects with multiple language files), or when you need to combine providers for a multi-language build.
+
+### Can I cache dependencies between builds?
+
+Yes. Use `cacheDirectories` in a build phase to persist directories between builds. For example, caching `/root/.cache/pip` for Python or `/root/.npm` for Node.js avoids re-downloading dependencies on every build. This is a phase-level setting — each phase can cache different directories.
+
+### How does Nixpacks compare to external buildpacks (Paketo/Heroku)?
+
+Both Nixpacks and [external buildpacks](/packaging/containers/external-buildpack) auto-detect your application type. Nixpacks uses Nix for dependency management and gives you fine-grained phase control (custom commands, system packages, caching per phase). External buildpacks follow the Cloud Native Buildpacks specification and use builders like Paketo or Heroku — they're a better fit if your team is already invested in the CNB ecosystem or needs certified buildpacks.
+
+### What is the difference between `buildImage` and `startRunImage`?
+
+`buildImage` controls the base image used during compilation and dependency installation — it is a temporary environment. `startRunImage` controls the base image for the final container that runs in production. Separating them lets you use a feature-rich build environment (with compilers, headers, build tools) while keeping the production image lean. Most projects only customize one or neither.
+
+## API reference
+
+
+## API Reference: `NixpacksCwImagePackagingProps`
+```typescript
+import type { NixpacksPhase } from 'stacktape';
+
+type NixpacksCwImagePackagingProps = {
+  /** The path to the source code directory. */
+  sourceDirectoryPath: string;
+  /** The base image to use for building the application. */
+  buildImage?: string;
+  /** The build phases for the application. */
+  phases?: Array<NixpacksPhase>;
+  /** A list of providers to use for determining the build and runtime environments. */
+  providers?: Array<string>;
+  /** The command to execute when starting the application. */
+  startCmd?: string;
+  /** A list of file paths to include in the runtime environment; all other files will be excluded. */
+  startOnlyIncludeFiles?: Array<string>;
+  /** The base image to use for running the application. */
+  startRunImage?: string;
+};
+```
+
+| Property | Required | Type | Description | Default |
+| --- | --- | --- | --- | --- |
+| `sourceDirectoryPath` | yes | `string` | The path to the source code directory. | - |
+| `buildImage` | no | `string` | The base image to use for building the application. For more details, see the [Nixpacks documentation](https://nixpacks.com/docs/configuration/file#build-image). | - |
+| `phases` | no | `Array<NixpacksPhase>` | The build phases for the application. | - |
+| `providers` | no | `Array<string>` | A list of providers to use for determining the build and runtime environments. | - |
+| `startCmd` | no | `string` | The command to execute when starting the application. This overrides the default start command inferred by Nixpacks. | - |
+| `startOnlyIncludeFiles` | no | `Array<string>` | A list of file paths to include in the runtime environment; all other files will be excluded. | - |
+| `startRunImage` | no | `string` | The base image to use for running the application. | - |

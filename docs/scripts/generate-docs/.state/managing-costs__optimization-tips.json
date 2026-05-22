@@ -2,7 +2,7 @@
   "pageId": "managing-costs__optimization-tips",
   "pageRoute": "managing-costs/optimization-tips",
   "startedAt": "2026-05-17T17:39:16.162Z",
-  "updatedAt": "2026-05-17T17:56:34.342Z",
+  "updatedAt": "2026-05-22T02:34:06.586Z",
   "iterations": [
     {
       "iteration": 1,
@@ -878,6 +878,815 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/managing-costs__optimization-tips/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent end-of-page checklist that gives a first-time user a concrete action plan — this is the single most useful section for the target audience and few doc pages include it.",
+            "Concrete numbers throughout: ~20% ARM savings, ~$18/month for ALB, ~$1/million for API Gateway requests. These specifics let the reader make real decisions rather than guessing.",
+            "FeatureComparisonTable for the compute model comparison is scan-friendly and clearly answers the 'which compute type do I pick?' question up front.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS-behavior, and comparison questions) and the answers are well-calibrated at 2-4 sentences each — extractable by AI engines.",
+            "Decision-support framing is consistent: every opt-in feature covers when to enable it, when the default is fine, a cost or tradeoff signal, and an opinionated recommendation. This is the guide-not-recipe standard done right.",
+            "Opening Info callout directs readers to measure before optimizing — correct framing that prevents premature optimization.",
+            "retryConfig defaults are accurately grounded in the BatchJob source file (@default 1 for attempts, @default 0 for retryIntervalSeconds, @default 1 for retryIntervalMultiplier) and the surrounding prose explains each default clearly.",
+            "No mandatory style violations: all Stacktape config examples use `<CodeBlock intellisense>`, no YAML blocks, no StacktapeConfig type pattern, no multi-command bash blocks."
+          ],
+          "problems": [
+            "Log retention defaults table claims Lambda function default is 180 days. The provided source files do not confirm this value — only the BatchJob source confirms 90 days (@default 90 on BatchJobLogging.retentionDays). The Lambda and container workload retention defaults are unverified from the provided sources and should be confirmed or removed.",
+            "The `attempts: 3` description says 'the job retries up to 3 times' which implies 4 total runs. The BatchJob source JSDoc says 'Max retry attempts' with @default 1, and the page's own 'default is 1 — no retries' interpretation implies attempts=N means N total runs (not N retries). The two descriptions contradict each other: '3 means retries up to 3 times' vs 'default 1 means no retries'. The correct reading is likely: attempts=1 means 1 total run (no retries), attempts=3 means 3 total runs (2 retries).",
+            "Several property names used in code examples (scaling.minInstances, scaling.maxInstances, scaling.scalingPolicy.keepAvgCpuUtilizationUnder, resources.architecture for WebService) are not confirmed in the provided source files (only web-services.d.ts and batch-jobs.d.ts were provided). These may be grounded in other source files, but reviewers relying only on the inline source cannot verify them.",
+            "The 'Use dev mode during development' section references `dev.remote: true` as a property path without source-file grounding in the provided files. This claim is precise enough to be wrong if the actual property differs.",
+            "The page mentions 'Graviton processors often deliver better performance at the lower price point' — the ~20% cost figure is widely accepted, but the performance claim is a broad generalization that varies significantly by workload type and should be softened or removed."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the retryConfig.attempts description to be internally consistent: if 'default is 1 — no retries' is correct, then 'attempts: 3 means the job retries up to 3 times' should read 'attempts: 3 means the job can run up to 3 times total (2 retries after the first failure)'.",
+            "Verify the Lambda log retention default (claimed 180 days) and container workload default (claimed 90 days) against the Lambda and container source files before publishing. If unverifiable, narrow the claim to what the source confirms: 'Batch jobs default to 90 days. Check the resource's logging property for its default.'",
+            "Verify `scaling.minInstances`, `scaling.maxInstances`, `scaling.scalingPolicy.keepAvgCpuUtilizationUnder`, and `resources.architecture` for WebService against their respective source type files. If any name differs, the code examples will fail type-checking and confuse readers who try to copy them.",
+            "Soften 'Graviton processors often deliver better performance' to 'Graviton processors can deliver equivalent or better performance for most application workloads' — or drop the performance claim entirely and let the cost saving stand on its own, since that's verifiable.",
+            "Verify `dev.remote: true` as a valid property path, or rephrase to 'dev mode connects to your deployed cloud resources by default — consult the dev mode docs to configure local vs. remote database connections' to avoid committing to a specific property name.",
+            "Consider adding a one-sentence note about data transfer costs in the CDN section: CloudFront can also reduce origin egress costs since CloudFront-to-origin transfer is cheaper than direct internet egress from Lambda or Fargate. This is a meaningful cost lever the page currently skips.",
+            "The Fargate CPU values listed (0.25, 0.5, 1, 2, 4, 8, 16) are accurate AWS Fargate values but are framed as 'Stacktape supports' — link to the web-service or container resource page for the authoritative list rather than enumerating them inline, which creates a maintenance burden."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Billing separation (AWS account vs Stacktape subscription) is stated explicitly and early — matches the section instructions exactly.",
+            "Concrete numbers drawn from verified source: ~$1/million for HTTP API Gateway, ~$18/month for ALB, batch job 90-day log retention, retryConfig defaults (attempts=1, retryIntervalSeconds=0, retryIntervalMultiplier=1) — all confirmed against batch-jobs.d.ts.",
+            "Every opt-in feature (ARM, spot instances, CDN, ALB, NAT Gateway) includes a decision signal: when to enable, when the default is fine, and a cost or tradeoff statement. This is the right structure for a production guide.",
+            "The compute model comparison FeatureComparisonTable (pricing model, scale-to-zero, max run time, traffic pattern) is the single most useful element on the page — gives the reader the framework to choose before reading further.",
+            "The inline retryConfig explanation after the spot instances example is outstanding: each field, its default, and what that means in plain English. A production engineer would bookmark this.",
+            "FAQ covers all three required categories: Stacktape-specific questions, AWS service mechanics (DynamoDB on-demand vs provisioned, Fargate scale-to-zero), and choosing/comparison questions (Aurora Serverless v2 vs RDS, CDN for APIs). Ten distinct, non-padded entries.",
+            "The end-of-page checklist is actionable and matches the page's content exactly — it can be pasted into a PR checklist template.",
+            "Code examples are realistic: they combine multiple configuration options (arm64 + right-sized cpu/memory + autoscaling in one block) rather than showing single-property snippets."
+          ],
+          "problems": [
+            "Log retention defaults table claims Lambda functions default to 180 days, container workloads to 90 days, and relational databases to 90 days — none of these are grounded in the provided source files. Only the batch job 90-day default is confirmed by batch-jobs.d.ts (@default 90). If any of these defaults are wrong, a production engineer will set suboptimal retention values.",
+            "The claim 'when using EC2 instanceTypes, the architecture setting is ignored, so choose Graviton instance families (c7g, m7g, r7g) directly' is not verifiable from the provided web-services.d.ts source. The source file shows the loadBalancing union but does not expose an architecture property or instanceTypes on SimpleServiceContainer. This claim may be correct but it is ungrounded by the provided files.",
+            "The retryConfig.attempts JSDoc in batch-jobs.d.ts names the field 'Max retry attempts before the job is marked as failed' with @default 1 — 'retry attempts' implies 1 = 1 retry (2 total runs), but the page explains it as 'default is 1 — no retries' (1 total run). The page's interpretation aligns with AWS Batch semantics, but the contradiction with the JSDoc wording will confuse engineers who read the type definition alongside the docs.",
+            "The NAT Gateway section says 'only enable usePrivateSubnetsWithNAT when you have a concrete requirement for static outbound IPs' but does not explain what Stacktape does instead — i.e., whether containers in public subnets can still reach the internet and how. Engineers routinely get this wrong and the omission leaves a gap at a high-stakes decision point."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify log retention defaults for Lambda functions, container workloads (web-service/private-service/worker-service), and relational databases against their respective source type files before publishing. If the Lambda default is not 180 days, the table is actively misleading.",
+            "Add a clarifying sentence near the retryConfig.attempts field: 'attempts counts total run attempts, not additional retries — attempts: 1 (the default) means the job runs once and is not retried.' This resolves the JSDoc naming ambiguity before it bites a reader.",
+            "Either remove the 'architecture: arm64 is ignored for EC2 instanceTypes' claim or ground it in the source types (look for architecture in SimpleServiceContainer or equivalent EC2 container workload props). If it is accurate, add a note explaining which resource types support EC2 mode.",
+            "The NAT Gateway section should briefly state the default behavior — containers in public subnets can reach the internet without a NAT Gateway (Fargate ENI gets a public IP) — so engineers know what they are opting out of when skipping usePrivateSubnetsWithNAT.",
+            "In the right-size Lambda memory section, mention the 1,769 MB = 1 vCPU threshold. Engineers profiling Lambda functions use this as the primary decision point for memory increases, and its omission makes the profiling guidance feel incomplete.",
+            "The load balancing section's '~500k requests/day' crossover threshold between API Gateway and ALB is a useful rough number but is not source-grounded — consider marking it with 'roughly' and noting that the actual crossover depends on request size and ALB LCU consumption, so engineers should calculate for their own traffic profile."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 4,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly distinguishes AWS resource billing from Stacktape subscription cost.",
+            "The page is easy to scan: short H2s, practical subsections, a checklist, a comparison table, and a broad FAQ all support AI extraction.",
+            "Stacktape config examples use the required <CodeBlock intellisense tabs={[...]}/> pattern with a visible TypeScript tab and no hand-authored YAML.",
+            "The load-balancing section is well aligned with the provided WebService source: it names all three loadBalancing variants and captures the sourced pricing and feature tradeoffs.",
+            "The batch-job spot section is practical and largely grounded in the BatchJob source, including up to 90% savings, interruption behavior, SIGTERM, 120-second shutdown, retryConfig, and timeout guidance."
+          ],
+          "problems": [
+            "Large parts of the page are not grounded in the provided source files. The source list only includes web-services.d.ts and batch-jobs.d.ts, but the draft makes detailed claims about Lambda pricing, Lambda memory behavior, ARM/Graviton savings, Fargate CPU tiers, databases, DynamoDB, Upstash Redis, CDN pricing, NAT Gateways, dev mode, budgets, and Console dashboards.",
+            "Several concrete numeric claims are unsupported by the provided sources: 5–10x compute-model cost difference, Lambda 15-minute max runtime, ARM/Graviton ~20% savings, Fargate CPU values, utilization below 30%, 7–14 day and 30–60 day log-retention recommendations, budget thresholds at 80% and 100%, and CloudFront no-base-fee statements.",
+            "The log-retention table is only partially source-grounded. Batch jobs have default retention 90 days in the source, but Lambda, container workload, and relational database defaults are not present in the provided files.",
+            "The page presents broad cost guidance as authoritative even where the provided source is silent. That violates the hard requirement to trust source code first and avoid inventing unsupported features, defaults, or constraints.",
+            "The compute comparison table contains unsupported values for Lambda and container services, including scale-to-zero behavior, max runtime, and pricing model details not present in the supplied source files.",
+            "The ARM/Graviton section includes unsupported defaults and behavior, including x86_64 as default, Stacktape build behavior for selected architecture, custom-artifact requirements, and EC2 instance-family recommendations.",
+            "The FAQ is useful for search, but many answers restate unsupported Stacktape-specific claims. FAQ allowance for general AWS facts does not cover unsupported Stacktape behavior such as specific config properties or Stacktape Console capabilities when console-app sources are absent.",
+            "Some opt-in sections provide decision support but lack source grounding for the opt-in itself in this source set, especially CDN, NAT Gateway, dev mode local databases, budget alerts, and database engine selection."
+          ],
+          "mandatoryFixes": [
+            "Remove, narrow, or source every technical claim not supported by the provided source files. With the current source set, the page can safely cover WebService load balancing and BatchJob spot/retry/timeout cost controls, but not detailed Lambda, database, CDN, Console, NAT, dev mode, or budget behavior.",
+            "Replace unsupported concrete numbers with sourced numbers only. Keep sourced values such as http-api-gateway ~$1/million requests, application-load-balancer ~$18/month plus usage, above ~500k requests/day, spot savings up to 90%, SIGTERM plus 120 seconds, retry defaults, and batch-job log retention default 90 days.",
+            "Revise the compute comparison table so every cell is grounded in the supplied sources, or remove rows/columns whose values require Lambda/container-workload sources not included here.",
+            "Delete or rewrite the log-retention table unless additional source files are provided for Lambda, container workloads, and relational databases. The current table overstates the available source evidence.",
+            "Do not describe Stacktape Console workflows or capabilities beyond broad links unless console-app source files are included. The current dashboard, metrics, per-resource cost, and budget-alert descriptions need console sources or narrower wording.",
+            "Recheck every <CodeBlock intellisense> after revising prose to ensure imports, class names, defineConfig usage, and focus markers remain valid."
+          ],
+          "optionalImprovements": [
+            "Make the page scope explicit if only web-service and batch-job sources are available, for example by reframing it as cost tips for web services and batch jobs instead of a broad AWS cost optimization page.",
+            "Split the broad checklist into sourced and linked items, or remove checklist entries that depend on unavailable source files.",
+            "Keep the FAQ, but revise answers so Stacktape-specific statements are limited to sourced WebService and BatchJob behavior; general AWS cost questions can remain if clearly framed as AWS background rather than Stacktape behavior.",
+            "Add a small table for WebService loadBalancing variants with sourced pricing, constraints, and when-to-use guidance; that would be the strongest source-grounded section on the page."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided generated cost page and the two authoritative type files for web services and batch jobs. The main publication risks are a few Stacktape-specific claims that go beyond the provided sources, especially generic container-resource billing, dev mode behavior, budgets scope, and log-retention wording outside batch jobs.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Running `stacktape dev` lets you iterate locally without deploying real AWS resources for every code change. Dev mode runs your functions and containers locally while connecting to deployed cloud resources (databases, queues, buckets).\"",
+              "reason": "The provided authoritative source files do not describe `stacktape dev` behavior, local execution of functions/containers, or which deployed cloud resources dev mode connects to. This is a Stacktape-specific operational claim that would change how readers develop and manage cost.",
+              "suggestedFix": "Narrow the section to the sourced idea from the generated cost page, or link to the dev-mode page without detailing unprovided mechanics. For example: \"Use dev mode during development to reduce repeated redeployments; see the dev mode overview for exact local/deployed behavior.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "Running [`stacktape dev`](/local-development/dev-mode-overview) lets you iterate locally without deploying real AWS resources for every code change. Dev mode runs your functions and containers locally while connecting to deployed cloud resources (databases, queues, buckets). This avoids the cost of repeated full deployments and keeps your feedback loop fast."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Right-size the `resources` block. The container workload bills for the CPU/memory combination you request, not what you actually use.\" and \"Container workloads bill for the exact CPU/memory combination you request.\"",
+              "reason": "The web-service source says web services are containers running 24/7 and that load balancing affects pricing, but it does not state that all Stacktape container workloads bill exactly by requested CPU/memory. The generated source narrows this to Fargate; the draft broadens it to container workloads generally.",
+              "suggestedFix": "Use Fargate-specific wording or cite the resource pages for exact billing behavior. For example: \"For Fargate-backed container workloads, AWS bills for the CPU/memory combination you request.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "#### A container running 24/7 with a public HTTPS URL."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "#### How traffic reaches your containers. Affects pricing, features, and protocol support."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "Fargate bills for the exact CPU/memory combination you request."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Batch jobs provision compute only while the job runs and release it when done.\"",
+              "reason": "The batch-job source supports paying only for compute time used and tasks running to completion, but it does not explicitly state the provisioning/release lifecycle. This phrasing presents an implementation detail as Stacktape behavior.",
+              "suggestedFix": "Use the source wording: \"Batch jobs run containerized tasks to completion and pay only for the compute time used.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "#### Run containerized tasks to completion — data processing, ML training, video encoding, etc."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "Pay only for the compute time used. Supports CPU and GPU workloads, retries on failure,\n * and can be triggered by schedules, HTTP requests, S3 uploads, or queue messages."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"In this example, `attempts: 3` means the job retries up to 3 times on failure or interruption (default is 1 — no retries).\"",
+              "reason": "The source defines `attempts` as max retry attempts before failed, with default 1. Saying default 1 means \"no retries\" is ambiguous and likely misleading because the property name and JSDoc describe retry attempts, not total job attempts.",
+              "suggestedFix": "Say only what the source says: \"`attempts: 3` sets the maximum retry attempts before the job is marked as failed. The default is `1`.\" Avoid interpreting whether that means one retry or no retries unless confirmed elsewhere.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "#### Max retry attempts before the job is marked as failed.\n   * @default 1"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Other resources have their own defaults, documented on their resource pages.\"",
+              "reason": "The provided authoritative type files only include batch-job logging defaults. No other resource logging defaults are present in the provided source, so this broad Stacktape-specific statement is not grounded here.",
+              "suggestedFix": "Keep the batch-job fact and avoid asserting coverage for other resource defaults. For example: \"Batch job logs default to 90 days of retention. Check each resource page before changing retention on other resources.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "#### How many days to keep logs.\n   * @default 90"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Budgets can be scoped to your whole organization or to individual stacks.\"",
+              "reason": "No provided source file describes Stacktape budget scope. The generated cost page contains the same prose, but there is no authoritative Console or budget source in the source list to support this Stacktape-specific capability claim.",
+              "suggestedFix": "Remove the scope claim or phrase it as a link to the budgets page: \"Set up budget alerts for the scopes supported by Stacktape; see the budgets page for the current options.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "Start with two thresholds: 80% (early warning) and 100% (immediate action). Budgets can be scoped to your whole organization or to individual stacks."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Container workloads in Stacktape can enable a NAT Gateway via `usePrivateSubnetsWithNAT: true`.\"",
+              "reason": "The provided web-service and batch-job type files do not include `usePrivateSubnetsWithNAT`, and no container workload type source is provided. This is a Stacktape-specific property claim that would affect configuration.",
+              "suggestedFix": "Either provide the relevant container workload source or narrow the section to an unsourced recommendation with a link: \"Avoid NAT Gateways unless a resource page explicitly requires or supports private-subnet NAT for your use case.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "interface WebServiceProps extends SimpleServiceContainer {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "interface BatchJobProps extends ResourceAccessProps {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Every resource you deploy has a running cost\"",
+              "reason": "This is too broad. The page itself later says Lambda functions and on-demand/serverless data stores can cost nothing when idle or at zero traffic. The intended point is that AWS resources can incur cost, but \"every resource\" and \"running cost\" overstate it.",
+              "suggestedFix": "Change to: \"Every deployed stack can incur AWS charges, and always-on resources continue billing until you delete or resize them.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly keeps Stacktape configuration examples in `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab and does not hand-author YAML.",
+            "The web-service load balancing section matches the provided `WebServiceProps.loadBalancing` variants and preserves the sourced constraints for ALB requirements and NLB limitations.",
+            "The batch-job spot-instance section is well grounded in `BatchJobProps.useSpotInstances`, including the up-to-90% savings claim, interruption caveat, SIGTERM behavior, and 120-second shutdown window.",
+            "The batch-job logging example uses the sourced `logging.retentionDays` property and a valid retention value from the union type.",
+            "All markdown cross-links I checked point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided cost-optimization source, especially around batch-job Spot behavior and web-service load-balancing pricing/features. I found several Stacktape-specific claims that are either unsupported by the supplied source files or contradicted by the higher-priority type definitions.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"In this example, `attempts: 3` means the job retries up to 3 times on failure or interruption (default is 1 — no retries).\"",
+              "reason": "The source defines `attempts` as the max retry attempts before the job is marked failed, with default 1. Saying `attempts: 3` means \"retries up to 3 times\" conflicts with that wording, because the source's `attempts` already names retry attempts, not total tries, and default 1 does not clearly mean no retries. This could cause readers to configure fewer or more retries than intended.",
+              "suggestedFix": "Write narrowly: \"`attempts: 3` sets the maximum retry attempts before the job is marked failed. The default is `1`.\" Avoid interpreting default `1` as \"no retries\" unless runtime code explicitly confirms that behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "interface BatchJobRetryConfiguration {\n  /**\n   * #### Max retry attempts before the job is marked as failed.\n   * @default 1\n   */\n  attempts?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"If you use `stacktape-lambda-buildpack` packaging, Stacktape builds for the selected architecture automatically. With `custom-artifact` packaging, you must pre-compile for the target architecture yourself.\"",
+              "reason": "The provided source files for this page do not include Lambda function packaging types or build behavior. The generated cost page contains similar prose, but no authoritative type or runtime source here supports the automatic build/precompile behavior. This is Stacktape-specific behavior, not general AWS context.",
+              "suggestedFix": "Remove the build-behavior claim or narrow it to compatibility guidance: \"For architecture configuration details, see the Lambda function and packaging pages.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "ARM works with most application code without changes — Node.js, Python, Go, Java, and .NET all run natively on `arm64`. The main exception is native compiled binaries or Lambda layers built specifically for x86. If you use `stacktape-lambda-buildpack` packaging, Stacktape builds for the selected architecture automatically. With `custom-artifact` packaging, you must pre-compile for the target architecture yourself."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The Stacktape subscription covers the Console, GitOps, observability integrations, and the CLI tooling.\"",
+              "reason": "The supplied sources support that Stacktape's subscription fee is separate from AWS charges, but they do not define what the subscription includes. This billing-plan claim is Stacktape-specific and should be grounded in billing/subscription source, which is not provided here.",
+              "suggestedFix": "Keep only the grounded distinction: \"Stacktape's subscription fee is separate from the AWS resources billed to your AWS account. See billing and subscription for plan details.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "AWS bills go directly to your AWS account — Stacktape's subscription fee is separate."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Budgets can be scoped to your whole organization or to individual stacks.\"",
+              "reason": "The provided source files mention budget alerts only at a high level; they do not document supported budget scopes. This is a Stacktape Console/cost-management capability claim and needs source from the budget page or console implementation.",
+              "suggestedFix": "Narrow to the sourced behavior: \"Set up budget alerts so you are notified when spending crosses a threshold.\" Link to `/managing-costs/budgets` for scope details.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "Set up [budget alerts](/managing-costs/budgets) so you catch cost spikes early."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Dev mode runs your functions and containers locally while connecting to deployed cloud resources (databases, queues, buckets).\"",
+              "reason": "The source list for this page does not include dev-mode implementation or docs. The generated page has similar guidance, but it does not establish the exact local/cloud split for functions, containers, databases, queues, and buckets. This Stacktape-specific behavior should be sourced from dev-mode source or narrowed.",
+              "suggestedFix": "Write more cautiously: \"Use dev mode during development to reduce repeated deployments. See `/local-development/dev-mode-overview` for what runs locally and what still uses deployed resources.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "Running [`stacktape dev`](/local-development/dev-mode-overview) lets you iterate locally without deploying real AWS resources for every code change. Dev mode runs your functions and containers locally while connecting to deployed cloud resources (databases, queues, buckets)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft includes Stacktape config examples using `CustomDockerfilePackaging` and `StacktapeImageBuildpackPackaging`, but it does not acknowledge the other supported container packaging variants on the page.",
+              "reason": "The page discusses batch-job and web-service container configuration and shows one packaging variant per example. The supplied generated source explicitly includes buildpack examples and custom Dockerfile examples, but the draft does not name the full container packaging option set required by the documentation-quality rules. This may imply that the shown packaging classes are the only relevant choices.",
+              "suggestedFix": "Add one sentence near the first container config example: \"Container resources can use Stacktape buildpack, custom Dockerfile, prebuilt image, Nixpacks, or external buildpack packaging; this page uses buildpack and custom Dockerfile examples only because the cost levers are the same.\" Link to `/packaging/overview` or the specific packaging pages.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "Example (TypeScript):\n\n```typescript\nimport { defineConfig, BatchJob, CustomDockerfilePackaging } from 'stacktape';"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "Example (TypeScript):\n\n```typescript\nimport { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"A Stacktape web service is a container running 24/7 with a public HTTPS URL, so it bills continuously regardless of traffic.\" and \"No. A web service ... always has at least one instance running and billing.\"",
+              "reason": "The source confirms that a web service is a container running 24/7 with a public HTTPS URL, but the provided `web-services.d.ts` does not explicitly state the minimum instance count or billing mechanics. The billing conclusion is reasonable AWS guidance, but the exact \"at least one instance\" Stacktape behavior is not directly visible in the provided authoritative source.",
+              "suggestedFix": "Prefer the directly sourced wording: \"A Stacktape web service is a container running 24/7 with a public HTTPS URL, so it is designed for always-on workloads.\" Keep the cost implication as AWS context without asserting a specific Stacktape minimum instance count unless the scaling type source is available.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"CloudFront has no monthly base fee\" and \"CloudFront has no base monthly cost, so the financial risk of trying it is low.\"",
+              "reason": "This is general AWS pricing context and may be acceptable, but no pricing source is provided for CloudFront in the page sources. Because pricing can change, the claim should be phrased as current AWS pricing context rather than as a Stacktape-grounded fact.",
+              "suggestedFix": "Write cautiously: \"CloudFront is primarily usage-billed by request and data transfer, so cacheable traffic can reduce origin cost.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The web-service load-balancing section matches the authoritative type source: `http-api-gateway` is the default, `application-load-balancer` is required for gradual deployments/top-level firewalls/WebSocket support, and `network-load-balancer` is for TCP/TLS and does not support CDN/top-level firewall/gradual deployments.",
+            "The batch-job Spot section is well grounded: `useSpotInstances` saves up to 90%, jobs can be interrupted, interrupted containers receive `SIGTERM`, and the 120-second shutdown window is explicitly present in the type source.",
+            "The batch-job logging example uses the documented `logging.retentionDays` property and the source-supported retention value `14`.",
+            "The draft follows the required Stacktape config example format: Stacktape configuration snippets use `<CodeBlock intellisense>` with a visible `label: 'TypeScript'`, and there are no hand-authored YAML Stacktape config blocks."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 48: Argument of type '{ dockerfilePath: string; }' is not assignable to parameter of type 'CustomDockerfileCwImagePackagingProps'.\n  Property 'buildContextPath' is missing in type '{ dockerfilePath: string; }' but required in type 'CustomDockerfileCwImagePackagingProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 50: Argument of type '{ dockerfilePath: string; }' is not assignable to parameter of type 'CustomDockerfileCwImagePackagingProps'.\n  Property 'buildContextPath' is missing in type '{ dockerfilePath: string; }' but required in type 'CustomDockerfileCwImagePackagingProps'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 48: Argument of type '{ dockerfilePath: string; }' is not assignable to parameter of type 'CustomDockerfileCwImagePackagingProps'.\n  Property 'buildContextPath' is missing in type '{ dockerfilePath: string; }' but required in type 'CustomDockerfileCwImagePackagingProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 50: Argument of type '{ dockerfilePath: string; }' is not assignable to parameter of type 'CustomDockerfileCwImagePackagingProps'.\n  Property 'buildContextPath' is missing in type '{ dockerfilePath: string; }' but required in type 'CustomDockerfileCwImagePackagingProps'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/managing-costs__optimization-tips/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent end-of-page checklist that gives a first-time user a concrete action plan — this is the single most useful section for the target audience and few doc pages include it.",
+            "Concrete numbers throughout: ~20% ARM savings, ~$18/month for ALB, ~$1/million for API Gateway requests. These specifics let the reader make real decisions rather than guessing.",
+            "FeatureComparisonTable for the compute model comparison is scan-friendly and clearly answers the 'which compute type do I pick?' question up front.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS-behavior, and comparison questions) and the answers are well-calibrated at 2-4 sentences each — extractable by AI engines.",
+            "Decision-support framing is consistent: every opt-in feature covers when to enable it, when the default is fine, a cost or tradeoff signal, and an opinionated recommendation. This is the guide-not-recipe standard done right.",
+            "Opening Info callout directs readers to measure before optimizing — correct framing that prevents premature optimization.",
+            "retryConfig defaults are accurately grounded in the BatchJob source file (@default 1 for attempts, @default 0 for retryIntervalSeconds, @default 1 for retryIntervalMultiplier) and the surrounding prose explains each default clearly.",
+            "No mandatory style violations: all Stacktape config examples use `<CodeBlock intellisense>`, no YAML blocks, no StacktapeConfig type pattern, no multi-command bash blocks."
+          ],
+          "problems": [
+            "Log retention defaults table claims Lambda function default is 180 days. The provided source files do not confirm this value — only the BatchJob source confirms 90 days (@default 90 on BatchJobLogging.retentionDays). The Lambda and container workload retention defaults are unverified from the provided sources and should be confirmed or removed.",
+            "The `attempts: 3` description says 'the job retries up to 3 times' which implies 4 total runs. The BatchJob source JSDoc says 'Max retry attempts' with @default 1, and the page's own 'default is 1 — no retries' interpretation implies attempts=N means N total runs (not N retries). The two descriptions contradict each other: '3 means retries up to 3 times' vs 'default 1 means no retries'. The correct reading is likely: attempts=1 means 1 total run (no retries), attempts=3 means 3 total runs (2 retries).",
+            "Several property names used in code examples (scaling.minInstances, scaling.maxInstances, scaling.scalingPolicy.keepAvgCpuUtilizationUnder, resources.architecture for WebService) are not confirmed in the provided source files (only web-services.d.ts and batch-jobs.d.ts were provided). These may be grounded in other source files, but reviewers relying only on the inline source cannot verify them.",
+            "The 'Use dev mode during development' section references `dev.remote: true` as a property path without source-file grounding in the provided files. This claim is precise enough to be wrong if the actual property differs.",
+            "The page mentions 'Graviton processors often deliver better performance at the lower price point' — the ~20% cost figure is widely accepted, but the performance claim is a broad generalization that varies significantly by workload type and should be softened or removed."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the retryConfig.attempts description to be internally consistent: if 'default is 1 — no retries' is correct, then 'attempts: 3 means the job retries up to 3 times' should read 'attempts: 3 means the job can run up to 3 times total (2 retries after the first failure)'.",
+            "Verify the Lambda log retention default (claimed 180 days) and container workload default (claimed 90 days) against the Lambda and container source files before publishing. If unverifiable, narrow the claim to what the source confirms: 'Batch jobs default to 90 days. Check the resource's logging property for its default.'",
+            "Verify `scaling.minInstances`, `scaling.maxInstances`, `scaling.scalingPolicy.keepAvgCpuUtilizationUnder`, and `resources.architecture` for WebService against their respective source type files. If any name differs, the code examples will fail type-checking and confuse readers who try to copy them.",
+            "Soften 'Graviton processors often deliver better performance' to 'Graviton processors can deliver equivalent or better performance for most application workloads' — or drop the performance claim entirely and let the cost saving stand on its own, since that's verifiable.",
+            "Verify `dev.remote: true` as a valid property path, or rephrase to 'dev mode connects to your deployed cloud resources by default — consult the dev mode docs to configure local vs. remote database connections' to avoid committing to a specific property name.",
+            "Consider adding a one-sentence note about data transfer costs in the CDN section: CloudFront can also reduce origin egress costs since CloudFront-to-origin transfer is cheaper than direct internet egress from Lambda or Fargate. This is a meaningful cost lever the page currently skips.",
+            "The Fargate CPU values listed (0.25, 0.5, 1, 2, 4, 8, 16) are accurate AWS Fargate values but are framed as 'Stacktape supports' — link to the web-service or container resource page for the authoritative list rather than enumerating them inline, which creates a maintenance burden."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Billing separation (AWS account vs Stacktape subscription) is stated explicitly and early — matches the section instructions exactly.",
+            "Concrete numbers drawn from verified source: ~$1/million for HTTP API Gateway, ~$18/month for ALB, batch job 90-day log retention, retryConfig defaults (attempts=1, retryIntervalSeconds=0, retryIntervalMultiplier=1) — all confirmed against batch-jobs.d.ts.",
+            "Every opt-in feature (ARM, spot instances, CDN, ALB, NAT Gateway) includes a decision signal: when to enable, when the default is fine, and a cost or tradeoff statement. This is the right structure for a production guide.",
+            "The compute model comparison FeatureComparisonTable (pricing model, scale-to-zero, max run time, traffic pattern) is the single most useful element on the page — gives the reader the framework to choose before reading further.",
+            "The inline retryConfig explanation after the spot instances example is outstanding: each field, its default, and what that means in plain English. A production engineer would bookmark this.",
+            "FAQ covers all three required categories: Stacktape-specific questions, AWS service mechanics (DynamoDB on-demand vs provisioned, Fargate scale-to-zero), and choosing/comparison questions (Aurora Serverless v2 vs RDS, CDN for APIs). Ten distinct, non-padded entries.",
+            "The end-of-page checklist is actionable and matches the page's content exactly — it can be pasted into a PR checklist template.",
+            "Code examples are realistic: they combine multiple configuration options (arm64 + right-sized cpu/memory + autoscaling in one block) rather than showing single-property snippets."
+          ],
+          "problems": [
+            "Log retention defaults table claims Lambda functions default to 180 days, container workloads to 90 days, and relational databases to 90 days — none of these are grounded in the provided source files. Only the batch job 90-day default is confirmed by batch-jobs.d.ts (@default 90). If any of these defaults are wrong, a production engineer will set suboptimal retention values.",
+            "The claim 'when using EC2 instanceTypes, the architecture setting is ignored, so choose Graviton instance families (c7g, m7g, r7g) directly' is not verifiable from the provided web-services.d.ts source. The source file shows the loadBalancing union but does not expose an architecture property or instanceTypes on SimpleServiceContainer. This claim may be correct but it is ungrounded by the provided files.",
+            "The retryConfig.attempts JSDoc in batch-jobs.d.ts names the field 'Max retry attempts before the job is marked as failed' with @default 1 — 'retry attempts' implies 1 = 1 retry (2 total runs), but the page explains it as 'default is 1 — no retries' (1 total run). The page's interpretation aligns with AWS Batch semantics, but the contradiction with the JSDoc wording will confuse engineers who read the type definition alongside the docs.",
+            "The NAT Gateway section says 'only enable usePrivateSubnetsWithNAT when you have a concrete requirement for static outbound IPs' but does not explain what Stacktape does instead — i.e., whether containers in public subnets can still reach the internet and how. Engineers routinely get this wrong and the omission leaves a gap at a high-stakes decision point."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify log retention defaults for Lambda functions, container workloads (web-service/private-service/worker-service), and relational databases against their respective source type files before publishing. If the Lambda default is not 180 days, the table is actively misleading.",
+            "Add a clarifying sentence near the retryConfig.attempts field: 'attempts counts total run attempts, not additional retries — attempts: 1 (the default) means the job runs once and is not retried.' This resolves the JSDoc naming ambiguity before it bites a reader.",
+            "Either remove the 'architecture: arm64 is ignored for EC2 instanceTypes' claim or ground it in the source types (look for architecture in SimpleServiceContainer or equivalent EC2 container workload props). If it is accurate, add a note explaining which resource types support EC2 mode.",
+            "The NAT Gateway section should briefly state the default behavior — containers in public subnets can reach the internet without a NAT Gateway (Fargate ENI gets a public IP) — so engineers know what they are opting out of when skipping usePrivateSubnetsWithNAT.",
+            "In the right-size Lambda memory section, mention the 1,769 MB = 1 vCPU threshold. Engineers profiling Lambda functions use this as the primary decision point for memory increases, and its omission makes the profiling guidance feel incomplete.",
+            "The load balancing section's '~500k requests/day' crossover threshold between API Gateway and ALB is a useful rough number but is not source-grounded — consider marking it with 'roughly' and noting that the actual crossover depends on request size and ALB LCU consumption, so engineers should calculate for their own traffic profile."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 4,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly distinguishes AWS resource billing from Stacktape subscription cost.",
+            "The page is easy to scan: short H2s, practical subsections, a checklist, a comparison table, and a broad FAQ all support AI extraction.",
+            "Stacktape config examples use the required <CodeBlock intellisense tabs={[...]}/> pattern with a visible TypeScript tab and no hand-authored YAML.",
+            "The load-balancing section is well aligned with the provided WebService source: it names all three loadBalancing variants and captures the sourced pricing and feature tradeoffs.",
+            "The batch-job spot section is practical and largely grounded in the BatchJob source, including up to 90% savings, interruption behavior, SIGTERM, 120-second shutdown, retryConfig, and timeout guidance."
+          ],
+          "problems": [
+            "Large parts of the page are not grounded in the provided source files. The source list only includes web-services.d.ts and batch-jobs.d.ts, but the draft makes detailed claims about Lambda pricing, Lambda memory behavior, ARM/Graviton savings, Fargate CPU tiers, databases, DynamoDB, Upstash Redis, CDN pricing, NAT Gateways, dev mode, budgets, and Console dashboards.",
+            "Several concrete numeric claims are unsupported by the provided sources: 5–10x compute-model cost difference, Lambda 15-minute max runtime, ARM/Graviton ~20% savings, Fargate CPU values, utilization below 30%, 7–14 day and 30–60 day log-retention recommendations, budget thresholds at 80% and 100%, and CloudFront no-base-fee statements.",
+            "The log-retention table is only partially source-grounded. Batch jobs have default retention 90 days in the source, but Lambda, container workload, and relational database defaults are not present in the provided files.",
+            "The page presents broad cost guidance as authoritative even where the provided source is silent. That violates the hard requirement to trust source code first and avoid inventing unsupported features, defaults, or constraints.",
+            "The compute comparison table contains unsupported values for Lambda and container services, including scale-to-zero behavior, max runtime, and pricing model details not present in the supplied source files.",
+            "The ARM/Graviton section includes unsupported defaults and behavior, including x86_64 as default, Stacktape build behavior for selected architecture, custom-artifact requirements, and EC2 instance-family recommendations.",
+            "The FAQ is useful for search, but many answers restate unsupported Stacktape-specific claims. FAQ allowance for general AWS facts does not cover unsupported Stacktape behavior such as specific config properties or Stacktape Console capabilities when console-app sources are absent.",
+            "Some opt-in sections provide decision support but lack source grounding for the opt-in itself in this source set, especially CDN, NAT Gateway, dev mode local databases, budget alerts, and database engine selection."
+          ],
+          "mandatoryFixes": [
+            "Remove, narrow, or source every technical claim not supported by the provided source files. With the current source set, the page can safely cover WebService load balancing and BatchJob spot/retry/timeout cost controls, but not detailed Lambda, database, CDN, Console, NAT, dev mode, or budget behavior.",
+            "Replace unsupported concrete numbers with sourced numbers only. Keep sourced values such as http-api-gateway ~$1/million requests, application-load-balancer ~$18/month plus usage, above ~500k requests/day, spot savings up to 90%, SIGTERM plus 120 seconds, retry defaults, and batch-job log retention default 90 days.",
+            "Revise the compute comparison table so every cell is grounded in the supplied sources, or remove rows/columns whose values require Lambda/container-workload sources not included here.",
+            "Delete or rewrite the log-retention table unless additional source files are provided for Lambda, container workloads, and relational databases. The current table overstates the available source evidence.",
+            "Do not describe Stacktape Console workflows or capabilities beyond broad links unless console-app source files are included. The current dashboard, metrics, per-resource cost, and budget-alert descriptions need console sources or narrower wording.",
+            "Recheck every <CodeBlock intellisense> after revising prose to ensure imports, class names, defineConfig usage, and focus markers remain valid."
+          ],
+          "optionalImprovements": [
+            "Make the page scope explicit if only web-service and batch-job sources are available, for example by reframing it as cost tips for web services and batch jobs instead of a broad AWS cost optimization page.",
+            "Split the broad checklist into sourced and linked items, or remove checklist entries that depend on unavailable source files.",
+            "Keep the FAQ, but revise answers so Stacktape-specific statements are limited to sourced WebService and BatchJob behavior; general AWS cost questions can remain if clearly framed as AWS background rather than Stacktape behavior.",
+            "Add a small table for WebService loadBalancing variants with sourced pricing, constraints, and when-to-use guidance; that would be the strongest source-grounded section on the page."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided WebService and BatchJob source for load balancing, spot jobs, retry defaults, and batch log retention. The main factual risks are unsupported Stacktape-specific claims for resources whose authoritative type files were not provided, plus a couple of overstatements around batch-job retry semantics and Stacktape subscription inclusions.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"The Stacktape subscription covers the Console, GitOps, observability integrations, and the CLI tooling.\"",
+              "reason": "The provided source only supports that AWS bills go to the user's AWS account and Stacktape's subscription fee is separate. It does not document what the subscription includes, so this is an unsupported billing/subscription claim.",
+              "suggestedFix": "Keep the supported separation claim and link to billing details without listing what the subscription covers, e.g. \"Stacktape's subscription fee is separate from your AWS bill. See billing and subscription for plan details.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "AWS bills go directly to your AWS account — Stacktape's subscription fee is separate."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"Budgets can be scoped to your whole organization or to individual stacks.\"",
+              "reason": "No provided source file documents budget scope options. This is a Stacktape Console/budget behavior claim that would affect how readers configure cost controls.",
+              "suggestedFix": "Remove the unsupported scope claim or narrow it to \"Set up budget alerts for the spend you want to monitor\" unless budget source files are added.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "Set up [budget alerts](/managing-costs/budgets) so you catch cost spikes early."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"If interrupted, your container receives a SIGTERM signal and has 120 seconds to shut down gracefully.\"",
+              "reason": "The batch-job source says the container gets SIGTERM and 120 seconds on Spot interruption. The draft's sentence is acceptable in the Spot section, but if read broadly it implies every interruption path has the same behavior. The source scopes the behavior to Spot interruption.",
+              "suggestedFix": "Scope the sentence explicitly: \"If a Spot interruption happens, your container gets a SIGTERM and 120 seconds to shut down gracefully.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "If interrupted, your container gets a `SIGTERM` and 120 seconds to shut down gracefully."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"In this example, `attempts: 3` sets the maximum retry attempts before the job is marked failed (default is `1`).\"",
+              "reason": "The source defines `attempts` as max retry attempts before failure, but the surrounding sentence may make readers think the job gets three retries after the first failed run. The prior generated source had a similar wording problem. The source wording should be preserved more exactly.",
+              "suggestedFix": "Write: \"`attempts: 3` sets the maximum retry attempts before the job is marked failed; the default is `1`.\" Avoid adding \"retries up to 3 times\" unless the runtime semantics confirm whether the initial attempt is counted separately.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "#### Max retry attempts before the job is marked as failed.\n   * @default 1"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"If you use `stacktape-lambda-buildpack` packaging, Stacktape builds for the selected architecture automatically. With `custom-artifact` packaging, you must pre-compile for the target architecture yourself.\"",
+              "reason": "The provided authoritative files do not include Lambda packaging type definitions or Lambda architecture behavior. This is a Stacktape-specific packaging claim, not just general AWS context.",
+              "suggestedFix": "Either add the Lambda packaging source files to support this claim or narrow it to general advice: \"Native binaries and prebuilt artifacts need to match the target architecture.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "#### How to build or specify the container image for this job."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Container workloads in Stacktape can enable a NAT Gateway via `usePrivateSubnetsWithNAT: true`.\"",
+              "reason": "Neither provided type file exposes `usePrivateSubnetsWithNAT`. This is a Stacktape-specific property claim and should be grounded in the relevant container workload or networking type source.",
+              "suggestedFix": "Add the authoritative container workload type source before keeping this property, or replace with a cautious cross-link: \"For NAT and private subnet behavior, see the resource-specific networking sections.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "interface WebServiceProps extends SimpleServiceContainer {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For services with variable load, configure auto-scaling ... `scaling: { minInstances, maxInstances, scalingPolicy: { keepAvgCpuUtilizationUnder: 70 } }`.\"",
+              "reason": "The provided WebService file extends `SimpleServiceContainer`, but the source excerpt does not show the `scaling` property or its nested fields. Because this code example must type-check, the relevant container workload source should be present to ground it.",
+              "suggestedFix": "Add the `SimpleServiceContainer`/container workload source, or avoid showing the exact scaling property in this page and link to the web service page for supported scaling fields.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "interface WebServiceProps extends SimpleServiceContainer {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Set `timeout` on jobs with a known upper bound so a stuck job is killed and retried instead of continuing to bill.\"",
+              "reason": "The batch-job source says a job is killed if it exceeds `timeout`, then retried if `retryConfig` is set. The draft's sentence does not include the `retryConfig` caveat in the first occurrence, so it can overstate retry behavior.",
+              "suggestedFix": "Change to: \"Set `timeout` on jobs with a known upper bound so a stuck job is killed; if `retryConfig` is set, Stacktape can retry it.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "Max run time in seconds. The job is killed if it exceeds this, then retried if `retryConfig` is set."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `CodeBlock intellisense` with a `TypeScript` tab for Stacktape configuration examples and does not hand-author Stacktape YAML.",
+            "The web-service load balancing comparison matches the source: `http-api-gateway` default, ALB required for gradual deployments/top-level firewalls/WebSockets, and NLB for TCP/TLS with no CDN/top-level firewall/gradual deployment support.",
+            "The batch-job Spot guidance matches the source on `useSpotInstances`, up to 90% savings, restart-safe workloads, non-idempotent side-effect caveat, SIGTERM, and 120-second shutdown window.",
+            "The batch-job retry defaults in the draft match the provided type source: `attempts` default `1`, `retryIntervalSeconds` default `0`, and `retryIntervalMultiplier` default `1`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided sources and avoids the major forbidden config-example patterns. The main risks are a few unsupported Stacktape-specific claims about container billing/scaling, dev mode behavior, budget scope, and several precise numeric recommendations that are not grounded in the provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The container workload bills for the CPU/memory combination you request, not what you actually use.” and “Container workloads bill for the exact CPU/memory combination you request.”",
+              "reason": "The provided web-service source says load balancing affects pricing and the container has resources, but it does not state that Stacktape container workloads bill for the exact requested CPU/memory combination. This is likely true for AWS Fargate, but the draft phrases it as Stacktape container-workload behavior without a source that establishes the billing model for all container workloads.",
+              "suggestedFix": "Narrow the claim to general AWS/Fargate context, or remove the exact billing assertion. For example: “For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory, so right-sizing the `resources` block is usually the first optimization.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "#### How traffic reaches your containers. Affects pricing, features, and protocol support."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "- **`http-api-gateway`** (default): Pay-per-request (~$1/million requests). Best for most apps.\n   *   Cheapest at low traffic, but costs grow with volume.\n   *\n   * - **`application-load-balancer`**: Flat ~$18/month + usage. Required for gradual deployments\n   *   (`deployment`), top-level firewalls (`useFirewall`), and WebSocket support.\n   *   More cost-effective above ~500k requests/day. AWS Free Tier eligible."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“A web service is a container running 24/7 with a public HTTPS URL, so it always has at least one instance running and billing.”",
+              "reason": "The source supports that a web service is a container running 24/7 with a public HTTPS URL, but it does not explicitly support “always has at least one instance” or the billing conclusion. This could mislead readers if other scaling properties allow different minimums on related resources.",
+              "suggestedFix": "Use the exact sourced wording and avoid the instance-count claim: “A web service is documented as a container running 24/7 with a public HTTPS URL, so treat it as always-on compute rather than a scale-to-zero endpoint.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "#### A container running 24/7 with a public HTTPS URL."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/web-services.d.ts",
+                  "quote": "Use for APIs, web apps, and any service that needs to be always-on and reachable from the internet."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Set `timeout` on jobs with a known upper bound so a stuck job is killed and retried instead of continuing to bill.”",
+              "reason": "The source says a job is retried if `retryConfig` is set. The draft omits that condition in the first occurrence, implying timeout always causes a retry.",
+              "suggestedFix": "Write: “Set `timeout` on jobs with a known upper bound so a stuck job is killed; if `retryConfig` is configured, the job can then retry.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "#### Max run time in seconds. The job is killed if it exceeds this, then retried if `retryConfig` is set."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“In this example, `attempts: 3` sets the maximum retry attempts before the job is marked failed (default is `1`).”",
+              "reason": "The source says `attempts` is max retry attempts, but the lower-priority generated page interpreted `default is 1` as “no retries.” The draft’s wording may imply three total job attempts rather than three retries, and it misses the important “on failure, timeout, or Spot interruption” behavior documented by the source.",
+              "suggestedFix": "Write: “`attempts: 3` allows up to 3 retry attempts on failure, timeout, or Spot interruption before the job is marked failed. The default is `1`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "#### Auto-retry on failure, timeout, or Spot interruption."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "#### Max retry attempts before the job is marked as failed.\n   * @default 1"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape builds for the selected architecture automatically” for `stacktape-lambda-buildpack` packaging, and “With `custom-artifact` packaging, you must pre-compile for the target architecture yourself.”",
+              "reason": "No Lambda packaging or architecture source is included in the provided source list. The generated docs contain similar text, but the authoritative TypeScript types for Lambda packaging are absent here, so this Stacktape-specific build behavior is not grounded in the provided source files.",
+              "suggestedFix": "Keep the general ARM compatibility guidance, but replace the packaging-specific behavior with a link to the resource pages: “Check the Lambda function and container packaging pages before switching existing custom artifacts, because native dependencies must match the target architecture.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "#### How to build or specify the container image for this job."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Budgets can be scoped to your whole organization or to individual stacks.”",
+              "reason": "The provided source files do not include the budgets implementation, budget types, or Console source. The generated page repeats the claim, but there is no authoritative source in the supplied set for budget scoping.",
+              "suggestedFix": "Narrow the statement to the sourced navigation-level concept: “Use budget alerts to catch spending changes early. See the budgets page for supported scopes and setup details.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "Set up [budget alerts](/managing-costs/budgets) so you catch cost spikes early."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Running `stacktape dev` lets you iterate locally without deploying real AWS resources for every code change” and “For databases that support running locally during development…”",
+              "reason": "The provided source set does not include dev mode source or local database source. The generated docs contain more detailed dev-mode claims, but there is no authoritative source file here for exact local/deployed behavior or which databases can run locally.",
+              "suggestedFix": "Keep the section cautious: “Use dev mode during development to reduce repeated full deployments. See the dev mode overview and local databases page for the exact local/deployed behavior.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/optimization-tips.md",
+                  "quote": "For [relational databases](/resources/databases/relational-database) and [DynamoDB](/resources/databases/dynamodb), dev mode can run a local Docker container."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft uses several precise unsourced optimization numbers: “5–10x more than necessary,” utilization “consistently below 30%,” “512 → 1,024 → 2,048,” “7–14 days,” “30–60 days,” and budget thresholds “80% and 100%.”",
+              "reason": "These numbers may be reasonable recommendations, but they are not grounded in the provided Stacktape source files. Because they are guidance rather than Stacktape-specific behavior, this is lower severity, but the page would be stronger if it marked them clearly as rules of thumb.",
+              "suggestedFix": "Phrase these as rules of thumb rather than sourced constraints, or remove the most precise numbers that are not necessary. For example: “As a practical starting point, use short retention in development and longer retention in production, then adjust to your debugging and compliance needs.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and do not hand-author YAML.",
+            "The load balancing section matches the authoritative `WebServiceProps.loadBalancing` variants and preserves the scoped firewall/CDN distinction.",
+            "The spot-instance interruption behavior, 120-second shutdown window, retry fields, and batch-job log retention default are grounded in `batch-jobs.d.ts`.",
+            "All markdown cross-links in the draft point to routes present in the supplied navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 48: Argument of type '{ dockerfilePath: string; }' is not assignable to parameter of type 'CustomDockerfileCwImagePackagingProps'.\n  Property 'buildContextPath' is missing in type '{ dockerfilePath: string; }' but required in type 'CustomDockerfileCwImagePackagingProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 50: Argument of type '{ dockerfilePath: string; }' is not assignable to parameter of type 'CustomDockerfileCwImagePackagingProps'.\n  Property 'buildContextPath' is missing in type '{ dockerfilePath: string; }' but required in type 'CustomDockerfileCwImagePackagingProps'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -890,8 +1699,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\managing-costs\\optimization-tips.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/managing-costs/optimization-tips.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.3, hard blockers 9, advisory high 0, verifier medium 13"
+  "pipelineReviewSummary": "reviewer-avg 7.3, hard blockers 4, advisory high 0, verifier medium 13",
+  "refinementAttempts": 2,
+  "refinementStalled": true
 }

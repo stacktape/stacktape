@@ -2,7 +2,7 @@
   "pageId": "resources__databases__redis",
   "pageRoute": "resources/databases/redis",
   "startedAt": "2026-05-17T12:06:18.229Z",
-  "updatedAt": "2026-05-17T12:24:06.697Z",
+  "updatedAt": "2026-05-21T20:01:27.965Z",
   "iterations": [
     {
       "iteration": 1,
@@ -833,6 +833,354 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__databases__redis/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript — no forbidden YAML blocks or plain-object StacktapeConfig patterns.",
+            "The high availability section differentiates replicas, automatic failover, and sharding with a working code example and explicit when-to-use guidance per variant — good per-variant equal depth.",
+            "Instance sizing table is grounded in the source pricing file and the type union, covering four representative nodes with cost, memory, and best-for guidance.",
+            "The 'Connecting from workloads' section clearly explains the two-step pattern: connectTo for network + env vars, plus explicit $ResourceParam() for the full connection string. This distinction is non-obvious and the page handles it well.",
+            "Lambda's joinDefaultVpc: true requirement is highlighted in a dedicated Info callout — critical gotcha for new users using serverless compute.",
+            "The FAQ spans all three required categories: Stacktape-specific questions, AWS service questions (cost, scaling, backups), and comparison questions (Redis vs DynamoDB, ElastiCache vs Upstash). Ten distinct, non-padded entries.",
+            "Warning callouts for irreversible constraints (sharding at creation time, deploy-replicas-before-failover ordering) are placed close to the code examples they protect.",
+            "Engine version table with notable features per version gives readers enough signal to pick 7.1 for new clusters without reading AWS release notes."
+          ],
+          "problems": [
+            "The claim 'The password is not included in the connectTo environment variables' is a negative assertion. The source (connectTo JSDoc) only enumerates what IS injected (HOST, READER_HOST, PORT) and is silent on what is absent. Per source-grounding rules, negative claims about env-var injection are unsupported. A source-grounding verifier will flag this as a medium-severity issue.",
+            "The READER_HOST env var row in the table includes the qualifier '(non-sharded clusters)' — a conditional negative claim (implying it's absent or different for sharded clusters). The source's connectTo JSDoc lists HOST, READER_HOST, PORT without any sharded/non-sharded qualification, so this conditional is not source-grounded and may be flagged.",
+            "The instance sizing prose says 'Supported families include t2, t3, t4g, m4, m5, m6g, m7g, r4, r5, r6g, and r7g' but the preceding table only shows t4g, m7g, and r7g examples. A new reader may not realize m6g exists as an option between m5 and m7g without reading the full prose carefully — the prose and table feel slightly disconnected."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Rephrase 'The password is not included in the connectTo environment variables' to positive framing: 'The connection details injected via connectTo are the host, reader host, and port. To pass the full connection URL, use $ResourceParam() to inject it explicitly as shown below.' This avoids the unsupported negative claim.",
+            "Remove or qualify the '(non-sharded clusters)' annotation on READER_HOST in the env var table. Either drop the parenthetical entirely, or add a source-grounded note below the table (not in the cell) explaining that reader endpoint availability depends on cluster topology.",
+            "In the 'Referenceable parameters' section, add a one-sentence intro before the <ReferenceableParams /> component naming the six available params (host, readerHost, port, readerPort, connectionString, sharding) so readers know what to expect. The component renders them, but a brief mention helps readers who scan prose before clicking into component drill-downs.",
+            "The instance sizing table's prose follow-up mentions m6g as a family but the table skips it. Either add a cache.m6g.large row between m4/m5 and m7g, or explicitly note in prose that m6g is the prior generation of m7g (still supported, slightly cheaper per GiB in some regions).",
+            "The 'Logging' section says 'Slow-query logging is enabled by default' in the intro paragraph but the Basic example description (under 'Basic example') also asserts this. Consider consolidating to avoid mild repetition between sections.",
+            "Consider placing <ApiReference definitionName='RedisClusterProps' /> immediately after the intro/pricing paragraph (before 'When to use') for readers whose primary goal is looking up a specific property. The current bottom placement is conventional but less useful for readers who come from search knowing which property they need."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent instance sizing table with per-family cost context and a clear opinion on Graviton preference — exactly what a practitioner needs before picking a size.",
+            "The high-availability section covers all three levers (replicas, automatic failover, sharding) with realistic code examples and specific warnings about the two gotchas (deploy replicas before enabling failover; sharding is create-time only). Both warnings are source-grounded.",
+            "connectTo environment variable table is precise and uses the example resource name (cache) as required. The pattern of injecting the full connection string via an explicit environment entry using $ResourceParam is shown with a complete, runnable example.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service behavior, comparison/choosing) with 10 entries covering the highest-intent queries. Each answer is 2–4 sentences and stands alone.",
+            "No mandatory style violations: all Stacktape config examples use <CodeBlock intellisense>, defineConfig + class-based resources, correct TypeScript tab label, single ApiReference at a sensible location, no YAML config blocks, no StacktapeConfig type.",
+            "Dev mode section is present and source-grounded, covering both the default local-Docker behavior and the remote:true escape hatch.",
+            "Pricing context is present near the top and matches the pricing source file ($11.52/month for cache.t4g.micro, ~$0.20/hr for cache.r7g.large)."
+          ],
+          "problems": [
+            "FACTUAL – retentionDays described as 'accepts values from 1 to 3653': the source type is a discrete union (1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1827 | 3653), not a continuous range. A practitioner who reads this and sets retentionDays: 2 or retentionDays: 100 will get a validation error. This is a concrete misleading claim.",
+            "UNSUPPORTED QUALIFIER – the connectTo table annotates STP_CACHE_READER_HOST as '(non-sharded clusters)'. The connectTo JSDoc in __helpers.d.ts enumerates RedisCluster as injecting HOST, READER_HOST, PORT without any sharding qualifier. Adding this restriction is not source-grounded and could cause a developer building a sharded cluster to incorrectly assume the reader host variable is absent.",
+            "MINOR – the 'Basic example' section states 'This creates a single-node Redis 6.2 cluster' but the example does not set engineVersion, so the version claim relies on knowing the default. The sentence would be more accurate if it said 'defaults to Redis 6.2' rather than asserting the version as a fixed fact of that specific example."
+          ],
+          "mandatoryFixes": [
+            "Fix the retentionDays range claim in the Logging section. Replace 'The retentionDays property accepts values from 1 to 3653' with a statement that accurately represents the discrete enum, e.g. 'retentionDays accepts specific values: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, or 3653 days (see the API reference for the full list).' Leaving the current wording will cause validation errors for users who set non-enum values.",
+            "Remove the '(non-sharded clusters)' qualifier from the STP_CACHE_READER_HOST row in the connectTo table. The source's connectTo JSDoc enumerates HOST, READER_HOST, PORT for RedisCluster without any sharding condition. Either drop the qualifier entirely or, if there is a genuine behavioral difference for sharded clusters, that must be confirmed from a higher-priority source before adding the qualifier back."
+          ],
+          "optionalImprovements": [
+            "In the Basic example prose, change 'This creates a single-node Redis 6.2 cluster' to 'This creates a single-node Redis cluster (defaults to engine version 6.2)' so the default is clearly labelled as a default, not a hardcoded property of the example.",
+            "The Connecting from workloads section mentions connectionString as the key referenceable parameter but the source also exposes readerPort and sharding params. A one-sentence mention after the table (e.g., 'Additional parameters — readerPort and sharding — are available via $ResourceParam() for sharded cluster configurations') would make the section more complete without needing to enumerate every param.",
+            "The instance sizing table shows four representative instances but could add a note that the full union includes t2/t3 (older x86 burstable) and m4/m5/r4/r5 (older x86 general/memory) families, and that newer Graviton equivalents are preferred for new clusters. This rounds out the guidance so readers don't wonder if they should ever pick m5."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong answer-first opening with clear use cases, AWS underpinning, encryption, VPC placement, and pricing context near the top.",
+            "Good decision support in the early sections: clear When to use / When NOT to use split, with practical alternatives like relational database, DynamoDB, OpenSearch, and Upstash Redis.",
+            "Stacktape config examples use the required TypeScript class-based `<CodeBlock intellisense tabs={[...]}/>` pattern and avoid hand-authored YAML config.",
+            "Instance sizing, high availability, sharding, networking, backups, logging, engine versions, dev mode, referenceable parameters, and API reference are all covered in a usable order.",
+            "The FAQ is broad and useful: it covers Stacktape-specific behavior, underlying ElastiCache/Redis concerns, and comparison questions."
+          ],
+          "problems": [
+            "Several claims are more specific than the provided source supports, especially Redis use cases like real-time leaderboards, rate limiting, sorted sets, Lua scripting, and detailed Redis version feature descriptions.",
+            "The page states that `cache.r7g.large` costs about `$0.20/hr`, while the pricing source only provides monthly values for generated pricing and the Redis type source gives `$0.20/hr`; this is probably acceptable, but the pricing paragraph should avoid implying exhaustive pricing for multi-node and data-transfer dimensions not shown in the source.",
+            "The FAQ claims same-AZ data transfer is free and cross-AZ transfer incurs standard AWS charges, but that is not present in the provided pricing source.",
+            "The local access section claims `stacktape debug:redis` provides direct Redis CLI access; no CLI source is provided for that command in this page's source set, so the claim is not grounded here.",
+            "The seed/migration FAQ recommends deployment scripts or hooks with `connectTo`, but the source only grounds script/hook existence and `connectTo` injection generally; it does not specifically ground Redis seed workflows.",
+            "Some paragraphs rely on AWS or Redis behavior that is useful but not sourced, such as CPU credits, multi-key sharding limitations, client reconnection behavior, and Redis client TLS details.",
+            "The page uses `out of the box` in the automatic failover section, which conflicts with the project style guide even though it is not one of the mandatory reviewer violations."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported Redis feature claims unless source files explicitly ground them: leaderboards, sorted sets, Lua scripting, detailed Redis 7.x/6.x feature lists, and multi-key sharding limitations.",
+            "Ground or remove the `stacktape debug:redis` behavior claim unless CLI source for `/cli/debug-redis` is included; otherwise say local access is through a bastion host and link cautiously.",
+            "Remove the unsourced FAQ sentence about same-AZ and cross-AZ data transfer pricing, or replace it with only the sourced node-hour pricing context.",
+            "Replace `out of the box` with concrete wording such as `Most Redis client libraries support automatic reconnection.`"
+          ],
+          "optionalImprovements": [
+            "Shorten the opening `seoDescription`; it currently contains `sub-millisecond` and several feature claims, but a tighter summary would be easier to derive from the opening paragraph.",
+            "Add one sentence near the sharding example explaining that `numShards: 3` creates three shards and `numReplicaNodes: 1` adds one replica per shard, so readers understand the cost impact of that tunable combination.",
+            "Consider splitting `High availability` into a compact comparison table for single node, replicas with failover, and sharding; the current prose is good, but a table would scan faster.",
+            "Where the page uses AWS background facts, label them as AWS ElastiCache behavior rather than Stacktape behavior to reduce verifier risk."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided RedisCluster type definitions and generated Redis docs. The main factual risk is one incorrect property-value range and one unsupported negative claim about connectTo environment-variable injection.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The `retentionDays` property accepts values from `1` to `3653` — the default is `90`.",
+              "reason": "`retentionDays` is not an arbitrary numeric range. The source defines a discrete union of allowed CloudWatch retention values, so values like 2, 4, or 100 would be invalid even though they fall between 1 and 3653.",
+              "suggestedFix": "Write that `retentionDays` defaults to `90` and accepts one of the documented retention values, or list the exact allowed values: `1`, `3`, `5`, `7`, `14`, `30`, `60`, `90`, `120`, `150`, `180`, `365`, `400`, `545`, `731`, `1827`, or `3653`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/redis-cluster.d.ts",
+                  "quote": "retentionDays?: 1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1827 | 3653;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The password is not included in the `connectTo` environment variables.",
+              "reason": "The source documents which RedisCluster variables are injected by `connectTo`, but it does not explicitly support the negative claim that the password is not included. This pattern is easy for the grounding verifier to reject because the JSDoc is an injected-variable list, not an exhaustive statement about every non-injected referenceable parameter.",
+              "suggestedFix": "Replace the negative claim with source-grounded wording: \"When a workload lists `cache` in `connectTo`, Stacktape documents `STP_CACHE_HOST`, `STP_CACHE_READER_HOST`, and `STP_CACHE_PORT`. Use `$ResourceParam('cache', 'connectionString')` when you want to pass the Redis connection string as your own environment variable.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/redis-cluster.d.ts",
+                  "quote": "type RedisClusterReferencableParam = 'host' | 'readerHost' | 'port' | 'readerPort' | 'connectionString' | 'sharding';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration examples use `<CodeBlock intellisense tabs={[...]}>` with a `TypeScript` tab and class-based `defineConfig` examples, with no hand-authored Stacktape YAML.",
+            "`<ApiReference definitionName=\"RedisClusterProps\" />` matches the Redis props type name.",
+            "The pricing context for `cache.t4g.micro`, `cache.t4g.small`, `cache.m7g.large`, and `cache.r7g.large` is grounded in the RedisCluster JSDoc and generated pricing source.",
+            "The connectTo environment variable names in the example correctly use the concrete resource name `cache`: `STP_CACHE_HOST`, `STP_CACHE_READER_HOST`, and `STP_CACHE_PORT`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the RedisCluster source types and follows the required TypeScript CodeBlock pattern. I found a few concrete Stacktape-specific issues: one invalid/unsupported referenceable parameter implication, one over-specific connectTo/env-var description for sharded clusters, and one likely unsupported logging default claim.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "`<ReferenceableParams resource=\"redis-cluster\" />` plus prose says `connectionString` is a referenceable parameter, but the generated referenceable-params table shown for Redis omits `connectionString` and `readerPort`.",
+              "reason": "The TypeScript union includes `connectionString` and `readerPort`, but the provided generated page's referenceable-parameters table does not list them. Since the page explicitly relies on the component output and then documents `connectionString`, this may render inconsistent docs unless the component source supports these params. The provided generated docs are conflicting here, so this should be checked and corrected to the actual ReferenceableParams component data.",
+              "suggestedFix": "Either verify the component data includes `connectionString` and `readerPort`, or avoid claiming `connectionString` appears in the rendered ReferenceableParams table. If `connectionString` is supported, make sure the generated referenceable-params source is updated so the page and component agree.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/redis-cluster.d.ts",
+                  "quote": "type RedisClusterReferencableParam = 'host' | 'readerHost' | 'port' | 'readerPort' | 'connectionString' | 'sharding';"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/resources/databases/redis.md",
+                  "quote": "| `sharding` | Indicates whether cluster is sharded. Available values: `enabled` or `disabled`. | `$ResourceParam(\"<<resource-name>>\", \"sharding\")` |"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The `connectTo` table describes `STP_CACHE_READER_HOST` as `Reader endpoint hostname (non-sharded clusters)`, and the prose says `connectTo` injects `STP_CACHE_READER_HOST` unconditionally.",
+              "reason": "The connectTo JSDoc says RedisCluster injects `HOST`, `READER_HOST`, and `PORT`, without the non-sharded qualifier. The non-sharded qualifier appears in the referenceable-parameter description for `readerHost`, not in the connectTo environment-variable list. The draft should not narrow the injected environment variable unless source confirms that behavior.",
+              "suggestedFix": "Say `connectTo` injects `STP_CACHE_HOST`, `STP_CACHE_READER_HOST`, and `STP_CACHE_PORT` as documented. Separately describe `readerHost` cautiously as a referenceable parameter whose generated description says it is only available for non-sharded clusters.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`Redis logging config controls slow-query logging sent to CloudWatch. logging.disabled defaults to false...`",
+              "reason": "The source defines defaults inside `RedisLogging`, but it does not state that logging is configured when the `logging` object is omitted. Saying `logging.disabled` defaults to false can read as slow-query logging is enabled by default for every Redis cluster. That behavior is not clearly established by the provided source.",
+              "suggestedFix": "Narrow the wording to: `When Redis logging is configured, slow-query logs are sent to CloudWatch. Inside logging, disabled defaults to false, format defaults to json, and retentionDays defaults to 90.` Avoid saying or implying that the top-level `logging` object is enabled by default unless runtime validators confirm it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/redis-cluster.d.ts",
+                  "quote": "logging?: RedisLogging;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/redis-cluster.d.ts",
+                  "quote": "Disable slow query logging.\n   * @default false"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`During stacktape dev, Redis clusters run locally in Docker by default. Connection details injected via connectTo automatically point to the local container instead of the deployed AWS cluster.`",
+              "reason": "The source supports local Docker by default and `remote: true` for deployed resources, but it does not explicitly say connectTo environment variables are automatically rewritten to point to the local Redis container. That may be true runtime behavior, but it is not grounded in the provided source files.",
+              "suggestedFix": "Keep the grounded part: `During stacktape dev, Redis clusters run locally in Docker by default. Set dev.remote: true to use the deployed cluster instead.` Remove or soften the connectTo rewrite sentence unless dev-mode source confirms it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/redis-cluster.d.ts",
+                  "quote": "Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed cluster."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "By default, databases, Redis, and DynamoDB run locally in Docker during dev mode.\n   * Set to `true` to connect to the real deployed resource instead (must be deployed first)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The Engine versions table includes specific Redis feature descriptions such as `Improved memory efficiency, enhanced I/O multiplexing`, `Redis Functions`, and `ACL improvements`.",
+              "reason": "The source only lists supported `engineVersion` values and the default. The feature descriptions are general Redis knowledge, but the page presents them in a Stacktape resource guide without source grounding. If retained, they should be framed as brief Redis-version context rather than Stacktape behavior.",
+              "suggestedFix": "Either remove the feature table or rephrase it as general Redis context. Keep the Stacktape-specific claim limited to: supported versions are `7.1`, `7.0`, `6.2`, and `6.0`; default is `6.2`.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "`Stacktape enables TLS encryption on all Redis traffic, so your Redis client library must support TLS connections.`",
+              "reason": "The source says all traffic is encrypted in transit, which supports TLS broadly. It does not explicitly state the client connection string format or that every supported client must be configured in TLS mode. The wording is probably correct but could be narrowed to avoid over-prescribing client behavior.",
+              "suggestedFix": "Use source-grounded wording: `All Redis traffic is encrypted in transit. Use a Redis client configuration that supports encrypted connections.`",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with `label: 'TypeScript'`, `defineConfig`, and class-based resources; there are no hand-authored Stacktape YAML examples.",
+            "The page uses the correct API reference name: `<ApiReference definitionName=\"RedisClusterProps\" />`.",
+            "Most RedisCluster properties, defaults, and constraints are accurately grounded: `instanceSize`, `numReplicaNodes` default `0`, `numShards` default `1`, `engineVersion` default `6.2`, `port` default `6379`, sharding creation-time constraint, failover replica requirement, password constraints, and accessibility modes.",
+            "The CLI links used in the draft point to routes present in the navigation index, including `/cli/debug-logs`, `/cli/debug-redis`, `/cli/bastion-tunnel`, and `/cli/secret-create`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 26: Cannot find name '$Secret'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 26: Cannot find name '$Secret'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 26: Cannot find name '$Secret'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 26: Cannot find name '$Secret'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 11, col 26: Cannot find name '$Secret'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 19, col 17: Type '\"cache\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 20, col 19: Type '{ name: string; value: any; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 20, col 47: Cannot find name '$ResourceParam'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 26: Cannot find name '$Secret'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 26: Cannot find name '$Secret'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 26: Cannot find name '$Secret'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -848,5 +1196,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\databases\\redis.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.0, hard blockers 3, advisory high 0, verifier medium 10"
+  "pipelineReviewSummary": "reviewer-avg 8.0, hard blockers 3, advisory high 0, verifier medium 10",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

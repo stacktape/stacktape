@@ -2,7 +2,7 @@
   "pageId": "configuration__triggers__dynamodb-streams",
   "pageRoute": "configuration/triggers/dynamodb-streams",
   "startedAt": "2026-05-17T10:58:35.832Z",
-  "updatedAt": "2026-05-17T11:14:23.844Z",
+  "updatedAt": "2026-05-22T02:28:20.111Z",
   "iterations": [
     {
       "iteration": 1,
@@ -938,6 +938,578 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__triggers__dynamodb-streams/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong self-contained intro paragraph that answers 'what is this and why' in under 75 words — good AEO target.",
+            "The `streamType` table (KEYS_ONLY / NEW_IMAGE / OLD_IMAGE / NEW_AND_OLD_IMAGES) with a 'what the record contains' column and an explicit recommendation is exactly what a first-time user needs before seeing any code.",
+            "Every `<CodeBlock>` uses `[!code focus-start]` / `[!code focus-end]` markers correctly so the trigger property is visually highlighted rather than buried in boilerplate.",
+            "The fenced TypeScript handler example showing `eventName` switch and DynamoDB attribute format is high-signal content that saves a new user 20 minutes of Googling.",
+            "The retry/failure-handling section combines a code example, a three-row property table, a `<Warning>` for idempotency, and a `<Tip>` pairing `maximumRetryAttempts` + `onFailure` — this is the kind of opinionated, actionable guidance the style guide calls for.",
+            "The 'Using an external table stream' section covers the direct ARN path without padding — useful and concise.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service mechanics, and comparison/choosing questions) with appropriately-sized 2-4 sentence answers.",
+            "No mandatory style violations: all Stacktape config is in `<CodeBlock intellisense>`, no fenced YAML, no plain-object StacktapeConfig pattern, single `<ApiReference>`, and no shell command grouping issues."
+          ],
+          "problems": [
+            "Potential factual error in code examples: the events.d.ts JSDoc says 'You must enable streams on the DynamoDB table first (set `streaming` in your `dynamoDbTables` config).' The page uses `streamType: 'NEW_AND_OLD_IMAGES'` on `DynamoDbTable`. If the actual property is named `streaming` (not `streamType`), every code example that creates a `DynamoDbTable` is wrong. The provided source files do not include the DynamoDB table type definition to confirm, so this is unverified against authoritative source.",
+            "The 'Enabling streams on the table' section states the table 'exposes a `streamArn` referenceable parameter' once `streamType` is set — but the `streamArn` referenceable param is not documented in the provided source files (only events.d.ts is provided). This is plausible but ungrounded for this page's source list.",
+            "The 'When NOT to use' section claims 'DynamoDB Streams supports at most 2 simultaneous readers per shard and is limited to 5 read calls per second per shard.' This is a well-known AWS limit but is not present in the provided source files. Per style guide rules, AWS facts in main body prose (not FAQ) should either be clearly framed as 'AWS limits…' or cited carefully — the current phrasing reads as authoritative assertion rather than AWS background.",
+            "Four separate full `<CodeBlock intellisense>` examples on a conceptual/triggers page exceeds the section instruction 'Use a single short example per concept, not multiple variants.' The batching example is functionally a superset of the basic example with only `batchSize` and `maxBatchWindowSeconds` changed — these could be merged or the batching section could use a focused snippet instead of a full re-declaration of the table and function."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify `streamType` property name against the DynamoDB table type definition (types/stacktape-config/dynamodb-table.d.ts or equivalent). If the actual property is `streaming`, rename it throughout all four code examples and the 'Enabling streams on the table' prose.",
+            "Replace the standalone batching `<CodeBlock>` example with a focused diff-style snippet showing only the changed `events` array (using focus markers on an abridged block) rather than re-declaring the full `defineConfig(() => { ... })` boilerplate. This reduces page weight and matches the section instruction for 'a single short example per concept'.",
+            "Frame the '2 readers per shard / 5 read calls per second' AWS limit in 'When NOT to use' explicitly as an AWS limit: 'AWS limits DynamoDB Streams to 2 simultaneous readers per shard…' rather than presenting it as implied Stacktape behavior.",
+            "The `startingPosition` property in the basic example is typed as `string` in source (not `'LATEST' | 'TRIM_HORIZON'` union). The prose correctly documents both values, but a one-line note that the source type is open-string would help advanced users who wonder if other values are accepted.",
+            "Consider adding a one-sentence note in the 'Processing stream records' section pointing readers to `@aws-sdk/util-dynamodb` `unmarshall` function earlier — it's mentioned at the very end of the section but is the single most useful tip for a new user encountering `{ S: 'hello' }` attribute format for the first time.",
+            "The `<Warning>` about external table IAM permissions is long (two sentences plus a parenthetical). Split into two short bullets or trim — the key point (verify permissions for external tables, not needed for same-stack tables) is buried in the parenthetical."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No forbidden patterns: all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} />, no YAML blocks, no StacktapeConfig type import.",
+            "Accurate numeric defaults and limits sourced from DynamoDbIntegrationProps: batchSize default 100 / max 1,000, maxBatchWindowSeconds max 300 s, startingPosition default TRIM_HORIZON — all match the source JSDoc.",
+            "Failure handling section is thorough: bisectBatchOnFunctionError, maximumRetryAttempts, and onFailure are shown together with a realistic DLQ example, and the idempotency warning is correctly placed and grounded in source behavior.",
+            "The streamType comparison table (KEYS_ONLY / NEW_IMAGE / OLD_IMAGE / NEW_AND_OLD_IMAGES) is an effective decision-support tool positioned before the first code example.",
+            "FAQ spans all three required categories: Stacktape-specific (how to enable streams, how to handle poison records), underlying AWS service (retention period, shard reader limits, cost), and comparison (DynamoDB Streams vs Kinesis Data Streams).",
+            "External table stream section correctly distinguishes $ResourceParam usage (same-stack table) from direct ARN string (external table), and the warning about manual IAM permissions is actionable.",
+            "Processing payload section gives a realistic TypeScript handler skeleton with switch on eventName and a concrete tip about unmarshall — practical for the target audience.",
+            "When NOT to use section is concrete and names specific alternatives with links, rather than vague anti-patterns."
+          ],
+          "problems": [
+            "The batching section has a second full CodeBlock that reconstructs a new table + function from scratch (eventsTable + batchProcessor) just to highlight two properties. Section instructions say 'Use a single short example per concept, not multiple variants.' This is borderline: the second example duplicates ~70% of the boilerplate from the basic example when focus markers on the first block would suffice.",
+            "The 'Enabling streams on the table' section references a `streamType` property on DynamoDbTable, but the provided source file (events.d.ts) covers only the integration side — the DynamoDB table type definition is not in the supplied source. The claim is plausible and probably accurate, but it is not grounded in the provided source files, which the instructions require.",
+            "The `maxBatchWindowSeconds` row in the batching table shows '—' for the default and says 'the batching behavior depends on the underlying AWS event source mapping defaults' — this is vague. The source has no @default for this property, which is fine to say, but 'AWS event source mapping defaults' without further precision leaves a production engineer guessing whether the effective default is 0 s (invoke immediately) or something else.",
+            "In the batching code example the `startingPosition` property is omitted, meaning it silently defaults to TRIM_HORIZON. Nearby prose doesn't mention this; a first-time user deploying this exact snippet to a high-write table might be surprised when the function backfills 24 hours of history on startup.",
+            "The page has four separate <CodeBlock> examples (basic, batching, failure handling, external). While each covers a distinct scenario, the section instructions for trigger pages call for a canonical example with focused markers rather than multiple full stack reconstructions. The duplication of defineConfig, table, and packaging boilerplate across examples increases cognitive load without proportional informational gain."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Collapse the batching CodeBlock into the basic example by extending it with batchSize and maxBatchWindowSeconds focus markers. Remove the standalone eventsTable + batchProcessor reconstruction — it adds boilerplate noise without new information.",
+            "Add a one-sentence note in the batching example prose explaining that omitting startingPosition defaults to TRIM_HORIZON, which will backfill up to 24 hours of existing records on first deployment — a common gotcha for high-write tables.",
+            "Tighten the maxBatchWindowSeconds default description: the source has no @default, which means AWS uses 0 s (invoke as soon as records are available). If that is correct, say it explicitly ('when omitted, the function is invoked as soon as records arrive, with no added delay') rather than deferring to 'AWS defaults'.",
+            "Add a brief qualifier to the 'Enabling streams on the table' section noting that the `streamType` property lives on the DynamoDB table resource config — it would help readers who haven't read the DynamoDB table page understand where to set it without cross-page hunting.",
+            "The external table section's warning lists four IAM actions as a flat sentence. A short code block showing the minimal IAM policy JSON would be more copy-paste useful for engineers who need to attach it to an existing execution role."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and within the target length.",
+            "The page uses short, descriptive H2 headings and a useful FAQ with Stacktape, AWS-service, and comparison questions.",
+            "The Stacktape configuration examples use <CodeBlock intellisense> with a TypeScript tab and avoid forbidden hand-authored YAML.",
+            "Batching, retry, failure destination, and starting-position controls are easy to find and mostly tied to properties visible in DynamoDbIntegrationProps."
+          ],
+          "problems": [
+            "Major source-grounding gap: the provided source only defines DynamoDbIntegrationProps; it does not define DynamoDbTable, primaryKey, streamType, streamArn referenceable parameters, or $ResourceParam behavior. The page repeatedly presents those as Stacktape facts.",
+            "The source comment says DynamoDB streams must be enabled by setting `streaming` in `dynamoDbTables` config, while the draft says to set `streamType`. With the provided source set, that is contradictory or at least unverified.",
+            "Several AWS-specific claims are not grounded in the provided source, including 24-hour retention, 2 readers per shard, 5 read calls per second per shard, stream read pricing, ordering by partition key, IteratorAge monitoring, and Kinesis retention/cost details.",
+            "The Basic example and table-enabling section depend on unsupported table configuration details, so the most important copyable path may be invalid under the provided source set.",
+            "The page overstates external-stream permissions: the source only requires `streamArn`; it does not document IAM permissions or what Stacktape automatically wires for same-stack streams.",
+            "Some tunable guidance is invented beyond the source, especially recommended ranges like `batchSize` 200-1,000 and `maxBatchWindowSeconds` 5-60 seconds for high-write tables.",
+            "The handler event payload section is useful, but the source does not document the DynamoDB stream payload shape. The page should either cite AWS-default behavior cautiously or keep it narrower."
+          ],
+          "mandatoryFixes": [
+            "Replace or qualify the `streamType` table-enabling guidance using only sourced facts. With the current source set, say the integration requires a DynamoDB table stream ARN and avoid documenting `DynamoDbTable.streamType` unless the DynamoDB table source file is added.",
+            "Remove or source-ground every Stacktape-specific claim about `streamArn` referenceable parameters and `$ResourceParam('ordersTable', 'streamArn')`. If kept, the corresponding DynamoDB table/referenceable-parameter source must be provided.",
+            "Revise all copyable Stacktape config examples so every Stacktape property shown is grounded in the provided source files, or request/add the missing DynamoDbTable source before publishing.",
+            "Remove unsupported AWS numeric claims or clearly limit them to sourced AWS-background facts only where the review rules allow it. The current hard requirement says every technical statement must be grounded in the provided source files.",
+            "Delete or soften the external-table IAM warning unless a source file documents those exact permissions and Stacktape's automatic integration behavior for same-stack tables."
+          ],
+          "optionalImprovements": [
+            "Keep one canonical event-binding example focused on `events: [new DynamoDbIntegration(...)]`; move table-stream setup to a short prerequisite paragraph if the table source remains unavailable.",
+            "Add a compact table for DynamoDbIntegration properties that are actually in source: `streamArn`, `batchSize`, `maxBatchWindowSeconds`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError`.",
+            "Shorten the FAQ answers that rely heavily on external AWS behavior, or link them to broader DynamoDB/Kinesis concept pages once those pages have grounded sources.",
+            "In the retry section, distinguish what Stacktape config exposes from what AWS Lambda event source mappings do underneath, so unsupported AWS behavior does not read as Stacktape-specific behavior."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided DynamoDbIntegration source and avoids the forbidden YAML/plain-object config patterns. The main publication risks are a few Stacktape-specific or AWS-mechanics claims that are either contradicted by the provided source wording or not grounded strongly enough for a source-grounded page.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Because the entire batch is retried on failure, your handler must be idempotent … Use the record's event ID or item keys for deduplication.”",
+              "reason": "The provided Stacktape source supports the entire-batch retry and idempotency requirement, but it does not document a DynamoDB stream record event ID or any deduplication strategy. The handler example in the draft also omits eventID, so this adds an unsupported concrete field-based recommendation.",
+              "suggestedFix": "Keep the idempotency guidance, but remove the specific “record's event ID” recommendation unless another provided source documents that field. For example: “Use item keys or another application-level idempotency key for deduplication.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“DynamoDbIntegration requires the ARN of a DynamoDB table stream. Before attaching the trigger, enable streams on the DynamoDB table — the integration source notes you do this via the table's streaming configuration.”",
+              "reason": "The authoritative integration type comment says to set `streaming` in `dynamoDbTables` config, while the generated page and examples use `streamType`. The draft tries to avoid naming the property, but “streaming configuration” is vague and may conflict with the actual documented `streamType` property used elsewhere on the page.",
+              "suggestedFix": "Use the page’s own generated-doc wording if table source is unavailable: “Enable streams on the DynamoDB table resource before attaching the trigger; in the current TypeScript examples this is shown with `streamType`.” Avoid calling it “streaming configuration” unless the DynamoDbTable source confirms that property name.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "You must enable streams on the DynamoDB table first\n * (set `streaming` in your `dynamoDbTables` config)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/triggers/dynamodb-streams.md",
+                  "quote": "Before attaching a DynamoDB stream trigger, you must enable streaming on your [DynamoDB table](/resources/databases/dynamodb) by setting the `streamType` property."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When referencing a stream from an external table, verify that the consuming Lambda function's execution role has `dynamodb:GetRecords`, `dynamodb:GetShardIterator`, `dynamodb:DescribeStream`, and `dynamodb:ListStreams` permissions on the stream ARN.”",
+              "reason": "The source confirms `streamArn` can be any string and that same-stack resources can use referenceable parameters, but it does not document IAM permissions or whether Stacktape adds permissions for external stream ARNs. This is actionable Stacktape configuration guidance and should be sourced or narrowed.",
+              "suggestedFix": "Narrow the warning to avoid claiming a Stacktape-specific permission requirement unless another source confirms it. For example: “For external streams, make sure the Lambda execution role can read the DynamoDB stream; Stacktape can only infer same-stack resource relationships when you reference resources from the same stack.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "The ARN of the DynamoDB table stream."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without a retry cap, a single bad record can block its shard indefinitely. Without a failure destination, you lose visibility into what failed and why.”",
+              "reason": "The source supports `maximumRetryAttempts`, `onFailure`, whole-batch retry, and idempotency, but it does not state indefinite shard blocking or visibility loss behavior. This is plausible AWS guidance, but it is written as a concrete operational outcome of Stacktape’s integration.",
+              "suggestedFix": "Keep the recommendation but soften the unsupported outcome: “For stream processors, set a retry cap and an `onFailure` destination when failed records need an investigation path. Otherwise, repeated batch failures can keep the consumer retrying instead of making progress.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "A destination (SQS queue or SNS topic) for batches that fail after all retry attempts."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "The number of times to retry a failed batch of records."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Setting `parallelizationFactor` greater than 1 allows concurrent processing within the same shard, which can cause out-of-order processing” and “records within a shard may be processed out of order.”",
+              "reason": "The Stacktape source only states that `parallelizationFactor` is the number of batches processed concurrently from the same shard. It does not document ordering semantics or out-of-order behavior. This may be AWS behavior, but the draft presents it as a direct consequence of the Stacktape property.",
+              "suggestedFix": "Separate the sourced Stacktape fact from the AWS caution: “`parallelizationFactor` controls how many batches are processed concurrently from the same shard. Because concurrent stream processing can complicate ordering-sensitive handlers, keep the default for workflows that require strict per-item ordering.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "The number of batches to process concurrently from the same shard."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The view type you choose determines what your handler can read off each record … keys-only view is cheaper.”",
+              "reason": "The provided generated docs support the stream view type meanings, but the source files provided for this verification do not include DynamoDbTable type definitions or pricing details for stream view types. “Cheaper” is a cost claim that may be true in a broader AWS sense, but it is not grounded in the supplied files.",
+              "suggestedFix": "Remove “cheaper” or rephrase as a data-volume tradeoff: “Use a keys-only view when the handler will fetch the item itself and does not need images in the stream record.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“For high-write tables (hundreds of writes per second), set `batchSize` to 200–1,000 and `maxBatchWindowSeconds` to 5–60 seconds to reduce invocation count and cost.”",
+              "reason": "The source supports the `batchSize` maximum and the `maxBatchWindowSeconds` maximum, but it does not support the recommended numeric ranges of 200–1,000 records or 5–60 seconds. Because these are tuning recommendations rather than hard constraints, this is a low-severity grounding issue.",
+              "suggestedFix": "Keep the sourced maximums and make the recommendation less numeric: “For high-write tables, increase `batchSize` and use a small batch window to reduce invocation count, then tune based on latency and iterator age.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab for Stacktape configuration examples and does not hand-author YAML config examples.",
+            "The API reference uses `<ApiReference definitionName=\"DynamoDbIntegrationProps\" />`, which matches the provided integration props type name.",
+            "The key Stacktape-specific properties in the examples and prose (`streamArn`, `batchSize`, `maxBatchWindowSeconds`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError`) are present in `DynamoDbIntegrationProps`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided `DynamoDbIntegrationProps` source and uses the required CodeBlock pattern for Stacktape config examples. The main issues are unsupported or over-specific claims around same-stack permissions/stream configuration, parallelization ordering, and a few AWS-specific operational statements that the provided Stacktape sources do not establish.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For tables in the same stack, prefer `$ResourceParam` over hard-coding the ARN.” and the external-table warning imply same-stack tables are preferable because Stacktape resolves or wires the integration differently.",
+              "reason": "The provided authoritative integration type only requires `streamArn` and says streams must be enabled first. It does not state that `$ResourceParam` grants permissions, wires permissions automatically, or is functionally different from any other string ARN beyond deploy-time reference resolution. This could mislead readers into assuming same-stack permissions are handled automatically while external-table permissions are not.",
+              "suggestedFix": "Narrow the wording: “For tables in the same stack, `$ResourceParam('ordersTable', 'streamArn')` avoids hard-coding the stream ARN.” Avoid implying automatic IAM behavior unless supported by Lambda/event mapping source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface DynamoDbIntegrationProps {\n  /**\n   * #### The ARN of the DynamoDB table stream.\n   */\n  streamArn: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The examples configure `new DynamoDbTable({ ..., streamType: 'NEW_AND_OLD_IMAGES' })`, while the prose says the integration source notes this is enabled via the table's streaming configuration.",
+              "reason": "The only authoritative source file provided for the integration says streams are enabled by setting `streaming` in `dynamoDbTables` config, not `streamType`. The generated LLM doc mentions `streamType`, but source priority says TypeScript types win. Without the DynamoDbTableProps source in this source list, the exact table-side property is ambiguous.",
+              "suggestedFix": "Avoid making the table-side property name a central factual claim unless DynamoDbTableProps is available. Keep the example only if the code validator confirms it, and phrase prose cautiously: “Enable DynamoDB Streams on the table and pass its `streamArn` to the integration.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "Records are processed in batches. You must enable streams on the DynamoDB table first\n * (set `streaming` in your `dynamoDbTables` config)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Set `parallelizationFactor` to process multiple batches from the same shard concurrently. This increases throughput but means records within a shard may be processed out of order.”",
+              "reason": "The source supports that `parallelizationFactor` is the number of batches processed concurrently from the same shard. It does not state ordering behavior or that records may be processed out of order. That ordering claim may be generally AWS-relevant, but it is not grounded in the provided Stacktape source and affects configuration decisions.",
+              "suggestedFix": "Keep the grounded part and make the ordering caution less absolute unless additional AWS/Lambda event source mapping source is available: “Use this only when your handler can tolerate concurrent batch processing from the same shard.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "/**\n   * #### The number of batches to process concurrently from the same shard.\n   */\n  parallelizationFactor?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without a retry cap, a single bad record can block its shard indefinitely.”",
+              "reason": "The source documents that failed batches are retried and that `maximumRetryAttempts` controls retries, but it does not state the default retry behavior or that an unbounded retry can block a shard indefinitely. This is a strong operational claim that affects configuration guidance.",
+              "suggestedFix": "Ground the recommendation without asserting an unsupported default: “Set `maximumRetryAttempts` with `onFailure` when you want failed batches to stop retrying after a controlled number of attempts and be sent to a destination.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "/**\n   * #### The number of times to retry a failed batch of records.\n   *\n   * ---\n   *\n   * > **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this.\n   */\n  maximumRetryAttempts?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without a failure destination, you lose visibility into what failed and why.”",
+              "reason": "The source says `onFailure` is a destination for batches that fail after all retry attempts. It does not say failed batches otherwise have no visibility, nor does it describe what diagnostic payload is available in the destination.",
+              "suggestedFix": "Use narrower wording: “Add `onFailure` when you want failed batches sent to SQS or SNS after retries are exhausted.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "/**\n   * #### A destination (SQS queue or SNS topic) for batches that fail after all retry attempts.\n   */\n  onFailure?: DestinationOnFailure;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“DynamoDB Streams read requests are free — you pay only for the Lambda invocations that process the records.”",
+              "reason": "This is AWS pricing guidance, but no pricing source is included in the provided source files. It may be true as general AWS context, but pricing can change and the prompt requires concrete pricing to come from source files when present. Because no pricing source is provided, the claim should be phrased cautiously or removed.",
+              "suggestedFix": "Use non-price-specific wording: “DynamoDB stream processing cost is usually driven by the Lambda invocations and duration. Batch more records per invocation when latency allows.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />` for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The API reference uses `<ApiReference definitionName=\"DynamoDbIntegrationProps\" />`, which matches the integration props type in the provided source.",
+            "The core `DynamoDbIntegration` properties in the examples are present in the source: `streamArn`, `batchSize`, `startingPosition`, `maxBatchWindowSeconds`, `maximumRetryAttempts`, `bisectBatchOnFunctionError`, `onFailure`, and `parallelizationFactor`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 23, col 7: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 18, col 9: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 24, col 7: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 18, col 9: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 27, col 7: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 19, col 9: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 15, col 7: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 9, col 9: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__triggers__dynamodb-streams/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong self-contained intro paragraph that answers 'what is this and why' in under 75 words — good AEO target.",
+            "The `streamType` table (KEYS_ONLY / NEW_IMAGE / OLD_IMAGE / NEW_AND_OLD_IMAGES) with a 'what the record contains' column and an explicit recommendation is exactly what a first-time user needs before seeing any code.",
+            "Every `<CodeBlock>` uses `[!code focus-start]` / `[!code focus-end]` markers correctly so the trigger property is visually highlighted rather than buried in boilerplate.",
+            "The fenced TypeScript handler example showing `eventName` switch and DynamoDB attribute format is high-signal content that saves a new user 20 minutes of Googling.",
+            "The retry/failure-handling section combines a code example, a three-row property table, a `<Warning>` for idempotency, and a `<Tip>` pairing `maximumRetryAttempts` + `onFailure` — this is the kind of opinionated, actionable guidance the style guide calls for.",
+            "The 'Using an external table stream' section covers the direct ARN path without padding — useful and concise.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service mechanics, and comparison/choosing questions) with appropriately-sized 2-4 sentence answers.",
+            "No mandatory style violations: all Stacktape config is in `<CodeBlock intellisense>`, no fenced YAML, no plain-object StacktapeConfig pattern, single `<ApiReference>`, and no shell command grouping issues."
+          ],
+          "problems": [
+            "Potential factual error in code examples: the events.d.ts JSDoc says 'You must enable streams on the DynamoDB table first (set `streaming` in your `dynamoDbTables` config).' The page uses `streamType: 'NEW_AND_OLD_IMAGES'` on `DynamoDbTable`. If the actual property is named `streaming` (not `streamType`), every code example that creates a `DynamoDbTable` is wrong. The provided source files do not include the DynamoDB table type definition to confirm, so this is unverified against authoritative source.",
+            "The 'Enabling streams on the table' section states the table 'exposes a `streamArn` referenceable parameter' once `streamType` is set — but the `streamArn` referenceable param is not documented in the provided source files (only events.d.ts is provided). This is plausible but ungrounded for this page's source list.",
+            "The 'When NOT to use' section claims 'DynamoDB Streams supports at most 2 simultaneous readers per shard and is limited to 5 read calls per second per shard.' This is a well-known AWS limit but is not present in the provided source files. Per style guide rules, AWS facts in main body prose (not FAQ) should either be clearly framed as 'AWS limits…' or cited carefully — the current phrasing reads as authoritative assertion rather than AWS background.",
+            "Four separate full `<CodeBlock intellisense>` examples on a conceptual/triggers page exceeds the section instruction 'Use a single short example per concept, not multiple variants.' The batching example is functionally a superset of the basic example with only `batchSize` and `maxBatchWindowSeconds` changed — these could be merged or the batching section could use a focused snippet instead of a full re-declaration of the table and function."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify `streamType` property name against the DynamoDB table type definition (types/stacktape-config/dynamodb-table.d.ts or equivalent). If the actual property is `streaming`, rename it throughout all four code examples and the 'Enabling streams on the table' prose.",
+            "Replace the standalone batching `<CodeBlock>` example with a focused diff-style snippet showing only the changed `events` array (using focus markers on an abridged block) rather than re-declaring the full `defineConfig(() => { ... })` boilerplate. This reduces page weight and matches the section instruction for 'a single short example per concept'.",
+            "Frame the '2 readers per shard / 5 read calls per second' AWS limit in 'When NOT to use' explicitly as an AWS limit: 'AWS limits DynamoDB Streams to 2 simultaneous readers per shard…' rather than presenting it as implied Stacktape behavior.",
+            "The `startingPosition` property in the basic example is typed as `string` in source (not `'LATEST' | 'TRIM_HORIZON'` union). The prose correctly documents both values, but a one-line note that the source type is open-string would help advanced users who wonder if other values are accepted.",
+            "Consider adding a one-sentence note in the 'Processing stream records' section pointing readers to `@aws-sdk/util-dynamodb` `unmarshall` function earlier — it's mentioned at the very end of the section but is the single most useful tip for a new user encountering `{ S: 'hello' }` attribute format for the first time.",
+            "The `<Warning>` about external table IAM permissions is long (two sentences plus a parenthetical). Split into two short bullets or trim — the key point (verify permissions for external tables, not needed for same-stack tables) is buried in the parenthetical."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No forbidden patterns: all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} />, no YAML blocks, no StacktapeConfig type import.",
+            "Accurate numeric defaults and limits sourced from DynamoDbIntegrationProps: batchSize default 100 / max 1,000, maxBatchWindowSeconds max 300 s, startingPosition default TRIM_HORIZON — all match the source JSDoc.",
+            "Failure handling section is thorough: bisectBatchOnFunctionError, maximumRetryAttempts, and onFailure are shown together with a realistic DLQ example, and the idempotency warning is correctly placed and grounded in source behavior.",
+            "The streamType comparison table (KEYS_ONLY / NEW_IMAGE / OLD_IMAGE / NEW_AND_OLD_IMAGES) is an effective decision-support tool positioned before the first code example.",
+            "FAQ spans all three required categories: Stacktape-specific (how to enable streams, how to handle poison records), underlying AWS service (retention period, shard reader limits, cost), and comparison (DynamoDB Streams vs Kinesis Data Streams).",
+            "External table stream section correctly distinguishes $ResourceParam usage (same-stack table) from direct ARN string (external table), and the warning about manual IAM permissions is actionable.",
+            "Processing payload section gives a realistic TypeScript handler skeleton with switch on eventName and a concrete tip about unmarshall — practical for the target audience.",
+            "When NOT to use section is concrete and names specific alternatives with links, rather than vague anti-patterns."
+          ],
+          "problems": [
+            "The batching section has a second full CodeBlock that reconstructs a new table + function from scratch (eventsTable + batchProcessor) just to highlight two properties. Section instructions say 'Use a single short example per concept, not multiple variants.' This is borderline: the second example duplicates ~70% of the boilerplate from the basic example when focus markers on the first block would suffice.",
+            "The 'Enabling streams on the table' section references a `streamType` property on DynamoDbTable, but the provided source file (events.d.ts) covers only the integration side — the DynamoDB table type definition is not in the supplied source. The claim is plausible and probably accurate, but it is not grounded in the provided source files, which the instructions require.",
+            "The `maxBatchWindowSeconds` row in the batching table shows '—' for the default and says 'the batching behavior depends on the underlying AWS event source mapping defaults' — this is vague. The source has no @default for this property, which is fine to say, but 'AWS event source mapping defaults' without further precision leaves a production engineer guessing whether the effective default is 0 s (invoke immediately) or something else.",
+            "In the batching code example the `startingPosition` property is omitted, meaning it silently defaults to TRIM_HORIZON. Nearby prose doesn't mention this; a first-time user deploying this exact snippet to a high-write table might be surprised when the function backfills 24 hours of history on startup.",
+            "The page has four separate <CodeBlock> examples (basic, batching, failure handling, external). While each covers a distinct scenario, the section instructions for trigger pages call for a canonical example with focused markers rather than multiple full stack reconstructions. The duplication of defineConfig, table, and packaging boilerplate across examples increases cognitive load without proportional informational gain."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Collapse the batching CodeBlock into the basic example by extending it with batchSize and maxBatchWindowSeconds focus markers. Remove the standalone eventsTable + batchProcessor reconstruction — it adds boilerplate noise without new information.",
+            "Add a one-sentence note in the batching example prose explaining that omitting startingPosition defaults to TRIM_HORIZON, which will backfill up to 24 hours of existing records on first deployment — a common gotcha for high-write tables.",
+            "Tighten the maxBatchWindowSeconds default description: the source has no @default, which means AWS uses 0 s (invoke as soon as records are available). If that is correct, say it explicitly ('when omitted, the function is invoked as soon as records arrive, with no added delay') rather than deferring to 'AWS defaults'.",
+            "Add a brief qualifier to the 'Enabling streams on the table' section noting that the `streamType` property lives on the DynamoDB table resource config — it would help readers who haven't read the DynamoDB table page understand where to set it without cross-page hunting.",
+            "The external table section's warning lists four IAM actions as a flat sentence. A short code block showing the minimal IAM policy JSON would be more copy-paste useful for engineers who need to attach it to an existing execution role."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and within the target length.",
+            "The page uses short, descriptive H2 headings and a useful FAQ with Stacktape, AWS-service, and comparison questions.",
+            "The Stacktape configuration examples use <CodeBlock intellisense> with a TypeScript tab and avoid forbidden hand-authored YAML.",
+            "Batching, retry, failure destination, and starting-position controls are easy to find and mostly tied to properties visible in DynamoDbIntegrationProps."
+          ],
+          "problems": [
+            "Major source-grounding gap: the provided source only defines DynamoDbIntegrationProps; it does not define DynamoDbTable, primaryKey, streamType, streamArn referenceable parameters, or $ResourceParam behavior. The page repeatedly presents those as Stacktape facts.",
+            "The source comment says DynamoDB streams must be enabled by setting `streaming` in `dynamoDbTables` config, while the draft says to set `streamType`. With the provided source set, that is contradictory or at least unverified.",
+            "Several AWS-specific claims are not grounded in the provided source, including 24-hour retention, 2 readers per shard, 5 read calls per second per shard, stream read pricing, ordering by partition key, IteratorAge monitoring, and Kinesis retention/cost details.",
+            "The Basic example and table-enabling section depend on unsupported table configuration details, so the most important copyable path may be invalid under the provided source set.",
+            "The page overstates external-stream permissions: the source only requires `streamArn`; it does not document IAM permissions or what Stacktape automatically wires for same-stack streams.",
+            "Some tunable guidance is invented beyond the source, especially recommended ranges like `batchSize` 200-1,000 and `maxBatchWindowSeconds` 5-60 seconds for high-write tables.",
+            "The handler event payload section is useful, but the source does not document the DynamoDB stream payload shape. The page should either cite AWS-default behavior cautiously or keep it narrower."
+          ],
+          "mandatoryFixes": [
+            "Replace or qualify the `streamType` table-enabling guidance using only sourced facts. With the current source set, say the integration requires a DynamoDB table stream ARN and avoid documenting `DynamoDbTable.streamType` unless the DynamoDB table source file is added.",
+            "Remove or source-ground every Stacktape-specific claim about `streamArn` referenceable parameters and `$ResourceParam('ordersTable', 'streamArn')`. If kept, the corresponding DynamoDB table/referenceable-parameter source must be provided.",
+            "Revise all copyable Stacktape config examples so every Stacktape property shown is grounded in the provided source files, or request/add the missing DynamoDbTable source before publishing.",
+            "Remove unsupported AWS numeric claims or clearly limit them to sourced AWS-background facts only where the review rules allow it. The current hard requirement says every technical statement must be grounded in the provided source files.",
+            "Delete or soften the external-table IAM warning unless a source file documents those exact permissions and Stacktape's automatic integration behavior for same-stack tables."
+          ],
+          "optionalImprovements": [
+            "Keep one canonical event-binding example focused on `events: [new DynamoDbIntegration(...)]`; move table-stream setup to a short prerequisite paragraph if the table source remains unavailable.",
+            "Add a compact table for DynamoDbIntegration properties that are actually in source: `streamArn`, `batchSize`, `maxBatchWindowSeconds`, `startingPosition`, `maximumRetryAttempts`, `onFailure`, `parallelizationFactor`, and `bisectBatchOnFunctionError`.",
+            "Shorten the FAQ answers that rely heavily on external AWS behavior, or link them to broader DynamoDB/Kinesis concept pages once those pages have grounded sources.",
+            "In the retry section, distinguish what Stacktape config exposes from what AWS Lambda event source mappings do underneath, so unsupported AWS behavior does not read as Stacktape-specific behavior."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 23, col 7: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 18, col 9: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 24, col 7: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 18, col 9: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 27, col 7: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 19, col 9: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 15, col 7: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 9, col 9: Type 'DynamoDbIntegration' is not assignable to type 'ApplicationLoadBalancerIntegration | KafkaTopicIntegration | SnsIntegration | SqsIntegration | ... 7 more ... | EventBusIntegration'.\n  Type 'DynamoDbIntegration' is not assignable to type 'EventBusIntegration'.\n    Types of property 'type' are incompatible.\n      Type '\"dynamodb\"' is not assignable to type '\"event-bus\"'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -950,8 +1522,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\dynamodb-streams.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/configuration/triggers/dynamodb-streams.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 6, advisory high 0, verifier medium 12"
+  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 4, advisory high 0, verifier medium 4",
+  "refinementAttempts": 2,
+  "refinementStalled": true
 }

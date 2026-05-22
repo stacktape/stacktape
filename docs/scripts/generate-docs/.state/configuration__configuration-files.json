@@ -2,7 +2,7 @@
   "pageId": "configuration__configuration-files",
   "pageRoute": "configuration/configuration-files",
   "startedAt": "2026-05-16T15:42:10.579Z",
-  "updatedAt": "2026-05-16T16:06:26.158Z",
+  "updatedAt": "2026-05-22T02:38:36.449Z",
   "iterations": [
     {
       "iteration": 1,
@@ -947,20 +947,670 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__configuration-files/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 6,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Self-contained, well-framed opening paragraph that reads naturally as a standalone snippet.",
+            "FeatureComparisonTable at the top gives new users an instant orientation without reading prose.",
+            "TypeScript examples use proper <CodeBlock intellisense> format consistently throughout most of the page.",
+            "Realistic, copyable code examples — API + database + handler patterns feel like real projects.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service mechanics, comparison questions), and answers are concise enough to be Featured Snippets.",
+            "Top-level config fields table (resources, hooks, scripts, variables, etc.) is a strong reference anchor for a first-time reader.",
+            "TypeScript-to-YAML class mapping table at the bottom is genuinely useful for users trying to write YAML."
+          ],
+          "problems": [
+            "MANDATORY VIOLATION: The 'Splitting config across files' section contains a fenced ```typescript block whose body instantiates `new RelationalDatabase(...)` and `new RdsEnginePostgres(...)` — Stacktape resource class instantiations. The rule forbids Stacktape resource classes in fenced typescript blocks regardless of whether the file is called stacktape.ts or a helper module.",
+            "MANDATORY VIOLATION (consequence of the above): scannability penalized at least 1 point; practicalUsefulness penalized at least 1 point.",
+            "Factual error: the page states that `$Var()`, `$File()`, and `$Format()` 'are not importable as TypeScript functions.' The curated source (typescript-config.mdx) explicitly shows `import { $Format, $Var, $File } from 'stacktape'` — these ARE importable. This is wrong and directly misleads users setting up directives.",
+            "The `cliArgs` property type in the defineConfig callback table is documented as `Record<string, string|number|boolean>` but the curated source shows `cliArgs: string[]`. These are incompatible types.",
+            "The `awsProfile` and `user` properties in the defineConfig callback table are not present in any of the provided source files. Adding undocumented properties to a reference table without a source is an unsupported claim.",
+            "The YAML configuration section explains the format in prose but never shows what YAML actually looks like — a reader who came to this page specifically to evaluate YAML has no concrete reference for the syntax."
+          ],
+          "mandatoryFixes": [
+            "Remove the fenced ```typescript block containing `new RelationalDatabase(...)` and `new RdsEnginePostgres(...)` in the 'Splitting config across files' section. The helper module pattern should be described in prose only (e.g., 'Extract resource factory functions into separate .ts files and import them in stacktape.ts — a standard TypeScript module pattern'). The actual `stacktape.ts` that imports the helper is already shown in a correct <CodeBlock intellisense> block — that is sufficient.",
+            "Correct the directive importability claim: remove the sentence 'Additional directives like $Var(), $File(), and $Format() are available using string syntax in both TypeScript and YAML configs but are not importable as TypeScript functions.' Instead, add `$Format`, `$Var`, and `$File` to the importable TypeScript functions table, consistent with the source showing `import { $Format, $Var, $File } from 'stacktape'`."
+          ],
+          "optionalImprovements": [
+            "Verify the `cliArgs` type against the actual TypeScript definition (source shows `string[]`, draft shows `Record<string, string|number|boolean>`). Also verify or remove `awsProfile` and `user` from the defineConfig callback table if they cannot be grounded in source.",
+            "The YAML section could tell readers where to find YAML examples: 'Every resource page's <CodeBlock> shows a YAML tab auto-generated from the TypeScript source — use those tabs to see YAML syntax for any specific resource.' This compensates for not being able to hand-author a YAML config example.",
+            "The 'Splitting config across files' section currently shows a CodeBlock whose displayed code inlines the database definition rather than actually using the helper import pattern described in the surrounding prose. Consider replacing the CodeBlock content with one that genuinely imports from a helper module (e.g., `import { createDatabase } from './config/database'`) so the example matches the prose.",
+            "The config file detection paragraph lists `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, and `stacktape.js` — but the FAQ says JavaScript is supported while the main section omits `stacktape.js`. Verify the detection list and keep it consistent with the FAQ entry.",
+            "The $CfFormat directive appears in the importable TypeScript functions table, but the curated source shows `$Format` — not `$CfFormat` — as the exported name. Confirm which identifier is correct and align the table accordingly."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The FeatureComparisonTable between TypeScript and YAML is exactly what this audience needs first — it answers the decision question before diving into mechanics.",
+            "Config file structure table covers all top-level fields from _root.d.ts accurately (resources, variables, hooks, scripts, directives, deploymentConfig, stackConfig, providerConfig, cloudformationResources).",
+            "TypeScript-to-YAML class/type mapping table is a high-value reference that no other page likely consolidates.",
+            "The defineConfig callback context table (stage, region, projectName, command) is practical and accurately sourced from typescript-config.mdx.",
+            "CodeBlock intellisense is used correctly for all primary Stacktape config examples — no hand-authored YAML config blocks.",
+            "FAQ quality is strong: mixes Stacktape-specific, AWS-behavior, and comparison questions. The 'Can I switch YAML to TypeScript without redeploying?' answer is exactly the kind of gotcha this audience needs spelled out.",
+            "The 'When YAML falls short' subsection is opinionated and concrete rather than just describing the format."
+          ],
+          "problems": [
+            "MANDATORY STYLE VIOLATION: The 'Splitting config across files' section contains a fenced ```typescript block with `new RelationalDatabase(...)` — a Stacktape resource class instantiation. Per the rules, any fenced typescript block containing a Stacktape resource class is forbidden.",
+            "FACTUAL: `cliArgs` type is listed as `Record<string, string|number|boolean>` in the defineConfig callback table, but the source (typescript-config.mdx) explicitly shows `cliArgs: string[]`. A developer using the wrong type will hit a TypeScript error.",
+            "UNSOURCED CLAIM: `awsProfile` and `user` are listed as defineConfig callback properties in the table. Neither appears in the provided source files (typescript-config.mdx lists only stage, region, projectName, command, cliArgs). If these don't exist, code depending on them fails.",
+            "UNSOURCED DIRECTIVES: The directives table includes `$CfFormat`, `$CfStackOutput`, `$CfResourceParam`, `$SsmParam`, and `$GitInfo`. The source (typescript-config.mdx) enumerates only `$Secret, $ResourceParam, $Stage, $Region, $Format, $Var, $File`. The extra five are not grounded in any provided source file.",
+            "UNSOURCED: `stacktape.js` is listed in the auto-detected config filenames. The provided source files mention only `.ts` and `.yml`/`.yaml`. This may be incorrect."
+          ],
+          "mandatoryFixes": [
+            "The helper module example in 'Splitting config across files' is in a fenced ```typescript block but contains `new RelationalDatabase(...)`. Per the rules, fenced typescript blocks may not contain Stacktape resource class instantiations. Fix: either (a) restructure the section to show the helper import/function signature without direct resource class instantiation in the fenced block, or (b) consolidate the full split-file pattern into a single `<CodeBlock intellisense tabs={[...]} />` that shows the complete stacktape.ts. Penalizes scannability.",
+            "Fix `cliArgs` type in the defineConfig callback table from `Record<string, string|number|boolean>` to `string[]` to match the source. A developer who types their destructured `cliArgs` as the documented Record type will get an immediate TypeScript error.",
+            "Remove `awsProfile` and `user` from the defineConfig callback properties table. These are not present in any provided source file. If they do exist in the real package, they must be source-grounded before publishing — unsourced callback properties that don't exist will cause runtime errors for developers who rely on them.",
+            "Audit and trim the directives table to only list directives present in the provided source files. Remove `$CfFormat`, `$CfStackOutput`, `$CfResourceParam`, `$SsmParam`, and `$GitInfo` unless each can be grounded in source. Replace with the seven listed in typescript-config.mdx: `$Secret`, `$ResourceParam`, `$Stage`, `$Region`, `$Format`, `$Var`, `$File`. Note that `$Var` and `$File` are listed as non-importable in the draft — clarify this distinction accurately."
+          ],
+          "optionalImprovements": [
+            "The YAML configuration section has no code example at all (the format constraint prevents inline YAML config blocks). Consider adding a brief note explaining that YAML examples are shown in the YAML tab of every CodeBlock across the docs, directing readers to any resource page rather than leaving the YAML section example-free.",
+            "The FAQ entry 'How much does ECS Fargate vs Lambda cost for an API?' is tangential to a Configuration Files concept page. Replace it with something more directly on-topic: e.g. 'Can I have different config files for different stages?' or 'How do I keep secrets out of my config file?' These are questions this page's context actually answers.",
+            "The `scripts` field description in the config structure table says 'Shell commands or code files you can run manually or via hooks', but doesn't name the three script types (local-script, local-script-with-bastion-tunneling, bastion-script) the way _root.d.ts does. A one-line callout of the three types would help readers looking up script configuration.",
+            "The 'IDE experience' subsection under TypeScript is thin compared to what the source emphasizes. Consider merging it with the surrounding prose rather than giving it its own H3, since it adds no actionable configuration guidance."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The FeatureComparisonTable at the top is excellent — gives readers an immediate decision signal before reading a single sentence of prose.",
+            "The TypeScript-to-YAML class mapping table is genuinely useful for readers converting between formats or reading YAML examples in the rest of the docs.",
+            "The top-level config structure table (resources, variables, hooks, scripts, etc.) surfaces a real gap in most docs pages and will be frequently cited.",
+            "The defineConfig context properties are documented in a well-structured table rather than buried in prose.",
+            "Decision support for TypeScript vs YAML is opinionated and concrete — specific scenarios (per-stage sizing, loops, multi-file) rather than vague 'complexity' language.",
+            "FAQ mixes Stacktape-specific, AWS, and comparison questions well — the compile-template tip and the switching-without-redeployment answer are high-value extracts.",
+            "The directives table listing importable TypeScript functions alongside their YAML syntax equivalents is a useful reference not present in the source docs.",
+            "Opening paragraph is self-contained and within the 40-75 word target."
+          ],
+          "problems": [
+            "MANDATORY STYLE VIOLATION: The 'Splitting config across files' section contains a fenced ```typescript block with `new RelationalDatabase(...)` and `new RdsEnginePostgres(...)` — both Stacktape resource classes. This is explicitly forbidden (fenced TypeScript block with Stacktape resource class instantiation). Must be wrapped in `<CodeBlock intellisense tabs={[...]} />` or restructured.",
+            "The defineConfig callback table lists `cliArgs` as `Record<string, string|number|boolean>` with the description 'CLI arguments passed to the operation, as key-value pairs' — but the provided curated source shows `string[]` and 'Additional CLI arguments after `--`'. This is a direct factual conflict with the source.",
+            "The defineConfig callback table adds `awsProfile` and `user` properties that do not appear in any of the provided source files. Adding unsourced properties to an authoritative reference table is a factual risk.",
+            "The final FAQ entry ('How much does ECS Fargate vs Lambda cost for an API?') is off-topic for a configuration files page — the page is about config format choice, not compute resource selection. It reads as filler to hit a quota.",
+            "The 'Splitting config across files' section is internally inconsistent: the prose says 'in practice, you would import createDatabase from your helper module instead of inlining the resource definition', but the shown `<CodeBlock>` doesn't demonstrate the import at all. The reader sees two separate examples that don't connect.",
+            "The TypeScript-to-YAML mapping table omits several valid class/type pairs: `AstroWeb`, `NuxtWeb`, `SvelteKitWeb`, `SolidStartWeb`, `TanStackWeb`, `RemixWeb`, `KinesisStream`, `CustomResource`, `DeploymentScript`, `AwsCdkConstruct`. For a table presented as a mapping reference, these gaps may mislead readers."
+          ],
+          "mandatoryFixes": [
+            "MANDATORY: The 'Splitting config across files' section renders the helper module (`config/database.ts`) in a fenced ```typescript block that contains `new RelationalDatabase(...)` and `new RdsEnginePostgres(...)`. Per style rules, fenced TypeScript blocks must not contain Stacktape resource class instantiations. Wrap this helper module example in a `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />`, or restructure the section so the helper module is not shown as a standalone fenced block — for example, fold it into a single `<CodeBlock>` that shows both files using a comment header (`// config/database.ts` / `// stacktape.ts`). This also depresses scannability by at least 1 point.",
+            "Fix the `cliArgs` type in the defineConfig context table: the provided curated source (`_curated-docs/concepts/typescript-config.mdx`) specifies `string[]` and describes it as 'Additional CLI arguments after `--`'. The draft's `Record<string, string|number|boolean>` contradicts this source. Either verify the correct type from the actual Stacktape runtime types file (not provided) and update accordingly, or revert to the source-grounded `string[]` form. Similarly, verify or remove `awsProfile` and `user` rows if they are not grounded in the provided source."
+          ],
+          "optionalImprovements": [
+            "Replace the off-topic final FAQ entry ('How much does ECS Fargate vs Lambda cost?') with a configuration-relevant question such as 'Can I have multiple Stacktape config files for different environments?' or 'Does changing the config format trigger a redeployment of AWS resources?' — these are real questions a reader on this page would search for.",
+            "In the 'Splitting config across files' section, make the `<CodeBlock>` actually demonstrate the import pattern — show a minimal `stacktape.ts` that does `import { createDatabase } from './config/database'` and calls it. As written, the two code blocks don't connect and the reader must imagine the integration.",
+            "Add the missing resource types to the TypeScript-to-YAML mapping table: `AstroWeb`/`astro-web`, `NuxtWeb`/`nuxt-web`, `SvelteKitWeb`/`sveltekit-web`, `SolidStartWeb`/`solidstart-web`, `TanStackWeb`/`tanstack-web`, `RemixWeb`/`remix-web`, `KinesisStream`/`kinesis-stream`, `CustomResource`/`custom-resource`, `DeploymentScript`/`deployment-script`. The table is presented as a comprehensive reference; gaps here erode trust.",
+            "The YAML section is notably thin — it says YAML uses a `type` + `properties` structure but shows no example. Since a YAML code block for Stacktape config is forbidden, consider adding a brief structural description in prose or a table (resource name → type string → properties object) to give readers a mental model before they encounter YAML tabs on resource pages.",
+            "In the `defineConfig` callback table, add a short note clarifying that the callback argument can be destructured — `({ stage, region, command })` — rather than accessing a named object. Most readers will first encounter this pattern in examples and may not realize the destructuring is optional."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided conceptual sources and follows the major formatting constraints, including using CodeBlock for Stacktape config examples and avoiding hand-authored Stacktape YAML examples. I found several Stacktape-specific claims that are either contradicted by the generated source or too strong for the provided source set.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The defineConfig callback table says `cliArgs` has type `string[]` and is “Additional CLI arguments passed after `--`.”",
+              "reason": "The generated source for this page describes `cliArgs` as a key-value record, not a string array, and also distinguishes it as CLI arguments passed to the operation. This is a Stacktape-specific API shape that would affect how readers write config code.",
+              "suggestedFix": "Change the table entry to `Record<string, string | number | boolean>` and describe it as CLI arguments passed to the operation as key-value pairs. Consider adding the documented `awsProfile` and `user` context properties if this section is meant to enumerate the callback context.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "| `cliArgs`     | `Record<string, string\\|number\\|boolean>`  | CLI arguments passed to the operation, as key-value pairs                          |\n| `awsProfile`  | `string`                                   | Locally-configured AWS profile (not applicable in automatic mode)                  |\n| `user`        | `{ id, name, email }`                      | Information about the logged-in Stacktape user performing the operation            |"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft says `$Var()`, `$File()`, and `$Format()` are exported as TypeScript functions from the `stacktape` package.",
+              "reason": "The generated source explicitly says these directives are available using string syntax in both TypeScript and YAML configs, but are not importable as TypeScript functions. The draft's table would lead readers to write invalid imports.",
+              "suggestedFix": "Change the lead-in to say only some directives are exported as TypeScript functions. Remove `$Var()`, `$File()`, and `$Format()` from the exported-functions table, or move them to a separate note explaining that they use string syntax.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "Additional directives like `$Var()`, `$File()`, and `$Format()` are available using string syntax in both TypeScript and YAML configs but are not importable as TypeScript functions."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“YAML uses a `type` + `properties` structure for each resource. The `type` corresponds to the TypeScript resource class, and `properties` correspond to the constructor argument.”",
+              "reason": "The provided YAML source supports the `type` + `properties` structure, but the supplied TypeScript source does not establish a one-to-one mapping from every YAML `type` to a TypeScript resource class or from every `properties` object to a class constructor argument. The later mapping section repeats the same broad claim. This is plausible, but too universal for the provided authoritative source set.",
+              "suggestedFix": "Narrow the wording to the examples shown: “In YAML examples, each resource is written with a `type` and a `properties` object. The documentation renderer derives YAML views from TypeScript resource classes where supported.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/yaml-config.mdx",
+                  "quote": "Each resource has three parts:\n\n```yaml\nresources:\n  resourceName: # Unique name (used for references)\n    type: resource-type # Type of resource\n    properties: # Resource-specific configuration\n      property1: value1\n      property2: value2\n```"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape looks for configuration files named `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, or `stacktape.js` in your project root. You can override the auto-detection with the `--configPath` flag on any CLI command.”",
+              "reason": "The configured source set includes this claim only in the generated page text, but does not include CLI command source or config-loading source. The “any CLI command” part is especially broad and should be verified against CLI source before publishing as a universal statement.",
+              "suggestedFix": "If no CLI source is available for this page, narrow to the documented example: “Stacktape can auto-detect common config filenames in the project root. When needed, pass `--configPath` to commands that support it, such as `deploy`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "Stacktape looks for configuration files named `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, or `stacktape.js` in your project root. You can override the auto-detection with the `--configPath` flag on any CLI command to point to a specific file."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For both formats, run `stacktape compile-template` to validate and compile your configuration without deploying. This catches directive resolution errors, missing resource references, and schema violations.”",
+              "reason": "The provided source list contains the page prose but not the CLI implementation for `compile-template`, so the exact validation behavior and error categories are not grounded in the available authoritative CLI source. This is a Stacktape-specific behavior claim about a command.",
+              "suggestedFix": "Either cite/verify against the CLI command source, or narrow the FAQ answer to “run `stacktape compile-template` to compile the configuration before deployment” and avoid enumerating specific error classes unless source-backed.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "For both formats, run [`stacktape compile-template`](/cli/compile-template) to validate and compile your configuration without deploying. This catches directive resolution errors, missing resource references, and schema violations."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft avoids the forbidden hand-authored Stacktape YAML examples and uses `<CodeBlock intellisense>` for Stacktape configuration examples.",
+            "The first paragraph is self-contained and explains what Stacktape configuration is, why it matters, and the TypeScript/YAML choice.",
+            "The draft correctly uses an existing documentation route for every markdown cross-link I inspected.",
+            "The top-level config fields in the structure table are broadly grounded in `_root.d.ts`, including `resources`, `variables`, `hooks`, `scripts`, `directives`, `deploymentConfig`, `stackConfig`, `providerConfig`, and `cloudformationResources`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided configuration-files sources, but it contains a few concrete issues that should be fixed before publication: one invalid hooks example, one incorrect directive export table, one incorrect callback context type, and one MDX/code-sample format concern.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The “Config file structure” example returns `hooks: { afterDeploy: [{ scriptName: 'migrate' }] }` but does not define a `scripts.migrate` entry.",
+              "reason": "The source says each hook references a script defined in the `scripts` section. As written, the example teaches a hook that points to an undefined script.",
+              "suggestedFix": "Either remove the `hooks` block from the example, or import `LocalScript` and add `scripts: { migrate: new LocalScript({ executeCommand: 'npx prisma migrate deploy', connectTo: [database] }) }` to the returned config.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Each hook references a script defined in the `scripts` section."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The draft says `$Var()`, `$File()`, and `$Format()` are exported as TypeScript functions from the `stacktape` package.",
+              "reason": "The higher-priority generated page source explicitly says these directives are available using string syntax but are not importable as TypeScript functions. This is a concrete API claim that could lead readers to write invalid imports.",
+              "suggestedFix": "Change the section to say that only some directives are imported as TypeScript functions, and move `$Var()`, `$File()`, and `$Format()` into a separate note for string-syntax directives.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "Additional directives like `$Var()`, `$File()`, and `$Format()` are available using string syntax in both TypeScript and YAML configs but are not importable as TypeScript functions."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The `defineConfig` callback table says `cliArgs` is `string[]` and describes it as “Additional CLI arguments passed after `--`”.",
+              "reason": "The generated source for this page describes `cliArgs` as a key-value record, not a string array. The same source also lists `awsProfile` and `user` as callback context properties, so the draft’s table is inaccurate if it is meant to enumerate the context values.",
+              "suggestedFix": "Update `cliArgs` to `Record<string, string|number|boolean>` with the generated description, and either add `awsProfile` and `user` or narrow the intro to say the table lists commonly used context values.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "| `cliArgs`     | `Record<string, string\\|number\\|boolean>`  | CLI arguments passed to the operation, as key-value pairs                          |"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "| `awsProfile`  | `string`                                   | Locally-configured AWS profile (not applicable in automatic mode)                  |\n| `user`        | `{ id, name, email }`                      | Information about the logged-in Stacktape user performing the operation            |"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The helper-module example under “Splitting config across files” is a fenced `typescript` block that imports Stacktape classes and instantiates `new RelationalDatabase(...)`.",
+              "reason": "The prompt’s MDX sanity rules discourage fenced TypeScript blocks containing Stacktape resource class instantiation. Even though this is a helper module rather than the root config file, it may be flagged by the documentation pipeline’s format checks.",
+              "suggestedFix": "Prefer rendering the helper with `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />`, or rewrite the fenced example so it does not instantiate a Stacktape resource class.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft avoids hand-authored YAML Stacktape configuration blocks and uses `<CodeBlock intellisense>` for root Stacktape config examples.",
+            "The top-level configuration fields are broadly grounded in `_root.d.ts`, including `resources`, `variables`, `hooks`, `scripts`, `directives`, `deploymentConfig`, `stackConfig`, `providerConfig`, and `cloudformationResources`.",
+            "All markdown cross-links checked against the provided navigation index point to valid routes."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__configuration-files/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 6,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Self-contained, well-framed opening paragraph that reads naturally as a standalone snippet.",
+            "FeatureComparisonTable at the top gives new users an instant orientation without reading prose.",
+            "TypeScript examples use proper <CodeBlock intellisense> format consistently throughout most of the page.",
+            "Realistic, copyable code examples — API + database + handler patterns feel like real projects.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service mechanics, comparison questions), and answers are concise enough to be Featured Snippets.",
+            "Top-level config fields table (resources, hooks, scripts, variables, etc.) is a strong reference anchor for a first-time reader.",
+            "TypeScript-to-YAML class mapping table at the bottom is genuinely useful for users trying to write YAML."
+          ],
+          "problems": [
+            "MANDATORY VIOLATION: The 'Splitting config across files' section contains a fenced ```typescript block whose body instantiates `new RelationalDatabase(...)` and `new RdsEnginePostgres(...)` — Stacktape resource class instantiations. The rule forbids Stacktape resource classes in fenced typescript blocks regardless of whether the file is called stacktape.ts or a helper module.",
+            "MANDATORY VIOLATION (consequence of the above): scannability penalized at least 1 point; practicalUsefulness penalized at least 1 point.",
+            "Factual error: the page states that `$Var()`, `$File()`, and `$Format()` 'are not importable as TypeScript functions.' The curated source (typescript-config.mdx) explicitly shows `import { $Format, $Var, $File } from 'stacktape'` — these ARE importable. This is wrong and directly misleads users setting up directives.",
+            "The `cliArgs` property type in the defineConfig callback table is documented as `Record<string, string|number|boolean>` but the curated source shows `cliArgs: string[]`. These are incompatible types.",
+            "The `awsProfile` and `user` properties in the defineConfig callback table are not present in any of the provided source files. Adding undocumented properties to a reference table without a source is an unsupported claim.",
+            "The YAML configuration section explains the format in prose but never shows what YAML actually looks like — a reader who came to this page specifically to evaluate YAML has no concrete reference for the syntax."
+          ],
+          "mandatoryFixes": [
+            "Remove the fenced ```typescript block containing `new RelationalDatabase(...)` and `new RdsEnginePostgres(...)` in the 'Splitting config across files' section. The helper module pattern should be described in prose only (e.g., 'Extract resource factory functions into separate .ts files and import them in stacktape.ts — a standard TypeScript module pattern'). The actual `stacktape.ts` that imports the helper is already shown in a correct <CodeBlock intellisense> block — that is sufficient.",
+            "Correct the directive importability claim: remove the sentence 'Additional directives like $Var(), $File(), and $Format() are available using string syntax in both TypeScript and YAML configs but are not importable as TypeScript functions.' Instead, add `$Format`, `$Var`, and `$File` to the importable TypeScript functions table, consistent with the source showing `import { $Format, $Var, $File } from 'stacktape'`."
+          ],
+          "optionalImprovements": [
+            "Verify the `cliArgs` type against the actual TypeScript definition (source shows `string[]`, draft shows `Record<string, string|number|boolean>`). Also verify or remove `awsProfile` and `user` from the defineConfig callback table if they cannot be grounded in source.",
+            "The YAML section could tell readers where to find YAML examples: 'Every resource page's <CodeBlock> shows a YAML tab auto-generated from the TypeScript source — use those tabs to see YAML syntax for any specific resource.' This compensates for not being able to hand-author a YAML config example.",
+            "The 'Splitting config across files' section currently shows a CodeBlock whose displayed code inlines the database definition rather than actually using the helper import pattern described in the surrounding prose. Consider replacing the CodeBlock content with one that genuinely imports from a helper module (e.g., `import { createDatabase } from './config/database'`) so the example matches the prose.",
+            "The config file detection paragraph lists `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, and `stacktape.js` — but the FAQ says JavaScript is supported while the main section omits `stacktape.js`. Verify the detection list and keep it consistent with the FAQ entry.",
+            "The $CfFormat directive appears in the importable TypeScript functions table, but the curated source shows `$Format` — not `$CfFormat` — as the exported name. Confirm which identifier is correct and align the table accordingly."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The FeatureComparisonTable between TypeScript and YAML is exactly what this audience needs first — it answers the decision question before diving into mechanics.",
+            "Config file structure table covers all top-level fields from _root.d.ts accurately (resources, variables, hooks, scripts, directives, deploymentConfig, stackConfig, providerConfig, cloudformationResources).",
+            "TypeScript-to-YAML class/type mapping table is a high-value reference that no other page likely consolidates.",
+            "The defineConfig callback context table (stage, region, projectName, command) is practical and accurately sourced from typescript-config.mdx.",
+            "CodeBlock intellisense is used correctly for all primary Stacktape config examples — no hand-authored YAML config blocks.",
+            "FAQ quality is strong: mixes Stacktape-specific, AWS-behavior, and comparison questions. The 'Can I switch YAML to TypeScript without redeploying?' answer is exactly the kind of gotcha this audience needs spelled out.",
+            "The 'When YAML falls short' subsection is opinionated and concrete rather than just describing the format."
+          ],
+          "problems": [
+            "MANDATORY STYLE VIOLATION: The 'Splitting config across files' section contains a fenced ```typescript block with `new RelationalDatabase(...)` — a Stacktape resource class instantiation. Per the rules, any fenced typescript block containing a Stacktape resource class is forbidden.",
+            "FACTUAL: `cliArgs` type is listed as `Record<string, string|number|boolean>` in the defineConfig callback table, but the source (typescript-config.mdx) explicitly shows `cliArgs: string[]`. A developer using the wrong type will hit a TypeScript error.",
+            "UNSOURCED CLAIM: `awsProfile` and `user` are listed as defineConfig callback properties in the table. Neither appears in the provided source files (typescript-config.mdx lists only stage, region, projectName, command, cliArgs). If these don't exist, code depending on them fails.",
+            "UNSOURCED DIRECTIVES: The directives table includes `$CfFormat`, `$CfStackOutput`, `$CfResourceParam`, `$SsmParam`, and `$GitInfo`. The source (typescript-config.mdx) enumerates only `$Secret, $ResourceParam, $Stage, $Region, $Format, $Var, $File`. The extra five are not grounded in any provided source file.",
+            "UNSOURCED: `stacktape.js` is listed in the auto-detected config filenames. The provided source files mention only `.ts` and `.yml`/`.yaml`. This may be incorrect."
+          ],
+          "mandatoryFixes": [
+            "The helper module example in 'Splitting config across files' is in a fenced ```typescript block but contains `new RelationalDatabase(...)`. Per the rules, fenced typescript blocks may not contain Stacktape resource class instantiations. Fix: either (a) restructure the section to show the helper import/function signature without direct resource class instantiation in the fenced block, or (b) consolidate the full split-file pattern into a single `<CodeBlock intellisense tabs={[...]} />` that shows the complete stacktape.ts. Penalizes scannability.",
+            "Fix `cliArgs` type in the defineConfig callback table from `Record<string, string|number|boolean>` to `string[]` to match the source. A developer who types their destructured `cliArgs` as the documented Record type will get an immediate TypeScript error.",
+            "Remove `awsProfile` and `user` from the defineConfig callback properties table. These are not present in any provided source file. If they do exist in the real package, they must be source-grounded before publishing — unsourced callback properties that don't exist will cause runtime errors for developers who rely on them.",
+            "Audit and trim the directives table to only list directives present in the provided source files. Remove `$CfFormat`, `$CfStackOutput`, `$CfResourceParam`, `$SsmParam`, and `$GitInfo` unless each can be grounded in source. Replace with the seven listed in typescript-config.mdx: `$Secret`, `$ResourceParam`, `$Stage`, `$Region`, `$Format`, `$Var`, `$File`. Note that `$Var` and `$File` are listed as non-importable in the draft — clarify this distinction accurately."
+          ],
+          "optionalImprovements": [
+            "The YAML configuration section has no code example at all (the format constraint prevents inline YAML config blocks). Consider adding a brief note explaining that YAML examples are shown in the YAML tab of every CodeBlock across the docs, directing readers to any resource page rather than leaving the YAML section example-free.",
+            "The FAQ entry 'How much does ECS Fargate vs Lambda cost for an API?' is tangential to a Configuration Files concept page. Replace it with something more directly on-topic: e.g. 'Can I have different config files for different stages?' or 'How do I keep secrets out of my config file?' These are questions this page's context actually answers.",
+            "The `scripts` field description in the config structure table says 'Shell commands or code files you can run manually or via hooks', but doesn't name the three script types (local-script, local-script-with-bastion-tunneling, bastion-script) the way _root.d.ts does. A one-line callout of the three types would help readers looking up script configuration.",
+            "The 'IDE experience' subsection under TypeScript is thin compared to what the source emphasizes. Consider merging it with the surrounding prose rather than giving it its own H3, since it adds no actionable configuration guidance."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The FeatureComparisonTable at the top is excellent — gives readers an immediate decision signal before reading a single sentence of prose.",
+            "The TypeScript-to-YAML class mapping table is genuinely useful for readers converting between formats or reading YAML examples in the rest of the docs.",
+            "The top-level config structure table (resources, variables, hooks, scripts, etc.) surfaces a real gap in most docs pages and will be frequently cited.",
+            "The defineConfig context properties are documented in a well-structured table rather than buried in prose.",
+            "Decision support for TypeScript vs YAML is opinionated and concrete — specific scenarios (per-stage sizing, loops, multi-file) rather than vague 'complexity' language.",
+            "FAQ mixes Stacktape-specific, AWS, and comparison questions well — the compile-template tip and the switching-without-redeployment answer are high-value extracts.",
+            "The directives table listing importable TypeScript functions alongside their YAML syntax equivalents is a useful reference not present in the source docs.",
+            "Opening paragraph is self-contained and within the 40-75 word target."
+          ],
+          "problems": [
+            "MANDATORY STYLE VIOLATION: The 'Splitting config across files' section contains a fenced ```typescript block with `new RelationalDatabase(...)` and `new RdsEnginePostgres(...)` — both Stacktape resource classes. This is explicitly forbidden (fenced TypeScript block with Stacktape resource class instantiation). Must be wrapped in `<CodeBlock intellisense tabs={[...]} />` or restructured.",
+            "The defineConfig callback table lists `cliArgs` as `Record<string, string|number|boolean>` with the description 'CLI arguments passed to the operation, as key-value pairs' — but the provided curated source shows `string[]` and 'Additional CLI arguments after `--`'. This is a direct factual conflict with the source.",
+            "The defineConfig callback table adds `awsProfile` and `user` properties that do not appear in any of the provided source files. Adding unsourced properties to an authoritative reference table is a factual risk.",
+            "The final FAQ entry ('How much does ECS Fargate vs Lambda cost for an API?') is off-topic for a configuration files page — the page is about config format choice, not compute resource selection. It reads as filler to hit a quota.",
+            "The 'Splitting config across files' section is internally inconsistent: the prose says 'in practice, you would import createDatabase from your helper module instead of inlining the resource definition', but the shown `<CodeBlock>` doesn't demonstrate the import at all. The reader sees two separate examples that don't connect.",
+            "The TypeScript-to-YAML mapping table omits several valid class/type pairs: `AstroWeb`, `NuxtWeb`, `SvelteKitWeb`, `SolidStartWeb`, `TanStackWeb`, `RemixWeb`, `KinesisStream`, `CustomResource`, `DeploymentScript`, `AwsCdkConstruct`. For a table presented as a mapping reference, these gaps may mislead readers."
+          ],
+          "mandatoryFixes": [
+            "MANDATORY: The 'Splitting config across files' section renders the helper module (`config/database.ts`) in a fenced ```typescript block that contains `new RelationalDatabase(...)` and `new RdsEnginePostgres(...)`. Per style rules, fenced TypeScript blocks must not contain Stacktape resource class instantiations. Wrap this helper module example in a `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />`, or restructure the section so the helper module is not shown as a standalone fenced block — for example, fold it into a single `<CodeBlock>` that shows both files using a comment header (`// config/database.ts` / `// stacktape.ts`). This also depresses scannability by at least 1 point.",
+            "Fix the `cliArgs` type in the defineConfig context table: the provided curated source (`_curated-docs/concepts/typescript-config.mdx`) specifies `string[]` and describes it as 'Additional CLI arguments after `--`'. The draft's `Record<string, string|number|boolean>` contradicts this source. Either verify the correct type from the actual Stacktape runtime types file (not provided) and update accordingly, or revert to the source-grounded `string[]` form. Similarly, verify or remove `awsProfile` and `user` rows if they are not grounded in the provided source."
+          ],
+          "optionalImprovements": [
+            "Replace the off-topic final FAQ entry ('How much does ECS Fargate vs Lambda cost?') with a configuration-relevant question such as 'Can I have multiple Stacktape config files for different environments?' or 'Does changing the config format trigger a redeployment of AWS resources?' — these are real questions a reader on this page would search for.",
+            "In the 'Splitting config across files' section, make the `<CodeBlock>` actually demonstrate the import pattern — show a minimal `stacktape.ts` that does `import { createDatabase } from './config/database'` and calls it. As written, the two code blocks don't connect and the reader must imagine the integration.",
+            "Add the missing resource types to the TypeScript-to-YAML mapping table: `AstroWeb`/`astro-web`, `NuxtWeb`/`nuxt-web`, `SvelteKitWeb`/`sveltekit-web`, `SolidStartWeb`/`solidstart-web`, `TanStackWeb`/`tanstack-web`, `RemixWeb`/`remix-web`, `KinesisStream`/`kinesis-stream`, `CustomResource`/`custom-resource`, `DeploymentScript`/`deployment-script`. The table is presented as a comprehensive reference; gaps here erode trust.",
+            "The YAML section is notably thin — it says YAML uses a `type` + `properties` structure but shows no example. Since a YAML code block for Stacktape config is forbidden, consider adding a brief structural description in prose or a table (resource name → type string → properties object) to give readers a mental model before they encounter YAML tabs on resource pages.",
+            "In the `defineConfig` callback table, add a short note clarifying that the callback argument can be destructured — `({ stage, region, command })` — rather than accessing a named object. Most readers will first encounter this pattern in examples and may not realize the destructuring is optional."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided generated and curated configuration docs, but it makes several Stacktape-specific claims that are not grounded in the supplied authoritative source. The main risks are over-specific claims about CLI behavior, callback context shape, directives, and one forbidden fenced TypeScript config-helper example.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“You can override the auto-detection with the `--configPath` flag on any CLI command to point to a specific file.”",
+              "reason": "The provided source set does not include CLI command definitions proving that `--configPath` exists on any CLI command, and the root config type does not describe CLI flags. This is a Stacktape-specific CLI claim that would affect what readers type.",
+              "suggestedFix": "Narrow to the sourced detection fact or remove the “any CLI command” claim unless CLI source is provided. For example: “Stacktape commonly uses `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, or `stacktape.js` in the project root.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "Stacktape looks for configuration files named `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, or `stacktape.js` in your project root. You can override the auto-detection with the `--configPath` flag on any CLI command to point to a specific file."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The `defineConfig` callback table claims properties and exact shapes for `cliArgs`, `awsProfile`, and `user`, including `cliArgs` as `Record<string, string | number | boolean>` and `user` as `{ id, name, email }`.",
+              "reason": "The supplied authoritative TypeScript root config file does not define `defineConfig` callback context, and the curated TypeScript docs only support `stage`, `region`, `projectName`, `command`, and `cliArgs` as `string[]`. The draft’s added properties and changed `cliArgs` shape are not grounded in the provided source.",
+              "suggestedFix": "Limit the table to properties present in the supplied curated docs, or add the actual `defineConfig` type source. If keeping `cliArgs`, use the sourced `string[]` wording from curated docs unless stronger source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/typescript-config.mdx",
+                  "quote": "| `cliArgs`     | `string[]` | Additional CLI arguments after `--`              |"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Additional directives — `$Var()`, `$File()`, and `$Format()` — are available using the `$DirectiveName()` string syntax in both TypeScript and YAML configs, but are not importable as TypeScript functions.”",
+              "reason": "The supplied curated TypeScript docs explicitly show `$Format`, `$Var`, and `$File` imported from `stacktape`, which contradicts the draft’s claim that they are not importable as TypeScript functions. The generated page contains the draft wording, but source priority says curated docs are only hints and the claim is not supported by the root config type.",
+              "suggestedFix": "Avoid the “not importable” claim. Say only that YAML uses string directive syntax and TypeScript can import directive helpers where exported by the package, then link to `/configuration/directives`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/typescript-config.mdx",
+                  "quote": "import { $Secret, $ResourceParam, $Stage, $Region, $Format, $Var, $File } from 'stacktape';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The following directives are exported as TypeScript functions from the `stacktape` package:” followed by `$CfFormat()`, `$CfStackOutput()`, `$CfResourceParam()`, `$SsmParam()`, and `$GitInfo()`.",
+              "reason": "The provided source files do not show these directive helpers being exported from the package. The curated TypeScript docs only list `$Secret`, `$ResourceParam`, `$Stage`, `$Region`, `$Format`, `$Var`, and `$File` in an import statement. The draft’s exported-function list is therefore under-sourced for several directive names.",
+              "suggestedFix": "Replace the exported-function table with a cautious sentence and link to `/configuration/directives`, or include only directive functions shown in the provided curated TypeScript source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/typescript-config.mdx",
+                  "quote": "import { $Secret, $ResourceParam, $Stage, $Region, $Format, $Var, $File } from 'stacktape';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`stacktape compile-template` … catches directive resolution errors, missing resource references, and schema violations.”",
+              "reason": "The navigation index proves `/cli/compile-template` exists, but the provided source set does not include the CLI implementation or docs describing what errors the command catches. This is a concrete CLI behavior claim not grounded in the supplied files.",
+              "suggestedFix": "Narrow the answer to “run [`stacktape compile-template`](/cli/compile-template) to compile your configuration before deploying,” unless CLI source is supplied for validation behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "For both formats, run [`stacktape compile-template`](/cli/compile-template) to validate and compile your configuration without deploying. This catches directive resolution errors, missing resource references, and schema violations."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each resource name becomes the identifier used in `connectTo`, `$ResourceParam()`, and the Stacktape Console.”",
+              "reason": "The root config source supports named resources and gives examples, but it does not establish Console identifier behavior. The provided source list contains no `console-app` files, so Console behavior should not be described beyond a cautious mention.",
+              "suggestedFix": "Remove “and the Stacktape Console” or rephrase to “resource names are used for references such as `connectTo` and `$ResourceParam()`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "resources: { [resourceName: string]: StacktapeResourceDefinition };"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The fenced `typescript` block under “Splitting config across files” contains a Stacktape resource class instantiation: `new RelationalDatabase(...)`.",
+              "reason": "The project rules forbid Stacktape config examples in fenced TypeScript blocks and require `<CodeBlock intellisense tabs={[...]} />` for Stacktape configuration examples. Although this helper module is not a full `defineConfig` file, it still demonstrates Stacktape resource construction in a fenced TypeScript block, which is likely to fail the MDX/code-block review rules.",
+              "suggestedFix": "Convert the helper-module example to a `<CodeBlock intellisense tabs={[{ label: 'TypeScript', lang: 'typescript', code: `...` }]} />` block, or make it prose-only and keep the full Stacktape config example in `CodeBlock`.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“In TypeScript configs, you can read `process.env` during config evaluation since the file runs locally, but this only works when running commands from your machine (not in CI with automatic AWS mode).”",
+              "reason": "The supplied sources do not describe `process.env` behavior, where TypeScript config is evaluated, or the limitation around CI with automatic AWS mode. This is plausible general TypeScript/runtime guidance, but it is an unsourced Stacktape workflow caveat.",
+              "suggestedFix": "Remove the automatic-AWS-mode limitation unless source is available, or phrase cautiously: “Because TypeScript config is executable code, teams sometimes read `process.env` during config evaluation; prefer `$Secret()` or `$SsmParam()` for deploy-time secret values.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft avoids hand-authored Stacktape YAML configuration blocks and uses `<CodeBlock intellisense>` for full Stacktape config examples.",
+            "The first paragraph is self-contained and matches the page’s route and purpose.",
+            "Links in the draft point to routes present in the provided documentation navigation index.",
+            "The top-level config fields listed in the draft are broadly grounded in `_root.d.ts`, including `resources`, `variables`, `hooks`, `scripts`, `directives`, `deploymentConfig`, `stackConfig`, `providerConfig`, and `cloudformationResources`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly consistent with the provided configuration-files source material and follows the main TypeScript-first documentation rules. I found a few issues where the page overstates unsupported behavior or uses a forbidden config-example form.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“In TypeScript configs, you can read `process.env` during config evaluation since the file runs locally, but this only works when running commands from your machine (not in CI with automatic AWS mode).”",
+              "reason": "The provided sources document TypeScript config, directives, and deploy-time context, but they do not support the specific claim that `process.env` works only from a local machine and not in CI with automatic AWS mode. This could mislead readers about CI behavior.",
+              "suggestedFix": "Narrow the answer to source-grounded guidance: use `$Secret()` for AWS Secrets Manager values and `$SsmParam()` for SSM Parameter Store values. If mentioning `process.env`, say only that TypeScript is evaluated as code and avoid unsupported CI limitations.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "Both TypeScript and YAML configurations support [directives](/configuration/directives) — built-in functions that resolve values at deploy time. In TypeScript, some directives are imported as functions from the `stacktape` package."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape auto-detects it there. If you prefer a different location (e.g. `infrastructure/stacktape.ts`), pass `--configPath` on every CLI command.”",
+              "reason": "The provided generated source supports config-file detection and `--configPath`, but the wording “on every CLI command” is broader than the source demonstrates. The source says any CLI command, but no CLI command source is provided here to verify every command accepts the flag.",
+              "suggestedFix": "Say “pass `--configPath` when running a command that should use that file” or keep the documented example with `stacktape deploy`. Avoid the universal “every CLI command” wording unless CLI command definitions are included as source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md",
+                  "quote": "You can override the auto-detection with the `--configPath` flag on any CLI command to point to a specific file."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The helper-module example is a fenced `typescript` block that imports Stacktape classes and instantiates `new RelationalDatabase(...)`.",
+              "reason": "The page requirements forbid Stacktape configuration examples in fenced TypeScript blocks. This helper module is part of the Stacktape configuration pattern, not application code, so it is likely to fail the config-example rules even though it is not the root `defineConfig` file.",
+              "suggestedFix": "Either convert the helper-module example to a non-config explanatory snippet without resource instantiation, or wrap it in the approved `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />` form if it should remain a Stacktape config example.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Each resource name becomes the identifier used in `connectTo`, `$ResourceParam()`, and the Stacktape Console.”",
+              "reason": "The provided root type source supports named resources and examples using names for references, but it does not substantiate the Stacktape Console identifier claim. Console-specific behavior should be grounded in console-app source, which is not included.",
+              "suggestedFix": "Remove “and the Stacktape Console” or narrow to “resource names are used by configuration references such as `connectTo` and `$ResourceParam()`.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“This catches directive resolution errors, missing resource references, and schema violations.”",
+              "reason": "The draft describes specific `stacktape compile-template` validation behavior, but the provided sources do not include the CLI implementation for `compile-template`. The command route exists in the navigation index, but detailed validation behavior is not grounded here.",
+              "suggestedFix": "Say “run `stacktape compile-template` to compile your configuration before deploying” and avoid listing exact error categories unless the CLI source is provided.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft avoids hand-authored Stacktape YAML configuration examples and uses `<CodeBlock intellisense>` for root Stacktape config examples.",
+            "The page correctly treats TypeScript as the recommended format while still acknowledging YAML support, matching the generated and curated source material.",
+            "The top-level config field table matches the authoritative `_root.d.ts` shape, including `resources`, `variables`, `hooks`, `scripts`, `directives`, `deploymentConfig`, `stackConfig`, `providerConfig`, and `cloudformationResources`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\configuration-files.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.1, hard blockers 6, advisory high 0, verifier medium 16"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/configuration/configuration-files.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T02:38:36.449Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/yaml-config.mdx": "d0ce2dc228c349f2480b2654bf6e48f7199b7a12",
+    "/Users/congy/Desktop/projects/stacktape/docs/_curated-docs/concepts/typescript-config.mdx": "212e3d8e1e27181d0b32abfa62cdc5e2842e191b",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/configuration-files.md": "811a699595747cfb1ddfd35991816a2fae17551d"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

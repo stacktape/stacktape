@@ -2,7 +2,7 @@
   "pageId": "managing-costs__budgets",
   "pageRoute": "managing-costs/budgets",
   "startedAt": "2026-05-17T17:15:56.168Z",
-  "updatedAt": "2026-05-17T17:39:16.148Z",
+  "updatedAt": "2026-05-21T20:28:42.868Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1044,6 +1044,254 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/managing-costs__budgets/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong, self-contained first paragraph (54 words) that simultaneously explains what budget alerts do, where they live, and why they matter — extractable verbatim by AI engines.",
+            "Property table in 'Creating a budget alert' is fully grounded in the source (BudgetsPage.tsx ElevatedTable columns and detail Modal fields) and covers every visible property accurately.",
+            "Scope comparison table clearly frames the 'Whole organization vs Per stack' decision, which is the primary choice a new user faces — includes when each is best for, not just what each is.",
+            "Clear, grounded distinction between reactive controls (budgets) and preventive controls (guardrails) that prevents a common misconception new users have about spending caps.",
+            "FAQ covers all three required categories: Stacktape-specific ('Where do I create budget alerts?'), AWS mechanics ('How quickly do alerts fire?', 'What does AWS Budgets cost?'), and comparison/choosing ('Should I use budgets, guardrails, or both?').",
+            "The managing-costs section instructions are all met: AWS billing vs Stacktape subscription fee is called out in both the first paragraph and the FAQ; viewing/controlling/reducing costs are distinguished via the comparison table in 'When to use'.",
+            "No style violations: no hand-authored YAML config, no StacktapeConfig type, no fenced TypeScript blocks with defineConfig, no marketing language, no multi-command bash blocks."
+          ],
+          "problems": [
+            "'Creating a budget alert' explains the form fields but never tells the reader HOW to reach the creation form — there is no 'go to the Budgets page, click Create budget alert in the top right' sentence. The first-time user persona specifically needs this clear path from 'what is this' to 'I have it running'.",
+            "'Managing budgets' section is thin — its four sentences primarily restate UI mechanics the reader could infer from the property table and screenshot. It adds almost no actionable guidance beyond 'click detail icon' and 'use delete button'.",
+            "FAQ pricing claim ($0.02/day per additional budget) does not appear in the provided source files. This is a well-known AWS fact but the pricing rules state pricing not present in the source should not be included; if the pipeline runs a pricing verifier, this will be flagged.",
+            "The page has no navigation anchor telling the reader how to get to the Budgets page in the Console — no URL path, no breadcrumb description, no mention of where it appears in the sidebar. A first-time user landing here has no idea where to click."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short navigation hint near the top (or in 'Creating a budget alert') telling the reader where the Budgets page lives in the Console — e.g., 'Navigate to Monitoring → Budgets in the Stacktape Console, then click Create budget alert in the top right.' This is the missing step between 'I know what a budget is' and 'I have one set up'.",
+            "Either expand 'Managing budgets' with genuinely distinct information (e.g., how to edit an existing alert, what fields are sortable and why that matters) or merge it into 'Creating a budget alert' as a brief 'Viewing and deleting' paragraph to remove a thin section that currently reads as filler.",
+            "Verify the FAQ AWS Budgets pricing claim ($0.02/day, ~$0.62/month) against an official pricing source file in the repo before publishing. If it isn't in a sourced prices file, remove the dollar figures and replace with 'AWS provides two action-free budgets per account; check the AWS Budgets pricing page for current rates on additional budgets.'",
+            "Consider moving 'When to use' to appear before the detailed property breakdown sections. For the target persona (deciding whether to set this up at all), motivation and decision context before configuration details is a more useful reading order.",
+            "The <ConsoleScreenshot> component — confirm it is a recognized MDX component in the docs system before publishing. If the screenshot at /static/screenshots/console-budgets-list.png doesn't exist, the component will render a broken image on the page.",
+            "The <Tip> callout in the 'Scoping' section introduces a component type not present elsewhere on the page. Without an example page to compare against this can't be flagged as mandatory drift, but consider whether a plain <Info> callout (which is also used on this page) would be more consistent with the site's component palette."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All budget alert properties (name, scope, threshold, alertAtPercentages, includeForecast, forServices/projects, forStages, alertChannels) are accurately described and directly grounded in BudgetsPage.tsx — no invented fields.",
+            "The two-scope modes (Whole organization vs Per stack) are explained with a decision table and concrete examples; the behavior of project/stage columns displaying 'Whole organization' for PER_ORGANIZATION scope is correctly sourced from the component.",
+            "The Info callout text about organization-wide alerts being created immediately vs stack-scoped alerts depending on deployment metadata is lifted near-verbatim from Explanations.tsx — highest possible accuracy.",
+            "'When NOT to use' is a peer H2 (not nested under 'When to use'), correctly establishes that budgets are alerting-only and can't stop spend, and cross-links guardrails for prevention — exactly what a production engineer needs to know before relying on budgets as a safety net.",
+            "FAQ has 10 well-targeted entries covering all three required categories: Stacktape-specific (scope, forecast), AWS service mechanics (evaluation latency, reset cadence, pricing), and comparison/choosing questions (budgets vs guardrails).",
+            "AWS cost separation is made explicit in the intro ('AWS bills all infrastructure costs directly to your AWS account') and again in the FAQ ('Stacktape subscription fee is separate') — satisfies the section requirement.",
+            "The 'Related tools' comparison table in 'When to use' clearly maps viewing vs controlling vs reducing cost, which directly satisfies the section instruction to distinguish those three activities."
+          ],
+          "problems": [
+            "The 'Managing budgets' section says 'Click the detail icon on any row to see the full configuration' but does not mention what the modal actually shows. The source (BudgetsPage.tsx modal) lists: Scope, Threshold, Alert at, Include forecast, For projects/stages (conditional on PER_STACK), and Alert channels. A reader reconfiguring a budget from the Console has no way to tell whether 'full configuration' includes alert channels or forecast settings without opening it.",
+            "The 'Scoping' prose below the table restates facts already encoded in the table (e.g. 'Whole organization is the simpler option… covers everything' mirrors what the table already says). The table is clear; the prose adds little beyond the recommendation, creating mild redundancy.",
+            "AWS Budgets evaluation cadence ('expect alerts within a few hours') is stated with confidence but is not sourced — it is well-known AWS behavior, acceptable per FAQ rules, but it could create incorrect expectations during an incident (AWS documentation states data is updated up to 3 times per day, which can mean up to 8-hour gaps). The FAQ answer undersells the worst-case lag."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "In 'Managing budgets', enumerate the specific fields shown in the detail modal (Scope, Threshold, Alert at percentages, Include forecast, For projects/stages, Alert channels) — grounded in the source modal render — so the reader knows exactly what they can review without opening it.",
+            "In the FAQ answer for 'How quickly do budget alerts fire', tighten the worst-case window: AWS Budgets data is refreshed up to 3 times per day, so the realistic worst case is 8 hours, not 'a few hours'. This matters if a runaway workload is generating large charges.",
+            "Tighten the 'Scoping' prose under the table. The table already communicates the comparison; the prose paragraphs could be reduced to the actionable recommendation ('Start with Whole organization; add Per stack for teams needing per-project accountability') without restating table content.",
+            "Consider moving the 'Related tools' comparison table out of the 'When to use' section into its own H2 ('Related tools' or 'Cost management tools') so readers scanning for budget-adjacent features don't have to read the 'When to use' section to find it.",
+            "The <ConsoleScreenshot> component is used but its validity in the MDX component palette cannot be verified from the provided source files. If this component is not part of the documented MDX palette, the screenshot embed should be removed or replaced with the correct component."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and explains the practical purpose of budget alerts clearly.",
+            "The page distinguishes viewing costs, controlling costs, and reducing costs with a useful comparison table.",
+            "Scoping guidance is practical and uses the source-backed Whole organization vs Per stack distinction well.",
+            "FAQ is broad and useful, mixing Stacktape-specific, AWS Budgets, and decision/comparison questions."
+          ],
+          "problems": [
+            "Several Console workflow and behavior claims go beyond the provided source files, especially exact navigation/actions like clicking row icons, sortable table behavior, and delivery confirmation details.",
+            "The property table says all listed properties are visible in both list and detail views, but the source list view does not show Include forecast or Alert channels.",
+            "The draft repeatedly claims monthly budget behavior, monthly reset behavior, AWS evaluation frequency, and AWS Budgets pricing without those facts appearing in the provided source files.",
+            "The FAQ claims Stacktape does not add any additional charge for budget alerts; the source files do not support Stacktape subscription/pricing behavior beyond the instruction to distinguish AWS billing from Stacktape subscription fees.",
+            "The ConsoleScreenshot component references a screenshot path that is not among the provided source files, so the reviewer cannot verify that the image exists or matches the caption.",
+            "Some sections are useful but not fully source-grounded: Managing budgets, Budget history, and several FAQ answers infer AWS Budgets mechanics rather than separating AWS background from Stacktape-specific facts."
+          ],
+          "mandatoryFixes": [
+            "Correct the Creating a budget alert table intro: do not say every property is visible in both list and detail views. State that the list shows name, scope, threshold, alert percentages, project/stage filters, and created date; the detail modal also shows Include forecast and Alert channels.",
+            "Remove or qualify unsupported AWS-specific claims unless additional sources are provided: first two free budgets, $0.02/day pricing, multiple-times-per-day evaluation, alerts within a few hours, automatic monthly reset, and forecast accuracy over several weeks.",
+            "Replace unsupported Stacktape pricing wording with the grounded billing distinction required by the managing-costs instructions: AWS infrastructure costs are billed to the user's AWS account, and the Stacktape subscription fee is separate. Do not claim Stacktape adds no charge for budget alerts unless sourced.",
+            "Narrow Console workflow claims to what the source shows. For example, say the table has a Show details icon and a DeleteButton, but avoid invented navigation paths, sortable behavior unless grounded by ElevatedTable source, or claims that history confirms delivery unless budget-history source is provided."
+          ],
+          "optionalImprovements": [
+            "Move the When to use section earlier, before Creating a budget alert, so readers get the decision guidance before the UI property inventory.",
+            "Use source-grounded labels exactly where possible: table column label is \"Alert at\", detail label is \"Include forecast\", and scope values render as \"Per stack\" or \"Whole organization\".",
+            "Add a short sentence near Budget history that the provided source only names threshold-exceeded and forecasted-overspend events; avoid expanding into delivery semantics without the history page source.",
+            "If keeping AWS Budgets background in FAQ, frame it explicitly as general AWS behavior and avoid concrete prices or timing unless a source file is added."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Console source and generated budget page source. The main factual risk is one unsupported Console UI behavior claim about table sorting; the rest of the stronger Stacktape-specific claims are supported by the provided files or framed as general AWS guidance.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Budgets page in the Console shows all budget alerts in a sortable table.”",
+              "reason": "The provided Console source shows an ElevatedTable with columns and a default sort column, but it does not show that users can sort the table. This is a UI behavior claim that is not grounded in the provided source files.",
+              "suggestedFix": "Narrow the wording to the grounded behavior: “The Budgets page in the Console shows all budget alerts in a table.” If you want to mention sorting, include the relevant ElevatedTable implementation source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/BudgetsPage/BudgetsPage.tsx",
+                  "quote": "<ElevatedTable\n        rootCss={{ width: '100%' }}\n        isLoading={budgetsQuery.isPending}\n        columnHeaders={[\n          'Name',\n          'Scope',\n          'Threshold',\n          'Alert at',\n          ['For projects', 200],\n          ['For stages', 200],\n          'Created',\n          ['', 95]\n        ]}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/BudgetsPage/BudgetsPage.tsx",
+                  "quote": "defaultSortColumnIndex={6}"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly keeps “When NOT to use” as an H2 peer section, not nested under “When to use.”",
+            "The scope terminology is grounded: the Console source maps `PER_STACK` to “Per stack” and otherwise renders “Whole organization.”",
+            "The project and stage filter wording is grounded in the Budget page source, including “All projects,” “All stages,” and “Whole organization” display behavior.",
+            "The draft correctly distinguishes viewing cost dashboards, controlling spend with budgets, and reducing spend with optimization recommendations.",
+            "All markdown cross-links in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Console source and generated budget docs. The main issues are a few unsupported Console/AWS behavior claims that go beyond the provided source and could mislead readers about deletion behavior, budget timing, pricing, and single-resource budgeting.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each row also exposes a delete action that removes the budget alert from the Console.”",
+              "reason": "The Console source shows a DeleteButton wired to deleteBudgetAlert, but the provided source does not establish whether deletion removes only Console state, removes an underlying AWS Budget, or both. Saying it “removes the budget alert from the Console” narrows the effect in a way the source does not prove.",
+              "suggestedFix": "Say only that each row exposes a delete action for the budget alert, or cite backend/delete mutation source if available before describing the exact deletion effect.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/BudgetsPage/BudgetsPage.tsx",
+                  "quote": "const deleteMutation = trpc.deleteBudgetAlert.useMutation();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/BudgetsPage/BudgetsPage.tsx",
+                  "quote": "<DeleteButton\n                  refetchFn={budgetsQuery.refetch}\n                  deletedEntity={budget!}\n                  deleteMutation={deleteMutation}\n                />"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS provides the first two action-free budgets per AWS account at no charge. Additional budgets cost approximately $0.02/day each (~$0.62/month).”",
+              "reason": "No provided source file contains AWS Budgets pricing. The page instructions allow concrete pricing when present in source files, but this specific pricing is not present in the provided source and may drift over time.",
+              "suggestedFix": "Remove the specific dollar pricing, or replace it with cautious general wording such as “AWS may charge for additional budgets; check AWS Budgets pricing for current rates.” Keep the sourced statement that Stacktape subscription billing is separate only if source or page instructions support it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/budgets.md",
+                  "quote": "How much do AWS Budgets cost?"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS evaluates budgets multiple times per day. In practice, expect alerts within a few hours of crossing a threshold — they are not real-time.”",
+              "reason": "The provided Stacktape sources do not describe AWS Budgets evaluation cadence or expected alert latency. This is AWS-side behavior, but the draft presents a specific timing expectation without source support.",
+              "suggestedFix": "Use a narrower statement: “Budget alerts are not intended for real-time enforcement; use them for cost alerting rather than automatic spend prevention.” Omit the “multiple times per day” and “within a few hours” timing unless an AWS source is included.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx",
+                  "quote": "<p>A log of all budget alert events (threshold exceeded, forecasted overspend).</p>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you need to budget a single expensive resource separately, consider placing it in its own project so it gets its own stack-scoped budget.”",
+              "reason": "The source supports budget scopes by whole organization or per stack with project/stage filters, but it does not support or recommend modeling one resource as its own project for budgeting. That recommendation relies on architectural guidance not present in the source.",
+              "suggestedFix": "Keep the supported fact and remove the resource-isolation recommendation: “Stacktape budget alerts scope to projects and stages, not individual resources. Use per-resource breakdown for resource-level visibility.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/BudgetsPage/BudgetsPage.tsx",
+                  "quote": "const renderBudgetScopeSummary = ({ scope }: { scope: string }) => {\n  return scope === 'PER_STACK' ? 'Per stack' : 'Whole organization';\n};"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/BudgetsPage/BudgetsPage.tsx",
+                  "quote": "<MultiValueSummary values={budget.forServices} subtle allLabel=\"All projects\" />"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/BudgetsPage/BudgetsPage.tsx",
+                  "quote": "<MultiValueSummary values={budget.forStages} subtle allLabel=\"All stages\" />"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Budget alerts track actual and forecasted spend at the organization level or filtered by project and stage.”",
+              "reason": "The source supports whole-organization and per-stack scopes, and it shows project/stage filters for PER_STACK budgets. The wording “at the organization level” can imply all AWS accounts in the Stacktape organization, while the source says organization-wide budget alerts are created in the selected AWS account.",
+              "suggestedFix": "Narrow the wording to “at the whole-organization scope in the selected AWS account, or filtered by project and stage for per-stack budgets.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The Budget history page in the Console logs budget alert events… Use budget history to confirm alerts were delivered…”",
+              "reason": "The provided source includes only the Explanations entry for budget history, not the actual budget history page implementation. The explanation supports that budget history is a log of budget alert events, but it does not explicitly state delivery status for budget history, unlike notification history and alarm history explanations.",
+              "suggestedFix": "Say “Budget history shows threshold-exceeded and forecasted-overspend events” and avoid claiming delivery confirmation unless the budget history page source is provided.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly keeps “When to use” and “When NOT to use” as peer H2 sections.",
+            "The draft uses only valid cross-links from the provided documentation navigation index.",
+            "The draft avoids forbidden Stacktape config patterns; there are no hand-authored YAML config examples or fenced TypeScript Stacktape config blocks.",
+            "The Console table columns and detail modal fields described in the draft match the BudgetsPage source: name, scope, threshold, alert percentages, projects, stages, created date, include forecast, and alert channels.",
+            "The draft correctly distinguishes viewing cost, controlling cost through budgets, and reducing cost through optimization guidance."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -1056,8 +1304,15 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\managing-costs\\budgets.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 3, advisory high 0, verifier medium 16"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/managing-costs/budgets.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-21T20:28:42.868Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/console-app/src/pages/BudgetsPage/BudgetsPage.tsx": "0a7813695220c34d10d72e59d20b934ea0af3ca1",
+    "/Users/congy/Desktop/projects/console-app/src/Explanations.tsx": "3f2604010b1492917861d68a6940ceab8d04a693",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/budgets.md": "fe26340cc6f9155bc5843179f037ecb9b83770f6"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

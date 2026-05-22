@@ -2,7 +2,7 @@
   "pageId": "local-development__debugging-containers",
   "pageRoute": "local-development/debugging-containers",
   "startedAt": "2026-05-17T19:39:23.195Z",
-  "updatedAt": "2026-05-17T19:52:56.900Z",
+  "updatedAt": "2026-05-21T20:04:09.611Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1053,6 +1053,180 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/local-development__debugging-containers/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Comparison table at the top gives the reader an immediate decision framework — one of the clearest 'which command do I use' sections in the docs.",
+            "Dev-mode vs deployed-stack separation is handled explicitly and correctly per the section instructions — no false parity implied.",
+            "Error messages in the Troubleshooting section match the actual source code (e119/e120 paths, exact error strings like 'does not have a deployed ECS service', 'No running tasks found'), making the section genuinely actionable.",
+            "JSON output example with real field names (resourceName, containerName, taskArn, command, output, exitCode) matches the tuiManager.info output in debug-container-exec/index.ts exactly.",
+            "FAQ covers all three required categories: Stacktape-specific (--container flag, dev mode), AWS-service questions (ECS Exec mechanics, CloudTrail logging), and comparison questions (container:session vs SSH).",
+            "The --taskArn partial-suffix matching behavior is documented and grounded — the source confirms `t.taskArn.endsWith('/${specifiedTaskArn}')` for suffix matching.",
+            "No forbidden patterns — no YAML Stacktape config blocks, no StacktapeConfig type imports, no defineConfig in fenced TypeScript blocks. This is correct: a CLI debugging guide needs no resource config examples.",
+            "Warning callout about shell-less distroless images is a concrete, actionable gotcha that would otherwise bite first-time users."
+          ],
+          "problems": [
+            "The '60-second timeout' claim appears in the comparison table, prose description, and FAQ but is not grounded in either provided source file. The source for debug-container-exec/index.ts shows the command flow but the timeout is in runEcsExecCommand (not provided). A specific numeric timeout repeated three times as a documented fact, without source grounding, risks misleading users if the actual value differs.",
+            "The claim 'Stacktape includes the Session Manager plugin binary in its CLI distribution' and the reference to 'ensureSessionManagerPluginExecutable' are presented as factual implementation details but do not appear in either provided source file. These are plausible but unverifiable from the given sources.",
+            "The default '/bin/sh' for container:session when --command is not specified is stated as fact, but the container-session/index.ts source simply passes 'command' from args to runEcsExecSsmShellSession without showing the default. The behavior depends on runEcsExecSsmShellSession internals not provided — this could be correct but it is ungrounded from the given sources.",
+            "The comparison table row 'Process timeout: None (interactive) vs 60 seconds' combines a grounded claim (no timeout for interactive sessions) with an ungrounded specific number (60 seconds), giving both equal visual weight."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Soften the '60-second timeout' claim to 'a configurable process timeout (see CLI reference)' or remove the specific number until it can be verified from runEcsExecCommand source. Remove it from the comparison table row and the FAQ answer or qualify it with 'approximately' and link to the CLI reference page.",
+            "Soften the 'ensureSessionManagerPluginExecutable' and 'Session Manager plugin included in CLI distribution' claims to 'no separate installation of the Session Manager plugin is required' — that is the user-facing fact, and it doesn't require citing an internal function name that isn't visible in the provided source.",
+            "The '/bin/sh default' claim appears four times (comparison table, prose, FAQ answer, Warning callout). Since the default is in runEcsExecSsmShellSession internals not shown in source, consider linking to the container:session CLI reference page for the authoritative default instead of asserting it inline.",
+            "The 'Batch jobs are not supported' note in the Supported resources section could be made more actionable by stating the alternative more clearly: 'For batch jobs, use the Stacktape Console or CloudWatch logs to inspect output — batch tasks run to completion and do not maintain a persistent ECS service to connect to.'",
+            "The 'Common use cases' subsection inside Interactive shell sessions duplicates some guidance that the comparison table already covers. Consider trimming it to 2–3 scenarios not covered in the table (specifically ad-hoc migrations and connectivity tests) rather than restating process inspection.",
+            "Consider adding a one-liner about IAM requirements — ECS Exec requires the container's task role to have ssmmessages permissions. Users who deployed their stack but see connection errors may be on an older deployment without this permission. A single sentence pointing to redeploy resolves this."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Accurately describes the asymmetric task-selection behavior: container:session prompts interactively (confirmed by tuiManager.promptSelect in source), while debug:container-exec silently picks tasks[0] and accepts --taskArn. This is a key behavioral difference and the page surfaces it clearly.",
+            "The FeatureComparisonTable is well-placed and correctly captures the command-level differences. Values like 'Prompted if multiple' vs 'Via --taskArn flag' are directly grounded in the source.",
+            "The 'Deployed stacks only' section cleanly separates deployed-stack behavior from dev mode, satisfying the section-level instruction. It explicitly names what dev mode is and what it isn't for this use case.",
+            "Troubleshooting section maps directly to the three distinct error paths in the source (e119, e120, and the 'no running tasks' ExpectedError), and each error entry gives a concrete next step.",
+            "Multi-container workload handling (--container flag, error listing available names, single-container auto-select) is accurately described and grounded in the source logic.",
+            "FAQ mixes all three required categories: Stacktape-specific ('Can I use debug:container-exec in CI?'), AWS-mechanics ('How does ECS Exec work?'), and choosing/comparison ('container:session vs SSH'). Ten entries, all substantive.",
+            "Shell code blocks are one command per block throughout. Explanatory text appears as prose before each block, not as # comments inside the block.",
+            "The 'Viewing container logs' section correctly names the CLI command as stacktape debug:logs and links to /cli/debug-logs — no invented stacktape logs command."
+          ],
+          "problems": [
+            "The '60-second timeout' claim appears in the comparison table ('Process timeout: 60 seconds'), in the debug:container-exec prose ('underlying process has a 60-second timeout'), and in an FAQ answer. This specific number does not appear anywhere in the provided source files (neither the command file nor any referenced utility). If wrong, it will directly mislead CI/CD pipeline authors who rely on it.",
+            "The '/bin/sh' default for container:session is stated as fact in multiple places (comparison table, prose, FAQ). The container-session source passes command from globalStateManager.args directly to runEcsExecSsmShellSession without setting any default in the command file itself. The default may live in the SSM session helper, which is not in the provided sources. Stating it as a hard fact without caveat is an ungrounded claim.",
+            "The claim that 'Stacktape includes the Session Manager plugin binary in its CLI distribution' and that it 'calls ensureSessionManagerPluginExecutable before connecting' names a specific internal function not visible in the provided sources. The prerequisite section's claim that 'no separate installation or setup is needed' may be accurate, but the implementation detail is unverifiable from the provided source.",
+            "container:session does not explicitly check for tasks.length === 0 in the provided source — it does tasks[0]?.taskArn without a guard, unlike debug:container-exec which has an explicit ExpectedError for this case. The page treats both commands as returning the same 'No running tasks found' error, which is accurate for debug:container-exec but potentially misleading for container:session (it may fail differently)."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Hedge or remove the 60-second timeout claim until it can be verified in the SSM session helper source. Replace 'has a 60-second timeout' with 'has a process-level timeout (check CLI release notes for the current value)' or simply remove from the comparison table and FAQ. This is a production-critical detail for CI users.",
+            "Hedge the /bin/sh default: 'defaults to /bin/sh in most images' or 'the session will attempt to launch /bin/sh — your container must have a shell available at that path'. Alternatively, remove the default claim from the comparison table's 'Custom command' row and just say 'Optional'.",
+            "For the 'no running tasks' scenario in container:session, note that the error surface may differ from debug:container-exec (which has an explicit ExpectedError) — the session may fail at connection time rather than with a clear Stacktape error message. This affects what the troubleshooting steps should say.",
+            "The Prerequisites section's claim about ensureSessionManagerPluginExecutable is an internal implementation detail that adds no actionable value to readers. Replace with the user-visible outcome: 'You do not need to install the AWS Session Manager plugin separately — Stacktape handles this automatically.' Drop the internal function name."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong answer-first opening that names both commands, their purpose, and the deployed-container context.",
+            "The command comparison table is useful and scannable, and it helps readers choose between interactive sessions and one-off exec commands.",
+            "The page clearly separates deployed-stack behavior from dev mode behavior, which matches the local-development instruction.",
+            "Shell examples follow the one-command-per-block rule and avoid explanatory comments inside copyable command blocks."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source files: the exact supported resource-type list, Batch job exclusion rationale, default shell `/bin/sh`, 60-second timeout, CloudTrail session logging, and Session Manager plugin bundling/setup details beyond the visible helper call.",
+            "The `container:session` section says the command is similar to SSH without SSH keys, open ports, or image setup; the provided source only shows `runEcsExecSsmShellSession`, not those operational guarantees.",
+            "The `debug:container-exec` automation section claims non-zero exit codes do not cause the Stacktape CLI process to throw. The source shows JSON output with `exitCode`, but does not prove behavior for non-zero command exits.",
+            "The troubleshooting section includes causes such as crash-looping, deployment progress, scaled-to-zero services, health check failures, and resource constraints. Those are plausible, but not established by the provided command sources.",
+            "The FAQ is broad and useful, but it includes unsupported AWS/Stacktape claims such as CloudTrail logging and no open inbound ports. General AWS context is acceptable, but Stacktape-specific behavior should be separated from sourced command behavior.",
+            "Some H2 first paragraphs are shorter than the 40-75 word AEO target, especially `Multi-container workloads`, `Viewing container logs`, and `Prerequisites`. They are understandable but less extractable as standalone snippets.",
+            "The page says `container:session` requires a deployed ECS service, but the source lacks the explicit no-service guard present in `debug:container-exec`; in `container-session`, a missing ECS service would fail when indexing the lookup result. Word this as a requirement inferred from the lookup path, not as a handled validation behavior."
+          ],
+          "mandatoryFixes": [
+            "Replace or qualify unsupported Stacktape-specific claims: default `/bin/sh`, 60-second timeout, bundled Session Manager plugin setup, CloudTrail logging, non-zero exit handling, and exact supported resource-type list unless the corresponding source is added.",
+            "Correct the supported-resource wording to match the source: both commands resolve resources from deployed workloads with an ECS task definition and require a CloudFormation child resource of type `AWS::ECS::Service` or `Stacktape::ECSBlueGreenV1::Service`; only name specific resource classes if their source is provided.",
+            "Remove or narrow the Batch job claim unless source proving Batch jobs are included in `deployedWorkloadsWithEcsTaskDefinition` but lack an ECS service is provided.",
+            "Revise troubleshooting causes so they are framed as likely operational checks, not Stacktape command behavior proven by the command source."
+          ],
+          "optionalImprovements": [
+            "Expand the first paragraph under short H2 sections to 40-75 self-contained words for better snippet extraction.",
+            "In `Choosing the right command`, add a brief note that `debug:container-exec` requires both `--resourceName` and `--command`, because those required flags are directly enforced in source.",
+            "In `Targeting a specific task`, mention that `--taskArn` accepts either the full task ARN or a suffix because the source checks exact equality and `endsWith`.",
+            "Consider replacing the `Tip` and `Warning` callouts with plain prose if the target docs style favors fewer callout types, but there is no mandatory component violation here."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely grounded in the provided command implementations and generated page summary. The main issue is that it sometimes applies `debug:container-exec`'s explicit error handling to both commands, while the `container:session` source does not show the same guarded error paths.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The draft presents the explicit \"does not have a deployed ECS service\" and \"No running tasks found\" error behavior as applying to both `container:session` and `debug:container-exec`.",
+              "reason": "`debug:container-exec` has explicit guards and error messages for missing ECS service and zero running tasks. The `container:session` implementation resolves the ECS service with `[0]` and selects `tasks[0]` without the same explicit zero-task or missing-service error handling in the provided source. The page can still say both commands require a deployed ECS service and a running task, but should not promise identical error behavior for `container:session` unless the helper source confirms it.",
+              "suggestedFix": "Narrow the wording: say both commands require a deployed ECS service with a running task. In troubleshooting, say `debug:container-exec` reports `No running tasks found for this resource`; for `container:session`, describe the condition generically as a failure to connect when no running task is available.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-container-exec/index.ts",
+                  "quote": "if (!ecsServiceEntry) {\n    throw new ExpectedError(\n      'NON_EXISTING_RESOURCE',\n      `Resource \"${resourceName}\" does not have a deployed ECS service`,\n      'This resource may be a dev stack without running containers. Deploy a full stack to use this command.'\n    );\n  }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-container-exec/index.ts",
+                  "quote": "if (tasks.length === 0) {\n    throw new ExpectedError(\n      'NON_EXISTING_RESOURCE',\n      'No running tasks found for this resource',\n      'Wait for tasks to start or check the ECS service status'\n    );\n  }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/container-session/index.ts",
+                  "quote": "let taskArn = tasks[0]?.taskArn;\n  if (tasks.length > 1) {\n    taskArn = await tuiManager.promptSelect({\n      message: 'There are multiple instances running. Please select the one you want to connect to.',\n      options: tasks\n        .sort((t1, t2) => t1.taskArn.localeCompare(t2.taskArn))\n        .map(({ taskArn: ta, startedAt }) => ({\n          label: `${ta.split('/').pop()} (started at: ${startedAt})`,\n          value: ta\n        }))\n    });\n  }\n  tuiManager.debug(JSON.stringify(tasks, null, 2));\n  const task = tasks.find(({ taskArn: tArn }) => tArn === taskArn);\n  return { task, containerName: container || containersInTaskDefinition[0] };"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly separates deployed-stack container debugging from dev mode behavior.",
+            "The `debug:container-exec` JSON output shape is grounded in the command implementation.",
+            "The `--taskArn` behavior is accurately described: the source accepts either a full task ARN or a suffix after `/`.",
+            "The multi-container `--container` requirement is grounded in both command implementations.",
+            "All cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No publication-blocking factual issues found. The draft is closely aligned with the provided command implementations and generated local-development source, and it clearly separates deployed-stack container debugging from dev-mode behavior.",
+          "issues": [],
+          "positiveFindings": [
+            "The two documented commands, `container:session` and `debug:container-exec`, match the provided command source files and the documented CLI routes.",
+            "The draft correctly describes `debug:container-exec` as requiring `--command` and `--resourceName`, selecting the first running task by default, and accepting a full task ARN or task ID suffix through `--taskArn`.",
+            "The draft correctly describes multi-container handling: `--container` is required when multiple container definitions exist or when the provided container name is not in the task definition, and single-container resources default to the only container.",
+            "The JSON output example for `debug:container-exec` matches the fields emitted by the command source: `resourceName`, `containerName`, `taskArn`, `command`, `output`, and `exitCode`.",
+            "All checked documentation links point to routes present in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -1065,8 +1239,15 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\local-development\\debugging-containers.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.0, hard blockers 3, advisory high 0, verifier medium 17"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/local-development/debugging-containers.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-21T20:04:09.611Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/src/commands/debug-container-exec/index.ts": "399de6b4ca367aad461ac530265844b1b399ceaf",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/container-session/index.ts": "4fff574c4eb4845aa9b92d7aea1601ee08a1b351",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/debugging-containers.md": "5815de52ee080b4a2f22b24b1194755d0920c886"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

@@ -2,7 +2,7 @@
   "pageId": "ci-cd-and-gitops__build-runners",
   "pageRoute": "ci-cd-and-gitops/build-runners",
   "startedAt": "2026-05-17T18:31:16.466Z",
-  "updatedAt": "2026-05-17T18:45:14.290Z",
+  "updatedAt": "2026-05-22T01:37:03.813Z",
   "iterations": [
     {
       "iteration": 1,
@@ -805,6 +805,167 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/ci-cd-and-gitops__build-runners/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Excellent source grounding throughout — all instance types, vCPU/RAM specs, per-minute costs, hibernation timing, and storage costs are verified against RunnerConfigModal.tsx and DeployNewProjectFromGit.tsx with no invented values.",
+            "The FeatureComparisonTable up front is the right call for this page — a reader can decide EC2 vs CodeBuild in under 30 seconds without reading prose.",
+            "The 'Build runners and CI/CD' section is a genuine value-add: it explicitly clarifies when the Console runner config does NOT apply (custom CI, `codebuild:deploy`), preventing a common source of confusion.",
+            "Decision support is concrete, not circular — 'if you deploy more than a few times per week' gives the reader a real signal instead of 'if you need faster builds, use EC2'.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS-mechanics, comparison) and provides complete 2-4 sentence answers that stand alone as Featured Snippets.",
+            "Instance type table with actionable guidance ('if your builds are memory-heavy, use m6a') saves readers from guessing which family to pick.",
+            "Hibernation cost model is explained with numbers that make the case concisely: 'a few minutes of compute plus the flat storage cost'."
+          ],
+          "problems": [
+            "The 'CodeBuild configuration' section is noticeably thin — one paragraph with essentially one fact (CodeBuild has no persistent infrastructure). It names the Console location ('Projects page') but gives no further actionable detail, making it feel like a placeholder stub.",
+            "The two <Tip> callouts repeat content already stated in the immediately preceding prose sentences (hibernation cost model, runner region advice). They add visual weight without new information, which can reduce reading momentum for a first-timer scanning the page.",
+            "The runner region section does not explain the functional relationship between runner region and default deploy region. The source tooltip explicitly states 'Your first deploy defaults here' — this is non-obvious behavior that could surprise a reader and belongs in the prose.",
+            "The intro paragraph assumes readers know what 'Console-managed project deployments' means. For a first-time reader landing here from search, a one-clause orientation ('when you deploy through the Stacktape Console's GitOps or manual deploy flow') would prevent a false start."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Expand the 'CodeBuild configuration' section to name the specific setting available on the Projects page (from the source: `?buildRunnerSettings=open`), clarify what a user can actually configure there, and note that it applies across all projects in the organization.",
+            "Remove or condense the two <Tip> callouts. The hibernation tip only restates the paragraph directly above it; the runner region tip restates the paragraph's own last sentence. If you want visual emphasis, fold the core fact into a single callout rather than two near-duplicate ones.",
+            "Add one sentence to the runner region section explaining that the runner region also serves as the default deploy region for the project's first deployment (grounded in the source tooltip: 'Your first deploy defaults here'). This is non-obvious and a practical gotcha.",
+            "Sharpen the intro's first sentence to orient readers who arrived without context: add a brief parenthetical like '(GitOps and Console-triggered deploys)' after 'Console-managed project deployments' so the page scope is immediately clear to cold-traffic readers."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All key technical claims — instance specs, costs, hibernation timing (15 min idle, ~10 s wake), default instance type (c7a.2xlarge), and runner behavior — are directly grounded in the source files (RunnerConfigModal.tsx and DeployNewProjectFromGit.tsx).",
+            "The feature comparison table at the top enables a fast go/no-go decision without reading the whole page. It covers exactly the dimensions (caching, cost model, idle behavior, configuration scope) that engineers care about when picking a runner.",
+            "The instance type table (vCPU, memory, approx cost per minute) is sourced verbatim from the modal and is immediately actionable for right-sizing decisions.",
+            "The 'Build runners and CI/CD' section with the deployment-method summary table is the clearest statement of the custom CI/CD vs. Console runner boundary. Engineers who've seen codebuild:deploy in the CLI will immediately understand the distinction.",
+            "The FAQ covers all three required categories (Stacktape-specific, AWS-service mechanics, comparison/choosing) and is substantive — each answer is genuinely non-obvious.",
+            "Opinionated tone matches the product's own UX: EC2_RUNNER is the default in the project creation flow and labeled '(recommended)' in the source; the page consistently echoes that recommendation with concrete reasoning."
+          ],
+          "problems": [
+            "The 'CodeBuild configuration' section is functionally two sentences that restate what was already said in 'When to use CodeBuild' and the comparison table. It does not introduce any new information about what the global CodeBuild settings actually configure. The source is silent on the contents of that modal, but the section as written reads as padding rather than genuine configuration guidance.",
+            "Minor but reader-visible pricing inconsistency: the intro says '~$0.005/min compute while deploying' (taken from the project-creation tooltip) while the FAQ answer for the same question correctly states '~$0.006/min' for the default c7a.2xlarge (sourced from the modal per-instance label). Both are technically sourced, but a reader who reads both will notice the mismatch."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Align the intro-paragraph EC2 compute estimate (~$0.005/min) with the more precise per-instance value (~$0.006/min for the default c7a.2xlarge). Easiest fix: change the intro to say '~$0.006/min compute while deploying (with the default c7a.2xlarge)' to match the FAQ and eliminate the apparent contradiction.",
+            "Either expand the 'CodeBuild configuration' section with what the global settings actually control (if that source becomes available), or collapse it into the 'When to use CodeBuild' section and remove the section heading entirely. A two-sentence section under its own H2 reads as a skeleton placeholder to a production engineer.",
+            "Add a one-sentence note in the EC2 runner sections that the runner instance lives in the user's own AWS account (the project-creation tooltip says 'Dedicated EC2 instance in your AWS account'). This affects AWS cost visibility (it shows up in the user's own bill, not a Stacktape bill), IAM footprint, and the trust model — worth one line for the audience.",
+            "The 'Runner region' tip advises choosing a region close to deployed stacks to avoid cross-region transfer costs. The source tooltip grounds this well, but the page does not mention that the runner region is fixed at project creation (you cannot change the runner to a different region post-creation, only the default deployment region). Clarify whether the runner region itself is changeable or just the deployment-target default."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and includes the core choice: EC2 runners vs CodeBuild runners.",
+            "The comparison table is useful and concrete, with sourced costs, caching behavior, hibernation behavior, and runner-type tradeoffs.",
+            "The page gives pragmatic recommendations instead of treating EC2 and CodeBuild as equally good defaults.",
+            "FAQ is broad enough for search extraction and covers choosing, pricing, hibernation, CodeBuild, and custom CI/CD implications."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source files: `stacktape deploy`, `stacktape codebuild:deploy`, custom CI/CD behavior, Console-triggered deployments, deployed infrastructure being identical across runner types, and no redeployment being needed for existing stacks.",
+            "The page describes specific Console navigation and UI surfaces beyond what the source supports in places, especially `project's runner configuration modal` and `Projects page` details. The source supports the modal and link target, but not a full workflow.",
+            "The `m6a` versus `c7a` workload guidance is mostly AWS instance-family inference, not grounded in the provided Stacktape source. The source only provides the allowed instance types, vCPU, memory, and approximate per-minute costs.",
+            "The `Runner region` section says the runner region can be changed later. The source says the default region can be changed later in a tooltip during project creation, but does not show a runner-region update flow in the runner settings modal.",
+            "The FAQ answer `Can I use different runner types for different stages?` says all stages within a project use the same runner type and recommends separate projects for different environments. That may be reasonable, but it is not supported by the provided source files.",
+            "Some paragraphs start relying on nearby context with generic phrasing such as `The trade-off is speed` and `The default is c7a.2xlarge`; most are understandable, but stronger entity naming would improve extractability.",
+            "The page has no MDX/API-reference issue because this is a CI/CD concept page, but it includes a `<Tip>` component without an example-page pattern. Since no example guidance is provided, this is not a mandatory drift issue."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground the unsupported CLI/custom-CI table claims. If those claims stay, add source files for CLI behavior and custom CI/CD docs/source; otherwise narrow the section to Git-backed project creation and runner settings shown in the provided Console source.",
+            "Correct the runner-region wording: source-ground it as a region selected during Git-backed project creation where the runner is created/warmed and billed, and avoid claiming a runner-region change workflow unless source is provided.",
+            "Replace unsupported stage-specific guidance with cautious wording or remove it unless source files show runner type is strictly project-scoped across all stages.",
+            "Narrow the instance-family recommendations to what the source proves: allowed instance types, vCPU, RAM, approximate cost, and the default `c7a.2xlarge`. If keeping compute-optimized/general-purpose workload advice, mark it as AWS instance-family context rather than Stacktape behavior."
+          ],
+          "optionalImprovements": [
+            "Add a short `Setup` or `Where to configure` section that separates source-grounded creation-time settings from later runner settings in the modal.",
+            "Make the pricing context line slightly more precise: EC2 runner project-creation tooltip says ~$3/month for 50 GB storage plus ~$0.005/min compute while deploying; the default instance table lists `c7a.2xlarge` at ~$0.006/min.",
+            "Strengthen paragraph extractability by naming `EC2 runners`, `CodeBuild runners`, or `Stacktape build runners` at the start of more paragraphs instead of using `the default`, `the trade-off`, or `this`.",
+            "Keep the deployment-method table only if additional source files are provided; otherwise replace it with a smaller note that Console runner configuration is shown in Git-backed project creation and runner settings."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly well grounded in the provided Console source and the generated page summary. I found two material issues: one unsupported scope claim about CodeBuild settings applying organization-wide, and one unsupported stage-level FAQ answer that goes beyond the available source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“CodeBuild settings are configured globally — they apply to all projects in the organization that use CodeBuild runners.”",
+              "reason": "The Console source only says CodeBuild settings are configured globally “for every project” on the projects page. It does not establish the organization scope, so “in the organization” is narrower/more specific than the source supports.",
+              "suggestedFix": "Write: “CodeBuild settings are configured globally for every project that uses CodeBuild runners, from the Projects page in the Stacktape Console.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/RunnerConfigModal.tsx",
+                  "quote": "CodeBuild settings are configured globally (for every project) on the{' '}\n          <InlineLink to=\"/projects?buildRunnerSettings=open\" linkColor=\"primary\" underline>\n            projects\n          </InlineLink>{' '}\n          page."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Runner type is configured per project, not per stage. All stages within a project use the same runner type and instance configuration. If you need different runner configurations for different environments, create separate projects in the Stacktape Console.”",
+              "reason": "The source supports that runner settings are project-level, but it does not mention stages or prescribe creating separate projects for different stage runner configurations. The advice may be reasonable, but the stage-specific claim is not grounded in the provided source files.",
+              "suggestedFix": "Narrow the answer to the sourced fact: “Runner type is configured per project. The provided Console source does not expose a per-stage runner setting.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/RunnerConfigModal.tsx",
+                  "quote": "Choose how deployments run for this project. Changes take effect on the next deployment."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/RunnerConfigModal.tsx",
+                  "quote": "updateRunnerSettingsMutation.mutate(\n      {\n        organizationId: selectedOrg!.id,\n        projectName: projectDetails.name,\n        deploymentRunnerType: runnerType,\n        ec2RunnerInstanceType: runnerType === 'EC2_RUNNER' ? selectedInstanceType : null\n      }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The two runner types, EC2 runner recommendation, 2-5x speed claim, hibernation timing, wake timing, storage and compute pricing, and CodeBuild per-minute/no-idle pricing are grounded in the DeployNewProjectFromGit source.",
+            "The EC2 instance type table matches the options and approximate costs in RunnerConfigModal, including the default c7a.2xlarge.",
+            "The draft correctly distinguishes Console/GitOps runners from custom CI/CD and the separate codebuild:deploy CLI path, without inventing invalid documentation links.",
+            "No forbidden Stacktape configuration examples, hand-authored YAML, or invalid ApiReference usage appear in the draft."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -817,8 +978,15 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\ci-cd-and-gitops\\build-runners.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.2, hard blockers 1, advisory high 0, verifier medium 13"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/ci-cd-and-gitops/build-runners.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T01:37:03.813Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/ProjectOverview/RunnerConfigModal.tsx": "df686ccaa84453e724dde0622b10abf3c03cbbfb",
+    "/Users/congy/Desktop/projects/console-app/src/pages/DeployNewProject/Git/DeployNewProjectFromGit.tsx": "137d6c00baed65ad56765df0e57b11fcd34f4288",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/ci-cd-and-gitops/build-runners.md": "8823e65643731b8104f37dd5ddf2bca658be2803"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

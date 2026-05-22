@@ -4,7 +4,7 @@ order: 162
 seoTitle: 'debug:dynamodb — Query DynamoDB Tables | Stacktape CLI'
 seoDescription: 'Query deployed DynamoDB tables from the CLI with scan, query, get, schema, and sample operations. All read-only. Inspect data and table structure without SDK code.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 8.0, hard blockers 1, advisory high 0, verifier medium 6'
+pipelineReviewSummary: 'reviewer-avg 8.0, hard blockers 1, advisory high 0, verifier medium 1'
 ---
 
 # debug:dynamodb
@@ -87,13 +87,13 @@ The `--pk` and `--sk` values must be valid JSON objects mapping the key attribut
 
 ## Agent mode
 
-When running with `--agent`, the command emits structured JSON for programmatic consumption instead of human-readable text. This is useful when integrating with AI coding assistants or automation scripts that parse CLI output.
+Passing `--agent` selects programmatic output for AI coding assistants and automation scripts. It implies `--outputFormat jsonl`, so the command emits JSONL/NDJSON (one JSON object per line) instead of human-readable text, disables the interactive terminal UI, and auto-confirms operations.
 
 ```bash
 stacktape debug:dynamodb --stage prod --region eu-west-1 --resourceName myTable --operation sample --agent
 ```
 
-The output includes the operation result along with metadata such as the resource name and operation type, wrapped in a single JSON object.
+The result payload includes `ok`, `resource` (the resource name you passed), `operation` (the operation that ran), along with the operation's own result fields.
 
 ## Flags reference
 

@@ -156,6 +156,15 @@ export type PipelineState = {
   // All entries are surfaced to the writer prompt on every subsequent iteration, marked as
   // highest priority. The UI displays them with timestamps so the user can see the conversation.
   humanFeedback?: HumanFeedbackEntry[];
+  // Number of refinement passes that have been run on this page after it first hit
+  // `needs-human-review`. Used for breadth-first sort (least-attempted first) and telemetry;
+  // there is no hard cap — see `refinementStalled` for the actual stop condition.
+  refinementAttempts?: number;
+  // Set to true when the most recent refinement pass did not reduce hard blockers (and did
+  // not pass). Stalled pages are skipped by default on subsequent --refineReview runs —
+  // pass --retryStalled to override (e.g. after a prompt change). Cleared whenever a pass
+  // makes progress.
+  refinementStalled?: boolean;
 };
 
 export type ContextPack = {

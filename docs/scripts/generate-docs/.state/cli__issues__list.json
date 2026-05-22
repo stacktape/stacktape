@@ -2,7 +2,7 @@
   "pageId": "cli__issues__list",
   "pageRoute": "cli/issues-list",
   "startedAt": "2026-05-17T23:43:08.375Z",
-  "updatedAt": "2026-05-17T23:48:49.229Z",
+  "updatedAt": "2026-05-22T00:53:37.733Z",
   "iterations": [
     {
       "iteration": 1,
@@ -488,6 +488,140 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/cli__issues__list/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations — all shell blocks contain exactly one command each, prose explanations precede code rather than appearing as # comments inside blocks, and the correct <CliCommandsApiReference> component is used.",
+            "All factual claims are tightly source-grounded: the default limit of 25 comes directly from `limit ?? 25` in `src/commands/issues-list/index.ts`, the table columns match the `tuiManager.printTable` call exactly, and the agent-mode JSON behaviour matches `JSON.stringify(issues, null, 2)`.",
+            "The Output table is a genuine addition over the intro prose — it maps each column to a concrete meaning, which helps a first-time user parse the terminal output they are about to see.",
+            "Examples section covers the three most useful non-obvious patterns: limiting results, filtering by status, and using agent mode for scripting — each introduced with a clear prose sentence.",
+            "Related commands section links all four sibling `issues:*` commands plus `debug:logs`, giving the reader an immediate navigation path for follow-up actions."
+          ],
+          "problems": [
+            "Mild redundancy between the opening paragraph and the Output section: the intro lists 'error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp', then the Output table repeats exactly the same list as column descriptions. The table adds value through the ID column explanation and the 60-character truncation note, but two sentences in the intro could be trimmed without loss.",
+            "The last sentence under the Output table ('Omit --projectName, --stage, or --issueStatus when you do not want to narrow by those fields') is a low-signal truism — since all flags are optional, this doesn't tell the reader anything they could not infer from the flags reference. It reads like filler.",
+            "The 'Related commands' section has four entries, which slightly exceeds the section-instruction ceiling of 1–3. The debug:logs entry is genuinely useful but is a conceptual step removed from the issues:* namespace commands; it could be moved to a brief inline mention rather than a full bullet."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Trim the opening paragraph to remove the column enumeration ('It shows each issue's error message, type, function name…') since the Output table covers this in better form. A tighter intro might be: 'The `issues:list` command retrieves detected runtime issues across your deployed functions and containers. Filter by project, stage, or status, and use the returned issue IDs with `issues:resolve`, `issues:ignore`, or `issues:reopen`.'",
+            "Remove or rephrase the last sentence in the Output section ('Omit --projectName, --stage, or --issueStatus when you do not want to narrow by those fields') — it is a no-op statement since those flags are already documented as optional.",
+            "Consider noting explicitly that `issues:list` has no required flags (unlike most Stacktape commands that require `--stage` and `--region`). One sentence near the top of the Usage section ('All flags are optional — running `stacktape issues:list` with no arguments returns the 25 most recent issues across all your projects.') would be useful for a first-time reader who expects to be asked for a stage.",
+            "Move `debug:logs` from the Related commands bullet list to a short inline parenthetical at the end of the intro paragraph (e.g. 'Use `debug:logs` to investigate root causes once you have an issue ID') so the Related commands section stays focused on the issues:* command family."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Default limit of 25 is correctly sourced from the implementation (`limit ?? 25`) and stated in both the Usage section and the Output section.",
+            "Output table columns and the 60-character truncation detail match the implementation exactly (`issue.errorMessage.slice(0, 60)`).",
+            "Agent mode behavior is correctly described as a pretty-printed JSON array — matching `JSON.stringify(issues, null, 2)` in the source, not JSONL/NDJSON.",
+            "Each bash example is in its own fenced block with prose above it — no multi-command blocks that would corrupt the copy buffer.",
+            "The flags reference correctly uses `<CliCommandsApiReference>` rather than hand-authored content.",
+            "Related commands are well-chosen and include accurate behavioral descriptions (e.g. auto-reopen on resolve, no reopen on ignore)."
+          ],
+          "problems": [
+            "The lead paragraph enumerates 'error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp' but omits the `ID` column. The ID is the primary key consumed by every sibling command (`issues:resolve`, `issues:ignore`, `issues:reopen`) — its absence from the summary creates a gap for the exact audience that will chain these commands together.",
+            "The default-limit fact (25 issues) is stated twice: once in the Usage section intro and once in the final paragraph of the Output section. The repetition makes neither occurrence feel authoritative and adds visual noise without adding information.",
+            "The Related commands section lists four siblings when the CLI section instructions specify 1-3. `debug:logs` is genuinely adjacent for investigation but could be trimmed or moved to a one-line note rather than a full bullet.",
+            "The auto-generated `--agent` flag description (from commands.ts) says 'Uses strict JSONL/NDJSON output (one JSON object per line)' — which conflicts with the actual implementation, which prints a pretty-printed JSON array via `JSON.stringify(issues, null, 2)`. The prose in the Examples section correctly describes the behavior, but a reader who only skims the flags reference will get the wrong expectation. This is a source-level mismatch surfaced by the auto-generated reference, not a doc authoring error, but it should be called out so it can be addressed upstream or clarified with a prose note."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add `ID` to the lead paragraph's field list (e.g. 'including its ID, error message, type...'). The ID is the critical input for all three sibling commands, and burying it only in the Output table means a developer scanning the intro before running the command won't realize they need to capture it.",
+            "Consolidate the default-limit statement to one location. The Output section's trailing sentence ('When no limit is provided, the command requests 25 issues') is the better home since it lives next to the table that lists what is returned; remove the parenthetical from the Usage section heading.",
+            "Add a one-sentence callout that the `--agent` flag's general description mentions JSONL/NDJSON but for `issues:list` specifically the output is a pretty-printed JSON array, not one object per line. This prevents CI/scripting users from writing a broken NDJSON parser for this command's output.",
+            "Trim Related commands to 3 per the CLI section guidelines, or restructure `debug:logs` as a one-line 'see also' note rather than a full bullet. The four-entry list is fine for discoverability but slightly overshoots the guideline."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and accurately explains what `issues:list` does using source-backed fields.",
+            "Command examples are copyable and use one shell command per fenced block with no copy-buffer comments.",
+            "The page uses the required `<CliCommandsApiReference command=\"issues:list\" />` component instead of hand-authoring a flags table.",
+            "The Output section adds useful, source-grounded detail about table columns, truncation, default limit, and agent-mode JSON output."
+          ],
+          "problems": [
+            "Several H2 sections start with very short fragments rather than self-contained explanatory paragraphs. `Usage`, `Examples`, `Output`, and `Related commands` are understandable in context, but less extractable as standalone snippets.",
+            "The page says `issueStatus` filters by status, but does not explicitly name the supported values near the usage examples; readers must scan the generated reference to discover `OPEN`, `RESOLVED`, and `IGNORED`.",
+            "The `--agent` example is useful, but the page could more clearly distinguish `--agent` pretty-printed JSON behavior from the `outputFormat` flag’s JSONL behavior shown in the flags reference.",
+            "Related commands includes four links, while the section instruction asks for the 1-3 closest siblings. `debug:logs` is useful, but it is outside the closest `issues:*` sibling set."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add one concise prose sentence under `Usage` naming the main filters and their supported issue statuses: `OPEN`, `RESOLVED`, and `IGNORED`.",
+            "Make H2 opening text more self-contained, especially `Output`, by starting with a sentence like: \"The `issues:list` command prints a table in interactive mode and returns the same issue records from the command function.\"",
+            "Consider moving `debug:logs` into prose after the issue-management siblings, or reduce Related commands to the three `issues:*` commands to match the CLI section instruction.",
+            "Clarify that `--agent` prints a pretty-printed JSON array for this command, while `--outputFormat jsonl` is a general CLI output mode described in the generated reference."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely grounded in the provided command definition and implementation. The strongest source-backed behavior claims match `src/commands/issues-list/index.ts`: optional filters, default limit of 25, agent-mode JSON array output, and table columns. I did not find publication-blocking factual issues.",
+          "issues": [],
+          "positiveFindings": [
+            "The default limit claim is grounded in `limit: limit ?? 25` in `src/commands/issues-list/index.ts`.",
+            "The table column list matches the `tuiManager.printTable` header in `src/commands/issues-list/index.ts`.",
+            "The status filter values `OPEN`, `RESOLVED`, and `IGNORED` match the command implementation and CLI command definition.",
+            "The related command links all point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No concrete factual or source-grounding issues found in the draft. The page's command behavior, default limit, filters, output columns, status values, and related command descriptions are grounded in the provided CLI command definition and implementation sources.",
+          "issues": [],
+          "positiveFindings": [
+            "The default limit of 25 is directly supported by `limit: limit ?? 25` in `src/commands/issues-list/index.ts`.",
+            "The table columns and truncation of error messages to 60 characters match the `tuiManager.printTable` implementation.",
+            "The related issue commands and their status behavior match the command descriptions in `src/config/cli/commands.ts`.",
+            "All cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -500,8 +634,16 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\issues-list.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.1, hard blockers 2, advisory high 0, verifier medium 1"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/cli/issues-list.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T00:53:37.733Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/issues-list/index.ts": "ca6982c1ae0fba797e512d3b87b8db7c265d986a",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/cli/issues-list.md": "ed4a06750c428012e38e26fb5c3b6f237df6c58e"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

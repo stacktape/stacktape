@@ -2,7 +2,7 @@
   "pageId": "resources__frontend__tanstack-start",
   "pageRoute": "resources/frontend/tanstack-start",
   "startedAt": "2026-05-14T12:10:19.396Z",
-  "updatedAt": "2026-05-16T00:07:59.169Z",
+  "updatedAt": "2026-05-22T03:05:58.631Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1530,20 +1530,533 @@
       ],
       "status": "failed",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__frontend__tanstack-start/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no forbidden YAML blocks, no plain StacktapeConfig type, no fenced TypeScript blocks for config.",
+            "'When to use' and 'When NOT to use' are correctly structured as peer H2 sections with concrete, opinionated guidance and named alternatives (static hosting, web service, other SSR frameworks).",
+            "The database-plus-VPC-connectivity code example directly addresses a real gotcha (joinDefaultVpc required for relational databases) that a first-time user would hit, making it the most practically valuable example on the page.",
+            "Decision support is present for every opt-in feature: CDN caching, custom domains, WAF protection, and VPC connectivity each include a 'when to enable / when to skip / tradeoff' signal.",
+            "Exactly 10 FAQ pairs spanning Stacktape-specific, AWS-service, and comparison categories. Question 8 (Lambda cold starts), 7 (pricing model), 9 (static hosting vs SSR), and 10 (TanStack vs Next.js) directly address high-intent searches.",
+            "H2 headings are short noun-form labels (2–4 words each), consistent throughout the page, making it easy to scan for a specific topic in under 30 seconds.",
+            "The intro paragraph is self-contained and within the 40–75 word target — reads cleanly as a Featured Snippet answer.",
+            "The `connectTo` environment variable names (`STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, `STP_MAIN_DATABASE_PORT`) correctly reflect the resource name `mainDatabase` and match the `ResourceAccessProps` JSDoc in the source."
+          ],
+          "problems": [
+            "Specific defaults for serverLambda are stated as fact ('default serverLambda.memory is 1024 MB', 'configurable from 128 to 10240 MB', 'default and maximum serverLambda.timeout is 30 seconds', 'log retention defaults to 180 days') but the SsrWebServerLambdaConfig type definition is not in the provided source files. If any of these values are wrong, the page actively misleads first-time users who will copy them.",
+            "Several sub-properties mentioned in prose — cdn.disableInvalidationAfterDeploy, cdn.pathCachingOverrides, cdn.defaultCachingOptions.defaultTTL, and serverLambda.logging.disabled — come from types (SsrWebCdnConfig, SsrWebServerLambdaConfig) not present in the provided source. The source-grounding verifier will flag these, and they cannot be confirmed correct from the inline source.",
+            "The 'CDN and static assets' section says 'By default, all cached CDN content is invalidated on every deploy' — this is an AWS/Stacktape behavior claim that cannot be verified from the provided source files.",
+            "The FAQ questions 1–5 are all Stacktape-specific. While the three categories are technically met (7, 8 are AWS-service questions; 9, 10 are comparison questions), a first-time developer with low AWS experience may benefit more from at least one additional foundational AWS question earlier in the FAQ (e.g. explaining what Lambda cold start means or what CloudFront actually does), rather than five consecutive Stacktape-specific questions."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify all serverLambda defaults (memory, timeout, log retention) and cdn sub-properties against the actual SsrWebServerLambdaConfig and SsrWebCdnConfig type definitions before publishing. If the defaults are confirmed, add a source-side comment; if they differ, correct the prose and examples.",
+            "Consider replacing or supplementing the prose enumeration in the 'CDN and static assets' section with a two-column table showing property / what it controls / default value — this pattern is cited 2–4× more by answer engines and is directly useful for a reader who wants to tune caching.",
+            "The 'When NOT to use' section links to /resources/frontend/nextjs, /resources/frontend/nuxt, etc. — if any of these routes do not yet exist as published pages, use the framework name in prose only rather than dead links.",
+            "Swap one of the five Stacktape-specific FAQ questions for a foundational 'What is a Lambda cold start and why does it matter for SSR?' question — first-time developers with low AWS exposure will search for this and the page is in a strong position to answer it.",
+            "The 'Build and dev' section introduces the dev.workingDirectory property but no code example demonstrates it as the sole focus — the existing example includes both buildCommand and dev together. This is fine, but a brief note that workingDirectory is relative to the project root (not to appDirectory) would prevent a common misconfiguration."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "No forbidden style violations — all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript; no hand-authored YAML, no StacktapeConfig type usage, no fenced TypeScript blocks with defineConfig.",
+            "Clear and opinionated When to use / When NOT to use sections with concrete named alternatives for every case (static hosting, web service, Lambda, other frameworks).",
+            "The connectTo example is realistic and correctly includes serverLambda.joinDefaultVpc alongside the database resource — the page explains *why* this is required, not just that it is.",
+            "FAQ covers all three required categories: Stacktape-specific (custom domain, WAF, appDirectory), AWS use-case (cold starts, pricing model), and comparison (static hosting, Next.js resource).",
+            "Decision support for opt-in features (CDN, custom domains, WAF) follows the guide-not-recipe discipline: each section includes a when-to-enable, when-to-skip, and cost/tradeoff signal.",
+            "Single <ApiReference definitionName=\"TanStackWebProps\" /> at the bottom, correctly matching the Props type name from the source.",
+            "First paragraph is self-contained and descriptive enough to be extracted as an AI snippet without losing meaning."
+          ],
+          "problems": [
+            "serverLambda sub-properties — memory default (1024 MB), configurable range (128–10240 MB), maximum timeout (30 s), log retention default (180 days), logging.disabled, joinDefaultVpc — are all stated with specific, confident values, but SsrWebServerLambdaConfig is not present in the provided source files. These are unverifiable Stacktape-specific claims. A production engineer tuning memory or timeout will rely on these numbers.",
+            "cdn sub-properties — defaultCachingOptions.defaultTTL, pathCachingOverrides, disableInvalidationAfterDeploy — are described as concrete property names with specific behaviors, but SsrWebCdnConfig is not in the provided source. If the actual property names differ, the examples will fail for any reader who tries them.",
+            "dev sub-properties — dev.command and dev.workingDirectory — are described and shown in a code example, but SsrWebDevConfig is not in the provided source and the property names are unverified.",
+            "The claim 'The default and maximum serverLambda.timeout is 30 seconds' conflates two distinct facts (the default and the absolute ceiling). Lambda's general max is 15 minutes; the 30 s ceiling for this resource type is a Stacktape-specific constraint that needs source grounding. Stating it as an absolute maximum without a source is a meaningful risk for production users.",
+            "The url referenceable parameter is mentioned in prose but TanStackWeb does not appear in the StacktapeResourceReferenceableParam union type in __helpers.d.ts — no TanStackWebReferencableParam type is present in the provided source. The <ReferenceableParams resource=\"tanstack-web\" /> component call is fine, but the inline prose claim that url is exposed as a referenceable parameter is technically ungrounded."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "For every serverLambda, cdn, and dev sub-property that is claimed with a specific default value or range, add a hedge ('typically', 'see API Reference for current defaults') or source the value explicitly — the provided source only exposes the top-level TanStackWebProps shape, not the nested config types.",
+            "The claim that max serverLambda.timeout is 30 seconds should be qualified: if true, explain it is a resource-level cap enforced by Stacktape (not Lambda's platform max of 15 minutes), and note where this is documented.",
+            "The url referenceable parameter claim in the Basic example section should link to the <ReferenceableParams> component rather than asserting the parameter name in prose, since TanStackWebReferencableParam is not confirmed in the provided source.",
+            "Add a one-sentence note in the Server Lambda section pointing to the other SSR framework pages (Nuxt, SvelteKit, Remix) — they share the same SsrWebServerLambdaConfig shape, so cross-referencing helps readers who are migrating frameworks understand that the config model is shared.",
+            "The CDN section code example uses cdn.defaultCachingOptions.defaultTTL: 60 without explaining what values are valid or what unit the number is in. Even a one-line 'value in seconds' clarification reduces support questions.",
+            "Consider adding a brief note about the overrides escape hatch for CloudFront configuration not surfaced through the resource API (e.g., custom error pages, geo-restriction) — TanStackWebProps extends ResourceOverrides implicitly and production users frequently need this for HTTPS redirect behavior."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong answer-first paragraph (52 words, self-contained, directly answers 'what is this and why does it matter' without meta-framing).",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with label: 'TypeScript' — no forbidden YAML blocks or fenced TypeScript config patterns.",
+            "Complete 10-question FAQ with genuine category distribution: Stacktape-specific (5), AWS-service use-case (2), and comparison/choosing questions (2), plus one framework-specific question.",
+            "Opt-in features (CDN, custom domains, WAF, VPC connectivity) each receive decision-support coverage: when to enable, when the default suffices, and a cost/tradeoff signal with an opinionated recommendation.",
+            "Env var naming follows the required STP_[RESOURCE_NAME]_[PARAM] pattern and correctly resolves to STP_MAIN_DATABASE_CONNECTION_STRING / STP_MAIN_DATABASE_HOST / STP_MAIN_DATABASE_PORT for a resource named mainDatabase.",
+            "'When to use' and 'When NOT to use' are correctly structured as peer H2 sections, not nested.",
+            "Each section's first paragraph names the concept explicitly and is self-contained enough to be extracted as a snippet.",
+            "Single <ApiReference definitionName=\"TanStackWebProps\" /> placed at the bottom — matches the type name visible in the source and uses the correct definitionName."
+          ],
+          "problems": [
+            "The 'When NOT to use' section lists four alternatives in a bullet list but does not use a comparison table. Readers deciding between TanStack Start, static hosting, web service, and framework-specific resources benefit significantly from a table (cited 2–4× more by AI engines than equivalent prose). This is the most notable AEO miss on the page.",
+            "timeout: 25 in the server Lambda code example is an unexplained tunable value. The surrounding prose establishes the 30-second maximum but never explains why 25 specifically or which scenarios warrant a value below 30. Per the property-value-anchors rule, at least one sentence must explain what the property controls and what alternatives exist.",
+            "instanceSize: 'db.t4g.micro' in the connecting-resources example has no surrounding explanation. The connecting-resources section is focused on connectTo behavior, so a reader copying the snippet would not know what instanceSize values are available or when db.t4g.micro is appropriate. A one-sentence note ('db.t4g.micro is the smallest ARM-based RDS instance; see the relational database page for available instance sizes') would satisfy the rule.",
+            "The defaults cited — 1024 MB memory, 30-second maximum timeout, 180-day log retention — are not verifiable from the provided source files (SsrWebServerLambdaConfig and its sub-types are referenced but their definitions are not in the inline source). These are concrete claims that AI engines may cite verbatim; if any are wrong they become misinformation at scale.",
+            "FAQ question 6 ('What build system does TanStack Start use under the hood?') is framework documentation rather than a use-case or comparison question. This weakens the FAQ's category 2 (AWS service questions) coverage: only 2 out of 10 questions address underlying AWS service behavior, while the guidelines call for a meaningful mix."
+          ],
+          "mandatoryFixes": [
+            "Explain the timeout: 25 value in the server Lambda example. Either change it to 30 (the documented maximum) and note when to set lower values, or add 1–2 sentences before or after the example explaining that 25 is illustrative — responses approaching the CloudFront 30-second origin timeout can be preemptively lowered to avoid CDN-layer failures.",
+            "Add one sentence near the instanceSize: 'db.t4g.micro' value in the connecting-resources example explaining what the property controls and directing the reader to the relational database page for available instance sizes. A reader copying this example needs to know it's a tunable value, not a required literal."
+          ],
+          "optionalImprovements": [
+            "Add a small comparison table to the 'When NOT to use' section (or a new 'Choosing a frontend resource' subsection) with columns like Resource / Use case / SSR / Cold starts / Cost signal. This would serve as a high-citation AEO snippet and help readers arriving from search who haven't yet decided which Stacktape frontend resource to use.",
+            "Replace FAQ question 6 ('What build system does TanStack Start use?') with an AWS-service-oriented question such as 'How does CloudFront cache invalidation work on deploy?' or 'What CloudFront price class does Stacktape use by default?' to strengthen category 2 coverage.",
+            "If possible, verify and cite the specific source locations for the 1024 MB default memory, 30-second timeout maximum, and 180-day log retention default. Adding inline source links or a note like 'see SsrWebServerLambdaConfig' would protect against drift when defaults change.",
+            "The 'Build and dev' section is the thinnest section — it documents buildCommand and dev.command well but does not mention that dev mode connects to locally emulated or deployed resources. A one-sentence note on what stacktape dev does for SSR resources (whether it emulates the Lambda locally or proxies to a deployed function) would help readers set expectations before running the command.",
+            "Consider adding a brief mention that logging.disabled: true is an option alongside the retentionDays example, to make the logging sub-section feel complete for teams that forward logs to Datadog, Honeycomb, or similar external services."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the TanStackWeb source and avoids the major forbidden config-example patterns. I found a few Stacktape-specific claims that are broader than the provided source supports, especially around nested-resource shape, `connectTo`, and exact environment variables.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape automatically grants IAM permissions, opens network access where needed, and injects connection details as environment variables following the `STP_[RESOURCE_NAME]_[PARAM]` pattern.”",
+              "reason": "`TanStackWebProps` inherits `ResourceAccessProps`, which supports `connectTo`, but the documented `connectTo` behavior says network access is opened for databases and Redis specifically. The draft broadens this to “where needed,” which could imply all resource types get network access behavior.",
+              "suggestedFix": "Narrow the sentence to: “Stacktape grants IAM permissions for supported resources, opens security group access for databases and Redis, and injects documented connection details as environment variables following the `STP_[RESOURCE_NAME]_[PARAM]` pattern.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "List the names of resources this workload needs to communicate with. Stacktape automatically:\n   * - **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n   * - **Opens network access** (security group rules for databases, Redis)\n   * - **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“What does Stacktape create for a TanStack Start app? A Stacktape TanStack Start resource creates a Lambda function for SSR … an S3 bucket for static assets, and a CloudFront distribution …”",
+              "reason": "The provided type source confirms nested `bucket` and `serverFunction`, and the TanStackWeb top-level description mentions CloudFront CDN. It does not expose a nested CloudFront distribution in `_nestedResources`, so saying it “creates” a CloudFront distribution as a concrete nested resource is stronger than the available source supports.",
+              "suggestedFix": "Phrase as: “A Stacktape TanStack Start resource deploys a nested SSR Lambda function and bucket for static assets, and serves the app through a CloudFront CDN.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "_nestedResources: {\n    bucket: StpBucket;\n    serverFunction: StpLambdaFunction;\n  };"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "#### Deploy a TanStack Start SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“The `dev` block configures the local development server used by [`stacktape dev`](/cli/dev) and defaults to `vinxi dev`.”",
+              "reason": "The draft introduces the opt-in `dev` configuration but does not show the supported shape or explain the concrete tunables. The source confirms only that `dev` exists and defaults to `vinxi dev`; without an example or property explanation, readers cannot confidently configure it.",
+              "suggestedFix": "Either add a small `dev` example only if `SsrWebDevConfig` source is available, or keep this as a brief mention and link to `/cli/dev` without implying more detail than the source provides.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "Dev server config for `stacktape dev`. Defaults to `vinxi dev`.\n   */\n  dev?: SsrWebDevConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape runs `vinxi build` by default, deploys the server output as a Lambda function, uploads static assets to S3, and routes traffic through CloudFront.”",
+              "reason": "The source supports default `vinxi build`, Lambda, S3, and CloudFront. It does not explicitly say Stacktape “uploads” static assets or “routes” traffic. These are plausible implementation details, but the page is required to ground technical statements in provided source files.",
+              "suggestedFix": "Use the exact source-backed abstraction: “Stacktape deploys TanStack Start SSR with Lambda, S3 for static assets, and a CloudFront CDN; `buildCommand` overrides the default `vinxi build` command.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "#### Deploy a TanStack Start SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "#### Override the default `vinxi build` command."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“In the example above, a database named `mainDatabase` produces environment variables like `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT` on the SSR function.”",
+              "reason": "The source supports the `STP_[RESOURCE_NAME]_[PARAM]` pattern and lists `CONNECTION_STRING`, `HOST`, and `PORT` for relational databases, so the variables are likely correct. However, the exact conversion from camelCase `mainDatabase` to `MAIN_DATABASE` is not shown in the provided source; the only source examples use already word-separated names like `myDatabase`. This is a narrow grounding gap, not necessarily an incorrect claim.",
+              "suggestedFix": "Keep the pattern explicit and make the concrete names conditional: “For a database resource named `mainDatabase`, the documented relational database params are `CONNECTION_STRING`, `HOST`, and `PORT`, exposed using the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Injects environment variables with connection details: `STP_[RESOURCE_NAME]_[PARAM]`"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` for Stacktape config examples and does not hand-author YAML config examples.",
+            "The API reference uses the correct `TanStackWebProps` definition name.",
+            "The firewall wording correctly scopes `TanStackWeb.useFirewall` to a CDN-scoped `web-app-firewall`, matching the source.",
+            "The page links only to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 8, col 35: Argument of type '{ primaryInstance: { instanceSize: string; }; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'version' is missing in type '{ primaryInstance: { instanceSize: string; }; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 8, col 37: Argument of type '{ primaryInstance: { instanceSize: string; }; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'version' is missing in type '{ primaryInstance: { instanceSize: string; }; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 16, col 19: Type 'RelationalDatabase' is not assignable to type 'string'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 22: Object literal may only specify known properties, and '\"APP_ENV\"' does not exist in type 'EnvironmentVar[]'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 6,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__frontend__tanstack-start/iteration-6.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no forbidden YAML blocks, no plain StacktapeConfig type, no fenced TypeScript blocks for config.",
+            "'When to use' and 'When NOT to use' are correctly structured as peer H2 sections with concrete, opinionated guidance and named alternatives (static hosting, web service, other SSR frameworks).",
+            "The database-plus-VPC-connectivity code example directly addresses a real gotcha (joinDefaultVpc required for relational databases) that a first-time user would hit, making it the most practically valuable example on the page.",
+            "Decision support is present for every opt-in feature: CDN caching, custom domains, WAF protection, and VPC connectivity each include a 'when to enable / when to skip / tradeoff' signal.",
+            "Exactly 10 FAQ pairs spanning Stacktape-specific, AWS-service, and comparison categories. Question 8 (Lambda cold starts), 7 (pricing model), 9 (static hosting vs SSR), and 10 (TanStack vs Next.js) directly address high-intent searches.",
+            "H2 headings are short noun-form labels (2–4 words each), consistent throughout the page, making it easy to scan for a specific topic in under 30 seconds.",
+            "The intro paragraph is self-contained and within the 40–75 word target — reads cleanly as a Featured Snippet answer.",
+            "The `connectTo` environment variable names (`STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, `STP_MAIN_DATABASE_PORT`) correctly reflect the resource name `mainDatabase` and match the `ResourceAccessProps` JSDoc in the source."
+          ],
+          "problems": [
+            "Specific defaults for serverLambda are stated as fact ('default serverLambda.memory is 1024 MB', 'configurable from 128 to 10240 MB', 'default and maximum serverLambda.timeout is 30 seconds', 'log retention defaults to 180 days') but the SsrWebServerLambdaConfig type definition is not in the provided source files. If any of these values are wrong, the page actively misleads first-time users who will copy them.",
+            "Several sub-properties mentioned in prose — cdn.disableInvalidationAfterDeploy, cdn.pathCachingOverrides, cdn.defaultCachingOptions.defaultTTL, and serverLambda.logging.disabled — come from types (SsrWebCdnConfig, SsrWebServerLambdaConfig) not present in the provided source. The source-grounding verifier will flag these, and they cannot be confirmed correct from the inline source.",
+            "The 'CDN and static assets' section says 'By default, all cached CDN content is invalidated on every deploy' — this is an AWS/Stacktape behavior claim that cannot be verified from the provided source files.",
+            "The FAQ questions 1–5 are all Stacktape-specific. While the three categories are technically met (7, 8 are AWS-service questions; 9, 10 are comparison questions), a first-time developer with low AWS experience may benefit more from at least one additional foundational AWS question earlier in the FAQ (e.g. explaining what Lambda cold start means or what CloudFront actually does), rather than five consecutive Stacktape-specific questions."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify all serverLambda defaults (memory, timeout, log retention) and cdn sub-properties against the actual SsrWebServerLambdaConfig and SsrWebCdnConfig type definitions before publishing. If the defaults are confirmed, add a source-side comment; if they differ, correct the prose and examples.",
+            "Consider replacing or supplementing the prose enumeration in the 'CDN and static assets' section with a two-column table showing property / what it controls / default value — this pattern is cited 2–4× more by answer engines and is directly useful for a reader who wants to tune caching.",
+            "The 'When NOT to use' section links to /resources/frontend/nextjs, /resources/frontend/nuxt, etc. — if any of these routes do not yet exist as published pages, use the framework name in prose only rather than dead links.",
+            "Swap one of the five Stacktape-specific FAQ questions for a foundational 'What is a Lambda cold start and why does it matter for SSR?' question — first-time developers with low AWS exposure will search for this and the page is in a strong position to answer it.",
+            "The 'Build and dev' section introduces the dev.workingDirectory property but no code example demonstrates it as the sole focus — the existing example includes both buildCommand and dev together. This is fine, but a brief note that workingDirectory is relative to the project root (not to appDirectory) would prevent a common misconfiguration."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "No forbidden style violations — all Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript; no hand-authored YAML, no StacktapeConfig type usage, no fenced TypeScript blocks with defineConfig.",
+            "Clear and opinionated When to use / When NOT to use sections with concrete named alternatives for every case (static hosting, web service, Lambda, other frameworks).",
+            "The connectTo example is realistic and correctly includes serverLambda.joinDefaultVpc alongside the database resource — the page explains *why* this is required, not just that it is.",
+            "FAQ covers all three required categories: Stacktape-specific (custom domain, WAF, appDirectory), AWS use-case (cold starts, pricing model), and comparison (static hosting, Next.js resource).",
+            "Decision support for opt-in features (CDN, custom domains, WAF) follows the guide-not-recipe discipline: each section includes a when-to-enable, when-to-skip, and cost/tradeoff signal.",
+            "Single <ApiReference definitionName=\"TanStackWebProps\" /> at the bottom, correctly matching the Props type name from the source.",
+            "First paragraph is self-contained and descriptive enough to be extracted as an AI snippet without losing meaning."
+          ],
+          "problems": [
+            "serverLambda sub-properties — memory default (1024 MB), configurable range (128–10240 MB), maximum timeout (30 s), log retention default (180 days), logging.disabled, joinDefaultVpc — are all stated with specific, confident values, but SsrWebServerLambdaConfig is not present in the provided source files. These are unverifiable Stacktape-specific claims. A production engineer tuning memory or timeout will rely on these numbers.",
+            "cdn sub-properties — defaultCachingOptions.defaultTTL, pathCachingOverrides, disableInvalidationAfterDeploy — are described as concrete property names with specific behaviors, but SsrWebCdnConfig is not in the provided source. If the actual property names differ, the examples will fail for any reader who tries them.",
+            "dev sub-properties — dev.command and dev.workingDirectory — are described and shown in a code example, but SsrWebDevConfig is not in the provided source and the property names are unverified.",
+            "The claim 'The default and maximum serverLambda.timeout is 30 seconds' conflates two distinct facts (the default and the absolute ceiling). Lambda's general max is 15 minutes; the 30 s ceiling for this resource type is a Stacktape-specific constraint that needs source grounding. Stating it as an absolute maximum without a source is a meaningful risk for production users.",
+            "The url referenceable parameter is mentioned in prose but TanStackWeb does not appear in the StacktapeResourceReferenceableParam union type in __helpers.d.ts — no TanStackWebReferencableParam type is present in the provided source. The <ReferenceableParams resource=\"tanstack-web\" /> component call is fine, but the inline prose claim that url is exposed as a referenceable parameter is technically ungrounded."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "For every serverLambda, cdn, and dev sub-property that is claimed with a specific default value or range, add a hedge ('typically', 'see API Reference for current defaults') or source the value explicitly — the provided source only exposes the top-level TanStackWebProps shape, not the nested config types.",
+            "The claim that max serverLambda.timeout is 30 seconds should be qualified: if true, explain it is a resource-level cap enforced by Stacktape (not Lambda's platform max of 15 minutes), and note where this is documented.",
+            "The url referenceable parameter claim in the Basic example section should link to the <ReferenceableParams> component rather than asserting the parameter name in prose, since TanStackWebReferencableParam is not confirmed in the provided source.",
+            "Add a one-sentence note in the Server Lambda section pointing to the other SSR framework pages (Nuxt, SvelteKit, Remix) — they share the same SsrWebServerLambdaConfig shape, so cross-referencing helps readers who are migrating frameworks understand that the config model is shared.",
+            "The CDN section code example uses cdn.defaultCachingOptions.defaultTTL: 60 without explaining what values are valid or what unit the number is in. Even a one-line 'value in seconds' clarification reduces support questions.",
+            "Consider adding a brief note about the overrides escape hatch for CloudFront configuration not surfaced through the resource API (e.g., custom error pages, geo-restriction) — TanStackWebProps extends ResourceOverrides implicitly and production users frequently need this for HTTPS redirect behavior."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong answer-first paragraph (52 words, self-contained, directly answers 'what is this and why does it matter' without meta-framing).",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with label: 'TypeScript' — no forbidden YAML blocks or fenced TypeScript config patterns.",
+            "Complete 10-question FAQ with genuine category distribution: Stacktape-specific (5), AWS-service use-case (2), and comparison/choosing questions (2), plus one framework-specific question.",
+            "Opt-in features (CDN, custom domains, WAF, VPC connectivity) each receive decision-support coverage: when to enable, when the default suffices, and a cost/tradeoff signal with an opinionated recommendation.",
+            "Env var naming follows the required STP_[RESOURCE_NAME]_[PARAM] pattern and correctly resolves to STP_MAIN_DATABASE_CONNECTION_STRING / STP_MAIN_DATABASE_HOST / STP_MAIN_DATABASE_PORT for a resource named mainDatabase.",
+            "'When to use' and 'When NOT to use' are correctly structured as peer H2 sections, not nested.",
+            "Each section's first paragraph names the concept explicitly and is self-contained enough to be extracted as a snippet.",
+            "Single <ApiReference definitionName=\"TanStackWebProps\" /> placed at the bottom — matches the type name visible in the source and uses the correct definitionName."
+          ],
+          "problems": [
+            "The 'When NOT to use' section lists four alternatives in a bullet list but does not use a comparison table. Readers deciding between TanStack Start, static hosting, web service, and framework-specific resources benefit significantly from a table (cited 2–4× more by AI engines than equivalent prose). This is the most notable AEO miss on the page.",
+            "timeout: 25 in the server Lambda code example is an unexplained tunable value. The surrounding prose establishes the 30-second maximum but never explains why 25 specifically or which scenarios warrant a value below 30. Per the property-value-anchors rule, at least one sentence must explain what the property controls and what alternatives exist.",
+            "instanceSize: 'db.t4g.micro' in the connecting-resources example has no surrounding explanation. The connecting-resources section is focused on connectTo behavior, so a reader copying the snippet would not know what instanceSize values are available or when db.t4g.micro is appropriate. A one-sentence note ('db.t4g.micro is the smallest ARM-based RDS instance; see the relational database page for available instance sizes') would satisfy the rule.",
+            "The defaults cited — 1024 MB memory, 30-second maximum timeout, 180-day log retention — are not verifiable from the provided source files (SsrWebServerLambdaConfig and its sub-types are referenced but their definitions are not in the inline source). These are concrete claims that AI engines may cite verbatim; if any are wrong they become misinformation at scale.",
+            "FAQ question 6 ('What build system does TanStack Start use under the hood?') is framework documentation rather than a use-case or comparison question. This weakens the FAQ's category 2 (AWS service questions) coverage: only 2 out of 10 questions address underlying AWS service behavior, while the guidelines call for a meaningful mix."
+          ],
+          "mandatoryFixes": [
+            "Explain the timeout: 25 value in the server Lambda example. Either change it to 30 (the documented maximum) and note when to set lower values, or add 1–2 sentences before or after the example explaining that 25 is illustrative — responses approaching the CloudFront 30-second origin timeout can be preemptively lowered to avoid CDN-layer failures.",
+            "Add one sentence near the instanceSize: 'db.t4g.micro' value in the connecting-resources example explaining what the property controls and directing the reader to the relational database page for available instance sizes. A reader copying this example needs to know it's a tunable value, not a required literal."
+          ],
+          "optionalImprovements": [
+            "Add a small comparison table to the 'When NOT to use' section (or a new 'Choosing a frontend resource' subsection) with columns like Resource / Use case / SSR / Cold starts / Cost signal. This would serve as a high-citation AEO snippet and help readers arriving from search who haven't yet decided which Stacktape frontend resource to use.",
+            "Replace FAQ question 6 ('What build system does TanStack Start use?') with an AWS-service-oriented question such as 'How does CloudFront cache invalidation work on deploy?' or 'What CloudFront price class does Stacktape use by default?' to strengthen category 2 coverage.",
+            "If possible, verify and cite the specific source locations for the 1024 MB default memory, 30-second timeout maximum, and 180-day log retention default. Adding inline source links or a note like 'see SsrWebServerLambdaConfig' would protect against drift when defaults change.",
+            "The 'Build and dev' section is the thinnest section — it documents buildCommand and dev.command well but does not mention that dev mode connects to locally emulated or deployed resources. A one-sentence note on what stacktape dev does for SSR resources (whether it emulates the Lambda locally or proxies to a deployed function) would help readers set expectations before running the command.",
+            "Consider adding a brief mention that logging.disabled: true is an option alongside the retentionDays example, to make the logging sub-section feel complete for teams that forward logs to Datadog, Honeycomb, or similar external services."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the TanStackWebProps type and helper types, and it follows the required TypeScript CodeBlock pattern. I found several unsupported or over-specific Stacktape claims that should be narrowed, mainly around nested resource shape, CDN behavior, Stacktape-managed certificates, and inherited Lambda/logging details.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“A Stacktape TanStack Start resource creates a Lambda function for SSR (using the Nitro aws-lambda preset), an S3 bucket for static assets, and a CloudFront distribution that routes requests to the correct origin.”",
+              "reason": "The TanStackWeb source directly documents nested bucket and serverFunction resources, but the provided type does not list a CloudFront distribution as a nested resource. The top-level description supports CloudFront CDN usage, but not the stronger claim that the resource creates a CloudFront distribution as a nested resource with origin routing details.",
+              "suggestedFix": "Say that the resource “uses CloudFront CDN to serve the app” and that its documented nested resources include the SSR Lambda function and static asset bucket. Avoid claiming the CloudFront distribution is a documented nested resource unless a source lists it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "_nestedResources: {\n    bucket: StpBucket;\n    serverFunction: StpLambdaFunction;\n  };"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape runs `vinxi build` by default, deploys the server output as a Lambda function, uploads static assets to S3, and routes traffic through CloudFront.”",
+              "reason": "The source supports the default build command, Lambda, S3 static assets, and CloudFront CDN. It does not specifically support “uploads static assets to S3” as an operational verb or “routes traffic through CloudFront” as a routing implementation detail; those are plausible but more specific than the type comments.",
+              "suggestedFix": "Narrow to: “By default, Stacktape uses `vinxi build`, deploys SSR on Lambda, stores static assets on S3, and serves the app through CloudFront CDN.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "#### Deploy a TanStack Start SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "#### Override the default `vinxi build` command."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape creates the DNS record and provisions a free TLS certificate automatically.” and “Stacktape creates the DNS record and provisions a free TLS certificate” in the FAQ.",
+              "reason": "DomainConfiguration supports auto-managed DNS records and TLS certificates and says Stacktape creates a DNS record and provisions a free TLS certificate, but only in the context where DNS record creation is not disabled and the Route 53 prerequisite is met. The FAQ sentence later mentions `disableDnsRecordCreation`, but the earlier phrasing is unconditional enough to mislead users who manage DNS externally.",
+              "suggestedFix": "Qualify the claim consistently: “When DNS record creation is enabled and the Route 53 hosted zone prerequisite is met, Stacktape creates the DNS record and provisions a free TLS certificate.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\n   * Stacktape will still provision the TLS certificate but won't touch your DNS."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Don't include the protocol (`https://`). The domain must have a Route53 hosted zone\n   * in your AWS account, with your registrar's nameservers pointing to it.\n   *\n   * Stacktape automatically creates a DNS record and provisions a free TLS certificate."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `serverLambda.logging` sub-property controls CloudWatch log behavior. Lower `retentionDays` to reduce storage costs in development stages, or raise it for production audit requirements. Set `logging.disabled` to `true` to turn off CloudWatch logging entirely…”",
+              "reason": "The TanStackWeb source only says `serverLambda` customizes logging; the provided authoritative type sources do not include the shape of `SsrWebServerLambdaConfig` or `logging`. The generated summary mentions these fields, but the draft presents specific nested properties and behavior as authoritative without the underlying type definition in the provided source list.",
+              "suggestedFix": "Either remove the specific `retentionDays` and `disabled` guidance from this page, or phrase it as narrow configuration guidance only if the page source includes `SsrWebServerLambdaConfig`/logging definitions. Keep the example only if the code-block validator confirms those nested fields.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "#### Customize the SSR Lambda function (memory, timeout, VPC, logging).\n   */\n  serverLambda?: SsrWebServerLambdaConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The SSR function inherits memory, CPU allocation, timeout behavior, and VPC connectivity from Lambda functions; see that page for the underlying constraints and defaults.”",
+              "reason": "The TanStackWeb source says `serverLambda` customizes memory, timeout, VPC, and logging, but it does not state that the SSR function inherits LambdaFunction behavior or defaults. This is likely true structurally, but the provided source for this page does not include the base Lambda config type or an inheritance relationship.",
+              "suggestedFix": "Narrow to: “The `serverLambda` block exposes memory, timeout, VPC, and logging controls for the SSR Lambda function. See Lambda functions for the broader Lambda model.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "#### Customize the SSR Lambda function (memory, timeout, VPC, logging).\n   */\n  serverLambda?: SsrWebServerLambdaConfig;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`fileOptions` example sets a one-year immutable cache header on hashed static assets — the right default for fingerprinted build output.”",
+              "reason": "The source supports custom headers for matching static files, but it does not state that TanStack Start build output under `assets/**` is hashed or fingerprinted. The recommendation depends on an assumption about the app’s asset naming, not Stacktape source.",
+              "suggestedFix": "Say “Use this pattern only for files whose names are fingerprinted by your build, because immutable one-year caching is unsafe for mutable filenames.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/tanstack-web.d.ts",
+                  "quote": "#### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.\n   */\n  fileOptions?: DirectoryUploadFilter[];"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Both [TanStack Start and Next.js] support custom domains, CDN caching, WAF, and VPC connectivity.”",
+              "reason": "The provided source for this verification covers TanStackWeb, not NextjsWeb. The claim about Next.js support is plausible and appears in generated prose, but there is no NextjsWeb type source in the provided source list to verify it.",
+              "suggestedFix": "Avoid cross-resource feature parity claims unless the source list includes the other resource’s type. Use: “Choose based on which framework your app uses; each resource is shaped for its framework’s build output.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses exactly one `<ApiReference definitionName=\"TanStackWebProps\" />`, and the definition name matches the page type.",
+            "All Stacktape config examples use `<CodeBlock intellisense>` with a `TypeScript` tab and class-based `defineConfig`; no hand-authored Stacktape YAML or `StacktapeConfig` typed object style appears.",
+            "The `connectTo` environment variable examples follow the required `STP_[RESOURCE_NAME]_[PARAM]` pattern, including the concrete `mainDatabase` example.",
+            "The firewall wording correctly scopes `useFirewall` to the TanStack Start CDN path and requires a `web-app-firewall` resource with `scope: 'cdn'`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 17, col 19: Type 'RelationalDatabase' is not assignable to type 'string'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 6, col 22: Object literal may only specify known properties, and '\"APP_ENV\"' does not exist in type 'EnvironmentVar[]'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\frontend\\tanstack-start.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/resources/frontend/tanstack-start.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 3, advisory high 0, verifier medium 8"
+  "pipelineReviewSummary": "reviewer-avg 8.1, hard blockers 1, advisory high 0, verifier medium 7",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

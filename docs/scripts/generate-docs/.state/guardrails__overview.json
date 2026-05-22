@@ -2,7 +2,7 @@
   "pageId": "guardrails__overview",
   "pageRoute": "guardrails/overview",
   "startedAt": "2026-05-16T11:41:38.693Z",
-  "updatedAt": "2026-05-16T12:30:33.451Z",
+  "updatedAt": "2026-05-22T03:10:55.939Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1798,20 +1798,558 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/guardrails__overview/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "First paragraph is a sharp, self-contained summary that an AI engine could cite verbatim — names the resource, what it does, and the four axes it controls in under 60 words.",
+            "The Guardrails vs Alarms comparison table is genuinely differentiating. The 'When / Action / Scope / Purpose / Managed in' row labels give readers a fast mental model without requiring them to read two separate pages.",
+            "All 15 guardrail types from guardrails.d.ts are covered, organised into the same four categories the Console source uses, with no invented types and no silently omitted ones.",
+            "Exactly 10 FAQ items span all three required categories: Stacktape-specific (can I block deletion?), AWS-service use-case (SCPs vs guardrails), and comparison/choosing (toggle guardrail vs value guardrail distinction). Answer length is well-calibrated at 2–4 sentences.",
+            "'When NOT to use' is a peer H2 alongside 'When to use', not a nested H3 — structurally correct per style-guide rules and genuinely opinionated (solo teams, early prototypes, heterogeneous projects).",
+            "Console UI descriptions (toggle switch, Save/Remove/Cancel buttons, 'active' badge) are grounded in GuardrailsPage.tsx source — not invented prose.",
+            "The Info callout flagging that resource-type-restriction accepts any resource type despite its console grouping adds real signal for the reader who might otherwise under-use it.",
+            "No mandatory style violations: no YAML Stacktape config blocks, no StacktapeConfig import, no defineConfig in a fenced block, no marketing-tone language."
+          ],
+          "problems": [
+            "The 'Managing guardrails' section claims resource-type-restriction is 'grouped under Database restrictions in the Stacktape Console' — but guardrails-schema.ts is not in the provided source list, so the category assignment is ungrounded. The broader claim that the Console uses exactly 'four categories' named as described relies on the same missing file.",
+            "'When to use' and 'When NOT to use' are placed after all four detailed guardrail-category sections, near the bottom of the page. The style-guide rhythm puts decision-support content early (item 3), before configuration detail. A first-time reader encounters ~600 words of configuration before learning whether guardrails are right for them at all.",
+            "The 'How guardrails work' section partially duplicates the introductory paragraph (guardrails block operations, they're managed in the Console) and the summary table that immediately follows it. It adds only the '15 types in 4 categories' table, which could be rolled directly into the introduction or the first section heading.",
+            "The 'Managing guardrails' section re-enumerates which guardrails are toggle-based vs value-based — information fully derivable from reading the earlier per-category sections. This duplication adds page weight without adding new information for a reader who has just read those sections."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move 'When to use' and 'When NOT to use' to immediately after the intro paragraph (or after the Guardrails vs Alarms table), so a reader who hasn't decided if guardrails apply to them can bail early rather than reading four detailed sections first.",
+            "Soften or remove the specific claim that resource-type-restriction is 'grouped under Database restrictions in the Stacktape Console' — guardrails-schema.ts is not in scope. Replacing with 'despite appearing alongside database restrictions' → 'despite its name, the resource type restriction guardrail...' without asserting a specific Console location avoids a source-grounding issue.",
+            "Merge 'How guardrails work' into the introduction or the overview table. The section adds one new fact (15 types, 4 categories) — that fact can move into the intro paragraph ('Stacktape provides 15 guardrail types in four categories...'), which would let you drop the thin H2 entirely.",
+            "Collapse the 'Managing guardrails' toggle vs value-based re-enumeration into a single sentence or remove it. The reader has already read the per-category sections; they don't need a re-listing of which guardrails fall into each bucket.",
+            "The category summary table ('Deployment restrictions — Stages, regions, commands') lists links to sub-pages. Consider adding a one-line 'guardrail count' column (e.g. '3 guardrails') so readers have a proportionality signal before clicking through.",
+            "FAQ item 'How many guardrail types does Stacktape support?' duplicates information already in the 'How guardrails work' section summary table. Replace it with a question closer to a first-timer's mental model — e.g. 'Do guardrails affect existing stacks immediately when I activate them?' — which the current FAQ touches only lightly in a different answer."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All 15 guardrail types are accurately documented with correct property names sourced directly from the TypeScript type definitions — no invented fields or phantom options.",
+            "The guardrails vs alarms comparison table is immediately useful and clearly separates preventive (guardrail) from reactive (alarm) concerns, a common source of confusion for engineers coming from monitoring-first backgrounds.",
+            "The 'When to use' and 'When NOT to use' sections are concrete and opinionated rather than generic — the multi-developer / compliance / cost-control framing gives engineers an actual decision signal.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS use-case, comparison/choosing) with 10 well-targeted questions and substantive answers. The SCPs vs Stacktape guardrails answer in particular is a high-value FAQ target.",
+            "The distinction between toggle-based and value-based guardrails, grounded in the Console source's ToggleGuardrailRow / ValueGuardrailRow split, is a practical detail engineers will need before opening the Console.",
+            "The Info callout correctly flags that resource-type-restriction is broader than its Console category name implies — this catches a real gotcha before an engineer tries to use it only for database control."
+          ],
+          "problems": [
+            "UNSUPPORTED CLAIM — The 'Resource limits' section states the function memory limit and function timeout limit apply to 'Lambda functions and edge functions'. The source type FunctionMemoryLimitGuardrail JSDoc explicitly says 'Maximum memory (in MB) allowed for Lambda functions', and FunctionTimeoutLimitGuardrail says 'Maximum timeout (in seconds) allowed for Lambda functions'. Neither type mentions edge functions. Asserting edge functions are covered by these guardrails is unsupported by the provided source.",
+            "The 'Managing guardrails' section enumerates all toggle-based and value-based guardrails by name in long bullet lists that duplicate content already covered in the four category sections above. This section is padded — the unique value is the Console workflow behavior (expand-form, Save/Remove buttons, active badge), not the re-listing of guardrail names."
+          ],
+          "mandatoryFixes": [
+            "Remove 'and edge functions' from both the function-memory-limit and function-timeout-limit descriptions in the 'Resource limits' section. FunctionMemoryLimitGuardrail and FunctionTimeoutLimitGuardrail JSDoc in guardrails.d.ts reference 'Lambda functions' only. If edge functions are in scope, that must be confirmed in a grounded source (the guardrails type file or an authoritative runtime validator) before claiming it — as written it is a factually unsupported assertion that could cause an engineer to misconfigure policy."
+          ],
+          "optionalImprovements": [
+            "Trim the 'Managing guardrails' section: remove the two large bullet lists that re-enumerate toggle-based and value-based guardrails by name. Keep only the Console workflow description (toggle switch, expand-form, Save/Remove buttons, active badge summary) — that's the unique value of this section. The reader already has the full list from the four category sections.",
+            "The Console categorization of resource-type-restriction under 'Database restrictions' is noted only in the Info callout below the section. Consider adding a one-line heads-up in the 'Database restrictions' H2 opening paragraph so readers who skim to that heading see the caveat before reaching the callout.",
+            "The 'How guardrails work' opening paragraph partially re-states the page intro. Consider leading with only the behavior sentence ('When a guardrail check fails...') and the category table — the 'organization-level restrictions for stages, regions...' framing is already in the first paragraph and reads as repetition."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is 44 words, fully self-contained, and directly answers 'what is this and why does it matter' — ideal for AI extraction.",
+            "Guardrails vs alarms comparison table is the clearest possible way to separate two easily-confused concepts. Every column is concrete (When, Action, Scope, Purpose, Managed in).",
+            "All 15 guardrail types from guardrails.d.ts are covered and accurately described, including the correct property names (allowedStages, blockedCommands, maxMemoryMB, maxCpu, etc.).",
+            "Info callout that clarifies the resource-type restriction sitting under 'Database restrictions' category is a genuine user-trap and the callout handles it well.",
+            "'When to use' and 'When NOT to use' correctly appear as peer H2 sections rather than nesting 'When NOT to use' under 'When to use'.",
+            "FAQ contains exactly 10 questions covering all three required categories: Stacktape-specific (can I block stage deletion?), AWS-service use-case (how do guardrails differ from SCPs?), and choosing/comparison (guardrails vs IAM).",
+            "Toggle vs value-based guardrail distinction in 'Managing guardrails' is grounded in the actual console source (ToggleGuardrailRow vs ValueGuardrailRow components) and reflects real UI behavior.",
+            "Guardrail categories table with links to sub-pages provides navigation without repeating detail — good economy.",
+            "No forbidden patterns detected: no YAML config blocks, no StacktapeConfig type import, no fenced TypeScript with defineConfig, no marketing language.",
+            "Section headings are compact noun-form labels (Deployment restrictions, Security and data protection, Resource limits, Database restrictions) — consistent and scannable."
+          ],
+          "problems": [
+            "The 'Resource limits' section states the function-memory and function-timeout guardrails apply to 'Lambda functions and edge functions', but the guardrails.d.ts JSDoc for FunctionMemoryLimitGuardrail and FunctionTimeoutLimitGuardrail only says 'Lambda functions'. Claiming edge functions are covered is not supported by the provided source.",
+            "The container-resource-limit description enumerates specific resource types (web services, private services, worker services, multi-container workloads) but the source type ContainerResourceLimitGuardrail only says 'container workloads' without enumerating specific sub-types. The enumeration is plausible but not grounded in this page's source files.",
+            "The 'Managing guardrails' section describes navigational UI detail (clicking expand, clicking Save, clicking Remove) which is source-grounded here, but the section says guardrails are managed at the 'selected organization' level without noting what role or permission level is required to manage them — a question real users will have.",
+            "No ApiReference component anywhere on the page. For a concept/governance page, the GuardrailDefinition union type exists in guardrails.d.ts and likely has a schema entry. Its absence is not a hard rule violation for an overview page, but the pipeline does expect it on concept pages that have a root type."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Qualify the edge function claim: the JSDoc for FunctionMemoryLimitGuardrail and FunctionTimeoutLimitGuardrail only says 'Lambda functions'. Either verify that EdgeLambdaFunction is covered by these guardrails (and cite the evidence) or remove 'and edge functions' from both descriptions to stay within what the source supports.",
+            "Replace 'container workloads, including web services, private services, worker services, and multi-container workloads' with just 'container workloads' in the container-resource-limit description, since the source type only says 'container workloads' without enumerating sub-types.",
+            "Add a one-sentence access note to 'Managing guardrails': who can manage organization-level guardrails (admin, owner)? The Console source shows an org-scoped mutation but doesn't gate by role on this page — link to the team and access control page as a reference rather than inventing a role name.",
+            "Consider adding an <ApiReference definitionName='GuardrailDefinition' /> (or the equivalent schema entry name) somewhere on the page, either at the bottom or after the 'How guardrails work' section, so readers can drill into individual guardrail type shapes without leaving the page.",
+            "The 'Database restrictions' section uses 'Blocked instance sizes' in the heading but 'Blocked instance sizes' as the guardrail name, while the type is database-instance-restriction. Consider adding a one-word note that the underlying type identifier is 'database-instance-restriction' to help readers who search logs or error messages for the guardrail name.",
+            "The FAQ answer for 'Do guardrails apply to already-deployed stacks?' is accurate but could be sharpened: stacks that were deployed before a guardrail was activated are NOT retroactively blocked from running, only from future operations. The current wording says this implicitly but a direct 'already-running resources are not affected' sentence would make it clearer for readers who are worried about breaking live infrastructure.",
+            "The FAQ answer for 'Can I set different guardrails for production vs development stages?' correctly says guardrails are per-organization, but the recommendation to use separate organizations is not elaborated. Add one sentence noting the practical tradeoff: separate organizations means separate billing, access management, and provider configuration, so this is only warranted for genuinely different policy regimes."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the guardrails type definitions and the Console implementation. I found a few Stacktape-specific overstatements where the draft broadens guardrail scope beyond what the provided source says, mainly around OpenSearch and edge functions.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Require VPC for databases — When enabled, all databases and OpenSearch domains must use VPC-only accessibility with no public internet access.”",
+              "reason": "The authoritative guardrails type only says the guardrail applies to databases. It does not mention OpenSearch domains, so the draft broadens the guardrail scope beyond the source.",
+              "suggestedFix": "Narrow the sentence to: “When enabled, all databases must use VPC-only accessibility with no public internet access.” Do not mention OpenSearch unless a higher-priority source explicitly includes it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type RequireVpcDatabasesGuardrail = {\n  type: 'require-vpc-databases';\n  properties: {\n    /**\n     * #### When enabled, all databases must use VPC-only accessibility (no public internet access).\n     */\n    enabled?: boolean;\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Function memory limit” and “Function timeout limit” apply to “all Lambda functions and edge functions.”",
+              "reason": "The guardrail source describes these limits as applying to Lambda functions. It does not explicitly include edge functions, so the draft should not add that scope on this overview page.",
+              "suggestedFix": "Write “Lambda functions” only, or use cautious wording such as “Lambda-function resources” if that matches the product terminology. Remove the edge-function link unless another source explicitly confirms edge functions are covered.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type FunctionMemoryLimitGuardrail = {\n  type: 'function-memory-limit';\n  properties: {\n    /**\n     * #### Maximum memory (in MB) allowed for Lambda functions (e.g., `1024`).\n     */\n    maxMemoryMB?: number;\n  };\n};"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type FunctionTimeoutLimitGuardrail = {\n  type: 'function-timeout-limit';\n  properties: {\n    /**\n     * #### Maximum timeout (in seconds) allowed for Lambda functions (e.g., `30`).\n     */\n    maxTimeoutSeconds?: number;\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The operation is blocked” / “operations targeting any other stage name fail” / “operations targeting other regions fail” / “Deployments using engines not in the list fail.”",
+              "reason": "The type definitions establish allowed and blocked values, but the provided runtime/validator source for enforcement behavior is not included. The wording is plausible, but it is stronger than the provided authoritative source proves.",
+              "suggestedFix": "Use slightly narrower wording: “Guardrails are intended to block…” or “Others are blocked according to the guardrail definition.” Keep the claim tied to the type JSDoc instead of asserting exact runtime flow.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type StageRestrictionGuardrail = {\n  type: 'stage-restriction';\n  properties: {\n    /**\n     * #### Stages where this stack can be deployed (e.g., `[\"production\", \"staging\"]`). Others are blocked.\n     */\n    allowedStages?: string[];\n  };\n};"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type DatabaseEngineRestrictionGuardrail = {\n  type: 'database-engine-restriction';\n  properties: {\n    /**\n     * #### Database engine types that are allowed (e.g., `[\"postgres\", \"aurora-postgresql\"]`). Others are blocked.\n     */\n    allowedEngines?: string[];\n  };\n};"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly lists all 15 guardrail types from `GuardrailType`.",
+            "The draft correctly separates preventive guardrails from reactive alarms instead of conflating them.",
+            "The Console management section is well grounded in `GuardrailsPage.tsx`: toggle guardrails use `ToggleSwitch`, value guardrails use `ExpandableBox`, active rows show an `active` label, and active value guardrails can show a value summary.",
+            "All cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "The draft avoids forbidden Stacktape configuration patterns: there are no hand-authored YAML config examples, no `StacktapeConfig` plain-object examples, and no fenced TypeScript Stacktape config blocks."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the guardrails type source and the Console implementation. I found a few Stacktape-specific claims that go beyond the provided sources, mainly around OpenSearch coverage, edge functions, Console workflow details, and guardrail enforcement timing/messages.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Require VPC for databases — When enabled, all databases and OpenSearch domains must use VPC-only accessibility with no public internet access.”",
+              "reason": "The authoritative guardrail type only says the rule applies to databases. The provided source does not include OpenSearch domains in this guardrail, and the page instructions explicitly require guardrail claims to be grounded in guardrails.d.ts.",
+              "suggestedFix": "Remove “and OpenSearch domains” and write: “When enabled, all databases must use VPC-only accessibility with no public internet access.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type RequireVpcDatabasesGuardrail = {\n  type: 'require-vpc-databases';\n  properties: {\n    /**\n     * #### When enabled, all databases must use VPC-only accessibility (no public internet access).\n     */\n    enabled?: boolean;\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Function memory limit — Set a maximum memory allocation (in MB) for all Lambda functions and edge functions via maxMemoryMB.” and “Function timeout limit — Set a maximum timeout (in seconds) for all Lambda functions and edge functions via maxTimeoutSeconds.”",
+              "reason": "The guardrail source says these limits apply to Lambda functions. It does not mention edge functions. Edge functions may be Lambda-based elsewhere, but this specific guardrail coverage is not grounded in the provided guardrails source.",
+              "suggestedFix": "Narrow both bullets to “Lambda functions” only, or say “Lambda functions; see the dedicated edge-function page for edge-specific behavior” only if that is grounded in the edge-function source on that page.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type FunctionMemoryLimitGuardrail = {\n  type: 'function-memory-limit';\n  properties: {\n    /**\n     * #### Maximum memory (in MB) allowed for Lambda functions (e.g., `1024`).\n     */\n    maxMemoryMB?: number;\n  };\n};"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type FunctionTimeoutLimitGuardrail = {\n  type: 'function-timeout-limit';\n  properties: {\n    /**\n     * #### Maximum timeout (in seconds) allowed for Lambda functions (e.g., `30`).\n     */\n    maxTimeoutSeconds?: number;\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Guardrails are managed in the Stacktape Console. The Console renders each guardrail as a row — toggle-style guardrails use a single on/off switch, while value-based guardrails use an expandable row containing an inline configuration form.”",
+              "reason": "The Console source supports rows, toggles, expandable rows, and forms. However, the source does not establish that the Stacktape Console is the only or canonical place where guardrails are managed. The sentence “Guardrails are managed in the Stacktape Console” is broader than the provided source proves.",
+              "suggestedFix": "Write more narrowly: “The provided Console page manages guardrails for the selected organization. In that page, toggle-style guardrails use a switch, while value-based guardrails expand into an inline form.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/GuardrailsPage/GuardrailsPage.tsx",
+                  "quote": "const createMutation = trpc.createGuardrail.useMutation();\n  const deleteMutation = trpc.deleteGuardrail.useMutation();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/GuardrailsPage/GuardrailsPage.tsx",
+                  "quote": "<ToggleSwitch isOn={!!active} onToggle={onToggle} disabled={isLoading} />"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/GuardrailsPage/GuardrailsPage.tsx",
+                  "quote": "<ExpandableBox\n      animateContent\n      isExpanded={isExpanded}\n      onExpandedChange={setIsExpanded}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "FAQ claims about violation details and timing: “The operation is blocked. The configured guardrail definitions ... are evaluated and any violation prevents the operation from proceeding.” Similar claims appear in the region FAQ as “fail immediately” and “before any AWS resources are provisioned.”",
+              "reason": "The guardrail type source documents that certain values are blocked, but the provided sources do not show the enforcement path, exact timing, or whether AWS provisioning has definitely not begun. The draft correctly removed some stronger wording from the generated page, but still makes enforcement-timing claims that are not grounded in the provided implementation source.",
+              "suggestedFix": "Use narrower wording: “A value outside the configured allow-list is blocked by the guardrail” and avoid “immediately” or “before any AWS resources are provisioned” unless the deployment enforcement source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type StageRestrictionGuardrail = {\n  type: 'stage-restriction';\n  properties: {\n    /**\n     * #### Stages where this stack can be deployed (e.g., `[\"production\", \"staging\"]`). Others are blocked.\n     */\n    allowedStages?: string[];\n  };\n};"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type RegionRestrictionGuardrail = {\n  type: 'region-restriction';\n  properties: {\n    /**\n     * #### AWS regions where this stack can be deployed (e.g., `[\"eu-west-1\", \"us-east-1\"]`). Others are blocked.\n     */\n    allowedRegions?: AWSRegion[];\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I set different guardrails for production vs development stages? Guardrails are configured per organization and apply uniformly to all operations within that organization... resource-level guardrails ... apply to all stages equally. If you need fundamentally different policies for production and development, consider using separate organizations.”",
+              "reason": "The Console source shows guardrails are stored with an organizationId, and guardrails.d.ts includes no per-stage scoping on most guardrail definitions. But the provided source does not explicitly say guardrails apply to all operations uniformly, nor does it support the recommendation to use separate organizations for different stage policies.",
+              "suggestedFix": "Narrow the answer to the source-backed facts: “The provided guardrail definitions do not include per-stage scoping except the stage restriction allow-list. In the Console source, guardrail create/delete calls are made with an organizationId.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/GuardrailsPage/GuardrailsPage.tsx",
+                  "quote": "const guardrailsQuery = trpc.guardrails.useQuery({ organizationId: selectedOrg!.id });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/GuardrailsPage/GuardrailsPage.tsx",
+                  "quote": "createMutation.mutate(\n        { organizationId, definition: JSON.stringify({ type: entry.type, properties: formValues.properties }) },"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailDefinition =\n  | StageRestrictionGuardrail\n  | RegionRestrictionGuardrail\n  | CommandRestrictionGuardrail\n  | ResourceTypeRestrictionGuardrail\n  | RequireVpcDatabasesGuardrail\n  | RequireDeletionProtectionGuardrail\n  | RequireDeadLetterQueueGuardrail\n  | FunctionMemoryLimitGuardrail\n  | FunctionTimeoutLimitGuardrail\n  | ContainerResourceLimitGuardrail\n  | DatabaseEngineRestrictionGuardrail\n  | DatabaseInstanceRestrictionGuardrail\n  | RequireWafGuardrail\n  | RequireCustomDomainGuardrail\n  | ResourceCountLimitGuardrail;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Guardrails catch configuration issues with clearer messages” and “Guardrails are faster to set up (no IAM policy language), specific to Stacktape concepts ... and produce clearer error messages.”",
+              "reason": "The provided sources do not include guardrail error message behavior, setup speed, or a comparison of message clarity versus IAM/SCPs. The SCP comparison can use general AWS knowledge, but Stacktape-specific claims about clearer messages are unsupported by the provided sources.",
+              "suggestedFix": "Keep the architectural comparison but remove unsupported quality claims: “AWS SCPs restrict AWS API actions at the organization level. Stacktape guardrails restrict Stacktape deployment parameters and resource configuration values such as stages, regions, resource types, and limits.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailType =\n  | 'stage-restriction'\n  | 'region-restriction'\n  | 'command-restriction'\n  | 'resource-type-restriction'\n  | 'require-vpc-databases'\n  | 'require-deletion-protection'\n  | 'require-dead-letter-queue'\n  | 'function-memory-limit'\n  | 'function-timeout-limit'\n  | 'container-resource-limit'\n  | 'database-engine-restriction'\n  | 'database-instance-restriction'\n  | 'require-waf'\n  | 'require-custom-domain'\n  | 'resource-count-limit';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly lists all 15 guardrail types from guardrails.d.ts.",
+            "The draft correctly distinguishes toggle-style guardrails from value-based guardrails based on the Console implementation.",
+            "All cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "The page correctly avoids Stacktape config examples, so it does not violate the YAML or plain-object StacktapeConfig restrictions."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 6,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/guardrails__overview/iteration-6.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 9,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "First paragraph is a sharp, self-contained summary that an AI engine could cite verbatim — names the resource, what it does, and the four axes it controls in under 60 words.",
+            "The Guardrails vs Alarms comparison table is genuinely differentiating. The 'When / Action / Scope / Purpose / Managed in' row labels give readers a fast mental model without requiring them to read two separate pages.",
+            "All 15 guardrail types from guardrails.d.ts are covered, organised into the same four categories the Console source uses, with no invented types and no silently omitted ones.",
+            "Exactly 10 FAQ items span all three required categories: Stacktape-specific (can I block deletion?), AWS-service use-case (SCPs vs guardrails), and comparison/choosing (toggle guardrail vs value guardrail distinction). Answer length is well-calibrated at 2–4 sentences.",
+            "'When NOT to use' is a peer H2 alongside 'When to use', not a nested H3 — structurally correct per style-guide rules and genuinely opinionated (solo teams, early prototypes, heterogeneous projects).",
+            "Console UI descriptions (toggle switch, Save/Remove/Cancel buttons, 'active' badge) are grounded in GuardrailsPage.tsx source — not invented prose.",
+            "The Info callout flagging that resource-type-restriction accepts any resource type despite its console grouping adds real signal for the reader who might otherwise under-use it.",
+            "No mandatory style violations: no YAML Stacktape config blocks, no StacktapeConfig import, no defineConfig in a fenced block, no marketing-tone language."
+          ],
+          "problems": [
+            "The 'Managing guardrails' section claims resource-type-restriction is 'grouped under Database restrictions in the Stacktape Console' — but guardrails-schema.ts is not in the provided source list, so the category assignment is ungrounded. The broader claim that the Console uses exactly 'four categories' named as described relies on the same missing file.",
+            "'When to use' and 'When NOT to use' are placed after all four detailed guardrail-category sections, near the bottom of the page. The style-guide rhythm puts decision-support content early (item 3), before configuration detail. A first-time reader encounters ~600 words of configuration before learning whether guardrails are right for them at all.",
+            "The 'How guardrails work' section partially duplicates the introductory paragraph (guardrails block operations, they're managed in the Console) and the summary table that immediately follows it. It adds only the '15 types in 4 categories' table, which could be rolled directly into the introduction or the first section heading.",
+            "The 'Managing guardrails' section re-enumerates which guardrails are toggle-based vs value-based — information fully derivable from reading the earlier per-category sections. This duplication adds page weight without adding new information for a reader who has just read those sections."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move 'When to use' and 'When NOT to use' to immediately after the intro paragraph (or after the Guardrails vs Alarms table), so a reader who hasn't decided if guardrails apply to them can bail early rather than reading four detailed sections first.",
+            "Soften or remove the specific claim that resource-type-restriction is 'grouped under Database restrictions in the Stacktape Console' — guardrails-schema.ts is not in scope. Replacing with 'despite appearing alongside database restrictions' → 'despite its name, the resource type restriction guardrail...' without asserting a specific Console location avoids a source-grounding issue.",
+            "Merge 'How guardrails work' into the introduction or the overview table. The section adds one new fact (15 types, 4 categories) — that fact can move into the intro paragraph ('Stacktape provides 15 guardrail types in four categories...'), which would let you drop the thin H2 entirely.",
+            "Collapse the 'Managing guardrails' toggle vs value-based re-enumeration into a single sentence or remove it. The reader has already read the per-category sections; they don't need a re-listing of which guardrails fall into each bucket.",
+            "The category summary table ('Deployment restrictions — Stages, regions, commands') lists links to sub-pages. Consider adding a one-line 'guardrail count' column (e.g. '3 guardrails') so readers have a proportionality signal before clicking through.",
+            "FAQ item 'How many guardrail types does Stacktape support?' duplicates information already in the 'How guardrails work' section summary table. Replace it with a question closer to a first-timer's mental model — e.g. 'Do guardrails affect existing stacks immediately when I activate them?' — which the current FAQ touches only lightly in a different answer."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All 15 guardrail types are accurately documented with correct property names sourced directly from the TypeScript type definitions — no invented fields or phantom options.",
+            "The guardrails vs alarms comparison table is immediately useful and clearly separates preventive (guardrail) from reactive (alarm) concerns, a common source of confusion for engineers coming from monitoring-first backgrounds.",
+            "The 'When to use' and 'When NOT to use' sections are concrete and opinionated rather than generic — the multi-developer / compliance / cost-control framing gives engineers an actual decision signal.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS use-case, comparison/choosing) with 10 well-targeted questions and substantive answers. The SCPs vs Stacktape guardrails answer in particular is a high-value FAQ target.",
+            "The distinction between toggle-based and value-based guardrails, grounded in the Console source's ToggleGuardrailRow / ValueGuardrailRow split, is a practical detail engineers will need before opening the Console.",
+            "The Info callout correctly flags that resource-type-restriction is broader than its Console category name implies — this catches a real gotcha before an engineer tries to use it only for database control."
+          ],
+          "problems": [
+            "UNSUPPORTED CLAIM — The 'Resource limits' section states the function memory limit and function timeout limit apply to 'Lambda functions and edge functions'. The source type FunctionMemoryLimitGuardrail JSDoc explicitly says 'Maximum memory (in MB) allowed for Lambda functions', and FunctionTimeoutLimitGuardrail says 'Maximum timeout (in seconds) allowed for Lambda functions'. Neither type mentions edge functions. Asserting edge functions are covered by these guardrails is unsupported by the provided source.",
+            "The 'Managing guardrails' section enumerates all toggle-based and value-based guardrails by name in long bullet lists that duplicate content already covered in the four category sections above. This section is padded — the unique value is the Console workflow behavior (expand-form, Save/Remove buttons, active badge), not the re-listing of guardrail names."
+          ],
+          "mandatoryFixes": [
+            "Remove 'and edge functions' from both the function-memory-limit and function-timeout-limit descriptions in the 'Resource limits' section. FunctionMemoryLimitGuardrail and FunctionTimeoutLimitGuardrail JSDoc in guardrails.d.ts reference 'Lambda functions' only. If edge functions are in scope, that must be confirmed in a grounded source (the guardrails type file or an authoritative runtime validator) before claiming it — as written it is a factually unsupported assertion that could cause an engineer to misconfigure policy."
+          ],
+          "optionalImprovements": [
+            "Trim the 'Managing guardrails' section: remove the two large bullet lists that re-enumerate toggle-based and value-based guardrails by name. Keep only the Console workflow description (toggle switch, expand-form, Save/Remove buttons, active badge summary) — that's the unique value of this section. The reader already has the full list from the four category sections.",
+            "The Console categorization of resource-type-restriction under 'Database restrictions' is noted only in the Info callout below the section. Consider adding a one-line heads-up in the 'Database restrictions' H2 opening paragraph so readers who skim to that heading see the caveat before reaching the callout.",
+            "The 'How guardrails work' opening paragraph partially re-states the page intro. Consider leading with only the behavior sentence ('When a guardrail check fails...') and the category table — the 'organization-level restrictions for stages, regions...' framing is already in the first paragraph and reads as repetition."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is 44 words, fully self-contained, and directly answers 'what is this and why does it matter' — ideal for AI extraction.",
+            "Guardrails vs alarms comparison table is the clearest possible way to separate two easily-confused concepts. Every column is concrete (When, Action, Scope, Purpose, Managed in).",
+            "All 15 guardrail types from guardrails.d.ts are covered and accurately described, including the correct property names (allowedStages, blockedCommands, maxMemoryMB, maxCpu, etc.).",
+            "Info callout that clarifies the resource-type restriction sitting under 'Database restrictions' category is a genuine user-trap and the callout handles it well.",
+            "'When to use' and 'When NOT to use' correctly appear as peer H2 sections rather than nesting 'When NOT to use' under 'When to use'.",
+            "FAQ contains exactly 10 questions covering all three required categories: Stacktape-specific (can I block stage deletion?), AWS-service use-case (how do guardrails differ from SCPs?), and choosing/comparison (guardrails vs IAM).",
+            "Toggle vs value-based guardrail distinction in 'Managing guardrails' is grounded in the actual console source (ToggleGuardrailRow vs ValueGuardrailRow components) and reflects real UI behavior.",
+            "Guardrail categories table with links to sub-pages provides navigation without repeating detail — good economy.",
+            "No forbidden patterns detected: no YAML config blocks, no StacktapeConfig type import, no fenced TypeScript with defineConfig, no marketing language.",
+            "Section headings are compact noun-form labels (Deployment restrictions, Security and data protection, Resource limits, Database restrictions) — consistent and scannable."
+          ],
+          "problems": [
+            "The 'Resource limits' section states the function-memory and function-timeout guardrails apply to 'Lambda functions and edge functions', but the guardrails.d.ts JSDoc for FunctionMemoryLimitGuardrail and FunctionTimeoutLimitGuardrail only says 'Lambda functions'. Claiming edge functions are covered is not supported by the provided source.",
+            "The container-resource-limit description enumerates specific resource types (web services, private services, worker services, multi-container workloads) but the source type ContainerResourceLimitGuardrail only says 'container workloads' without enumerating specific sub-types. The enumeration is plausible but not grounded in this page's source files.",
+            "The 'Managing guardrails' section describes navigational UI detail (clicking expand, clicking Save, clicking Remove) which is source-grounded here, but the section says guardrails are managed at the 'selected organization' level without noting what role or permission level is required to manage them — a question real users will have.",
+            "No ApiReference component anywhere on the page. For a concept/governance page, the GuardrailDefinition union type exists in guardrails.d.ts and likely has a schema entry. Its absence is not a hard rule violation for an overview page, but the pipeline does expect it on concept pages that have a root type."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Qualify the edge function claim: the JSDoc for FunctionMemoryLimitGuardrail and FunctionTimeoutLimitGuardrail only says 'Lambda functions'. Either verify that EdgeLambdaFunction is covered by these guardrails (and cite the evidence) or remove 'and edge functions' from both descriptions to stay within what the source supports.",
+            "Replace 'container workloads, including web services, private services, worker services, and multi-container workloads' with just 'container workloads' in the container-resource-limit description, since the source type only says 'container workloads' without enumerating sub-types.",
+            "Add a one-sentence access note to 'Managing guardrails': who can manage organization-level guardrails (admin, owner)? The Console source shows an org-scoped mutation but doesn't gate by role on this page — link to the team and access control page as a reference rather than inventing a role name.",
+            "Consider adding an <ApiReference definitionName='GuardrailDefinition' /> (or the equivalent schema entry name) somewhere on the page, either at the bottom or after the 'How guardrails work' section, so readers can drill into individual guardrail type shapes without leaving the page.",
+            "The 'Database restrictions' section uses 'Blocked instance sizes' in the heading but 'Blocked instance sizes' as the guardrail name, while the type is database-instance-restriction. Consider adding a one-word note that the underlying type identifier is 'database-instance-restriction' to help readers who search logs or error messages for the guardrail name.",
+            "The FAQ answer for 'Do guardrails apply to already-deployed stacks?' is accurate but could be sharpened: stacks that were deployed before a guardrail was activated are NOT retroactively blocked from running, only from future operations. The current wording says this implicitly but a direct 'already-running resources are not affected' sentence would make it clearer for readers who are worried about breaking live infrastructure.",
+            "The FAQ answer for 'Can I set different guardrails for production vs development stages?' correctly says guardrails are per-organization, but the recommendation to use separate organizations is not elaborated. Add one sentence noting the practical tradeoff: separate organizations means separate billing, access management, and provider configuration, so this is only warranted for genuinely different policy regimes."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided guardrail type definitions and Console source. The main factual problem is that it expands Lambda guardrails to edge functions even though the authoritative guardrail types only document Lambda functions. A couple of smaller claims overstate what the source proves.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Function memory limit” and “Function timeout limit” apply to “all Lambda functions and edge functions.”",
+              "reason": "The authoritative guardrail type definitions only say these limits apply to Lambda functions. The provided source does not state that edge functions are included, so the draft should not expand the scope to edge functions.",
+              "suggestedFix": "Remove “and edge functions” from both bullets, or write cautiously: “The guardrail source documents this limit for Lambda functions.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### Maximum memory (in MB) allowed for Lambda functions (e.g., `1024`)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### Maximum timeout (in seconds) allowed for Lambda functions (e.g., `30`)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Require custom domain … Prevents auto-generated AWS URLs from reaching production.”",
+              "reason": "The source only says the guardrail requires a custom domain for public-facing web services and hosting buckets. It does not state that auto-generated AWS URLs are disabled, inaccessible, or prevented from reaching production.",
+              "suggestedFix": "Narrow the wording to: “This enforces use of a configured custom domain for public-facing web services and hosting buckets.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### When enabled, public-facing web services and hosting buckets must have a custom domain configured."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Guardrails are faster to set up … and produce clearer error messages” than AWS Service Control Policies.",
+              "reason": "This is a Stacktape-specific comparative claim about setup speed and error-message quality, but the provided sources do not substantiate it. The SCP comparison can still be useful if it sticks to the supported distinction between Stacktape-layer guardrails and AWS-level policies.",
+              "suggestedFix": "Rewrite as: “Stacktape guardrails use Stacktape concepts such as stages, resource types, and resource settings. AWS Service Control Policies operate at the AWS Organizations/IAM layer and restrict AWS API actions.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly lists all 15 guardrail types from `GuardrailType`.",
+            "The Console management flow is well grounded in `GuardrailsPage.tsx`: toggle rows create/delete guardrails, value rows expand to an inline form with Save/Remove, and active value guardrails show an `active` label plus a value summary.",
+            "Cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "The draft correctly keeps guardrails separate from alarms and does not introduce Stacktape config examples, avoiding the forbidden YAML and plain-object config patterns."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided guardrail type definitions and Console page source. The main issues are a few over-broad claims that extend beyond `guardrails.d.ts`, plus a couple of Stacktape-specific behavior claims that the provided source does not support.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Function memory limit — Set a maximum memory allocation (in MB) for all Lambda functions and edge functions via `maxMemoryMB`…” and “Function timeout limit — Set a maximum timeout (in seconds) for all Lambda functions and edge functions via `maxTimeoutSeconds`…”",
+              "reason": "The authoritative guardrails type source says these guardrails apply to Lambda functions. It does not mention edge functions. Because the page-specific instruction says guardrail claims must be grounded in `types/stacktape-config/guardrails.d.ts`, adding edge functions is unsupported here.",
+              "suggestedFix": "Remove “and edge functions” from both bullets, or narrow the wording to “Lambda functions” only. If another source proves edge functions are covered, add that source to the page source set before making the claim.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### Maximum memory (in MB) allowed for Lambda functions (e.g., `1024`)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "#### Maximum timeout (in seconds) allowed for Lambda functions (e.g., `30`)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Guardrails are faster to set up (no IAM policy language), specific to Stacktape concepts (stages, resource types), and produce clearer error messages.”",
+              "reason": "The provided Stacktape sources support that guardrails have Stacktape-specific types such as stages and resource types, but they do not support comparative claims that guardrails are faster to set up than SCPs or produce clearer error messages. Those are Stacktape-specific product claims, not general AWS background.",
+              "suggestedFix": "Keep the grounded distinction: “Stacktape guardrails validate Stacktape concepts such as stages, regions, commands, resource types, and resource settings. SCPs operate at the AWS Organizations/IAM layer.” Remove the speed and clearer-error-message claims unless sourced.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailType =\n  | 'stage-restriction'\n  | 'region-restriction'\n  | 'command-restriction'\n  | 'resource-type-restriction'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Guardrails catch configuration issues with clearer messages…”",
+              "reason": "The source supports guardrail definitions and blocking semantics, but it does not document error-message quality or compare guardrail messages with IAM policy failures. This is a Stacktape behavior/UX claim without source support.",
+              "suggestedFix": "Change to: “Guardrails check Stacktape configuration and deployment parameters before the corresponding operation proceeds, while IAM policies operate at the AWS API layer.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailDefinition =\n  | StageRestrictionGuardrail\n  | RegionRestrictionGuardrail\n  | CommandRestrictionGuardrail\n  | ResourceTypeRestrictionGuardrail"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies all 15 guardrail types from `GuardrailType`.",
+            "The draft correctly distinguishes guardrails as preventive rules from alarms as reactive monitoring and keeps them in separate sections.",
+            "The Console management flow is mostly grounded in `GuardrailsPage.tsx`: toggle guardrails use `ToggleSwitch`, value guardrails use an expandable form, active value guardrails show an `active` label, and active values are summarized.",
+            "All markdown cross-links in the draft point to routes present in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\guardrails\\overview.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.0, hard blockers 5, advisory high 0, verifier medium 7"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/guardrails/overview.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T03:10:55.939Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/console-app/src/pages/GuardrailsPage/GuardrailsPage.tsx": "4f4dd9c9f8ac5ea6056a8c52915a295f174fec30",
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts": "32e5dde4b6012ee1e15ada514d5495af7b5fb617",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/guardrails/overview.md": "3c254c090d520f391e7ff5c276c29bd5b78debb2"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

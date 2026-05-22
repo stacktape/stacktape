@@ -2,7 +2,7 @@
   "pageId": "deployment-and-lifecycle__deployment-scripts-and-hooks",
   "pageRoute": "deployment-and-lifecycle/deployment-scripts-and-hooks",
   "startedAt": "2026-05-17T14:53:57.509Z",
-  "updatedAt": "2026-05-17T15:19:42.240Z",
+  "updatedAt": "2026-05-22T02:11:02.829Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1219,6 +1219,831 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/deployment-and-lifecycle__deployment-scripts-and-hooks/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The decision table at the top of the page immediately answers 'which do I use?' — a first-timer can route themselves to the right section in under 10 seconds.",
+            "All three script types (LocalScript, BastionScript, LocalScriptWithBastionTunneling) receive equal treatment with working config examples, clear when-to-use guidance, and a bastionResource example that prevents common gotchas.",
+            "The database migration pattern is shown twice — once as a hook and once as a deployment script — with an explicit tradeoff explanation ('use hooks for convenience, deployment scripts for rollback safety'). This directly answers the highest-stakes decision on the page.",
+            "Handler code examples sit alongside config examples, making the deployment script section immediately runnable without requiring the reader to infer the handler contract.",
+            "The `joinDefaultVpc` internet-access tradeoff is called out in a Warning block, which is exactly the kind of gotcha that would otherwise cost a developer hours.",
+            "The FAQ spans all three required categories: Stacktape-specific behavior, AWS mechanics (CloudFormation rollback, Lambda limits), and comparison questions. The answers are concise and actionable."
+          ],
+          "problems": [
+            "The comparison table labels the first column 'Hooks + scripts' and lists 'Runs on: Your machine or CI runner'. This is inaccurate for BastionScript, which runs on the bastion host inside the VPC — not the local machine. A first-timer reading the table will form an incorrect mental model before reaching the Scripts section.",
+            "The 'Shared script properties' subsection names 'ScriptEnvProps' as an interface that all three script types share. This interface name does not appear in the provided source files (_root.d.ts lists LocalScript | BastionScript | LocalScriptWithBastionTunneling as union members but does not expose a named shared base type). Readers may waste time searching for 'ScriptEnvProps' in the SDK.",
+            "The Debugging section only covers CLI log retrieval for deployment scripts. The section-level instruction says 'Where deploy-time state matters (rollbacks, cancelled stacks), describe the relevant CloudFormation stack states inline.' An after:deploy failure that triggers a CloudFormation rollback is exactly this scenario — the section should briefly explain what state the stack enters and how to distinguish a script failure from an infra failure."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the comparison table: split the 'Hooks + scripts' column into 'Local/CI scripts' and 'Bastion scripts', or add a row-level footnote clarifying that BastionScript runs on the bastion host inside the VPC, not on the developer's machine.",
+            "Remove or de-emphasize the 'ScriptEnvProps' interface name. Either list the shared properties under a plain heading ('Properties shared by all script types') without naming an SDK interface, or verify the interface name against the actual exported types and only include it if confirmed.",
+            "Expand the Debugging section: after the debug:logs command for deployment scripts, add 2-3 sentences explaining that a failed after:deploy script puts the CloudFormation stack into UPDATE_ROLLBACK_IN_PROGRESS state, and that the rollback reason appears in the CloudFormation console events — this directly satisfies the section instruction about describing relevant CF stack states.",
+            "The hooks table Notes column contains prose guidance ('Build frontend, lint code', 'Run database migrations, seed data'). These read as examples, not constraints. Consider moving this guidance to a one-line prose callout below the table and leaving the Notes column empty or using it only for hard constraints (e.g., 'Only runs when --stage and --configPath are provided' for beforeDelete/afterDelete)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The hooks-vs-deployment-scripts comparison table is precise and immediately useful — columns cover execution location, trigger, failure behavior, and VPC access so an engineer can make the right call without reading further.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs>` with TypeScript. No YAML fenced blocks, no StacktapeConfig type-import pattern, no fenced TS with defineConfig. Zero mandatory style violations.",
+            "The VPC gotcha (joinDefaultVpc causes loss of direct internet access → needs NAT gateway) is called out explicitly with a Warning callout, exactly where an engineer would configure it and get burned.",
+            "The before:delete vs after:deploy failure behavior distinction is accurately grounded in the source JSDoc and explained with concrete consequences rather than vague hedging.",
+            "The 'Database migrations — choosing the right approach' section in Common Patterns shows both approaches with equivalent depth: a working CodeBlock for each, plus a clear opinionated recommendation (deployment script is safer for production). This is genuinely decision-support, not just configuration documentation.",
+            "The FAQ spans all three required categories: Stacktape-specific questions (re-running a script without redeploy), AWS-service questions (Lambda execution limits, VPC connectivity), and comparison questions (deployment script vs Lambda function, hook vs deployment script). 10 Q&A pairs, all substantive.",
+            "Memory/timeout/storage defaults and limits in the deployment scripts table are accurate per the source: @default 10 for timeout, @default 512 for storage, 128–10,240 MB for memory, 900s max timeout.",
+            "Fenced bash blocks each contain exactly one command with no explanatory # comments. The copy-button trap is avoided throughout."
+          ],
+          "problems": [
+            "Multiple LocalScript, BastionScript, and LocalScriptWithBastionTunneling property details are described but are not verifiable from the provided source files. This includes: the mutual-exclusivity claim ('You must specify exactly one of: executeCommand, executeScript, executeCommands, or executeScripts'), the cwd property, the pipeStdio property with default true, and the bastionResource property name for BastionScript. The source files provided cover only _root.d.ts (confirming the three script type names exist in the scripts map) and deployment-script.d.ts — no script type definitions are included.",
+            "The hook point names (beforeDeploy, afterDeploy, beforeDelete, afterDelete, beforeBucketSync, afterBucketSync, beforeDev, afterDev) are listed in a table with specific notes but the Hooks type is not in the provided source files. If any hook name is wrong, a reader configuring hooks will get a silent error.",
+            "'Logs from the script are streamed to your terminal in real time' (claimed for BastionScript) is a specific runtime behavior not verifiable from the provided source.",
+            "The claim that assumeRoleOfResource supports 'Lambda functions, web services, private services, worker services, multi-container workloads, batch jobs, and SSR frontend resources' is a specific enumeration not present in the provided source files.",
+            "The 'Local scripts with bastion tunneling' section states 'The environment variables injected by connectTo are automatically adjusted to use the tunneled endpoints.' This is a concrete behavior claim not verifiable from the provided source files."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a sentence to the Hooks section noting that the full Hooks type (including all hook property names) is documented in the API reference or a linked configuration reference, so readers know where to verify the hook point names and per-hook options like skipOnCI/skipOnLocal.",
+            "The 'Shared script properties' section references 'ScriptEnvProps' by name as the source of shared behavior — but that type is not in the provided source files. Either omit the type name and just describe the properties, or link to the API reference where it appears. Naming a type the reader can't find creates friction.",
+            "The comparison table shows Max timeout as '—' for Hooks/local scripts. Adding a brief parenthetical like '(no Stacktape-imposed limit)' would disambiguate — an engineer might read the empty cell as 'unknown' rather than 'unconstrained'.",
+            "In the 'Running scripts manually' bash example, the command uses --stage production without --region. Adding --region eu-west-1 or noting it is optional would match the deployment-script:run example below it, which does include --region.",
+            "The BastionScript section doesn't mention that a Bastion resource must be deployed before the script can run — this is an implicit dependency that could bite someone who adds a BastionScript in the same deployment that first creates the bastion. A one-sentence callout about ordering would prevent a common gotcha.",
+            "The deployment script packaging section mentions only two packaging modes (StacktapeLambdaBuildpackPackaging and CustomArtifactLambdaPackaging). The source type is LambdaPackaging, which may include other variants (NixpacksPackaging, etc.). If additional packaging modes are valid for DeploymentScript, they should at minimum be named; if not, a one-liner explaining why they are excluded would help."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly distinguishes hooks from deployment scripts.",
+            "The comparison table is useful and gives readers a fast decision point between local hooks and AWS-side deployment scripts.",
+            "Stacktape configuration examples use <CodeBlock intellisense> with a TypeScript tab and avoid forbidden hand-authored YAML.",
+            "FAQ is broad and practical, covering Stacktape behavior, Lambda limits, VPC access, and choosing between approaches."
+          ],
+          "problems": [
+            "Large parts of the page are not grounded in the provided source files. The draft states specific hook points, skipOnCI/skipOnLocal defaults, LocalScript execution modes, pipeStdio behavior, BastionScript streaming, LocalScriptWithBastionTunneling endpoint rewriting, assumeRoleOfResource supported resources, and CLI option shapes without corresponding source excerpts.",
+            "The page documents three script variants in depth, but the provided source only confirms that the top-level scripts map can contain LocalScript, BastionScript, or LocalScriptWithBastionTunneling. The concrete properties and defaults for those script types are not present in the supplied sources.",
+            "The comparison table includes unsupported deployment-script claims such as VPC access “via joinDefaultVpc” for all deployment scripts, local file access “No”, and “script must execute regardless of how the deployment was triggered (CLI, Console, or CI).” The provided source only says deployment scripts execute as Lambda functions and can be triggered manually.",
+            "Several CLI and Console-adjacent claims are unsupported by the supplied source files, including stacktape deployment-script:run option names, stacktape script:run option names, delete hook requirements, and the statement that deployment scripts run regardless of CLI, Console, or CI trigger path.",
+            "The page includes Lambda-specific details for deployment scripts that are sourced for DeploymentScriptProps, but then extends beyond the source by recommending NAT gateway configuration for VPC-connected deployment scripts and describing CloudFormation event exposure for parameters.",
+            "The API reference only covers DeploymentScriptProps even though a large share of the page teaches hooks and scripts. That may be acceptable for the route, but readers will not get reference coverage for the hooks/scripts material that dominates the page.",
+            "Some examples contain tunable values that are only partly explained. For example, database engine version '16', timeout 300, SEED_COUNT 100, and the bastionResource string are not consistently anchored in surrounding prose."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground every claim about hook points, script classes, script properties, defaults, CLI flags, bastion behavior, and assumeRoleOfResource. With the current source set, narrow the hooks/scripts sections to what _root.d.ts actually states or add the relevant type and CLI source files.",
+            "Correct the deployment-script sections so every Stacktape-specific statement is backed by deployment-script.d.ts: trigger values and failure behavior, packaging, runtime auto-detection, environment, parameters, memory, timeout, joinDefaultVpc, and storage are supported; unsupported operational details should be removed or clearly attributed only if additional sources are provided.",
+            "Do not claim Console-trigger behavior for deployment scripts unless console-app source is included. The draft currently says deployment scripts run regardless of whether deployment was triggered by CLI, Console, or CI, which is not grounded in the supplied files.",
+            "Add source-backed references for hooks and scripts or reduce the page scope. If the page remains “Deployment Scripts and Hooks,” include the Hooks and script type definitions in the source set so the page can safely document hook points, skip flags, LocalScript, BastionScript, and LocalScriptWithBastionTunneling."
+          ],
+          "optionalImprovements": [
+            "Add a compact “Supported deployment-script properties” table focused only on DeploymentScriptProps, then keep hooks/scripts as a shorter orientation unless their type sources are available.",
+            "Move the strongest production recommendation into the first decision section: use deployment scripts for rollback-coupled deploy work; use hooks for local tooling and filesystem-dependent work.",
+            "Tighten FAQ answers that repeat earlier sections, especially hook-vs-deployment-script migration guidance, so the FAQ stays extractable without duplicating too much body copy.",
+            "Explain non-obvious example values near the code blocks, especially timeout increases and engine version choices, or omit values that are not necessary for the example."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided deployment-script types and generated page source. The main factual risks are a few over-broad statements about hook VPC access, Console/CI triggering, packaging defaults, and secrets/CloudFormation visibility that are not grounded in the authoritative type source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“The default and recommended choice is the Stacktape buildpack (`stacktape-lambda-buildpack`)...”",
+              "reason": "`packaging` is a required `DeploymentScriptProps` property in the authoritative type source, so calling the buildpack the “default” implies Stacktape supplies it when omitted. The source supports recommending the buildpack for auto-bundling, but not a default value.",
+              "suggestedFix": "Change to: “The usual recommended choice is the Stacktape buildpack (`stacktape-lambda-buildpack`), which auto-bundles your source from an entry file.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-script.d.ts",
+                  "quote": "packaging: LambdaPackaging;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-script.d.ts",
+                  "quote": "#### How the script code is packaged. Use `stacktape-lambda-buildpack` for auto-bundling."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use deployment scripts ... when the script must execute regardless of how the deployment was triggered (CLI, Console, or CI).”",
+              "reason": "The authoritative deployment-script type documents deploy/delete lifecycle execution and manual CLI execution, but does not document Console-triggered or CI-triggered behavior. Because the page instructions require distinguishing CLI behavior from Console behavior, the Console/CI parenthetical should be removed unless console-app or command source is available.",
+              "suggestedFix": "Narrow the sentence to: “Use deployment scripts when the work must happen inside AWS or when failure should participate in the CloudFormation deploy/delete lifecycle.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-script.d.ts",
+                  "quote": "Executes as a Lambda function. Use `after:deploy` to run migrations after resources are ready,\n * or `before:delete` for cleanup. Can also be triggered manually with `stacktape deployment-script:run`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The comparison table says hooks/scripts get “VPC access” only “Via bastion tunneling.”",
+              "reason": "The root config source distinguishes two VPC-related script paths: `local-script-with-bastion-tunneling`, which tunnels from the local machine, and `bastion-script`, which runs remotely on the bastion host inside the VPC. The table flattens those into one mechanism and can mislead readers choosing between script types.",
+              "suggestedFix": "Change the table cell to: “Via local bastion tunneling or a bastion script running on a bastion host.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "- **`local-script-with-bastion-tunneling`**: Runs locally but tunnels connections to VPC-only\n   *   resources (e.g., private databases) through a bastion host.\n   * - **`bastion-script`**: Runs remotely on the bastion host inside your VPC."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Do not use `parameters` for secrets — `parameters` is designed for non-sensitive structured data passed as the Lambda event payload and may appear in CloudFormation events.”",
+              "reason": "The source clearly supports “not for secrets” and “event payload,” but it does not support the specific claim that parameters may appear in CloudFormation events. That security rationale may be true, but it is not grounded in the provided source.",
+              "suggestedFix": "Remove the unsupported CloudFormation-events clause: “Do not use `parameters` for secrets; `parameters` is structured data passed as the Lambda event payload. Use `environment` with `$Secret()` for sensitive values.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-script.d.ts",
+                  "quote": "#### Structured data passed to the handler function as the event payload. Not for secrets — use `environment`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The Hooks section says hooks run before or after “deploy, delete, and dev commands,” and the comparison table lists “deploy, delete, dev” as the triggering CLI commands.",
+              "reason": "The generated source for this same page lists bucket-sync hook points as well. Even if the page links to the full hooks reference, the comparison table reads like an exhaustive list and omits `bucket-sync`.",
+              "suggestedFix": "Add `bucket-sync` to the table and first Hooks paragraph, or phrase the list as examples: “for example deploy, delete, dev, and bucket-sync.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/deployment-scripts-and-hooks.md",
+                  "quote": "| `beforeBucketSync` | Before syncing bucket contents | — |\n| `afterBucketSync` | After syncing bucket contents | — |"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/deployment-scripts-and-hooks.md",
+                  "quote": "| **Triggered by** | CLI commands (deploy, delete, dev, bucket-sync) | CloudFormation lifecycle (`after:deploy`, `before:delete`) |"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` for Stacktape configuration examples and does not hand-author YAML examples.",
+            "The `<ApiReference definitionName=\"DeploymentScriptProps\" />` value matches the page’s resource type name with the required `Props` suffix.",
+            "The deployment-script trigger behavior, timeout default, storage default, memory range, timeout maximum, runtime auto-detection, `parameters` event payload behavior, and `joinDefaultVpc` internet-access warning are grounded in `deployment-script.d.ts`.",
+            "All checked markdown cross-links point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided DeploymentScript source and avoids the major forbidden config-example patterns. The main risks are unsupported claims about Console-triggered behavior, script environment behavior, and a few script-property assertions that are only present in the secondary generated prose or not present in the authoritative source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use deployment scripts … when the script must execute regardless of how the deployment was triggered (CLI, Console, or CI).”",
+              "reason": "The provided authoritative DeploymentScript type says deployment scripts run during deploy/delete and can be triggered manually, but the source list does not include Console or CI behavior proving that deployment scripts execute regardless of trigger source. The page instructions also warn not to blur CLI and Console behavior without console-app source.",
+              "suggestedFix": "Narrow the claim to sourced behavior: “Use deployment scripts when the work should run as part of the CloudFormation deploy/delete lifecycle, or when you want to trigger it manually with `stacktape deployment-script:run`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-script.d.ts",
+                  "quote": "Executes as a Lambda function. Use `after:deploy` to run migrations after resources are ready,\n * or `before:delete` for cleanup. Can also be triggered manually with `stacktape deployment-script:run`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `connectTo` property auto-injects environment variables with connection details for each specified resource, in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME]`…”",
+              "reason": "The root source supports auto-injecting connection environment variables in general, but the canonical required pattern is `STP_[RESOURCE_NAME]_[PARAM]`. The draft also says “for each specified resource,” which is broader than the provided source text supports for all resource types.",
+              "suggestedFix": "Use the canonical narrower wording: “`connectTo` can inject resource-specific environment variables such as `STP_[RESOURCE_NAME]_[PARAM]`; for a database resource named `myDatabase`, the connection string is exposed as `STP_MY_DATABASE_CONNECTION_STRING`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Use `connectTo` in a script to auto-inject database URLs, API keys, etc. as environment variables."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`connectTo` … Also grants IAM permissions and opens network access as needed.”",
+              "reason": "The authoritative sources provided for this page only document script `connectTo` environment-variable injection in `_root.d.ts`. The broader generated API section mentions IAM/network behavior, but the provided type source for DeploymentScript only inherits `ResourceAccessProps` without showing its contract. As written, the statement is a broad Stacktape behavior claim not grounded in the visible authoritative source.",
+              "suggestedFix": "Limit the shared script section to sourced behavior, or cite only environment-variable injection. For DeploymentScript-specific access, rely on documented properties such as `connectTo`, `environment`, and `joinDefaultVpc` without expanding unverified IAM/network behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Use `connectTo` in a script to auto-inject database URLs, API keys, etc. as environment variables."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-script.d.ts",
+                  "quote": "interface DeploymentScriptProps extends ResourceAccessProps {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`assumeRoleOfResource` — Assume the IAM role of a deployed workload so the script gets the same AWS permissions. Stacktape injects temporary AWS credentials that AWS SDKs and CLIs pick up automatically.”",
+              "reason": "`assumeRoleOfResource` does not appear in the authoritative root or DeploymentScript type source provided. The claim may be true in another helper type, but that source is not included here, so the statement is not grounded in the provided source files.",
+              "suggestedFix": "Remove the detailed `assumeRoleOfResource` behavior from this page, or replace it with a cautious pointer to `/configuration/hooks-and-scripts` for the complete script property reference.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "scripts?: { [scriptName: string]: LocalScript | BastionScript | LocalScriptWithBastionTunneling };"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-script.d.ts",
+                  "quote": "interface DeploymentScriptProps extends ResourceAccessProps {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The specified resource must be deployed before the script runs.”",
+              "reason": "The provided source files do not document ordering semantics for `assumeRoleOfResource` or hooks. This is a Stacktape-specific execution-order claim that could affect how readers structure scripts, but it is not supported by the visible source.",
+              "suggestedFix": "Delete this sentence or rewrite as a cautious operational note tied to the example: “Use this pattern for hooks that run after the workload exists, such as `afterDeploy`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Each hook references a script defined in the `scripts` section.\n   * Common uses: run database migrations after deploy, build frontend before deploy,\n   * clean up resources after delete."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A hook entry can be configured to skip running in CI or locally…” and the example uses `skipOnCI` and `skipOnLocal`.",
+              "reason": "The draft deliberately avoids naming the exact flags in prose, but the example still uses `skipOnCI` and `skipOnLocal`. Those properties are present in the secondary generated docs, but they are not present in the authoritative source files included for verification.",
+              "suggestedFix": "Either remove this example from this page and link to `/configuration/hooks-and-scripts`, or keep the concept without exact property names unless the hook-entry type source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "hooks?: Hooks;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Each hook references a script defined in the `scripts` section."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Running deployment scripts manually … This is useful during development or when a migration needs to be re-applied.”",
+              "reason": "The source supports manual triggering with `stacktape deployment-script:run`, but it does not describe valid use cases such as re-applying migrations. This is reasonable guidance, but the migration re-apply wording should be cautious because rerunning migrations can be unsafe unless the migration tool is idempotent.",
+              "suggestedFix": "Narrow to: “This is useful during development or for idempotent scripts that are safe to run again.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `timeout` is set to 120 seconds because migrations can take longer than the 10-second default.”",
+              "reason": "The 10-second default is sourced, and migrations often take longer, but the causal statement is guidance rather than a documented Stacktape fact. It is acceptable, but could be clearer as recommendation rather than general behavior.",
+              "suggestedFix": "Use recommendation wording: “Set a higher timeout for migrations that may exceed the 10-second default.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a `TypeScript` tab for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The `<ApiReference definitionName=\"DeploymentScriptProps\" />` value matches the page’s resource type and includes the required `Props` suffix.",
+            "DeploymentScript trigger values, timeout maximum, storage default, timeout default, memory range, storage range, runtime auto-detection, and `joinDefaultVpc` internet-access caveat are grounded in `deployment-script.d.ts`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 35: Argument of type '{ version: string; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'primaryInstance' is missing in type '{ version: string; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 19, col 5: Object literal may only specify known properties, and 'routes' does not exist in type 'HttpApiGatewayPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 19, col 86: Object literal may only specify known properties, and 'function' does not exist in type 'HttpApiIntegrationProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 35: Argument of type '{ version: string; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'primaryInstance' is missing in type '{ version: string; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 28, col 11: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 35: Argument of type '{ version: string; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'primaryInstance' is missing in type '{ version: string; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 35: Argument of type '{ version: string; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'primaryInstance' is missing in type '{ version: string; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 35: Argument of type '{ version: string; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'primaryInstance' is missing in type '{ version: string; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 32, col 5: Object literal may only specify known properties, and 'routes' does not exist in type 'HttpApiGatewayPropsWithOverrides'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): TypeScript type error.",
+              "reason": "line 32, col 86: Object literal may only specify known properties, and 'function' does not exist in type 'HttpApiIntegrationProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 37: Argument of type '{ version: string; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'primaryInstance' is missing in type '{ version: string; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 9, col 52: Cannot find name 'stage'. Did you mean 'Storage'?",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 19, col 7: Object literal may only specify known properties, and 'routes' does not exist in type 'HttpApiGatewayPropsWithOverrides'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): TypeScript type error.",
+              "reason": "line 17, col 17: Type 'Bucket' is not assignable to type 'string'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 35: Argument of type '{ version: string; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'primaryInstance' is missing in type '{ version: string; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 35: Argument of type '{ version: string; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'primaryInstance' is missing in type '{ version: string; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 37: Argument of type '{ version: string; }' is not assignable to parameter of type 'RdsEngineProperties'.\n  Property 'primaryInstance' is missing in type '{ version: string; }' but required in type 'RdsEngineProperties'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 9, col 52: Cannot find name 'stage'. Did you mean 'Storage'?",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #10 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #11 (TypeScript): TypeScript type error.",
+              "reason": "line 17, col 17: Type 'Bucket' is not assignable to type 'string'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #12 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/deployment-and-lifecycle__deployment-scripts-and-hooks/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The decision table at the top of the page immediately answers 'which do I use?' — a first-timer can route themselves to the right section in under 10 seconds.",
+            "All three script types (LocalScript, BastionScript, LocalScriptWithBastionTunneling) receive equal treatment with working config examples, clear when-to-use guidance, and a bastionResource example that prevents common gotchas.",
+            "The database migration pattern is shown twice — once as a hook and once as a deployment script — with an explicit tradeoff explanation ('use hooks for convenience, deployment scripts for rollback safety'). This directly answers the highest-stakes decision on the page.",
+            "Handler code examples sit alongside config examples, making the deployment script section immediately runnable without requiring the reader to infer the handler contract.",
+            "The `joinDefaultVpc` internet-access tradeoff is called out in a Warning block, which is exactly the kind of gotcha that would otherwise cost a developer hours.",
+            "The FAQ spans all three required categories: Stacktape-specific behavior, AWS mechanics (CloudFormation rollback, Lambda limits), and comparison questions. The answers are concise and actionable."
+          ],
+          "problems": [
+            "The comparison table labels the first column 'Hooks + scripts' and lists 'Runs on: Your machine or CI runner'. This is inaccurate for BastionScript, which runs on the bastion host inside the VPC — not the local machine. A first-timer reading the table will form an incorrect mental model before reaching the Scripts section.",
+            "The 'Shared script properties' subsection names 'ScriptEnvProps' as an interface that all three script types share. This interface name does not appear in the provided source files (_root.d.ts lists LocalScript | BastionScript | LocalScriptWithBastionTunneling as union members but does not expose a named shared base type). Readers may waste time searching for 'ScriptEnvProps' in the SDK.",
+            "The Debugging section only covers CLI log retrieval for deployment scripts. The section-level instruction says 'Where deploy-time state matters (rollbacks, cancelled stacks), describe the relevant CloudFormation stack states inline.' An after:deploy failure that triggers a CloudFormation rollback is exactly this scenario — the section should briefly explain what state the stack enters and how to distinguish a script failure from an infra failure."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fix the comparison table: split the 'Hooks + scripts' column into 'Local/CI scripts' and 'Bastion scripts', or add a row-level footnote clarifying that BastionScript runs on the bastion host inside the VPC, not on the developer's machine.",
+            "Remove or de-emphasize the 'ScriptEnvProps' interface name. Either list the shared properties under a plain heading ('Properties shared by all script types') without naming an SDK interface, or verify the interface name against the actual exported types and only include it if confirmed.",
+            "Expand the Debugging section: after the debug:logs command for deployment scripts, add 2-3 sentences explaining that a failed after:deploy script puts the CloudFormation stack into UPDATE_ROLLBACK_IN_PROGRESS state, and that the rollback reason appears in the CloudFormation console events — this directly satisfies the section instruction about describing relevant CF stack states.",
+            "The hooks table Notes column contains prose guidance ('Build frontend, lint code', 'Run database migrations, seed data'). These read as examples, not constraints. Consider moving this guidance to a one-line prose callout below the table and leaving the Notes column empty or using it only for hard constraints (e.g., 'Only runs when --stage and --configPath are provided' for beforeDelete/afterDelete)."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The hooks-vs-deployment-scripts comparison table is precise and immediately useful — columns cover execution location, trigger, failure behavior, and VPC access so an engineer can make the right call without reading further.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs>` with TypeScript. No YAML fenced blocks, no StacktapeConfig type-import pattern, no fenced TS with defineConfig. Zero mandatory style violations.",
+            "The VPC gotcha (joinDefaultVpc causes loss of direct internet access → needs NAT gateway) is called out explicitly with a Warning callout, exactly where an engineer would configure it and get burned.",
+            "The before:delete vs after:deploy failure behavior distinction is accurately grounded in the source JSDoc and explained with concrete consequences rather than vague hedging.",
+            "The 'Database migrations — choosing the right approach' section in Common Patterns shows both approaches with equivalent depth: a working CodeBlock for each, plus a clear opinionated recommendation (deployment script is safer for production). This is genuinely decision-support, not just configuration documentation.",
+            "The FAQ spans all three required categories: Stacktape-specific questions (re-running a script without redeploy), AWS-service questions (Lambda execution limits, VPC connectivity), and comparison questions (deployment script vs Lambda function, hook vs deployment script). 10 Q&A pairs, all substantive.",
+            "Memory/timeout/storage defaults and limits in the deployment scripts table are accurate per the source: @default 10 for timeout, @default 512 for storage, 128–10,240 MB for memory, 900s max timeout.",
+            "Fenced bash blocks each contain exactly one command with no explanatory # comments. The copy-button trap is avoided throughout."
+          ],
+          "problems": [
+            "Multiple LocalScript, BastionScript, and LocalScriptWithBastionTunneling property details are described but are not verifiable from the provided source files. This includes: the mutual-exclusivity claim ('You must specify exactly one of: executeCommand, executeScript, executeCommands, or executeScripts'), the cwd property, the pipeStdio property with default true, and the bastionResource property name for BastionScript. The source files provided cover only _root.d.ts (confirming the three script type names exist in the scripts map) and deployment-script.d.ts — no script type definitions are included.",
+            "The hook point names (beforeDeploy, afterDeploy, beforeDelete, afterDelete, beforeBucketSync, afterBucketSync, beforeDev, afterDev) are listed in a table with specific notes but the Hooks type is not in the provided source files. If any hook name is wrong, a reader configuring hooks will get a silent error.",
+            "'Logs from the script are streamed to your terminal in real time' (claimed for BastionScript) is a specific runtime behavior not verifiable from the provided source.",
+            "The claim that assumeRoleOfResource supports 'Lambda functions, web services, private services, worker services, multi-container workloads, batch jobs, and SSR frontend resources' is a specific enumeration not present in the provided source files.",
+            "The 'Local scripts with bastion tunneling' section states 'The environment variables injected by connectTo are automatically adjusted to use the tunneled endpoints.' This is a concrete behavior claim not verifiable from the provided source files."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a sentence to the Hooks section noting that the full Hooks type (including all hook property names) is documented in the API reference or a linked configuration reference, so readers know where to verify the hook point names and per-hook options like skipOnCI/skipOnLocal.",
+            "The 'Shared script properties' section references 'ScriptEnvProps' by name as the source of shared behavior — but that type is not in the provided source files. Either omit the type name and just describe the properties, or link to the API reference where it appears. Naming a type the reader can't find creates friction.",
+            "The comparison table shows Max timeout as '—' for Hooks/local scripts. Adding a brief parenthetical like '(no Stacktape-imposed limit)' would disambiguate — an engineer might read the empty cell as 'unknown' rather than 'unconstrained'.",
+            "In the 'Running scripts manually' bash example, the command uses --stage production without --region. Adding --region eu-west-1 or noting it is optional would match the deployment-script:run example below it, which does include --region.",
+            "The BastionScript section doesn't mention that a Bastion resource must be deployed before the script can run — this is an implicit dependency that could bite someone who adds a BastionScript in the same deployment that first creates the bastion. A one-sentence callout about ordering would prevent a common gotcha.",
+            "The deployment script packaging section mentions only two packaging modes (StacktapeLambdaBuildpackPackaging and CustomArtifactLambdaPackaging). The source type is LambdaPackaging, which may include other variants (NixpacksPackaging, etc.). If additional packaging modes are valid for DeploymentScript, they should at minimum be named; if not, a one-liner explaining why they are excluded would help."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly distinguishes hooks from deployment scripts.",
+            "The comparison table is useful and gives readers a fast decision point between local hooks and AWS-side deployment scripts.",
+            "Stacktape configuration examples use <CodeBlock intellisense> with a TypeScript tab and avoid forbidden hand-authored YAML.",
+            "FAQ is broad and practical, covering Stacktape behavior, Lambda limits, VPC access, and choosing between approaches."
+          ],
+          "problems": [
+            "Large parts of the page are not grounded in the provided source files. The draft states specific hook points, skipOnCI/skipOnLocal defaults, LocalScript execution modes, pipeStdio behavior, BastionScript streaming, LocalScriptWithBastionTunneling endpoint rewriting, assumeRoleOfResource supported resources, and CLI option shapes without corresponding source excerpts.",
+            "The page documents three script variants in depth, but the provided source only confirms that the top-level scripts map can contain LocalScript, BastionScript, or LocalScriptWithBastionTunneling. The concrete properties and defaults for those script types are not present in the supplied sources.",
+            "The comparison table includes unsupported deployment-script claims such as VPC access “via joinDefaultVpc” for all deployment scripts, local file access “No”, and “script must execute regardless of how the deployment was triggered (CLI, Console, or CI).” The provided source only says deployment scripts execute as Lambda functions and can be triggered manually.",
+            "Several CLI and Console-adjacent claims are unsupported by the supplied source files, including stacktape deployment-script:run option names, stacktape script:run option names, delete hook requirements, and the statement that deployment scripts run regardless of CLI, Console, or CI trigger path.",
+            "The page includes Lambda-specific details for deployment scripts that are sourced for DeploymentScriptProps, but then extends beyond the source by recommending NAT gateway configuration for VPC-connected deployment scripts and describing CloudFormation event exposure for parameters.",
+            "The API reference only covers DeploymentScriptProps even though a large share of the page teaches hooks and scripts. That may be acceptable for the route, but readers will not get reference coverage for the hooks/scripts material that dominates the page.",
+            "Some examples contain tunable values that are only partly explained. For example, database engine version '16', timeout 300, SEED_COUNT 100, and the bastionResource string are not consistently anchored in surrounding prose."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground every claim about hook points, script classes, script properties, defaults, CLI flags, bastion behavior, and assumeRoleOfResource. With the current source set, narrow the hooks/scripts sections to what _root.d.ts actually states or add the relevant type and CLI source files.",
+            "Correct the deployment-script sections so every Stacktape-specific statement is backed by deployment-script.d.ts: trigger values and failure behavior, packaging, runtime auto-detection, environment, parameters, memory, timeout, joinDefaultVpc, and storage are supported; unsupported operational details should be removed or clearly attributed only if additional sources are provided.",
+            "Do not claim Console-trigger behavior for deployment scripts unless console-app source is included. The draft currently says deployment scripts run regardless of whether deployment was triggered by CLI, Console, or CI, which is not grounded in the supplied files.",
+            "Add source-backed references for hooks and scripts or reduce the page scope. If the page remains “Deployment Scripts and Hooks,” include the Hooks and script type definitions in the source set so the page can safely document hook points, skip flags, LocalScript, BastionScript, and LocalScriptWithBastionTunneling."
+          ],
+          "optionalImprovements": [
+            "Add a compact “Supported deployment-script properties” table focused only on DeploymentScriptProps, then keep hooks/scripts as a shorter orientation unless their type sources are available.",
+            "Move the strongest production recommendation into the first decision section: use deployment scripts for rollback-coupled deploy work; use hooks for local tooling and filesystem-dependent work.",
+            "Tighten FAQ answers that repeat earlier sections, especially hook-vs-deployment-script migration guidance, so the FAQ stays extractable without duplicating too much body copy.",
+            "Explain non-obvious example values near the code blocks, especially timeout increases and engine version choices, or omit values that are not necessary for the example."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #5 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #6 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 12, col 52: Cannot find name 'stage'. Did you mean 'Storage'?",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): code is not Prettier-formatted (auto-format may have skipped it).",
+              "reason": "Stacktape config examples are auto-formatted with Prettier before review. A residual mismatch likely means the block had a syntax issue at format time.",
+              "suggestedFix": "Fix any TypeScript syntax errors; auto-format will then handle the formatting."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 12, col 52: Cannot find name 'stage'. Did you mean 'Storage'?",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #10 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #12 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1231,8 +2056,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\deployment-and-lifecycle\\deployment-scripts-and-hooks.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/deployment-and-lifecycle/deployment-scripts-and-hooks.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 17, advisory high 0, verifier medium 16"
+  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 0, advisory high 0, verifier medium 10",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

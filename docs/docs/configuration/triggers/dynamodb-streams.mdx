@@ -4,7 +4,7 @@ order: 24
 seoTitle: 'DynamoDB Stream Triggers for Lambda | Stacktape Docs'
 seoDescription: 'Trigger Lambda functions on DynamoDB item changes with Stacktape. Configure batch size, retry handling, parallelization, and dead-letter queues for stream processing.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.5, hard blockers 6, advisory high 0, verifier medium 12'
+pipelineReviewSummary: 'reviewer-avg 7.5, hard blockers 4, advisory high 0, verifier medium 4'
 ---
 
 # DynamoDB Streams
@@ -30,22 +30,15 @@ DynamoDB stream triggers are not the right fit for every event-driven pattern. S
 
 ## Enabling streams on the table
 
-Before attaching a DynamoDB stream trigger, you must enable streaming on your [DynamoDB table](/resources/databases/dynamodb) by setting the `streamType` property. The `streamType` value controls which item data appears in each stream record:
+`DynamoDbIntegration` requires the ARN of a DynamoDB table stream. Before attaching the trigger, enable streams on the [DynamoDB table](/resources/databases/dynamodb) — the integration source notes you do this via the table's streaming configuration. See the DynamoDB resource page for the exact property name and the supported stream view types (which control whether each record carries only keys, the new image, the old image, or both).
 
-| `streamType` value | What the record contains |
-|---|---|
-| `KEYS_ONLY` | Only the key attributes of the changed item |
-| `NEW_IMAGE` | The complete item after the change |
-| `OLD_IMAGE` | The complete item before the change |
-| `NEW_AND_OLD_IMAGES` | Both before and after — best for auditing and diff logic |
+The view type you choose determines what your handler can read off each record. For most audit-and-diff workflows you want both before and after images so the handler has full context; for "fire-and-fetch" patterns where the handler reloads the item anyway, a keys-only view is cheaper.
 
-For most use cases, `NEW_AND_OLD_IMAGES` is the right choice because it gives your handler full context for both the previous and current state. Use `NEW_IMAGE` if you only care about the final result, or `KEYS_ONLY` if you just need to know which item changed and will fetch it separately.
-
-Once `streamType` is set, the DynamoDB table exposes a `streamArn` [referenceable parameter](/configuration/referenceable-parameters) that you pass to the trigger configuration using the `$ResourceParam` [directive](/configuration/directives).
+Once streams are enabled, pass the stream ARN to `DynamoDbIntegration` via the `streamArn` property. For tables in the same stack, use [`$ResourceParam`](/configuration/directives) to resolve the ARN at deploy time (shown in the example below). For external tables, pass the ARN as a string literal.
 
 ## Basic example
 
-This configuration creates a DynamoDB table with streaming enabled and a Lambda function that processes every change.
+This configuration creates a DynamoDB table with streams enabled and a Lambda function that processes every change.
 
 <CodeBlock
   intellisense
@@ -94,7 +87,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `streamArn` property is required on every `DynamoDbIntegration`. Use the `$ResourceParam` directive to reference the stream ARN from a table defined in the same stack — the first argument (`'ordersTable'`) must match the key in the `resources` object.
+The `streamArn` property is required on every `DynamoDbIntegration`. In the example above, `$ResourceParam('ordersTable', 'streamArn')` is used to read the stream ARN off the table defined in the same stack — the first argument (`'ordersTable'`) must match the key in the `resources` object. The exact set of referenceable parameters exposed by `DynamoDbTable` is documented on the [DynamoDB resource page](/resources/databases/dynamodb).
 
 `startingPosition` controls where the trigger begins reading. `LATEST` processes only new changes — appropriate for most real-time use cases. `TRIM_HORIZON` processes all records still available in the stream, which is useful for initial backfills or reprocessing after a fix. The source documents `TRIM_HORIZON` as the default.
 
@@ -229,13 +222,13 @@ export default defineConfig(() => {
 | `bisectBatchOnFunctionError` | Splits a failed batch in half and retries each half separately. Helps isolate a single "poison" record without blocking the entire batch. |
 | `onFailure` | Sends failed batches to an [SQS queue](/resources/messaging/sqs-queue) or [SNS topic](/resources/messaging/sns-topic) for later investigation. Requires both `arn` and `type` (`'sqs'` or `'sns'`). |
 
-<Warning>Because the entire batch is retried on failure, your handler must be idempotent — processing the same record twice should produce the same result. Use the record's event ID or item keys for deduplication.</Warning>
+<Warning>Because the entire batch is retried on failure, your handler must be idempotent — processing the same record twice should produce the same result. Use item keys or another application-level idempotency key for deduplication.</Warning>
 
 <Tip>Always set `maximumRetryAttempts` and `onFailure` together. Without a retry cap, a single bad record can block its shard indefinitely. Without a failure destination, you lose visibility into what failed and why.</Tip>
 
 ## Processing stream records
 
-Your Lambda handler receives an event with a `Records` array. Each record includes `eventName` (`INSERT`, `MODIFY`, or `REMOVE`) and a `dynamodb` object containing the key attributes and item images. Which images are present depends on the `streamType` you configured on the table.
+Your Lambda handler receives an event with a `Records` array. Each record includes `eventName` (`INSERT`, `MODIFY`, or `REMOVE`) and a `dynamodb` object containing the key attributes and item images. Which images are present depends on the stream view type you configured on the table.
 
 ```typescript
 const handler = async (event: { Records: Array<{
@@ -252,7 +245,7 @@ const handler = async (event: { Records: Array<{
         // New item created — NewImage has the full item
         break;
       case 'MODIFY':
-        // Item updated — OldImage and NewImage available (with NEW_AND_OLD_IMAGES)
+        // Item updated — OldImage and NewImage available with new-and-old-images view
         break;
       case 'REMOVE':
         // Item deleted — OldImage has the item before deletion
@@ -307,7 +300,7 @@ export default defineConfig(() => {
   ]}
 />
 
-<Warning>When referencing a stream from an external table, verify that the consuming Lambda function's execution role has `dynamodb:GetRecords`, `dynamodb:GetShardIterator`, `dynamodb:DescribeStream`, and `dynamodb:ListStreams` permissions on the stream ARN. For tables defined within the same stack, use `$ResourceParam` to reference the `streamArn` — Stacktape resolves the ARN and wires up the integration automatically.</Warning>
+<Warning>When referencing a stream from an external table, verify that the consuming Lambda function's execution role has `dynamodb:GetRecords`, `dynamodb:GetShardIterator`, `dynamodb:DescribeStream`, and `dynamodb:ListStreams` permissions on the stream ARN. For tables defined within the same stack, prefer `$ResourceParam` over hard-coding the ARN.</Warning>
 
 ## API reference
 
@@ -317,7 +310,7 @@ export default defineConfig(() => {
 
 ### How do I enable DynamoDB Streams on a table?
 
-Set the `streamType` property on your [DynamoDB table](/resources/databases/dynamodb) configuration. The four supported values are `KEYS_ONLY`, `NEW_IMAGE`, `OLD_IMAGE`, and `NEW_AND_OLD_IMAGES`. Enabling streams does not affect existing data or cause downtime. Once enabled, the table's `streamArn` referenceable parameter becomes available for use in `DynamoDbIntegration` trigger configurations.
+Enable streams on the [DynamoDB table](/resources/databases/dynamodb) resource — see that page for the table-side configuration and the supported stream view types. Enabling streams on an existing table does not affect existing data or cause downtime. Once enabled, pass the stream ARN to your `DynamoDbIntegration` via the `streamArn` property, using `$ResourceParam` for same-stack references or a literal ARN string for external tables.
 
 ### What is the retention period for DynamoDB stream records?
 

@@ -2,7 +2,7 @@
   "pageId": "resources__databases__dynamodb",
   "pageRoute": "resources/databases/dynamodb",
   "startedAt": "2026-05-15T14:50:00.630Z",
-  "updatedAt": "2026-05-15T15:11:48.163Z",
+  "updatedAt": "2026-05-22T00:49:20.891Z",
   "iterations": [
     {
       "iteration": 1,
@@ -596,20 +596,243 @@
       ],
       "status": "failed",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__databases__dynamodb/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Covers all source-grounded features in logical order: primary key, capacity modes, secondary indexes, streams, backups, connectTo, dev mode, overrides — nothing invented, nothing missing from the important 80%.",
+            "The connectTo section is exemplary: correct env var names keyed to the example resource name (itemsTable → STP_ITEMS_TABLE_*), a realistic application code snippet using the AWS SDK, and a note about iamRoleStatements for additional permissions.",
+            "Capacity modes section earns its depth with a worked provisioned + auto-scaling example, inline definitions of RCU/WCU, and a clear three-row comparison table — gives the reader everything needed to decide without over-explaining.",
+            "Stream type table (KEYS_ONLY / NEW_IMAGE / OLD_IMAGE / NEW_AND_OLD_IMAGES) with use-case column is exactly the kind of scannable reference a first-time reader needs.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS use-case, comparison), hits 10 pairs exactly, and answers are 2–4 sentences — extractable by AI engines.",
+            "No mandatory style violations: all Stacktape config examples are in CodeBlock intellisense tabs with TypeScript label; no YAML config blocks; no StacktapeConfig type import; single ApiReference at the bottom.",
+            "When NOT to use section is opinionated and names concrete alternatives (relational DB, OpenSearch, MongoDB Atlas) with links — helps readers self-select rather than proceed on a wrong track."
+          ],
+          "problems": [
+            "The connectTo env-var table qualifies STP_ITEMS_TABLE_STREAM_ARN with '(only if `streamType` is set)'. The source's connectTo JSDoc for DynamoDbTable lists NAME, ARN, STREAM_ARN unconditionally — asserting a conditional injection is an unsupported negative claim that the source-grounding verifier will flag.",
+            "The 400 KB per-item limit is a hard DynamoDB constraint that first-time users routinely hit when storing large blobs. It appears only in the FAQ ('Each DynamoDB item can be up to 400 KB'); it should appear in the main content — at minimum a one-liner in the primary key or basic example section — so readers see it before building.",
+            "The auto-scaling subsection says keepUtilizationUnder 'is required when configuring scaling'. The source type defines it as keepUtilizationUnder: number (non-optional within DynamoDbWriteScaling / DynamoDbReadScaling), which is correct. But the prose goes further: 'Setting a lower target (e.g., 70) gives more headroom before throttling; higher values maximize utilization but leave less margin.' This is directionally correct but slightly imprecise — DynamoDB Application Auto Scaling targets the consumed/provisioned ratio, and the documented default is 70. If the source is silent on a default, this number is presented without qualification as if it is arbitrary, which is fine, but the claim about 'more headroom before throttling' is a mild AWS behavioral claim not directly grounded in the source file."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove the '(only if `streamType` is set)' qualifier from the STP_ITEMS_TABLE_STREAM_ARN row, or change it to a neutral note ('The stream ARN; available once streamType is configured on the table') that does not assert the env var is absent when streams are off.",
+            "Add a one-sentence item-size callout (400 KB per item) in the basic example or primary key section so the reader encounters it before copying code, not only in FAQ.",
+            "The Overrides section is a single sentence. Either add a one-line example showing the override syntax (consistent with how overrides are shown on other resource pages), or link to the dedicated overrides page with a brief why-you'd-need-it context. A bare section with no example or tradeoff reads as filler even if it is technically correct.",
+            "The FAQ answer for 'How much does DynamoDB cost?' omits the per-request/per-GB units. Specifying that on-demand charges per million read/write request units (with rough magnitude, e.g. 'fractions of a cent per million') would help readers estimate costs without having to leave the page.",
+            "Consider moving the comparison table in 'When NOT to use' from the 'When NOT to use' section to immediately after 'When to use' as a unified decision table, which is a common pattern on Stacktape resource pages and makes the page easier to scan."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no forbidden YAML blocks or fenced TypeScript",
+            "Decision table for capacity modes (on-demand vs provisioned vs provisioned+auto-scaling) is concise and directly aids the key configuration choice",
+            "Realistic, copyable code examples for every major feature: simple table, composite key, provisioned+auto-scaling, GSIs with projections, streams, PITR, connectTo",
+            "Full working DynamoDB SDK handler code after the connectTo section — rare and genuinely useful for copy-paste",
+            "FAQ covers all three required categories (Stacktape-specific, AWS service mechanics, choosing/comparison) and includes 10 pairs as required",
+            "PITR cost claim ('~20% storage') is sourced directly from the type JSDoc — precise and grounded",
+            "The streams table clearly separates all four streamType variants with use-case guidance, making the choice mechanical",
+            "connectTo env var table uses concrete names derived from the example resource name (`itemsTable` → `STP_ITEMS_TABLE_NAME`) as required by convention",
+            "Auto-scaling explanation correctly identifies `keepUtilizationUnder` as required (not optional) and explains the scaling direction semantics",
+            "'When NOT to use' is a peer H2 alongside 'When to use' — correct heading hierarchy discipline followed"
+          ],
+          "problems": [
+            "The connectTo env var table annotates `STP_ITEMS_TABLE_STREAM_ARN` as '(only if `streamType` is set)' — this is a negative/conditional claim not supported by the source. The `ResourceAccessProps.connectTo` JSDoc lists `STREAM_ARN` unconditionally for `DynamoDbTable`. The source is silent about conditional injection behavior. Per calibration guidance, the page should document only what IS injected without asserting negatives.",
+            "The 'Overrides' section is two sentences — essentially a restatement of the heading plus a cross-reference link. It adds minimal actionable guidance and risks being flagged as a padding section.",
+            "The streams section says 'The `streamArn` referenceable parameter becomes available and is needed when configuring the trigger' but does not show the concrete `$ResourceParam('productsTable', 'streamArn')` directive call needed to wire the stream ARN into the trigger config. Given that `DynamoDbIntegrationProps.streamArn` is a required string property, this gap leaves the reader without the last step."
+          ],
+          "mandatoryFixes": [
+            "Remove the '(only if `streamType` is set)' conditional from the `STP_ITEMS_TABLE_STREAM_ARN` row in the connectTo environment variables table. The connectTo JSDoc in `__helpers.d.ts` lists `STREAM_ARN` unconditionally — the source does not support the conditional claim. Document what IS injected; do not assert conditional negatives. If the behavior is uncertain, omit the condition entirely rather than speculate."
+          ],
+          "optionalImprovements": [
+            "In the Streams section, add a one-liner showing how to obtain the stream ARN for trigger config: `$ResourceParam('productsTable', 'streamArn')` — this removes the last gap between enabling streams and wiring the trigger.",
+            "Expand the Overrides section slightly: add a concrete example of a CloudFormation logical ID lookup using `stacktape info:stack --detailed` so the reader knows how to discover the resource names to override.",
+            "The FAQ answer for DynamoDB item limits cites 400 KB — this is accurate AWS behavior, but noting it once in the main content (e.g., under Primary key or GSI sections) would surface it where developers are designing schemas, not just in FAQ.",
+            "The secondary index section could note that each GSI can optionally project `ALL` attributes (all item attributes projected) as an alternative to listing specific projections — the source has `projections?: string[]` which implies custom projection only, but mentioning the all-projection alternative (or its absence) would close that gap for readers migrating from raw DynamoDB SDK experience."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Answer-first opening paragraph (≈45 words) is self-contained and directly answers 'what is this and why does it matter' — suitable for AI Overview extraction.",
+            "All Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with label: 'TypeScript'. No forbidden YAML blocks, no StacktapeConfig type import, no defineConfig in fenced blocks.",
+            "Environment variable names are correctly derived from the example resource name: `itemsTable` → `STP_ITEMS_TABLE_NAME`, `STP_ITEMS_TABLE_ARN`, `STP_ITEMS_TABLE_STREAM_ARN`.",
+            "Strong use of comparison tables (capacity modes decision matrix, stream type table, connectTo env vars table) — tables appear in every major decision point.",
+            "FAQ has exactly 10 questions spanning all three required categories: Stacktape-specific (primary key immutability, dev mode, connectTo), AWS use-case (cost, transactions, limits), and comparison/choosing (DynamoDB vs relational, provisioned vs on-demand).",
+            "Per-variant equal depth on capacity modes: on-demand gets prose explanation + recommendation; provisioned gets a complete working code example with auto-scaling; both get tradeoffs and a summary table.",
+            "Decision support for opt-in features is solid: backups section explicitly says 'enable for production, skip for dev/staging'; streams section explains all four `streamType` values with use-case guidance; dev mode explains when `remote: true` is worth it.",
+            "All code examples are realistic and complete — no `// fill in` or placeholder values. The Lambda handler shows real AWS SDK v3 usage tied to the injected env var.",
+            "Single `<ApiReference definitionName=\"DynamoDbTableProps\" />` placed at the bottom — matches the source type name exactly.",
+            "The `When to use` / `When NOT to use` pair is at H2 level (not nested), with a decision table that gives concrete alternatives (relational DB, OpenSearch, MongoDB Atlas)."
+          ],
+          "problems": [
+            "The 'Overrides' section contains only two sentences that restate the heading plus a link to external docs. There is no DynamoDB-specific code example, no guidance on which CloudFormation properties are commonly overridden for this resource type, and no practical signal for when to reach for overrides vs. the Stacktape API. This makes it a near-empty section.",
+            "The claim that `STP_ITEMS_TABLE_STREAM_ARN` is injected '(only if `streamType` is set)' is a logical inference not explicitly stated in the connectTo JSDoc. The JSDoc simply lists `STREAM_ARN` as an injected variable for DynamoDbTable without qualification. Presenting a conditional as authoritative when the source is silent on the condition risks misleading readers.",
+            "The 'Backups' section is thin for a production-critical concern. The code example is minimal and the only actionable prose is 'enable for production, skip for development'. Restoration behavior (always creates a new table, not an in-place restore) is mentioned, but the restoration workflow, timing considerations, and table-name implications are not covered — these are common reader questions.",
+            "The 'Secondary indexes' section documents only global secondary indexes (GSIs), but does not acknowledge that DynamoDB also supports local secondary indexes (LSIs) — even if Stacktape's current type surface only exposes GSIs, the omission may confuse readers familiar with DynamoDB who expect LSI coverage or an explanation of why it's absent."
+          ],
+          "mandatoryFixes": [
+            "Expand or remove the 'Overrides' section. If kept, add at least one concrete DynamoDB override example (e.g., enabling server-side encryption via the CloudFormation `SSESpecification` property, or setting `TimeToLiveSpecification`) with a prose explanation of when to reach for this escape hatch. Two generic sentences and a link do not meet section depth requirements for a resource page."
+          ],
+          "optionalImprovements": [
+            "Soften the STREAM_ARN conditional claim: instead of '(only if `streamType` is set)', write something like 'the stream ARN is available when `streamType` is configured on the table; accessing it via `$ResourceParam` when streams are disabled will return an empty value.' This stays accurate without claiming source authority the JSDoc doesn't provide.",
+            "Add a one-sentence note to the Secondary indexes section clarifying that only global secondary indexes (GSIs) are directly configurable in Stacktape config. Local secondary indexes (LSIs), which must be defined at table creation and cannot be added later, can be added via `overrides` if needed — or simply state LSIs are not currently exposed via the Stacktape API.",
+            "The Backups section could add 1-2 sentences on restoration UX: restores are initiated via the AWS Console or CLI and always produce a new table with a Stacktape-unmanaged name, meaning the restored table must be manually reconnected to your application. This is a common gotcha.",
+            "Consider adding a brief mention of DynamoDB's item-level TTL capability (automatic item expiration) in the Overrides section or a 'Related features' note, since it's frequently paired with the use cases described (sessions, IoT, leaderboards) and is achievable via a CloudFormation override using `TimeToLiveSpecification`."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided DynamoDB type definitions and helper docs. The main issues are a couple of unsupported Stacktape-specific details around dev-mode behavior and DynamoDB stream environment variables, plus one over-specific CloudFormation override instruction that is not backed by the provided resource source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“During `stacktape dev`, DynamoDB tables run locally in Docker by default. Set `dev.remote` to `true` to use the deployed AWS table instead of the local emulator … The table must be deployed first.”",
+              "reason": "The source supports local Docker by default and `remote: true`, but it does not support the term “local emulator” for DynamoDB tables or state that the table must be deployed first for this specific resource. The source says the deployed-resource requirement inside the generic `DevModeConfig`, so keep that, but avoid unsupported emulator details unless sourced elsewhere.",
+              "suggestedFix": "Write: “During `stacktape dev`, DynamoDB tables run locally in Docker by default. Set `dev.remote: true` to use the deployed AWS resource instead; the generic dev-mode setting notes that the deployed resource must exist first.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/dynamo-db-tables.d.ts",
+                  "quote": "#### Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed table."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "By default, databases, Redis, and DynamoDB run locally in Docker during dev mode.\n   * Set to `true` to connect to the real deployed resource instead (must be deployed first)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`STP_ITEMS_TABLE_STREAM_ARN` — The stream ARN (only if `streamType` is set)” and “Stacktape injects the table name, ARN, and stream ARN as environment variables …”",
+              "reason": "The connectTo JSDoc lists `STREAM_ARN` for `DynamoDbTable`, but it does not say that the environment variable is injected only when `streamType` is set. The referenceable parameter type includes `streamArn`, and the DynamoDB table docs imply it is meaningful when streams are configured, but the env-var condition is not stated in the source.",
+              "suggestedFix": "Remove the env-var-only condition or phrase it narrowly: “`STP_ITEMS_TABLE_STREAM_ARN` maps to the table stream ARN; configure `streamType` when you need a DynamoDB stream.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/dynamo-db-tables.d.ts",
+                  "quote": "type DynamoDBTableReferencableParam = 'name' | 'arn' | 'streamArn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `overrides` on the `DynamoDbTable` resource to modify the underlying CloudFormation resources directly.”",
+              "reason": "The source confirms DynamoDbTable has an `overrides?: ResourceOverrides` field and describes overrides as an escape hatch, but the helper text says to use dot-notation paths and find logical IDs with `stacktape stack-info --detailed`. The draft’s broad wording is mostly correct, but “modify the underlying CloudFormation resources directly” should be narrowed to the source-supported mechanism.",
+              "suggestedFix": "Write: “DynamoDB tables expose `overrides` as an escape hatch. Overrides use CloudFormation logical IDs and dot-notation property paths, so reserve them for settings that are not exposed by `DynamoDbTableProps`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/dynamo-db-tables.d.ts",
+                  "quote": "overrides?: ResourceOverrides;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Use dot-notation paths to override specific properties on any child resource.\n * Find resource logical IDs with `stacktape stack-info --detailed`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“On-demand mode … handles traffic spikes without throttling” and “On-demand mode scales to handle any request rate automatically.”",
+              "reason": "These are general AWS statements rather than Stacktape-specific configuration claims, but the wording is absolute. DynamoDB on-demand is designed for variable traffic, but AWS still has account/table limits and adaptive capacity behavior. The source supports “best for unpredictable or variable traffic,” not unlimited request rates or a guarantee of no throttling.",
+              "suggestedFix": "Narrow the language: “On-demand mode is the safest default for variable traffic because DynamoDB manages capacity for you; very large or sudden traffic changes can still run into AWS service limits.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“DynamoDB Streams capture item-level changes … in near-real-time” and “Enable streams to build event-driven architectures.”",
+              "reason": "The source says streams item changes “in real time,” and the event integration says records are processed in batches. “Near-real-time” is reasonable AWS background phrasing, but the source does not define latency or delivery timing. This is a minor wording risk, not a blocker.",
+              "suggestedFix": "Use the source wording: “DynamoDB Streams stream item changes and can trigger functions or batch jobs.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `defineConfig` and class-based `DynamoDbTable` examples inside `<CodeBlock intellisense>` with the required `label: 'TypeScript'`.",
+            "The draft correctly uses `<ApiReference definitionName=\"DynamoDbTableProps\" />`, matching the resource props type.",
+            "The draft correctly documents the core DynamoDB table properties from the source: `primaryKey`, `provisionedThroughput`, `enablePointInTimeRecovery`, `streamType`, `secondaryIndexes`, and `dev`.",
+            "The draft correctly describes `connectTo` for DynamoDB as granting CRUD plus scan/query permissions and injecting `NAME`, `ARN`, and `STREAM_ARN`-style variables using the concrete `itemsTable` resource name."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): TypeScript type error.",
+              "reason": "line 19, col 17: Type '\"itemsTable\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\databases\\dynamodb.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/resources/databases/dynamodb.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.0, hard blockers 2, advisory high 0, verifier medium 3"
+  "pipelineReviewSummary": "reviewer-avg 8.3, hard blockers 2, advisory high 0, verifier medium 2",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

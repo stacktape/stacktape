@@ -2,7 +2,7 @@
   "pageId": "deployment-and-lifecycle__previewing-changes",
   "pageRoute": "deployment-and-lifecycle/previewing-changes",
   "startedAt": "2026-05-17T14:23:30.012Z",
-  "updatedAt": "2026-05-17T14:36:44.912Z",
+  "updatedAt": "2026-05-21T19:32:13.747Z",
   "iterations": [
     {
       "iteration": 1,
@@ -962,6 +962,277 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/deployment-and-lifecycle__previewing-changes/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Intro paragraph is a clean, self-contained answer (well within the 40-75 word target) that an extraction engine could quote verbatim.",
+            "Output format table (symbols, labels, meanings) is directly grounded in source — symbols, labels, and the 'NO CHANGES DETECTED' / 'NO MEANINGFUL STACKTAPE RESOURCE CHANGES' strings are all confirmed by the command source file.",
+            "Side-effects disclosure is honest and precise: secrets preflight, SSM preflight, template upload, and workload packaging are enumerated exactly as they appear in the source pipeline.",
+            "'Will replace' / 'May replace' distinction is clearly explained and the Warning callout on stateful resources is well-placed to catch the audience most likely to be hurt by it.",
+            "Agent mode section is thorough and accurate — SUMMARY line format, per-resource line format, and the slice(0,3) highlight limit all match the source.",
+            "Comparison table (preview-changes vs compile-template) is genuinely useful for decision-making and avoids hand-wavy claims.",
+            "FAQ covers all three required categories (Stacktape-specific, underlying AWS service behavior, comparison/choosing), and the 9 Q&A pairs are all substantive rather than padded.",
+            "Troubleshooting section is grounded in source-confirmed behavior (commandRequiresDeployedStack, commandCanUseCache, packaging caching)."
+          ],
+          "problems": [
+            "The `<FlowDiagram>` component in 'How preview-changes works' is not listed in the documented MDX component palette, and its props shape (`steps` array with `title` / `description`) cannot be verified from the provided source. If this component does not exist in the docs system, the entire section will silently fail to render for readers.",
+            "Example commands throughout the page omit `--projectName`. Every concrete deploy/delete invocation in the project uses `--projectName` as a required flag (e.g., `bun dev deploy --projectName ai-tests --stage ...`). If `preview-changes` also requires it, copy-pasting the examples will produce an error — exactly the failure mode a first-time reader cannot debug quickly.",
+            "The H2 heading 'How preview-changes works' is sentence-form rather than the noun-form short label the style guide requires for H2s ('1-5 word noun-form labels'). 'Pipeline' or 'How It Works' would be tighter.",
+            "The 'changedChildCount > 3' threshold surfaced in human-mode output is described as 'shows up to three highlights' — accurate — but the prose example shows `+ 4 more changed child resources`, implying changedChildCount was 7. The example count is plausible but synthetic; a note that the threshold is 3 (not a tunable) would make the behavior crystal clear."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Verify that `<FlowDiagram steps={[...]} />` is a valid, rendered component in this docs system before publishing. If it is not, replace with a numbered prose list or a markdown table — the content is valuable, but a broken component silently removes an entire section for readers.",
+            "Audit whether `--projectName` is required for `preview-changes`. If it is, add it to every example command. If it can be inferred from `stacktape.config` in the working directory, add a one-sentence note explaining the inference so the reader knows why the example omits it.",
+            "Shorten the H2 heading 'How preview-changes works' to a compact noun-form label ('How It Works' or 'Pipeline') to match the style guide's 1-5 word guidance and keep the TOC tighter.",
+            "The 'Running a preview' section notes that 'The stack for that stage must already be deployed' but doesn't link to the deploy page inline at that sentence — it only links parenthetically to `/cli/preview-changes`. A direct in-sentence link to `/cli/deploy` at the 'run deploy first' point would reduce friction for the first-time reader who hasn't deployed yet.",
+            "The CI/CD section describes a 4-step manual workflow but never shows even a minimal GitHub Actions YAML snippet (the doc's own rule allows fenced YAML for non-Stacktape config files like `docker-compose.yml` or GitHub Actions workflows). Adding a 15-line `.github/workflows/preview.yml` example would make the section copyable rather than descriptive.",
+            "In the FAQ answer for 'Does preview-changes cost anything?', the claim that S3 storage is 'a few KB' is a reasonable estimate but isn't sourced. Softening to 'negligible S3 storage for the template' removes the unsourced precision without losing the point."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Pipeline steps in 'How preview-changes works' are sourced directly from commandPreviewChanges — secrets preflight, SSM params, packaging (commandCanUseCache: true), template upload, validate, then getChangeSet (includePropertyValues: true). This is accurate.",
+            "Action symbols (+, ~, !, -) and labels (new, removed, replaced, updated) exactly match the source's actionToSymbol/actionToLabel functions.",
+            "The 'NO CHANGES DETECTED' vs 'NO MEANINGFUL STACKTAPE RESOURCE CHANGES' distinction is correctly sourced from the conditional in the human/agent output builders.",
+            "Agent mode output format (SUMMARY line, per-resource lines, up to 3 highlights, will/may replace) is accurately described and matches buildAgentPreviewOutput.",
+            "The 'up to three highlights' limit and '+ N more changed child resources' overflow are sourced from buildHumanPreviewOutput (slice(0,3) and changedChildCount > 3 check).",
+            "commandRequiresDeployedStack: true is correctly surfaced in both the 'When NOT to use' section and the Troubleshooting FAQ.",
+            "FAQ mixes Stacktape-specific, underlying-service, and comparison questions as required — 9 pairs, all substantive.",
+            "Template normalization explanation (filters internal bookkeeping changes like deployment version counters, forceUpdate flags) is correctly attributed to getNormalizedPreviewTemplateDiff.",
+            "preview-changes vs compile-template comparison table is accurate and adds practical decision support."
+          ],
+          "problems": [
+            "FACTUAL INACCURACY — UNSUPPORTED BY SOURCE: The page states 'Agent mode also automatically confirms operations, equivalent to passing --autoConfirmOperation.' The source code for commandPreviewChanges does NOT set autoConfirmOperation when agent mode is active. isAgentMode() in the source only switches the output format (buildAgentPreviewOutput vs buildHumanPreviewOutput). Furthermore, the command initializes with commandModifiesStack: false, meaning there are no stack-modifying operations to confirm in the first place. This claim is both unsupported by the provided source and nonsensical for this command — it appears to be incorrectly ported from the deploy command docs.",
+            "The <FlowDiagram> MDX component is used in the page but its existence in the Stacktape docs MDX component palette cannot be verified from the provided sources. If this component does not exist, the section would render broken markup in production."
+          ],
+          "mandatoryFixes": [
+            "Remove or correct the agent mode auto-confirm claim: 'Agent mode also automatically confirms operations, equivalent to passing --autoConfirmOperation.' The source (commandPreviewChanges) shows isAgentMode() only changes output format — it does not set autoConfirmOperation. Additionally, preview-changes initializes with commandModifiesStack: false, so there is nothing to confirm. Replace with an accurate statement: agent mode switches from colorized interactive output to a compact machine-readable format suitable for programmatic consumption."
+          ],
+          "optionalImprovements": [
+            "Verify that <FlowDiagram> is a real MDX component in the Stacktape docs system before publishing. If it isn't, replace the pipeline visualization with a numbered list or prose paragraph — the content itself is accurate and valuable regardless of the component.",
+            "The source shows an issue detection policy check (issueDetectionPolicy.enabled) that runs before packaging and emits a tuiManager.info message about sampling rate. This is minor but could surprise users who see unexpected output during preview. A one-line mention in the 'How preview-changes works' or Troubleshooting section would eliminate confusion.",
+            "The page does not note that the change set is cleaned up (or left in CloudFormation) after preview. Users running many previews may accumulate change sets — worth one sentence clarifying whether Stacktape deletes the change set after reading it.",
+            "The 'Using preview in CI/CD' section describes a manual parse-for-replacement-warnings workflow. A concrete example of capturing exit code or parsing SUMMARY line output would make this section more directly actionable for engineers writing CI scripts."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong answer-first opening paragraph that clearly explains what `stacktape preview-changes` does and why a reader would use it.",
+            "Good section structure for a deployment lifecycle page: when to use, when not to use, running the command, output interpretation, CI/CD, comparison, troubleshooting, and FAQ.",
+            "Output symbols, labels, summary formats, `NO CHANGES DETECTED`, and `NO MEANINGFUL STACKTAPE RESOURCE CHANGES` are well aligned with the command source.",
+            "No forbidden Stacktape config examples, no hand-authored YAML Stacktape config, and shell blocks each contain a single command without explanatory comments inside the block.",
+            "The `preview-changes` vs `compile-template` table is useful and highly scannable for decision-making."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source file, including specific CLI flags being required, `defaults:configure`, CloudFormation auto-rollback behavior, Console GitOps preview behavior, Terraform comparison details, and detailed CI parsing recommendations.",
+            "The page overstates deploy-like behavior that is not proven by the source, especially claims that preview uses the same steps as `deploy`, that container images may be pushed to ECR, and that packaging uses cached artifacts only when workloads have not changed.",
+            "The template normalization section invents specific filtered fields such as deployment version counters, `forceUpdate` flags, and custom-resource version stamps; the provided source only proves that `getNormalizedPreviewTemplateDiff` is called and that internal/dependency-only changes may be filtered.",
+            "The `SUMMARY` line in agent mode is described as always included, but the source prints `NO CHANGES DETECTED` without a summary when both `resourceChanges.length` and `changes.length` are zero.",
+            "The FAQ includes useful search-oriented questions, but some answers rely on unsupported Stacktape-specific claims, such as Console not exposing a separate preview step and first deploy cleanup behavior.",
+            "The troubleshooting section gives plausible causes for unexpected diffs, but dependency re-evaluation is the only cause directly supported by the command output text; container digest and secret-value-change explanations are not grounded in the provided source.",
+            "Some H2 first paragraphs are a little too context-dependent or short for extraction, especially `Agent mode output`, `Troubleshooting`, and `Preview vs compile-template`.",
+            "The page does not describe the relevant deployed-stack requirement with the CloudFormation stack state detail requested by the section instruction; it only says the stack must already exist."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify unsupported Stacktape-specific claims that are not present in `src/commands/preview-changes/index.ts`, especially CLI flag requirements, Console preview behavior, deploy auto-rollback behavior, ECR pushes, and deploy-step equivalence.",
+            "Correct the agent-mode section to state that `SUMMARY: ...` is printed when there are changes or raw CloudFormation changes; when both raw and Stacktape resource changes are empty, the command prints `NO CHANGES DETECTED`.",
+            "Replace the invented normalization examples with source-grounded wording: Stacktape computes a normalized template diff and may filter CloudFormation-reported internal runtime churn or dependency re-evaluation when there are no meaningful Stacktape resource changes.",
+            "Revise troubleshooting causes so each cause is grounded in the provided source, or explicitly narrow them as examples that require additional source support before publication.",
+            "Either add source-grounded CloudFormation stack-state wording for the already-deployed-stack requirement or omit state-specific claims rather than implying behavior not shown in the source."
+          ],
+          "optionalImprovements": [
+            "Make each H2 opening paragraph more self-contained by naming `Stacktape preview-changes` or `the preview-changes command` directly instead of relying on nearby context.",
+            "Move unsupported or broad AWS/Terraform comparisons into a shorter FAQ answer framed as conceptual background, not Stacktape-specific behavior.",
+            "Add a concise note near the top that the command initializes with `commandModifiesStack: false` and `commandRequiresDeployedStack: true`; those are the two most important source-backed operational constraints.",
+            "Tighten the CI/CD section to focus on the source-backed `--agent` output shape rather than prescribing merge-blocking logic that is not implemented by the command itself.",
+            "Consider changing `How preview-changes works` to `Execution flow` for a shorter noun-form H2 while keeping the existing practical content."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided preview-changes command source and the generated page notes. The main problems are a few over-specific claims about output semantics, compile-template behavior, CI parsing, and cached packaging that are not directly supported by the supplied authoritative source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Existing data and endpoints are preserved” for `~ updated` resources.",
+              "reason": "The source maps CloudFormation/preview action `update` to the label `updated`, but it does not guarantee that all in-place updates preserve data and endpoints. That preservation claim is stronger than the command output semantics shown in source.",
+              "suggestedFix": "Narrow the table entry to: “Resource will be updated in place.” Avoid promising preserved data or endpoints unless a resource-specific page supports it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/preview-changes/index.ts",
+                  "quote": "const actionToLabel = (action: 'create' | 'delete' | 'replace' | 'update') => {\n  if (action === 'create') return 'new';\n  if (action === 'delete') return 'removed';\n  if (action === 'replace') return 'replaced';\n  return 'updated';\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Replacement means the old resource is deleted and a new one created,” including in the Warning: “Replacement deletes the old resource and creates a new one.”",
+              "reason": "The source reports `Will replace` and `May replace` from CloudFormation change-set details, but it does not define deletion order or lifecycle semantics for replacement. The practical warning about downtime/data loss is useful, but the exact delete-then-create wording is not grounded in the provided source.",
+              "suggestedFix": "Phrase more cautiously: “Replacement means CloudFormation creates a replacement physical resource and retires the previous one, which can cause downtime or data loss for stateful resources.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/preview-changes/index.ts",
+                  "quote": "if (resourceChange.willReplace.length) {\n      lines.push(`    ${tuiManager.colorize('red', 'Will replace')}: ${resourceChange.willReplace.join(', ')}`);\n    }\n    if (resourceChange.mayReplace.length) {\n      lines.push(`    ${tuiManager.colorize('yellow', 'May replace')}: ${resourceChange.mayReplace.join(', ')}`);\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Parse the output for replacement warnings” and “If any stateful resources show ‘will replace’, block the merge or require manual approval.”",
+              "reason": "The command source supports agent output lines, highlights, and replacement warning lines, but it does not define a stable machine-readable schema or exit behavior for CI gating. Presenting parsing and automated blocking as a typical workflow may lead readers to depend on terminal text formatting not specified in the source.",
+              "suggestedFix": "Keep this as guidance but narrow it: “Use `--agent` if you want simpler text output for CI, and treat `Will replace` lines as a review signal before deploying.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/preview-changes/index.ts",
+                  "quote": "if (isAgentMode()) {\n    if (resourceChanges.length === 0 && changes.length === 0) {\n      tuiManager.info('NO CHANGES DETECTED');\n    } else {\n      tuiManager.info(\n        `SUMMARY: ${newCount} new, ${removedCount} removed, ${replacedCount} replaced, ${updatedCount} updated`\n      );\n      tuiManager.printLines(\n        buildAgentPreviewOutput({\n          resourceChanges,\n          rawChanges: changes.length\n        })\n      );\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Preview vs compile-template table: “compile-template” packages workloads, modifies no stack resources, and is best for inspecting the generated CloudFormation template.",
+              "reason": "The supplied authoritative source is only for `preview-changes`; it does not include the `compile-template` command implementation. The generated page repeats the table, but the verifier cannot confirm compile-template behavior against command source as required for CLI behavior.",
+              "suggestedFix": "Either remove the compile-template behavioral table or keep only the high-level comparison that is supported by the generated notes, phrased cautiously: “Use `compile-template` when you need the generated template; see the CLI reference for exact behavior.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/preview-changes/index.ts",
+                  "quote": "export const commandPreviewChanges = async () => {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If your workloads haven't changed, packaging uses cached artifacts and completes quickly.”",
+              "reason": "The command passes `commandCanUseCache: true`, which supports that caching may be used, but the source does not guarantee cache hits or quick completion when workloads have not changed.",
+              "suggestedFix": "Change to: “The command allows packaging to use cache when available, but container builds can still dominate runtime.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/preview-changes/index.ts",
+                  "quote": "await packagingManager.packageAllWorkloads({ commandCanUseCache: true });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The minimum command requires a stage and a region” and the examples use `--configPath`.",
+              "reason": "The generated docs include these examples, but the authoritative CLI command source and CLI command definition source were not provided. This is probably correct, but it cannot be fully verified from the supplied command implementation alone.",
+              "suggestedFix": "No change required if the CLI reference page validates these flags. Otherwise, avoid calling them the “minimum” required flags and simply present the command as a typical explicit invocation.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly keeps “When to use” and “When NOT to use” as peer H2 sections.",
+            "The draft uses the documented `stacktape preview-changes` command and links to the existing `/cli/preview-changes` route.",
+            "The command pipeline description is broadly grounded in `commandPreviewChanges`: initialization, guardrail validation, secret/SSM preflight, workload packaging, resource resolution, template upload, CloudFormation validation, change-set creation, and output rendering are all present in source.",
+            "The draft correctly distinguishes CLI behavior from Console behavior and avoids inventing Console screen flows.",
+            "No forbidden hand-authored Stacktape YAML, plain-object `StacktapeConfig`, or fenced Stacktape TypeScript config examples appear in the draft."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely consistent with the provided preview-changes command source and avoids the major forbidden documentation patterns. The main problems are overstatements about output semantics: one agent-mode output claim is conditionally wrong, and two replacement/update claims imply stronger guarantees than the source supports.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Agent mode output includes a `SUMMARY` line: `SUMMARY: 2 new, 0 removed, 0 replaced, 1 updated`.",
+              "reason": "The source only prints a `SUMMARY` line in agent mode when CloudFormation reports changes. If there are no resource changes and no raw CloudFormation changes, agent mode prints `NO CHANGES DETECTED` instead. A parser written from the draft could incorrectly expect a summary line in every agent-mode run.",
+              "suggestedFix": "Change the wording to: \"When changes are detected, agent mode output starts with a `SUMMARY` line. If no changes are detected, it prints `NO CHANGES DETECTED`.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/preview-changes/index.ts",
+                  "quote": "if (isAgentMode()) {\n    if (resourceChanges.length === 0 && changes.length === 0) {\n      tuiManager.info('NO CHANGES DETECTED');\n    } else {\n      tuiManager.info(\n        `SUMMARY: ${newCount} new, ${removedCount} removed, ${replacedCount} replaced, ${updatedCount} updated`\n      );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "In the Actions table, `updated` means: \"Resource will be updated in place. Existing data and endpoints are preserved.\"",
+              "reason": "The command source maps an update action to the `updated` label, but it does not guarantee that data, endpoint behavior, or runtime availability are preserved for every in-place CloudFormation update. The preservation claim is broader than the source supports and could make readers underestimate risky updates.",
+              "suggestedFix": "Narrow the meaning to: \"CloudFormation reports an update rather than a replacement. Inspect the highlights to understand what changes.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/preview-changes/index.ts",
+                  "quote": "const actionToLabel = (action: 'create' | 'delete' | 'replace' | 'update') => {\n  if (action === 'create') return 'new';\n  if (action === 'delete') return 'removed';\n  if (action === 'replace') return 'replaced';\n  return 'updated';\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "In the Terraform comparison FAQ: \"you get accurate replacement detection for every AWS resource type\".",
+              "reason": "The preview output explicitly distinguishes `Will replace` from `May replace`, which means replacement detection can be conditional rather than definitive. Saying Stacktape gives accurate replacement detection for every AWS resource type overstates what CloudFormation change sets can report.",
+              "suggestedFix": "Replace with: \"CloudFormation evaluates replacements and Stacktape surfaces both definite `Will replace` and conditional `May replace` warnings.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/preview-changes/index.ts",
+                  "quote": "if (resourceChange.willReplace.length) {\n      lines.push(`  Will replace: ${resourceChange.willReplace.join(', ')}`);\n    }\n    if (resourceChange.mayReplace.length) {\n      lines.push(`  May replace: ${resourceChange.mayReplace.join(', ')}`);\n    }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly treats `preview-changes` as a CLI command and does not invent Console UI flows.",
+            "The page correctly states that the command requires an already deployed stack, matching `commandRequiresDeployedStack: true`.",
+            "The page correctly describes the main pipeline steps visible in source: guardrail validation, secret and SSM preflight, workload packaging with cache enabled, resource resolution, template preparation, template upload, CloudFormation validation, change set creation, and preview output.",
+            "The page uses valid documented cross-link routes from the provided navigation index.",
+            "No forbidden Stacktape config examples, hand-authored YAML resource maps, or plain-object `StacktapeConfig` examples appear in the draft."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -974,8 +1245,14 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\deployment-and-lifecycle\\previewing-changes.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 4, advisory high 0, verifier medium 16"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/deployment-and-lifecycle/previewing-changes.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-21T19:32:13.747Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/src/commands/preview-changes/index.ts": "6f479934f06966347848c90bcfad7dbb99a96df6",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/previewing-changes.md": "e2211438cd6b62c84fa11bb496c8dcf0301158b1"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

@@ -34,7 +34,7 @@ export const JSON_SCHEMAS_FOLDER_PATH = join(process.cwd(), '@generated', JSON_S
 export const PACK_GENERATED_FOLDER_PATH = join(process.cwd(), '@generated', 'pack');
 export const AWS_PRICE_INFO_GENERATED_FOLDER_PATH = join(process.cwd(), '@generated', 'aws-price');
 export const DB_ENGINE_VERSIONS_FOLDER = join(process.cwd(), '@generated', 'db-engine-versions');
-export const AI_DOCS_FOLDER_PATH = join(process.cwd(), '@generated', 'ai-docs');
+export const LLM_DOCS_FOLDER_PATH = join(process.cwd(), '@generated', 'llm-docs');
 
 export const CLOUDFORM_FOLDER_PATH = join(process.cwd(), '@generated', 'cloudform');
 export const CLOUDFORM_ROOT_HELPER_FOLDER_PATH = join(process.cwd(), 'scripts', 'cloudform-root-helpers');

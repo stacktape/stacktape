@@ -1,0 +1,83 @@
+# Using Console UI
+
+The Stacktape Console becomes your operations hub the moment you deploy a stack. It gives you a central place to inspect deployments, view costs once reports arrive, manage secrets, and — with minimal setup — monitor alarms, track issues, and receive alerts. The stack you deployed in the previous step is already visible here.
+
+
+> **Info:** Already familiar with the Console? Skip ahead to [CI/CD](/getting-started/ci-cd) to set up automated deployments.
+
+
+## The Overview dashboard
+
+The Overview page is the Console's default landing route. After your first deployment, it shows KPI cards for total deployments, average duration, error rate, automation rate, and AWS costs — all with sparkline trends. Below the KPIs, a configurable gadget grid displays deployment frequency charts, recent deployments, open issues, recent alerts, cost breakdowns by project and by resource type, budget status, and automation ratio. Use the time range selector (7d, 14d, 30d, 90d, 6m, 1y) at the top right to adjust the window.
+
+Key items — recent deployments, open issues, recent alerts, and budget alerts — link through to their respective detail pages, making the Overview your daily check-in surface. If you have no deployed stages yet, the Console shows a getting-started guide instead.
+
+
+> Screenshot: Stacktape Console Overview dashboard showing deployment frequency chart, KPI cards for deployments/duration/error rate/costs, and recent deployments list Caption: The Overview dashboard after several deployments — deployment data appears automatically.
+
+
+## Logs
+
+Use the Console and [`stacktape debug:logs`](/cli/debug-logs) for deployed workload logs. The CLI supports filter patterns, time ranges, and live tailing from your terminal. See [Observability — Logs](/observability/logs) for the detailed workflow including log querying, filtering, and forwarding to external services.
+
+## Metrics
+
+The Console includes metrics views for deployed resources. CloudWatch metrics — invocation counts, error rates, duration percentiles, CPU/memory utilization — are accessible for resources that emit them. Use [`stacktape debug:metrics`](/cli/debug-metrics) for CLI-based queries. See [Observability — Metrics](/observability/metrics) for the detailed metric reference.
+
+## Alarms
+
+Alarm rules define CloudWatch metric thresholds in the Console. Stacktape creates or updates the actual CloudWatch alarms and EventBridge notification routing on the next deployment of each matching project and stage. Supported triggers include Lambda error rate, Lambda duration, database CPU/memory/storage/latency/connections, HTTP API Gateway error rate and latency, and Application Load Balancer error rate and unhealthy targets. Each rule is scoped to specific projects and stages, with configurable evaluation periods.
+
+
+> Screenshot: Stacktape Console Alarm Rules page showing a list of alarm rules with name, trigger type, and scoped projects/stages Caption: Alarm rules — define thresholds once, and every matching stack gets a CloudWatch alarm on the next deploy.
+
+
+Alarms require [alert channels](/observability/alert-channels) (Slack, Teams, email, Discord, or webhook) to deliver notifications. Set up a channel first, then reference it in your alarm rule. See [Observability — Alarms](/observability/alarms) for the full setup guide.
+
+## Issues (automatic error tracking)
+
+Issues is a built-in error inbox. Stacktape detects runtime errors in your Lambda functions and buildpack containers by scanning log patterns — unhandled exceptions, panics, tracebacks, exit errors, and handler-not-found failures across TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP. Repeated errors are grouped into a single issue with the error message, stack trace, resource name, occurrence count, and last-seen timestamp.
+
+Issues must be explicitly enabled. Configure issue detection for all projects or selected projects from the Issues page in the Console. Matching stages need to be deployed with Stacktape CLI 3.8.0 or newer for the CloudWatch Logs subscription filters to be added. Issues can be filtered by status (Open, Resolved, Ignored), project, stage, and search text.
+
+
+> Screenshot: Stacktape Console Issues page showing summary cards (Open/Resolved/Ignored counts), filters, and an issues table with error messages, types, resources, and occurrence counts Caption: The Issues inbox groups repeated runtime errors so you don't search logs by hand.
+
+
+Detection is log-pattern based, not a full APM trace. It catches most recurring runtime failures but can miss errors that don't match standard patterns. For most teams, this replaces the need for a separate error-tracking service. See [Observability — Issues](/observability/issues) for configuration details and the CLI commands [`stacktape issues:list`](/cli/issues-list) and [`stacktape issues:resolve`](/cli/issues-resolve).
+
+## Cost dashboards
+
+The Costs page lists month-to-date costs per stack, with project, stage, and AWS region shown for each row. You select an AWS account and a month to see the breakdown, then drill into an individual stage for resource-level detail. Reports are generated daily from AWS Cost and Usage Reports and may take up to a day to appear.
+
+The Overview dashboard also surfaces costs by project and by resource type for a quick spend overview. See [Managing Costs — Dashboards](/managing-costs/dashboards) and [Managing Costs — Budgets](/managing-costs/budgets) to set up spending alerts.
+
+## Secrets management
+
+The Secrets page lets you create, view, update, and delete secrets stored in AWS Secrets Manager. The page asks you to choose an AWS account and AWS region before listing or changing secrets. Reference them in your Stacktape configuration using the `$Secret()` [directive](/configuration/directives) — they're injected at runtime without appearing in your config file or version control.
+
+```bash
+stacktape secret:create --secretName MY_API_KEY --secretValue sk-abc123 --region eu-west-1
+```
+
+You can also manage secrets from the CLI with [`stacktape secret:create`](/cli/secret-create), [`stacktape secret:get`](/cli/secret-get), and [`stacktape secret:delete`](/cli/secret-delete). See [Configuration — Secrets](/configuration/secrets) for the full workflow.
+
+## Quick reference
+
+A deploy gives the Console enough stack metadata to show deployments, costs (when reports arrive), and stack-scoped operational views. Some features require additional setup: configure alarm rules, enable Issues, create alert channels, and manage secrets separately.
+
+| Feature | Where in Console | CLI equivalent | Setup required |
+|---------|-----------------|----------------|----------------|
+| Deployments | Overview + Organization → Projects | [`stacktape info:operations`](/cli/info-operations) | None — appears on first deploy |
+| Logs | Project → Stage detail | [`stacktape debug:logs`](/cli/debug-logs) | None |
+| Metrics | Project → Stage detail | [`stacktape debug:metrics`](/cli/debug-metrics) | None |
+| Alarms | Monitoring → Alarms | [`stacktape debug:alarms`](/cli/debug-alarms) | Create alarm rules + alert channel |
+| Issues | Monitoring → Issues | [`stacktape issues:list`](/cli/issues-list) | Enable per-project + deploy with CLI 3.8.0+ |
+| Costs | Organization → Costs | — | None — reports arrive daily |
+| Secrets | Configuration → Secrets | [`stacktape secret:create`](/cli/secret-create) | None |
+
+## Next step
+
+Your stack is deployed and observable. The next step is automating deployments so every push to your main branch triggers a redeploy — and pull requests get their own preview stages.
+
+**Next → [CI/CD](/getting-started/ci-cd)**

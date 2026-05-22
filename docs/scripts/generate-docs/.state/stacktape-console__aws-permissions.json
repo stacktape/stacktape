@@ -2,7 +2,7 @@
   "pageId": "stacktape-console__aws-permissions",
   "pageRoute": "stacktape-console/aws-permissions",
   "startedAt": "2026-05-17T20:04:51.712Z",
-  "updatedAt": "2026-05-17T20:18:53.056Z",
+  "updatedAt": "2026-05-21T15:57:08.070Z",
   "iterations": [
     {
       "iteration": 1,
@@ -953,6 +953,316 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/stacktape-console__aws-permissions/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All key claims are grounded in the AwsAccountsPage.tsx source: the PRIVILEGED connection mode, the three account states (PENDING/ACTIVE/BLOCKED), eu-west-1 requirement, any-region deployment scope, free connection, and the GitOps-blocking deletion guard are all present in the source code.",
+            "The connection states table (PENDING/ACTIVE/BLOCKED with meaning and color coding) is exactly what a first-time user sees in the UI and directly answers 'why does my account show BLOCKED?'",
+            "The security model section explains cross-account AssumeRole in plain language without requiring AWS expertise, and correctly avoids claiming long-term credentials are stored.",
+            "The FAQ section is substantive — 10 entries spanning Stacktape-specific, AWS-general, and comparison questions. The answers are concise and self-contained, suitable for AI extraction.",
+            "Revoking access is covered from both the Console side and the AWS-direct side, with accurate behavior described for each path (what happens to the CF stack, what state the account enters)."
+          ],
+          "problems": [
+            "The 'Connection mode' section describes a single hardcoded mode (PRIVILEGED) with no user choice and no alternatives. Having an H2 section for a non-configurable, single-value property with no decision to make confuses readers who wonder what other modes exist. The content adds nothing beyond what the Overview already covers.",
+            "The 'Restricting permissions' section (SCP advice) and the 'Auditing Stacktape activity' section (CloudTrail) are not grounded in the provided source files. They are reasonable AWS-general advice, but the source-grounding rules require caution for Stacktape-specific claims made in ungrounded sections. At minimum these should be framed as general AWS recommendations, not as Stacktape features.",
+            "The intro paragraph and the 'Overview' H2 section substantially repeat each other — both explain cross-account role assumption, temporary credentials, and the free connection. This is redundant for a page where the intro should be the self-contained summary and the Overview should add new information.",
+            "The 'primary regions' column visible in the Console source (connectedAwsAccount.primaryRegions) is not mentioned anywhere in the page. A user who sees 'not checked' or a list of regions in the Console UI will have no documentation to reference.",
+            "The 'Connection mode' section's first sentence ('The Stacktape Console connects AWS accounts in PRIVILEGED mode') implies there are other modes. The source shows only one mutation call with hardcoded 'PRIVILEGED'. Either clarify this is the only supported mode or drop the section."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or collapse the 'Connection mode' H2 section. Its content (one mode, no choice) can be absorbed into one sentence in the Overview section — 'Stacktape always connects in privileged mode, which grants the deployment permissions required to create and manage resources.' There is no decision to document here.",
+            "Rewrite the 'Overview' H2 to add information beyond the intro paragraph rather than restating it. The intro covers the mechanism; Overview could instead show the accounts table, explain the polling behavior for PENDING accounts, and mention primary regions — all visible in the source.",
+            "Frame the SCP and CloudTrail sections explicitly as general AWS options, not Stacktape-managed features. Add a one-line caveat like 'Stacktape does not configure CloudTrail or SCPs for you — these are standard AWS account-level controls you apply independently.'",
+            "Add a short mention of the 'primary regions' field visible in the connected accounts table. Even one sentence ('The Console lists the primary regions where your account has been checked for active Stacktape deployments') prevents user confusion about a UI element with no documentation.",
+            "The 'Related features' section links to /guardrails/overview and /managing-costs/overview which cannot be verified from available source. If these pages don't exist yet, replace or remove those links to avoid dead links in production."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All factual claims are grounded in the AwsAccountsPage.tsx source: PRIVILEGED connection mode (hardcoded in the mutation call), three states (PENDING/ACTIVE/BLOCKED) and their colors, eu-west-1 stack requirement, ANY-region deployment, org:manage-aws-accounts permission, GitOps-blocking deletion error, and the free-connection claim — all confirmed in source.",
+            "Connection states table is accurate and complete relative to source. The BLOCKED stateReason display and PENDING quickCreateStackLink behavior are both grounded in the JSX.",
+            "Security model section correctly characterizes the cross-account AssumeRole mechanism as the standard third-party AWS access pattern without inventing capabilities beyond what the source tooltip describes.",
+            "Revocation paths (Console-side deletion vs AWS-side CloudFormation stack deletion) are both represented accurately; the BLOCKED transition on AWS-side deletion is consistent with source behavior.",
+            "FAQ covers 10 distinct questions, spans all three required categories (Stacktape-specific, AWS service mechanics, comparison/choosing), and answers are 2-4 sentences and self-contained.",
+            "No mandatory style violations: no YAML Stacktape config blocks, no StacktapeConfig type usage, no fenced TypeScript config blocks, no marketing language, no multi-command shell blocks (the page has no shell commands at all), no PropertiesTable."
+          ],
+          "problems": [
+            "Page title and SEO description promise 'what AWS permissions Stacktape requires' but the body can only redirect readers to inspect the CloudFormation stack themselves. An engineer arriving to assess blast radius (the primary audience for this page) gets mechanism explanation but zero concrete IAM policy content. The Info callout is honest but the gap between the stated page purpose and the deliverable content is jarring.",
+            "The 'Connection mode' section is nearly empty of actionable content — it confirms PRIVILEGED is hardcoded and says there is no choice. This occupies a named H2 while adding minimal value over the Overview paragraph. It reads like a padded backbone section.",
+            "The 'primaryRegions' concept is visible in the AwsAccountsPage source (a table column, a 'not checked' fallback, and a join display) but is entirely absent from the page. Engineers connecting accounts will encounter this field in the Console and have no reference for what it means.",
+            "The Auditing (CloudTrail) and Restricting Permissions (SCPs / separate accounts) sections have zero grounding in the provided source file. They are valid AWS guidance but the source provides no basis for claiming Stacktape recommends or supports these patterns specifically. For a page graded on source-grounding discipline, these sections exist on inference alone.",
+            "FAQ category 2 (use-case questions about the underlying AWS service) is thin. 'Is this the same approach other IaC tools use?' is the closest entry but reads as category 3 (comparison). A genuine category 2 question — e.g. 'What is cross-account IAM role assumption and why is it safer than access keys?' — is missing, which reduces AEO coverage for readers arriving from AWS-specific searches."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Merge the 'Connection mode' H2 into Overview or into the Security model section rather than keeping it as a standalone H2 with two paragraphs of near-tautological content ('PRIVILEGED mode grants the permissions needed to deploy … Without these permissions, Stacktape cannot deploy').",
+            "Add a short paragraph or table row explaining the primaryRegions column visible in the Connected AWS Accounts table — what it represents, what 'not checked' means, and whether users control it.",
+            "Add a FAQ entry covering cross-account role assumption basics: 'What is cross-account IAM role assumption?' with a 2-4 sentence explanation oriented toward readers who know AWS but haven't configured cross-account access before. This fills the category 2 gap and captures high-intent searches.",
+            "Either trim the CloudTrail and SCPs sections to a single-sentence 'you can use standard AWS tools' mention (since source doesn't ground the specifics), or add a caveat that these are general AWS patterns rather than Stacktape-specific recommendations.",
+            "Add the auto-generated account name pattern (aws-account-N, where N increments from the highest existing suffix) as a one-sentence note in the Overview or connection flow description — engineers scripting account connections will find this useful."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and within the target snippet length.",
+            "The page is easy to scan: short H2s, a useful connection-state table, and a broad FAQ with Stacktape, AWS, and comparison/security questions.",
+            "No forbidden Stacktape config examples, YAML config blocks, or broken CodeBlock patterns appear."
+          ],
+          "problems": [
+            "Many Stacktape-specific claims are not grounded in the provided source files: exact policy scope, Secrets Manager/SSM management, cost reporting permissions, dev mode invocation behavior, bastion tunnels, database querying, and the list of AWS services touched by deployments.",
+            "Several security claims overstate the source: \"AWS security best practices\", \"standard and recommended approach\", \"auditable, version-controlled by AWS\", and comparisons to Terraform Cloud/Pulumi are not supported by the provided Console source.",
+            "The page describes Console and AWS Console workflows beyond the provided UI source, including inspecting CloudFormation stack resources, CloudTrail filtering, and deletion effects, without grounding in console-app source.",
+            "The statement \"Either method is immediate\" is unsupported and likely too absolute; the source only says access can be revoked in two ways.",
+            "The FAQ includes unsupported Stacktape-specific claims such as resources continuing to run after revocation, no long-term access keys being generated, and required AWS-side permissions like AdministratorAccess/cloudformation:CreateStack/iam:CreateRole.",
+            "The page is useful as a security overview, but it does not stay narrow enough to the actual source-backed Console behavior."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify unsupported Stacktape-specific permission claims. Source-backed wording can say the assumed role is used to perform deployments and list logs/metrics; do not claim specific access to Secrets Manager, SSM Parameter Store, cost dashboards, dev mode, container exec, bastion tunnels, or database queries unless additional source files prove those capabilities.",
+            "Replace overbroad security assertions with source-grounded facts: CloudFormation stack, cross-account AssumeRole access, temporary assumed-role interaction, free connection, eu-west-1 stack creation, any-region project deployment, and the two documented revocation paths.",
+            "Revise the revocation section to avoid unsupported effects and timing. Do not say deletion is immediate or that deployed AWS resources continue unchanged unless a source proves it.",
+            "Trim AWS Console and CloudTrail operational instructions unless source files support them, or clearly frame CloudTrail as general AWS auditing guidance rather than Stacktape Console behavior.",
+            "Fix the FAQ so each Stacktape-specific answer is grounded in the provided source. Remove unsupported comparisons to AWS CDK/Terraform Cloud/Pulumi and unsupported AWS permission requirements for creating the connection stack."
+          ],
+          "optionalImprovements": [
+            "Add the literal Console route `/aws-accounts` near the top because the source exposes that path and the page is a Console page.",
+            "Mention source-backed UI details that help users act: the table shows Name, AWS Account, Status, Created, Primary regions, and Note; pending accounts show a \"Finish the account connection\" link.",
+            "Use the source-backed permission detail earlier: users without `org:manage-aws-accounts` see the connect button disabled with a permission tooltip.",
+            "Consider replacing the broad \"What Stacktape does\" list with a smaller \"What the Console confirms\" list to keep the page precise and defensible."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided Console source on the core connection model: CloudFormation-created cross-account role, eu-west-1 connection stack, PRIVILEGED mode, free connection, Console permission gating, and connection states. The main problems are over-specific claims that are not grounded in the provided source, especially exact AWS-side permissions, detailed role capabilities, revocation side effects, and CloudFormation lifecycle wording.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Based on the Console source, the role is used to: Deploy and manage infrastructure — create, update, and delete CloudFormation stacks containing your resources...”",
+              "reason": "The Console source supports that Stacktape uses the assumed role to perform deployments and list logs/metrics, but it does not enumerate create/update/delete CloudFormation stack actions or tie the listed resource categories to the connection role. The wording overstates what the Console source proves.",
+              "suggestedFix": "Narrow the claim to the sourced behavior: “The Console source states that Stacktape uses the assumed role to perform deployments and list logs and metrics. The exact AWS actions are determined by the CloudFormation connection stack and the resources you deploy.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "Creating this CloudFormation stack gives Stacktape secure cross-account AssumeRole access. Stacktape\n                    uses the assumed role to interact with your AWS account (perform deployments, list logs, metrics,\n                    etc.)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Delete the connection in the Stacktape Console — removes the connection from Stacktape's side. The CloudFormation stack and IAM role remain in your AWS account until you delete them manually.” and “Either method is immediate.”",
+              "reason": "The source lists two revocation paths, but it does not define the cleanup semantics of deleting the Console-side connection, nor does it support the timing claim that either method is immediate. The statement could lead readers to rely on a cleanup or timing behavior not proven by the provided source.",
+              "suggestedFix": "Say only what the source supports: “The Console describes two revocation paths: delete the AWS account connection in Stacktape Console, or delete the CloudFormation connection stack in the AWS Console. To verify AWS-side cleanup, inspect the CloudFormation stack and IAM role in your AWS account.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "<p>You can revoke access in 2 ways:</p>\n                  <ul>\n                    <li>Delete the AWS account connection in Stacktape console</li>\n                    <li>Delete the CloudFormation connection stack in AWS console</li>\n                  </ul>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The role and its associated resources are provisioned through a CloudFormation stack, which means the entire connection is auditable, version-controlled by AWS, and deletable as a single unit.”",
+              "reason": "The provided Console source supports CloudFormation stack creation and AWS Console deletion, but it does not support the claim that the connection is “version-controlled by AWS.” That phrase is also ambiguous for CloudFormation because stack events and templates are not the same as version control.",
+              "suggestedFix": "Remove “version-controlled by AWS.” A grounded replacement would be: “The role is provisioned through a CloudFormation stack, so you can inspect the stack resources and delete the connection stack from the AWS Console.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "The stack must be created in <b>eu-west-1</b> region."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "<li>Delete the CloudFormation connection stack in AWS console</li>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“On the AWS side, you need permission to create a CloudFormation stack in the target account (typically AdministratorAccess or a role with cloudformation:CreateStack and iam:CreateRole permissions).”",
+              "reason": "The source shows that the user follows a Console/AWS quick-create flow, but it does not specify the AWS IAM permissions required to complete that flow. The exact AWS-side permissions are a concrete operational claim and should not be stated without source support.",
+              "suggestedFix": "Use cautious wording: “On the AWS side, you need enough permissions to create the CloudFormation connection stack and its IAM role in the target account. The exact IAM policy depends on your AWS organization’s controls.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "Connect Stacktape to your AWS account in the AWS console"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "In your AWS console, follow the steps shown in the image:"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“CloudTrail is the authoritative record of AWS API activity — it captures every CreateStack, UpdateStack, PutObject, DescribeInstances, and other API call regardless of where it originated.”",
+              "reason": "This overstates CloudTrail behavior. Management events and data events are configured differently in AWS, and S3 object-level events such as PutObject are not necessarily captured by a basic CloudTrail setup. Because this is general AWS behavior rather than a Stacktape-specific source claim, treat it as a low-severity accuracy issue.",
+              "suggestedFix": "Narrow the wording: “CloudTrail is the AWS audit service for API activity. Make sure your CloudTrail configuration includes the management and data events you want to audit, then filter events by the assumed role ARN.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly grounds the eu-west-1 connection-stack requirement and the fact that projects can deploy to any AWS region in the Console source.",
+            "The draft correctly states that the Console creates connections in PRIVILEGED mode; the mutation sends connectionMode: 'PRIVILEGED'.",
+            "The draft correctly documents the org:manage-aws-accounts Console permission gate for connecting AWS accounts.",
+            "The draft uses only valid cross-links from the provided navigation index and does not include forbidden hand-authored Stacktape YAML or plain-object StacktapeConfig examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided Console source and generated page summary, especially on CloudFormation-based connection, eu-west-1, free connection, PRIVILEGED mode, states, and org permission gating. The main issues are a few over-specific claims about deletion/revocation and audit/lifecycle behavior that are not grounded in the provided source, plus one console-source attribution that overstates what the Console source directly shows.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Either method is immediate. After revocation, Stacktape cannot interact with that AWS account until you create a new connection.”",
+              "reason": "The Console source supports two revocation paths in tooltip prose, but it does not establish that either path is immediate. More importantly, deleting the connection in the Stacktape Console is described in the draft as leaving the CloudFormation stack and IAM role in AWS, which means the AWS-side role may still exist even if Stacktape no longer lists the connection. The “cannot interact” claim is too absolute for both methods as written.",
+              "suggestedFix": "Split the two cases. Say that deleting the AWS CloudFormation connection stack removes the AWS-side role used for access. Say that deleting the connection in the Stacktape Console removes the connection record in Stacktape, while the AWS-side stack should be deleted separately if you want to remove the role from AWS. Remove “immediate” unless sourced.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "<p>You can revoke access in 2 ways:</p>\n                  <ul>\n                    <li>Delete the AWS account connection in Stacktape console</li>\n                    <li>Delete the CloudFormation connection stack in AWS console</li>\n                  </ul>"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/stacktape-console/aws-permissions.md",
+                  "quote": "Delete the connection in the Stacktape Console — removes the connection from Stacktape's side. The CloudFormation stack and IAM role remain in your AWS account until you delete them manually."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The role and its associated resources are provisioned through a CloudFormation stack, which means the entire connection is auditable, version-controlled by AWS, and deletable as a single unit.”",
+              "reason": "The sources support that the connection is created through a CloudFormation stack and that the stack can be deleted, but they do not support the stronger “version-controlled by AWS” claim. CloudFormation tracks stack events/templates, but calling the connection “version-controlled by AWS” is not grounded in the provided source and may mislead readers about version history guarantees.",
+              "suggestedFix": "Use narrower wording: “The role is provisioned through a CloudFormation stack, so you can inspect the stack’s resources and delete the AWS-side connection stack from AWS.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "Creating this CloudFormation stack gives Stacktape secure cross-account AssumeRole access. Stacktape\n                    uses the assumed role to interact with your AWS account (perform deployments, list logs, metrics,\n                    etc.)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/stacktape-console/aws-permissions.md",
+                  "quote": "For the exact IAM policies attached to the role, inspect the CloudFormation connection stack in your AWS account. Open the AWS Console, navigate to CloudFormation in the eu-west-1 region, and review the stack's resources and IAM role policies directly."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“To see exactly what Stacktape does in your AWS account, enable AWS CloudTrail. Every API call made by the assumed role appears in CloudTrail logs with the role's ARN as the principal.”",
+              "reason": "CloudTrail audit guidance is reasonable general AWS advice, but the draft overstates completeness with “exactly” and “every API call.” The provided Stacktape sources do not document CloudTrail behavior or guarantee that every relevant action will be visible in the way described. This should be framed as AWS audit guidance rather than a Stacktape-specific guarantee.",
+              "suggestedFix": "Narrow the wording: “Use AWS CloudTrail to audit AWS API activity made through the assumed role. Filter by the role ARN to review actions recorded by CloudTrail.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "Creating this CloudFormation stack gives Stacktape secure cross-account AssumeRole access. Stacktape\n                    uses the assumed role to interact with your AWS account (perform deployments, list logs, metrics,\n                    etc.)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/stacktape-console/aws-permissions.md",
+                  "quote": "To see exactly what Stacktape does in your AWS account, enable AWS CloudTrail. Every API call made by the assumed role appears in CloudTrail logs with the role's ARN as the principal."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Revoking access does not delete or modify any AWS resources in your account. Your deployed stacks, databases, Lambda functions, and other resources continue running.”",
+              "reason": "The provided sources explain how to revoke the AWS account connection, but they do not explicitly state what happens to already-deployed stacks or workloads after revocation. The claim is plausible AWS behavior for deleting only the connection role, but it is not grounded in the supplied Stacktape source and is strong enough to affect user expectations.",
+              "suggestedFix": "Write cautiously: “Deleting the connection stack removes the AWS-side role used for Stacktape access. The provided Console source does not indicate that deleting the AWS account connection deletes deployed Stacktape stacks; delete stacks separately when you want to remove deployed resources.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "<p>You can revoke access in 2 ways:</p>\n                  <ul>\n                    <li>Delete the AWS account connection in Stacktape console</li>\n                    <li>Delete the CloudFormation connection stack in AWS console</li>\n                  </ul>"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/stacktape-console/aws-permissions.md",
+                  "quote": "Delete the CloudFormation connection stack in the AWS Console — removes the IAM role and associated resources from your account. The connected account transitions to a **BLOCKED** state in the Stacktape Console automatically."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Based on the Console source, the role is used to: Deploy and manage infrastructure — create, update, and delete CloudFormation stacks containing your resources…”",
+              "reason": "The Console source directly says the assumed role is used to “perform deployments, list logs, metrics, etc.” It does not directly enumerate create/update/delete CloudFormation stack actions. The generated docs mention create/update/delete, but the phrase “Based on the Console source” over-attributes the specificity to console-app source.",
+              "suggestedFix": "Remove “Based on the Console source” or narrow the claim: “The Console source describes the role as being used to perform deployments and list logs and metrics. In practice, deployments can create and update AWS infrastructure through Stacktape-managed CloudFormation.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/AwsAccountsPage/AwsAccountsPage.tsx",
+                  "quote": "Stacktape\n                    uses the assumed role to interact with your AWS account (perform deployments, list logs, metrics,\n                    etc.)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/stacktape-console/aws-permissions.md",
+                  "quote": "Deploy and manage infrastructure — create, update, and delete CloudFormation stacks containing your resources"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The connection mode is set automatically when you initiate the connection from the Console — there is no mode selection step. The CloudFormation quick-create link that opens in the AWS Console is pre-configured with the correct mode.”",
+              "reason": "The Console source supports that createConnectedAwsAccount is called with `connectionMode: 'PRIVILEGED'` and the UI has no visible mode selector. However, the source does not show the contents of `quickCreateStackLink`, so “pre-configured with the correct mode” is only indirectly supported.",
+              "suggestedFix": "Keep the automatic PRIVILEGED-mode claim, but simplify the second sentence: “The Console opens the returned CloudFormation quick-create link after creating the pending connection.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses existing documentation routes; no invented cross-links were found.",
+            "The draft correctly links `stacktape debug:logs` to `/cli/debug-logs` and does not invent a `stacktape logs` command.",
+            "The draft avoids forbidden Stacktape configuration examples entirely, so there are no YAML, plain-object `StacktapeConfig`, or fenced TypeScript config violations.",
+            "The draft correctly identifies the Console permission gate for connecting AWS accounts as `org:manage-aws-accounts`, matching the Console source.",
+            "The draft’s connection states PENDING, ACTIVE, and BLOCKED match the state names rendered by the Console source."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -965,8 +1275,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\stacktape-console\\aws-permissions.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/stacktape-console/aws-permissions.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.1, hard blockers 8, advisory high 0, verifier medium 8"
+  "pipelineReviewSummary": "reviewer-avg 7.1, hard blockers 1, advisory high 0, verifier medium 8",
+  "refinementAttempts": 1,
+  "refinementStalled": false
 }

@@ -2,7 +2,7 @@
   "pageId": "ci-cd-and-gitops__stacks-per-git-branch-pattern",
   "pageRoute": "ci-cd-and-gitops/stacks-per-git-branch-pattern",
   "startedAt": "2026-05-17T18:56:29.370Z",
-  "updatedAt": "2026-05-17T19:16:45.266Z",
+  "updatedAt": "2026-05-22T02:43:44.215Z",
   "iterations": [
     {
       "iteration": 1,
@@ -995,6 +995,747 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/ci-cd-and-gitops__stacks-per-git-branch-pattern/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Claims about PR stage naming (`pr-${pullRequestNumber}`), GitHub App comment lifecycle, and `deleteStackAfterPrClose` are directly grounded in the console-app source — no invented behavior.",
+            "Tables are used throughout to structure all multi-value comparisons (shapes, provider variables, cleanup strategies), making the page highly scannable and citation-ready.",
+            "Both the GitOps-managed path and the custom CI/CD path receive equivalent treatment with concrete commands, covering GitHub and GitLab separately.",
+            "The multi-provider environment variable reference table (GitHub Actions, GitLab CI, Bitbucket) is a genuinely practical artifact that saves readers significant research time.",
+            "The FAQ spans all three required categories: Stacktape-specific (GitLab support, stage naming), AWS use-case (costs, data on delete), and comparison (GitOps vs custom CI/CD).",
+            "Auto-delete recommendation is opinionated and carries a concrete reason (cost for idle databases and containers), not just 'you should clean up'.",
+            "No style violations: no YAML Stacktape config blocks, no StacktapeConfig type pattern, no defineConfig in fenced TypeScript blocks, no multi-command single bash blocks."
+          ],
+          "problems": [
+            "'When to use this pattern' and 'When NOT to use this pattern' are both H2 sections buried near the bottom of the page, after five major implementation H2s. A first-time reader landing on this page cannot assess fit without first reading through all three pattern deep-dives, naming conventions, cost management, and cleanup strategies. For an audience with low AWS experience trying to decide whether to adopt this pattern, this ordering is backwards.",
+            "The page offers no quick orientation for a new user who doesn't know where to begin — GitOps or custom CI/CD? The pattern has three shapes and two setup paths; a first-timer needs a one-sentence recommendation before diving in.",
+            "Feature branch deploy/delete examples omit `--autoConfirmOperation`, while PR preview examples include it. The flag is just as relevant for feature branch automation, and the inconsistency implies it's PR-preview-specific when it isn't."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move 'When to use this pattern' and 'When NOT to use this pattern' to directly after the opening 'How the pattern works' overview section — before the Long-lived branch stages deep-dive. This lets first-time readers make the fit decision before investing time in implementation details.",
+            "Add a one-sentence opinionated recommendation near the top of the page (or in the opening paragraph) along the lines of: 'If your repository is on GitHub, start with GitOps in the Stacktape Console — no pipeline files needed. For GitLab, Bitbucket, or teams with existing pipelines, use the custom CI/CD path.' This eliminates a key decision point that currently requires reading to the bottom of the page.",
+            "Add `--autoConfirmOperation` to the feature branch `deploy` and `delete` examples for consistency with PR preview examples. The current omission implies the flag is optional in the PR context but unnecessary for feature branches, which is misleading.",
+            "Several FAQ answers run 5–6 sentences, above the 2-4 sentence target for AI extractability. The answers for 'How do I debug a failing PR preview deployment?' and 'Can I share a database between stages?' are good candidates for trimming without losing the essential information.",
+            "The page uses `npx stacktape` in all examples but never explains why (the CLI isn't globally installed by default in CI). A single parenthetical — '(or `stacktape` if installed globally)' — on the first example would remove a potential confusion point for readers setting up CI for the first time."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Source-grounded accuracy: PR stage name `pr-{number}`, `deleteStackAfterPrClose`, temporary GitOps config creation, and PR comment posting on deploy/failure are all directly verifiable in `utils.ts` and `GitOps.tsx`.",
+            "Shell command discipline is fully compliant: each CLI variant has its own fenced block with prose introducing it; no multi-command blocks with `#` comment separators.",
+            "Decision support is consistently present for every major variant — GitOps vs custom CI/CD, long-lived vs PR preview vs feature branch — with when-to-use, when-to-skip, cost signals, and explicit opinions.",
+            "The CI provider env-var table (GitHub/GitLab/Bitbucket) is highly practical and saves reader research time.",
+            "When to use / When NOT to use are correctly structured as peer H2s, not nested.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service use-case, comparison/choosing) with 10 grounded entries.",
+            "No forbidden patterns: no YAML Stacktape config, no `StacktapeConfig` type import, no fenced TypeScript `defineConfig` blocks, no marketing language."
+          ],
+          "problems": [
+            "H2 'How the pattern works' is phrased as a verb-phrase sentence rather than the preferred 1–5 word noun-form label ('Overview' or 'Pattern overview'). Headings like 'Long-lived branch stages', 'Feature branch stages', 'Cost management' follow the noun-form convention correctly; this one is an outlier.",
+            "The page does not describe that subsequent commits pushed to an open PR branch also trigger re-deployments to the preview stage. This behavior is grounded in the source: `createGitConfigurationForPR` sets `deployOnGitEvent: 'PUSHED_TO_BRANCH'` with `isTemporaryForPr: true`, so every new commit to the PR branch re-deploys to `pr-{number}`. An engineer wondering 'if I push another commit, does the preview update?' won't find the answer.",
+            "The 'Auto-delete on PR close' sub-section presents `deleteStackAfterPrClose` as a user-facing toggle, but the provided source (`utils.ts` `getActionsToPerform`) doesn't show that flag being checked before adding configs to `deletionConfigurations` — the check presumably lives in the upstream handler not shown. The docs state this as settled behavior ('If deleteStackAfterPrClose is enabled'). This is likely correct but is slightly over-claimed given the visible source."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Rename the H2 'How the pattern works' to 'Overview' or 'Pattern overview' to match the noun-form convention used by all other H2s on the page.",
+            "Add a sentence in the 'How PR previews work with GitOps' step 2 (or a follow-up bullet) explaining that a temporary `PUSHED_TO_BRANCH` config is created so subsequent commits to the PR branch also re-deploy to the preview stage automatically — not just the initial PR open event.",
+            "Qualify the `deleteStackAfterPrClose` claim slightly: 'When `deleteStackAfterPrClose` is enabled on the original GitOps configuration, that setting is propagated to the temporary PR config, and the handler initiates stack deletion on PR close.' This keeps the claim grounded without removing useful guidance.",
+            "The 'Combining patterns' section ends with 'without writing any pipeline files' — worth adding a parenthetical reminder that this applies only to GitHub repositories, since the GitLab/GitHub distinction is already established earlier but the reader might skim to this section in isolation."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and suitable for search snippets.",
+            "The page has a practical structure: pattern overview, long-lived stages, PR previews, feature branches, naming, costs, cleanup, and FAQ.",
+            "Tables make the branch/stage mappings, provider variables, cleanup strategies, and combined patterns easy to scan.",
+            "Shell examples follow the copy-button rules: one command per fenced block and no explanatory comments inside command blocks.",
+            "The draft correctly distinguishes GitHub managed GitOps from custom CI/CD for GitLab and other providers, which matches the GitHub App source scope."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source files, including deployment identity by project/stage/account/region, AWS resource duplication per stage, stage names being incorporated into AWS resource names, and exact cleanup consequences for every resource type.",
+            "The GitOps Console workflow is described beyond the visible console source. The source supports the table columns, trigger labels, create button, and filtered non-temporary configs, but not detailed setup steps inside the modal.",
+            "The draft states GitOps PR previews create and remove temporary configurations, but the provided source only shows helper functions for creating/deleting PR configs; it does not show where or whether those helpers are always invoked in the event handler flow.",
+            "The draft claims PR preview deployment comments include status and that orchestration failure updates comments with failure details. The source supports pending comments and failure-update attempts, but the prose should be narrower about exactly what is guaranteed.",
+            "Build runner guidance contains likely useful distinctions between CodeBuild-managed and EC2 self-hosted runners, but no build-runner source is provided here, so those details are unsupported in this review context.",
+            "Cost guidance is useful but over-specific in places. Claims such as serverless previews costing nearly nothing, generous free tiers, and containers or relational databases always incurring idle cost are AWS-background claims, but they are not grounded in the provided Stacktape source and should be framed cautiously.",
+            "The FAQ includes several unsupported Stacktape-specific assertions: stage-specific configuration via defineConfig receiving stage name, sharing resources via $ResourceParam across stacks, connectTo environment variables for migration scripts, and managed GitOps being simpler because it has no pipeline files and automatic lifecycle management.",
+            "Some H2 first paragraphs are shorter or less self-contained than the AEO target, especially Feature branch stages, Combining patterns, When to use this pattern, and When NOT to use this pattern.",
+            "The page gives realistic commands, but examples omit required context that a user may need in CI, such as project/config path behavior and authentication. If those details are covered on linked pages, the draft should state that rather than implying the shown command is complete for every pipeline."
+          ],
+          "mandatoryFixes": [
+            "Ground or remove unsupported Stacktape-specific claims. In particular, verify deployment identity, per-stage resource duplication, resource-name effects, deletion semantics, stage-specific configuration mechanics, $ResourceParam cross-stack usage, and connectTo migration environment variables against authoritative source files before publication.",
+            "Narrow the GitOps Console setup prose to what the provided console source supports, or add the CreateGitOpsConfigModal/server sources needed to support the setup fields and behavior.",
+            "Revise the PR preview lifecycle wording to match the GitHub App source exactly: PR opened and push events produce deployment configurations, PR opened overrides the branch to the PR head branch and stage to pr-{pullRequestNumber}, PR close finds a temporary push-to-branch config by PR branch and pull request number, and deletion orchestration is represented by startDeletion.",
+            "Remove or source the CodeBuild-vs-EC2 runner details. If the page keeps runner tradeoffs, include build-runner source files or link without asserting unsupported limits like predefined compute tiers, disk-size control, and pre-installed tooling.",
+            "Rewrite unsupported FAQ answers so each Stacktape-specific claim is either source-backed or clearly delegated to a linked page. Do not claim defineConfig receives the stage name, connectTo injects a migration connection string, or shared databases can be referenced via $ResourceParam unless the source for those facts is included."
+          ],
+          "optionalImprovements": [
+            "Make each H2 opening paragraph 40-75 words and explicitly name the concept, for example “Feature branch stages are...” instead of relying on nearby context.",
+            "Add a short decision table comparing long-lived branch stages, PR previews, and feature branch stages before the detailed sections; the page already has the material and would become easier to cite.",
+            "Move the strongest recommendation earlier: most teams should use long-lived prod/staging plus PR previews, then add feature branch stages only for longer-running shared work.",
+            "For every CI variable table entry, add a caveat that provider variable names depend on event type and pipeline context, especially GitLab branch variables in merge request pipelines.",
+            "Consider replacing broad cost statements with a safer rule of thumb: every additional stage can create additional AWS resources, so preview cost depends on the resources included in that stage."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided GitHub App handler and GitOps table source, but it makes several Stacktape-specific claims that are not supported by the provided source files or are too strong relative to the handler behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“PR closed or merged — The handler looks up the temporary PR configuration for the PR branch and number, which carries the `deleteStackAfterPrClose` setting. That configuration is then used to drive the preview stage's deletion handling.”",
+              "reason": "The draft implies that PR close always drives deletion handling from the temporary configuration. The source only shows lookup of matching temporary push-to-branch PR configs and pushing them into `deletionConfigurations`; it does not show the conditional `deleteStackAfterPrClose` decision in this file. The generated page source is more specific and says deletion starts if the setting is enabled.",
+              "suggestedFix": "State the sourced behavior narrowly: on PR close, the handler looks up the temporary PR configuration by branch and PR number; when deletion is enabled for that configuration, the close event can trigger deletion, and the temporary configuration is removed by the PR cleanup flow.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "const gitDeploymentConfigParams: Partial<GitDeploymentConfiguration> = {\n      owner: repositoryOwner,\n      repository: repositoryName,\n      branch: fromBranch,\n      organizationId: githubAppInstallation.organizationId,\n      deployOnGitEvent: 'PUSHED_TO_BRANCH',\n      pullRequestNumber: `${pullRequestNumber}`\n    } as const;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/ci-cd-and-gitops/stacks-per-git-branch-pattern.md",
+                  "quote": "PR closed or merged** — If the `deleteStackAfterPrClose` setting is enabled on the configuration, the handler starts a stack deletion for the preview stage and removes the temporary configuration."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“GitOps configurations include a `deleteStackAfterPrClose` setting. Enabling this is the recommended default…”",
+              "reason": "The provided source confirms the setting exists and is copied into the temporary PR configuration, but it does not establish a default value or a product recommendation. This is acceptable as opinion if phrased as guidance, but “recommended default” can read like a documented default.",
+              "suggestedFix": "Change to: “For most teams, enable `deleteStackAfterPrClose` for PR previews...” and avoid implying a source-defined default.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "deleteStackAfterPrClose,\n    isTemporaryForPr: true,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“CodeBuild runners require no infrastructure management but are limited to predefined compute tiers. EC2 runners give you full control over instance types, disk sizes, and pre-installed tooling.”",
+              "reason": "The hard requirements ask this page to distinguish CodeBuild-based runners from EC2 runners, but the provided source files for this page do not include build-runner implementation or type definitions that support the specific limits and controls stated here.",
+              "suggestedFix": "Keep the distinction but narrow the claim to what can be safely grounded by the linked concept: “Stacktape supports CodeBuild-based runners and EC2-based runners; choose based on the tradeoffs described in Build Runners.” If runner source files are available in a later pass, re-add the specific controls from those files.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/ci-cd-and-gitops/stacks-per-git-branch-pattern.md",
+                  "quote": "When using Stacktape [build runners](/ci-cd-and-gitops/build-runners) in your custom pipeline, you can choose between CodeBuild-managed runners and EC2 self-hosted runners."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The mapping is configured either in the Stacktape Console's GitOps settings…” and “create a configuration with the Push to Branch trigger…”",
+              "reason": "The source supports a GitOps page/table and a “New GitOps configuration” modal, but it does not show a Console route or detailed setup workflow. The draft should avoid describing UI settings/flows beyond what the provided console source shows.",
+              "suggestedFix": "Write: “The Stacktape Console GitOps page displays existing configurations and has a New GitOps configuration action. A GitOps configuration records the trigger, branch, stage, region, and AWS account.” Then link to the GitOps page for the walkthrough.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "text=\"New GitOps configuration\""
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "columnHeaders={[\n            ['Deployment trigger', 185],\n            'From branch',\n            ['Stage name', 135],\n            ['Region', 135],\n            'AWS Account',"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When using the branch name directly as the stage name, sanitize it first. Branch names like `feature/add-auth` contain slashes and other characters that may not work as stage names.”",
+              "reason": "The provided source does not define stage-name character constraints or validation behavior. The caution is reasonable, but the phrase “may not work as stage names” is not grounded in the supplied files.",
+              "suggestedFix": "Phrase as operational guidance rather than a Stacktape constraint: “Prefer short derived stage names such as `auth` instead of raw branch names such as `feature/add-auth`; short names are easier to read and reduce the chance of AWS naming issues when resource names include the stage.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "stage: `pr-${pullRequestNumber}`"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "stage,\n      configPath,\n      templateId: lastStackOperation?.templateId || templateId,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape passes the stage name into deployment operations and incorporates it into AWS resource names (CloudFormation stacks, S3 buckets, Lambda functions).”",
+              "reason": "The source confirms the stage is passed into deployment orchestration and stack-operation lookup, but it does not show resource naming behavior for CloudFormation stacks, S3 buckets, or Lambda functions.",
+              "suggestedFix": "Keep only the grounded part and soften the rest: “Stacktape passes the stage name into deployment operations; because deployed resources are stage-specific, short stage names are easier to manage and less likely to contribute to AWS naming-limit problems.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "await orchestrateOperation({\n      operationType: 'deploy',\n      invocationId,\n      accountConnectionId: connectedAwsAccount.id,\n      awsAccountId: connectedAwsAccount.awsAccountId!,\n      region: targetRegion as AWSRegion,\n      gitBranch: branch,\n      projectName: project.name,\n      stage,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `stacktape debug:logs` with `--stage pr-{number}` to tail logs from the deployed resources, or check `stacktape info:operations` for the deployment history of the preview stage.”",
+              "reason": "The documentation index confirms the commands exist, but the provided source does not include CLI command definitions proving the `--stage` flag for `debug:logs`, tailing behavior, or that `info:operations` shows deployment history for a stage.",
+              "suggestedFix": "Remove the flag-specific debugging instructions or replace with a safer pointer: “Use the linked logs and operations CLI references to inspect the preview stage.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/ci-cd-and-gitops/stacks-per-git-branch-pattern.md",
+                  "quote": "You can also use [`stacktape debug:logs`](/cli/debug-logs) with `--stage pr-{number}` to tail logs from the deployed resources, or check [`stacktape info:operations`](/cli/info-operations) for the deployment history of the preview stage."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“GitOps auto-deployment currently supports GitHub only through the GitHub App integration. GitLab, Bitbucket, and other Git providers are not supported for the managed GitOps flow.”",
+              "reason": "The provided implementation source is GitHub-specific and uses `gitProvider: 'GITHUB'`, but the source set does not include a full provider registry or integration list. The claim is likely correct, but the exclusivity is only indirectly supported by the provided files.",
+              "suggestedFix": "Phrase as source-scoped: “The managed GitOps flow shown here is the GitHub App flow. For GitLab, Bitbucket, and other providers, use custom CI/CD unless your organization has another supported integration documented elsewhere.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses existing routes from the provided navigation index; no invented markdown links were found.",
+            "The draft correctly separates `## When to use this pattern` and `## When NOT to use this pattern` as peer H2 sections.",
+            "The GitHub App PR naming claim `pr-{number}` is grounded in the handler code, which sets `stage: \\`pr-${pullRequestNumber}\\``.",
+            "The GitOps table columns and trigger labels are grounded in `GitOps.tsx`, which renders deployment trigger, branch, stage name, region, and AWS account."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided GitHub App and GitOps UI sources, but it contains several Stacktape-specific claims that are either stronger than the source supports or contradict the visible implementation. The highest-risk issues are around PR-close deletion behavior, unsupported Console setup flow details, unsupported stage identity/resource-name claims, and CLI flags not present in the provided sources.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Enabling this is the recommended default — it prevents preview stages from accumulating…” and cleanup table entries stating GitOps auto-delete works by enabling `deleteStackAfterPrClose`.",
+              "reason": "The provided source proves `deleteStackAfterPrClose` is stored on a temporary PR GitOps configuration, but the visible PR-close path does not show that the setting gates deletion. `getActionsToPerform` collects deletion configurations for closed PRs without checking `deleteStackAfterPrClose`, and `startDeletion` orchestrates deletion for the given deletion configuration. The draft should not claim this setting prevents stale preview stages unless source showing the conditional behavior is available.",
+              "suggestedFix": "Narrow the wording to what is directly sourced: PR temporary configurations store `deleteStackAfterPrClose`, and PR-close handling looks up the temporary PR configuration for deletion handling. Avoid saying enabling it definitely deletes/prevents accumulation unless additional source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "deleteStackAfterPrClose,\n    isTemporaryForPr: true,"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "if (gitEvent.eventType === 'PULL_REQUEST_CLOSED') {\n    const { fromBranch, repositoryOwner, repositoryName, pullRequestNumber, gitUrl } = gitEvent;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "result.deletionConfigurations.push({\n        ...gitDeploymentConfig,\n        gitUrl,\n        githubAppInstallationId: installationId,\n        gitEventDetail: gitEvent\n      });"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "await orchestrateOperation({\n      operationType: 'delete',"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“To deploy a long-lived branch, create a configuration with the Push to Branch trigger targeting your branch and desired stage name.”",
+              "reason": "The GitOps UI source shows the list table, the New GitOps configuration button, and the modal component being opened, but the provided `CreateGitOpsConfigModal` source is not included. The draft describes a Console setup flow and form capabilities that are not visible in the provided source files.",
+              "suggestedFix": "Keep the sourced UI facts: the GitOps page lists deployment trigger, branch, stage name, region, and AWS account, and includes a “New GitOps configuration” action. Avoid step-by-step creation instructions unless the modal/server mutation source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "text=\"New GitOps configuration\""
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "columnHeaders={[\n            ['Deployment trigger', 185],\n            'From branch',\n            ['Stage name', 135],\n            ['Region', 135],\n            'AWS Account',"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A Stacktape deployment is identified by a combination of project name, stage name, AWS account, and AWS region.”",
+              "reason": "The provided GitHub App orchestration code passes project name, stage, AWS account ID/connection, and region into deployment/deletion operations, but it does not define the formal identity model for a Stacktape deployment. The statement is plausible but stronger than the provided source proves.",
+              "suggestedFix": "Phrase this as an operational GitOps fact: “GitOps deployment and deletion operations pass the project name, stage, AWS account, and AWS region to Stacktape.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "await orchestrateOperation({\n      operationType: 'deploy',\n      invocationId,\n      accountConnectionId: connectedAwsAccount.id,\n      awsAccountId: connectedAwsAccount.awsAccountId!,\n      region: targetRegion as AWSRegion,\n      gitBranch: branch,\n      projectName: project.name,\n      stage,"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "where: {\n      accountConnectionId: connectedAwsAccount.id,\n      awsAccountId: connectedAwsAccount.awsAccountId!,\n      region: targetRegion,\n      projectName: project.name,\n      stage\n    }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape passes the stage name into deployment operations and incorporates it into AWS resource names (CloudFormation stacks, S3 buckets, Lambda functions). Long stage names combined with long resource names can exceed AWS naming limits and cause deployment failures.”",
+              "reason": "The provided source supports that the stage is passed into deployment operations, but it does not show AWS resource-name generation, which services include the stage in names, or deployment failure behavior from long names. This is a Stacktape-specific implementation claim not grounded in the provided files.",
+              "suggestedFix": "Keep the sourced part and make the rest general: “Stacktape passes the stage name into deployment operations. Keep generated stage names short because AWS services have resource-name limits, and long branch-derived names are harder to operate.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "projectName: project.name,\n      stage,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The CLI commands are identical — only the CI environment variables for branch names and PR numbers differ between providers.”",
+              "reason": "The provided sources do not include CLI command definitions or CI provider behavior. The draft uses specific `stacktape deploy` and `stacktape delete` invocations, but there is no provided CLI source validating flags such as `--stage` and `--region`, nor provider-specific variable semantics.",
+              "suggestedFix": "Either provide CLI source files for verification or soften to “the same Stacktape deploy/delete pattern can be used from custom CI/CD; adapt the CI variables to your provider.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "gitProvider: 'GITHUB',"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "deploymentTrigger:\n        deployOnGitEvent === 'PULL_REQUEST_OPENED' ? 'GITHUB_PULL_REQUEST_OPENED' : 'GITHUB_PUSHED_TO_BRANCH',"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `stacktape debug:logs` with `--stage pr-{number}` … or check `stacktape info:operations` for the deployment history of the preview stage.”",
+              "reason": "The provided source list does not include CLI command source for `debug:logs`, `info:operations`, or their flags. The navigation index confirms routes exist, but not flag behavior or that `info:operations` shows deployment history for a stage.",
+              "suggestedFix": "Link to the CLI pages without asserting unsupported flags or behavior, or include the relevant CLI command sources.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "await orchestrateOperation({\n      operationType: 'deploy',"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "await orchestrateOperation({\n      operationType: 'delete',"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The migration connects using the preview's database connection string, available via `connectTo` environment variables.”",
+              "reason": "The provided sources for this page do not include Stacktape config types, `connectTo` JSDoc, database resource docs, or deployment-script behavior. This is a Stacktape-specific env-var injection claim and should not appear unless the relevant source files are provided.",
+              "suggestedFix": "Say only that each PR preview uses its own stage, so migration scripts should target the resources for that stage. Link to deployment scripts/hooks without claiming a specific connection-string mechanism.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "stage: `pr-${pullRequestNumber}`, pullRequestNumber: `${pullRequestNumber}`"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "stage,\n    project,\n    connectedAwsAccount,\n    targetRegion,"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“GitOps with Console is simpler to set up and maintain — no pipeline files, automatic PR lifecycle management, and built-in status comments on PRs.”",
+              "reason": "The source supports GitHub PR comments and managed orchestration, but “simpler to set up and maintain” and “no pipeline files” are recommendation-style claims not directly grounded in the source. This is probably acceptable as guidance, but the wording could be tightened to avoid relying on unsupported setup assumptions.",
+              "suggestedFix": "Rephrase as: “GitOps with Console avoids writing custom CI pipeline files for the supported GitHub flow and can post PR status comments.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes GitHub App managed GitOps from custom CI/CD for GitLab, Bitbucket, and other providers, which matches the GitHub-only source path.",
+            "The draft correctly states that PR-opened GitHub App handling derives preview stages as `pr-{number}`; the source sets `stage: `pr-${pullRequestNumber}``.",
+            "The draft correctly states that push events missing a commit SHA are ignored; the source returns `null` when neither `head_commit.id` nor `commits[0].id` is present.",
+            "The draft uses only valid cross-links from the provided documentation navigation index.",
+            "The draft does not include forbidden hand-authored Stacktape YAML or plain-object `StacktapeConfig` examples."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/ci-cd-and-gitops__stacks-per-git-branch-pattern/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Claims about PR stage naming (`pr-${pullRequestNumber}`), GitHub App comment lifecycle, and `deleteStackAfterPrClose` are directly grounded in the console-app source — no invented behavior.",
+            "Tables are used throughout to structure all multi-value comparisons (shapes, provider variables, cleanup strategies), making the page highly scannable and citation-ready.",
+            "Both the GitOps-managed path and the custom CI/CD path receive equivalent treatment with concrete commands, covering GitHub and GitLab separately.",
+            "The multi-provider environment variable reference table (GitHub Actions, GitLab CI, Bitbucket) is a genuinely practical artifact that saves readers significant research time.",
+            "The FAQ spans all three required categories: Stacktape-specific (GitLab support, stage naming), AWS use-case (costs, data on delete), and comparison (GitOps vs custom CI/CD).",
+            "Auto-delete recommendation is opinionated and carries a concrete reason (cost for idle databases and containers), not just 'you should clean up'.",
+            "No style violations: no YAML Stacktape config blocks, no StacktapeConfig type pattern, no defineConfig in fenced TypeScript blocks, no multi-command single bash blocks."
+          ],
+          "problems": [
+            "'When to use this pattern' and 'When NOT to use this pattern' are both H2 sections buried near the bottom of the page, after five major implementation H2s. A first-time reader landing on this page cannot assess fit without first reading through all three pattern deep-dives, naming conventions, cost management, and cleanup strategies. For an audience with low AWS experience trying to decide whether to adopt this pattern, this ordering is backwards.",
+            "The page offers no quick orientation for a new user who doesn't know where to begin — GitOps or custom CI/CD? The pattern has three shapes and two setup paths; a first-timer needs a one-sentence recommendation before diving in.",
+            "Feature branch deploy/delete examples omit `--autoConfirmOperation`, while PR preview examples include it. The flag is just as relevant for feature branch automation, and the inconsistency implies it's PR-preview-specific when it isn't."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Move 'When to use this pattern' and 'When NOT to use this pattern' to directly after the opening 'How the pattern works' overview section — before the Long-lived branch stages deep-dive. This lets first-time readers make the fit decision before investing time in implementation details.",
+            "Add a one-sentence opinionated recommendation near the top of the page (or in the opening paragraph) along the lines of: 'If your repository is on GitHub, start with GitOps in the Stacktape Console — no pipeline files needed. For GitLab, Bitbucket, or teams with existing pipelines, use the custom CI/CD path.' This eliminates a key decision point that currently requires reading to the bottom of the page.",
+            "Add `--autoConfirmOperation` to the feature branch `deploy` and `delete` examples for consistency with PR preview examples. The current omission implies the flag is optional in the PR context but unnecessary for feature branches, which is misleading.",
+            "Several FAQ answers run 5–6 sentences, above the 2-4 sentence target for AI extractability. The answers for 'How do I debug a failing PR preview deployment?' and 'Can I share a database between stages?' are good candidates for trimming without losing the essential information.",
+            "The page uses `npx stacktape` in all examples but never explains why (the CLI isn't globally installed by default in CI). A single parenthetical — '(or `stacktape` if installed globally)' — on the first example would remove a potential confusion point for readers setting up CI for the first time."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Source-grounded accuracy: PR stage name `pr-{number}`, `deleteStackAfterPrClose`, temporary GitOps config creation, and PR comment posting on deploy/failure are all directly verifiable in `utils.ts` and `GitOps.tsx`.",
+            "Shell command discipline is fully compliant: each CLI variant has its own fenced block with prose introducing it; no multi-command blocks with `#` comment separators.",
+            "Decision support is consistently present for every major variant — GitOps vs custom CI/CD, long-lived vs PR preview vs feature branch — with when-to-use, when-to-skip, cost signals, and explicit opinions.",
+            "The CI provider env-var table (GitHub/GitLab/Bitbucket) is highly practical and saves reader research time.",
+            "When to use / When NOT to use are correctly structured as peer H2s, not nested.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service use-case, comparison/choosing) with 10 grounded entries.",
+            "No forbidden patterns: no YAML Stacktape config, no `StacktapeConfig` type import, no fenced TypeScript `defineConfig` blocks, no marketing language."
+          ],
+          "problems": [
+            "H2 'How the pattern works' is phrased as a verb-phrase sentence rather than the preferred 1–5 word noun-form label ('Overview' or 'Pattern overview'). Headings like 'Long-lived branch stages', 'Feature branch stages', 'Cost management' follow the noun-form convention correctly; this one is an outlier.",
+            "The page does not describe that subsequent commits pushed to an open PR branch also trigger re-deployments to the preview stage. This behavior is grounded in the source: `createGitConfigurationForPR` sets `deployOnGitEvent: 'PUSHED_TO_BRANCH'` with `isTemporaryForPr: true`, so every new commit to the PR branch re-deploys to `pr-{number}`. An engineer wondering 'if I push another commit, does the preview update?' won't find the answer.",
+            "The 'Auto-delete on PR close' sub-section presents `deleteStackAfterPrClose` as a user-facing toggle, but the provided source (`utils.ts` `getActionsToPerform`) doesn't show that flag being checked before adding configs to `deletionConfigurations` — the check presumably lives in the upstream handler not shown. The docs state this as settled behavior ('If deleteStackAfterPrClose is enabled'). This is likely correct but is slightly over-claimed given the visible source."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Rename the H2 'How the pattern works' to 'Overview' or 'Pattern overview' to match the noun-form convention used by all other H2s on the page.",
+            "Add a sentence in the 'How PR previews work with GitOps' step 2 (or a follow-up bullet) explaining that a temporary `PUSHED_TO_BRANCH` config is created so subsequent commits to the PR branch also re-deploy to the preview stage automatically — not just the initial PR open event.",
+            "Qualify the `deleteStackAfterPrClose` claim slightly: 'When `deleteStackAfterPrClose` is enabled on the original GitOps configuration, that setting is propagated to the temporary PR config, and the handler initiates stack deletion on PR close.' This keeps the claim grounded without removing useful guidance.",
+            "The 'Combining patterns' section ends with 'without writing any pipeline files' — worth adding a parenthetical reminder that this applies only to GitHub repositories, since the GitLab/GitHub distinction is already established earlier but the reader might skim to this section in isolation."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and suitable for search snippets.",
+            "The page has a practical structure: pattern overview, long-lived stages, PR previews, feature branches, naming, costs, cleanup, and FAQ.",
+            "Tables make the branch/stage mappings, provider variables, cleanup strategies, and combined patterns easy to scan.",
+            "Shell examples follow the copy-button rules: one command per fenced block and no explanatory comments inside command blocks.",
+            "The draft correctly distinguishes GitHub managed GitOps from custom CI/CD for GitLab and other providers, which matches the GitHub App source scope."
+          ],
+          "problems": [
+            "Several Stacktape-specific claims are not grounded in the provided source files, including deployment identity by project/stage/account/region, AWS resource duplication per stage, stage names being incorporated into AWS resource names, and exact cleanup consequences for every resource type.",
+            "The GitOps Console workflow is described beyond the visible console source. The source supports the table columns, trigger labels, create button, and filtered non-temporary configs, but not detailed setup steps inside the modal.",
+            "The draft states GitOps PR previews create and remove temporary configurations, but the provided source only shows helper functions for creating/deleting PR configs; it does not show where or whether those helpers are always invoked in the event handler flow.",
+            "The draft claims PR preview deployment comments include status and that orchestration failure updates comments with failure details. The source supports pending comments and failure-update attempts, but the prose should be narrower about exactly what is guaranteed.",
+            "Build runner guidance contains likely useful distinctions between CodeBuild-managed and EC2 self-hosted runners, but no build-runner source is provided here, so those details are unsupported in this review context.",
+            "Cost guidance is useful but over-specific in places. Claims such as serverless previews costing nearly nothing, generous free tiers, and containers or relational databases always incurring idle cost are AWS-background claims, but they are not grounded in the provided Stacktape source and should be framed cautiously.",
+            "The FAQ includes several unsupported Stacktape-specific assertions: stage-specific configuration via defineConfig receiving stage name, sharing resources via $ResourceParam across stacks, connectTo environment variables for migration scripts, and managed GitOps being simpler because it has no pipeline files and automatic lifecycle management.",
+            "Some H2 first paragraphs are shorter or less self-contained than the AEO target, especially Feature branch stages, Combining patterns, When to use this pattern, and When NOT to use this pattern.",
+            "The page gives realistic commands, but examples omit required context that a user may need in CI, such as project/config path behavior and authentication. If those details are covered on linked pages, the draft should state that rather than implying the shown command is complete for every pipeline."
+          ],
+          "mandatoryFixes": [
+            "Ground or remove unsupported Stacktape-specific claims. In particular, verify deployment identity, per-stage resource duplication, resource-name effects, deletion semantics, stage-specific configuration mechanics, $ResourceParam cross-stack usage, and connectTo migration environment variables against authoritative source files before publication.",
+            "Narrow the GitOps Console setup prose to what the provided console source supports, or add the CreateGitOpsConfigModal/server sources needed to support the setup fields and behavior.",
+            "Revise the PR preview lifecycle wording to match the GitHub App source exactly: PR opened and push events produce deployment configurations, PR opened overrides the branch to the PR head branch and stage to pr-{pullRequestNumber}, PR close finds a temporary push-to-branch config by PR branch and pull request number, and deletion orchestration is represented by startDeletion.",
+            "Remove or source the CodeBuild-vs-EC2 runner details. If the page keeps runner tradeoffs, include build-runner source files or link without asserting unsupported limits like predefined compute tiers, disk-size control, and pre-installed tooling.",
+            "Rewrite unsupported FAQ answers so each Stacktape-specific claim is either source-backed or clearly delegated to a linked page. Do not claim defineConfig receives the stage name, connectTo injects a migration connection string, or shared databases can be referenced via $ResourceParam unless the source for those facts is included."
+          ],
+          "optionalImprovements": [
+            "Make each H2 opening paragraph 40-75 words and explicitly name the concept, for example “Feature branch stages are...” instead of relying on nearby context.",
+            "Add a short decision table comparing long-lived branch stages, PR previews, and feature branch stages before the detailed sections; the page already has the material and would become easier to cite.",
+            "Move the strongest recommendation earlier: most teams should use long-lived prod/staging plus PR previews, then add feature branch stages only for longer-running shared work.",
+            "For every CI variable table entry, add a caveat that provider variable names depend on event type and pipeline context, especially GitLab branch variables in merge request pipelines.",
+            "Consider replacing broad cost statements with a safer rule of thumb: every additional stage can create additional AWS resources, so preview cost depends on the resources included in that stage."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly well-grounded in the provided GitHub App and GitOps Console sources. The main issues are around places where the page implies GitOps supports wildcard branch mappings, omits the CI non-interactive confirmation caveat that the source page includes, and overstates that feature branch stages must be deployed manually even though Push to Branch GitOps configurations exist.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The long-lived branch mapping table includes `release/*` as a branch pattern and then says the mapping is configured either in the Stacktape Console GitOps settings or custom CI/CD.",
+              "reason": "The provided GitHub App source matches GitOps configurations by an exact branch value from the webhook target branch. The Console source also passes a list of concrete repository branch names into the create modal. The draft can mention wildcard-style release branches only for custom CI/CD, not as a GitOps Console mapping unless a wildcard implementation is sourced.",
+              "suggestedFix": "Replace `release/*` with a concrete branch such as `release-2026-05`, or add a note: “GitOps configurations match a specific branch; use custom CI/CD if you want wildcard release-branch rules.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "const gitDeploymentConfigParams: Partial<GitDeploymentConfiguration> = {\n      owner: repositoryOwner,\n      repository: repositoryName,\n      branch: toBranch,\n      organizationId: githubAppInstallation.organizationId,\n      deployOnGitEvent: eventType\n    } as const;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "branches={projectDetails.branches?.map((branch) => branch.name)}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The custom CI/CD command examples deploy and delete stages without `--autoConfirmOperation` or an equivalent note about non-interactive CI execution.",
+              "reason": "The provided page source explicitly included `--autoConfirmOperation` in PR preview CI examples and explains that it avoids an interactive confirmation prompt that would block the job. Removing the flag makes the CI snippets less safe to copy as pipeline commands.",
+              "suggestedFix": "Add `--autoConfirmOperation` to the custom CI/CD deploy and delete examples, or add a short caveat near the examples explaining when CI jobs need that flag. Keep one command per bash block.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/ci-cd-and-gitops/stacks-per-git-branch-pattern.md",
+                  "quote": "npx stacktape deploy --stage \"pr-${{ github.event.pull_request.number }}\" --region eu-west-1 --autoConfirmOperation"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/ci-cd-and-gitops/stacks-per-git-branch-pattern.md",
+                  "quote": "> **Tip:** Use `--autoConfirmOperation` in CI pipelines to skip the interactive confirmation prompt that would otherwise block the job."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Unlike PR previews, feature stages don't auto-create from a trigger — you deploy them explicitly when you need a live environment for a long-running feature.”",
+              "reason": "The GitOps Console and GitHub App handler support Push to Branch configurations. A feature branch stage is not automatically created for every arbitrary branch, but a configured Push to Branch GitOps entry can deploy a named branch automatically. The draft should distinguish “not automatically for every branch” from “cannot be trigger-driven.”",
+              "suggestedFix": "Revise to: “Feature branch stages are usually deployed manually, or with a Push to Branch GitOps configuration for a specific branch. Stacktape does not automatically create a stage for every feature branch unless you configure that behavior in CI.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "gitDeploymentConfig.deployOnGitEvent === 'PULL_REQUEST_OPENED' ? (\n                  <Badge color=\"blue2\">PR Opened</Badge>\n                ) : (\n                  <Badge color=\"purple\">Push to Branch</Badge>\n                )"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "if (gitEvent.eventType === 'PULL_REQUEST_OPENED' || gitEvent.eventType === 'PUSHED_TO_BRANCH') {"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The PR preview `pr-{number}` naming is grounded in the GitHub App handler, which sets `stage: `pr-${pullRequestNumber}`` for pull-request-opened deployments.",
+            "The draft’s description of ignored branch-deletion events and missing commit SHA push events is grounded in `getFormattedGitEvent`.",
+            "The GitOps Console table columns and the “New GitOps configuration” action are accurately grounded in `GitOps.tsx`.",
+            "The draft avoids the forbidden Stacktape config patterns: there are no hand-authored YAML Stacktape configs, no `StacktapeConfig` typed examples, and no fenced TypeScript Stacktape config examples."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided GitOps UI and GitHub App handler sources. I found several Stacktape-specific claims that either overstate behavior, imply unsupported CLI options, or describe cleanup/comment behavior more broadly than the source supports.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"Unlike PR previews, feature stages don't auto-create from a trigger — you deploy them explicitly when you need a live environment for a long-running feature.\"",
+              "reason": "The GitHub App handler supports push-to-branch GitOps configurations. A feature branch can be configured as a Push to Branch trigger and deployed automatically on push, so the draft incorrectly says feature stages do not auto-create from a trigger.",
+              "suggestedFix": "Narrow the wording: feature branch stages are often deployed explicitly, but they can also be automated with a Push to Branch GitOps configuration or custom CI pipeline.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "if (gitEvent.eventType === 'PULL_REQUEST_OPENED' || gitEvent.eventType === 'PUSHED_TO_BRANCH') {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "deployOnGitEvent: eventType"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "gitDeploymentConfig.deployOnGitEvent === 'PULL_REQUEST_OPENED' ? (\n                  <Badge color=\"blue2\">PR Opened</Badge>\n                ) : (\n                  <Badge color=\"purple\">Push to Branch</Badge>\n                )"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"PR opened — The handler starts a deployment to stage `pr-{number}` (e.g. `pr-42`). It posts a comment on the PR indicating deployment status.\"",
+              "reason": "The source shows the handler creates a pending PR comment before orchestrating deployment and updates the comment only on orchestration failure. The provided source does not show a success status comment update, so \"deployment status\" is broader than supported.",
+              "suggestedFix": "Say the handler posts a pending deployment comment for PR previews and updates that comment if orchestration fails. Avoid implying the source shows all status transitions.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "await githubAppClient.createCommentInPullRequest({\n      commentBody: getPendingDeploymentMarkdownMessage({"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "await githubAppClient.updateCommentInPullRequest({\n          updatedCommentBody: getFailedDeploymentMarkdownMessage({"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The GitHub App posts a comment on the PR with deployment status.\" and \"GitOps with Console is simpler... automatic PR lifecycle management, and built-in status comments on PRs.\"",
+              "reason": "The provided source supports pending deployment/deletion comments and failure comment updates, but does not support a general claim that PR comments report deployment status across the full lifecycle, especially successful completion.",
+              "suggestedFix": "Replace with: \"For PR previews, the GitHub App creates pending deployment/deletion comments and updates the PR comment if orchestration fails.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "commentBody: getPendingDeploymentMarkdownMessage({"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "commentBody: getPendingDeletionMarkdownMessage({"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "updatedCommentBody: getFailedDeletionMarkdownMessage({"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"When deletion is enabled on that configuration, the close event can trigger deletion of the preview stage, and the temporary configuration is removed by the PR cleanup flow.\"",
+              "reason": "The source shows `deleteStackAfterPrClose` is stored on the temporary PR configuration and shows deletion orchestration and config deletion functions, but the provided `getActionsToPerform` function does not filter deletion configurations by `deleteStackAfterPrClose`. The draft's wording may be true in orchestration code not included, but it is not fully supported by the provided source.",
+              "suggestedFix": "Write more narrowly: \"The temporary configuration stores `deleteStackAfterPrClose`; PR-close handling looks up the temporary PR configuration, and the deletion flow can delete the preview stack and remove the temporary configuration.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "deleteStackAfterPrClose,\n    isTemporaryForPr: true"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "const gitDeploymentConfigs = (await prismaClient.gitDeploymentConfiguration.findMany({\n      where: gitDeploymentConfigParams,"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "await prismaClient.gitDeploymentConfiguration.delete({\n    where: { id: deletionConfigData.id }\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"GitOps auto-deployment currently supports GitHub only through the GitHub App integration. GitLab, Bitbucket, and other Git providers are not supported for the managed GitOps flow.\"",
+              "reason": "The provided implementation source is GitHub-specific, but it does not establish a product-wide negative claim that no other managed GitOps providers are supported. The draft can say the provided GitOps handler source covers GitHub App integration, but the broader unsupported-provider claim is not directly grounded in these files.",
+              "suggestedFix": "Narrow to the available source: \"The GitOps flow shown here is implemented by the GitHub App handler. For GitLab, Bitbucket, or other providers, use custom CI/CD unless your Stacktape organization has a managed integration documented separately.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "gitProvider: 'GITHUB'"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "deploymentTrigger:\n        deployOnGitEvent === 'PULL_REQUEST_OPENED' ? 'GITHUB_PULL_REQUEST_OPENED' : 'GITHUB_PUSHED_TO_BRANCH'"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "deploymentTrigger: 'GITHUB_PULL_REQUEST_CLOSED'"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"EC2 runners give you full control over instance types, disk sizes, and pre-installed tooling.\"",
+              "reason": "The page source list does not include build runner implementation or docs. This claim is specific to Stacktape-managed EC2 runners and is not grounded in the provided files.",
+              "suggestedFix": "Keep the required distinction between runner types without unsupported knobs: \"Stacktape build runners include CodeBuild-based runners and EC2 runners; see the Build Runners page for their operational and cost tradeoffs.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/server/lambdas/github-app/utils.ts",
+                  "quote": "awaitRunnerExecution: true"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/ci-cd-and-gitops/stacks-per-git-branch-pattern.md",
+                  "quote": "When using Stacktape [build runners](/ci-cd-and-gitops/build-runners) in your custom pipeline, you can choose between CodeBuild-managed runners and EC2 self-hosted runners."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The mapping is configured either in the Stacktape Console's GitOps settings or in your custom CI/CD pipeline.\"",
+              "reason": "The Console source shows a GitOps page with configurations, but the provided source does not show a named \"GitOps settings\" area. This is a Console UI location claim, and Console flows must be grounded in console-app source.",
+              "suggestedFix": "Use source-visible wording: \"The mapping is configured on the Stacktape Console GitOps page or in your custom CI/CD pipeline.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "Component.displayName = 'DeployedStageGitOps';"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "text=\"New GitOps configuration\""
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"You can also use `stacktape debug:logs` with `--stage pr-{number}` to tail logs from the deployed resources, or check `stacktape info:operations` for the deployment history of the preview stage.\"",
+              "reason": "The CLI command names appear in the navigation index, but the provided source files do not include CLI command definitions or flags. The `--stage` flag and the exact behavior of `info:operations` are therefore not verifiable from this source set.",
+              "suggestedFix": "Either remove the flag-level detail or ensure the page source list includes the relevant CLI command source files before making this claim.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly keeps \"When to use\" and \"When NOT to use\" as peer H2 sections.",
+            "The draft uses only valid cross-links from the provided documentation navigation index.",
+            "The draft's PR stage naming claim is grounded in the GitHub App handler: PR opened configurations override the stage to `pr-${pullRequestNumber}`.",
+            "The GitOps table description is mostly grounded in the Console source: the visible columns include deployment trigger, branch, stage name, region, and AWS account, and the create action text is `New GitOps configuration`."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1007,8 +1748,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\ci-cd-and-gitops\\stacks-per-git-branch-pattern.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/ci-cd-and-gitops/stacks-per-git-branch-pattern.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 4, advisory high 0, verifier medium 13"
+  "pipelineReviewSummary": "reviewer-avg 7.7, hard blockers 2, advisory high 0, verifier medium 8",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

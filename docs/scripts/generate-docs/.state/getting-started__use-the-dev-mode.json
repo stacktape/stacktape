@@ -2,7 +2,7 @@
   "pageId": "getting-started__use-the-dev-mode",
   "pageRoute": "getting-started/use-the-dev-mode",
   "startedAt": "2026-05-16T14:44:25.088Z",
-  "updatedAt": "2026-05-16T15:06:54.006Z",
+  "updatedAt": "2026-05-22T02:02:54.054Z",
   "iterations": [
     {
       "iteration": 1,
@@ -939,14 +939,298 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/getting-started__use-the-dev-mode/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Single-command-per-block pattern is followed throughout — no copy-button trap anywhere on the page.",
+            "The 'What runs where' table is excellent: it sets accurate expectations about Lambda vs. container execution models before the reader has hit any surprises.",
+            "CodeBlock with intellisense is used correctly for the Stacktape config example — no forbidden YAML block or plain TypeScript fence.",
+            "All H2 headings are noun-form, 1-5 words, and genuinely descriptive.",
+            "Terminal commands table (rs, rs <name>, c/clear, q/quit) is directly grounded in source and gives the reader exactly what they need to operate the TUI.",
+            "The edit-save-see loop section captures the core dev mode value proposition with a concrete, realistic scenario.",
+            "FAQ mixes all three required categories: Stacktape-specific, AWS behavior, and comparison/choosing questions.",
+            "Skip-ahead link at the top and next-step link at the bottom satisfy the getting-started linear-flow requirements.",
+            "Lambda-to-local tunneling is called out explicitly — this is non-obvious and readers would otherwise be confused about how a Lambda function reaches a container on their laptop."
+          ],
+          "problems": [
+            "Invents a specific AWS price (~$12/month for db.t4g.micro) that is not present in any of the provided source files — violates the pricing rules ('Never invent or estimate AWS list prices that are not present in the provided source').",
+            "The Agent mode section is 400+ words of HTTP endpoint documentation — appropriate for a dedicated reference page but deeply out of place in a getting-started guide aimed at first-time users who just want to see the edit-save cycle work. It buries the page's 'wow moment' and contradicts the stated audience persona.",
+            "No screenshots included. The section instructions for getting-started pages explicitly expect screenshots alongside code blocks, and the TUI-heavy nature of dev mode is particularly hard to convey without one.",
+            "Page is substantially longer than the 400–800 word getting-started target. The depth belongs in a reference or guide page; the getting-started page should surface the happy path and link out.",
+            "The `$Stage()` directive appears in the code example (`value: '$Stage()'`) with no inline explanation — a beginner has no context for what this means or whether it's required."
+          ],
+          "mandatoryFixes": [
+            "Remove or replace the invented price claim. The sentence 'costs roughly ~$12/month' for db.t4g.micro has no grounding in the provided source files. Either remove the cost claim entirely or replace with a pointer: 'See current AWS RDS pricing for instance costs.' Do not leave an estimated dollar figure that contradicts the pricing rules.",
+            "Dramatically condense the Agent mode section for this getting-started page. The full endpoint table, port documentation, and daemon lifecycle explanation belong in a dedicated reference page (the page already links to '/using-with-ai/agent-mode-in-dev'). On this page, reduce it to 2-3 sentences: what agent mode is, how to invoke it, and a link to the full reference. This recovers roughly 400 words and keeps the page in its stated scope."
+          ],
+          "optionalImprovements": [
+            "Add at least one screenshot of the dev-mode TUI in action. Even a static terminal screenshot showing the resource picker or the running-state output dramatically reduces first-time anxiety for a low-AWS-experience reader.",
+            "Add a one-clause inline explanation of `$Stage()` when it appears in the code example (e.g., a comment like 'injects the current stage name at deploy time') so a beginner is not left wondering whether it is a typo.",
+            "Clarify the 'AWS account connected' prerequisite bullet with a concrete call to action or a link to the credentials/configure step — 'AWS credentials configured (see step 1)' is much more actionable than 'connected'.",
+            "Consider trimming the FAQ to 5-6 tightly scoped entries for a getting-started context. The current 10 Q&A pairs are well-written, but the volume shifts the page closer to a reference document than an onboarding step.",
+            "The page currently introduces `--remoteResources` in two different sections (What runs where and Local database emulation) without making it clear the two mentions are the same flag. Consolidate the flag's first explanation into one place and cross-reference."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The 'What runs where' table is highly accurate against the source — container workloads, functions, SSR frameworks, hosting buckets, and databases all map correctly to what the source's getDevCompatibleResources() and getLocalEmulateableResources() enumerate.",
+            "Terminal commands table (rs, rs name, c/clear, q/quit) is exactly grounded in the handleCommand function in the source — the kind of runtime details readers need and cannot infer from config alone.",
+            "Agent mode is accurately documented: default port 7331, daemon/parent-child spawn pattern, --agent flag, and endpoint surface (status, env, rebuild, stop, AWS SDK) all match agent-server.ts precisely.",
+            "Hosting-bucket dev inclusion condition '(with dev config)' correctly reflects the hostingBuckets.filter((b) => b.dev) guard in the source — a subtle detail many pages would silently omit.",
+            "FAQ spans all three required categories (Stacktape-specific, underlying-AWS, choosing/comparison) with concrete, non-padded answers.",
+            "Skip-ahead Info callout and next-step link are both present, satisfying the section-level getting-started requirements.",
+            "CodeBlock uses intellisense tabs with label: 'TypeScript' — no YAML config blocks, no plain-object StacktapeConfig style, no fenced typescript blocks for config. All three forbidden patterns are avoided.",
+            "Interactive picker fallback (all selected by default) is accurately described, matching the source's defaultValues: allResources.map((r) => r.name) behavior."
+          ],
+          "problems": [
+            "PRICING VIOLATION — Unsourced price estimate and instance specs in main body: 'db.t4g.micro is the smallest general-purpose instance (2 vCPU, 1 GB RAM) and costs roughly ~$12/month. For workloads that need more headroom, use db.t4g.small (2 GB RAM) or db.t4g.medium (4 GB RAM)' — none of these dollar figures or RAM specs appear in any provided source file. Pricing rules state: 'Never invent or estimate AWS list prices that are not present in the provided source.'",
+            "Page substantially exceeds the section word target: the getting-started section instruction specifies 'target 400-800 words plus code blocks and screenshots.' This draft is approximately 2,000+ words of prose, 3-4x the target. For a getting-started page meant as a hands-on wow moment, the length dilutes the impact.",
+            "Agent mode section depth is misplaced for a getting-started page: ~200 words of HTTP API detail, endpoint inventory, and stop commands belong on the dedicated /using-with-ai/agent-mode-in-dev page already linked. A getting-started page should point readers there rather than reproduce the content.",
+            "--freshDb, --watch, and related flags are present in the curated docs (secondary source) but not directly visible in the primary src/commands/dev/index.ts. If a source-grounding verifier checks these against the primary source, they may be flagged."
+          ],
+          "mandatoryFixes": [
+            "Remove the unsourced price estimate and instance memory specs from the prose after the code example. The sentence 'db.t4g.micro is the smallest general-purpose instance (2 vCPU, 1 GB RAM) and costs roughly ~$12/month. For workloads that need more headroom, use db.t4g.small (2 GB RAM) or db.t4g.medium (4 GB RAM)' must be rewritten without dollar amounts or RAM figures that do not appear in any provided source file. Acceptable replacement: 'The instanceSize property controls the RDS compute tier; db.t4g.micro is the entry-level option. In dev mode the instance size is irrelevant — the database runs as a local Docker container regardless. See the relational-database docs for the full list of supported instance sizes.' This respects the source boundary and avoids inventing prices."
+          ],
+          "optionalImprovements": [
+            "Trim the agent mode section to 2-3 sentences plus the launch command, and drop the endpoint list summary. The link to /using-with-ai/agent-mode-in-dev does the work. This alone removes ~150 words from a page already 3x its target length.",
+            "Consider folding the 'Useful flags' and 'Terminal commands' tables into the relevant sections ('Start dev mode' and 'The edit-save-see loop') rather than as standalone late-page sections. Readers who've worked through the page will have lost context by the time they reach a standalone flags table.",
+            "Add a single screenshot of the dev mode TUI (mentioned in the section instruction as part of '400-800 words plus code blocks and screenshots'). Even a static image of the resource-picker or the running TUI would ground the page experientially.",
+            "The 'Legacy mode' section and the FAQ entry 'What's the difference between normal and legacy dev mode?' contain nearly identical content. Either compress the H2 to a pointer, or remove the FAQ entry — the duplication adds length without adding information.",
+            "In the FAQ, the answer to 'What happens if I change your Stacktape config?' could mislead users into thinking all config changes require a stack delete. Narrow the answer: only infra/schema changes (new resources, new permissions) require a delete; code-only changes (entry file path tweaks, handler logic) do not."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong answer-first paragraph (57 words, self-contained) — directly extractable by AI overviews without needing surrounding context.",
+            "'What runs where' table is excellent: every resource type is named, the local vs AWS split is concrete, and the rebuild mechanism is spelled out per row. Tables like this get cited 2–4x more than prose equivalents.",
+            "Shell blocks follow one-command-per-block discipline throughout — no copy-paste confusion, no # comments leaking into the buffer.",
+            "Agent mode details are precisely sourced: port 7331 and all endpoint categories (status, logs, env, rebuild, stop, health, DB queries, AWS SDK) match the agent-server.ts source exactly.",
+            "Terminal commands table (rs, rs <name>, c/clear, q/quit) is grounded verbatim in the handleCommand source function.",
+            "The edit-save-see loop section gives the reader a concrete mental model of the feedback cycle, explaining both the --watch and manual rs paths.",
+            "instanceSize property in the CodeBlock is explained with alternatives (db.t4g.small, db.t4g.medium) — readers understand the knob rather than copy-pasting a magic value.",
+            "Skip-ahead callout and next-step footer follow the getting-started section rhythm: users entering mid-flow or returning are served equally."
+          ],
+          "problems": [
+            "FAQ fails the three-category requirement: all 10 questions are either Stacktape-specific or one comparison. There are zero use-case questions about the underlying AWS services (e.g., 'How much do Lambda invocations cost during development?', 'What Docker version or runtime is required?', 'How fast does a Lambda cold start in dev mode?'). This is a required category, and its absence means AI search engines miss the high-intent AWS queries that would bring readers to this page.",
+            "The prose explicitly invents unsourced pricing: 'db.t4g.micro is the smallest general-purpose instance (2 vCPU, 1 GB RAM) and costs roughly ~$12/month.' Neither the dollar figure nor the vCPU/RAM values appear in the provided source files (dev/index.ts, agent-server.ts, curated docs). This violates the pricing rules directly.",
+            "Page length substantially exceeds the 400-800 word target set in the getting-started section instructions. The agent mode section, the detailed debugging section, and the 10-question FAQ together push the page well past 1,500 words of prose, making this feel more like a reference page than a hands-on getting-started step.",
+            "No screenshots are included, despite the getting-started section instructions explicitly calling for 'code blocks and screenshots.' A screenshot of the dev-mode TUI showing the resource picker or the running workload panel would materially help the reader understand what to expect."
+          ],
+          "mandatoryFixes": [
+            "Remove the invented pricing claim. The sentence 'db.t4g.micro is the smallest general-purpose instance (2 vCPU, 1 GB RAM) and costs roughly ~$12/month' contains price and spec data not present in any provided source file. Replace with a note like: 'In dev mode the instance size doesn't matter — the database runs as a local Docker container regardless. Choose the right size when you deploy.' and omit the dollar amount entirely.",
+            "Add at least 2 FAQ entries covering AWS-service use-case questions to satisfy the three-category mix requirement. Suggested additions: 'How much do Lambda invocations cost during development?' (answer: Lambda billed at standard AWS rates per invocation — negligible for development traffic, typically sub-cent per day) and 'What Docker version or runtime does dev mode require?' (answer: Docker Desktop or any OCI-compatible runtime such as Podman or Colima; version constraints not documented by Stacktape beyond Docker being required for containers and local database emulation)."
+          ],
+          "optionalImprovements": [
+            "Add at least one screenshot of the dev mode TUI — either the interactive resource picker or the running workload panel — to match the getting-started section's 'code blocks and screenshots' guidance and give first-time users a concrete visual anchor.",
+            "Trim the Agent mode section to 2-3 sentences and a single command, then link to the dedicated /using-with-ai/agent-mode-in-dev page for the endpoint reference. This brings the page length closer to the 400-800 word getting-started target and keeps the 'wow moment' focus rather than turning into a reference page.",
+            "In the Useful flags table, add an inline note to the --devMode row (e.g., 'See Legacy mode section') so readers who land directly on the flags table can navigate without scrolling.",
+            "The 'Debugging' section is two bullet points that add little over the linked pages. For a getting-started page, reduce it to a single sentence pointing to the debug:logs CLI page and the dev mode overview, or omit it entirely — the reader's next task is deploying, not debugging."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the dev command source for resource selection, normal vs legacy mode, agent mode, terminal commands, and dev-stack creation. The main factual risks are over-specific infrastructure/pricing claims that are not grounded in the provided source files and a few statements that overstate parity or exact implementation details.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`db.t4g.micro` is the smallest general-purpose instance (2 vCPU, 1 GB RAM) and costs roughly ~$12/month. For workloads that need more headroom, use `db.t4g.small` (2 GB RAM) or `db.t4g.medium` (4 GB RAM).”",
+              "reason": "The provided dev-mode source does not contain RDS instance-size, RAM, vCPU, or pricing data. The only grounded dev-mode behavior here is that relational databases can be treated as local emulated resources in normal dev mode. The concrete AWS sizing and monthly cost claims are not supported by the supplied sources.",
+              "suggestedFix": "Remove the RDS sizing/pricing sentence from this Getting Started page, or replace it with a narrower statement: “In dev mode, selected relational databases are run as local emulated resources unless you mark them as remote.” Link to the relational database page for production sizing.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "const mapResourceType = (\n  type: string,\n  engineType?: string\n): 'postgres' | 'mysql' | 'mariadb' | 'redis' | 'dynamodb' | 'opensearch' | null => {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The “Local database emulation” table labels the local emulators as specific “Local Docker image” values: `postgres`, `mysql` / `mariadb`, `redis`, `amazon/dynamodb-local`, and `opensearchproject/opensearch`.",
+              "reason": "The command source grounds the local resource types used by dev mode, but it does not show the actual Docker image names or tags. Since the image names are implementation details and the local-resources module is not included in the source list, the table is more specific than the provided authoritative source supports.",
+              "suggestedFix": "Rename the column to “Local emulator type” and use the grounded type names (`postgres`, `mysql`, `mariadb`, `redis`, `dynamodb`, `opensearch`), or omit image names unless the local-resources implementation is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "if (type === 'redis-cluster') return 'redis';\n  if (type === 'dynamo-db-table') return 'dynamodb';\n  if (type === 'open-search-domain') return 'opensearch';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Your application code works identically in dev mode and production — it reads the same environment variable names regardless of whether it's connecting to a local emulator or a deployed AWS database.”",
+              "reason": "The same environment variable names may be the intended abstraction, but “works identically” is too broad. The source shows dev mode can return Lambda environment variables from AWS and other workload environment variables from local dev-mode state, which is a meaningful runtime difference.",
+              "suggestedFix": "Narrow the claim to the supported contract: “For connected resources, dev mode keeps the same `STP_*` environment variable names while pointing them at local or AWS endpoints depending on how the resource is run.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/agent-server.ts",
+                  "quote": "source: 'aws',\n        envVars: lambdaEnvVars,"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/agent-server.ts",
+                  "quote": "source: 'local',\n    envVars,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The dev stack itself is minimal (IAM roles, secrets, routing) and costs virtually nothing.”",
+              "reason": "The source supports that normal dev mode deploys a minimal dev stack, but it does not ground the exact included resource list or the “virtually nothing” cost claim. Pricing guidance is especially risky because the source does not include prices for the dev stack resources.",
+              "suggestedFix": "Write: “Normal dev mode deploys a minimal dev stack when one does not exist. AWS charges can still apply for any AWS resources used during development, especially Lambda invocations and remote resources.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "tuiManager.info('[~] Deploying dev stack (minimal stack for dev mode)...');"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“If you change your config in a way that affects the dev stack (new resources, new permissions), delete the existing dev stack with `stacktape delete --stage dev --region eu-west-1` and restart dev mode to create a fresh one.”",
+              "reason": "The source shows dev mode deploys the dev stack only when no existing stack is found, but it does not document deletion as the required or only remediation for config changes. The statement is operationally strong and should be softened unless the delete/recreate workflow is grounded in command documentation or dev-stack reconciliation code.",
+              "suggestedFix": "Say: “Restart dev mode after changing `stacktape.ts`. If the existing dev stack no longer matches and dev mode reports a stack mismatch or missing permissions, recreate the dev stage before starting dev mode again.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "// Deploy dev stack if it doesn't exist\n    if (!stackManager.existingStackDetails) {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“For SSR frontends (Next.js, Astro, etc.), changes are picked up instantly through the framework's built-in hot module replacement — no rebuild step needed.”",
+              "reason": "The source confirms that Next.js and other SSR web resources are dev-compatible frontend workloads, but the provided files do not show the frontend runner behavior or guarantee framework HMR. This is likely true for many framework dev servers, but it is not grounded in the included source.",
+              "suggestedFix": "Use cautious wording: “SSR frontends run through their local framework dev server, so reload behavior follows the framework’s dev workflow.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "// Start local workloads (containers, frontends)"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“A full `stacktape deploy` creates the complete production-grade infrastructure (load balancers, auto-scaling, CDN, alarms).”",
+              "reason": "The provided source files are for `stacktape dev`, not `stacktape deploy`, and they do not ground the list of infrastructure created by deploy. The wording also implies these resources are always created, when deploy should be described as creating the resources declared by the Stacktape config.",
+              "suggestedFix": "Replace with: “A full [`stacktape deploy`](/cli/deploy) creates the AWS resources declared in your `stacktape.ts`. Use dev mode while building; deploy when you are ready to test the real stack.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "* Supports two modes:\n * - normal (default): Deploys a stripped-down \"dev stack\" and emulates databases locally\n * - legacy: Requires existing deployed stack, no local database emulation"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` for the Stacktape config example and does not hand-author YAML.",
+            "The `--resources all`, comma-separated resource selection, `--skipResources`, interactive picker behavior, and resource-name validation are grounded in the dev command source.",
+            "The terminal commands `rs`, `rs <name>`, `c`/`clear`, and `q`/`quit` match the `handleCommand` implementation.",
+            "The normal vs legacy mode distinction is broadly grounded: normal mode deploys a dev stack when needed and legacy mode requires an existing deployed stack with no local database emulation.",
+            "The agent-mode section is mostly grounded by the agent server implementation, including default port discovery, status/log/env/rebuild/stop/health/database/AWS SDK endpoints."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 6, col 3: '\"stacktape\"' has no exported member named 'RdsEnginePostgresql16'. Did you mean 'RdsEnginePostgres'?",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 10, col 45: Argument of type '{ engine: any; }' is not assignable to parameter of type 'RelationalDatabasePropsWithOverrides'.\n  Property 'credentials' is missing in type '{ engine: any; }' but required in type 'RelationalDatabaseProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 21, col 19: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): `new RdsEnginePostgresql16(...)` references an unknown class.",
+              "reason": "`RdsEnginePostgresql16` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `RdsEnginePostgresql16` is meant to be a custom class, define it in the example or remove the example."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
@@ -954,5 +1238,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\getting-started\\use-the-dev-mode.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.3, hard blockers 1, advisory high 0, verifier medium 7"
+  "pipelineReviewSummary": "reviewer-avg 7.3, hard blockers 1, advisory high 0, verifier medium 7",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

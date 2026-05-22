@@ -1,0 +1,363 @@
+# Next.js
+
+A Stacktape Next.js resource deploys a Next.js app with SSR on AWS Lambda, static assets on S3, and a CloudFront CDN. Use it when you want server-rendered Next.js on AWS while keeping Stacktape responsible for the supporting infrastructure, including ISR, image optimization, middleware, custom domains, and optional edge execution.
+
+## When to use
+
+A Stacktape Next.js resource is the right choice when your frontend is a Next.js app that needs server rendering, incremental static regeneration, image optimization, or middleware. The resource is designed around the Next.js build output: point `appDirectory` at the directory containing `next.config.js`, and Stacktape wires the SSR function, static asset bucket, CDN, and supporting revalidation resources.
+
+Common use cases:
+
+- **Server-rendered product apps** — dashboards, marketplaces, portals, and content sites that need dynamic pages instead of only static files
+- **Next.js monorepos** — set `appDirectory` to the workspace containing `next.config.js`, rather than the repository root
+- **ISR-heavy sites** — use the built-in revalidation queue, function, and DynamoDB table that Stacktape creates for the Next.js resource
+- **Global apps** — enable `useEdgeLambda` when running SSR closer to viewers is worth slower deploys and the feature tradeoffs
+
+## When NOT to use
+
+- **Pure static websites** — use [static hosting](/resources/frontend/static-hosting) when your Next.js app is exported as static files and does not need SSR, ISR, middleware, or image optimization.
+- **Containerized custom servers** — use a [web-service](/resources/compute/web-service) when you want to run a custom Node server or another HTTP process in a container.
+- **General backend APIs** — use a [Lambda function](/resources/compute/lambda-function) or [web-service](/resources/compute/web-service) for standalone APIs that are not part of a Next.js app.
+- **Streaming and edge SSR together** — skip `useEdgeLambda` when response streaming is required, because `streamingEnabled` is not compatible with edge Lambda execution.
+
+## Basic example
+
+The smallest useful Next.js config points Stacktape at the app directory containing `next.config.js`. In a single-app repository that is often the repository root; in a monorepo it is usually the package or workspace directory for the Next.js app.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, NextjsWeb } from 'stacktape';
+export default defineConfig(() => {
+  const web = new NextjsWeb({
+    appDirectory: './apps/web'
+  });
+
+  return {
+    resources: { web }
+  };
+});
+```
+
+
+`appDirectory` must point to the directory containing `next.config.js`. Stacktape uses that directory for the Next.js build and then deploys SSR, static assets, CDN routing, image optimization, middleware support, and ISR-related helper resources for the app.
+
+## Build and dev
+
+A Stacktape Next.js resource runs the Next.js build from `appDirectory`, and `buildCommand` lets teams replace the default build command when their repository has a custom script. Dev mode also has a small override surface: `dev.command` defaults to `next dev`, but can be changed when a package manager script is the canonical way to run the app locally.
+
+Use `buildCommand` when your Next.js app needs a workspace-aware command such as `pnpm --filter web build` or when the app must run a prebuild step. Leave `buildCommand` unset when a normal Next.js build works from `appDirectory`; fewer custom commands make CI and local behavior easier to reason about.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, NextjsWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new NextjsWeb({
+    appDirectory: './apps/web',
+    buildCommand: 'pnpm --filter web build',
+    dev: {
+      command: 'pnpm --filter web dev'
+    }
+  });
+
+  return { resources: { web } };
+});
+```
+
+
+`dev.command` only affects `stacktape dev`; it does not change the deployed build command. Use the local command override when your repository expects a package-manager script, a monorepo filter, or another wrapper around `next dev`.
+
+## Server Lambda
+
+A Stacktape Next.js resource serves SSR through a Lambda function unless `useEdgeLambda` is enabled. `serverLambda` customizes that SSR function: memory, timeout, logging, and whether the function joins the stack's default VPC to reach VPC resources such as databases or Redis.
+
+The default `serverLambda.memory` is `1024` MB, and the allowed memory range is `128`-`10240` MB. Lambda CPU scales with memory, with `1769` MB corresponding to 1 vCPU. The default `serverLambda.timeout` is `30` seconds, and the maximum documented timeout for the Next.js server Lambda is `30` seconds.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, NextjsWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new NextjsWeb({
+    appDirectory: './apps/web',
+    serverLambda: {
+      memory: 2048,
+      timeout: 30
+    }
+  });
+
+  return { resources: { web } };
+});
+```
+
+
+Increase `memory` when SSR is CPU-bound, image processing is heavy, or the app initializes large dependencies. Keep the default when pages render quickly and memory pressure is low. Set `joinDefaultVpc: true` only when the SSR function must access VPC-protected resources; the source explicitly warns that the function loses direct internet access, while S3 and DynamoDB remain accessible through auto-created VPC endpoints.
+
+## Cold starts
+
+`warmServerInstances` keeps a configured number of SSR Lambda instances pre-initialized by using a separate warmer function that periodically pings the server Lambda. The default is `0`, which is the right starting point for low-traffic apps, development stages, and workloads where occasional cold starts are acceptable.
+
+Enable warm instances for user-facing production apps where SSR cold starts are visible and traffic is steady enough to justify the extra Lambda invocations. Do not enable `warmServerInstances` with `useEdgeLambda: true`; the Next.js source marks that combination as unavailable.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, NextjsWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new NextjsWeb({
+    appDirectory: './apps/web',
+    warmServerInstances: 2
+  });
+
+  return { resources: { web } };
+});
+```
+
+
+`warmServerInstances: 2` asks Stacktape to keep two server Lambda instances warm. The useful value depends on concurrent SSR traffic and cold-start tolerance; the source only defines the mechanism and default, so treat the number as an operational choice rather than a Stacktape recommendation.
+
+## Edge and streaming
+
+A Stacktape Next.js resource has two advanced SSR execution modes: `useEdgeLambda` and `streamingEnabled`. They solve different problems and cannot be combined. Edge Lambda runs SSR at CloudFront edge locations for lower worldwide latency; response streaming improves Time to First Byte and supports responses up to `20 MB` instead of the default `6 MB` limit.
+
+Use `useEdgeLambda` when global latency matters more than deployment speed and the app does not need warm server instances or response streaming. Skip edge execution for most apps until latency measurements show a real need; the source documents slower deploys and incompatibility with both `warmServerInstances` and response streaming.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, NextjsWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new NextjsWeb({
+    appDirectory: './apps/web',
+    useEdgeLambda: true
+  });
+
+  return { resources: { web } };
+});
+```
+
+
+Use `streamingEnabled` when SSR pages benefit from sending the first bytes before the full response is ready, or when SSR responses may exceed the default `6 MB` Lambda response size. Skip streaming when normal SSR responses are small and fast, or when `useEdgeLambda` is required.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, NextjsWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new NextjsWeb({
+    appDirectory: './apps/web',
+    streamingEnabled: true
+  });
+
+  return { resources: { web } };
+});
+```
+
+
+## Domains and firewall
+
+A Stacktape Next.js resource can attach custom domains to the app's CDN and can associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a `web-app-firewall` resource whose `scope` must be `cdn`.
+
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. The source requires an existing Route 53 hosted zone in the AWS account. Stacktape can create DNS records and provision free TLS certificates automatically; `customCertificateArn` is only needed for specific certificate requirements, and `disableDnsRecordCreation` is for teams managing DNS elsewhere.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, NextjsWeb, WebAppFirewall } from 'stacktape';
+
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'cdn'
+  });
+
+  const web = new NextjsWeb({
+    appDirectory: './apps/web',
+    customDomains: [{ domainName: 'www.example.com' }],
+    useFirewall: 'firewall'
+  });
+
+  return { resources: { firewall, web } };
+});
+```
+
+
+Enable `useFirewall` when the public Next.js app needs CDN-level WAF protection. Skip it for internal prototypes or early development stages where WAF rules would add configuration work before there is a clear threat model. Keep the scope precise: this property protects the Next.js CDN path and requires a firewall with `scope: 'cdn'`.
+
+## Static files and CDN
+
+A Stacktape Next.js resource uploads static assets to S3 and serves the app through CloudFront. `fileOptions` lets teams set custom headers such as `Cache-Control` for uploaded files matching a pattern, and `cdn` configures cache behavior for SSR routes and specific path patterns.
+
+Use `fileOptions` when static files need explicit cache or metadata headers that differ from the generated defaults. Use `cdn` when SSR route caching needs deliberate tuning by path. Leave both unset first; Next.js and Stacktape already provide the standard split between static assets, SSR, image optimization, middleware, and ISR support.
+
+## Connecting resources
+
+`connectTo` gives the Next.js SSR function access to other Stacktape resources and injects connection details as environment variables named `STP_[RESOURCE_NAME]_[PARAM]`. Use `connectTo` for resources such as relational databases, buckets, queues, and auth pools; use `iamRoleStatements` only for AWS permissions that are not covered by the resource connection model.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, NextjsWeb, RelationalDatabase } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: 'postgres-16',
+    instanceClass: 'db.t4g.micro'
+  });
+
+  const web = new NextjsWeb({
+    appDirectory: './apps/web',
+    connectTo: ['mainDatabase'],
+    serverLambda: {
+      joinDefaultVpc: true
+    }
+  });
+
+  return { resources: { mainDatabase, web } };
+});
+```
+
+
+With the resource name `mainDatabase`, the Next.js app receives variables such as `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`. For the full connection model and injected variables by resource type, see [connecting resources](/configuration/connecting-resources).
+
+## Environment variables
+
+A Stacktape Next.js resource can set explicit `environment` variables for the SSR function. Use these for application configuration, feature flags, public service URLs needed by server code, and values produced by directives such as `$ResourceParam()` or `$Secret()`.
+
+Prefer `connectTo` for Stacktape-managed resources because it also handles permissions and, where needed, network access. Use explicit `environment` entries for values that are not resource connections. For sensitive values, reference secrets through the [secrets](/configuration/secrets) and [directives](/configuration/directives) flow instead of hard-coding credentials in config.
+
+## Logging
+
+The Next.js server Lambda supports Lambda logging configuration through `serverLambda.logging`, and logs are sent to CloudWatch. For Stacktape log viewing, use [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview); the lower-level Lambda logging options are documented in the API reference.
+
+Most teams should keep logging enabled for deployed Next.js apps because SSR errors, initialization failures, and runtime exceptions need CloudWatch logs for diagnosis. Tune logging only when retention, cost, or compliance requirements justify changing the default behavior exposed by the Lambda logging configuration.
+
+## FAQ
+
+### What does Stacktape create for a Next.js app?
+
+A Stacktape Next.js resource deploys SSR on Lambda, static assets on S3, and a CloudFront CDN. The resource also includes supporting pieces for image optimization, middleware, and ISR, including nested revalidation resources described by the source type. See the [resources overview](/configuration/resources) for how Stacktape resources map to AWS.
+
+### Where should `appDirectory` point?
+
+`appDirectory` should point to the directory containing `next.config.js`. In a monorepo, that usually means the Next.js workspace rather than the repository root. The basic example on this page uses `./apps/web` to make that monorepo shape explicit.
+
+### Can I use a custom domain with Next.js?
+
+Yes. Configure `customDomains` on the Next.js resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape can create the DNS record and manage the TLS certificate unless you provide `customCertificateArn` or set `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+
+### Can I protect a Next.js app with AWS WAF?
+
+Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource whose `scope` is `cdn`. This protects the CDN path for the Next.js app; it is separate from load-balancer firewall attachment paths used by compute resources.
+
+### Does Stacktape Next.js support ISR?
+
+Yes. The Next.js resource source explicitly says Stacktape handles ISR, and the internal resource shape includes a revalidation queue, revalidation function, revalidation table, and revalidation insert function. The API reference documents the public configuration surface for the resource.
+
+### Should I use edge Lambda for Next.js SSR?
+
+Use `useEdgeLambda` when lower worldwide latency is worth slower deploys and the app does not need response streaming or warm server instances. Keep normal regional SSR for most apps until latency data justifies edge execution. Edge Lambda is an advanced tradeoff, not the default path.
+
+### How does response streaming help Next.js SSR?
+
+`streamingEnabled` streams SSR responses for faster Time to First Byte and raises the documented response-size support to `20 MB` instead of the default `6 MB`. The feature is not compatible with `useEdgeLambda: true`. Use streaming for large or progressively rendered SSR responses, and skip it for small pages that already respond quickly.
+
+### How much does hosting Next.js on Lambda and CloudFront cost?
+
+AWS bills the underlying services separately: Lambda invocations and duration for SSR, S3 storage and requests for static assets, and CloudFront data transfer and requests for CDN traffic. The provided Stacktape source does not include concrete Next.js pricing, so this page avoids quoting list prices. Use [cost dashboards](/managing-costs/dashboards) after deployment to inspect real spend by stack.
+
+### When should I use static hosting instead of Next.js?
+
+Use [static hosting](/resources/frontend/static-hosting) when the site can be built into static files and does not need SSR, middleware, ISR, or Next.js image optimization at runtime. Use the Next.js resource when runtime Next.js behavior is part of the product. Static hosting is simpler and usually has fewer moving parts.
+
+### When should I use a web service instead of the Next.js resource?
+
+Use a [web-service](/resources/compute/web-service) when you want to run a custom HTTP server in a container, control the server process directly, or deploy a framework that is not modeled by the frontend resources. Use the Next.js resource when the deployment unit is a standard Next.js app and you want Stacktape to manage SSR, static assets, CDN routing, and Next.js-specific helpers.
+
+## API Reference
+
+
+## API Reference: `NextjsWebProps`
+```typescript
+import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, NextjsServerLambdaProperties, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';
+
+type NextjsWebProps = {
+  /** Directory containing your next.config.js. For monorepos, point to the Next.js workspace. */
+  appDirectory: string;
+  /** Override the default next build command. */
+  buildCommand?: string;
+  /** CDN cache controls for SSR routes and specific path patterns. */
+  cdn?: SsrWebCdnConfig;
+  /** Give this resource access to other resources in your stack. */
+  connectTo?: Array<string>;
+  /** Attach custom domains with auto-managed DNS records and TLS certificates. */
+  customDomains?: Array<DomainConfiguration>;
+  /** Dev server config for stacktape dev. Defaults to next dev. */
+  dev?: unknown;
+  /** Environment variables for the SSR function. Use $ResourceParam() or $Secret() for dynamic values. */
+  environment?: Array<EnvironmentVar>;
+  /** Set custom headers (e.g., Cache-Control) for static files matching a pattern. */
+  fileOptions?: Array<DirectoryUploadFilter>;
+  /** Raw IAM policy statements for permissions not covered by connectTo. */
+  iamRoleStatements?: Array<StpIamRoleStatement>;
+  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
+  serverLambda?: NextjsServerLambdaProperties;
+  /** Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default). */
+  streamingEnabled?: boolean;
+  /** Run SSR at CloudFront edge locations for lower latency worldwide. */
+  useEdgeLambda?: boolean;
+  /** Name of a web-app-firewall resource to protect this app. Firewall scope must be cdn. */
+  useFirewall?: string;
+  /** Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts. */
+  warmServerInstances?: number;
+};
+```
+
+| Property | Required | Type | Description | Default |
+| --- | --- | --- | --- | --- |
+| `appDirectory` | yes | `string` | Directory containing your `next.config.js`. For monorepos, point to the Next.js workspace. | - |
+| `buildCommand` | no | `string` | Override the default `next build` command. | - |
+| `cdn` | no | `SsrWebCdnConfig` | CDN cache controls for SSR routes and specific path patterns. | - |
+| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
+
+**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
+**Opens network access** (security group rules for databases, Redis)
+**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
+
+Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
+resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
+| `customDomains` | no | `Array<DomainConfiguration>` | Attach custom domains with auto-managed DNS records and TLS certificates. **Prerequisite:** A Route 53 hosted zone for your domain must exist in your AWS account. | - |
+| `dev` | no | `unknown` | Dev server config for `stacktape dev`. Defaults to `next dev`. | - |
+| `environment` | no | `Array<EnvironmentVar>` | Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. | - |
+| `fileOptions` | no | `Array<DirectoryUploadFilter>` | Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
+accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
+| `serverLambda` | no | `NextjsServerLambdaProperties` | Customize the SSR Lambda function (memory, timeout, VPC, logging). | - |
+| `streamingEnabled` | no | `boolean` | Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default). Not compatible with `useEdgeLambda: true`. | `false` |
+| `useEdgeLambda` | no | `boolean` | Run SSR at CloudFront edge locations for lower latency worldwide. **Trade-offs:** Slower deploys, no `warmServerInstances`, no response streaming. | `false` |
+| `useFirewall` | no | `string` | Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. | - |
+| `warmServerInstances` | no | `number` | Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts. A separate &quot;warmer&quot; function periodically pings the SSR Lambda. Not available with `useEdgeLambda: true`. | `0` |
+
+
+## Referenceable parameters
+
+
+## Referenceable Parameters: `nextjs-web`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+
+| Parameter | Description | Usage |
+| --- | --- | --- |
+| `url` | Website URL | `$ResourceParam("<<resource-name>>", "url")` |

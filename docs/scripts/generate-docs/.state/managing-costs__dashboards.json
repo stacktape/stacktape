@@ -2,7 +2,7 @@
   "pageId": "managing-costs__dashboards",
   "pageRoute": "managing-costs/dashboards",
   "startedAt": "2026-05-17T17:02:11.901Z",
-  "updatedAt": "2026-05-17T17:15:56.154Z",
+  "updatedAt": "2026-05-22T01:28:55.459Z",
   "iterations": [
     {
       "iteration": 1,
@@ -855,6 +855,269 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/managing-costs__dashboards/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong source grounding for Overview page sections — trend label table, 'Other' grouping at 10 items, time-range-controls-deploys-only caveat, and Budget Alerts panel all verified against OverviewPage.tsx.",
+            "Billing separation note is prominently placed and correctly distinguishes AWS charges from Stacktape subscription fee, satisfying the section-level instruction.",
+            "Lead paragraph is self-contained and within the 40–75 word target.",
+            "Trend-label table is an excellent use of tabular format for an enumerated set of UI states — directly reduces confusion for first-time users.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-behavior, comparison) and reaches 10 entries without obvious padding.",
+            "'AWS Costs by Project' vs 'AWS Costs by Resource' distinction is explained clearly and the difference matters practically — good decision-support content.",
+            "Costs per stack column table is accurate against the ElevatedTable columnHeaders in source.",
+            "Page correctly omits <ApiReference> — this is a Console UI page, not a resource-config page, so the omission is appropriate."
+          ],
+          "problems": [
+            "Per-stage cost detail section ('Per-stage cost detail' H2) invents specifics not present in either provided source file: three specific column names ('Resource name', 'Type', 'Costs'), 'cost shown to four decimal places', 'total displayed at top of table', 'paginates at 15 rows per page', and 'sorts by cost descending by default'. The per-stage page source (routes to /projects/.../costs) is not in the provided source files — these are fabricated details that could actively mislead a user who opens the actual page.",
+            "The Warning callout and FAQ Q4 claim costs 'may take up to a day to appear'. The source no-data message says 'it can take a while before they are available' — the 'up to a day' precision is not in the source and should be softened to match.",
+            "The 'AWS Costs by Project' chart label vs the underlying data is slightly mismatched: the source component is CostsByProjectChart using trpc.overviewCostsByService and processes a 'services' list — the word 'Project' appears only in the gadget title. The doc confidently calls it a project-level breakdown without noting that the grouping key comes from the service name field, which could confuse users who see service-level names in the UI.",
+            "FAQ Q8 ('How far back can I view cost history?') and multiple other answer paragraphs repeat verbatim detail from the main body prose (the 13-to-24 selectable months logic). While some repetition is acceptable, three separate answer paragraphs quote the identical time-range logic — this is padding rather than additive content."
+          ],
+          "mandatoryFixes": [
+            "Remove or heavily caveat the 'Per-stage cost detail' section. The source file for the per-stage page (/projects/.../costs) was not provided, and the section invents column names, pagination count (15 rows), decimal precision (four decimal places), sort order, and total placement. Replace the fabricated specifics with a single sourced sentence: 'Clicking a row in the Costs per stack table navigates to a per-resource cost breakdown for that stage.' Add a note that the exact columns and layout are visible in the Console. Do not invent column names, row counts, or decimal formats that cannot be verified.",
+            "Soften the 'up to a day' claim in the Warning callout and FAQ Q4 to match the source text. The source no-data message says 'it can take a while before they are available' — rewrite as 'reports are generated daily and may not be available immediately after a new deployment.'"
+          ],
+          "optionalImprovements": [
+            "Add a brief note that 'AWS Costs by Project' groups by the Stacktape service/project name as attributed by AWS Cost and Usage Reports — this explains why a user might see service-level names rather than their Stacktape project name in edge cases.",
+            "Consolidate the time-range description (current year months + previous year 12 months) into a single place instead of repeating it verbatim in the main body, per-stage section, and FAQ Q8. Reference back to the first mention instead of restating.",
+            "The <ConsoleScreenshot> components reference paths (/static/screenshots/console-overview-cost-kpis.png and /static/screenshots/console-costs-per-stack.png) that should be verified to exist before publishing — if the screenshots do not exist the component may render broken images.",
+            "FAQ Q5 ('What is the difference between AWS Costs by Project and AWS Costs by Resource?') is the most useful of the ten and would benefit from a direct link to the organization overview section above rather than the bare text description.",
+            "Consider adding a note about the dashboard's grid being customizable — the source shows a DashboardGrid with configurable gadgets — so users know they can rearrange or remove panels if their org dashboard looks different from the screenshots."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Correctly documents the non-obvious behavior that cost data on the overview is always the current calendar month and is independent of the 7d/14d/30d/90d/6m/1y time range selector — this is directly grounded in the source (useCostsData uses `new Date()` for month/year, not the timeRange state).",
+            "The trend label table with all four variants (percentage, Flat, New spend, No spend) accurately mirrors the conditional logic in the source, including the 0.1% threshold for Flat.",
+            "Budget Alerts panel description (name, scope, threshold, alertAtPercentages, navigation to /budgets, empty state text) is precisely grounded in BudgetStatusPanel source.",
+            "Costs per stack section correctly sources the column headers ('Project name', 'Stage', 'Region', 'Month-to-date costs'), pagination at 10 rows, and the exact no-data message from ElevatedTable.",
+            "The getSelectableMonths() analysis is correct: (thisMonth+1) current-year months + 12 prior-year months = 13 to 24 selectable months. The draft states this range accurately.",
+            "Clear upfront separation of viewing vs. alerting vs. optimization with targeted cross-links — directly addresses the managing-costs section instruction.",
+            "Billing note distinguishing AWS charges from Stacktape subscription is prominent and correctly placed."
+          ],
+          "problems": [
+            "UNGROUNDED CLAIMS — Per-stage cost detail section: The source file for the per-stage cost page (/projects/{name}/{stage}/costs) was not provided. The draft asserts three specific columns ('Resource name', 'Type', 'Costs'), costs displayed 'to four decimal places', pagination 'at 15 rows per page', and 'sorts by cost descending by default'. None of these are in the provided source files. An engineer who reads these specifics and finds different behavior will lose trust in the docs.",
+            "UNGROUNDED CLAIM — 'sorts by cost descending by default' for the Costs per stack table: The source sets defaultSortColumnIndex={3} on ElevatedTable but the component source is not provided, so 'descending' is an assumption, not a sourced fact.",
+            "ACTIVE account filter omission: The CostsAndUsagePage source filters connected AWS accounts to only those where `acc.state === 'ACTIVE'`. The docs say only 'your connected AWS accounts' without noting inactive accounts are excluded, which matters when an engineer wonders why an account is missing from the dropdown.",
+            "KPI subtitle format imprecision: The source sets subtitle={`This month (${costsData.trendLabel} vs last)`}. The draft says the subtitle 'reads \"This month\" and includes the trend label for context', which understates the actual format. A reader expecting to see just 'This month' will be confused by the '(+12% vs last)' suffix.",
+            "Ambiguous 'AWS Costs by Project' framing: The chart's data query is overviewCostsByService, the internal data variable is named `services`, yet the draft describes it as grouping by application or project. If the AWS Cost and Usage Report data actually groups by AWS service type rather than Stacktape project, the docs will mislead engineers trying to cross-reference with their AWS bill."
+          ],
+          "mandatoryFixes": [
+            "Remove or caveat all specific claims in the 'Per-stage cost detail' section that are not in the provided source files: the three column names ('Resource name', 'Type', 'Costs'), 'four decimal places', '15 rows per page', and 'sorts by cost descending by default'. Replace with what IS grounded: clicking a Costs per stack row navigates to a per-resource cost view for that stage at /projects/{name}/{stage}/costs. Either note that the specifics of that view are not covered here, or obtain and read the source file for that page before documenting it."
+          ],
+          "optionalImprovements": [
+            "Add a note in the AWS account filter description that only accounts in ACTIVE state appear in the dropdown — sourced from `connectedAwsAccounts.filter(acc => acc.state === 'ACTIVE')`. Saves engineers a support question when a recently connected account doesn't appear.",
+            "Show the exact subtitle template 'This month (+X% vs last)' rather than vaguely saying 'includes the trend label', so engineers know what to look for in the UI.",
+            "Clarify what 'AWS Costs by Project' actually groups by — the internal query is overviewCostsByService and the data key is `services`. If this groups by Stacktape project name, confirm it; if it groups by AWS service category, rename the description to match.",
+            "The defaultSortColumnIndex={3} claim is correct, but drop the word 'descending' unless the ElevatedTable source confirms the default sort direction, to avoid asserting ungrounded behavior.",
+            "ConsoleScreenshot components reference screenshot paths that are not verified as existing — consider noting these are illustrative or confirm the paths are published before using them."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Clear separation between viewing costs, budgets, per-resource breakdown, and optimization pages matches the cost-management section guidance.",
+            "Opening paragraph is self-contained and in the right length range, and the page quickly clarifies that AWS infrastructure costs are billed to the user's AWS account separately from Stacktape subscription fees.",
+            "The page is easy to scan: short H2s, useful tables, concrete UI labels from the source, and a broad FAQ that covers Stacktape-specific, AWS-cost, and comparison questions.",
+            "The organization overview and Costs per stack sections capture several grounded details from source: current-month cost KPI, time range tabs affecting deployment stats, top-10 project cost chart with Other grouping, active AWS account selector, monthly selector, 10-row pagination, default sort by cost, and daily report delay messaging."
+          ],
+          "problems": [
+            "The per-stage cost detail section is largely ungrounded by the provided source files. The source only shows row navigation to `/projects/{project}/{stage}/costs`; it does not show the destination page contents, columns, total, four-decimal formatting, 15-row pagination, or default sort behavior.",
+            "Several Console workflow claims go beyond the provided source, including that the Costs per stack page is accessible from the Console sidebar and that the per-stage detail view has the same month list as the Costs per stack page.",
+            "The draft repeatedly says AWS Cost and Usage Reports are the data source. The source exposes `awsAccountCostReports` and daily report messaging, but the provided files do not explicitly name AWS Cost and Usage Reports.",
+            "The FAQ answer claiming Stacktape adds no markup to AWS costs is stronger than the provided source. The sources and page instructions support saying AWS bills infrastructure costs directly and Stacktape subscription fees are separate, but not a general no-markup claim.",
+            "The AWS Billing console comparison claims project-level attribution without manual AWS Cost Allocation Tags or custom Cost Explorer reports. That may be true, but it is not grounded in the provided source files.",
+            "The Costs per stack filter description says users can compare spend across different AWS environments. The source filters active connected AWS accounts and labels the selector `AWS account`; it does not define those accounts as environments.",
+            "Some H2 first paragraphs are below the 40-75 word target or rely on surrounding context less than ideal, especially the FAQ being fine but `Per-stage cost detail` opening with a click path whose destination behavior is unsupported.",
+            "The page is practical for reading dashboards, but it cannot fully help readers act because the most actionable per-resource destination is described from missing source rather than verified Console source."
+          ],
+          "mandatoryFixes": [
+            "Replace the `Per-stage cost detail` section with only what the provided source supports, or add the actual source file for `/projects/:project/:stage/costs`. With current sources, say that clicking a Costs per stack row navigates to that project and stage's costs page, but do not describe its table columns, totals, decimal formatting, pagination, or sorting.",
+            "Remove or narrow unsupported Console navigation claims. Do not say `accessible from the Console sidebar` unless a sidebar route/source file is provided.",
+            "Narrow `AWS Cost and Usage Reports` claims to source-grounded wording such as `cost reports are generated daily` unless a source file explicitly names AWS Cost and Usage Reports.",
+            "Rewrite the no-markup FAQ answer to the grounded fact: AWS infrastructure costs are billed directly to the user's AWS account, and Stacktape's subscription fee is separate and not shown in these dashboards.",
+            "Remove the unsupported AWS Billing console comparison about cost allocation tags and custom Cost Explorer reports, or rephrase as a cautious decision note without claiming Stacktape avoids those AWS-native setup steps.",
+            "Revise account wording to `active connected AWS accounts`, matching the source filter `acc.state === 'ACTIVE'`."
+          ],
+          "optionalImprovements": [
+            "Add a small comparison table near the top with `Viewing cost`, `Controlling cost`, and `Reducing cost`, linking to dashboards, budgets, and optimization pages. The current prose says this, but a table would be more extractable.",
+            "In the Costs per stack section, mention that the default selected month is the current month because `getSelectableMonths()` returns the current month first and state initializes from `monthOptions[0]`.",
+            "Clarify that the organization overview cost charts show `No data` when no cost data is returned; this is grounded in both chart components and helps readers understand empty states.",
+            "Shorten a few FAQ questions or answers that restate earlier content, especially the overlap between newly deployed stack delays and update frequency."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly grounded in the provided Console source and generated page summary. I found only minor accuracy issues around the exact trend-label semantics and one unsupported navigation-location detail.",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "incorrect-claim",
+              "statement": "The `Flat` trend label means “Less than 0.1% change in either direction.”",
+              "reason": "The Console code labels the trend as `Flat` when the percent change is not greater than 0.1 and not less than -0.1, so exactly +0.1% or -0.1% is also shown as `Flat`.",
+              "suggestedFix": "Change the meaning to “0.1% change or less in either direction” or “between -0.1% and +0.1%, inclusive.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/OverviewPage/OverviewPage.tsx",
+                  "quote": "percentChange > 0.1\n          ? formatPercentChangeLabel(percentChange)\n          : percentChange < -0.1\n            ? formatPercentChangeLabel(percentChange)\n            : 'Flat';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "incorrect-claim",
+              "statement": "The `New spend` trend label means “Spend this month but no previous-month data to compare.”",
+              "reason": "The Console code sets `New spend` whenever current-month total is nonzero and `previousMonthTotal` is not greater than zero. That can mean the previous month had zero spend, not necessarily that previous-month data is missing.",
+              "suggestedFix": "Change the meaning to “Spend this month with a previous-month total of zero.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/OverviewPage/OverviewPage.tsx",
+                  "quote": "const hasPrev = previousMonthTotal > 0;\n  const percentChange = hasPrev ? (diff / previousMonthTotal) * 100 : null;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/OverviewPage/OverviewPage.tsx",
+                  "quote": "percentChange === null && total === 0\n      ? 'No spend'\n      : percentChange === null\n        ? 'New spend'"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "The dedicated Costs per stack page is “accessible from the Console sidebar.”",
+              "reason": "The provided Console source for the Costs per stack page proves the page exists, but it does not include sidebar or navigation registration code. This is a Console navigation-location claim that is not grounded in the provided source files.",
+              "suggestedFix": "Remove the sidebar location unless the sidebar route source is included. Use “The dedicated Costs per stack page provides…” instead.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/CostsAndUsagePage/CostsAndUsagePage.tsx",
+                  "quote": "<PageHeadline\n        headline=\"Costs per stack\""
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft clearly distinguishes viewing cost dashboards from budgets, per-resource breakdowns, and optimization guidance.",
+            "Markdown links point to routes present in the provided documentation navigation index.",
+            "The Costs per stack filters, table columns, sorting, pagination, and row navigation are grounded in `CostsAndUsagePage.tsx`.",
+            "The draft avoids forbidden Stacktape configuration examples, hand-authored YAML, and plain-object `StacktapeConfig` style."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided Console source and keeps the cost-dashboard scope clear. I found a few unsupported or overly specific Console-flow claims that should be narrowed to what the source proves.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The dedicated Costs per stack page — accessible from the Console sidebar — provides a month-by-month table…”",
+              "reason": "The provided CostsAndUsagePage source proves the page exists and renders the table, but it does not show navigation/sidebar placement. Console navigation claims need console-app source evidence for the specific flow or location.",
+              "suggestedFix": "Remove “accessible from the Console sidebar” or replace it with a neutral phrase such as “The dedicated Costs per stack page provides…”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/CostsAndUsagePage/CostsAndUsagePage.tsx",
+                  "quote": "<PageHeadline\n        headline=\"Costs per stack\"\n        icon={BiBarChartAlt2}\n        rootCss={{ marginTop: '15px' }}\n        tooltipText={explanations.costsPerStack}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Both views use data from AWS Cost and Usage Reports” and repeated claims that reports are generated from “AWS Cost and Usage Reports.”",
+              "reason": "The source uses TRPC cost-report queries and UI copy saying “cost reports are generated daily,” but the provided authoritative Console source does not explicitly identify AWS Cost and Usage Reports as the data source. The generated llm-docs repeat the claim, but the Console source shown here does not prove it.",
+              "suggestedFix": "Narrow to “cost report data” or “AWS cost report data” unless a source file explicitly naming AWS Cost and Usage Reports is added.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/CostsAndUsagePage/CostsAndUsagePage.tsx",
+                  "quote": "const awsAccountCostReportsQuery = trpc.awsAccountCostReports.useQuery("
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/CostsAndUsagePage/CostsAndUsagePage.tsx",
+                  "quote": "<p>Please note that cost reports are generated daily and it can take a while before they are available.</p>"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Clicking a row navigates to that project and stage's per-resource cost view” and “Clicking a row in the Costs per stack table navigates to the per-stage costs view for that project and stage, at the route `/projects/{projectName}/{stage}/costs`.”",
+              "reason": "The source confirms the row action navigates to `/projects/${...}/${item.stage}/costs`, but it does not show the target page implementation or prove that the destination is a “per-resource cost view” or “per-stage costs view.” The page route itself is an internal Console route, not a documentation route, so the exact route is grounded, but the target view contents are not grounded by the provided source.",
+              "suggestedFix": "Say “Clicking a row opens the selected project and stage’s cost page” and link to `/managing-costs/per-resource-breakdown` for the documented breakdown details instead of asserting the target view contents here.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/CostsAndUsagePage/CostsAndUsagePage.tsx",
+                  "quote": "navigate(`/projects/${item.serviceName || (item as TODO).projectName}/${item.stage}/costs`);"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS Costs by Resource” is described as breaking down spend by “AWS resource type” and “infrastructure category (compute, database, storage).”",
+              "reason": "The source proves the overview calls `overviewCostsByResourceType` and renders resource names and totals. It does not show the exact grouping taxonomy or prove that displayed names correspond to broad categories like compute, database, and storage.",
+              "suggestedFix": "Keep the grounded part: “breaks down current-month spend by resource type.” Remove or soften the category examples unless the backend source for `overviewCostsByResourceType` is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/OverviewPage/OverviewPage.tsx",
+                  "quote": "const query = trpc.overviewCostsByResourceType.useQuery({ organizationId });\n  const resources = query.data?.resources || [];"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/OverviewPage/OverviewPage.tsx",
+                  "quote": "{ id: 'costs-resource', title: 'AWS Costs by Resource', defaultLayout: { w: 6, h: 2, minW: 3, minH: 2 } }"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes viewing costs from budgets, per-resource breakdowns, and optimization guidance.",
+            "The Costs per stack filters, selectable month range, table columns, default sort column, and 10-row pagination match the provided `CostsAndUsagePage.tsx` source.",
+            "The organization overview trend-label logic, time-range tabs, KPI subtitle, and top-10-plus-Other behavior match the provided `OverviewPage.tsx` source.",
+            "All documentation cross-links in the draft point to routes present in the supplied navigation index."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -867,8 +1130,15 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\managing-costs\\dashboards.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.3, hard blockers 2, advisory high 0, verifier medium 12"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/managing-costs/dashboards.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T01:28:55.459Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/console-app/src/pages/OverviewPage/OverviewPage.tsx": "96418dc6ef8c0152ea1419de1a8d7b287dc6794f",
+    "/Users/congy/Desktop/projects/console-app/src/pages/CostsAndUsagePage/CostsAndUsagePage.tsx": "7556c6f8e46a7484dd0e5c1eb0cd67b6dae3a66c",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/managing-costs/dashboards.md": "50f05410aaf1b20b50cf26d3ca5aa114ecbfb224"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

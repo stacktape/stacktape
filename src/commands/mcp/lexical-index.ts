@@ -1,29 +1,26 @@
 import { dirname, join, resolve } from 'node:path';
 import { pathExists, readFile } from 'fs-extra';
-import { AI_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { LLM_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type DocType = 'config-ref' | 'cli-ref' | 'concept' | 'recipe' | 'troubleshooting' | 'getting-started';
+type DocKind = 'docs-page' | 'config-reference';
 
-type ManifestEntry = {
-  path: string;
-  docType: DocType;
+type LlmDocChunk = {
+  id: string;
+  pageId: string;
   title: string;
+  route: string;
+  sourcePath: string;
+  headingPath: string[];
+  docKind: DocKind;
   resourceType?: string;
+  definitionNames: string[];
   tags: string[];
-  priority: number;
-};
-
-type Manifest = {
-  generatedAt: string;
-  version: string;
-  synonymMap: Record<string, string[]>;
-  files: ManifestEntry[];
-};
-
-type IndexedDoc = ManifestEntry & {
   content: string;
+};
+
+type IndexedDoc = LlmDocChunk & {
   titleTokens: string[];
   tagTokens: string[];
   contentTokens: string[];
@@ -32,6 +29,39 @@ type IndexedDoc = ManifestEntry & {
 type SearchResult = {
   doc: IndexedDoc;
   score: number;
+};
+
+type LexicalIndex = {
+  docs: IndexedDoc[];
+  titleIndex: Map<string, Map<number, number>>;
+  tagIndex: Map<string, Map<number, number>>;
+  contentIndex: Map<string, Map<number, number>>;
+  avgTitleLen: number;
+  avgTagLen: number;
+  avgContentLen: number;
+  totalDocs: number;
+};
+
+type QueryOptions = {
+  query: string;
+  resourceType?: string;
+  docKind?: DocKind;
+  maxItems?: number;
+};
+
+type DocsResponse = {
+  answer: string;
+  references: {
+    title: string;
+    route: string;
+    docKind: DocKind;
+    sourcePath: string;
+    headingPath: string[];
+  }[];
+  snippets?: {
+    language: string;
+    code: string;
+  }[];
 };
 
 // ─── Tokenization ────────────────────────────────────────────────────────────
@@ -144,47 +174,113 @@ const STOP_WORDS = new Set([
   'whom'
 ]);
 
+const SYNONYM_MAP: Record<string, string[]> = {
+  function: ['lambda', 'serverless', 'faas'],
+  'web-service': ['container', 'docker', 'ecs', 'fargate', 'http-service'],
+  'worker-service': ['background', 'worker', 'async-worker'],
+  'private-service': ['internal-service', 'vpc-service'],
+  'batch-job': ['batch', 'job', 'scheduled-job'],
+  'multi-container-workload': ['multi-container', 'sidecar'],
+  'nextjs-web': ['nextjs', 'next.js', 'next', 'ssr'],
+  'astro-web': ['astro', 'astro.js'],
+  'nuxt-web': ['nuxt', 'nuxt.js'],
+  'sveltekit-web': ['sveltekit', 'svelte'],
+  'solidstart-web': ['solidstart', 'solid'],
+  'tanstack-web': ['tanstack', 'tanstack-start'],
+  'remix-web': ['remix'],
+  'relational-database': ['rds', 'postgres', 'postgresql', 'mysql', 'database', 'db', 'sql', 'aurora'],
+  'dynamo-db-table': ['dynamodb', 'nosql', 'document-db'],
+  'redis-cluster': ['elasticache', 'redis', 'cache'],
+  bucket: ['s3', 'storage', 'object-storage'],
+  'hosting-bucket': ['static-site', 'static-website', 'spa'],
+  'http-api-gateway': ['api-gateway', 'apigateway', 'gateway', 'api'],
+  'application-load-balancer': ['alb', 'load-balancer'],
+  'network-load-balancer': ['nlb'],
+  cdn: ['cloudfront', 'distribution'],
+  'user-auth-pool': ['cognito', 'auth', 'authentication'],
+  'event-bus': ['eventbridge', 'events'],
+  'sns-topic': ['sns', 'notification', 'pubsub'],
+  'sqs-queue': ['sqs', 'queue', 'message-queue'],
+  'state-machine': ['step-functions', 'stepfunctions', 'workflow'],
+  'efs-filesystem': ['efs', 'filesystem', 'persistent-storage'],
+  bastion: ['jump-host', 'ssh'],
+  'web-app-firewall': ['waf', 'firewall'],
+  'mongo-db-atlas-cluster': ['mongodb', 'mongo'],
+  'upstash-redis': ['upstash'],
+  'open-search-domain': ['opensearch', 'elasticsearch', 'elastic'],
+  'custom-resource': ['cloudformation-custom'],
+  'deployment-script': ['deploy-script', 'migration-script'],
+  'kinesis-stream': ['kinesis', 'streaming'],
+  'aws-cdk-construct': ['cdk', 'construct']
+};
+
 const tokenize = (text: string): string[] =>
   text
     .toLowerCase()
     .replace(/[^a-z0-9\-_.]/g, ' ')
     .split(/\s+/)
-    .filter((t) => t.length > 1 && !STOP_WORDS.has(t));
+    .filter((token) => token.length > 1 && !STOP_WORDS.has(token));
 
 // ─── BM25 Parameters ─────────────────────────────────────────────────────────
 
 const K1 = 1.2;
 const B = 0.75;
 
-// Field boost multipliers
 const FIELD_BOOSTS = {
   title: 10,
   tags: 8,
   content: 1
 };
 
-// Priority boost multipliers (priority 1 = highest)
-const PRIORITY_BOOSTS: Record<number, number> = {
-  1: 1.5,
-  2: 1.0,
-  3: 0.7
-};
+const REFERENCE_INTENT_TERMS = new Set([
+  'allowed',
+  'argument',
+  'arguments',
+  'default',
+  'enum',
+  'field',
+  'fields',
+  'interface',
+  'option',
+  'options',
+  'parameter',
+  'parameters',
+  'property',
+  'properties',
+  'prop',
+  'props',
+  'reference',
+  'required',
+  'schema',
+  'syntax',
+  'type',
+  'types',
+  'typescript',
+  'value',
+  'values',
+  'yaml'
+]);
+
+const WORKFLOW_INTENT_TERMS = new Set([
+  'build',
+  'connect',
+  'create',
+  'debug',
+  'deploy',
+  'example',
+  'fix',
+  'guide',
+  'how',
+  'migrate',
+  'run',
+  'setup',
+  'start',
+  'troubleshoot',
+  'use',
+  'using'
+]);
 
 // ─── Lexical Index ───────────────────────────────────────────────────────────
-
-type LexicalIndex = {
-  docs: IndexedDoc[];
-  synonymMap: Record<string, string[]>;
-  // Inverted index: term -> Map<docIndex, frequency>
-  titleIndex: Map<string, Map<number, number>>;
-  tagIndex: Map<string, Map<number, number>>;
-  contentIndex: Map<string, Map<number, number>>;
-  // Avg field lengths for BM25
-  avgTitleLen: number;
-  avgTagLen: number;
-  avgContentLen: number;
-  totalDocs: number;
-};
 
 const buildInvertedIndex = (docs: IndexedDoc[], field: 'titleTokens' | 'tagTokens' | 'contentTokens') => {
   const index = new Map<string, Map<number, number>>();
@@ -202,67 +298,61 @@ const buildInvertedIndex = (docs: IndexedDoc[], field: 'titleTokens' | 'tagToken
   return index;
 };
 
-const resolveAiDocsFolderPath = async (): Promise<string> => {
-  const envPath = process.env.STACKTAPE_AI_DOCS_PATH;
+const resolveLlmDocsFolderPath = async (): Promise<string> => {
+  const envPath = process.env.STACKTAPE_LLM_DOCS_PATH;
   const argvPath = process.argv[1] ? resolve(process.argv[1]) : undefined;
   const execPath = process.execPath ? resolve(process.execPath) : undefined;
 
   const candidates = [
     envPath,
-    AI_DOCS_FOLDER_PATH,
-    join(process.cwd(), 'ai-docs'),
-    argvPath ? join(dirname(argvPath), 'ai-docs') : undefined,
-    argvPath ? join(dirname(argvPath), '..', 'ai-docs') : undefined,
-    execPath ? join(dirname(execPath), 'ai-docs') : undefined,
-    execPath ? join(dirname(execPath), '..', 'ai-docs') : undefined
+    LLM_DOCS_FOLDER_PATH,
+    argvPath ? join(dirname(argvPath), 'llm-docs') : undefined,
+    argvPath ? join(dirname(argvPath), '..', 'llm-docs') : undefined,
+    execPath ? join(dirname(execPath), 'llm-docs') : undefined,
+    execPath ? join(dirname(execPath), '..', 'llm-docs') : undefined
   ].filter(Boolean) as string[];
 
   for (const candidatePath of candidates) {
-    if (await pathExists(join(candidatePath, 'index.json'))) {
+    if (await pathExists(join(candidatePath, 'chunks', 'chunks.jsonl'))) {
       return candidatePath;
     }
   }
 
   throw new Error(
-    `AI docs not found. Run 'bun run gen:ai-docs' before starting MCP. Checked: ${candidates.join(', ')}`
+    `LLM docs not found. Run 'bun run gen:llm-docs' before starting MCP. Checked: ${candidates.join(', ')}`
   );
 };
 
+const parseChunks = (content: string): LlmDocChunk[] =>
+  content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as LlmDocChunk);
+
 const buildIndex = async (): Promise<LexicalIndex> => {
-  const aiDocsFolderPath = await resolveAiDocsFolderPath();
-  const manifestPath = join(aiDocsFolderPath, 'index.json');
-  const manifestContent = await readFile(manifestPath, 'utf-8');
-  const manifest: Manifest = JSON.parse(manifestContent);
+  const llmDocsFolderPath = await resolveLlmDocsFolderPath();
+  const chunksContent = await readFile(join(llmDocsFolderPath, 'chunks', 'chunks.jsonl'), 'utf-8');
 
-  const docs: IndexedDoc[] = [];
-
-  for (const entry of manifest.files) {
-    const filePath = join(aiDocsFolderPath, entry.path);
-    const content = await readFile(filePath, 'utf-8');
-
-    // Strip frontmatter from content for indexing
-    const bodyContent = content.replace(/^---[\s\S]*?---\n*/, '').trim();
-
-    docs.push({
-      ...entry,
-      content: bodyContent,
-      titleTokens: tokenize(entry.title),
-      tagTokens: entry.tags.flatMap((tag) => tokenize(tag)),
-      contentTokens: tokenize(bodyContent)
-    });
-  }
+  const docs: IndexedDoc[] = parseChunks(chunksContent).map((entry) => ({
+    ...entry,
+    titleTokens: tokenize([...entry.headingPath, entry.title, entry.route].join(' ')),
+    tagTokens: [...entry.tags, entry.resourceType, ...entry.definitionNames]
+      .filter((value): value is string => Boolean(value))
+      .flatMap((tag) => tokenize(tag)),
+    contentTokens: tokenize(entry.content)
+  }));
 
   const titleIndex = buildInvertedIndex(docs, 'titleTokens');
   const tagIndex = buildInvertedIndex(docs, 'tagTokens');
   const contentIndex = buildInvertedIndex(docs, 'contentTokens');
 
-  const avgTitleLen = docs.reduce((sum, d) => sum + d.titleTokens.length, 0) / docs.length;
-  const avgTagLen = docs.reduce((sum, d) => sum + d.tagTokens.length, 0) / docs.length;
-  const avgContentLen = docs.reduce((sum, d) => sum + d.contentTokens.length, 0) / docs.length;
+  const avgTitleLen = docs.reduce((sum, doc) => sum + doc.titleTokens.length, 0) / docs.length;
+  const avgTagLen = docs.reduce((sum, doc) => sum + doc.tagTokens.length, 0) / docs.length;
+  const avgContentLen = docs.reduce((sum, doc) => sum + doc.contentTokens.length, 0) / docs.length;
 
   return {
     docs,
-    synonymMap: manifest.synonymMap,
     titleIndex,
     tagIndex,
     contentIndex,
@@ -297,62 +387,86 @@ const bm25Score = (
 
 // ─── Query ───────────────────────────────────────────────────────────────────
 
-type QueryOptions = {
-  query: string;
-  resourceType?: string;
-  docType?: DocType;
-  maxItems?: number;
-};
-
 const expandQuery = (tokens: string[], synonymMap: Record<string, string[]>): string[] => {
   const expanded = new Set(tokens);
-
-  // Build reverse synonym map for expansion
   const reverseSynonyms = new Map<string, string[]>();
+
   for (const [key, synonyms] of Object.entries(synonymMap)) {
-    for (const syn of synonyms) {
-      const synTokens = tokenize(syn);
-      for (const t of synTokens) {
-        if (!reverseSynonyms.has(t)) reverseSynonyms.set(t, []);
-        reverseSynonyms.get(t)!.push(key, ...synonyms);
+    for (const synonym of synonyms) {
+      const synonymTokens = tokenize(synonym);
+      for (const token of synonymTokens) {
+        if (!reverseSynonyms.has(token)) reverseSynonyms.set(token, []);
+        reverseSynonyms.get(token)!.push(key, ...synonyms);
       }
     }
-    const keyTokens = tokenize(key);
-    for (const t of keyTokens) {
-      if (!reverseSynonyms.has(t)) reverseSynonyms.set(t, []);
-      reverseSynonyms.get(t)!.push(...synonyms);
+    for (const token of tokenize(key)) {
+      if (!reverseSynonyms.has(token)) reverseSynonyms.set(token, []);
+      reverseSynonyms.get(token)!.push(...synonyms);
     }
   }
 
   for (const token of tokens) {
     const related = reverseSynonyms.get(token);
-    if (related) {
-      for (const r of related) {
-        for (const rt of tokenize(r)) expanded.add(rt);
-      }
+    if (!related) continue;
+    for (const relatedValue of related) {
+      for (const relatedToken of tokenize(relatedValue)) expanded.add(relatedToken);
     }
   }
 
   return Array.from(expanded);
 };
 
+const inferQueryIntent = (rawTokens: string[]): 'reference' | 'workflow' | undefined => {
+  const referenceMatches = rawTokens.filter((token) => REFERENCE_INTENT_TERMS.has(token)).length;
+  const workflowMatches = rawTokens.filter((token) => WORKFLOW_INTENT_TERMS.has(token)).length;
+
+  if (referenceMatches === 0 && workflowMatches === 0) return undefined;
+  return referenceMatches > workflowMatches ? 'reference' : 'workflow';
+};
+
+const getChunkGroupKey = (doc: IndexedDoc): string => doc.headingPath.slice(0, 2).join('>');
+
+const diversifyResults = (results: SearchResult[], maxItems: number): SearchResult[] => {
+  const selected: SearchResult[] = [];
+  const selectedPageIds = new Set<string>();
+  const selectedChunkGroups = new Set<string>();
+
+  const add = (result: SearchResult, requireNewPage: boolean) => {
+    if (selected.length >= maxItems) return;
+    const chunkGroupKey = `${result.doc.pageId}:${getChunkGroupKey(result.doc)}`;
+    if (selectedChunkGroups.has(chunkGroupKey)) return;
+    if (requireNewPage && selectedPageIds.has(result.doc.pageId)) return;
+
+    selected.push(result);
+    selectedPageIds.add(result.doc.pageId);
+    selectedChunkGroups.add(chunkGroupKey);
+  };
+
+  for (const result of results) add(result, true);
+  for (const result of results) add(result, false);
+  for (const result of results) {
+    if (selected.length >= maxItems) break;
+    if (!selected.some((selectedResult) => selectedResult.doc.id === result.doc.id)) selected.push(result);
+  }
+
+  return selected;
+};
+
 const search = (index: LexicalIndex, options: QueryOptions): SearchResult[] => {
-  const { query, resourceType, docType, maxItems = 3 } = options;
+  const { query, resourceType, docKind, maxItems = 3 } = options;
 
   const rawTokens = tokenize(query);
   if (rawTokens.length === 0) return [];
 
-  const queryTokens = expandQuery(rawTokens, index.synonymMap);
-
+  const queryTokens = expandQuery(rawTokens, SYNONYM_MAP);
+  const intent = inferQueryIntent(rawTokens);
   const scores = new Float64Array(index.totalDocs);
 
   for (let docIdx = 0; docIdx < index.totalDocs; docIdx++) {
     const doc = index.docs[docIdx];
 
-    // Hard filter by resourceType if specified
     if (resourceType && doc.resourceType !== resourceType) continue;
-    // Hard filter by docType if specified
-    if (docType && doc.docType !== docType) continue;
+    if (docKind && doc.docKind !== docKind) continue;
 
     let score = 0;
     for (const token of queryTokens) {
@@ -369,19 +483,23 @@ const search = (index: LexicalIndex, options: QueryOptions): SearchResult[] => {
         bm25Score(token, docIdx, index.contentIndex, doc.contentTokens.length, index.avgContentLen, index.totalDocs);
     }
 
-    // Apply priority boost
-    const priorityBoost = PRIORITY_BOOSTS[doc.priority] ?? 1.0;
-    score *= priorityBoost;
-
-    // Bonus for exact resourceType match in query
     if (doc.resourceType && rawTokens.includes(doc.resourceType)) {
       score *= 1.3;
+    }
+
+    if (doc.resourceType && queryTokens.some((token) => doc.tagTokens.includes(token))) {
+      score *= 1.15;
+    }
+
+    if (intent === 'reference') {
+      score *= doc.docKind === 'config-reference' ? 1.7 : 0.75;
+    } else if (intent === 'workflow') {
+      score *= doc.docKind === 'docs-page' ? 1.2 : 0.85;
     }
 
     scores[docIdx] = score;
   }
 
-  // Collect and sort results
   const results: SearchResult[] = [];
   for (let i = 0; i < index.totalDocs; i++) {
     if (scores[i] > 0) {
@@ -390,11 +508,12 @@ const search = (index: LexicalIndex, options: QueryOptions): SearchResult[] => {
   }
   results.sort((a, b) => b.score - a.score);
 
-  // Filter out low-relevance results: if a result scores much lower than the top result,
-  // it's likely a weak content-body match (e.g., "cost" in a firewall doc for a pricing query).
   if (results.length > 1) {
     const topScore = results[0].score;
-    return results.filter((r) => r.score >= topScore * 0.25).slice(0, maxItems);
+    return diversifyResults(
+      results.filter((result) => result.score >= topScore * 0.25),
+      maxItems
+    );
   }
 
   return results.slice(0, maxItems);
@@ -416,20 +535,6 @@ const extractCodeBlocks = (content: string): { language: string; code: string }[
   return blocks;
 };
 
-type DocsResponse = {
-  answer: string;
-  references: {
-    title: string;
-    path: string;
-    docType: DocType;
-  }[];
-  snippets?: {
-    language: string;
-    code: string;
-  }[];
-  nextQueries?: string[];
-};
-
 const formatAnswer = (results: SearchResult[], mode: 'answer' | 'reference' | 'snippet'): DocsResponse => {
   if (results.length === 0) {
     return {
@@ -438,10 +543,12 @@ const formatAnswer = (results: SearchResult[], mode: 'answer' | 'reference' | 's
     };
   }
 
-  const references = results.map((r) => ({
-    title: r.doc.title,
-    path: r.doc.path,
-    docType: r.doc.docType
+  const references = results.map((result) => ({
+    title: result.doc.title,
+    route: result.doc.route,
+    docKind: result.doc.docKind,
+    sourcePath: result.doc.sourcePath,
+    headingPath: result.doc.headingPath
   }));
 
   if (mode === 'reference') {
@@ -453,8 +560,8 @@ const formatAnswer = (results: SearchResult[], mode: 'answer' | 'reference' | 's
 
   if (mode === 'snippet') {
     const snippets: { language: string; code: string }[] = [];
-    for (const r of results) {
-      const blocks = extractCodeBlocks(r.doc.content);
+    for (const result of results) {
+      const blocks = extractCodeBlocks(result.doc.content);
       if (blocks.length > 0) snippets.push(blocks[0]);
     }
     return {
@@ -467,17 +574,17 @@ const formatAnswer = (results: SearchResult[], mode: 'answer' | 'reference' | 's
     };
   }
 
-  // mode === 'answer': return the full content of top results, trimmed for token efficiency
   const MAX_CONTENT_CHARS = 12000;
   let totalChars = 0;
   const answerParts: string[] = [];
 
-  for (const r of results) {
+  for (const result of results) {
     const remaining = MAX_CONTENT_CHARS - totalChars;
     if (remaining <= 0) break;
 
-    const content = r.doc.content.slice(0, remaining);
-    answerParts.push(`## ${r.doc.title}\n\n${content}`);
+    const heading = result.doc.headingPath.join(' > ');
+    const content = result.doc.content.slice(0, remaining);
+    answerParts.push(`## ${heading}\n\nSource: ${result.doc.sourcePath}\nRoute: ${result.doc.route}\n\n${content}`);
     totalChars += content.length;
   }
 
@@ -490,5 +597,5 @@ const formatAnswer = (results: SearchResult[], mode: 'answer' | 'reference' | 's
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
-export type { DocsResponse, DocType, IndexedDoc, LexicalIndex, QueryOptions, SearchResult };
+export type { DocKind, DocsResponse, IndexedDoc, LexicalIndex, QueryOptions, SearchResult };
 export { buildIndex, expandQuery, formatAnswer, search, tokenize };

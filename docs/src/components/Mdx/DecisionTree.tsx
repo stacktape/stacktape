@@ -1,5 +1,5 @@
 import { css } from '@emotion/react';
-import { colors } from '../../styles/variables';
+import { colors, fontFamily } from '../../styles/variables';
 
 type DecisionNode = {
   question?: string;
@@ -237,6 +237,7 @@ export function FlowDiagram({ steps }: { steps: FlowStep[] }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                fontFamily,
                 fontWeight: 700,
                 fontSize: '14px',
                 flexShrink: 0
@@ -256,8 +257,8 @@ export function FlowDiagram({ steps }: { steps: FlowStep[] }) {
             )}
           </div>
           <div css={{ paddingBottom: index < steps.length - 1 ? '20px' : 0 }}>
-            <div css={{ fontWeight: 600, color: colors.fontColorPrimary, marginBottom: '4px' }}>{step.title}</div>
-            {step.description && <div css={{ color: colors.lightGray, fontSize: '0.875rem' }}>{step.description}</div>}
+            <p css={{ fontWeight: 600, color: colors.fontColorPrimary, marginBottom: '4px' }}>{step.title}</p>
+            {step.description && <p css={{ color: colors.lightGray, fontSize: '0.875rem' }}>{step.description}</p>}
           </div>
         </div>
       ))}

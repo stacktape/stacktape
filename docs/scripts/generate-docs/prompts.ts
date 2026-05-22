@@ -1,4 +1,4 @@
-import type { ContextPack, HumanFeedbackEntry, PageDefinition, ReviewerResult, VerifierResult } from './types';
+import type { ContextPack, HumanFeedbackEntry, ReviewerResult, VerifierResult } from './types';
 import { AGENT_IDS } from './agent-models';
 
 const renderSourceDocuments = (contextPack: ContextPack) => {
@@ -179,7 +179,7 @@ Canonical generated-doc facts:
 Source priority when sources disagree:
 1. TypeScript types in \`types/stacktape-config/*.d.ts\` and runtime validators in \`src/domain/**\` — authoritative for behavior, defaults, and constraints.
 2. \`@generated/schemas/config-schema.json\` — authoritative for schema shape.
-3. \`@generated/ai-docs/*.md\` — pre-distilled summaries; useful for framing and cross-checks but secondary to types.
+3. \`@generated/llm-docs/*.md\` — pre-distilled summaries; useful for framing and cross-checks but secondary to types.
 4. \`docs/_curated-docs/**\` — human-written prose; accept structure and tone, re-verify facts.
 5. CLI source in \`src/commands/**/index.ts\` — authoritative for CLI behavior.
 6. \`console-app/src/**\` and \`console-app/server/**\` — authoritative for Console behavior.
@@ -279,7 +279,7 @@ The reader needs help DECIDING, not just CONFIGURING. The page should feel like 
 
 // Dedupe by a coarse signature (lowercased first 60 chars) so semantically near-identical
 // items from different reviewers collapse into one entry.
-const dedupeBySignature = <T,>(items: T[], getText: (item: T) => string): T[] => {
+const dedupeBySignature = <T>(items: T[], getText: (item: T) => string): T[] => {
   const seen = new Set<string>();
   const out: T[] = [];
   for (const item of items) {
@@ -314,8 +314,7 @@ export const buildWriterPrompt = ({
   const humanFeedbackBlock = humanFeedback?.length
     ? `\nUSER FEEDBACK (highest priority — address EVERY item below before reviewer or verifier feedback):\nThis feedback comes directly from the human owner of the docs. Treat it as authoritative. If it conflicts with a reviewer/verifier note, the user wins. Don't argue, don't soft-pedal — just incorporate the change.\n\n${humanFeedback
         .map(
-          (entry, i) =>
-            `${i + 1}. (added ${entry.addedAt} after iter ${entry.iterationAtTime}):\n${entry.text.trim()}`
+          (entry, i) => `${i + 1}. (added ${entry.addedAt} after iter ${entry.iterationAtTime}):\n${entry.text.trim()}`
         )
         .join('\n\n')}\n`
     : '';
@@ -350,23 +349,36 @@ export const buildWriterPrompt = ({
   // These roles often use the Codex CLI by default, but their priority comes from what they do,
   // not from the model/provider used for a particular run.
   const sourceAndAuditIssues = (verifierResults || [])
-    .filter((v) => v.verifierId === AGENT_IDS.sourceGroundingVerifier || v.verifierId === AGENT_IDS.apiCompletenessAuditor)
+    .filter(
+      (v) => v.verifierId === AGENT_IDS.sourceGroundingVerifier || v.verifierId === AGENT_IDS.apiCompletenessAuditor
+    )
     .flatMap((v) => v.issues.map((issue) => ({ ...issue, verifierId: v.verifierId })))
     .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9));
   const topSourceAndAuditIssues = dedupeBySignature(sourceAndAuditIssues, (i) => i.statement).slice(0, 8);
   const sourceAndAuditFeedback = topSourceAndAuditIssues.length
-    ? topSourceAndAuditIssues.map((issue) => `- [${issue.severity}] [${issue.verifierId}] ${issue.statement}\n  Fix: ${issue.suggestedFix}${issue.evidence?.length ? `\n  Evidence: ${issue.evidence[0].file}` : ''}`).join('\n')
+    ? topSourceAndAuditIssues
+        .map(
+          (issue) =>
+            `- [${issue.severity}] [${issue.verifierId}] ${issue.statement}\n  Fix: ${issue.suggestedFix}${issue.evidence?.length ? `\n  Evidence: ${issue.evidence[0].file}` : ''}`
+        )
+        .join('\n')
     : 'None.';
 
   const otherIssues = (verifierResults || [])
-    .filter((v) => v.verifierId !== AGENT_IDS.sourceGroundingVerifier && v.verifierId !== AGENT_IDS.apiCompletenessAuditor)
+    .filter(
+      (v) => v.verifierId !== AGENT_IDS.sourceGroundingVerifier && v.verifierId !== AGENT_IDS.apiCompletenessAuditor
+    )
     .flatMap((v) => v.issues.map((issue) => ({ ...issue, verifierId: v.verifierId })))
     .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9));
   const topOtherIssues = dedupeBySignature(otherIssues, (i) => i.statement).slice(0, 5);
   const otherFeedback = topOtherIssues.length
-    ? topOtherIssues.map((issue) => `- [${issue.severity}] [${issue.verifierId}] ${issue.statement}\n  Fix: ${issue.suggestedFix}${issue.evidence?.length ? `\n  Evidence: ${issue.evidence[0].file}` : ''}`).join('\n')
+    ? topOtherIssues
+        .map(
+          (issue) =>
+            `- [${issue.severity}] [${issue.verifierId}] ${issue.statement}\n  Fix: ${issue.suggestedFix}${issue.evidence?.length ? `\n  Evidence: ${issue.evidence[0].file}` : ''}`
+        )
+        .join('\n')
     : 'None.';
-
 
   return `${commonRules}
 
@@ -559,6 +571,100 @@ order: ${contextPack.page.order}
 ...
 
 The mdx field must contain only the raw MDX page content. Do not include commentary, summaries, or meta-explanations in it.`;
+};
+
+// Refinement writer prompt: targeted patch over an existing draft, not a regeneration.
+//
+// Used by the --refineReview loop on pages that hit `needs-human-review`. The draft already
+// scored well enough for the user (reviewer grand-avg >= 6.5) but has hard verifier blockers
+// (wrong defaults, ungrounded claims, missing union variants, broken code blocks). The job is
+// to surgically fix those issues without restructuring or rewriting working prose.
+//
+// Returns the same `{ mdx, seoTitle, seoDescription }` schema as `buildWriterPrompt` so the
+// existing writer schema works unchanged.
+export const buildRefinementWriterPrompt = ({
+  contextPack,
+  previousDraft,
+  hardBlockers,
+  advisoryHighs
+}: {
+  contextPack: ContextPack;
+  previousDraft: string;
+  hardBlockers: Array<{
+    verifierId: string;
+    statement: string;
+    suggestedFix: string;
+    evidence?: Array<{ file: string; quote: string }>;
+  }>;
+  advisoryHighs: Array<{
+    verifierId: string;
+    statement: string;
+    suggestedFix: string;
+    evidence?: Array<{ file: string; quote: string }>;
+  }>;
+}) => {
+  const renderIssue = (issue: (typeof hardBlockers)[number]) =>
+    `- [${issue.verifierId}] ${issue.statement}\n  Fix: ${issue.suggestedFix}${
+      issue.evidence?.length ? `\n  Evidence: ${issue.evidence[0].file}` : ''
+    }`;
+  const hardBlockerBlock = hardBlockers.length ? hardBlockers.map(renderIssue).join('\n') : 'None.';
+  const advisoryBlock = advisoryHighs.length ? advisoryHighs.map(renderIssue).join('\n') : 'None.';
+
+  return `${commonRules}
+
+${contextPack.styleGuide ? `Project style guide and glossary (apply throughout):\n${contextPack.styleGuide}\n` : ''}
+Task: REFINEMENT PASS over the existing MDX page at route "/${contextPack.page.route}".
+
+This is NOT a regeneration. The current draft scored well enough on prose quality that we're not rewriting it. Your only job is to fix the verifier issues listed below while keeping the rest of the page essentially unchanged.
+
+REFINEMENT DISCIPLINE — read this carefully:
+- Do NOT restructure the page. Keep the H2/H3 hierarchy, section ordering, and overall narrative as-is.
+- Do NOT rewrite paragraphs that are not flagged. If a paragraph is fine, leave its wording alone.
+- Do NOT add new sections, FAQ entries, or callouts unless a flagged issue explicitly requires it (e.g. a missing union variant must be named somewhere).
+- Do NOT "polish" — no synonym swaps, no sentence reorderings, no header re-wordings. Style polish during refinement causes regressions and wastes the iteration.
+- DO fix every hard blocker below. These are publication-blocking factual or structural issues.
+- DO address advisory highs when the fix is small and local. Skip them if the fix would require restructuring.
+- DO re-verify every code block in the page after your edits — class names, imports, focus markers, defineConfig shape. The deterministic code-block validator will reject broken code.
+- DO preserve the frontmatter exactly (title, order). The pipeline will manage seoTitle/seoDescription and pipeline-status fields.
+
+If a flagged issue would require restructuring or significant prose rewrites to fix, prefer narrowing the offending claim (or removing it) over expanding the section. The goal is a clean, minimal patch.
+
+Page metadata:
+- Title: ${contextPack.page.title}
+- Kind: ${contextPack.page.kind}
+- Template: ${contextPack.page.template}
+- Description: ${contextPack.page.shortDescription}
+- Type name (if any): ${contextPack.page.typeName || 'n/a'}
+- CLI command (if any): ${contextPack.page.cliCommand || 'n/a'}
+
+HARD BLOCKERS (fix EVERY one of these — publication is gated on them):
+${hardBlockerBlock}
+
+Advisory high-severity issues (fix when the change is small and local; otherwise narrow the affected claim):
+${advisoryBlock}
+
+Current draft to patch (preserve everything not called out above):
+${previousDraft}
+
+Source files (use to ground factual fixes — read the evidence file cited in each issue before editing the corresponding claim):
+${renderSourceDocuments(contextPack)}
+
+Configured source files that could not be read:
+${renderMissingSourceFiles(contextPack)}
+
+Documentation pages (use exact routes for cross-links; never invent paths):
+${contextPack.navigationIndex}
+
+Output requirements:
+- Return only the full revised MDX page body. Do not return commentary, diffs, summaries, or meta-explanations.
+- Preserve frontmatter (title, order). The pipeline manages seoTitle/seoDescription/pipeline-status fields.
+- The output should be substantially identical to the input draft except in the regions affected by the flagged issues. A reviewer reading the diff should see a small number of focused edits, not a rewrite.
+
+Additional output fields:
+- seoTitle: A search-engine-optimized page title (under 60 characters). Reuse the existing seoTitle from the prior draft's frontmatter if present and accurate; otherwise produce one.
+- seoDescription: A meta description for search engines (150-160 characters). Reuse the existing seoDescription if accurate; otherwise produce one.
+
+The mdx field must contain only the raw MDX page content. Do not include commentary in it.`;
 };
 
 const sharedReviewerRequirements = `

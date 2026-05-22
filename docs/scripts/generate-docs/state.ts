@@ -21,8 +21,15 @@ export const saveState = async ({ state }: { state: PipelineState }) => {
 };
 
 export const saveIterationDraft = async ({ pageId, iteration, draft }: { pageId: string; iteration: number; draft: string }) => {
-  const filePath = join(stateRoot, pageId, `iteration-${iteration}.mdx`);
+  const filePath = getIterationDraftPath({ pageId, iteration });
   await ensureDir(dirname(filePath));
   await writeFile(filePath, draft);
   return filePath;
 };
+
+// Canonical draft path for an iteration on the current OS. State files may have absolute
+// `draftPath` values from a different machine (e.g. Windows paths in a state file now read
+// on macOS) — callers should prefer this helper over the stored value when the stored path
+// fails to resolve.
+export const getIterationDraftPath = ({ pageId, iteration }: { pageId: string; iteration: number }) =>
+  join(stateRoot, pageId, `iteration-${iteration}.mdx`);

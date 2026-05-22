@@ -1,0 +1,305 @@
+# Remix
+
+A Stacktape Remix resource deploys a Remix app with SSR on AWS Lambda, static assets on S3, and a CloudFront CDN. Use it when you want server-rendered Remix on AWS while keeping Stacktape responsible for the supporting infrastructure, including Vite-based builds, custom domains, CDN cache control, and optional WAF protection.
+
+## When to use
+
+A Stacktape Remix resource is the right choice when your frontend is a Remix app that needs server rendering and the file-based routing, loaders, and actions that Remix provides. The resource is designed around the Remix build output: point `appDirectory` at the directory containing `vite.config.ts` (or `remix.config.js`), and Stacktape wires the SSR function, static asset bucket, CDN, and supporting resources.
+
+Common use cases:
+
+- **Server-rendered product apps** — dashboards, e-commerce, portals, and content sites that use Remix loaders and actions for data fetching and mutations
+- **Remix monorepos** — set `appDirectory` to the workspace containing `vite.config.ts`, rather than the repository root
+- **Apps with nested routing** — Remix's route modules and data-loading model map directly to this resource; Stacktape does not alter the routing behavior
+- **Global apps** — the CDN serves static assets from edge locations and routes SSR requests to the regional Lambda function
+
+## When NOT to use
+
+- **Pure static websites** — use [static hosting](/resources/frontend/static-hosting) when your app can be exported as static files and does not need SSR, loaders, or actions.
+- **Containerized custom servers** — use a [web-service](/resources/compute/web-service) when you want to run a custom Node server or another HTTP process in a container.
+- **General backend APIs** — use a [Lambda function](/resources/compute/lambda-function) or [web-service](/resources/compute/web-service) for standalone APIs that are not part of a Remix app.
+- **Apps requiring response streaming or edge SSR** — the Remix resource does not support edge Lambda or response streaming. Use a [web-service](/resources/compute/web-service) with a container if you need streaming responses or a custom server.
+
+## Basic example
+
+The smallest useful Remix config points Stacktape at the app directory containing `vite.config.ts` (or `remix.config.js`). In a single-app repository that is often the repository root (`"."`); in a monorepo it is usually the package or workspace directory for the Remix app.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RemixWeb } from 'stacktape';
+export default defineConfig(() => {
+  const web = new RemixWeb({
+    appDirectory: './apps/web'
+  });
+
+  return {
+    resources: { web }
+  };
+});
+```
+
+
+`appDirectory` identifies the directory containing `vite.config.ts` (or `remix.config.js`). The default is `"."` (the repository root). Stacktape uses that directory for the Remix build and then deploys SSR on Lambda, static assets on S3, and a CloudFront CDN for the app.
+
+## Build and dev
+
+A Stacktape Remix resource runs the Remix build from `appDirectory`, and `buildCommand` lets teams replace the default `remix vite:build` command when their repository has a custom script. Dev mode also has an override surface: `dev.command` defaults to `remix vite:dev`, but can be changed when a package manager script is the canonical way to run the app locally.
+
+Use `buildCommand` when your Remix app needs a workspace-aware command such as `pnpm --filter web build` or when the app must run a prebuild step. Leave `buildCommand` unset when a normal Remix Vite build works from `appDirectory`; fewer custom commands make CI and local behavior easier to reason about.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RemixWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new RemixWeb({
+    appDirectory: './apps/web',
+    buildCommand: 'pnpm --filter web build',
+    dev: {
+      command: 'pnpm --filter web dev'
+    }
+  });
+
+  return { resources: { web } };
+});
+```
+
+
+`dev.command` only affects `stacktape dev`; it does not change the deployed build command. Use the local command override when your repository expects a package-manager script, a monorepo filter, or another wrapper around `remix vite:dev`.
+
+## Server Lambda
+
+A Stacktape Remix resource serves SSR through a Lambda function. `serverLambda` customizes that SSR function, including memory, timeout, VPC access, and logging.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RemixWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new RemixWeb({
+    appDirectory: './apps/web',
+    serverLambda: {
+      memory: 2048,
+      timeout: 30
+    }
+  });
+
+  return { resources: { web } };
+});
+```
+
+
+Increase `memory` when SSR is CPU-bound or the app initializes large dependencies. Lambda CPU scales proportionally with memory. Keep lower memory settings when pages render quickly and memory pressure is low. Use `serverLambda` VPC configuration when the SSR function must reach VPC-protected resources such as relational databases or Redis clusters. See the API reference for all available `serverLambda` properties.
+
+## Domains and firewall
+
+A Stacktape Remix resource can attach custom domains to the app's CDN and can associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a `web-app-firewall` resource whose `scope` must be `cdn`.
+
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account. Stacktape automatically creates a DNS record and provisions a free TLS certificate. `customCertificateArn` is intended for specific certificate requirements such as EV/OV certificates, while `disableDnsRecordCreation` is for teams that manage DNS records themselves.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RemixWeb, WebAppFirewall } from 'stacktape';
+
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'cdn'
+  });
+
+  const web = new RemixWeb({
+    appDirectory: './apps/web',
+    customDomains: [{ domainName: 'www.example.com' }],
+    useFirewall: 'firewall'
+  });
+
+  return { resources: { firewall, web } };
+});
+```
+
+
+Enable `useFirewall` when the public Remix app needs CDN-level WAF protection. Skip it for internal prototypes or early development stages where WAF rules would add configuration work before there is a clear threat model. Keep the scope precise: this property protects the Remix CDN path and requires a firewall with `scope: 'cdn'`.
+
+## Static files and CDN
+
+A Stacktape Remix resource uploads static assets to S3 and serves the app through CloudFront. `fileOptions` sets custom HTTP headers such as `Cache-Control` for static files matching a pattern, while `cdn` configures cache controls for SSR routes and specific path patterns.
+
+Leave both `fileOptions` and `cdn` unset first; Remix and Stacktape already split static assets and SSR responses through the CDN. Add `fileOptions` only when specific files need explicit cache or metadata headers that differ from the defaults. Use `cdn` when SSR route caching needs deliberate tuning by path. See the API reference for the full `fileOptions` and `cdn` property schemas.
+
+## Connecting resources
+
+`connectTo` gives the Remix SSR function access to other Stacktape resources and injects connection details as environment variables named `STP_[RESOURCE_NAME]_[PARAM]`. Use `connectTo` for resources such as relational databases, buckets, SQS queues, SNS topics, and auth pools; use `iamRoleStatements` only for AWS permissions that are not covered by the resource connection model.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RemixWeb, RelationalDatabase } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: 'postgres-16',
+    instanceClass: 'db.t4g.micro'
+  });
+
+  const web = new RemixWeb({
+    appDirectory: './apps/web',
+    connectTo: ['mainDatabase'],
+    serverLambda: {
+      joinDefaultVpc: true
+    }
+  });
+
+  return { resources: { mainDatabase, web } };
+});
+```
+
+
+With the resource name `mainDatabase`, the Remix app receives variables such as `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`. When connecting to VPC-protected resources like databases or Redis, configure `serverLambda` VPC settings so the SSR function can reach them. For the full connection model and injected variables by resource type, see [connecting resources](/configuration/connecting-resources).
+
+## Environment variables
+
+A Stacktape Remix resource can set explicit `environment` variables for the SSR function. Environment variables are injected into the SSR Lambda only — they are not available in the CDN layer or static assets. Use these for application configuration, feature flags, public service URLs needed by server code, and values produced by directives such as `$ResourceParam()` or `$Secret()`.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RemixWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new RemixWeb({
+    appDirectory: './apps/web',
+    environment: [
+      { name: 'APP_ENV', value: 'production' },
+      { name: 'API_KEY', value: "$Secret('my-api-key')" }
+    ]
+  });
+
+  return { resources: { web } };
+});
+```
+
+
+Prefer `connectTo` for Stacktape-managed resources because it also handles permissions and, where needed, network access. Use explicit `environment` entries for values that are not resource connections. For sensitive values, reference secrets through the [secrets](/configuration/secrets) and [directives](/configuration/directives) flow instead of hard-coding credentials in config.
+
+## Logging
+
+The Remix server Lambda sends logs to CloudWatch. Use `serverLambda.logging` when you need to adjust SSR Lambda logging behavior; SSR runtime errors, loader failures, and runtime exceptions are diagnosed through CloudWatch logs. For Stacktape log viewing, use [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview).
+
+Leave the default logging configuration in place for most deployed Remix apps. Adjust `serverLambda.logging` only when retention, cost, or compliance requirements justify changing the defaults. See the API reference for available logging options.
+
+## FAQ
+
+### What does Stacktape create for a Remix app?
+
+A Stacktape Remix resource deploys SSR on Lambda, static assets on S3, and a CloudFront CDN. The internal resource structure includes a nested bucket and a server Lambda function. See the [resources overview](/configuration/resources) for how Stacktape resources map to AWS.
+
+### Where should `appDirectory` point?
+
+`appDirectory` should point to the directory containing `vite.config.ts` (or `remix.config.js`). The default is `"."` (repository root). In a monorepo, that usually means the Remix workspace rather than the root. The basic example on this page uses `./apps/web` to make that monorepo shape explicit.
+
+### Can I use a custom domain with Remix?
+
+Yes. Configure `customDomains` on the Remix resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape can create the DNS record and manage the TLS certificate unless you provide `customCertificateArn` or set `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+
+### Can I protect a Remix app with AWS WAF?
+
+Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource whose `scope` is `cdn`. This protects the CDN path for the Remix app; it is separate from load-balancer firewall attachment paths used by compute resources.
+
+### Does the Remix resource support response streaming or edge Lambda?
+
+No. Unlike the [Next.js resource](/resources/frontend/nextjs), the Remix resource does not expose `useEdgeLambda` or `streamingEnabled` properties. SSR runs on a regional Lambda function behind CloudFront. If you need streaming responses, consider deploying Remix as a container using a [web-service](/resources/compute/web-service) with a custom server entry.
+
+### How do I run database migrations with Remix on Stacktape?
+
+Use [deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks). Define an `afterDeploy` hook that runs a migration script with `connectTo` pointing at your database. Stacktape injects connection environment variables automatically. Use the Remix resource's `connectTo` configuration for database access, and configure `serverLambda` VPC settings if your database is VPC-protected.
+
+### How does CloudFront caching work for Remix apps on Stacktape?
+
+Stacktape stores static assets on S3 and serves the entire app through CloudFront. Use `fileOptions` to set custom headers on uploaded static files matching a pattern, and `cdn` to configure cache controls for SSR routes and specific path patterns. See the API reference for the full `cdn` property schema.
+
+### How much does hosting Remix on Lambda and CloudFront cost?
+
+AWS bills the underlying services separately: Lambda invocations and duration for SSR, S3 storage and requests for static assets, and CloudFront data transfer and requests for CDN traffic. Lambda has a generous free tier (1 million requests and 400,000 GB-seconds per month). Use [cost dashboards](/managing-costs/dashboards) after deployment to inspect real spend by stack.
+
+### When should I use static hosting instead of the Remix resource?
+
+Use [static hosting](/resources/frontend/static-hosting) when the site can be built into static files and does not need SSR, loaders, actions, or server-side data fetching. Use the Remix resource when runtime Remix behavior — loaders, actions, server rendering — is part of the product. Static hosting is simpler and has fewer moving parts.
+
+### When should I use a web service instead of the Remix resource?
+
+Use a [web-service](/resources/compute/web-service) when you want to run a custom HTTP server in a container, control the server process directly, need response streaming, or want persistent connections. Use the Remix resource when the deployment unit is a standard Remix Vite app and you want Stacktape to manage SSR, static assets, and CDN routing automatically.
+
+## API Reference
+
+
+## API Reference: `RemixWebProps`
+```typescript
+import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
+
+type RemixWebProps = {
+  /** Directory containing your vite.config.ts (or remix.config.js). For monorepos, point to the Remix workspace. */
+  appDirectory?: string;
+  /** Override the default remix vite:build command. */
+  buildCommand?: string;
+  /** CDN cache controls for SSR routes and specific path patterns. */
+  cdn?: SsrWebCdnConfig;
+  /** Give this resource access to other resources in your stack. */
+  connectTo?: Array<string>;
+  /** Attach custom domains with auto-managed DNS records and TLS certificates. */
+  customDomains?: Array<DomainConfiguration>;
+  /** Dev server config for stacktape dev. Defaults to remix vite:dev. */
+  dev?: SsrWebDevConfig;
+  /** Environment variables for the SSR function. Use $ResourceParam() or $Secret() for dynamic values. */
+  environment?: Array<EnvironmentVar>;
+  /** Set custom headers (e.g., Cache-Control) for static files matching a pattern. */
+  fileOptions?: Array<DirectoryUploadFilter>;
+  /** Raw IAM policy statements for permissions not covered by connectTo. */
+  iamRoleStatements?: Array<StpIamRoleStatement>;
+  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
+  serverLambda?: SsrWebServerLambdaConfig;
+  /** Name of a web-app-firewall resource to protect this app. Firewall scope must be cdn. */
+  useFirewall?: string;
+};
+```
+
+| Property | Required | Type | Description | Default |
+| --- | --- | --- | --- | --- |
+| `appDirectory` | no | `string` | Directory containing your `vite.config.ts` (or `remix.config.js`). For monorepos, point to the Remix workspace. | `.` |
+| `buildCommand` | no | `string` | Override the default `remix vite:build` command. | - |
+| `cdn` | no | `SsrWebCdnConfig` | CDN cache controls for SSR routes and specific path patterns. | - |
+| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
+
+**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
+**Opens network access** (security group rules for databases, Redis)
+**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
+
+Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
+resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
+| `customDomains` | no | `Array<DomainConfiguration>` | Attach custom domains with auto-managed DNS records and TLS certificates. **Prerequisite:** A Route 53 hosted zone for your domain must exist in your AWS account. | - |
+| `dev` | no | `SsrWebDevConfig` | Dev server config for `stacktape dev`. Defaults to `remix vite:dev`. | - |
+| `environment` | no | `Array<EnvironmentVar>` | Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. | - |
+| `fileOptions` | no | `Array<DirectoryUploadFilter>` | Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
+accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
+| `serverLambda` | no | `SsrWebServerLambdaConfig` | Customize the SSR Lambda function (memory, timeout, VPC, logging). | - |
+| `useFirewall` | no | `string` | Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. | - |
+
+
+## Referenceable parameters
+
+
+## Referenceable Parameters: `remix-web`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+
+| Parameter | Description | Usage |
+| --- | --- | --- |
+| `url` | Website URL | `$ResourceParam("<<resource-name>>", "url")` |

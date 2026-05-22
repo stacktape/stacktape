@@ -2,7 +2,7 @@
   "pageId": "packaging__function__custom-artifact",
   "pageRoute": "packaging/function/custom-artifact",
   "startedAt": "2026-05-17T13:39:59.841Z",
-  "updatedAt": "2026-05-17T13:47:43.367Z",
+  "updatedAt": "2026-05-22T01:41:30.340Z",
   "iterations": [
     {
       "iteration": 1,
@@ -726,6 +726,167 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/packaging__function__custom-artifact/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 9,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, self-contained opening paragraph that explicitly scopes the page to LambdaFunction resources — satisfies the section instruction requirement.",
+            "Opinionated 'When to use' / 'When NOT to use' pair with concrete, non-circular scenarios (Rust, Cargo Lambda, Bazel, migrating existing projects).",
+            "The packagePath input-type table (zip / directory / non-zip file) is exactly the right format for a 3-row decision: scannable, complete, no prose waste.",
+            "Comparison table between Custom Artifact and Stacktape Buildpack is the most decision-useful element on the page — likely to be the first thing a reader scans after the intro.",
+            "Multiple realistic working code examples using correct <CodeBlock intellisense> format throughout; no forbidden YAML or fenced TypeScript Stacktape config violations.",
+            "FAQ spans all three required categories: Stacktape-specific (handler format, directory support), AWS-service (Lambda size limits), and comparison/choosing (custom artifact vs buildpack, container workloads). Nine entries.",
+            "ApiReference uses the correct definitionName 'CustomArtifactLambdaPackagingProps' matching the interface in the source types file."
+          ],
+          "problems": [
+            "'Using with a custom build step' is a thin standalone H2 — two bash blocks and two sentences of prose. It adds marginal value over the opening 'When to use' section and doesn't justify a top-level heading. The core insight ('run your build before stacktape deploy') is obvious and already implied by 'When to use'.",
+            "'Directory packaging example' as a top-level H2 is partially redundant: the handler sub-section already shows packagePath pointing at a directory ('./build/output'). The Python slant adds some value but not enough to warrant a separate H2 when it could live as a note inside the packagePath sub-section.",
+            "The handler section states 'The handler property is optional' as a mid-paragraph aside, but does not explain what happens when it is omitted — does Lambda use a runtime default? Does Stacktape derive one? A reader migrating an existing function will want this answer before they skip the field.",
+            "The CI workflow prose says 'make sure the build runs before stacktape deploy' — this is already self-evident and the sentence carries no new information. The section would benefit from at least one real gotcha (e.g. ensuring the artifact targets the correct CPU architecture: x86_64 vs arm64 when using Graviton)."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fold 'Directory packaging example' into the packagePath configuration sub-section as a callout or brief paragraph ('When your build outputs a directory — common with Python virtualenvs or vendored Node.js — point packagePath at the directory root; Stacktape zips it preserving the internal structure'). Remove the standalone H2.",
+            "Replace 'Using with a custom build step' with a single callout or one paragraph inside the basic example section: 'Run your build tool before stacktape deploy. Stacktape reads whatever is at packagePath at deploy time.' The two-bash-block presentation adds length without adding knowledge.",
+            "In the handler sub-section, add one sentence explaining the default behavior when handler is omitted — e.g. 'When omitted, the Lambda runtime's default handler applies; for most runtimes this means Stacktape does not set the Handler field and you must ensure the Lambda runtime can locate the entry point via its own convention.' If the source is silent, say so explicitly rather than leaving the omission implicit.",
+            "Add an architecture/CPU note to the 'When to use' section or a FAQ entry: pre-built binaries for Rust, C++, or Go must be compiled for the Lambda execution architecture (x86_64 by default, arm64 if the function uses Graviton). This is the single most common gotcha when bringing a custom artifact and it is not mentioned anywhere on the page.",
+            "The FAQ entry 'What handler format should I use for a TypeScript Lambda compiled to JavaScript?' could close with a one-sentence cross-reference: 'If you want Stacktape to handle the compile and bundle step, the buildpack eliminates this concern entirely.' This reinforces the decision already made in When NOT to use without repeating it verbatim."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 9,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Zero mandatory style violations: all Stacktape config examples use <CodeBlock intellisense> with TypeScript class-based defineConfig, no fenced YAML, no StacktapeConfig type.",
+            "Source-grounded throughout — only the two properties that actually exist (packagePath, handler) are documented. No invented options.",
+            "Comparison table with Stacktape buildpack gives the reader a concrete decision framework rather than forcing them to read both pages and compare manually.",
+            "Handler syntax explained concretely with per-language examples in FAQ (Node.js, Python, Go, Java, TypeScript-compiled-to-JS) — exactly the questions readers hit after writing their first custom artifact.",
+            "Directory auto-zipping behavior is documented at both the prose level and the table level, eliminating a common confusion point.",
+            "FAQ spans all three required categories: Stacktape-specific (handler format, directory support), AWS use-case (max package size, debugging), and comparison (buildpack vs custom artifact). Nine entries, all distinct and useful.",
+            "Shell CI example correctly splits two commands into two separate fenced blocks — the copy-button trap is avoided.",
+            "ApiReference definitionName matches the source type name exactly: CustomArtifactLambdaPackagingProps.",
+            "Opening paragraph is self-contained and under 75 words, suitable for AI engine extraction."
+          ],
+          "problems": [
+            "The 'Directory packaging example' section is partially redundant: the packagePath table directly above already documents directory behavior ('A directory → Automatically zipped before deployment'), and the example code is structurally identical to the handler example that precedes it. The added prose about zip-root structure is the only net-new content.",
+            "The <Info> callout at the end of the comparison table ('Both packaging modes produce a Lambda deployment package. The difference is who builds the artifact — you or Stacktape.') restates the table header and adds no information not already clear from the table itself."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Fold the 'Directory packaging example' section into the packagePath configuration section or remove it. Keep the one sentence about zip-root structure preservation ('The resulting zip preserves the directory's internal structure') but drop the redundant code block.",
+            "Remove or shorten the <Info> callout after the comparison table — the table already communicates this.",
+            "In the FAQ answer about Lambda size limits, change 'AWS Lambda accepts deployment packages up to 50 MB zipped...' to 'AWS enforces a 50 MB zipped / 250 MB unzipped limit on Lambda packages...' to frame it clearly as an AWS constraint rather than a Stacktape behavior.",
+            "Consider adding a one-line note in the 'Using with a custom build step' section about the common mistake of running stacktape deploy before the build completes in CI (e.g. missing the build job as a dependency) — this is a real footgun for teams adapting existing pipelines."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and correctly scopes custom artifact packaging to LambdaFunction resources.",
+            "Stacktape config examples use <CodeBlock intellisense> with the required TypeScript tab and class-based defineConfig style.",
+            "The page clearly explains the core source-grounded behavior: packagePath is required, directories and non-zip files are zipped, and handler uses filepath:functionName syntax.",
+            "The comparison table with Stacktape buildpack is useful and mostly grounded in the provided source."
+          ],
+          "problems": [
+            "Several claims are not grounded in the provided source file, especially toolchain examples such as Bazel, Cargo Lambda, Rust, C++, Zig, custom runtimes, Python virtualenvs, and CI workflow claims.",
+            "The FAQ answer about language-specific handlers goes beyond the source and likely misstates Java handler syntax relative to the documented filepath:functionName format.",
+            "The FAQ includes AWS Lambda package-size and container-image-size limits that are useful background, but they are not grounded in the provided Stacktape source and should be framed explicitly as AWS Lambda limits, not Stacktape behavior.",
+            "The H2 section openings are often too short for AEO extraction. Sections like “When to use,” “Basic example,” and “Configuration” do not start with 40-75 word self-contained paragraphs.",
+            "Tunable values in examples such as memory: 512, timeout: 60, memory: 256, and timeout: 30 are not explained in surrounding prose and are not sourced by this page’s provided type file.",
+            "The container packaging FAQ enumerates container packaging modes and workload types from the broader source file, but links only to custom Dockerfile and does not provide enough context for choosing among them."
+          ],
+          "mandatoryFixes": [
+            "Replace or qualify unsupported toolchain/language examples with narrower wording grounded in the source, such as “custom build processes” and “need full control over packaging,” unless additional source files are provided.",
+            "Fix the language-specific handler FAQ so it only states the source-grounded handler format, `{{filepath}}:{{functionName}}`, and avoids unsupported Java/Go/custom-runtime guidance.",
+            "Explain or remove the `memory` and `timeout` values from code examples because those tunables are not defined in the provided packaging source. If kept, link them to the LambdaFunction resource rather than implying they are custom-artifact packaging settings.",
+            "Rewrite each H2 opening paragraph to be self-contained and extractable, naming “custom artifact packaging” or “CustomArtifactLambdaPackaging” explicitly instead of relying on short lead-ins."
+          ],
+          "optionalImprovements": [
+            "Add a short “Packaging modes” note near the comparison table that names the two Lambda packaging variants visible in source: Stacktape Lambda buildpack and custom artifact.",
+            "Tighten the FAQ by reducing unsupported AWS/runtime detail and focusing on questions directly answerable from CustomArtifactLambdaPackagingProps.",
+            "Add one sentence after the basic example explaining that `packagePath` can point to a zip, directory, or non-zip file, so the first example is one valid input shape rather than the only shape.",
+            "Consider adding a short “What Stacktape does not build” section to make the tradeoff explicit: custom artifact packaging reads an artifact at deploy time and does not run your build tool."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly source-grounded for the custom-artifact packaging surface: `packagePath` is required, `handler` is optional, non-zip inputs are zipped, the page uses the correct CodeBlock pattern, and links stay within the navigation index. I found two Stacktape-specific claims that should be narrowed because the provided source does not establish those exact behaviors.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The resulting zip preserves the directory's internal structure, so `handler: 'app.py:handler'` resolves to the `handler` function in `app.py` at the zip root.”",
+              "reason": "The source only says Stacktape automatically zips a directory or non-zip file. It does not specify whether the directory contents are zipped at the root, whether the containing directory is included, or how handler paths resolve after zipping. This matters because readers may structure their build output based on this claim.",
+              "suggestedFix": "Narrow the wording to: “Stacktape zips the directory before deployment. Make sure the file referenced by `handler` is located at the expected path inside the package.” Avoid claiming root-preserving behavior unless runtime packaging code is provided as source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "If the path points to a directory or a non-zip file, Stacktape will automatically zip it for you."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For Go, compiled binaries using custom runtimes typically use `bootstrap` as the handler value.”",
+              "reason": "The provided Stacktape type documentation defines the custom artifact `handler` syntax as `{{filepath}}:{{functionName}}`. The draft’s `bootstrap` example does not follow that documented syntax and no provided source establishes a custom-runtime exception for Stacktape.",
+              "suggestedFix": "Remove the Go `bootstrap` handler example or rewrite the FAQ to stay within the sourced syntax: “Set `handler` using `filepath:functionName`, and follow the AWS Lambda runtime’s handler requirements for the artifact you provide.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "The syntax is `{{filepath}}:{{functionName}}`."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly documents `packagePath` as required and `handler` as optional, matching `CustomArtifactLambdaPackagingProps`.",
+            "The page correctly states that directories and non-zip files are automatically zipped, matching the source JSDoc.",
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and do not hand-author YAML.",
+            "`<ApiReference definitionName=\"CustomArtifactLambdaPackagingProps\" />` matches the provided type name.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -738,8 +899,14 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\packaging\\function\\custom-artifact.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.1, hard blockers 1, advisory high 0, verifier medium 8"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/packaging/function/custom-artifact.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T01:41:30.340Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/packaging/function/custom-artifact.md": "5242abe197150b735561bcce3c2919b3bf8cb108"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

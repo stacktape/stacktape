@@ -2,7 +2,7 @@
   "pageId": "resources__databases__mongodb-atlas",
   "pageRoute": "resources/databases/mongodb-atlas",
   "startedAt": "2026-05-17T12:06:18.233Z",
-  "updatedAt": "2026-05-17T12:31:08.414Z",
+  "updatedAt": "2026-05-21T19:41:34.823Z",
   "iterations": [
     {
       "iteration": 1,
@@ -893,6 +893,419 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__databases__mongodb-atlas/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript — no forbidden YAML or plain-object patterns anywhere on the page",
+            "Strong 'When to use' / 'When NOT to use' decision support with concrete alternatives (relational DB, DynamoDB) and honest caveats about setup overhead",
+            "All cluster tier variants (shared M2/M5, dedicated M10+, Low-CPU, NVMe) are explicitly called out — no single-variant tunnel vision",
+            "FeatureComparisonTable provides an at-a-glance breakdown of shared vs dedicated capabilities with cost anchors ($9/month, $57/month)",
+            "Technical accuracy is high throughout — property names, defaults, and constraints match the source types exactly (e.g., numElectableNodes: 3|5|7, PITR requires enableBackups + M10+, auto-scaling thresholds)",
+            "Admin credentials section cleanly distinguishes local/tool access from application access via connectTo — a common confusion point removed proactively",
+            "connectTo section includes a realistic MongoDB driver code snippet so a first-time user knows exactly how to consume the injected env var",
+            "Comprehensive FAQ with 10 entries covering all three required category types: Stacktape-specific, AWS use-case, and comparison/choosing questions"
+          ],
+          "problems": [
+            "Provider configuration section is fatally thin for a first-time user: it says 'configure your Atlas API credentials in providerConfig.mongoDbAtlas' but gives zero guidance on what fields that object requires (API public key, private key, project ID, etc.). It then redirects to the API Reference, which covers MongoDbAtlasClusterProps only — not MongoDbAtlasProvider. A new user hitting this section cannot proceed to deploy.",
+            "The Warning 'Shared tiers (M2/M5) cannot use vpc or scoping-workloads-in-vpc access modes' is not grounded in the provided source files. The MongoDbAtlasAccessibility interface has no tier restrictions documented. Stating this as a hard constraint without source backing risks a source-grounding publication block.",
+            "The claim 'For Lambda functions, this means setting joinDefaultVpc: true on the function' in the Networking section is not present in the provided source files. It may be accurate, but it is asserted without grounding.",
+            "<FeatureComparisonTable> is not listed as a standard MDX component in the style guide or the reviewer surface. Its prop API (columns array, features array with nested values object) may not match what the docs system actually renders."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Expand the Provider configuration section with the actual fields of MongoDbAtlasProvider (publicApiKey, privateApiKey, orgId or projectId) so a first-time user can complete setup without leaving the page. If those fields are documented on a dedicated provider-config page, link to it explicitly ('See Provider configuration for Atlas API key setup') instead of pointing to the resource API Reference which doesn't cover it.",
+            "Either remove the shared-tier VPC restriction Warning or qualify it as 'a MongoDB Atlas platform limitation — see the Atlas documentation' rather than a Stacktape source-grounded constraint. Same for the joinDefaultVpc: true Lambda claim — either source it or soften to 'Lambda functions need VPC access to reach the cluster; see the Lambda function docs for VPC configuration'.",
+            "If FeatureComparisonTable is not a confirmed docs-system component, replace it with a standard markdown table to guarantee it renders correctly in production.",
+            "Add a code example showing a VPC or scoping-workloads-in-vpc accessibility configuration — the Networking section is the only major section without a config example, which breaks the consistent example-per-section pattern the rest of the page establishes.",
+            "Consider adding a brief sentence in the Replication section noting that each read-only and analytics node is a separate Atlas instance that adds to cluster cost, since this is a non-obvious tradeoff a production user would care about."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comprehensive cluster tier coverage with a FeatureComparisonTable that clearly separates shared vs dedicated capabilities — a production engineer can make a tier decision without leaving the page.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with defineConfig and class-based resources. No YAML config blocks or StacktapeConfig type patterns appear.",
+            "Decision support is strong in nearly every section: when to enable auto-scaling, when to add read-only nodes, when sharding is and isn't needed — each section lands with an opinion.",
+            "FAQ mixes all three required categories (Stacktape-specific, AWS/Atlas behavior, comparison questions) with 10 substantive Q&As, none of which are padded.",
+            "Env var naming is correct and consistent: resource named mainDb → STP_MAIN_DB_CONNECTION_STRING matches the STP_[RESOURCE_NAME]_[PARAM] pattern.",
+            "Pricing numbers ($9/month M2, $57/month M10) are sourced directly from the JSDoc and accurately reflected in the intro and FAQ.",
+            "Auto-scaling thresholds (75% up / 50% down) and disk expansion trigger (90%) are sourced from the type JSDoc and included verbatim — exactly what production engineers need.",
+            "Admin credentials section correctly distinguishes direct-access credentials from application connectTo access, preventing a common misconfiguration."
+          ],
+          "problems": [
+            "CRITICAL CONTENT GAP — Networking section: The MongoDbAtlasAccessibility type (accessibilityMode, whitelistedIps) is defined in the source file but does NOT appear as a property on MongoDbAtlasClusterProps. The page describes 4 VPC access modes in a detailed table but provides no code example and the actual config path is ambiguous. The opening of the Provider Configuration section says 'provider config controls network accessibility', but the Networking section then treats it as if it's cluster-level. A production engineer trying to configure VPC-only access has no actionable path from this page.",
+            "Networking section: The claim 'Shared tiers (M2/M5) cannot use vpc or scoping-workloads-in-vpc access modes' is not stated anywhere in the provided source type definitions. MongoDbAtlasAccessibility has no tier restriction in the types. This may be a real Atlas platform limitation, but it reads as a Stacktape-enforced constraint and is not grounded in the provided source.",
+            "Lambda joinDefaultVpc: true claim: 'For Lambda functions, this means setting joinDefaultVpc: true' — this property is not in the MongoDB Atlas source files. It may be accurate at the Lambda type level, but making this assertion in the networking section of a MongoDB Atlas page without sourcing from Lambda types is a precision gap that could mislead engineers who have non-Lambda workloads.",
+            "BI Connector section describes readPreference options and performance tradeoffs but contains no code example, while every other major feature section (scaling, replication, backups, sharding) provides a working example. Inconsistent depth."
+          ],
+          "mandatoryFixes": [
+            "Add a code example to the Networking section showing how to actually configure accessibilityMode (e.g., { accessibilityMode: 'vpc', whitelistedIps: ['...'] }). First verify and document the correct property path from MongoDbAtlasClusterProps or providerConfig.mongoDbAtlas — the source defines MongoDbAtlasAccessibility but does not attach it to MongoDbAtlasClusterProps, so the current prose is unactionable. If accessibility is a provider-level setting, the code example should reflect that; if it's per-cluster, show it in the cluster definition.",
+            "Remove or source-ground the shared-tier VPC restriction. The text 'Shared tiers (M2/M5) cannot use vpc or scoping-workloads-in-vpc access modes' is not grounded in the provided MongoDbAtlasAccessibility type or any other provided source. Either remove the Warning callout or rephrase to attribute this to MongoDB Atlas platform behavior ('MongoDB Atlas does not support VPC peering for M2/M5 clusters') rather than Stacktape's type constraints.",
+            "Add a code example to the BI Connector section. At minimum show biConnector: { enabled: true, readPreference: 'analytics' } inside a full defineConfig block. Every other opt-in feature section on this page has an example; omitting one here is inconsistent and leaves the BI Connector section as configure-without-guidance."
+          ],
+          "optionalImprovements": [
+            "Clarify the Provider Configuration section: currently it says the provider config 'controls network accessibility' but the Networking section then describes modes as if they're cluster-level properties. One sentence explicitly stating whether accessibilityMode is on the cluster resource or in providerConfig.mongoDbAtlas would resolve this ambiguity.",
+            "Note the autoScaling bounds differ slightly from clusterTier: M400 (plain) is a valid clusterTier but does not appear in minClusterTier/maxClusterTier (only M400 Low-CPU and M400_NVME do). Engineers setting up auto-scaling on M400 should know the bounds list is not a 1-to-1 match.",
+            "The Provider Configuration section currently has no code example and no drill-down to show what mongoDbAtlas provider credentials look like. Even a one-line snippet referencing $Secret() for API credentials would match the level of detail in every other section.",
+            "The Lambda joinDefaultVpc: true claim in the Networking section should either be removed or linked directly to the Lambda function page where it can be verified — asserting a Lambda-specific config detail in a MongoDB Atlas page without a source reference creates a maintenance risk if that behavior changes."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and includes source-backed pricing context for M2 and M10 tiers.",
+            "The page uses TypeScript class-based Stacktape config examples inside <CodeBlock intellisense tabs={[...]}/> and avoids forbidden hand-authored Stacktape YAML.",
+            "Sections are mostly short, scannable, and mapped to real user concerns: tiers, scaling, replication, backups, networking, sharding, BI Connector, and connection strings.",
+            "The cluster tier comparison table is useful and citation-friendly, and the FAQ covers Stacktape-specific, AWS/service-adjacent, and choosing/comparison questions."
+          ],
+          "problems": [
+            "Several technical claims go beyond the provided source files. Examples: MongoDB Atlas API credential shape, BI tools such as Tableau/Power BI/Excel, MongoDB Compass/mongosh usage, rich queries/text search/geospatial comparisons, event logs/analytics use cases, and 'current stable release' for MongoDB 7.0 are not grounded in the supplied types.",
+            "The provider configuration section says credentials should be configured in providerConfig.mongoDbAtlas but does not show a copyable config example. That leaves a critical setup step vague, especially because MongoDB Atlas is the only database page here that requires providerConfig.",
+            "The draft claims the API Reference has the full list of provider configuration fields, but <ApiReference definitionName=\"MongoDbAtlasClusterProps\" /> will only document MongoDbAtlasClusterProps, not root providerConfig.mongoDbAtlas fields.",
+            "The page says Stacktape grants a consuming workload 'temporary credential-less access' and injects the connection string. That phrase is source-backed for connectTo, but the page should avoid implying all local/admin/client access is credentialless; adminUserCredentials is explicitly separate.",
+            "Some feature availability wording is broader than the source. 'Custom replication is only available on dedicated tiers (M10+)' and 'dedicated tiers provide custom replication' are plausible from context but not directly stated in MongoDbReplication source comments.",
+            "The networking section introduces MongoDbAtlasAccessibility but does not show where providerConfig.mongoDbAtlas or accessibility is configured. Since accessibility is not nested under MongoDbAtlasClusterProps in the provided source, the page should be more cautious and avoid implying it is a cluster property.",
+            "Some specific recommendations are unsupported or overly precise, such as 'read-to-write ratio is high (10:1 or more)', 'M10 or M20 for small production workloads', and 'M30+ for production BI workloads'.",
+            "The examples set tunable values like version: '7.0', maxClusterTier: 'M40', numElectableNodes: 5, numReadOnlyNodes: 2, numAnalyticsNodes: 1, and numShards: 3. Most are partially explained, but maxClusterTier alternatives should note the supported auto-scaling tiers are a narrower M10+ union and not identical to the full clusterTier union."
+          ],
+          "mandatoryFixes": [
+            "Correct the Provider configuration section: do not claim <ApiReference definitionName=\"MongoDbAtlasClusterProps\" /> documents providerConfig.mongoDbAtlas fields. Either add a grounded root-config example if MongoDbAtlasProvider source is available, or state narrowly that providerConfig.mongoDbAtlas is required by the root StacktapeConfig source and link to the relevant provider configuration page.",
+            "Remove or qualify unsupported concrete claims that are not in the provided source files: MongoDB 7.0 as 'current stable release', BI tool examples, MongoDB Compass/mongosh examples, '10:1 or more', 'M10 or M20 for small production', 'M30+ for production BI workloads', and rich-query/text-search/geospatial comparisons unless supporting source is added.",
+            "Clarify networking placement. MongoDbAtlasAccessibility appears in the source, but not as a MongoDbAtlasClusterProps field in the provided files. Rewrite the section to say the provider/accessibility layer supports these modes only if the relevant provider config source confirms where the property is configured, or add the missing source.",
+            "Replace the unsupported statement that the API Reference contains provider configuration fields with a source-grounded statement about MongoDbAtlasClusterProps only.",
+            "Re-read every Stacktape <CodeBlock intellisense> after revisions to preserve defineConfig, class imports, TypeScript tab labels, and balanced focus markers."
+          ],
+          "optionalImprovements": [
+            "Add a small providerConfig example if the MongoDbAtlasProvider type source can be supplied; this would make the page much more actionable.",
+            "Add one sentence near Basic example explaining that M10 is chosen because it is the lowest dedicated tier shown in the source, while M2/M5 are shared lower-cost tiers.",
+            "Move the 'providerConfig required' warning closer to the opening or Basic example so readers do not copy the resource example and discover the missing prerequisite later.",
+            "Tighten the FAQ answers by linking to the relevant page at the end of more answers, especially connecting resources, relational database, DynamoDB, bastion host, and referenceable parameters.",
+            "Consider adding a short 'Security model' subsection that separates connectTo application access, adminUserCredentials direct access, whitelisted IPs, and VPC/scoped access without over-claiming implementation details."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly grounded in the MongoDB Atlas type definitions, especially for tier pricing, versions, backups, scaling thresholds, sharding, BI Connector, referenceable parameters, and connectTo env vars. The main publication risks are a few Stacktape-specific claims that go beyond the provided source, plus one stale MongoDB-version phrase.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"MongoDB Atlas requires a separate MongoDB Atlas account and API credentials configured in `providerConfig.mongoDbAtlas`\" and similar FAQ/provider-configuration wording that says Atlas API credentials are required.",
+              "reason": "The provided root config source says `providerConfig` contains credentials and settings for third-party services and is required when using `mongo-db-atlas-cluster`, but it does not state that a separate Atlas account is required or that the specific required fields are API credentials. This may be true in product behavior, but it is not grounded in the supplied source files.",
+              "suggestedFix": "Narrow the claim to the source-backed fact: \"MongoDB Atlas uses third-party provider configuration under `providerConfig.mongoDbAtlas`; configure the required MongoDB Atlas provider settings before deploying.\" Avoid stating \"separate account\" or \"API credentials\" unless the `MongoDbAtlasProvider` type is included.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Credentials and settings for 3rd-party services (MongoDB Atlas, Upstash)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Required only if you use `mongo-db-atlas-cluster` or `upstash-redis` resources in your stack."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"The provider configuration also controls network accessibility for your MongoDB Atlas clusters.\"",
+              "reason": "The source defines `MongoDbAtlasAccessibility`, but the supplied source does not show this interface as part of `providerConfig.mongoDbAtlas` or `MongoDbAtlasClusterProps`. The draft places networking under provider configuration without source support.",
+              "suggestedFix": "Avoid tying networking to provider configuration unless the `MongoDbAtlasProvider` type proves that relationship. Say cautiously: \"MongoDB Atlas accessibility supports the modes shown in Networking\" or move the wording to the Networking section without naming `providerConfig`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "interface MongoDbAtlasClusterProps {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "interface MongoDbAtlasAccessibility {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "stale-claim",
+              "statement": "\"The `version` property defaults to `\"7.0\"` — MongoDB's current stable release.\" Also FAQ: \"The default is 7.0, which is MongoDB's current stable release.\"",
+              "reason": "The Stacktape source supports the default and supported values, but it does not support the claim that MongoDB 7.0 is the current stable release. That phrase is time-sensitive and likely stale.",
+              "suggestedFix": "Write only the source-backed Stacktape fact: \"The `version` property defaults to `\"7.0\"`. Supported values are `5.0`, `6.0`, and `7.0`.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "#### MongoDB engine version.\n   * @default \"7.0\""
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "version?: '5.0' | '6.0' | '7.0';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"When using `vpc` or `scoping-workloads-in-vpc` mode, workloads that connect to the cluster must be able to reach the VPC. For Lambda functions, this means setting `joinDefaultVpc: true` on the function.\"",
+              "reason": "The provided MongoDB Atlas source documents the accessibility modes, but the supplied source files do not include a LambdaFunctionProps definition or a `joinDefaultVpc` property. The specific Lambda configuration requirement is not grounded in the provided source list.",
+              "suggestedFix": "Narrow to the source-backed access-mode behavior: \"In `vpc` mode, access is limited to resources in your VPC plus `whitelistedIps`; in `scoping-workloads-in-vpc`, access also requires security-group access via `connectTo`.\" Omit the Lambda `joinDefaultVpc` instruction unless Lambda source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "- **`vpc`**: Only from resources in your VPC + any `whitelistedIps`.\n   * - **`scoping-workloads-in-vpc`**: Like `vpc`, but also requires security-group access via `connectTo`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Tier-specific networking availability is enforced by Atlas and by Stacktape validation. Check your tier's supported access modes before relying on VPC-only access.\"",
+              "reason": "The supplied source documents access modes but does not state any tier-specific networking availability rules or Stacktape validation for those rules. The claim is weaker than the old draft's specific shared-tier warning, but still asserts validation behavior not shown in source.",
+              "suggestedFix": "Remove the validation sentence or replace it with a source-backed statement about the four access modes and `whitelistedIps` behavior. If tier-specific constraints need to be documented, include the validator source that enforces them.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "Network access mode.\n   *\n   * ---\n   *\n   * - **`internet`**: Accessible from anywhere (credentials still required).\n   * - **`vpc`**: Only from resources in your VPC + any `whitelistedIps`.\n   * - **`scoping-workloads-in-vpc`**: Like `vpc`, but also requires security-group access via `connectTo`.\n   * - **`whitelisted-ips-only`**: Only from IP addresses listed in `whitelistedIps`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"The `adminUserCredentials` property creates a named database user...\" and FAQ: \"Set `adminUserCredentials` with a username and password to create an admin user...\"",
+              "reason": "The source says `adminUserCredentials` is an admin user for direct database access and defines `userName` and `password`, but it does not explicitly say Stacktape creates the user. The likely behavior may be creation, but the supplied source only supports configuring credentials for direct access.",
+              "suggestedFix": "Use narrower wording: \"The `adminUserCredentials` property configures an admin user for direct database access...\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "Admin user for direct database access (e.g., from your local machine or admin tools)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "interface MongoDbAdminUserCredentials {\n  /**\n   * #### Name of the admin user\n   */\n  userName: string;\n  /**\n   * #### Password for the admin user\n   */\n  password: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Add read-only nodes when your read-to-write ratio is high (10:1 or more) and you're seeing latency on the primary.\"",
+              "reason": "The source supports read-only nodes for scaling read throughput, but the numeric 10:1 threshold is not present in the supplied source. Because it is a specific decision threshold, it should be sourced or softened.",
+              "suggestedFix": "Remove the numeric threshold: \"Add read-only nodes when reads dominate the workload and primary query latency shows that read traffic needs more capacity.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "Read-only replica nodes for scaling read throughput."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"This example omits `providerConfig.mongoDbAtlas` for brevity. Configure Atlas API credentials in the provider configuration section below.\"",
+              "reason": "The example almost certainly omits required provider configuration, but the supplied source does not expose the `MongoDbAtlasProvider` shape. The statement is directionally useful, but \"API credentials\" is more specific than the available source.",
+              "suggestedFix": "Change to: \"This example omits `providerConfig.mongoDbAtlas` for brevity. Configure the MongoDB Atlas provider settings before deploying.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` with `label: 'TypeScript'` for Stacktape config examples and avoids hand-authored YAML Stacktape configuration.",
+            "`<ApiReference definitionName=\"MongoDbAtlasClusterProps\" />` matches the resource props type from the supplied source.",
+            "The connectTo environment variable example `STP_MAIN_DB_CONNECTION_STRING` correctly follows the `STP_[RESOURCE_NAME]_[PARAM]` pattern for a resource named `mainDb`.",
+            "The pricing context near the top is grounded in the MongoDB Atlas cluster JSDoc: shared M2 at approximately $9/month and dedicated M10 at approximately $57/month.",
+            "The page correctly documents supported MongoDB versions, the `numShards` default, auto-scaling thresholds, disk scaling behavior, PITR requirement, and the single referenceable parameter `connectionString` from the provided types."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided MongoDB Atlas type definitions, especially around tiers, version support, backups, auto-scaling, connectTo, and referenceable parameters. I found several issues where the page overstates source-backed behavior or places configuration in a location not shown by the provided sources.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The provider configuration also controls network accessibility for your MongoDB Atlas clusters.”",
+              "reason": "The provided root config source only says `providerConfig` contains credentials and settings for third-party services. The MongoDB Atlas cluster props do not include an accessibility field, and the provided source does not show `MongoDbAtlasAccessibility` being attached to `providerConfig.mongoDbAtlas`. This placement may be correct in an omitted type, but it is not grounded in the provided source list.",
+              "suggestedFix": "Narrow the wording: “MongoDB Atlas network accessibility is represented by the `MongoDbAtlasAccessibility` type in the config schema. The exact placement is not shown in the provided cluster props; use the API reference/schema for the provider-level fields.” Or remove the claim that provider configuration controls networking unless the provider type source is supplied.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Credentials and settings for 3rd-party services (MongoDB Atlas, Upstash)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "interface MongoDbAtlasClusterProps {"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "“Refer to the [API Reference](#api-reference) for the full list of provider configuration fields and their types.”",
+              "reason": "The page’s API reference is `MongoDbAtlasClusterProps`, which documents cluster resource properties, not `providerConfig.mongoDbAtlas`. The provided `MongoDbAtlasClusterProps` fields do not include provider credentials or accessibility settings.",
+              "suggestedFix": "Remove this sentence or replace it with a cautious statement that the page’s API reference covers `MongoDbAtlasClusterProps`, not provider-level configuration.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "interface MongoDbAtlasClusterProps {"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "providerConfig?: {\n    mongoDbAtlas?: MongoDbAtlasProvider;\n    upstash?: UpstashProvider;\n  };"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape workloads connect to a MongoDB Atlas cluster through the connectTo mechanism” and the Lambda example with `connectTo: ['mainDb']`.",
+              "reason": "The source explicitly documents MongoDB Atlas `connectTo` variables for workloads, but the `StpResourceScopableByConnectTo` union shown in the provided helpers does not include `MongoDbAtlasCluster`. This may be handled elsewhere, but the provided type union creates ambiguity around whether workload `connectTo` accepts MongoDB Atlas clusters in this source set.",
+              "suggestedFix": "Keep the env-var claim because `ResourceAccessProps` lists MongoDB Atlas, but avoid over-explaining the access mechanism. For example: “For workload `connectTo`, the documented MongoDB Atlas injected variable is `STP_[RESOURCE_NAME]_CONNECTION_STRING`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type StpResourceScopableByConnectTo =\n  | StpResourceScopableByConnectToAffectingSecurityGroup\n  | StpResourceScopableByConnectToAffectingRole;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, every cluster runs 3 electable nodes — one primary and two secondaries. The primary handles all writes; if it fails, a secondary is automatically elected as the new primary.”",
+              "reason": "The Stacktape source supports the default of 3 electable nodes and that electable nodes can become primary. It does not state the primary/secondary topology or automatic election behavior. Those are general MongoDB facts, but the first sentence reads as Stacktape-specific behavior beyond the provided source.",
+              "suggestedFix": "Ground the Stacktape-specific part: “Stacktape’s replication config defaults to 3 electable nodes. In MongoDB replica sets, electable nodes participate in primary election, so this is the usual starting point for redundancy.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "Node count configuration: electable, read-only, and analytics nodes. Default: 3 electable nodes."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "Nodes that can become primary. More = better redundancy. Must be odd."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Custom replication is only available on dedicated tiers (M10+).”",
+              "reason": "The source says dedicated tiers have more features and that the `replication` property configures node counts, but it does not explicitly say the `replication` property is M10+ only. This may be true for Atlas, but the provided source does not attach that tier constraint to `replication`.",
+              "suggestedFix": "Use narrower wording: “Dedicated tiers are the documented tier family for advanced Atlas features. The `replication` property configures electable, read-only, and analytics node counts.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "Instance size. M2/M5 = shared (cheapest). M10+ = dedicated (more features, auto-scaling, backups)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "Node count configuration: electable, read-only, and analytics nodes. Default: 3 electable nodes."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The BI Connector is only available on dedicated tiers (M10+).”",
+              "reason": "The source documents that the BI Connector is CPU-intensive and may degrade M10/M20 performance, but it does not explicitly state that BI Connector is unavailable on shared tiers or only available on M10+.",
+              "suggestedFix": "Say: “The source calls out BI Connector performance concerns on M10 and M20; treat it as an advanced feature and avoid enabling it unless BI tooling requires SQL access.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "BI Connector for SQL-based access to MongoDB data. CPU-intensive — may degrade M10/M20 performance."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "Enable the BI Connector for SQL-based access."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The BI Connector provides SQL-based access to your MongoDB data, letting business intelligence tools like Tableau, Power BI, and Excel query your cluster using standard SQL.”",
+              "reason": "The source supports SQL-based access, but it does not name Tableau, Power BI, Excel, or “standard SQL.” Those product examples and the exact SQL compatibility phrasing are not grounded in the provided Stacktape sources.",
+              "suggestedFix": "Keep the grounded claim and remove named tools unless another source is provided: “The MongoDB Atlas BI Connector provides SQL-based access to MongoDB data for BI workflows.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/mongo-db-atlas-clusters.d.ts",
+                  "quote": "BI Connector for SQL-based access to MongoDB data. CPU-intensive — may degrade M10/M20 performance."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `version` property defaults to `\"7.0\"` — MongoDB's current stable release.” and FAQ repeats “7.0, which is MongoDB's current stable release.”",
+              "reason": "The Stacktape source supports the default `7.0` and the supported values, but “current stable release” is time-sensitive external MongoDB information and may be stale as of the page publication date.",
+              "suggestedFix": "Remove the time-sensitive phrase: “The `version` property defaults to `\"7.0\"`. Supported versions are `5.0`, `6.0`, and `7.0`.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `<CodeBlock intellisense>` for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "`<ApiReference definitionName=\"MongoDbAtlasClusterProps\" />` matches the resource props type name in the source.",
+            "The pricing context near the top is grounded in the MongoDB Atlas cluster JSDoc: M2 shared at approximately $9/month and M10 dedicated at approximately $57/month.",
+            "The referenceable parameter section is correctly limited to `connectionString`, matching `MongoDbAtlasClusterReferencableParam`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 17, col 17: Type '\"mainDb\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -908,5 +1321,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\databases\\mongodb-atlas.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.4, hard blockers 4, advisory high 0, verifier medium 9"
+  "pipelineReviewSummary": "reviewer-avg 7.4, hard blockers 4, advisory high 0, verifier medium 9",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

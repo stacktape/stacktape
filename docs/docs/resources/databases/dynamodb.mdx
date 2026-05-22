@@ -2,9 +2,9 @@
 title: 'DynamoDB'
 order: 46
 seoTitle: 'DynamoDB Table on AWS | Stacktape Docs'
-seoDescription: 'Deploy serverless DynamoDB tables on AWS with Stacktape. On-demand or provisioned capacity, secondary indexes, streams, auto-scaling, and zero-config local dev mode.'
+seoDescription: 'Deploy serverless DynamoDB tables on AWS with Stacktape. On-demand or provisioned capacity, secondary indexes, streams, auto-scaling, and local dev mode.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 8.0, hard blockers 2, advisory high 0, verifier medium 3'
+pipelineReviewSummary: 'reviewer-avg 8.3, hard blockers 2, advisory high 0, verifier medium 2'
 ---
 
 # DynamoDB
@@ -30,8 +30,8 @@ DynamoDB is a poor fit when you need relational queries, ad-hoc reporting, or fu
 |---|---|
 | Access patterns are known upfront | You need ad-hoc queries or JOINs |
 | Single-digit ms latency is critical | Query flexibility matters more than latency |
-| Traffic is spiky or unpredictable | You need ACID transactions across tables |
-| You want zero operational overhead | You need full-text search |
+| Traffic is spiky or unpredictable | You need full-text search |
+| You want zero operational overhead | You need complex aggregations or reporting |
 
 ## Basic example
 
@@ -169,7 +169,7 @@ The `readUnits` and `writeUnits` values set the initial (seed) capacity. Without
 
 ### Auto-scaling
 
-Add `readScaling` and `writeScaling` to let DynamoDB adjust capacity automatically between `minUnits` and `maxUnits`. The `keepUtilizationUnder` property sets the target utilization percentage — DynamoDB scales up when utilization exceeds this target and scales down when it drops. If not specified, the target defaults to 90%. Scale-in and scale-out cooldown periods are 60 seconds each.
+Add `readScaling` and `writeScaling` to let DynamoDB adjust capacity automatically between `minUnits` and `maxUnits`. The `keepUtilizationUnder` property is required when configuring scaling — it sets the target utilization percentage that DynamoDB uses to decide when to scale. DynamoDB scales up when utilization exceeds this target and scales down when it drops below. Setting a lower target (e.g., 70) gives more headroom before throttling; higher values maximize utilization but leave less margin for traffic spikes.
 
 For most provisioned-mode workloads, enable auto-scaling. Without it, a traffic spike throttles requests immediately.
 
@@ -220,7 +220,7 @@ export default defineConfig(() => {
   ]}
 />
 
-Each GSI has its own partition key and optional sort key. The `projections` array controls which additional attributes are copied into the index — only projected attributes are available when querying through the index. The table's primary key attributes are always projected automatically. When `projections` is omitted, only key attributes are stored in the index (`KEYS_ONLY` projection).
+Each GSI has its own partition key and optional sort key. The `projections` array lists additional attributes to copy into the index beyond the table's primary key, which is always projected automatically. Only projected attributes are available when querying through the index — if you need an attribute in query results, include it in `projections`.
 
 GSIs consume their own read/write capacity (or request units in on-demand mode) and add to storage costs because data is duplicated. Add indexes based on actual query needs rather than speculatively.
 
@@ -267,7 +267,7 @@ Once streams are enabled, you can set up a [DynamoDB stream trigger](/configurat
 
 ## Backups
 
-Enable `enablePointInTimeRecovery` for continuous backups that let you restore the table to any second within the last 35 days. Restores always create a new table — they do not overwrite the existing one.
+Enable `enablePointInTimeRecovery` for continuous backups that let you restore the table to any second within the last 35 days. Underneath, AWS DynamoDB creates continuous backups automatically — restores always create a new table rather than overwriting the existing one. This adds approximately 20% to storage costs.
 
 <CodeBlock
   intellisense
@@ -295,11 +295,11 @@ export default defineConfig(() => {
   ]}
 />
 
-Point-in-time recovery adds approximately 20% to storage costs. Enable it for production tables where data loss would be costly. For development or staging tables, skip it to save money.
+Enable point-in-time recovery for production tables where data loss would be costly. For development or staging tables, skip it to save money.
 
 ## Connecting to other resources
 
-Use [connectTo](/configuration/connecting-resources) to give compute resources (Lambda functions, container workloads, batch jobs) access to a DynamoDB table. Stacktape automatically grants IAM permissions for CRUD, scan, and query operations and injects environment variables with the table's connection details.
+Use [connectTo](/configuration/connecting-resources) to give compute resources ([Lambda functions](/resources/compute/lambda-function), [container workloads](/resources/compute/multi-container-workload), [batch jobs](/resources/compute/batch-job)) access to a DynamoDB table. For DynamoDB tables, `connectTo` grants CRUD plus scan/query access and injects environment variables with the table's connection details.
 
 <CodeBlock
   intellisense
@@ -333,8 +333,7 @@ export default defineConfig(() => {
     resources: { itemsTable, api }
   };
 });
-// [!code focus-end]
-`
+// [!code focus-end]`
     }
   ]}
 />
@@ -346,6 +345,8 @@ The `connectTo` injects these environment variables into the consuming workload:
 | `STP_ITEMS_TABLE_NAME` | The DynamoDB table name |
 | `STP_ITEMS_TABLE_ARN` | The table's ARN |
 | `STP_ITEMS_TABLE_STREAM_ARN` | The stream ARN (only if `streamType` is set) |
+
+For DynamoDB actions not covered by the documented CRUD plus scan/query set, add explicit [`iamRoleStatements`](/configuration/connecting-resources) to grant the additional permissions.
 
 Use `STP_ITEMS_TABLE_NAME` in your application code when creating a DynamoDB client:
 
@@ -375,9 +376,7 @@ You can also reference table parameters directly using the [`$ResourceParam` dir
 
 ## Dev mode
 
-During [`stacktape dev`](/local-development/dev-mode-overview), DynamoDB tables run locally in Docker using DynamoDB Local by default. The local emulator starts automatically, creates the table based on your configuration, and persists data across dev mode restarts in `.stacktape/dev-data/`.
-
-Set `dev.remote` to `true` to connect to the deployed AWS table instead of the local emulator — useful when you need to work with real data or when local emulation doesn't match production behavior closely enough. The table must be deployed first.
+During [`stacktape dev`](/local-development/dev-mode-overview), DynamoDB tables run locally in Docker by default. Set `dev.remote` to `true` to use the deployed AWS table instead of the local emulator — useful when you need to work with real data or when local emulation doesn't match production behavior closely enough. The table must be deployed first.
 
 <CodeBlock
   intellisense
@@ -435,7 +434,7 @@ No. The primary key (partition key and sort key) is immutable after table creati
 
 ### How do DynamoDB Streams work with Stacktape?
 
-Enable streams by setting `streamType` on your DynamoDB table, then configure a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) on a Lambda function. Stream records are processed in batches. Each record contains the change data (new image, old image, or both, depending on your `streamType`). The function must be idempotent because failed batches are retried in full.
+Enable streams by setting `streamType` on your DynamoDB table, then configure a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) on a Lambda function. Stream records are processed in batches. Each record contains the change data (new image, old image, or both, depending on your `streamType`). If you configure retry behavior with `maximumRetryAttempts`, the source notes that an error retries the entire batch, so handlers should be idempotent.
 
 ### What is the difference between on-demand and provisioned capacity?
 
@@ -447,15 +446,15 @@ Create a global secondary index (GSI) with the desired attribute as its partitio
 
 ### Does DynamoDB support transactions?
 
-AWS DynamoDB supports ACID transactions across multiple items within the same table or across tables, using `TransactWriteItems` and `TransactGetItems` operations. Transactions consume twice the normal read/write capacity. Stacktape grants full DynamoDB permissions through `connectTo`, so you can use transactions directly from the AWS SDK.
+AWS DynamoDB supports ACID transactions across multiple items within the same table or across tables, using `TransactWriteItems` and `TransactGetItems` operations. Transactions consume twice the normal read/write capacity. `connectTo` grants CRUD plus scan/query access. For DynamoDB actions not covered by that documented set, add explicit `iamRoleStatements`.
 
 ### How does the local DynamoDB emulator work in dev mode?
 
-When you run `stacktape dev`, DynamoDB Local starts automatically in Docker on port 8000. Stacktape creates your tables based on the configuration and persists data in `.stacktape/dev-data/`. The emulator supports most DynamoDB operations but may differ from production on some edge cases — set `dev.remote: true` to use the real deployed table when precise production parity matters.
+During `stacktape dev`, DynamoDB runs locally in Docker by default. This lets you develop and test without deploying to AWS. Set `dev.remote: true` to connect to the real deployed table instead — useful when you need precise production parity or access to real data. See [dev mode overview](/local-development/dev-mode-overview) for more details on local development.
 
 ### Can I use DynamoDB with container workloads?
 
-Yes. Add the DynamoDB table name to the `connectTo` list on any compute resource — [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), or [batch jobs](/resources/compute/batch-job). Stacktape injects the table name and ARN as environment variables and grants the necessary IAM permissions automatically.
+Yes. Add the DynamoDB table name to the `connectTo` list on any compute resource — [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), or [batch jobs](/resources/compute/batch-job). Stacktape injects the table name, ARN, and stream ARN as environment variables and grants the necessary IAM permissions automatically.
 
 ### What are the size and throughput limits of DynamoDB?
 

@@ -2,7 +2,7 @@
   "pageId": "configuration__triggers__alarms-as-triggers",
   "pageRoute": "configuration/triggers/alarms-as-triggers",
   "startedAt": "2026-05-17T11:36:41.286Z",
-  "updatedAt": "2026-05-17T11:53:29.551Z",
+  "updatedAt": "2026-05-22T03:26:30.804Z",
   "iterations": [
     {
       "iteration": 1,
@@ -825,6 +825,523 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__triggers__alarms-as-triggers/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clean 'When to use' / 'When NOT to use' peer H2 structure with concrete, decision-ready scenarios — not circular definitions.",
+            "Alarm types table is fully source-grounded against every union member in AlarmTrigger from alarms.d.ts, covering all five resource categories.",
+            "The input/inputPath/inputTransformer limitation is correctly identified from the commented-out code in AlarmIntegrationProps — a non-obvious source fact surfaced well.",
+            "CodeBlock is correctly formatted with defineConfig + class-based resources; imports are above the focus-start marker; no YAML tab.",
+            "Single ApiReference with definitionName='AlarmIntegrationProps' matching the source type exactly.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS-general CloudWatch evaluation behavior, alarm-vs-EventBridge comparison) with 8 well-varied questions.",
+            "Idempotency tip is non-obvious and practically important; correctly places it at the handler-code level where the reader can act on it.",
+            "Notification channel list (Slack, Teams, email, Discord, webhooks) is source-grounded against AlarmUserIntegration union."
+          ],
+          "problems": [
+            "First-time users are left with a gap: the page shows how to set alarmName but never shows even a minimal alarm definition. A reader who has not yet defined an alarm has no path forward without leaving the page. The 'Alarm naming' subsection links to /observability/alarms but provides no inline context on what the definition looks like, making the example non-runnable without prior knowledge.",
+            "The 'Supported alarm types' section lists alarm trigger type strings (e.g. 'lambda-error-rate') without explaining that these are the trigger.type values used when defining the alarm — not values that go in alarmName. A first-time reader may confuse the two concepts, thinking they need to put 'lambda-error-rate' in alarmName rather than giving the alarm a human name.",
+            "ApplicationLoadBalancerCustomTrigger appears in the AlarmTrigger union and is listed in the table as 'application-load-balancer-custom', but its interface definition is not present in the provided source — its type string is inferred, not confirmed. If this interface has a different type discriminant, the table row is wrong.",
+            "The event handler example shows event?.detail?.alarmName and event?.detail?.state?.value without source grounding for the exact CloudWatch alarm event shape delivered to Lambda. The page defers to AWS docs, which is correct, but the specific field paths shown could mislead if the delivery format differs from EventBridge state-change events (e.g. direct invocations)."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a minimal two-resource snippet (or at minimum a prose paragraph) showing an alarm definition alongside the alarm handler, so the first-time reader has a complete picture without leaving the page. Even a collapsed or abbreviated example of the alarms section would bridge the gap.",
+            "Add a clarifying sentence to the 'Supported alarm types' section explaining that these type strings go in the alarm's trigger.type definition, and the alarmName is the separate human-readable name you give the alarm — explicitly separating the two concepts.",
+            "Verify the 'application-load-balancer-custom' type string against the full ApplicationLoadBalancerCustomTrigger interface definition (not provided in this source set), or add a caveat that this type requires the full alarm definition to configure.",
+            "In the handler example, qualify the event field paths (event?.detail?.alarmName etc.) as matching the EventBridge CloudWatch Alarm State Change format, not a raw Lambda event format — this prevents confusion if readers encounter a different delivery path.",
+            "Consider adding a one-line prerequisite callout near the top of the Configuration section: 'This trigger requires an alarm already defined in the alarms section of your stack.' This sets expectations before the reader reaches the Alarm naming subsection.",
+            "The 'Limitations' section lists three constraints as bullets under a flat heading. For a first-time reader, 'Lambda functions only' is the most important — consider surfacing it in the opening paragraph or a brief note in Configuration rather than burying it in a terminal section."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Alarm type table is fully and accurately sourced from the `AlarmTrigger` union in `alarms.d.ts` — all 15 trigger types across 5 resource categories are correctly listed.",
+            "Correctly identifies that `input`, `inputPath`, and `inputTransformer` are unavailable on alarm triggers — sourced from the commented-out fields in `AlarmIntegrationProps` in `events.d.ts`.",
+            "Strong decision-support structure: 'When to use' and 'When NOT to use' are peer H2 sections, concrete scenarios are given, and the recommendation to skip the Lambda trigger when notifications suffice is opinionated and useful.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-service-use-case, and comparison/choosing questions) with substantive answers.",
+            "Code example uses correct class names (`LambdaFunction`, `StacktapeLambdaBuildpackPackaging`), correct event type (`cloudwatch-alarm`), and correct `alarmName` property — all verified against source.",
+            "Idempotency callout is a practical production warning; the at-least-once delivery behavior of the underlying infrastructure is a real gotcha.",
+            "Limitations section is specific and actionable — each limitation names what is restricted and why, rather than vague hedging."
+          ],
+          "problems": [
+            "The handler code example uses EventBridge-style field paths (`event?.detail?.alarmName`, `event?.detail?.state?.value`, `event?.detail?.state?.reason`). The source `alarms.d.ts` defines `AlarmNotificationEventRuleInput` with completely different field names (`stateValue`, `alarmAwsResourceName`, `alarmConfig`, `affectedResource`, etc.). The page does not reconcile these two shapes. It asserts 'the standard AWS CloudWatch Alarm State Change event structure' without source-backed confirmation that Stacktape's alarm trigger uses the raw EventBridge event rather than a wrapped payload. This is the most significant correctness risk on the page — a developer who copies the handler will parse fields that may not exist.",
+            "The disclaimer 'The exact field structure is defined by AWS — consult the AWS documentation' hedges but does not fix the core issue: the example handler accesses specific concrete field paths that may be wrong, while the source shows a different shape.",
+            "No mention of the `AlarmNotificationEventRuleInput` type that exists in the source. If this type IS the event payload for Lambda triggers, the handler example is incorrect. If it is only for notification webhooks, the page should make that distinction explicitly so the reader is not confused."
+          ],
+          "mandatoryFixes": [
+            "Fix the handler event payload section. The source defines `AlarmNotificationEventRuleInput` with fields `stateValue`, `alarmAwsResourceName`, `stackName`, `alarmConfig`, etc. — these do not match the `event.detail.alarmName` / `event.detail.state.value` paths shown in the example. Either (a) verify via the resolver/implementation source that the Lambda trigger receives the raw AWS EventBridge CloudWatch Alarm state change event (not the `AlarmNotificationEventRuleInput` shape), document that fact explicitly and keep the handler, or (b) update the handler to use the `AlarmNotificationEventRuleInput` field names (`event.stateValue`, `event.alarmAwsResourceName`, etc.) if that type is the actual Lambda event payload. Do not leave a concrete field-path example that conflicts with the only payload type defined in the source."
+          ],
+          "optionalImprovements": [
+            "Add a one-sentence clarification distinguishing `AlarmNotificationEventRuleInput` (used by Stacktape's built-in Slack/Teams/email/webhook notification system) from the event payload received by Lambda alarm triggers. Readers seeing that type in autocomplete or source will be confused if the page ignores it.",
+            "The `### Alarm naming` H3 under Configuration could be folded into the opening Configuration paragraph — it is a single fact (alarmName must match a name in the `alarms` section) that does not warrant its own subheading and adds unnecessary hierarchy depth.",
+            "Consider surfacing one concrete `AlarmEvaluation` snippet in the Supported Alarm Types section — the period/evaluationPeriods/breachedPeriods configuration is the only real tuning knob available on alarms and is omitted from all examples on this page. Even a one-line prose note ('tune `evaluation.evaluationPeriods` and `evaluation.breachedPeriods` to avoid false positives on short spikes') would materially help operators.",
+            "The FAQ answer for 'What happens if my Lambda function fails' says 'retries failed invocations according to its default retry policy' without naming what that policy is. For asynchronous Lambda invocations (which alarm triggers likely use), AWS retries twice. Naming the number would make the answer more useful without inventing facts."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page has a clear decision frame: use alarm triggers for code execution and notification targets for human alerting.",
+            "The Stacktape configuration example uses the required class-based `defineConfig` form inside `<CodeBlock intellisense>` with a `TypeScript` tab.",
+            "The `alarmName` explanation is grounded in `AlarmIntegrationProps`, and the supported alarm trigger table matches the visible alarm trigger union types.",
+            "The FAQ covers Stacktape-specific, AWS-use-case, and comparison questions instead of staying narrowly reference-only."
+          ],
+          "problems": [
+            "The opening paragraph is under the required 40-word minimum, which weakens answer-engine extractability despite being otherwise self-contained.",
+            "Several throughput, retry, and delivery claims are not grounded in the provided source. The source only defines `cloudwatch-alarm` with `alarmName`; it does not document retry behavior, duplicate delivery, invocation semantics, or EventBridge-style delivery details for alarm triggers.",
+            "The payload section claims the handler receives the standard AWS CloudWatch Alarm State Change event, but the provided Stacktape source does not specify the alarm-trigger payload shape. That may be true on AWS, but it is not grounded in the supplied source files.",
+            "The limitations section says external CloudWatch alarm ARNs, cross-stack alarms, and payload customization are not supported. `AlarmIntegrationProps` only exposes `alarmName` and comments out input fields, so these are plausible, but the page should phrase them as property-shape constraints rather than broad unsupported-feature claims where source is silent.",
+            "The configuration example references `api-error-rate`, but the page does not show the corresponding alarm definition. For a conceptual page this is acceptable, but it makes the example less copyable because `alarmName` must match an alarm in the `alarms` section.",
+            "The FAQ answer on cost states there is no separate per-event charge for alarm triggers and that Lambda invocation cost is negligible. Pricing is not present in the provided source, and the “negligible” claim is an unsupported value judgment.",
+            "The page does not clearly address batching/throughput from source. In this case the source exposes no batching knobs for alarm triggers, so the page should explicitly say alarm triggers do not expose batch-size or batch-window settings instead of discussing retries that are not sourced."
+          ],
+          "mandatoryFixes": [
+            "Revise unsupported delivery/retry language. Replace claims about default retries, duplicate delivery, and idempotency requirements with cautious wording grounded in the source, or explicitly frame idempotency as a general Lambda handler recommendation rather than documented Stacktape alarm-trigger behavior.",
+            "Revise the payload section to say the provided Stacktape type only configures `alarmName` and does not define a custom payload shape. If mentioning AWS CloudWatch Alarm State Change events, frame it as AWS background and avoid presenting exact Stacktape payload guarantees not present in source.",
+            "Rephrase the limitations as source-grounded property constraints: `AlarmIntegrationProps` exposes only `alarmName`, and `input`, `inputPath`, and `inputTransformer` are not available on this integration type. Avoid unsupported broad claims unless backed by source.",
+            "Expand the first paragraph to 40-75 words while keeping it answer-first and self-contained.",
+            "Remove or qualify the unsupported cost FAQ claim. Do not say there is no separate per-event charge or that invocation cost is negligible unless pricing or implementation source is provided.",
+            "Add a concise throughput/batching note grounded in the source: alarm triggers expose no `batchSize`, `maxBatchWindowSeconds`, or retry properties, unlike stream and queue integrations shown elsewhere in `events.d.ts`."
+          ],
+          "optionalImprovements": [
+            "Consider adding a tiny alarm-definition snippet or a prose mini-example that shows `alarmName` matching an alarm `name`, while still keeping the page conceptual.",
+            "Add one sentence near the example explaining that `cloudwatch-alarm` is a Lambda event integration type, and `properties.alarmName` is the only documented property for that integration.",
+            "Tighten FAQ wording where it drifts into broad AWS operations advice, especially claims about CloudWatch evaluation defaults and retry behavior.",
+            "Use “MS Teams” consistently with the source terminology instead of alternating with “Teams”."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided event and alarm type sources. The main risks are unsupported Stacktape-specific claims around delivery semantics, payload shape, and cross-stack/external alarm behavior where the source only documents an `alarmName` binding.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The event your handler receives is delivered through AWS EventBridge / CloudWatch and follows AWS's event shape” and the handler example assumes `event.detail.alarmName`, `event.detail.state.value`, and `event.detail.state.reason`.",
+              "reason": "The provided Stacktape source for `cloudwatch-alarm` only defines an `alarmName` property and does not document the delivery path or payload schema. The draft correctly notes that Stacktape does not define a custom schema, but it still asserts a specific AWS delivery mechanism and field paths as the expected handler input.",
+              "suggestedFix": "Narrow the wording: say the source only documents the trigger binding by `alarmName` and does not define a Stacktape-specific payload schema. If keeping the example, frame the field paths explicitly as an AWS CloudWatch Alarm State Change example rather than as guaranteed Stacktape behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegration {\n  type: 'cloudwatch-alarm';\n  properties: AlarmIntegrationProps;\n}\n\ninterface AlarmIntegrationProps {\n  /**\n   * #### The name of the alarm (defined in the `alarms` section) that will trigger the function.\n   */\n  alarmName: string;\n  // input?: any;\n  // inputPath?: string;\n  // inputTransformer?: EventInputTransformer;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“The `alarmName` value names an alarm defined in your Stacktape configuration's `alarms` section. If you need to react to alarm state changes from a different stack or AWS account, consider publishing alarm state changes to an EventBridge event bus…”",
+              "reason": "The source states that `alarmName` is the name of an alarm defined in the `alarms` section, but it does not explicitly document cross-stack or external-account behavior, nor does it document the suggested workaround as a Stacktape-supported pattern for alarm triggers.",
+              "suggestedFix": "Keep the first sentence. Rephrase the second sentence as general architecture guidance, for example: “The alarm trigger source does not expose an external alarm ARN field; for cross-stack or external-account events, use a separate event-routing design such as EventBridge where appropriate.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegrationProps {\n  /**\n   * #### The name of the alarm (defined in the `alarms` section) that will trigger the function.\n   */\n  alarmName: string;\n  // input?: any;\n  // inputPath?: string;\n  // inputTransformer?: EventInputTransformer;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Each function is invoked independently when the alarm fires” in the FAQ answer about triggering multiple Lambda functions from the same alarm.",
+              "reason": "The types allow multiple Lambda functions to each declare a `cloudwatch-alarm` event with the same `alarmName`, but the provided source does not explicitly document fan-out semantics or independent invocation behavior for multiple consumers of the same alarm.",
+              "suggestedFix": "Write more cautiously: “You can configure more than one Lambda function with a `cloudwatch-alarm` event that references the same `alarmName`; each function has its own event binding.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Alarm triggers do not add a separate per-event charge.”",
+              "reason": "The provided source files do not contain pricing information for alarm triggers. The general AWS pricing model may make this likely, but the draft presents it as a concrete cost claim without source backing.",
+              "suggestedFix": "Rephrase to avoid an unsupported Stacktape pricing claim: “Expect costs from the underlying CloudWatch alarm and any Lambda invocations; the provided Stacktape source does not document a separate Stacktape-specific per-event charge for alarm triggers.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape config example uses `<CodeBlock intellisense>` with a `TypeScript` tab and `defineConfig`, avoiding the forbidden YAML and `StacktapeConfig` patterns.",
+            "The `cloudwatch-alarm` trigger shape and `alarmName` property are correctly grounded in `events.d.ts`.",
+            "The draft correctly states that `input`, `inputPath`, and `inputTransformer` are not available on alarm triggers; those properties are commented out in `AlarmIntegrationProps`.",
+            "The supported alarm trigger table matches the `AlarmTrigger` union in `alarms.d.ts`.",
+            "`<ApiReference definitionName=\"AlarmIntegrationProps\" />` matches the relevant props interface name."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided alarm and event type sources, and it avoids the forbidden YAML/plain-object config patterns. The main risks are a few Stacktape-specific claims that go beyond the provided types, especially around delivery behavior, payload shape, cross-stack support, and exact invocation fan-out.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Yes. Add a `cloudwatch-alarm` event referencing the same `alarmName` to multiple Lambda functions. Each function is invoked independently when the alarm fires.”",
+              "reason": "The provided sources define the shape of `AlarmIntegrationProps`, but they do not state that multiple Lambda functions can subscribe to the same alarm or that each is invoked independently. This affects architecture guidance and should not be asserted without runtime or generated-template evidence.",
+              "suggestedFix": "Narrow the FAQ answer to source-grounded wording, for example: “The trigger configuration only requires an `alarmName`. The provided type source does not document a uniqueness constraint for `alarmName`, but if you need fan-out semantics, prefer an EventBridge event bus pattern unless your generated template confirms multiple alarm targets for your stack.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegrationProps {\n  /**\n   * #### The name of the alarm (defined in the `alarms` section) that will trigger the function.\n   */\n  alarmName: string;\n  // input?: any;\n  // inputPath?: string;\n  // inputTransformer?: EventInputTransformer;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“When the referenced alarm fires, your Lambda function is invoked. The Stacktape source documents the trigger binding by `alarmName` only and does not define a Stacktape-specific payload schema for this trigger. The event your handler receives is delivered through AWS EventBridge / CloudWatch and follows AWS's event shape.”",
+              "reason": "The source supports binding by `alarmName`, but it does not state that the event is delivered through EventBridge, nor does it define the payload as AWS's CloudWatch Alarm State Change shape. This is a Stacktape-specific delivery claim, not merely general AWS context.",
+              "suggestedFix": "Keep the grounded part and make the AWS payload guidance conditional: “The provided Stacktape type only documents `alarmName`; it does not define a Stacktape-specific payload schema. Treat the handler input as an alarm event and verify the exact shape in your deployed function logs or AWS CloudWatch documentation.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegrationProps {\n  /**\n   * #### The name of the alarm (defined in the `alarms` section) that will trigger the function.\n   */\n  alarmName: string;\n  // input?: any;\n  // inputPath?: string;\n  // inputTransformer?: EventInputTransformer;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Alarm triggers do not add a separate per-event charge.”",
+              "reason": "The provided sources contain no pricing information for alarm triggers or their underlying event delivery mechanism. General AWS pricing model context is allowed, but this statement is phrased as a definitive Stacktape-specific pricing claim.",
+              "suggestedFix": "Rephrase as general cost guidance without asserting a Stacktape-specific billing fact: “Budget for the CloudWatch alarm and the Lambda invocations caused by the alarm. The provided Stacktape source does not define an additional Stacktape-specific per-event charge for alarm triggers.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegration {\n  type: 'cloudwatch-alarm';\n  properties: AlarmIntegrationProps;\n}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "interface AlarmDefinition extends AlarmDefinitionBase {\n  /**\n   * #### A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`).\n   */\n  name: string;\n  /**\n   * #### The metric and threshold that fires this alarm.\n   */\n  trigger: AlarmTrigger;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can I reference alarms from a different Stacktape stack or external AWS account? The `alarmName` value names an alarm defined in your Stacktape configuration's `alarms` section. If you need to react to alarm state changes from a different stack or AWS account, consider publishing alarm state changes to an EventBridge event bus...”",
+              "reason": "The first sentence is supported, but the suggested cross-stack/external-account workaround is not grounded in the provided Stacktape sources for alarm triggers. The source does not document external alarm support or a Stacktape migration path through EventBridge for this use case.",
+              "suggestedFix": "Answer only the supported part: “The provided `AlarmIntegrationProps` source only documents `alarmName`, which names an alarm defined in the Stacktape `alarms` section. It does not document referencing an external alarm ARN.” Avoid recommending a Stacktape workaround unless supported by source for this page.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegrationProps {\n  /**\n   * #### The name of the alarm (defined in the `alarms` section) that will trigger the function.\n   */\n  alarmName: string;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface EventBusIntegrationProps {\n  /**\n   * #### The ARN of an existing event bus.\n   *\n   * ---\n   *\n   * Use this to subscribe to an event bus that is not managed by your stack."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Lambda functions only. The `cloudwatch-alarm` event type is available on Lambda functions. Other compute resources (web services, container workloads, batch jobs) do not support this trigger type.”",
+              "reason": "The provided `events.d.ts` source defines `AlarmIntegration`, but it does not include the event union showing exactly which resource types accept it. The statement may be true in the broader codebase, but it is not grounded in the provided source files.",
+              "suggestedFix": "Narrow to what is visible on the page and source: “The example attaches `cloudwatch-alarm` under a Lambda function `events` array. The provided source describes the alarm trigger as triggering a function by `alarmName`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegration {\n  type: 'cloudwatch-alarm';\n  properties: AlarmIntegrationProps;\n}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "* #### The name of the alarm (defined in the `alarms` section) that will trigger the function."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“When that alarm fires — meaning the monitored metric breaches its threshold for the configured evaluation window — the Lambda function is invoked automatically.”",
+              "reason": "The alarm source supports threshold and evaluation-window concepts, and the event source supports triggering a function by `alarmName`. However, “automatically” is runtime behavior that is not directly described for `AlarmIntegration` beyond the type shape and JSDoc. This is likely acceptable, but narrower wording would be easier to verify.",
+              "suggestedFix": "Use “Stacktape configures the function to be triggered by the named alarm” instead of “invoked automatically,” unless runtime source is available.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Custom notification routing — page an on-call system, file a Jira ticket, or post structured data to an internal API through channels Stacktape doesn't natively support.”",
+              "reason": "The examples are plausible use cases for Lambda code, but the source only states alarm integrations trigger a function; it does not document these specific use cases or native channel gaps. This is low risk because it is guidance, not API behavior.",
+              "suggestedFix": "Keep the idea but make it less dependent on specific third-party examples: “call systems that are not covered by your configured alarm notification targets.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration example uses `<CodeBlock intellisense>` with a `TypeScript` tab and `defineConfig`, and it does not hand-author YAML.",
+            "The `AlarmIntegrationProps` API reference name matches the provided type exactly.",
+            "The documented alarm trigger types match the `AlarmTrigger` union in `types/stacktape-config/alarms.d.ts`.",
+            "The draft correctly states that `input`, `inputPath`, and `inputTransformer` are not available on alarm triggers; those properties are only commented out in `AlarmIntegrationProps`, while they are real properties on schedule and event-bus integrations.",
+            "The internal documentation links used in the draft appear in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__triggers__alarms-as-triggers/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clean 'When to use' / 'When NOT to use' peer H2 structure with concrete, decision-ready scenarios — not circular definitions.",
+            "Alarm types table is fully source-grounded against every union member in AlarmTrigger from alarms.d.ts, covering all five resource categories.",
+            "The input/inputPath/inputTransformer limitation is correctly identified from the commented-out code in AlarmIntegrationProps — a non-obvious source fact surfaced well.",
+            "CodeBlock is correctly formatted with defineConfig + class-based resources; imports are above the focus-start marker; no YAML tab.",
+            "Single ApiReference with definitionName='AlarmIntegrationProps' matching the source type exactly.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS-general CloudWatch evaluation behavior, alarm-vs-EventBridge comparison) with 8 well-varied questions.",
+            "Idempotency tip is non-obvious and practically important; correctly places it at the handler-code level where the reader can act on it.",
+            "Notification channel list (Slack, Teams, email, Discord, webhooks) is source-grounded against AlarmUserIntegration union."
+          ],
+          "problems": [
+            "First-time users are left with a gap: the page shows how to set alarmName but never shows even a minimal alarm definition. A reader who has not yet defined an alarm has no path forward without leaving the page. The 'Alarm naming' subsection links to /observability/alarms but provides no inline context on what the definition looks like, making the example non-runnable without prior knowledge.",
+            "The 'Supported alarm types' section lists alarm trigger type strings (e.g. 'lambda-error-rate') without explaining that these are the trigger.type values used when defining the alarm — not values that go in alarmName. A first-time reader may confuse the two concepts, thinking they need to put 'lambda-error-rate' in alarmName rather than giving the alarm a human name.",
+            "ApplicationLoadBalancerCustomTrigger appears in the AlarmTrigger union and is listed in the table as 'application-load-balancer-custom', but its interface definition is not present in the provided source — its type string is inferred, not confirmed. If this interface has a different type discriminant, the table row is wrong.",
+            "The event handler example shows event?.detail?.alarmName and event?.detail?.state?.value without source grounding for the exact CloudWatch alarm event shape delivered to Lambda. The page defers to AWS docs, which is correct, but the specific field paths shown could mislead if the delivery format differs from EventBridge state-change events (e.g. direct invocations)."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a minimal two-resource snippet (or at minimum a prose paragraph) showing an alarm definition alongside the alarm handler, so the first-time reader has a complete picture without leaving the page. Even a collapsed or abbreviated example of the alarms section would bridge the gap.",
+            "Add a clarifying sentence to the 'Supported alarm types' section explaining that these type strings go in the alarm's trigger.type definition, and the alarmName is the separate human-readable name you give the alarm — explicitly separating the two concepts.",
+            "Verify the 'application-load-balancer-custom' type string against the full ApplicationLoadBalancerCustomTrigger interface definition (not provided in this source set), or add a caveat that this type requires the full alarm definition to configure.",
+            "In the handler example, qualify the event field paths (event?.detail?.alarmName etc.) as matching the EventBridge CloudWatch Alarm State Change format, not a raw Lambda event format — this prevents confusion if readers encounter a different delivery path.",
+            "Consider adding a one-line prerequisite callout near the top of the Configuration section: 'This trigger requires an alarm already defined in the alarms section of your stack.' This sets expectations before the reader reaches the Alarm naming subsection.",
+            "The 'Limitations' section lists three constraints as bullets under a flat heading. For a first-time reader, 'Lambda functions only' is the most important — consider surfacing it in the opening paragraph or a brief note in Configuration rather than burying it in a terminal section."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Alarm type table is fully and accurately sourced from the `AlarmTrigger` union in `alarms.d.ts` — all 15 trigger types across 5 resource categories are correctly listed.",
+            "Correctly identifies that `input`, `inputPath`, and `inputTransformer` are unavailable on alarm triggers — sourced from the commented-out fields in `AlarmIntegrationProps` in `events.d.ts`.",
+            "Strong decision-support structure: 'When to use' and 'When NOT to use' are peer H2 sections, concrete scenarios are given, and the recommendation to skip the Lambda trigger when notifications suffice is opinionated and useful.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-service-use-case, and comparison/choosing questions) with substantive answers.",
+            "Code example uses correct class names (`LambdaFunction`, `StacktapeLambdaBuildpackPackaging`), correct event type (`cloudwatch-alarm`), and correct `alarmName` property — all verified against source.",
+            "Idempotency callout is a practical production warning; the at-least-once delivery behavior of the underlying infrastructure is a real gotcha.",
+            "Limitations section is specific and actionable — each limitation names what is restricted and why, rather than vague hedging."
+          ],
+          "problems": [
+            "The handler code example uses EventBridge-style field paths (`event?.detail?.alarmName`, `event?.detail?.state?.value`, `event?.detail?.state?.reason`). The source `alarms.d.ts` defines `AlarmNotificationEventRuleInput` with completely different field names (`stateValue`, `alarmAwsResourceName`, `alarmConfig`, `affectedResource`, etc.). The page does not reconcile these two shapes. It asserts 'the standard AWS CloudWatch Alarm State Change event structure' without source-backed confirmation that Stacktape's alarm trigger uses the raw EventBridge event rather than a wrapped payload. This is the most significant correctness risk on the page — a developer who copies the handler will parse fields that may not exist.",
+            "The disclaimer 'The exact field structure is defined by AWS — consult the AWS documentation' hedges but does not fix the core issue: the example handler accesses specific concrete field paths that may be wrong, while the source shows a different shape.",
+            "No mention of the `AlarmNotificationEventRuleInput` type that exists in the source. If this type IS the event payload for Lambda triggers, the handler example is incorrect. If it is only for notification webhooks, the page should make that distinction explicitly so the reader is not confused."
+          ],
+          "mandatoryFixes": [
+            "Fix the handler event payload section. The source defines `AlarmNotificationEventRuleInput` with fields `stateValue`, `alarmAwsResourceName`, `stackName`, `alarmConfig`, etc. — these do not match the `event.detail.alarmName` / `event.detail.state.value` paths shown in the example. Either (a) verify via the resolver/implementation source that the Lambda trigger receives the raw AWS EventBridge CloudWatch Alarm state change event (not the `AlarmNotificationEventRuleInput` shape), document that fact explicitly and keep the handler, or (b) update the handler to use the `AlarmNotificationEventRuleInput` field names (`event.stateValue`, `event.alarmAwsResourceName`, etc.) if that type is the actual Lambda event payload. Do not leave a concrete field-path example that conflicts with the only payload type defined in the source."
+          ],
+          "optionalImprovements": [
+            "Add a one-sentence clarification distinguishing `AlarmNotificationEventRuleInput` (used by Stacktape's built-in Slack/Teams/email/webhook notification system) from the event payload received by Lambda alarm triggers. Readers seeing that type in autocomplete or source will be confused if the page ignores it.",
+            "The `### Alarm naming` H3 under Configuration could be folded into the opening Configuration paragraph — it is a single fact (alarmName must match a name in the `alarms` section) that does not warrant its own subheading and adds unnecessary hierarchy depth.",
+            "Consider surfacing one concrete `AlarmEvaluation` snippet in the Supported Alarm Types section — the period/evaluationPeriods/breachedPeriods configuration is the only real tuning knob available on alarms and is omitted from all examples on this page. Even a one-line prose note ('tune `evaluation.evaluationPeriods` and `evaluation.breachedPeriods` to avoid false positives on short spikes') would materially help operators.",
+            "The FAQ answer for 'What happens if my Lambda function fails' says 'retries failed invocations according to its default retry policy' without naming what that policy is. For asynchronous Lambda invocations (which alarm triggers likely use), AWS retries twice. Naming the number would make the answer more useful without inventing facts."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page has a clear decision frame: use alarm triggers for code execution and notification targets for human alerting.",
+            "The Stacktape configuration example uses the required class-based `defineConfig` form inside `<CodeBlock intellisense>` with a `TypeScript` tab.",
+            "The `alarmName` explanation is grounded in `AlarmIntegrationProps`, and the supported alarm trigger table matches the visible alarm trigger union types.",
+            "The FAQ covers Stacktape-specific, AWS-use-case, and comparison questions instead of staying narrowly reference-only."
+          ],
+          "problems": [
+            "The opening paragraph is under the required 40-word minimum, which weakens answer-engine extractability despite being otherwise self-contained.",
+            "Several throughput, retry, and delivery claims are not grounded in the provided source. The source only defines `cloudwatch-alarm` with `alarmName`; it does not document retry behavior, duplicate delivery, invocation semantics, or EventBridge-style delivery details for alarm triggers.",
+            "The payload section claims the handler receives the standard AWS CloudWatch Alarm State Change event, but the provided Stacktape source does not specify the alarm-trigger payload shape. That may be true on AWS, but it is not grounded in the supplied source files.",
+            "The limitations section says external CloudWatch alarm ARNs, cross-stack alarms, and payload customization are not supported. `AlarmIntegrationProps` only exposes `alarmName` and comments out input fields, so these are plausible, but the page should phrase them as property-shape constraints rather than broad unsupported-feature claims where source is silent.",
+            "The configuration example references `api-error-rate`, but the page does not show the corresponding alarm definition. For a conceptual page this is acceptable, but it makes the example less copyable because `alarmName` must match an alarm in the `alarms` section.",
+            "The FAQ answer on cost states there is no separate per-event charge for alarm triggers and that Lambda invocation cost is negligible. Pricing is not present in the provided source, and the “negligible” claim is an unsupported value judgment.",
+            "The page does not clearly address batching/throughput from source. In this case the source exposes no batching knobs for alarm triggers, so the page should explicitly say alarm triggers do not expose batch-size or batch-window settings instead of discussing retries that are not sourced."
+          ],
+          "mandatoryFixes": [
+            "Revise unsupported delivery/retry language. Replace claims about default retries, duplicate delivery, and idempotency requirements with cautious wording grounded in the source, or explicitly frame idempotency as a general Lambda handler recommendation rather than documented Stacktape alarm-trigger behavior.",
+            "Revise the payload section to say the provided Stacktape type only configures `alarmName` and does not define a custom payload shape. If mentioning AWS CloudWatch Alarm State Change events, frame it as AWS background and avoid presenting exact Stacktape payload guarantees not present in source.",
+            "Rephrase the limitations as source-grounded property constraints: `AlarmIntegrationProps` exposes only `alarmName`, and `input`, `inputPath`, and `inputTransformer` are not available on this integration type. Avoid unsupported broad claims unless backed by source.",
+            "Expand the first paragraph to 40-75 words while keeping it answer-first and self-contained.",
+            "Remove or qualify the unsupported cost FAQ claim. Do not say there is no separate per-event charge or that invocation cost is negligible unless pricing or implementation source is provided.",
+            "Add a concise throughput/batching note grounded in the source: alarm triggers expose no `batchSize`, `maxBatchWindowSeconds`, or retry properties, unlike stream and queue integrations shown elsewhere in `events.d.ts`."
+          ],
+          "optionalImprovements": [
+            "Consider adding a tiny alarm-definition snippet or a prose mini-example that shows `alarmName` matching an alarm `name`, while still keeping the page conceptual.",
+            "Add one sentence near the example explaining that `cloudwatch-alarm` is a Lambda event integration type, and `properties.alarmName` is the only documented property for that integration.",
+            "Tighten FAQ wording where it drifts into broad AWS operations advice, especially claims about CloudWatch evaluation defaults and retry behavior.",
+            "Use “MS Teams” consistently with the source terminology instead of alternating with “Teams”."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided alarm and event type sources. The main issues are a few Stacktape-specific behavior claims that go beyond the source: automatic invocation wording, same-stack-only naming, supported target limitations, and payload/cost assertions.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“When that alarm fires ... the Lambda function is invoked automatically.” Similar wording appears in the opening paragraph and Configuration section.",
+              "reason": "The provided Stacktape type source defines the `cloudwatch-alarm` integration and its `alarmName` property, but it does not document the runtime invocation behavior, delivery path, or that invocation is automatic when the threshold is breached. This is plausible, but it is not grounded in the provided authoritative type source.",
+              "suggestedFix": "Narrow the wording to the sourced configuration relationship: “A `cloudwatch-alarm` event binds a Lambda function to an alarm named by `alarmName`.” If keeping runtime behavior, attribute it cautiously to the integration purpose rather than adding delivery details.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegration {\n  type: 'cloudwatch-alarm';\n  properties: AlarmIntegrationProps;\n}\n\ninterface AlarmIntegrationProps {\n  /**\n   * #### The name of the alarm (defined in the `alarms` section) that will trigger the function.\n   */\n  alarmName: string;\n  // input?: any;\n  // inputPath?: string;\n  // inputTransformer?: EventInputTransformer;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Lambda functions only. The `cloudwatch-alarm` event type is available on Lambda functions. Other compute resources (web services, container workloads, batch jobs) do not support this trigger type.”",
+              "reason": "The provided source shows `AlarmIntegration` as a function trigger shape, but it does not include the Lambda resource event union or the event unions for web services, container workloads, or batch jobs. The exclusion of other compute resources is not directly supported by the provided source.",
+              "suggestedFix": "Say only what the source supports: “Alarm triggers are documented here as Lambda function event integrations.” Remove the explicit negative claim about other compute resources unless the relevant resource event union source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegration {\n  type: 'cloudwatch-alarm';\n  properties: AlarmIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Set `alarmName` to the `name` of an alarm defined in the alarms section of your Stacktape configuration.” The FAQ also says `alarmName` names an alarm defined in your Stacktape configuration's `alarms` section.",
+              "reason": "The `alarmName` JSDoc says the name is defined in the `alarms` section, but the provided `AlarmDefinition` type source does not show the top-level Stacktape configuration shape or an `alarms` property. The concept is likely correct, but the exact “your Stacktape configuration's `alarms` section” wording relies on schema not present in the provided sources.",
+              "suggestedFix": "Use the exact sourced wording: “Set `alarmName` to the name of an alarm defined in the `alarms` section.” Avoid adding unsupported scope details like “your Stacktape configuration” unless the config root source is available.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "* #### The name of the alarm (defined in the `alarms` section) that will trigger the function."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "interface AlarmDefinition extends AlarmDefinitionBase {\n  /**\n   * #### A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`).\n   */\n  name: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Any alarm type defined in Stacktape's alarms configuration can be referenced by `alarmName`.”",
+              "reason": "The source defines the `AlarmTrigger` union and defines `alarmName` as the name of an alarm, but it does not explicitly say every alarm trigger variant can be used with `cloudwatch-alarm`. The table of trigger types is grounded, but the universal compatibility claim is stronger than the provided source.",
+              "suggestedFix": "Change to: “The alarm being referenced can use the built-in alarm trigger types defined by Stacktape, including the types below.” This preserves the useful table without asserting an unstated compatibility rule.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/alarms.d.ts",
+                  "quote": "type AlarmTrigger =\n  | LambdaErrorRateTrigger\n  | LambdaDurationTrigger\n  | RelationalDatabaseReadLatencyTrigger\n  | RelationalDatabaseWriteLatencyTrigger\n  | RelationalDatabaseCPUUtilizationTrigger\n  | RelationalDatabaseFreeStorageTrigger\n  | RelationalDatabaseFreeMemoryTrigger\n  | RelationalDatabaseConnectionCountTrigger\n  | HttpApiGatewayErrorRateTrigger\n  | HttpApiGatewayLatencyTrigger\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | ApplicationLoadBalancerCustomTrigger\n  | SqsQueueReceivedMessagesCountTrigger\n  | SqsQueueNotEmptyTrigger;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "alarmName: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Alarm triggers do not add a separate per-event charge.”",
+              "reason": "No pricing or billing source file is provided for alarm triggers. General AWS pricing model discussion is allowed, but this sentence is a concrete Stacktape-specific cost claim about the trigger feature itself.",
+              "suggestedFix": "Remove the first sentence or rewrite as general AWS context: “Cost mainly comes from the CloudWatch alarm and any Lambda invocations that result.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegrationProps {\n  /**\n   * #### The name of the alarm (defined in the `alarms` section) that will trigger the function.\n   */\n  alarmName: string;\n  // input?: any;\n  // inputPath?: string;\n  // inputTransformer?: EventInputTransformer;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The trigger configuration only requires an `alarmName`.”",
+              "reason": "The `AlarmIntegrationProps` object requires `alarmName`, but the full trigger entry also requires `type: 'cloudwatch-alarm'` and `properties`. Saying the trigger configuration only requires `alarmName` can mislead readers about the complete event object shape.",
+              "suggestedFix": "Change to: “Inside `properties`, the only documented required field is `alarmName`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface AlarmIntegration {\n  type: 'cloudwatch-alarm';\n  properties: AlarmIntegrationProps;\n}\n\ninterface AlarmIntegrationProps {\n  /**\n   * #### The name of the alarm (defined in the `alarms` section) that will trigger the function.\n   */\n  alarmName: string;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` with a `TypeScript` tab for the Stacktape configuration example and does not hand-author YAML.",
+            "`<ApiReference definitionName=\"AlarmIntegrationProps\" />` matches the provided source type name.",
+            "The alarm trigger type table matches the `AlarmTrigger` union in `types/stacktape-config/alarms.d.ts`.",
+            "The draft correctly avoids claiming a Stacktape-specific alarm payload schema and notes that only `alarmName` is documented in `AlarmIntegrationProps`."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -837,8 +1354,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\alarms-as-triggers.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/configuration/triggers/alarms-as-triggers.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 5, advisory high 1, verifier medium 12"
+  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 2, advisory high 0, verifier medium 4",
+  "refinementAttempts": 2,
+  "refinementStalled": true
 }

@@ -2,7 +2,7 @@
   "pageId": "configuration__resources",
   "pageRoute": "configuration/resources",
   "startedAt": "2026-05-16T15:42:10.575Z",
-  "updatedAt": "2026-05-16T16:00:11.520Z",
+  "updatedAt": "2026-05-22T02:56:45.458Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1127,20 +1127,537 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__resources/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, self-contained opening paragraph that answers 'what is this and why does it matter' in one paragraph without any 'this guide will cover' framing.",
+            "Proper use of <CodeBlock intellisense> for all Stacktape config examples — no YAML blocks, no fenced TypeScript blocks containing defineConfig.",
+            "Resource categories table gives a first-time reader a complete mental map before diving into any specific resource page.",
+            "The connectTo section explains the three-pronged benefit (IAM, networking, env vars) clearly with a realistic and copyable example.",
+            "FAQ covers all three required categories: Stacktape-specific questions, AWS-service use-case questions, and comparison/choosing questions — well balanced.",
+            "Warning callout about resource renaming destroying stateful resources is well-placed, concrete, and actionable.",
+            "Good decision-support throughout ('start with one stack per service boundary', 'split only when you have a concrete reason') — reads like advice from someone who has run this in production."
+          ],
+          "problems": [
+            "The connectTo table omits two resource types explicitly listed in the source JSDoc (ResourceAccessProps.connectTo and ScriptEnvProps.connectTo): MongoDbAtlasCluster (injects CONNECTION_STRING) and UpstashRedis (injects HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL). A developer using either resource will find the table factually incomplete.",
+            "Aurora's connectTo entry omits READER_JDBC_CONNECTION_STRING. The source JSDoc says 'READER_CONNECTION_STRING, READER_JDBC_CONNECTION_STRING, and READER_HOST are also included' — the page drops READER_JDBC_CONNECTION_STRING.",
+            "The claim 'Resource names must be alphanumeric only (letters and numbers, no hyphens or underscores) and are validated at deploy time' is not grounded in any of the provided source files. If wrong, it could actively mislead developers who try kebab-case or underscore-separated names.",
+            "The resource categories table lists 'CDN' and 'custom domains' under Networking as if they are standalone Stacktape resource types, but neither appears in the StacktapeResourceDefinition union in the source. They are configuration options attached to other resources (ALB, HttpApiGateway, etc.), not independently deployable resources. This could confuse a new user who tries to instantiate a CDN class.",
+            "The FAQ answer for 'What happens if a deployment fails?' links to '/cli/rollback', but the file in the repository is cf-rollback.mdx, strongly suggesting the canonical command is stacktape cf:rollback or similar. If the link resolves to a 404, it undermines trust in the page."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add MongoDbAtlasCluster (→ CONNECTION_STRING) and UpstashRedis (→ HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) rows to the connectTo table to match the source JSDoc exactly.",
+            "Add READER_JDBC_CONNECTION_STRING to the Aurora parenthetical in the RelationalDatabase row of the connectTo table.",
+            "Remove or qualify the 'alphanumeric only, no hyphens or underscores' naming constraint unless it can be grounded in a source validator or schema. If uncertain, omit the constraint entirely rather than risk actively misleading developers.",
+            "Revise the resource categories table to remove CDN and custom domains as standalone row entries (or add a note such as 'CDN and custom domains are configuration options on other resources, not standalone types') to avoid implying they can be instantiated independently.",
+            "Verify the rollback CLI command name against the actual command source and update the FAQ link from '/cli/rollback' to the correct path (likely '/cli/cf-rollback').",
+            "The 'Resources vs cloudformationResources' section is conceptually important but brief — consider adding a one-sentence example of what a cloudformationResources entry looks like so readers immediately understand what 'raw CloudFormation' means in practice.",
+            "$CfResourceParam is used in the Warning callout near the end without being introduced anywhere on the page. Either briefly define it where it first appears or link it to the Directives page at first use."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no forbidden YAML blocks, no fenced TypeScript Stacktape configs, no StacktapeConfig typed style.",
+            "The connectTo summary table is the right format for this page: engineers scan it for exact env var names, and the table format serves that well.",
+            "The Warning callout about renaming stateful resources being a destructive CloudFormation replacement operation is accurate and exactly the production gotcha engineers need.",
+            "The resource categories table mapping Stacktape resources to AWS services gives a quick orientation without being verbose.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-behavioral, comparison) with 10 Q&A pairs, none obviously padded.",
+            "Decision support is concrete: 'Should I use one big stack or many small ones?' gives a direct recommendation rather than just listing options.",
+            "The stack-as-unit section correctly covers deployment atomicity, VPC sharing via stackConfig.vpc.reuseVpc, and the disableAutoRollback escape hatch — all grounded in the source types."
+          ],
+          "problems": [
+            "connectTo table omits MongoDbAtlasCluster (→ CONNECTION_STRING) and UpstashRedis (→ HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) — both appear in the source's connectTo JSDoc in __helpers.d.ts. An engineer looking up env vars for these resource types will find the table silently incomplete.",
+            "Aurora RelationalDatabase row is missing READER_JDBC_CONNECTION_STRING — the source ScriptEnvProps.connectTo JSDoc lists it explicitly alongside READER_CONNECTION_STRING and READER_HOST.",
+            "CLI command 'stacktape stack-info' is almost certainly wrong — the CLI docs file is info-stack.mdx, which by the naming pattern (debug:logs → debug-logs.mdx) maps to 'stacktape info:stack'. Engineers who copy-paste this will get a command-not-found error.",
+            "CLI command 'stacktape rollback' is almost certainly wrong — the CLI docs file is cf-rollback.mdx, which maps to 'stacktape cf:rollback'. The FAQ answer for deployment failures directs engineers to run the wrong command.",
+            "Resource naming constraint 'alphanumeric only (letters and numbers, no hyphens or underscores)' is stated as established fact but is not grounded in any provided source file. If incorrect, it will prevent users from defining resources with names like 'order-queue' or 'invoice_bucket'."
+          ],
+          "mandatoryFixes": [
+            "Add MongoDbAtlasCluster (→ CONNECTION_STRING) and UpstashRedis (→ HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) as rows in the connectTo summary table — both are explicitly documented in the ScriptEnvProps.connectTo JSDoc in __helpers.d.ts. Omitting them makes the table a partial and misleading reference for engineers looking up env var names.",
+            "Add READER_JDBC_CONNECTION_STRING to the RelationalDatabase row in the connectTo table — the source JSDoc lists it alongside READER_CONNECTION_STRING and READER_HOST for Aurora clusters. The current row is factually incomplete.",
+            "Fix CLI command: replace every occurrence of 'stacktape stack-info' with 'stacktape info:stack' and confirm the link target is /cli/info-stack. The MDX file name info-stack.mdx confirms the correct slug.",
+            "Fix CLI command: replace every occurrence of 'stacktape rollback' with 'stacktape cf:rollback' and update the link target to /cli/cf-rollback. This appears in both the 'How resources map to AWS' body section and the FAQ — both need updating.",
+            "Either ground the resource naming constraint ('alphanumeric only, no hyphens or underscores') in source code (e.g., the validator in src/domain or a schema pattern), or remove it. Stating an ungrounded naming rule as fact will block users who try valid names that happen to include hyphens or underscores."
+          ],
+          "optionalImprovements": [
+            "After the connectTo table, the prose already mentions UpstashRedis in a bullet-style list pulled from ResourceAccessProps JSDoc. Consolidating both into one consistent table (rather than splitting across table + prose) would reduce confusion about which list is authoritative.",
+            "The 'Defining resources' renaming warning focuses on databases but renaming a bucket or queue is equally destructive (queue messages lost, S3 objects stranded if the name was used in code). Generalizing the warning to 'stateful resources' rather than just databases would be more accurate.",
+            "ScriptEnvProps.connectTo JSDoc also lists UpstashKafkaTopic with multiple injected vars. If this resource type is exposed to users, it belongs in the connectTo table. If it is not (it doesn't appear in StacktapeResourceDefinition), note its absence and verify the JSDoc isn't outdated.",
+            "The 'Resources vs cloudformationResources' section mentions $CfResourceParam for raw CloudFormation resources — this directive is introduced here without a link to the Directives page. Adding the link would let readers who stumble on this section find usage details without searching."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong, self-contained opening paragraph (≈55 words) that directly answers 'what is this and why does it matter' — citation-ready.",
+            "Comprehensive resource categories table covers all major types and maps them to underlying AWS services, making the page immediately useful for orientation.",
+            "All Stacktape config examples use the correct `<CodeBlock intellisense tabs={[...]}/>` pattern with class-based resources and `defineConfig` — no forbidden YAML blocks or StacktapeConfig-typed objects.",
+            "The connectTo environment variable table is a high-value, scannable reference that correctly documents 12 resource types with their injected variable names.",
+            "FAQ is broad and well-structured, mixing Stacktape-specific questions (VPC networking, renaming risk), AWS cost questions (idle resource pricing), and comparison questions (one big stack vs. many) — citation-friendly format.",
+            "The Warning callout about renaming stateful resources is precisely targeted and will prevent real data-loss incidents.",
+            "Clear separation between `connectTo` (high-level, automatic) and `iamRoleStatements` (manual, fine-grained) in both body and FAQ.",
+            "Realistic code examples — the `processOrder`/`invoiceBucket` example is the kind of snippet a real team would copy verbatim."
+          ],
+          "problems": [
+            "CLI command name error: the page uses `stacktape stack-info` throughout, but the CLI file is `info-stack.mdx`, indicating the correct command is `stacktape info-stack`. The link `/cli/info-stack` is correct but the prose command name is wrong.",
+            "CLI command name error in FAQ: the page uses `stacktape rollback` and links to `/cli/rollback`, but the CLI file in the git status is `cf-rollback.mdx`, indicating the correct command is `stacktape cf-rollback` and the link should be `/cli/cf-rollback`.",
+            "connectTo table is incomplete: UpstashRedis (injects HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) and MongoDbAtlasCluster (injects CONNECTION_STRING) are both documented in the source ScriptEnvProps JSDoc but are absent from the table. The table appears exhaustive when it is not.",
+            "Unsourced technical claim: 'Resource names must be alphanumeric only (letters and numbers, no hyphens or underscores) and are validated at deploy time.' No validation rule matching this claim appears in the provided source files.",
+            "Aurora's READER_JDBC_CONNECTION_STRING is missing from the connectTo table — documented in ScriptEnvProps JSDoc alongside READER_CONNECTION_STRING and READER_HOST.",
+            "The resource categories table lists 'CDN' and 'custom domains' as if they are standalone Stacktape resource types, but neither appears in the `StacktapeResourceDefinition` union type in the source. They are features/configuration options attached to other resources, not independent resource definitions.",
+            "`Convex` is present in the `StacktapeResourceDefinition` union type in the provided source but does not appear in the resource categories table."
+          ],
+          "mandatoryFixes": [
+            "Fix CLI command name: replace every occurrence of `stacktape stack-info` with `stacktape info-stack` (appears in the 'How resources map to AWS' section and the FAQ). The page link `/cli/info-stack` is already correct — only the prose command name needs updating.",
+            "Fix CLI command and link in FAQ: replace `stacktape rollback` with `stacktape cf-rollback` and update the broken link from `/cli/rollback` to `/cli/cf-rollback` to match the CLI file `cf-rollback.mdx`.",
+            "Add UpstashRedis (HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) and MongoDbAtlasCluster (CONNECTION_STRING) to the connectTo environment variable table. Both are documented in the source ScriptEnvProps JSDoc and their absence makes the table misleading — a reader relying on it to understand what connectTo injects will miss two resource types entirely."
+          ],
+          "optionalImprovements": [
+            "Add READER_JDBC_CONNECTION_STRING to the Aurora row in the connectTo table (sourced from ScriptEnvProps JSDoc: 'For Aurora clusters, READER_CONNECTION_STRING, READER_JDBC_CONNECTION_STRING, and READER_HOST are also included').",
+            "Soften or remove the unsourced resource name validation claim ('alphanumeric only'). If it cannot be grounded in source, replace with 'use short, descriptive, camelCase names' without asserting a character set constraint.",
+            "Clarify that CDN and custom domains in the resource categories table are configuration features attached to other resource types (ALB, HTTP API Gateway, etc.), not standalone resource definitions. This avoids confusion when a reader looks for a `Cdn` class to instantiate.",
+            "The Overrides section is useful but thin — a minimal concrete example (a two-line CloudFormation property override via dot-notation) would make the section actionable instead of purely expository.",
+            "Add a brief note about Convex in the resource categories table or Advanced row, since it is present in the `StacktapeResourceDefinition` source type.",
+            "The fenced ```typescript block showing the `$ResourceParam` environment variable pattern would be clearer as a full code example inside a `<CodeBlock intellisense>` rather than a naked partial snippet — readers cannot copy it as-is without surrounding context."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided resource concepts and uses the required CodeBlock pattern for Stacktape config. The main factual risks are over-broad wording around `connectTo`, unsupported CLI command details, and a few resource/reference claims that are either incomplete or not grounded in the supplied source.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The `connectTo` injected-variable table says RelationalDatabase injects only `CONNECTION_STRING`, `HOST`, and `PORT` plus Aurora reader connection string/host, and presents the table as the variables each resource type injects.",
+              "reason": "The authoritative `ResourceAccessProps.connectTo` JSDoc includes `JDBC_CONNECTION_STRING` for relational databases and `READER_JDBC_CONNECTION_STRING` for Aurora clusters. Omitting these while introducing the table as the injected variables by resource type makes the reference materially incomplete.",
+              "suggestedFix": "Change the relational database row to include `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`, and note that Aurora also gets `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST`. Also consider adding the other documented connectTo resource types omitted from the table, or narrow the intro to say the table lists common injected variables.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\n   * Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "- **`RelationalDatabase`**: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `connectTo` property accepts an array of resource name strings. Each resource type injects specific environment variables:” followed by a table that includes only selected resource types.",
+              "reason": "The source documents additional connectTo-injected resource types that the draft omits, including `MongoDbAtlasCluster`, `UpstashRedis`, and `UpstashKafkaTopic` in script env props. Because the draft says “each resource type,” readers could wrongly conclude omitted resource types have no injected variables.",
+              "suggestedFix": "Either list all documented injected-variable resource types from `ResourceAccessProps`/`ScriptEnvProps`, or narrow the wording to “Common workload resource types inject variables such as...” and link to `/configuration/connecting-resources` for the exhaustive table.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "- **`UpstashKafkaTopic`**: `TOPIC_NAME`, `TOPIC_ID`, `USERNAME`, `PASSWORD`, `TCP_ENDPOINT`, `REST_URL`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Overrides use dot-notation paths to target specific CloudFormation properties on child resources. You can find resource logical IDs with `stacktape info:stack --detailed`.\"",
+              "reason": "The provided type JSDoc for `ResourceOverrides` names `stacktape stack-info --detailed`, while the draft uses `stacktape info:stack --detailed`. The navigation index does contain `/cli/info-stack`, but the supplied source for overrides specifically documents a different command spelling, so this draft claim is not grounded in the source list.",
+              "suggestedFix": "Avoid the unsupported command detail here, or align with the source wording: “Find resource logical IDs with the stack info command; see [`stacktape info:stack`](/cli/info-stack).”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Find resource logical IDs with `stacktape stack-info --detailed`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Every Stacktape resource accepts an `overrides` property...”",
+              "reason": "The source defines `ResourceOverrides`, but the provided union/type excerpt does not show every resource props type extending or accepting `overrides`. The claim is plausible, but “every Stacktape resource” is broader than what the supplied source proves.",
+              "suggestedFix": "Narrow the wording to “Stacktape resources can use an `overrides` escape hatch...” or “Resource overrides let you modify underlying CloudFormation resources directly,” then link to `/configuration/overrides-and-escape-hatches`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type ResourceOverrides = {\n  [cfLogicalName: string]: { [resourcePath: string]: any };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Raw CloudFormation resources don't participate in `connectTo`. If you need to expose values from raw resources to other stacks, define a `stackConfig.outputs` entry with `export: true` and reference it from another stack with the `$CfStackOutput()` directive.”",
+              "reason": "The supplied source supports exported stack outputs and `$CfStackOutput()`, but it does not show `cloudformationResources`, raw CloudFormation participation in `connectTo`, or the specific claim that raw CloudFormation values must be exposed through outputs. The lower-priority generated doc instead mentions CloudFormation intrinsic functions and `$CfResourceParam`, not this replacement wording.",
+              "suggestedFix": "Keep only the sourced part: “`stackConfig.outputs` can export values for cross-stack references with `$CfStackOutput()`.” If discussing raw CloudFormation resources, use cautious wording or cite a source file that defines `cloudformationResources` and `$CfResourceParam`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Exported outputs can be referenced from other stacks using `$CfStackOutput()`."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/resources.md",
+                  "quote": "Raw CloudFormation resources don't participate in `connectTo` but can still be referenced via CloudFormation intrinsic functions and the `$CfResourceParam` directive."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, Stacktape creates a VPC for stacks that need VPC networking.” and “Stacktape creates a VPC automatically when your stack includes resources that need private networking...”",
+              "reason": "The provided `VpcSettings` source says each stack gets its own VPC by default in the context of `reuseVpc`, but it does not precisely define the trigger condition “stacks that need VPC networking” or list which resources cause automatic VPC creation. The FAQ further lists Lambda, DynamoDB, and S3 as working without one, which is not directly grounded in the supplied source.",
+              "suggestedFix": "Use the narrower source-grounded wording: “By default, each stack gets its own VPC when VPC settings are needed; use `stackConfig.vpc.reuseVpc` to share a VPC with another Stacktape stack or use an existing VPC.” Avoid enumerating trigger resources unless you cite their resource-specific sources.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Useful when this stack needs to access VPC-protected resources (databases, Redis)\n   * from another stack. By default, each stack gets its own VPC."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Only applies when you have workloads using `usePrivateSubnetsWithNAT: true`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Changing a resource name affects every reference to it — `$ResourceParam` lookups, `connectTo` listings, and injected environment variable prefixes.”",
+              "reason": "The source supports resource-name-dependent environment variable names and resource names in `connectTo`, but it does not explicitly say a rename affects every reference or describe the full rename behavior. This is likely true, but the wording is absolute and broader than the provided source.",
+              "suggestedFix": "Narrow to “Changing a resource name also means updating references to that name, such as `connectTo` entries and `$ResourceParam(...)` calls.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Most stacks comfortably hold 20-50 Stacktape resources before approaching the limit.”",
+              "reason": "This is a planning heuristic, not a Stacktape source-backed fact. It may be reasonable AWS guidance, but the exact range is not present in the provided source files.",
+              "suggestedFix": "Remove the 20-50 range or qualify it as a rough rule of thumb: “Because one Stacktape resource can produce multiple CloudFormation resources, split stacks before you get close to CloudFormation’s resource limit.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with a visible `label: 'TypeScript'` tab and do not hand-author YAML.",
+            "The draft uses `defineConfig` and class-based resources instead of the forbidden `StacktapeConfig` plain-object style.",
+            "The `connectTo` environment variable naming pattern `STP_[RESOURCE_NAME]_[PARAM]` is consistent with the source.",
+            "The `aws:ses` connectTo macro claim is grounded in `ResourceAccessProps`."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely aligned with the provided resource overview, uses the required TypeScript CodeBlock pattern for full Stacktape config examples, and correctly anchors several core concepts such as `connectTo`, `stackConfig.tags`, outputs, and rollback settings. The main issues are overbroad reference/env-var wording and a few unsupported configuration guidance claims.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The `connectTo` table says “Each resource type injects specific environment variables,” but the table omits documented connectTo-injected variables for `MongoDbAtlasCluster` and `UpstashRedis`.",
+              "reason": "The source explicitly lists `MongoDbAtlasCluster` and `UpstashRedis` in the connectTo injected-variable documentation. Because the draft presents the table as the per-resource list, omitting these resource types makes the table look exhaustive while leaving out supported cases.",
+              "suggestedFix": "Either label the table as “common resource types” or add rows for `MongoDbAtlasCluster` (`CONNECTION_STRING`) and `UpstashRedis` (`HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`).",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You can also connect to `aws:ses` to grant full SES email sending permissions without injecting environment variables.”",
+              "reason": "The source supports that `aws:ses` grants full SES email sending permissions, but it does not explicitly document the negative env-var claim. The prompt also warns against negative connectTo/env-var claims when the source only states what is injected.",
+              "suggestedFix": "Write: “You can also connect to `aws:ses` to grant full SES email sending permissions.” Do not claim anything about environment variables for `aws:ses` unless a source explicitly says so.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`aws:ses`** — full SES email sending permissions"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Beyond `connectTo`, you can reference any resource's parameters anywhere in your config using the `$ResourceParam` directive,” followed by an example using `$ResourceParam('orderQueue', 'url')`.",
+              "reason": "The provided source shows a finite `StacktapeResourceReferenceableParam` union, not “any resource's parameters.” The visible union also does not include an SQS queue referenceable-param type, so the specific `orderQueue` URL example is not grounded in the provided source.",
+              "suggestedFix": "Narrow the wording to “supported resource parameters” and use an example whose resource/parameter is visible in the provided referenceable-param union, or omit the SQS `$ResourceParam` example until SQS referenceable parameters are provided as source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type StacktapeResourceReferenceableParam =\n  | ApplicationLoadBalancerReferenceableParam\n  | BatchJobReferencableParam\n  | BucketReferencableParam\n  | ContainerWorkloadReferencableParam\n  | DynamoDBTableReferencableParam\n  | EventBusReferencableParam\n  | FunctionReferencableParam\n  | HttpApiGatewayReferencableParam\n  | MongoDbAtlasClusterReferencableParam\n  | RedisClusterReferencableParam\n  | RelationalDatabaseReferencableParam\n  | StateMachineReferencableParam\n  | UpstashRedisReferencableParam\n  | UserPoolReferencableParam\n  | PrivateServiceReferencableParams\n  | WebServiceReferencableParam\n  | WorkerServiceReferencableParams\n  | WebAppFirewallReferencableParams\n  | OpenSearchDomainReferencableParams\n  | KinesisStreamReferencableParam\n  | ConvexReferencableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `deploymentConfig.terminationProtection` to guard against accidental stack deletion, and CloudFormation stack policies via `overrides` to prevent replacement of specific resources.”",
+              "reason": "`terminationProtection` is grounded, but the provided `overrides` source describes modifying properties on child CloudFormation resources. It does not support using `overrides` to configure CloudFormation stack policies, which are stack-level controls.",
+              "suggestedFix": "Keep the termination-protection sentence. Remove “via `overrides`” for stack policies unless a source file shows the exact Stacktape configuration path for stack policies.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Use dot-notation paths to override specific properties on any child resource."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "interface CfStackPolicyStatement {\n  /**\n   * #### Whether to allow or deny the specified update actions.\n   */\n  Effect?: 'Allow' | 'Deny';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft uses a fenced ```typescript block for a Stacktape configuration fragment under “Resource references with directives.”",
+              "reason": "The fragment is not application code; it is a Stacktape config property example. The page rules require Stacktape configuration examples to use `<CodeBlock intellisense tabs={[...]} />` rather than fenced TypeScript blocks.",
+              "suggestedFix": "Convert the fragment into a small `<CodeBlock intellisense>` config example, or rewrite it as inline prose if a full config example would be too heavy for this concept page.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "Full Stacktape configuration examples use `<CodeBlock intellisense>` with `label: 'TypeScript'` and do not hand-author YAML.",
+            "The `connectTo` environment variable naming pattern is correctly described as `STP_[RESOURCE_NAME]_[PARAM]`, and concrete examples match the shown resource names.",
+            "The tags claim is grounded: the source states Stacktape adds `projectName`, `stage`, and `stackName`, and merges custom `stackConfig.tags`.",
+            "The deployment rollback and termination-protection guidance is mostly grounded in `DeploymentConfig`."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 18, col 17: Type '\"uploads\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript type error.",
+              "reason": "line 18, col 28: Type '\"orderQueue\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript type error.",
+              "reason": "line 10, col 17: Type '\"invoiceBucket\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__resources/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Clear, self-contained opening paragraph that answers 'what is this and why does it matter' in one paragraph without any 'this guide will cover' framing.",
+            "Proper use of <CodeBlock intellisense> for all Stacktape config examples — no YAML blocks, no fenced TypeScript blocks containing defineConfig.",
+            "Resource categories table gives a first-time reader a complete mental map before diving into any specific resource page.",
+            "The connectTo section explains the three-pronged benefit (IAM, networking, env vars) clearly with a realistic and copyable example.",
+            "FAQ covers all three required categories: Stacktape-specific questions, AWS-service use-case questions, and comparison/choosing questions — well balanced.",
+            "Warning callout about resource renaming destroying stateful resources is well-placed, concrete, and actionable.",
+            "Good decision-support throughout ('start with one stack per service boundary', 'split only when you have a concrete reason') — reads like advice from someone who has run this in production."
+          ],
+          "problems": [
+            "The connectTo table omits two resource types explicitly listed in the source JSDoc (ResourceAccessProps.connectTo and ScriptEnvProps.connectTo): MongoDbAtlasCluster (injects CONNECTION_STRING) and UpstashRedis (injects HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL). A developer using either resource will find the table factually incomplete.",
+            "Aurora's connectTo entry omits READER_JDBC_CONNECTION_STRING. The source JSDoc says 'READER_CONNECTION_STRING, READER_JDBC_CONNECTION_STRING, and READER_HOST are also included' — the page drops READER_JDBC_CONNECTION_STRING.",
+            "The claim 'Resource names must be alphanumeric only (letters and numbers, no hyphens or underscores) and are validated at deploy time' is not grounded in any of the provided source files. If wrong, it could actively mislead developers who try kebab-case or underscore-separated names.",
+            "The resource categories table lists 'CDN' and 'custom domains' under Networking as if they are standalone Stacktape resource types, but neither appears in the StacktapeResourceDefinition union in the source. They are configuration options attached to other resources (ALB, HttpApiGateway, etc.), not independently deployable resources. This could confuse a new user who tries to instantiate a CDN class.",
+            "The FAQ answer for 'What happens if a deployment fails?' links to '/cli/rollback', but the file in the repository is cf-rollback.mdx, strongly suggesting the canonical command is stacktape cf:rollback or similar. If the link resolves to a 404, it undermines trust in the page."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add MongoDbAtlasCluster (→ CONNECTION_STRING) and UpstashRedis (→ HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) rows to the connectTo table to match the source JSDoc exactly.",
+            "Add READER_JDBC_CONNECTION_STRING to the Aurora parenthetical in the RelationalDatabase row of the connectTo table.",
+            "Remove or qualify the 'alphanumeric only, no hyphens or underscores' naming constraint unless it can be grounded in a source validator or schema. If uncertain, omit the constraint entirely rather than risk actively misleading developers.",
+            "Revise the resource categories table to remove CDN and custom domains as standalone row entries (or add a note such as 'CDN and custom domains are configuration options on other resources, not standalone types') to avoid implying they can be instantiated independently.",
+            "Verify the rollback CLI command name against the actual command source and update the FAQ link from '/cli/rollback' to the correct path (likely '/cli/cf-rollback').",
+            "The 'Resources vs cloudformationResources' section is conceptually important but brief — consider adding a one-sentence example of what a cloudformationResources entry looks like so readers immediately understand what 'raw CloudFormation' means in practice.",
+            "$CfResourceParam is used in the Warning callout near the end without being introduced anywhere on the page. Either briefly define it where it first appears or link it to the Directives page at first use."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> — no forbidden YAML blocks, no fenced TypeScript Stacktape configs, no StacktapeConfig typed style.",
+            "The connectTo summary table is the right format for this page: engineers scan it for exact env var names, and the table format serves that well.",
+            "The Warning callout about renaming stateful resources being a destructive CloudFormation replacement operation is accurate and exactly the production gotcha engineers need.",
+            "The resource categories table mapping Stacktape resources to AWS services gives a quick orientation without being verbose.",
+            "FAQ covers all three required categories (Stacktape-specific, AWS-behavioral, comparison) with 10 Q&A pairs, none obviously padded.",
+            "Decision support is concrete: 'Should I use one big stack or many small ones?' gives a direct recommendation rather than just listing options.",
+            "The stack-as-unit section correctly covers deployment atomicity, VPC sharing via stackConfig.vpc.reuseVpc, and the disableAutoRollback escape hatch — all grounded in the source types."
+          ],
+          "problems": [
+            "connectTo table omits MongoDbAtlasCluster (→ CONNECTION_STRING) and UpstashRedis (→ HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) — both appear in the source's connectTo JSDoc in __helpers.d.ts. An engineer looking up env vars for these resource types will find the table silently incomplete.",
+            "Aurora RelationalDatabase row is missing READER_JDBC_CONNECTION_STRING — the source ScriptEnvProps.connectTo JSDoc lists it explicitly alongside READER_CONNECTION_STRING and READER_HOST.",
+            "CLI command 'stacktape stack-info' is almost certainly wrong — the CLI docs file is info-stack.mdx, which by the naming pattern (debug:logs → debug-logs.mdx) maps to 'stacktape info:stack'. Engineers who copy-paste this will get a command-not-found error.",
+            "CLI command 'stacktape rollback' is almost certainly wrong — the CLI docs file is cf-rollback.mdx, which maps to 'stacktape cf:rollback'. The FAQ answer for deployment failures directs engineers to run the wrong command.",
+            "Resource naming constraint 'alphanumeric only (letters and numbers, no hyphens or underscores)' is stated as established fact but is not grounded in any provided source file. If incorrect, it will prevent users from defining resources with names like 'order-queue' or 'invoice_bucket'."
+          ],
+          "mandatoryFixes": [
+            "Add MongoDbAtlasCluster (→ CONNECTION_STRING) and UpstashRedis (→ HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) as rows in the connectTo summary table — both are explicitly documented in the ScriptEnvProps.connectTo JSDoc in __helpers.d.ts. Omitting them makes the table a partial and misleading reference for engineers looking up env var names.",
+            "Add READER_JDBC_CONNECTION_STRING to the RelationalDatabase row in the connectTo table — the source JSDoc lists it alongside READER_CONNECTION_STRING and READER_HOST for Aurora clusters. The current row is factually incomplete.",
+            "Fix CLI command: replace every occurrence of 'stacktape stack-info' with 'stacktape info:stack' and confirm the link target is /cli/info-stack. The MDX file name info-stack.mdx confirms the correct slug.",
+            "Fix CLI command: replace every occurrence of 'stacktape rollback' with 'stacktape cf:rollback' and update the link target to /cli/cf-rollback. This appears in both the 'How resources map to AWS' body section and the FAQ — both need updating.",
+            "Either ground the resource naming constraint ('alphanumeric only, no hyphens or underscores') in source code (e.g., the validator in src/domain or a schema pattern), or remove it. Stating an ungrounded naming rule as fact will block users who try valid names that happen to include hyphens or underscores."
+          ],
+          "optionalImprovements": [
+            "After the connectTo table, the prose already mentions UpstashRedis in a bullet-style list pulled from ResourceAccessProps JSDoc. Consolidating both into one consistent table (rather than splitting across table + prose) would reduce confusion about which list is authoritative.",
+            "The 'Defining resources' renaming warning focuses on databases but renaming a bucket or queue is equally destructive (queue messages lost, S3 objects stranded if the name was used in code). Generalizing the warning to 'stateful resources' rather than just databases would be more accurate.",
+            "ScriptEnvProps.connectTo JSDoc also lists UpstashKafkaTopic with multiple injected vars. If this resource type is exposed to users, it belongs in the connectTo table. If it is not (it doesn't appear in StacktapeResourceDefinition), note its absence and verify the JSDoc isn't outdated.",
+            "The 'Resources vs cloudformationResources' section mentions $CfResourceParam for raw CloudFormation resources — this directive is introduced here without a link to the Directives page. Adding the link would let readers who stumble on this section find usage details without searching."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong, self-contained opening paragraph (≈55 words) that directly answers 'what is this and why does it matter' — citation-ready.",
+            "Comprehensive resource categories table covers all major types and maps them to underlying AWS services, making the page immediately useful for orientation.",
+            "All Stacktape config examples use the correct `<CodeBlock intellisense tabs={[...]}/>` pattern with class-based resources and `defineConfig` — no forbidden YAML blocks or StacktapeConfig-typed objects.",
+            "The connectTo environment variable table is a high-value, scannable reference that correctly documents 12 resource types with their injected variable names.",
+            "FAQ is broad and well-structured, mixing Stacktape-specific questions (VPC networking, renaming risk), AWS cost questions (idle resource pricing), and comparison questions (one big stack vs. many) — citation-friendly format.",
+            "The Warning callout about renaming stateful resources is precisely targeted and will prevent real data-loss incidents.",
+            "Clear separation between `connectTo` (high-level, automatic) and `iamRoleStatements` (manual, fine-grained) in both body and FAQ.",
+            "Realistic code examples — the `processOrder`/`invoiceBucket` example is the kind of snippet a real team would copy verbatim."
+          ],
+          "problems": [
+            "CLI command name error: the page uses `stacktape stack-info` throughout, but the CLI file is `info-stack.mdx`, indicating the correct command is `stacktape info-stack`. The link `/cli/info-stack` is correct but the prose command name is wrong.",
+            "CLI command name error in FAQ: the page uses `stacktape rollback` and links to `/cli/rollback`, but the CLI file in the git status is `cf-rollback.mdx`, indicating the correct command is `stacktape cf-rollback` and the link should be `/cli/cf-rollback`.",
+            "connectTo table is incomplete: UpstashRedis (injects HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) and MongoDbAtlasCluster (injects CONNECTION_STRING) are both documented in the source ScriptEnvProps JSDoc but are absent from the table. The table appears exhaustive when it is not.",
+            "Unsourced technical claim: 'Resource names must be alphanumeric only (letters and numbers, no hyphens or underscores) and are validated at deploy time.' No validation rule matching this claim appears in the provided source files.",
+            "Aurora's READER_JDBC_CONNECTION_STRING is missing from the connectTo table — documented in ScriptEnvProps JSDoc alongside READER_CONNECTION_STRING and READER_HOST.",
+            "The resource categories table lists 'CDN' and 'custom domains' as if they are standalone Stacktape resource types, but neither appears in the `StacktapeResourceDefinition` union type in the source. They are features/configuration options attached to other resources, not independent resource definitions.",
+            "`Convex` is present in the `StacktapeResourceDefinition` union type in the provided source but does not appear in the resource categories table."
+          ],
+          "mandatoryFixes": [
+            "Fix CLI command name: replace every occurrence of `stacktape stack-info` with `stacktape info-stack` (appears in the 'How resources map to AWS' section and the FAQ). The page link `/cli/info-stack` is already correct — only the prose command name needs updating.",
+            "Fix CLI command and link in FAQ: replace `stacktape rollback` with `stacktape cf-rollback` and update the broken link from `/cli/rollback` to `/cli/cf-rollback` to match the CLI file `cf-rollback.mdx`.",
+            "Add UpstashRedis (HOST, PORT, PASSWORD, REST_TOKEN, REST_URL, REDIS_URL) and MongoDbAtlasCluster (CONNECTION_STRING) to the connectTo environment variable table. Both are documented in the source ScriptEnvProps JSDoc and their absence makes the table misleading — a reader relying on it to understand what connectTo injects will miss two resource types entirely."
+          ],
+          "optionalImprovements": [
+            "Add READER_JDBC_CONNECTION_STRING to the Aurora row in the connectTo table (sourced from ScriptEnvProps JSDoc: 'For Aurora clusters, READER_CONNECTION_STRING, READER_JDBC_CONNECTION_STRING, and READER_HOST are also included').",
+            "Soften or remove the unsourced resource name validation claim ('alphanumeric only'). If it cannot be grounded in source, replace with 'use short, descriptive, camelCase names' without asserting a character set constraint.",
+            "Clarify that CDN and custom domains in the resource categories table are configuration features attached to other resource types (ALB, HTTP API Gateway, etc.), not standalone resource definitions. This avoids confusion when a reader looks for a `Cdn` class to instantiate.",
+            "The Overrides section is useful but thin — a minimal concrete example (a two-line CloudFormation property override via dot-notation) would make the section actionable instead of purely expository.",
+            "Add a brief note about Convex in the resource categories table or Advanced row, since it is present in the `StacktapeResourceDefinition` source type.",
+            "The fenced ```typescript block showing the `$ResourceParam` environment variable pattern would be clearer as a full code example inside a `<CodeBlock intellisense>` rather than a naked partial snippet — readers cannot copy it as-is without surrounding context."
+          ]
+        }
+      ],
+      "verifierResults": [],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\resources.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 5, advisory high 1, verifier medium 13"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/configuration/resources.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T02:56:45.458Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts": "242cf94f68a3f84aa3afefe69f69152a524f95d6",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/configuration/resources.md": "b93a1a995c13579d5e5f8b146099ec63799381c0"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

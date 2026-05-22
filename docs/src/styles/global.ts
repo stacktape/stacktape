@@ -98,10 +98,20 @@ export const globalCss: Css = {
     fontFamily: fontFamilyMono,
     fontSize: '0.875em',
     color: colors.brandGreen,
-    background: 'linear-gradient(135deg, rgba(54, 190, 190, 0.08), rgba(54, 190, 190, 0.04))',
-    padding: '2px 6px',
+    background: 'rgba(54, 190, 190, 0.13)',
+    padding: '0px 5px',
     borderRadius: '4px',
-    border: '1px solid rgba(54, 190, 190, 0.2)'
+    // Disable ligatures + contextual alternates. Geist Mono (and most programming fonts) ligate
+    // `--` into a single wider glyph (em-dash-style), but the browser still lays out two
+    // characters' worth of inline-box width. The ligated glyph then overhangs the painted
+    // background — that's why the bug *only* triggered on content starting with `--`.
+    fontVariantLigatures: 'none',
+    fontFeatureSettings: '"liga" 0, "calt" 0',
+    display: 'inline-block',
+    verticalAlign: 'baseline',
+    maxWidth: '100%',
+    wordBreak: 'break-all',
+    whiteSpace: 'normal'
   },
   // Reset code styling inside pre blocks (code blocks handled by Prism)
   'pre code': {

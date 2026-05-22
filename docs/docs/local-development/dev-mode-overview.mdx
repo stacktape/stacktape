@@ -4,7 +4,7 @@ order: 112
 seoTitle: 'Dev Mode: Run Stacktape Locally with Docker | Stacktape Docs'
 seoDescription: 'Run containers, databases, and frontends locally with Stacktape dev mode. Docker-based emulation, Lambda tunneling, and instant rebuilds — no redeploy needed.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 8.3, hard blockers 2, advisory high 0, verifier medium 6'
+pipelineReviewSummary: 'reviewer-avg 8.3, hard blockers 1, advisory high 0, verifier medium 3'
 ---
 
 # Dev Mode Overview
@@ -203,7 +203,7 @@ Stacktape auto-recovers (deletes and redeploys a fresh dev stack) when the exist
 
 ## Agent mode
 
-Agent mode runs dev mode as a background daemon with an HTTP server, keeping workload and local-resource state available for integrations with [AI coding assistants](/using-with-ai/agent-mode-in-dev) and automated workflows.
+When started with `--agent`, dev mode runs as a detached background daemon. Stacktape starts an agent server on the selected port, writes a lock file recording the process and connection details, and returns those details to the caller. See [Agent mode in dev](/using-with-ai/agent-mode-in-dev) for the full guide.
 
 Start dev mode as an agent:
 
@@ -218,8 +218,6 @@ Stop a running agent with [`stacktape dev:stop`](/cli/dev-stop):
 ```bash
 stacktape dev:stop --agentPort 7331
 ```
-
-For full agent mode documentation, see [Agent mode in dev](/using-with-ai/agent-mode-in-dev).
 
 ## Command reference
 
@@ -259,7 +257,7 @@ Use the `--freshDb` flag: `stacktape dev --stage dev --region us-east-1 --freshD
 
 ### What is the difference between dev mode and deploying to a dev stage?
 
-Dev mode (`stacktape dev`) runs workloads on your local machine with Docker, deploys only a minimal dev stack to AWS, and gives you instant code-to-result feedback. [Deploying](/cli/deploy) to a dev stage (`stacktape deploy --stage dev`) provisions the full AWS infrastructure — containers on ECS, databases on RDS, Lambda functions, load balancers — and runs everything in the cloud. Use dev mode for rapid daily iteration; use a deployed dev stage for integration testing against real AWS infrastructure.
+Dev mode (`stacktape dev`) runs workloads on your local machine with Docker and, in normal mode, deploys a dev stack to your AWS account when one does not already exist. [Deploying](/cli/deploy) to a dev stage (`stacktape deploy --stage dev`) provisions the full AWS infrastructure for your config and runs everything in the cloud. Use dev mode for rapid daily iteration; use a deployed dev stage for integration testing against real AWS infrastructure.
 
 ### Does dev mode cost anything on AWS?
 
@@ -271,7 +269,7 @@ You can run separate dev mode sessions for different stages or projects, since e
 
 ### Can I use dev mode in a monorepo?
 
-Yes. Point `stacktape dev` at a config file that references the resources you want to run, then use `--resources` to select specific workloads or the interactive picker. Each workload packages and runs independently, so you can iterate on one service while others continue running. See [Monorepo setup](/recipes/monorepo-setup) for configuration patterns.
+Yes. Point `stacktape dev` at a config file that references the resources you want to run, then use `--resources` to select specific workloads or the interactive picker. Each workload packages and runs independently, so you can iterate on one service while others continue running. See [Configuration files](/configuration/configuration-files) for how to organize your Stacktape config.
 
 ### How does Stacktape dev mode compare to Docker Compose?
 

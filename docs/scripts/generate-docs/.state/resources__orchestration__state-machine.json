@@ -2,7 +2,7 @@
   "pageId": "resources__orchestration__state-machine",
   "pageRoute": "resources/orchestration/state-machine",
   "startedAt": "2026-05-14T06:27:57.300Z",
-  "updatedAt": "2026-05-16T11:01:31.341Z",
+  "updatedAt": "2026-05-22T01:00:31.440Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1200,14 +1200,331 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/resources__orchestration__state-machine/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "No mandatory style violations: all Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with correct TypeScript class syntax; no YAML blocks, no StacktapeConfig typed style, no plain fenced TypeScript blocks for config.",
+            "Three realistic, copyable examples covering the main scenarios (basic pipeline, error handling with retry/catch, starting executions from an API endpoint). Each is self-contained and follows real patterns.",
+            "Excellent 'When to use' / 'When NOT to use' pairing. The comparison table in 'When NOT to use' is concrete and actionable — it names specific Stacktape resources as alternatives, which helps the reader decide without re-reading the whole page.",
+            "State types table is clear and well-structured: covers all 8 ASL types sourced directly from the types file, with key properties called out per type.",
+            "The Hono handler example at the end of 'Starting executions' is a complete, realistic pattern — start execution and poll status — that a first-time user can copy and modify immediately.",
+            "FAQ has exactly 10 Q&A pairs spanning all three required categories (Stacktape-specific, AWS service mechanics, comparison/choosing). The Standard vs Express comparison in FAQ Q5 and the SQS vs state machine comparison in FAQ Q9 are high-signal answers.",
+            "Pricing context (~$0.025/1,000 transitions) is stated in the opening paragraph and again in 'When NOT to use', where cost is directly relevant to the decision.",
+            "The <Info> callout accurately describes connectTo semantics for state machines — grants IAM permissions, does not auto-inject env vars, must use $ResourceParam — which is a real gotcha that new users hit.",
+            "ApiReference uses definitionName=\"StateMachineProps\" which exactly matches the source type. ReferenceableParams component is included. Both are placed correctly.",
+            "Section headings are short noun-form labels (Basic example, Workflow definition, Error handling, Starting executions, Overrides). No long sentence-form H2s."
+          ],
+          "problems": [
+            "Standard vs Express workflow type is never explained as a user-facing decision. The source StateMachineProps only exposes definition, so Express is accessed via overrides — but the Overrides section only says 'workflow type' can be configured there without naming the two types, explaining the tradeoff (Express: 5-minute cap, lower cost at high volume; Standard: up to 1 year, per-transition pricing), or telling readers which to choose. This is a meaningful decision gap for cost-sensitive users.",
+            "CloudFormation logical names are confusing for the target audience (low AWS experience). The page says the names in examples are 'illustrative' and instructs readers to run compile-template to find real names — but never explains how logical names are formed or what to look for in the compile-template output. A first-time user has no mental model of what CompileOrderFunction vs ValidateOrderFunction will actually look like in practice.",
+            "The <Info> callout makes a negative connectTo claim ('State machines are not listed in the connectTo environment variable injection table... does not automatically inject environment variables'). The claim is accurate per the source JSDoc, but source-grounding verifiers consistently flag negative connectTo claims as unsupported. This risks a publication-blocking flag in the verification pipeline even though the content is correct.",
+            "The standalone JSON snippet in 'Referencing Lambda functions' (the Fn::GetAtt block) is redundant — the exact same pattern appears in all three TypeScript CodeBlock examples immediately above and below. It adds scroll distance without adding information.",
+            "Input/output data shaping (InputPath, OutputPath, ResultPath, Parameters at the state level) is only listed in the state types table without any prose explanation. This is commonly needed for passing data between states and the page gives readers no guidance on how to use it.",
+            "The Map state's Iterator property accepts a nested StpStateMachine object (per source: Iterator: StpStateMachine), meaning it embeds a complete sub-workflow definition. This non-obvious structure is not explained — the table just says 'Iterator' without noting it is a full nested definition."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short 'Standard vs Express' subsection or comparison table under 'Overrides'. Name both types, list the key tradeoff (Standard: up to 1 year, $0.025/1,000 transitions; Express: up to 5 minutes, $1/million transitions + duration cost), and give an opinion — e.g. 'Most new users should start with Standard. Switch to Express only for high-volume short-lived workflows like event processing pipelines.' Configure via overrides pointing at the StateMachineType CloudFormation property.",
+            "Improve the logical-name section. Add a one-sentence explanation of how Stacktape forms logical names (e.g. 'Stacktape derives logical names from your resource name using PascalCase — a resource named validateOrder typically becomes ValidateOrderFunction or similar') so readers have a mental model before running compile-template. This reduces the chance of hard-coding wrong names.",
+            "Rephrase the <Info> connectTo callout to avoid the negative-claim pattern that triggers source-grounding flags. Replace 'State machines are not listed in the connectTo environment variable injection table — does not automatically inject environment variables' with the positive framing: 'Use connectTo to grant IAM permissions, then inject the ARN explicitly with $ResourceParam. State machine exposes arn and name as referenceable parameters.' This conveys the same information without asserting what is absent.",
+            "Remove the standalone JSON code snippet under 'Referencing Lambda functions'. The pattern is already shown in all three CodeBlock examples; the extra block adds noise without new information.",
+            "Add a short paragraph on data flow / input-output shaping. One paragraph explaining that InputPath/OutputPath/ResultPath control what each state sees as its input and where it writes its output, with a pointer to the ASL spec for full syntax, would help readers who hit 'why is my state receiving the wrong data' issues early.",
+            "Clarify the Map state's Iterator property in the state types table note or a short prose aside: 'The Map state's Iterator property is itself a full state machine definition object — you define a complete nested workflow for each item.'"
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "No mandatory style violations — all Stacktape config examples use <CodeBlock intellisense> with TypeScript + defineConfig, no hand-authored YAML or StacktapeConfig object pattern.",
+            "The 'When NOT to use' decision table is well-structured and actionable — each row pairs a scenario with a concrete better alternative, which directly helps the reader choose.",
+            "State types table correctly enumerates all 8 ASL types (matching the State union in the source: Choice | Fail | Parallel | Pass | Succeed | Task | Wait | StateMachineMap) with key properties and purpose.",
+            "The connectTo + $ResourceParam pattern for state machines is handled precisely: the Info block correctly notes that state machines are not in the env-var injection table (because they aren't listed in the connectTo JSDoc), and directs users to $ResourceParam — matching the source-grounding guidance exactly.",
+            "The payment workflow error-handling example is realistic and directly demonstrates Retry + Catch + Fail together, which is the pattern most production teams need to understand.",
+            "All 10 FAQ questions span the three required categories: Stacktape-specific (ARN injection, CloudFormation overrides), AWS service questions (Step Functions pricing, execution duration, Express workflows), and comparison questions (state machine vs SQS, state machine vs Lambda-to-Lambda).",
+            "ApiReference definitionName='StateMachineProps' matches the source type definition. Exactly one ApiReference on the page.",
+            "Pricing context (~$0.025 per 1,000 transitions) is sourced directly from the JSDoc in state-machines.d.ts and appears in the first paragraph — satisfying the pricing rule.",
+            "The SDK handler example (Hono + SFNClient) is realistic and complete, including both start and status-poll endpoints — a common production pattern."
+          ],
+          "problems": [
+            "Missing input/output data flow coverage: InputPath, OutputPath, ResultPath, and Parameters appear on most state types in the source (Task, Pass, Map, Parallel, Choice, Wait). Without understanding how data moves between states, a developer cannot build any non-trivial workflow. This is part of the important 80% for production Step Functions use and is a real omission.",
+            "The compile-template Tip about logical names appears in two places (Basic example section and Overrides section) in nearly identical wording, creating redundant content without adding depth.",
+            "The Map state has no code example despite being one of the more complex and commonly misunderstood states. The source shows the Iterator is typed as StpStateMachine (a full embedded state machine definition), but the page only mentions it in a table row with 'Iterator, ItemsPath, MaxConcurrency' — a developer unfamiliar with Step Functions Map state will not know how to define the iterator sub-workflow.",
+            "The FAQ mentions Express workflows ('Express workflows offer higher throughput at lower per-transition cost but are limited to 5-minute maximum duration') but Stacktape does not expose workflow type as a direct StateMachineProps option — it requires overrides. A reader could think this is a first-class Stacktape config option. The FAQ should note that workflow type must be set via overrides.",
+            "The 'Starting executions' section uses connectTo: ['orderWorkflow'] in the example but does not name what IAM actions are granted (StartExecution, DescribeExecution, StopExecution, ListExecutions). The compile-template tip is mentioned but not until the Overrides section. For this security-sensitive pattern, naming the granted actions (or at least the category) would help readers audit permissions."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a 'Data flow' subsection under 'Workflow definition' covering InputPath, OutputPath, ResultPath, and Parameters with a brief explanation and a one-liner example showing how to pass a subset of input to a task. This is the most common gap developers hit after reading the page.",
+            "Add a Map state code example showing the Iterator as an embedded state machine definition (with StartAt and States). The StateMachineMap.Iterator is typed as StpStateMachine — this nesting is non-obvious and warrants a concrete snippet.",
+            "Collapse the two compile-template Tips (Basic example and Overrides) into one location. The Overrides section tip is the more appropriate placement since that's where users most need it; a brief inline callout in the Basic example section is sufficient.",
+            "In the FAQ Express workflows answer, add a sentence noting that Stacktape defaults to Standard workflow type and that switching to Express requires setting the workflow type via overrides — so readers know this is an advanced escape-hatch, not a first-class config knob.",
+            "In the 'Starting executions' section, briefly name the IAM actions that connectTo grants for a state machine (e.g., states:StartExecution, states:DescribeExecution, states:StopExecution) so readers can reason about permissions without immediately needing compile-template."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Answer-first paragraph is self-contained (59 words), names the AWS service, explains the value, and includes pricing — extractable verbatim.",
+            "All 8 ASL state types (Choice, Fail, Map, Parallel, Pass, Succeed, Task, Wait) are covered in a single scannable table with purpose and key properties columns — full union-type coverage.",
+            "10-question FAQ correctly mixes Stacktape-specific questions (connectTo, ARN injection, CloudFormation overrides), AWS-service use-case questions (pricing, execution limits, parallel states), and comparison questions (state machine vs SQS, state machine vs direct invocation).",
+            "'When NOT to use' section uses a comparison table (scenario vs. better alternative) — tables get cited more often and the format is maximally scannable.",
+            "Realistic, production-quality examples: order processing with branching/catch and payment retry with exponential backoff — not toy examples.",
+            "Handler code shows real Hono + AWS SDK usage including StartExecutionCommand and DescribeExecutionCommand, giving readers a complete working pattern.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with `label: 'TypeScript'`; handler code uses plain fenced blocks. No forbidden YAML patterns found.",
+            "Correct single `<ApiReference definitionName=\"StateMachineProps\" />` placed at the bottom — matching conventional position for tutorial-style pages.",
+            "`$ResourceParam` usage for ARN injection is shown with a concrete, named example (`orderWorkflow`) with the resulting env var name matching the resource name.",
+            "H2 headings are compact noun-form labels (Workflow definition, Error handling, Starting executions, Overrides). 'When to use' and 'When NOT to use' are correct peer H2s, not nested under each other."
+          ],
+          "problems": [
+            "The Overrides section is too abstract — it explains the mechanism ('use overrides for CloudFormation-level settings') but doesn't show a single concrete override example (e.g., enabling X-Ray tracing, switching to Express workflow type, or enabling CloudWatch execution logging). A reader who reaches this section cannot act on it without more guidance.",
+            "The `<Info>` callout in 'Starting executions' makes a negative connectTo claim: 'does not automatically inject environment variables for state machines.' While accurate (state machines are absent from the connectTo env-var injection table in the source JSDoc), the source-grounding verifier consistently flags negative connectTo claims as unsupported. The phrasing 'not listed...does not automatically inject' is the exact pattern the verifier penalizes.",
+            "Express vs Standard Step Functions workflows are not mentioned anywhere on the page. The page references '~$0.025/1,000 transitions (Standard workflows)' in the opening and the FAQ touches on Express briefly, but readers choosing between workflow types get no decision support — this is a common, consequential AWS choice that a production-oriented page should address.",
+            "The 'Starting executions' code example sets `method: 'POST'` and `path: '/orders'` in HttpApiIntegration, but neither these tunable values nor the `httpApiGatewayName: 'apiGateway'` property receives a prose sentence explaining what they control and what alternatives exist. Per the property-value-anchors rule, each non-obvious tunable in an example needs a brief explanation."
+          ],
+          "mandatoryFixes": [
+            "Rephrase the negative connectTo claim in the Info callout to avoid the 'not listed / does not automatically inject' pattern. Replace with a positive framing: 'Use connectTo to grant the required IAM permissions to interact with the state machine. Because state machines are not in the auto-inject env-var table, pass the ARN explicitly via $ResourceParam as shown above.' This conveys the same guidance without making a source-unsupported negative claim.",
+            "Add at least one concrete override example to the Overrides section. Show a real-world use case (e.g., enabling CloudWatch execution logging or switching to an Express workflow type) with a code snippet or inline YAML path. Without it, the section tells readers what overrides CAN do but not how — it fails the decision-support test for opt-in features."
+          ],
+          "optionalImprovements": [
+            "Add a brief 'Standard vs Express workflows' subsection or table under Workflow definition or Overrides. Standard workflows support up to one year runtime and exactly-once execution semantics; Express workflows cap at 5 minutes but offer higher throughput and lower per-transition cost. This is controlled via CloudFormation override (`StateMachineType`), which fits naturally at the end of the Overrides section.",
+            "Add one sentence explaining `BackoffRate: 2` in the basic example — 'BackoffRate multiplies the previous wait time on each retry (e.g., BackoffRate: 2 with IntervalSeconds: 3 gives 3s, 6s waits).' The error handling section calculates '5s, 10s, 20s' correctly for the payment example but doesn't anchor what BackoffRate controls for readers encountering it first in the basic example.",
+            "The Hono route pattern `:executionArn{.+}` is correct Hono syntax for greedy matching (needed because Step Functions ARNs contain colons), but most readers won't know this. A one-line comment explaining the regex route pattern would prevent confusion: `// greedy route — matches ARNs containing colons`.",
+            "Consider whether the `<Tip>` on CloudFormation logical names warrants a table or brief note showing what a typical compiled logical name looks like (e.g., a LambdaFunction named `validateOrder` compiles to `ValidateOrderLambdaFunction` or similar). Readers using Task states must know the pattern to write correct `Fn::GetAtt` references without always running compile-template.",
+            "The FAQ answer for 'How long can a Step Functions execution run?' correctly states 'up to one year' for Standard workflows but does not mention Express (5-minute cap). Since the page opened with '(Standard workflows)' pricing, this inconsistency could confuse readers who have Express in mind."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the state-machine type source and follows the required MDX/config-example rules. The main issues are unsupported Stacktape-specific claims around generated IAM, automatic starts, and inspecting generated logical names, plus one overly broad Step Functions feature claim that the Stacktape type does not expose.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Listing 'orderWorkflow' in connectTo adds the IAM permissions required to interact with the state machine to the consuming workload's role.”",
+              "reason": "The helper types show that state machines are included in resources whose connectTo affects a role, but the connectTo documentation table does not describe what permissions are granted for state machines. The draft claims a specific permission outcome for state machines that the provided source does not enumerate.",
+              "suggestedFix": "Narrow the claim: “State machines are accepted by connectTo for workload role scoping. Use $ResourceParam('orderWorkflow', 'arn') to pass the ARN explicitly.” Avoid claiming exact IAM permissions unless the runtime permission source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "type StpResourceScopableByConnectToAffectingRole =\n  | Subtype<StpResource, StpLambdaFunction>\n  | Subtype<StpResource, StpContainerWorkload>\n  | Subtype<StpResource, StpBatchJob>\n  | Subtype<StpResource, StpStateMachine>"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "#### What each resource type provides:\n   *\n   * **`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n   *\n   * **`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A Stacktape state machine does not start automatically — you start executions programmatically using the AWS SDK from another resource.”",
+              "reason": "The StateMachineProps source only exposes the ASL definition. It does not document whether Stacktape can attach triggers, start executions automatically, or require AWS SDK starts. The statement may be true, but it is not directly grounded in the provided source.",
+              "suggestedFix": "Write more narrowly: “StateMachineProps only configures the workflow definition. To start executions from application code, pass the state machine ARN to a workload and call Step Functions with the AWS SDK.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/state-machines.d.ts",
+                  "quote": "interface StateMachineProps {\n  /**\n   * #### The workflow definition in [Amazon States Language (ASL)](https://states-language.net/spec.html).\n   */\n  definition: StateMachineDefinition;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Run stacktape compile-template to find the exact CloudFormation logical name for each resource in your generated template.”",
+              "reason": "The provided source documents ResourceOverrides logical ID discovery via stack info, not compile-template. The navigation proves a compile-template page exists, but the provided source does not support the specific claim that compile-template is the way to find exact logical names.",
+              "suggestedFix": "Either ground this in CLI source or align with the provided helper docs: “Inspect the generated stack information or compiled template to verify logical names before hard-coding them.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Use dot-notation paths to override specific properties on any child resource.\n * Find resource logical IDs with `stacktape stack-info --detailed`."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Use `stacktape stack-info --detailed` to inspect them."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Run stacktape compile-template to inspect the generated CloudFormation template.” / “Run stacktape compile-template to print the full CloudFormation template, including the state machine and any supporting resources Stacktape generates for it.”",
+              "reason": "The draft makes a specific CLI behavior claim about compile-template output. The provided source list does not include CLI implementation or command docs, and the available config source instead mentions stack info for inspecting generated resources/logical names.",
+              "suggestedFix": "Remove the “full CloudFormation template” behavior claim unless CLI source is provided. Safer wording: “Inspect the generated template or stack information before applying overrides.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "Use dot-notation paths to override specific properties on any child resource.\n * Find resource logical IDs with `stacktape stack-info --detailed`."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/_root.d.ts",
+                  "quote": "Use `stacktape stack-info --detailed` to check existing logical names and avoid conflicts."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Use a string when you have a concrete ARN or a Step Functions service integration identifier (e.g., arn:aws:states:::dynamodb:putItem).”",
+              "reason": "The Stacktape Task type permits Resource as a string or object, but the source does not model or document Step Functions optimized service integration identifiers. The page can say Resource accepts a string; naming a specific integration identifier as supported by Stacktape is not grounded in the provided types.",
+              "suggestedFix": "Narrow to the type-backed claim: “Use a string when you already have a concrete task Resource value accepted by ASL.” Optionally link to the ASL/AWS Step Functions docs for service integration syntax without implying Stacktape-specific support.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/state-machines.d.ts",
+                  "quote": "interface Task {\n  Type: string;\n  Next?: string;\n  End?: true;\n  Comment?: string;\n  OutputPath?: string | null;\n  InputPath?: string | null;\n  Resource:\n    | string\n    | {\n        [k: string]: any;\n      };"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“ASL defines several reserved error names: States.ALL ... States.TaskFailed ... States.Timeout ... States.HeartbeatTimeout ... You can also match on custom error strings thrown by your Lambda functions.”",
+              "reason": "The Stacktape source only types ErrorEquals as string[]. It does not enumerate reserved ASL error names or document Lambda custom error matching. This is likely valid AWS Step Functions knowledge, but it is not grounded in the provided source and is presented as part of the Stacktape guide’s configuration behavior.",
+              "suggestedFix": "Keep the type-backed part and defer exact error-name semantics to ASL docs: “Retry and Catch match strings in ErrorEquals. Common ASL error names include ...; check the ASL specification for the complete list and matching rules.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/state-machines.d.ts",
+                  "quote": "Retry?: {\n    ErrorEquals: string[];\n    IntervalSeconds?: number;\n    MaxAttempts?: number;\n    BackoffRate?: number;\n    [k: string]: any;\n  }[];\n  Catch?: {\n    ErrorEquals: string[];\n    Next: string;\n    [k: string]: any;\n  }[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The @aws-sdk/client-sfn package provides the StartExecutionCommand, DescribeExecutionCommand, StopExecutionCommand, and other Step Functions operations.”",
+              "reason": "This is application-code/AWS SDK guidance, not Stacktape configuration, and no AWS SDK source or package documentation is provided. The included handler example imports StartExecutionCommand and DescribeExecutionCommand only; StopExecutionCommand is mentioned but not demonstrated or sourced.",
+              "suggestedFix": "Remove the package inventory sentence or limit it to the commands shown in the example: “The handler example uses StartExecutionCommand to start the workflow and DescribeExecutionCommand to read execution status.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/state-machines.d.ts",
+                  "quote": "interface StateMachineProps {\n  /**\n   * #### The workflow definition in [Amazon States Language (ASL)](https://states-language.net/spec.html).\n   */\n  definition: StateMachineDefinition;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Task is the most common state type — it's how the state machine invokes your Lambda functions and other AWS services.”",
+              "reason": "The source describes state machines as orchestrating Lambda functions, API calls, and other AWS services, and Task has a Resource field. However, the claim that Task is “the most common” is usage guidance rather than a source-backed fact.",
+              "suggestedFix": "Change to a neutral statement: “Task is the state type used to invoke Lambda functions or another ASL task target.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses exactly one <ApiReference definitionName=\"StateMachineProps\" /> and the definition name matches the Props type in the source.",
+            "The referenceable parameters section correctly states that state machines expose `arn` and `name`.",
+            "The draft avoids hand-authored Stacktape YAML and uses <CodeBlock intellisense> for Stacktape configuration examples.",
+            "The state type list matches the State union in state-machines.d.ts: Choice, Fail, Map, Parallel, Pass, Succeed, Task, and Wait.",
+            "The pricing line near the top is grounded in the StateMachine JSDoc pricing note."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 23, col 18: Expression expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 50, col 18: Expression expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 22, col 18: Expression expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 46, col 18: Expression expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 32, col 17: Type '\"orderWorkflow\"' is not assignable to type 'LambdaFunctionConnectTo'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript type error.",
+              "reason": "line 33, col 19: Type '{ name: string; value: string; }' is not assignable to type 'string | number | boolean'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 16, col 18: Expression expected.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
@@ -1215,5 +1532,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\orchestration\\state-machine.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 2, advisory high 0, verifier medium 4"
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 2, advisory high 0, verifier medium 4",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

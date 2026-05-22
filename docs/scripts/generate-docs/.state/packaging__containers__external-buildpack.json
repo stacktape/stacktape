@@ -2,7 +2,7 @@
   "pageId": "packaging__containers__external-buildpack",
   "pageRoute": "packaging/containers/external-buildpack",
   "startedAt": "2026-05-17T14:03:57.118Z",
-  "updatedAt": "2026-05-17T14:19:23.047Z",
+  "updatedAt": "2026-05-22T07:05:44.745Z",
   "iterations": [
     {
       "iteration": 1,
@@ -720,6 +720,383 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/packaging__containers__external-buildpack/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense> with TypeScript tabs — no forbidden YAML blocks or fenced TypeScript config anywhere on the page.",
+            "Every property documented in the source type (sourceDirectoryPath, builder, buildpacks, command) gets its own dedicated section with a working code example.",
+            "The packaging mode comparison table at the bottom is the page's strongest asset — it gives a first-time user an immediate clear answer to 'why external buildpack over the others' with a concrete signal per row.",
+            "The 'When to use / When NOT to use' split is opinionated and specific rather than circular — it tells the reader that the Stacktape image buildpack is the better default and explains why, which is exactly what a first-time user needs.",
+            "FAQ mixes all three required question categories (Stacktape-specific, AWS-service mechanics, comparison/choosing) and answers are concise enough to work as search snippets.",
+            "<ApiReference definitionName=\"ExternalBuildpackCwImagePackagingProps\" /> is correct — it matches the type name from the source file, and there is exactly one instance."
+          ],
+          "problems": [
+            "The 'How it works' section asserts 'Stacktape skips the build when source files have not changed since the last deploy' — this Stacktape-specific caching behavior is not present anywhere in the provided source file (ExternalBuildpackBjImagePackagingProps / ExternalBuildpackCwImagePackagingProps). The same claim is repeated in the FAQ. This is an unsupported Stacktape-specific claim that could be flagged as a factual error by the source-grounding verifier.",
+            "The builder table lists specific image tags (heroku/builder:24, gcr.io/buildpacks/builder:google-22, paketobuildpacks/builder-jammy-full) that are not grounded in the source file. The source only confirms the default paketobuildpacks/builder-jammy-base. The concrete tags may be wrong or drift over time, and the prose <Info> callout doesn't fully protect against a reader copying a stale tag.",
+            "The 'Using with batch jobs' section adds little value: the page already establishes that the packaging applies to batch jobs in the opening paragraph, the comparison table names batch jobs, and the config pattern is identical to every other example. The section reads as padding."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or reframe the build-skip claim in 'How it works': either drop the sentence entirely or replace it with a cautious 'CNB layer caching means...' framing that attributes the behavior to the CNB spec rather than asserting it as a Stacktape guarantee.",
+            "Demote the builder table from a reference table to a short prose sentence: 'Common builders include Paketo (paketobuildpacks/builder-jammy-base, the default), Heroku (heroku/builder), and Google Cloud buildpacks — consult each provider's documentation for current tags.' This removes the stale-tag risk without losing the orientation value.",
+            "Remove the 'Using with batch jobs' section. Its single BatchJob example could be added as a second tab or a callout inside the 'Basic example' section if a BatchJob-specific illustration is needed, but as a standalone H2 it inflates the page without helping the reader.",
+            "The Docker-required prerequisite is currently buried in the last FAQ entry. Promote it to an <Info> callout near the 'Basic example' section: first-time users who copy the example and try to deploy without Docker running will hit an opaque error.",
+            "The 'How it works' section's layer-caching paragraph is the only substantive content in that section after removing the unsupported build-skip claim. If it shrinks to one sentence, consider folding it into the Builder section or removing the H2 entirely rather than leaving a thin section."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All four source-backed properties (builder, buildpacks, sourceDirectoryPath, command) are documented with working examples, matching the ExternalBuildpackBjImagePackagingProps type exactly.",
+            "Comparison table covering all five container packaging modes gives clear decision support — the page answers 'why pick this vs the others' before the reader has to ask.",
+            "CodeBlock usage is correct throughout: ExternalBuildpackPackaging class name matches the valid class list, all Stacktape config examples are in <CodeBlock intellisense tabs=[...]> with label 'TypeScript', no fenced YAML Stacktape config present.",
+            "When to use / When NOT to use are peer H2 sections with concrete, opinionated guidance — not circular ('use CDN if you need CDN').",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service behavior, comparison/choosing) with 10 well-formed Q&A pairs.",
+            "Default builder (paketobuildpacks/builder-jammy-base) is correctly sourced from the JSDoc and presented in a scannable table with practical alternatives.",
+            "No mandatory style violations detected: no hand-authored YAML, no StacktapeConfig type, no fenced TypeScript defineConfig blocks, no multiple-command bash blocks."
+          ],
+          "problems": [
+            "'How it works' section claims 'Stacktape skips the build when source files have not changed since the last deploy' — this claim is grounded in the lambda-buildpack JSDoc ('Packages are cached based on a checksum, so unchanged code is not re-packaged') but does NOT appear anywhere in the external-buildpack source. Asserting it for ExternalBuildpackPackaging is an unsupported Stacktape-specific claim.",
+            "The 'How it works' section partially restates content from the opening paragraph (builder inspects source, detects language, installs dependencies, builds image). The first two sentences add no new signal beyond the intro, making the section feel padded before reaching the (valuable) layer-caching nuance.",
+            "The FAQ answer to 'Do I need to install anything locally to use external buildpack?' states 'External buildpack packaging uses the Cloud Native Buildpack build process, which requires Docker to be running on the build machine.' This Docker requirement is not grounded in the provided source files for ExternalBuildpackPackaging. It may be true as general CNB knowledge but is presented as a Stacktape-specific fact."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or rephrase the 'Stacktape skips the build when source files have not changed' sentence in 'How it works'. Either qualify it as CNB layer-caching behavior (which it is — the subsequent paragraph covers this correctly) or remove it, since the source is silent on external-buildpack-specific caching at the Stacktape layer.",
+            "Trim the first two sentences of 'How it works' — they repeat the intro verbatim. Open with the layer-caching detail (the non-obvious, production-relevant behavior) rather than re-explaining what buildpacks do.",
+            "In the FAQ Docker answer, soften the claim: 'Cloud Native Buildpack builders typically require a Docker daemon or compatible container runtime on the build machine' rather than asserting it as a Stacktape requirement. Alternatively, link to CNB documentation for runtime prerequisites instead of making a Stacktape-specific claim.",
+            "The batch job section ('Using with batch jobs') is thin — it just says configuration is identical and repeats the property names. A one-sentence note about BatchJob-specific concerns (e.g. memory/CPU sizing for batch workloads, or the fact that batch jobs don't serve HTTP traffic so port config isn't needed) would add signal beyond 'same as web service'.",
+            "The builder table lists 'gcr.io/buildpacks/builder:google-22' — the ':google-22' tag should be verified against Google Cloud Buildpacks documentation since builder image tags change. The Info callout already warns the reader to check docs, but calling out that tags can go stale is worth one more explicit sentence."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "Stacktape config examples use <CodeBlock intellisense tabs={[...]}/> with a visible TypeScript tab, and avoid forbidden YAML or StacktapeConfig patterns.",
+            "The page explicitly says external buildpack packaging applies to container-based resources and links the supported resource pages.",
+            "The comparison table names all five container packaging modes, which satisfies union-type coverage at a high level.",
+            "The FAQ mixes Stacktape-specific, underlying buildpack, and comparison questions instead of staying Stacktape-only."
+          ],
+          "problems": [
+            "Many technical claims are not grounded in the provided source file: OS-level security patches, reproducible builds, Heroku/Google/Paketo builder examples beyond the default, Docker being required locally, GitOps runner behavior, build output appearing during stacktape deploy, source-change build skipping, and CNB layer caching behavior are not supported by the supplied type definitions.",
+            "Several recommendation claims are stronger than the source supports, including 'broadest language coverage,' 'widest language coverage,' 'for most projects the Stacktape image buildpack is a better default,' and 'fastest path.' The source only states that external buildpacks can be found for almost any language/framework and that Stacktape image buildpack supports JS/TS, Python, Java, and Go.",
+            "The Basic example is not actually the smallest valid example for the packaging mode because it includes WebService cpu and memory settings that are outside the ExternalBuildpackCwImagePackagingProps source and are not necessary to explain the packaging object.",
+            "The Builder section presents a table of specific third-party builders as if they are documented Stacktape choices, but the source only defines builder as an arbitrary string with default paketobuildpacks/builder-jammy-base.",
+            "The Buildpacks section states that buildpack IDs, URIs, and image references are all common accepted formats, but the Stacktape source only types buildpacks as string[] and does not document accepted identifier forms.",
+            "The How it works section is partly redundant and partly unsupported: the source supports automatic detection and building an image, but not source-change skipping, dependency-layer cache reuse, or faster incremental builds.",
+            "The FAQ includes practical answers, but several answers introduce unsupported Stacktape-specific behavior, especially deploy output, skipped builds, Docker requirements, and Console GitOps build runner behavior.",
+            "Some tunable example values are insufficiently anchored. CPU and memory values appear in every example, but the page does not explain why those values were chosen or the supported alternatives, and those properties are not part of the provided packaging source."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground unsupported claims about source-change build skipping, CNB layer caching, Docker local requirements, GitOps runner behavior, deploy build output, OS-level security patches, and reproducible builds. If those claims are important, add the relevant authoritative source files before publishing.",
+            "Rewrite the Builder section so only the documented default builder, `paketobuildpacks/builder-jammy-base`, is presented as sourced Stacktape behavior. Treat other builder names as external examples only if a provided source supports them, or remove the table.",
+            "Narrow recommendation language that is not supported by the source. Replace claims like 'broadest language coverage,' 'widest language coverage,' and 'fastest path' with cautious wording grounded in the source, such as the documented Stacktape image buildpack language list and the source statement that external buildpacks exist for almost any language or framework.",
+            "Make the first example the smallest valid packaging example for external buildpack. Avoid unrelated WebService resource tuning unless the page also explains and sources those values.",
+            "Replace or remove the unsupported How it works paragraphs about skipped builds and layer caching. Keep only source-grounded behavior: Stacktape uses the configured or default builder, optional buildpacks, sourceDirectoryPath, and optional command to build a container image using external buildpacks.",
+            "Audit every FAQ answer for Stacktape-specific claims and remove any behavior not present in the provided source files, especially CLI/deploy, Console/GitOps, and local Docker behavior."
+          ],
+          "optionalImprovements": [
+            "Move the container packaging comparison table earlier, near When NOT to use, so readers deciding between modes see the alternatives before the detailed knobs.",
+            "Add a compact properties table in prose before examples: sourceDirectoryPath required, builder optional with default, buildpacks optional, command optional. Keep the ApiReference as the single formal reference section.",
+            "Shorten the seoDescription; the current version reads slightly crowded and includes unsupported provider examples.",
+            "In examples focused on builder, buildpacks, or command, consider omitting unrelated resource sizing or explaining that those values belong to the workload resource rather than the packaging mode."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No concrete factual or source-grounding issues found that require revision. The draft uses the documented TypeScript CodeBlock pattern, covers all five container packaging modes, uses a valid ApiReference definition name, and keeps external-buildpack properties aligned with the provided type source.",
+          "issues": [],
+          "positiveFindings": [
+            "The page avoids forbidden YAML and plain-object StacktapeConfig examples; every Stacktape configuration example uses <CodeBlock intellisense> with label: 'TypeScript'.",
+            "The API reference uses ExternalBuildpackCwImagePackagingProps, which matches the provided props interface.",
+            "The draft covers all ExternalBuildpackCwImagePackagingProps fields: sourceDirectoryPath, builder, buildpacks, and command.",
+            "The container packaging comparison names all five container packaging variants present in the source: stacktape-image-buildpack, custom-dockerfile, prebuilt-image, nixpacks, and external-buildpack.",
+            "The draft removed the stronger generated-doc claim that Stacktape skips builds when source files are unchanged and instead phrases caching cautiously as builder-dependent behavior."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is broadly aligned with the provided source files and follows the required TypeScript CodeBlock pattern. I found a small set of unsupported or overstated claims, mostly where the draft expands beyond the `ExternalBuildpackCwImagePackagingProps` source surface into specific builder behavior, caching, deploy output, and local build requirements.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Cloud Native Buildpacks may use layer caching depending on the builder and build environment — dependencies are typically cached in a separate image layer from application code, so unchanged dependencies can be reused on subsequent builds.” and the FAQ claim that builds “benefit from CNB layer caching on subsequent builds.”",
+              "reason": "The authoritative type source only documents the external buildpack configuration properties and says the buildpack builds an optimized container image. It does not document Stacktape build caching behavior, dependency-layer reuse, or whether subsequent Stacktape deploys reuse prior layers. This could mislead readers about deploy speed and cache behavior.",
+              "suggestedFix": "Narrow the claim to the CNB model without promising Stacktape deploy-time cache reuse. For example: “Cloud Native Buildpacks commonly produce layered OCI images. Stacktape does not expose cache controls on `ExternalBuildpackPackaging`; actual caching behavior depends on the builder and build environment.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "interface ExternalBuildpackBjImagePackagingProps {\n  /**\n   * #### The Buildpack Builder to use.\n   *\n   * ---\n   *\n   * @default \"paketobuildpacks/builder-jammy-base\"\n   */\n  builder?: string;\n  /**\n   * #### The specific Buildpack to use.\n   *\n   * ---\n   *\n   * By default, the buildpack is detected automatically.\n   */\n  buildpacks?: string[];\n  /**\n   * #### The path to the source code directory.\n   */\n  sourceDirectoryPath: string;\n  /**\n   * #### A command to be executed when the container starts.\n   *\n   * ---\n   *\n   * Example: `['/app/start.sh']`\n   */\n  command?: string[];\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The build output from the CNB builder appears in your terminal during `stacktape deploy`.”",
+              "reason": "No CLI source is provided for `stacktape deploy`, and the external buildpack type source does not document where build output appears. This is a Stacktape-specific CLI behavior claim that is not grounded in the provided sources.",
+              "suggestedFix": "Replace with a narrower troubleshooting statement that does not assert CLI output behavior, such as: “When a buildpack build fails, check the deploy/build logs for missing dependency files, incompatible builder versions, or unsupported language versions.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "interface ExternalBuildpackCwImagePackagingProps extends ExternalBuildpackBjImagePackagingProps {}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“External buildpack packaging uses the Cloud Native Buildpack build process, which requires Docker to be running on the build machine.”",
+              "reason": "The provided source files do not state that Docker must be installed or running locally for external buildpack packaging. This is a concrete prerequisite that would change what readers install before deploying, so it needs source backing or softer wording.",
+              "suggestedFix": "Write cautiously: “External buildpack builds usually require a container build environment. If you deploy locally, make sure your chosen Stacktape build path has the required container tooling available.” Avoid naming Docker as a hard Stacktape requirement unless CLI/build source confirms it.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "External buildpacks (buildpacks.io) automatically detect your application type\n * and build an optimized container image with zero configuration."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you're using GitOps with the Console, the build runner handles the build environment automatically.”",
+              "reason": "The provided sources for this page do not include Console or GitOps build-runner implementation. This is a Stacktape-specific operational claim about Console/GitOps behavior and should not be asserted from packaging type definitions alone.",
+              "suggestedFix": "Remove the GitOps build-runner sentence or replace it with a link-only pointer: “For CI/GitOps build environment details, see [GitOps with the Console](/ci-cd-and-gitops/gitops-with-console).”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "interface ExternalBuildpackBjImagePackagingProps {\n  /**\n   * #### The Buildpack Builder to use.\n   *\n   * ---\n   *\n   * @default \"paketobuildpacks/builder-jammy-base\"\n   */\n  builder?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You want the buildpack community's opinionated image structure — layered caching, OS-level security patches, and reproducible builds — without writing a Dockerfile.”",
+              "reason": "The source supports that external buildpacks build an optimized container image and automatically detect the application type. It does not document OS-level security patch behavior or reproducible builds for Stacktape external buildpack packaging. These claims may be generally associated with some builders, but they are too broad as written.",
+              "suggestedFix": "Use grounded wording: “You want the buildpack community's opinionated image structure without writing a Dockerfile.” If mentioning patches or reproducibility, scope it to the selected builder’s documentation rather than Stacktape behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/deployment-artifacts.d.ts",
+                  "quote": "External buildpacks (buildpacks.io) automatically detect your application type\n * and build an optimized container image with zero configuration."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft names specific non-default builders as working options: `paketobuildpacks/builder-jammy-full`, `heroku/builder:24`, and `gcr.io/buildpacks/builder:google-22`.",
+              "reason": "The type source only says `builder?: string` and gives the default `paketobuildpacks/builder-jammy-base`; it does not validate or document specific alternative builder images. Because the property accepts a string, these examples may be reasonable, but the draft should make clearer that they are illustrative external builder references rather than Stacktape-curated supported values.",
+              "suggestedFix": "Keep the examples, but introduce them as “examples of builder image strings commonly used with Cloud Native Buildpacks” and avoid implying Stacktape maintains support for that exact set.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“External buildpack delegates image creation entirely to the Cloud Native Buildpack ecosystem, which supports a wider range of languages and frameworks” and “widest language coverage.”",
+              "reason": "The source says external buildpacks can be found for almost any language or framework, while Stacktape image buildpack supports JavaScript/TypeScript, Python, Java, and Go. However, “widest” is comparative and depends on current external builder availability, which is not enumerated in the authoritative type source.",
+              "suggestedFix": "Use less absolute wording: “External buildpack is the better fit when you need a language or framework covered by a specific Cloud Native Buildpack builder that Stacktape image buildpack does not target.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[...]}>` with `label: 'TypeScript'` for Stacktape configuration examples and does not hand-author YAML.",
+            "The documented external buildpack properties match the type source: `sourceDirectoryPath`, `builder`, `buildpacks`, and `command`.",
+            "The `ApiReference` definition name `ExternalBuildpackCwImagePackagingProps` matches the provided type name.",
+            "Cross-links used in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): TypeScript type error.",
+              "reason": "line 5, col 5: Object literal may only specify known properties, and 'packaging' does not exist in type 'BatchJobProps'.",
+              "suggestedFix": "Fix the example so it type-checks against the public Stacktape TypeScript declarations. The full hidden source must be a valid stacktape.ts file."
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #7 (TypeScript): generated YAML tab does not round-trip to type-correct TypeScript.",
+              "reason": "line 5, col 7: Object literal may only specify known properties, and 'packaging' does not exist in type 'BatchJobProps'.",
+              "suggestedFix": "Fix the TypeScript example or the YAML conversion helper so the generated YAML describes the same valid Stacktape config."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/packaging__containers__external-buildpack/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All Stacktape config examples correctly use <CodeBlock intellisense> with TypeScript tabs — no forbidden YAML blocks or fenced TypeScript config anywhere on the page.",
+            "Every property documented in the source type (sourceDirectoryPath, builder, buildpacks, command) gets its own dedicated section with a working code example.",
+            "The packaging mode comparison table at the bottom is the page's strongest asset — it gives a first-time user an immediate clear answer to 'why external buildpack over the others' with a concrete signal per row.",
+            "The 'When to use / When NOT to use' split is opinionated and specific rather than circular — it tells the reader that the Stacktape image buildpack is the better default and explains why, which is exactly what a first-time user needs.",
+            "FAQ mixes all three required question categories (Stacktape-specific, AWS-service mechanics, comparison/choosing) and answers are concise enough to work as search snippets.",
+            "<ApiReference definitionName=\"ExternalBuildpackCwImagePackagingProps\" /> is correct — it matches the type name from the source file, and there is exactly one instance."
+          ],
+          "problems": [
+            "The 'How it works' section asserts 'Stacktape skips the build when source files have not changed since the last deploy' — this Stacktape-specific caching behavior is not present anywhere in the provided source file (ExternalBuildpackBjImagePackagingProps / ExternalBuildpackCwImagePackagingProps). The same claim is repeated in the FAQ. This is an unsupported Stacktape-specific claim that could be flagged as a factual error by the source-grounding verifier.",
+            "The builder table lists specific image tags (heroku/builder:24, gcr.io/buildpacks/builder:google-22, paketobuildpacks/builder-jammy-full) that are not grounded in the source file. The source only confirms the default paketobuildpacks/builder-jammy-base. The concrete tags may be wrong or drift over time, and the prose <Info> callout doesn't fully protect against a reader copying a stale tag.",
+            "The 'Using with batch jobs' section adds little value: the page already establishes that the packaging applies to batch jobs in the opening paragraph, the comparison table names batch jobs, and the config pattern is identical to every other example. The section reads as padding."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or reframe the build-skip claim in 'How it works': either drop the sentence entirely or replace it with a cautious 'CNB layer caching means...' framing that attributes the behavior to the CNB spec rather than asserting it as a Stacktape guarantee.",
+            "Demote the builder table from a reference table to a short prose sentence: 'Common builders include Paketo (paketobuildpacks/builder-jammy-base, the default), Heroku (heroku/builder), and Google Cloud buildpacks — consult each provider's documentation for current tags.' This removes the stale-tag risk without losing the orientation value.",
+            "Remove the 'Using with batch jobs' section. Its single BatchJob example could be added as a second tab or a callout inside the 'Basic example' section if a BatchJob-specific illustration is needed, but as a standalone H2 it inflates the page without helping the reader.",
+            "The Docker-required prerequisite is currently buried in the last FAQ entry. Promote it to an <Info> callout near the 'Basic example' section: first-time users who copy the example and try to deploy without Docker running will hit an opaque error.",
+            "The 'How it works' section's layer-caching paragraph is the only substantive content in that section after removing the unsupported build-skip claim. If it shrinks to one sentence, consider folding it into the Builder section or removing the H2 entirely rather than leaving a thin section."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "All four source-backed properties (builder, buildpacks, sourceDirectoryPath, command) are documented with working examples, matching the ExternalBuildpackBjImagePackagingProps type exactly.",
+            "Comparison table covering all five container packaging modes gives clear decision support — the page answers 'why pick this vs the others' before the reader has to ask.",
+            "CodeBlock usage is correct throughout: ExternalBuildpackPackaging class name matches the valid class list, all Stacktape config examples are in <CodeBlock intellisense tabs=[...]> with label 'TypeScript', no fenced YAML Stacktape config present.",
+            "When to use / When NOT to use are peer H2 sections with concrete, opinionated guidance — not circular ('use CDN if you need CDN').",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service behavior, comparison/choosing) with 10 well-formed Q&A pairs.",
+            "Default builder (paketobuildpacks/builder-jammy-base) is correctly sourced from the JSDoc and presented in a scannable table with practical alternatives.",
+            "No mandatory style violations detected: no hand-authored YAML, no StacktapeConfig type, no fenced TypeScript defineConfig blocks, no multiple-command bash blocks."
+          ],
+          "problems": [
+            "'How it works' section claims 'Stacktape skips the build when source files have not changed since the last deploy' — this claim is grounded in the lambda-buildpack JSDoc ('Packages are cached based on a checksum, so unchanged code is not re-packaged') but does NOT appear anywhere in the external-buildpack source. Asserting it for ExternalBuildpackPackaging is an unsupported Stacktape-specific claim.",
+            "The 'How it works' section partially restates content from the opening paragraph (builder inspects source, detects language, installs dependencies, builds image). The first two sentences add no new signal beyond the intro, making the section feel padded before reaching the (valuable) layer-caching nuance.",
+            "The FAQ answer to 'Do I need to install anything locally to use external buildpack?' states 'External buildpack packaging uses the Cloud Native Buildpack build process, which requires Docker to be running on the build machine.' This Docker requirement is not grounded in the provided source files for ExternalBuildpackPackaging. It may be true as general CNB knowledge but is presented as a Stacktape-specific fact."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Remove or rephrase the 'Stacktape skips the build when source files have not changed' sentence in 'How it works'. Either qualify it as CNB layer-caching behavior (which it is — the subsequent paragraph covers this correctly) or remove it, since the source is silent on external-buildpack-specific caching at the Stacktape layer.",
+            "Trim the first two sentences of 'How it works' — they repeat the intro verbatim. Open with the layer-caching detail (the non-obvious, production-relevant behavior) rather than re-explaining what buildpacks do.",
+            "In the FAQ Docker answer, soften the claim: 'Cloud Native Buildpack builders typically require a Docker daemon or compatible container runtime on the build machine' rather than asserting it as a Stacktape requirement. Alternatively, link to CNB documentation for runtime prerequisites instead of making a Stacktape-specific claim.",
+            "The batch job section ('Using with batch jobs') is thin — it just says configuration is identical and repeats the property names. A one-sentence note about BatchJob-specific concerns (e.g. memory/CPU sizing for batch workloads, or the fact that batch jobs don't serve HTTP traffic so port config isn't needed) would add signal beyond 'same as web service'.",
+            "The builder table lists 'gcr.io/buildpacks/builder:google-22' — the ':google-22' tag should be verified against Google Cloud Buildpacks documentation since builder image tags change. The Info callout already warns the reader to check docs, but calling out that tags can go stale is worth one more explicit sentence."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and within the target length.",
+            "Stacktape config examples use <CodeBlock intellisense tabs={[...]}/> with a visible TypeScript tab, and avoid forbidden YAML or StacktapeConfig patterns.",
+            "The page explicitly says external buildpack packaging applies to container-based resources and links the supported resource pages.",
+            "The comparison table names all five container packaging modes, which satisfies union-type coverage at a high level.",
+            "The FAQ mixes Stacktape-specific, underlying buildpack, and comparison questions instead of staying Stacktape-only."
+          ],
+          "problems": [
+            "Many technical claims are not grounded in the provided source file: OS-level security patches, reproducible builds, Heroku/Google/Paketo builder examples beyond the default, Docker being required locally, GitOps runner behavior, build output appearing during stacktape deploy, source-change build skipping, and CNB layer caching behavior are not supported by the supplied type definitions.",
+            "Several recommendation claims are stronger than the source supports, including 'broadest language coverage,' 'widest language coverage,' 'for most projects the Stacktape image buildpack is a better default,' and 'fastest path.' The source only states that external buildpacks can be found for almost any language/framework and that Stacktape image buildpack supports JS/TS, Python, Java, and Go.",
+            "The Basic example is not actually the smallest valid example for the packaging mode because it includes WebService cpu and memory settings that are outside the ExternalBuildpackCwImagePackagingProps source and are not necessary to explain the packaging object.",
+            "The Builder section presents a table of specific third-party builders as if they are documented Stacktape choices, but the source only defines builder as an arbitrary string with default paketobuildpacks/builder-jammy-base.",
+            "The Buildpacks section states that buildpack IDs, URIs, and image references are all common accepted formats, but the Stacktape source only types buildpacks as string[] and does not document accepted identifier forms.",
+            "The How it works section is partly redundant and partly unsupported: the source supports automatic detection and building an image, but not source-change skipping, dependency-layer cache reuse, or faster incremental builds.",
+            "The FAQ includes practical answers, but several answers introduce unsupported Stacktape-specific behavior, especially deploy output, skipped builds, Docker requirements, and Console GitOps build runner behavior.",
+            "Some tunable example values are insufficiently anchored. CPU and memory values appear in every example, but the page does not explain why those values were chosen or the supported alternatives, and those properties are not part of the provided packaging source."
+          ],
+          "mandatoryFixes": [
+            "Remove or source-ground unsupported claims about source-change build skipping, CNB layer caching, Docker local requirements, GitOps runner behavior, deploy build output, OS-level security patches, and reproducible builds. If those claims are important, add the relevant authoritative source files before publishing.",
+            "Rewrite the Builder section so only the documented default builder, `paketobuildpacks/builder-jammy-base`, is presented as sourced Stacktape behavior. Treat other builder names as external examples only if a provided source supports them, or remove the table.",
+            "Narrow recommendation language that is not supported by the source. Replace claims like 'broadest language coverage,' 'widest language coverage,' and 'fastest path' with cautious wording grounded in the source, such as the documented Stacktape image buildpack language list and the source statement that external buildpacks exist for almost any language or framework.",
+            "Make the first example the smallest valid packaging example for external buildpack. Avoid unrelated WebService resource tuning unless the page also explains and sources those values.",
+            "Replace or remove the unsupported How it works paragraphs about skipped builds and layer caching. Keep only source-grounded behavior: Stacktape uses the configured or default builder, optional buildpacks, sourceDirectoryPath, and optional command to build a container image using external buildpacks.",
+            "Audit every FAQ answer for Stacktape-specific claims and remove any behavior not present in the provided source files, especially CLI/deploy, Console/GitOps, and local Docker behavior."
+          ],
+          "optionalImprovements": [
+            "Move the container packaging comparison table earlier, near When NOT to use, so readers deciding between modes see the alternatives before the detailed knobs.",
+            "Add a compact properties table in prose before examples: sourceDirectoryPath required, builder optional with default, buildpacks optional, command optional. Keep the ApiReference as the single formal reference section.",
+            "Shorten the seoDescription; the current version reads slightly crowded and includes unsupported provider examples.",
+            "In examples focused on builder, buildpacks, or command, consider omitting unrelated resource sizing or explaining that those values belong to the workload resource rather than the packaging mode."
+          ]
+        }
+      ],
+      "verifierResults": [],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -732,8 +1109,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\packaging\\containers\\external-buildpack.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/packaging/containers/external-buildpack.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.4, hard blockers 2, advisory high 0, verifier medium 8"
+  "pipelineReviewSummary": "reviewer-avg 7.4, hard blockers 0, advisory high 0, verifier medium 0",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

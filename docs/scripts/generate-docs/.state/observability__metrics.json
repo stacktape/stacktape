@@ -2,7 +2,7 @@
   "pageId": "observability__metrics",
   "pageRoute": "observability/metrics",
   "startedAt": "2026-05-17T15:47:01.783Z",
-  "updatedAt": "2026-05-17T16:06:21.920Z",
+  "updatedAt": "2026-05-22T01:11:07.932Z",
   "iterations": [
     {
       "iteration": 1,
@@ -973,6 +973,346 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/observability__metrics/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Self-contained, precise opening paragraph that immediately answers 'what is this and why does it matter' without meta-framing — ideal for AI engine extraction.",
+            "All CLI claims are tightly grounded in the source: metric names, resource types, default period (300), default stat (Average), default 1-hour start window, and relative time unit support (h/m/d/s) all match `src/commands/debug-metrics/index.ts` exactly.",
+            "One command per fenced bash block throughout — no combined alternative blocks, no explanatory # comments inside shell snippets.",
+            "Console vs CLI comparison table is genuinely decision-supporting: rows map to concrete differences (scope, resource coverage, custom statistic, scriptable output) rather than feature-list padding.",
+            "FAQ spans all three required categories: Stacktape-specific (setup required? agent mode?), AWS service questions (CloudWatch costs, retention periods, custom metrics), and comparison questions (Lambda vs container metric visibility, metrics vs logs). 10 Q&As, none synthetic or redundant.",
+            "'Understanding key metrics' section explains causation ('rising Duration often signals a performance regression'), not just values — exactly what a developer skimming after an incident needs.",
+            "All nine Console chart types (lambda, ecs, rds, apigateway, dynamodb, s3, cognito, redis, cloudfront) are grounded in `CombinedMetricsGrid.tsx`. Default preset '7d' grounded in `DEFAULT_PRESET` constant.",
+            "The 'web services / private services / worker services run on ECS and use the multi-container-workload metric type' clarification is high-value and easy to miss — surfaced explicitly."
+          ],
+          "problems": [
+            "The time-range preset table (1h→60s, 6h→5m, 1d→15m, 3d→30m, 7d→1h, 30d→6h) lists specific aggregation periods derived from `MetricsToolbar.tsx` → `getTimeRangeConfig()`, which is imported in `CombinedMetricsGrid.tsx` but NOT provided as a source file. These six period values cannot be verified from the provided source and are high-specificity claims that could be wrong.",
+            "The claim that agent mode is activated 'via the `--agent` flag' is not grounded in the provided source. `isAgentMode()` is called from `'../_utils/agent-mode'` but its implementation is not shown. The flag name is inferred, not confirmed.",
+            "The page does not tell the reader how to navigate to the Console metrics dashboard — no URL fragment, no breadcrumb hint, no 'open the stage details page for your project' instruction with a link to the Console. For a first-time user with low AWS experience, 'the Stacktape Console' is not enough orientation.",
+            "The `<ConsoleScreenshot>` component does not appear in any other documented page, referenced source file, or example. Its prop surface (src, alt, caption) looks plausible but the component name itself cannot be verified as part of the docs MDX component palette. If it doesn't exist in the system, the image block silently renders nothing."
+          ],
+          "mandatoryFixes": [
+            "Verify or remove the aggregation-period column from the time-range preset table. The six period values (60s, 5m, 15m, 30m, 1h, 6h) come from `MetricsToolbar.tsx` which is not in the provided source files. Either supply that source file for grounding or replace the table with the six preset labels only, noting that granularity is chosen automatically by the Console.",
+            "Verify the `--agent` flag claim against the `isAgentMode()` implementation in `src/commands/_utils/agent-mode.ts`. If the flag is named differently or the mode is detected from an env var rather than a flag, correct the prose in the 'Output formats' subsection. If the source cannot be confirmed, narrow the wording to 'when Stacktape detects agent mode' without naming the flag.",
+            "Replace `<ConsoleScreenshot>` with a verified MDX component from the docs component palette (e.g. a standard `<Info>` callout pointing users to the Console, or simply remove the component call) if the component cannot be confirmed as valid. A broken component silently omits the image and leaves a gap the reader notices."
+          ],
+          "optionalImprovements": [
+            "Add a one-sentence navigation hint in the 'Console metrics dashboard' section: e.g. 'Open the Stacktape Console, select your project, pick a stage, and click the Metrics tab.' First-time users do not know where the dashboard lives within the Console flow.",
+            "The 'Using metrics with alarms' section is two sentences — it reads more like a cross-link placeholder than a section. Either expand it with one concrete scenario (a Lambda error-count alarm config snippet) or fold the content into the FAQ and remove the H2.",
+            "In the 'Output formats' subsection, clarify what structured JSON looks like with a short inline example or at least describe the top-level keys (resource, metric, period, stat, unit, datapoints) — these are confirmed in the source and give AI assistants and CI scripts a concrete contract to work against.",
+            "The 'Filtering by resource' subsection under 'Console metrics dashboard' is accurate but thin — one paragraph with no example of what changes visually. A note like 'select the resource name from the filter dropdown in the toolbar' would close the interaction loop for first-time users who may not find the control.",
+            "The FAQ answer for 'How far back can I view metrics?' uses specific CloudWatch retention numbers (15 days, 63 days, 455 days). These are well-known AWS facts so no grounding concern, but they drift over time. Consider phrasing as 'AWS CloudWatch retains high-resolution data for up to 15 days and lower-resolution aggregates for longer periods; check AWS documentation for current retention limits.'"
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "CLI metric names, defaults (period=300, stat=Average, startTime=1h), and supported resource types are all precisely source-grounded from debug-metrics/index.ts.",
+            "Relative time unit table (s/m/h/d) matches the regex in the source exactly — zero fabricated syntax.",
+            "Console vs CLI distinction is clear and section-level, satisfying the observability section requirement. The FeatureComparisonTable is an effective summary.",
+            "FAQ section is broad and high-quality: mixes Stacktape-specific, AWS behavioral, and comparison questions, with 10 distinct Q&A pairs.",
+            "Understanding key metrics section explains what rising/spiking values mean in practice, not just what the metric names are — genuinely useful for a production operator.",
+            "No Stacktape config examples — correctly omitted for an observability page with no resource Props type.",
+            "Each CLI example is a single command per fenced block; no multi-command copy-button traps."
+          ],
+          "problems": [
+            "The time range preset table (1h/6h/1d/3d/7d/30d) with specific aggregation periods (60s, 300s, 900s, 1800s, 3600s, 21600s) is not grounded in the provided source. MetricsToolbar.tsx is imported in CombinedMetricsGrid.tsx but its contents were not provided. If these period values are wrong, a production user relying on them to understand metric resolution will be misled.",
+            "The claim that agent mode is triggered 'via the `--agent` flag' is not confirmed in the provided source. The source only shows isAgentMode() being called from an external utility — the specific flag name is not visible in the provided files.",
+            "The page asserts that batch jobs run on ECS and use the `multi-container-workload` metric type. The METRIC_CONFIGS object in the CLI source only has four keys (function, multi-container-workload, relational-database, http-api-gateway) and does not enumerate batch-job as an alias for multi-container-workload. This is plausible but unconfirmed from the provided source.",
+            "The default time range (last 1 hour) is correctly stated, but the page also presents detailed per-preset aggregation periods as authoritative facts. Presenting unverified precision may be worse than presenting no precision, since a user debugging with 6h thinking they're getting 5-minute granularity could be misled if the actual value differs."
+          ],
+          "mandatoryFixes": [
+            "Remove or caveat the specific aggregation-period column from the time range preset table. The provided source files do not include MetricsToolbar.tsx, so the period values (60s, 300s, 900s, etc.) are ungrounded. Either omit the Aggregation period column entirely, or add a note that values are approximate and subject to CloudWatch data availability — do not present them as authoritative Stacktape-configured values.",
+            "Remove the '`--agent` flag' claim or replace with 'when Stacktape detects agent mode' without specifying the flag name, since isAgentMode() implementation is not in the provided source files.",
+            "Remove batch jobs from the list of resource types that use the `multi-container-workload` CLI metric type, or scope the claim to 'web services, private services, and worker services' only — those three sharing the ECS substrate is more defensible than asserting batch jobs do too without source confirmation."
+          ],
+          "optionalImprovements": [
+            "Add a one-line note that the `--resourceName` value must match the resource's key in the Stacktape config exactly (case-sensitive), since a mismatch silently returns a 'resource not found' error — this is a common source of confusion when first using the CLI command.",
+            "In the 'Aggregation and statistics' section, note that very small `--period` values may return no data if CloudWatch hasn't retained metrics at that resolution for the requested time window — this is a common gotcha when combining a short period with a long time range.",
+            "The FAQ answer 'How far back can I view metrics?' states the CLI accepts '--startTime 60d'. This is plausible given the regex support for 'd' units, but CloudWatch's 15-month retention and the actual behavior with very old data could be worth a brief caveat rather than presenting it as fully tested behavior.",
+            "Consider adding a short note that the Console chart granularity is tied to the preset (coarser for longer presets) so users who want fine-grained recent data should use the CLI with a small --period rather than the 7d or 30d Console view."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and names both Stacktape Console and `stacktape debug:metrics`.",
+            "The Console vs CLI comparison table is high-signal and helps readers choose the right surface quickly.",
+            "CLI metric support is presented concretely with resource types, metric names, defaults for `--period`, `--stat`, and default time window grounded in the CLI source.",
+            "Shell examples follow the one-command-per-block rule and are practical for terminal use.",
+            "FAQ has broad coverage across Stacktape behavior, CloudWatch use cases, and choosing metrics versus logs."
+          ],
+          "problems": [
+            "Several Console details are not grounded in the provided Console source. The source shows `DEFAULT_PRESET: '7d'`, `MetricsToolbar`, and chart categories, but not the six preset labels, durations, aggregation periods, toolbar behavior, or dropdown UI.",
+            "The screenshot component and its alt/caption imply visible Console controls such as a resource filter dropdown, but the provided source only shows a `showOnlyForResource` prop and does not prove a dropdown exists in this component.",
+            "The CLI output description claims terminal summary statistics `Min`, `Max`, `Avg`, and `Sum`, but the provided source only calls `printMetricsChart`; the formatter source is not included.",
+            "The agent-mode description says agent mode is detected via `--agent`, but the provided source only calls `isAgentMode()` and does not define the triggering flag.",
+            "Some operational interpretations go beyond the source, such as sustained CPU above 80% suggesting more CPU/containers, memory hitting 100% causing OOM kills, and RDS connection limits being a few hundred by default. These may be useful AWS guidance, but they are not source-grounded Stacktape facts.",
+            "The FAQ answer on CloudWatch costs gives broad AWS pricing claims even though the observability instructions say cost is a separate section and cost content should not be included here.",
+            "The page states `No instrumentation or SDK setup is required`; that is likely true for AWS service metrics, but the provided source only proves Stacktape queries existing CloudWatch metrics, not the absence of all setup requirements."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow ungrounded Console preset details unless `MetricsToolbar.tsx` is added to the source set. Keep only the grounded `7d` default and chart-category behavior, or source the exact preset table.",
+            "Remove cost content from the Metrics page FAQ. Replace the CloudWatch pricing answer with a short pointer to `/managing-costs/overview` if needed, because the observability instructions say cost belongs in a separate section.",
+            "Replace unsupported CLI output claims with source-grounded wording, or add the formatter source. For now, say non-agent mode renders a chart via the terminal formatter and agent mode prints JSON with `resource`, `metric`, `period`, `stat`, `unit`, and `datapoints`.",
+            "Avoid asserting `--agent` as the mechanism for agent mode unless the agent-mode utility source is provided. Phrase cautiously: “In agent mode, the command prints structured JSON.”",
+            "Revise the screenshot/caption and filtering section so they do not claim a specific dropdown UI unless the Console source proving that UI is included."
+          ],
+          "optionalImprovements": [
+            "Move the cost-related FAQ entry to a short “Where can I understand monitoring costs?” answer that links to `/managing-costs/overview` without making pricing claims.",
+            "Add a brief “Limits of built-in metrics” section explaining that `debug:metrics` supports only four resource types while the Console chart grid covers nine categories, since that is one of the most important decisions on the page.",
+            "Where giving AWS interpretation advice, label it as general operational guidance rather than Stacktape behavior, or remove exact thresholds unless sourced.",
+            "Consider shortening “CLI: stacktape debug:metrics” to “CLI metrics” for heading consistency, while keeping the linked command in the first paragraph of the section."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided CLI implementation and Console metrics grid. The main risks are unsupported Console UI specifics, one likely incorrect statement about ECS-backed resource support in the CLI, and a few Stacktape-specific claims that go beyond the supplied source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“For resource types not listed here — DynamoDB, S3, CloudFront, Cognito, and Redis — use the Console dashboard, which supports all nine chart categories.”",
+              "reason": "The CLI source says `debug:metrics` supports resources whose deployed `resourceType` is `multi-container-workload`, but the draft only lists Multi-container workload and then implies other ECS-backed resources are unsupported unless they are listed. The generated source explicitly notes that web services, private services, worker services, and batch jobs use the `multi-container-workload` metric type, but the draft omitted that clarification. This can mislead readers using common ECS-backed Stacktape resources.",
+              "suggestedFix": "Add the clarification from the generated source: web services, private services, worker services, and batch jobs run on ECS and use the `multi-container-workload` metric type, if their deployed resource type resolves that way.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "'multi-container-workload': {\n    namespace: 'AWS/ECS',\n    dimensionName: 'ServiceName',\n    metrics: ['CPUUtilization', 'MemoryUtilization']\n  }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/observability/metrics.md",
+                  "quote": "[Web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [batch jobs](/resources/compute/batch-job) run on ECS and use the `multi-container-workload` metric type."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The dashboard can be filtered to show charts for a single resource… for example, viewing only the charts related to your API workload.” and the screenshot alt/caption mention “a resource filter dropdown.”",
+              "reason": "The provided Console source only shows that `CombinedMetricsGrid` accepts a `showOnlyForResource` prop and filters `metricsData` by `stpResourceName`. It does not show a user-facing dashboard filter control or dropdown. Console UI interaction claims should be grounded in `console-app` source, not inferred from a prop.",
+              "suggestedFix": "Narrow the wording to what the source proves: the metrics grid can render only one resource when `showOnlyForResource` is provided. Remove the dropdown-specific claim unless the toolbar or parent page source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/StageDetails/Metrics/CombinedMetricsGrid.tsx",
+                  "quote": "export function Component({ showOnlyForResource }: { showOnlyForResource?: string })"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/StageDetails/Metrics/CombinedMetricsGrid.tsx",
+                  "quote": "const filteredMetrics = metricsData.filter((r) =>\n    showOnlyForResource ? r.stpResourceName === showOnlyForResource : true\n  );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If the specified metric is not valid for the resource type, the command prints the list of available metrics and exits.”",
+              "reason": "The CLI implementation throws an `ExpectedError` with available metrics as the resolution/detail. The source does not show that the command merely “prints” the list or describe exact terminal output behavior. The statement should avoid asserting output formatting beyond the thrown error message.",
+              "suggestedFix": "Write: “If the metric is not valid for the resource type, the command fails with an error that includes the available metrics.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "throw new ExpectedError(\n      'CLI',\n      `Invalid metric \"${metric}\" for ${resourceType}`,\n      `Available metrics: ${metricConfig.metrics.join(', ')}`\n    );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The command requires two flags: `--resourceName` … and `--metric` … You also need `--stage` and `--region` to identify the target stack.”",
+              "reason": "The command implementation explicitly validates only `resourceName` and `metric`. The provided `debug-metrics` source does not show `--stage` or `--region` as command-level required flags. They may be handled by shared initialization or global CLI behavior, but that is not in the provided source.",
+              "suggestedFix": "Say the command validates `--resourceName` and `--metric`, and show `--stage`/`--region` in examples as target-stack selectors without calling them required unless command config source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "if (!resourceName) {\n    throw new ExpectedError('CLI', 'Missing required flag: --resourceName', 'Provide --resourceName <name>');\n  }\n  if (!metric) {\n    throw new ExpectedError('CLI', 'Missing required flag: --metric', 'Provide --metric <metricName>');\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When Stacktape detects agent mode (via the `--agent` flag), the command prints structured JSON…”",
+              "reason": "The command checks `isAgentMode()`, but the provided source does not show that agent mode is enabled specifically by a `--agent` flag. The JSON shape is grounded; the flag mechanism is not grounded in the supplied source.",
+              "suggestedFix": "Remove “via the `--agent` flag” unless the CLI argument source is added. Keep the grounded behavior: “In agent mode, the command prints structured JSON…”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify(\n        {\n          resource: resourceName,\n          metric,\n          period,\n          stat,\n          unit: results[0]?.Label || '',\n          datapoints\n        },\n        null,\n        2\n      )\n    );"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“In a standard terminal, the command renders a sparkline chart with summary statistics (Min, Max, Avg, Sum) and the time range.”",
+              "reason": "The command delegates normal output to `printMetricsChart`, but the implementation of that formatter is not provided. The supplied source confirms chart rendering is attempted, but not the exact labels or summary statistics shown.",
+              "suggestedFix": "Narrow to: “Outside agent mode, the command renders the metric with `printMetricsChart` as a terminal chart.” Only mention Min/Max/Avg/Sum if the formatter source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "} else {\n    printMetricsChart({ metric, resourceName, stat, period, datapoints });\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“These custom metrics appear in the AWS CloudWatch Console and can be referenced when creating alarms in your Stacktape config.”",
+              "reason": "The provided source files for this page do not include `types/stacktape-config/alarms.d.ts`, so the claim that Stacktape alarm config can reference arbitrary custom CloudWatch metrics is not verifiable here. The human-maintained instruction specifically says alarms should be grounded in alarm config types and runtime alarm pages when discussed.",
+              "suggestedFix": "Either add the alarms source files and verify this, or narrow the sentence to say custom metrics are available in AWS CloudWatch and link readers to the alarms page for Stacktape alarm configuration details.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The `debug:metrics` supported resource types and metric names match the `METRIC_CONFIGS` implementation.",
+            "The CLI defaults for `period = 300`, `stat = 'Average'`, and the default one-hour time window are grounded in the command source.",
+            "The relative `--startTime` units `s`, `m`, `h`, and `d`, plus absolute timestamp parsing, are grounded in the command source.",
+            "The Console’s nine chart categories are grounded in `CombinedMetricsGrid.tsx`, which renders Lambda, ECS, RDS, API Gateway, DynamoDB, S3, Cognito, Redis, and CloudFront chart components.",
+            "All markdown cross-links in the draft point to routes present in the supplied navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided CLI source and generated metrics summary, but it overstates several Stacktape-specific behaviors around Console filtering, CLI agent output, container metric coverage, and Stacktape-managed custom metric alarms. These should be tightened before publication.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "\"The dashboard can be filtered to show charts for a single resource\" and the screenshot alt/caption describe \"a resource filter dropdown\" on the Console metrics dashboard.",
+              "reason": "The provided Console source supports filtering only through an optional `showOnlyForResource` prop passed into the metrics component. It does not show a dashboard resource filter dropdown or user-controlled filtering UI in the supplied source. Console UI flows must be grounded in console-app source, not inferred.",
+              "suggestedFix": "Narrow the claim to: \"The metrics grid can be rendered for a single resource when the Console passes `showOnlyForResource`; otherwise it shows all metric resources for the stage.\" Remove the resource filter dropdown claim unless a source file for that dropdown is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/StageDetails/Metrics/CombinedMetricsGrid.tsx",
+                  "quote": "export function Component({ showOnlyForResource }: { showOnlyForResource?: string })"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/StageDetails/Metrics/CombinedMetricsGrid.tsx",
+                  "quote": "const filteredMetrics = metricsData.filter((r) =>\n    showOnlyForResource ? r.stpResourceName === showOnlyForResource : true\n  );"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/StageDetails/Metrics/CombinedMetricsGrid.tsx",
+                  "quote": "<MetricsToolbar selectedPreset={selectedPreset} onPresetChange={handlePresetChange} />"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"When Stacktape detects agent mode (via the `--agent` flag), the command prints structured JSON...\"",
+              "reason": "The command checks `isAgentMode()`, but the provided command source does not show that agent mode is detected via a `--agent` flag. The source also calls `tuiManager.info(JSON.stringify(...))`, so saying it \"prints\" via a specific flag is more specific than the command source supports.",
+              "suggestedFix": "Write: \"In agent mode, the command returns structured JSON containing the metric name, period, statistic, unit label, and timestamped datapoints.\" Do not name `--agent` unless the CLI command definition source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "if (isAgentMode()) {\n    tuiManager.info(\n      JSON.stringify("
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "{\n          resource: resourceName,\n          metric,\n          period,\n          stat,\n          unit: results[0]?.Label || '',\n          datapoints\n        }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Use the Console dashboard to view the database connections chart for your relational database\"",
+              "reason": "The provided Console source proves that an RDS chart component is rendered for RDS metrics, but it does not show the specific chart series or that a `DatabaseConnections` chart exists in the Console. `DatabaseConnections` is grounded for the CLI only.",
+              "suggestedFix": "Change to: \"Use the CLI with the `DatabaseConnections` metric, or use the Console RDS charts for a visual database-metrics view.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/StageDetails/Metrics/CombinedMetricsGrid.tsx",
+                  "quote": "{metric.type === 'rds' && ChartRds({ ...chartProps, ...metric })}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "metrics: ['CPUUtilization', 'DatabaseConnections', 'FreeStorageSpace', 'ReadLatency', 'WriteLatency']"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"If your container sits behind an HTTP API Gateway, you get request-level metrics from the gateway.\"",
+              "reason": "The CLI source supports API Gateway metrics only for resources whose deployed resource type is `http-api-gateway`. It does not establish that a container workload behind API Gateway automatically gives the container request-level metrics or that this relationship is detected for the container.",
+              "suggestedFix": "Narrow to: \"If the stack also has an HTTP API Gateway resource, query the gateway's `Count`, `4XXError`, `5XXError`, `Latency`, and `IntegrationLatency` metrics separately.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "'http-api-gateway': {\n    namespace: 'AWS/ApiGateway',\n    dimensionName: 'ApiId',\n    metrics: ['Count', '4XXError', '5XXError', 'Latency', 'IntegrationLatency']\n  }"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"These custom metrics appear in the AWS CloudWatch Console and can be referenced when creating alarms in your Stacktape config.\"",
+              "reason": "The provided sources do not include `types/stacktape-config/alarms.d.ts` or any alarm source proving that Stacktape alarms can reference arbitrary custom CloudWatch metrics. The human instructions specifically require alarm claims to be grounded in alarm config/runtime sources, which are absent here.",
+              "suggestedFix": "Limit the custom-metrics answer to AWS behavior: \"Custom metrics appear in AWS CloudWatch. Stacktape's built-in metrics page covers AWS service metrics; see the alarms page for Stacktape alarm configuration.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/observability/metrics.md",
+                  "quote": "Stacktape's built-in metrics surface AWS service metrics (invocations, CPU, memory, etc.), not application-level business metrics."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The CLI resource-type table matches `METRIC_CONFIGS` in `src/commands/debug-metrics/index.ts`.",
+            "The CLI defaults for `period = 300`, `stat = 'Average'`, and the 1-hour default time window are grounded in the command source.",
+            "The Console's nine metric categories are supported by `CombinedMetricsGrid.tsx`, which renders ECS, RDS, API Gateway, Lambda, DynamoDB, S3, Cognito, Redis, and CloudFront charts.",
+            "The page avoids forbidden Stacktape configuration examples and uses valid documented links from the provided navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -988,5 +1328,7 @@
   "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\observability\\metrics.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 2, advisory high 0, verifier medium 15"
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 2, advisory high 0, verifier medium 15",
+  "refinementAttempts": 1,
+  "refinementStalled": true
 }

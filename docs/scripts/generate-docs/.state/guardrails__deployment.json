@@ -2,7 +2,7 @@
   "pageId": "guardrails__deployment",
   "pageRoute": "guardrails/deployment",
   "startedAt": "2026-05-17T17:39:16.157Z",
-  "updatedAt": "2026-05-18T14:27:33.634Z",
+  "updatedAt": "2026-05-22T03:35:17.564Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1248,6 +1248,395 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/guardrails__deployment/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opens with a self-contained 50-word paragraph that correctly distinguishes guardrails (preventive, pre-deploy) from alarms (reactive, runtime) — well-suited for AEO extraction.",
+            "The upfront summary table maps guardrail type → key property → purpose in one glance; best scannability decision on the page.",
+            "Every guardrail section has concrete 'When to use' and 'When to skip' guidance — opinionated and actually useful for decision-making, not just configuration.",
+            "FAQ covers all three required categories: Stacktape-specific questions, underlying AWS service questions (SCPs, IAM, CloudFormation limits), and comparison/choosing questions.",
+            "The 'Combining guardrails' table of layered policies gives a realistic production-policy blueprint that first-timers can copy directly.",
+            "All claims are accurately grounded in guardrails.d.ts — JSDoc examples (delete/rollback, open-search-domain/redis-cluster, maxResources: 20) are cited correctly and match the source.",
+            "The Info callout correctly acknowledges the other 10 guardrail types and cross-links to dedicated pages without derailing the page's focus on deployment restrictions.",
+            "No forbidden patterns present: no YAML resource blocks, no StacktapeConfig type import, no fenced TypeScript with defineConfig, no marketing language."
+          ],
+          "problems": [
+            "Biggest gap for a first-time reader: the page explains what each guardrail does and why to use it, but never explains how to create one in the Stacktape Console. The reader is told guardrails live in the Console, then immediately left without any guidance on where to find the guardrails UI, what the creation flow looks like, or what fields to fill in. For a low-AWS-experience audience, this is the most likely point of abandonment.",
+            "The 'Combining guardrails' section is partially redundant. The prose in the opening two paragraphs restates what the individual guardrail sections already said. The FeatureComparisonTable that follows is the third time the same five guardrails are summarized (after the intro table and the individual sections) — adds noise rather than value.",
+            "No <ApiReference> component anywhere on the page. The source defines a well-formed GuardrailDefinition union type with 15 members, each with a typed properties object. A reader who wants to check optional fields (e.g. whether allowedStages is optional or required, or what AWSRegion values are valid) has no link to the full type structure.",
+            "The StpResourceType identifiers list in the 'Resource type identifiers' subsection is hand-authored and will silently go stale if the source union changes. It also omits `custom-resource` and `deployment-script` which appear in the type definitions.",
+            "The FeatureComparisonTable at the end of 'Combining guardrails' duplicates the top-of-page table almost exactly (same five guardrails, similar categories). A reader scanning the page sees the same content tripled and may wonder what they missed."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short Console walkthrough under 'Where guardrails are configured' — even two or three steps ('Navigate to Settings → Guardrails → New guardrail, select the type, fill in the values, save') would close the biggest gap for first-time readers who cannot figure out where to go after reading the page.",
+            "Add <ApiReference definitionName=\"GuardrailDefinition\" /> (or the most specific subtype available in the generated schema) at the bottom of the page. If the generated schema key differs, use whichever definitionName covers the GuardrailDefinition union. This lets readers check optional vs required properties and valid values without leaving the page.",
+            "Trim the 'Combining guardrails' prose to one paragraph (the motivation for combining multiple guardrails) and remove the FeatureComparisonTable — it repeats the intro table. The cross-guardrail policy example table (Guardrail / Configuration / Purpose) is genuinely new and should be kept.",
+            "Replace the hand-authored StpResourceType identifier list with a note that the complete set is available via the API reference or the Resources documentation, and keep only the most commonly blocked types (open-search-domain, redis-cluster, batch-job) as illustrative examples. This prevents the list from going stale.",
+            "In the 'How validation works' section, clarify whether resource-type and resource-count guardrails are also evaluated during codebuild:deploy or only during the local CLI commands. The source is silent on this distinction and the page currently asserts it without a source-grounded basis.",
+            "The 'Combining guardrails' intro sentence 'You can configure multiple guardrails together; each guardrail expresses a separate restriction' is redundant with 'Combine multiple deployment guardrails to build layered policies' in the same paragraph. Collapse to one sentence."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Summary table at the top listing all five primary guardrails with key properties and scope is immediately actionable — a production engineer can cross-reference it in under 10 seconds.",
+            "Guardrails vs. alarms distinction is made in the very first paragraph and reinforced in the FAQ; this is the single most important conceptual distinction on the page and it is handled correctly.",
+            "Every guardrail type has symmetric 'When to use' and 'When to skip' subsections with concrete scenarios rather than circular definitions.",
+            "The resource type identifiers section is genuinely useful — grouping identifiers by category (Compute, Frontend, Databases, etc.) makes `blockedResourceTypes` actionable without requiring the reader to hunt through other pages.",
+            "The FAQ is broad and covers all three required categories: Stacktape-specific questions, AWS service mechanics (CloudFormation 500-resource limit, SCPs), and choosing/comparison questions (guardrails vs. IAM, guardrails vs. SCPs).",
+            "The 'Combining guardrails' section with a layered policy table gives a realistic production-readiness checklist — the kind of thing a team lead would actually hand to an engineer.",
+            "Correctly explains that guardrails are Console-configured, not project-config, which prevents reader confusion and correctly justifies the absence of defineConfig examples.",
+            "All 15 guardrail types are accounted for: 5 covered in depth, the remaining 10 referenced in the Info callout and cross-linked to sister pages."
+          ],
+          "problems": [
+            "Runtime behavior claims are not grounded in the provided source file. Specific claims — 'The validator evaluates guardrails sequentially. If multiple guardrails would fail, the first violation is reported.' and 'Resource-type and resource-count guardrails are evaluated only when a configuration file is present.' and 'Commands that do not modify infrastructure — such as debug:logs or info:stack — do not trigger guardrail checks' — have no basis in the provided types/stacktape-config/guardrails.d.ts source. The source only defines type shapes; it does not document validation ordering, short-circuit behavior, or per-command trigger logic. A production engineer relying on 'first violation is reported' to plan their rollout could be surprised.",
+            "The StpResourceType identifier list (function, web-service, private-service, worker-service, etc.) is presented as if sourced from the type definitions, but StpResourceType is only referenced in guardrails.d.ts — it is not defined there. The values listed may be correct, but they are not verifiable from the provided source file.",
+            "'Guardrails are organization-level policies managed in the Stacktape Console — they are not part of your local stacktape.ts project configuration' is stated as a definitive fact but is not grounded in any of the provided source files. The guardrails.d.ts file only defines types, not where they are configured.",
+            "The FeatureComparisonTable immediately follows a markdown table that partially overlaps its content in the 'Combining guardrails' section, creating mild redundancy. The markdown table covers 6 guardrails with config + purpose; the FeatureComparisonTable re-covers only the 5 deployment guardrails with Policy style, Scope, Best for — different columns but same subject area within two paragraphs."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Qualify runtime behavior claims that are not in the source. Replace 'The validator evaluates guardrails sequentially. If multiple guardrails would fail, the first violation is reported.' with a softer framing ('When a guardrail is violated, the operation is blocked with an error identifying the guardrail and the offending value — consult Stacktape Console documentation for exact evaluation order') or remove the sequential-evaluation claim entirely. Same for the command-trigger list and 'only when a configuration file is present' qualifier.",
+            "Add an explicit source note or link for StpResourceType values. Either link to the resource type documentation page where readers can verify the identifiers, or add a sentence like 'The complete StpResourceType union is enumerated in the Stacktape resource types reference' to frame the list as representative rather than exhaustive.",
+            "Remove or consolidate the FeatureComparisonTable in 'Combining guardrails'. The markdown table above it already gives a more concrete and actionable overview (with actual config values). The FeatureComparisonTable adds Policy style / Scope / Best for columns but the same information is present in prose and the markdown table. Either replace the markdown table with the FeatureComparisonTable or drop the FeatureComparisonTable — having both creates visual clutter without adding information.",
+            "The error message example in a fenced code block is unlabelled. Consider adding a brief prose sentence before it ('The error message names the violated guardrail and the offending value:') so the block does not appear to be a command the reader should run.",
+            "Consider adding a brief note under 'Stage restriction' about the stacks-per-git-branch pattern tradeoff more precisely: specifically that wildcard or prefix-matching is not mentioned in the type definition, so teams using dynamic stage names may need to enumerate many values or skip this guardrail. The current 'When to skip' paragraph covers this but the type definition only shows `string[]` — no wildcards — so being explicit about this limitation helps readers who might assume regex or glob support."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly distinguishes preventive guardrails from reactive alarms.",
+            "The page is easy to scan: compact H2s, comparison tables, concrete property names, and a broad FAQ help extraction and navigation.",
+            "Core guardrail properties from the source are named accurately: allowedStages, allowedRegions, blockedCommands, blockedResourceTypes, and maxResources.",
+            "The page gives useful decision support for stage, region, command, resource-type, and resource-count restrictions instead of only listing properties."
+          ],
+          "problems": [
+            "Several operational claims are not grounded in the provided source file: Console configuration, organization-wide scope, Console API fetching, validation before specific commands, sequential evaluation, first-violation behavior, and exact error-message text are not present in guardrails.d.ts.",
+            "The FAQ repeats unsupported CLI enforcement claims, including that deploy, codebuild:deploy, delete, and preview-changes run validation and that debug:logs or info:stack do not trigger checks.",
+            "The page says guardrails are not part of stacktape.ts project configuration, but the source only defines guardrail types; it does not establish where guardrails are configured.",
+            "The resource type identifier section lists many StpResourceType values that are not visible in the provided source. Because the source only says blockedResourceTypes?: StpResourceType[], the full identifier list is ungrounded here.",
+            "The CloudFormation 500-resource limit, resource mapping details, orphaned-stack cost behavior, GDPR/HIPAA examples, IAM/SCP comparison, and regional pricing comments are useful context but not grounded in the provided source files.",
+            "The page claims the type definitions include 15 guardrail types, which is grounded, but then only documents five in depth while pushing the other ten to related pages. That is reasonable structurally, but the reader may expect clearer boundaries for what this page covers versus the full guardrail model."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify unsupported implementation details about Console storage, organization-level scope, Console API fetching, exact CLI validation timing, sequential validation, first reported violation, and exact error messages unless additional source files are provided.",
+            "Replace the ungrounded full StpResourceType identifier list with a narrower statement grounded in the source: blockedResourceTypes accepts StpResourceType values, and the JSDoc examples are open-search-domain and redis-cluster. Only list more identifiers if their type source is provided.",
+            "Revise the FAQ answers about command enforcement and non-mutating commands so they only state what guardrails.d.ts supports, or add CLI source files that prove those behaviors.",
+            "Remove or clearly frame unsupported AWS and governance context such as CloudFormation’s 500-resource limit, SCP/IAM behavior, GDPR/HIPAA requirements, and regional pricing as general background only if the review policy allows it for this page; do not present it as Stacktape behavior.",
+            "For every corrected claim, replace it with the source-grounded fact rather than deleting the topic entirely: name the guardrail type and exact property from guardrails.d.ts."
+          ],
+          "optionalImprovements": [
+            "Add a compact table covering all 15 guardrail types with their exact property names, then keep the deeper sections focused on the five deployment-oriented guardrails.",
+            "Add a short note that optional properties are shown with ? in the TypeScript definitions, and avoid implying that an empty or omitted property has a documented default unless a validator source proves it.",
+            "Consider replacing the raw example error block with a clearly marked illustrative example, or remove it unless CLI validator source provides the exact message.",
+            "Tighten the FAQ to 8-9 higher-confidence questions after removing unsupported implementation claims."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely consistent with the provided guardrails type definitions and the generated deployment guardrails source. I found one material unsupported Stacktape-specific claim that should be narrowed before publication.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Each guardrail definition applies uniformly across the organization.”",
+              "reason": "The provided authoritative type source defines guardrail variants and their properties, but it does not specify guardrail scope, organization-wide application, or whether different guardrails can be applied per stage. The generated source says guardrails are organization-level, but the hard requirement for this page says guardrail claims should be grounded in `types/stacktape-config/guardrails.d.ts`, which does not support this stronger uniform-scope claim.",
+              "suggestedFix": "Replace with narrower wording: “The guardrail property types shown here do not include a per-stage override field.” Avoid claiming uniform organization-wide scope unless Console or CLI source is included.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailDefinition =\n  | StageRestrictionGuardrail\n  | RegionRestrictionGuardrail\n  | CommandRestrictionGuardrail\n  | ResourceTypeRestrictionGuardrail\n  | RequireVpcDatabasesGuardrail\n  | RequireDeletionProtectionGuardrail\n  | RequireDeadLetterQueueGuardrail\n  | FunctionMemoryLimitGuardrail\n  | FunctionTimeoutLimitGuardrail\n  | ContainerResourceLimitGuardrail\n  | DatabaseEngineRestrictionGuardrail\n  | DatabaseInstanceRestrictionGuardrail\n  | RequireWafGuardrail\n  | RequireCustomDomainGuardrail\n  | ResourceCountLimitGuardrail;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly keeps “When NOT to use deployment guardrails” as an H2 peer section, not nested under “When to use.”",
+            "The five deployment guardrails covered by the page match variants present in `GuardrailDefinition`: stage, region, command, resource type, and resource count.",
+            "The key properties `allowedStages`, `allowedRegions`, `blockedCommands`, `blockedResourceTypes`, and `maxResources` match `guardrails.d.ts`.",
+            "The page correctly distinguishes preventive guardrails from reactive alarms and does not conflate the two concepts.",
+            "No forbidden hand-authored Stacktape YAML, plain-object `StacktapeConfig`, or fenced Stacktape TypeScript config examples appear in the draft.",
+            "All checked cross-links point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft mostly tracks the provided guardrail type definitions and avoids forbidden Stacktape config patterns. The main factual risks are claims about where and how guardrails are enforced, plus a couple of over-specific resource-count/CloudFormation statements that are not supported by the provided source files.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Guardrails are managed in the Stacktape Console, not in your project's `stacktape.ts` file.” and “Because guardrails are not declared in project config files…”",
+              "reason": "The authoritative guardrail type file defines the `GuardrailDefinition` union and its variants, but it does not state where guardrails are configured or that they are excluded from project config files. The generated doc says this, but the page-specific instruction requires guardrail claims to be grounded in `types/stacktape-config/guardrails.d.ts`.",
+              "suggestedFix": "Narrow the wording to what the provided type source proves, or explicitly rely on the generated doc only for Console placement. For example: “The guardrail type definitions are modeled as `GuardrailDefinition` variants. In Stacktape docs, guardrail management is described as Console-managed rather than project-config-managed.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type GuardrailDefinition =\n  | StageRestrictionGuardrail\n  | RegionRestrictionGuardrail\n  | CommandRestrictionGuardrail\n  | ResourceTypeRestrictionGuardrail\n  | RequireVpcDatabasesGuardrail\n  | RequireDeletionProtectionGuardrail\n  | RequireDeadLetterQueueGuardrail\n  | FunctionMemoryLimitGuardrail\n  | FunctionTimeoutLimitGuardrail\n  | ContainerResourceLimitGuardrail\n  | DatabaseEngineRestrictionGuardrail\n  | DatabaseInstanceRestrictionGuardrail\n  | RequireWafGuardrail\n  | RequireCustomDomainGuardrail\n  | ResourceCountLimitGuardrail;"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Any attempt to run a listed command is rejected.” / “Blocking `delete` prevents anyone from removing a stack via the CLI.” / “The operation is blocked.”",
+              "reason": "The type source says `blockedCommands` are commands that are blocked, but it does not define enforcement mechanics, CLI scope, error behavior, or whether the block applies to every attempt by every user. The draft’s phrasing is stronger than the provided source supports.",
+              "suggestedFix": "Use narrower wording tied to the type definition: “Command restriction defines commands that are blocked, such as `delete` or `rollback`. Use it for commands your organization does not want allowed by policy.” Avoid claims about exact CLI enforcement flow unless CLI/validator source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type CommandRestrictionGuardrail = {\n  type: 'command-restriction';\n  properties: {\n    /**\n     * #### Commands that are blocked (e.g., `[\"delete\", \"rollback\"]`).\n     */\n    blockedCommands?: string[];\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Resource type restriction blocks specific Stacktape resource types from being used in any stack… if any resource in the configuration uses a blocked type, the deployment is rejected.”",
+              "reason": "The type definition supports that `blockedResourceTypes` is a list of blocked resource types, but it does not state the scope “any stack,” nor the exact validation behavior “deployment is rejected.”",
+              "suggestedFix": "Narrow to the supported shape: “Resource type restriction defines Stacktape resource types that are blocked through the `blockedResourceTypes` list.” Then explain the intended policy use without specifying validator behavior beyond what the source states.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type ResourceTypeRestrictionGuardrail = {\n  type: 'resource-type-restriction';\n  properties: {\n    /**\n     * #### Resource types that are blocked (e.g., `[\"open-search-domain\", \"redis-cluster\"]`).\n     */\n    blockedResourceTypes?: StpResourceType[];\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Resource count limit caps the total number of Stacktape resources allowed in a single stack… if the stack's resource count exceeds it, the deployment is blocked.”",
+              "reason": "The source supports `maxResources` as the maximum number of resources allowed per stack, but it does not specify the exact failure mode or deployment blocking mechanics.",
+              "suggestedFix": "Keep the supported fact and soften the enforcement description: “Resource count limit sets the maximum number of resources allowed per stack through `maxResources`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type ResourceCountLimitGuardrail = {\n  type: 'resource-count-limit';\n  properties: {\n    /**\n     * #### Maximum number of resources allowed per stack (e.g., `20`).\n     */\n    maxResources?: number;\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A single Stacktape resource often maps to multiple CloudFormation resources (a web service creates an ECS service, task definition, IAM role, and more), so CloudFormation's 500-resource limit can be reached well before your Stacktape resource count seems high.”",
+              "reason": "The provided source files do not define how a web service maps to CloudFormation resources, and this page’s source list does not include web-service implementation or CloudFormation synthesis source. This claim is specific enough to change how readers interpret `maxResources`.",
+              "suggestedFix": "Remove the web-service mapping example or rewrite as general AWS background: “CloudFormation has its own per-stack resource limits; Stacktape’s `maxResources` is a separate Stacktape-resource policy threshold.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts",
+                  "quote": "type ResourceCountLimitGuardrail = {\n  type: 'resource-count-limit';\n  properties: {\n    /**\n     * #### Maximum number of resources allowed per stack (e.g., `20`).\n     */\n    maxResources?: number;\n  };\n};"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The property shapes described below correspond to the `GuardrailDefinition` union type defined in Stacktape's configuration types — each variant has a `type` discriminator … and a `properties` payload …”",
+              "reason": "The examples shown are accurate for the five variants on this page, but the draft phrase “each variant” could be read as a claim about every future or external guardrail variant. The provided source currently supports it for all 15 listed variants, but the wording is broader than necessary.",
+              "suggestedFix": "Use current-source wording: “In the provided type definitions, every `GuardrailDefinition` variant has a `type` discriminator and a `properties` object.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `blockedResourceTypes` property accepts values from the `StpResourceType` union, which corresponds to the `type` discriminator on each Stacktape resource definition.”",
+              "reason": "The guardrail type file proves `blockedResourceTypes?: StpResourceType[]`, but it does not define `StpResourceType` or prove that it corresponds to every resource definition’s `type` discriminator. The claim is likely true, but not grounded in the provided source list.",
+              "suggestedFix": "Narrow to the provided source: “The `blockedResourceTypes` property is typed as `StpResourceType[]`; the JSDoc example uses `open-search-domain` and `redis-cluster`.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly identifies all 15 guardrail variants listed in `GuardrailType`.",
+            "The five deployment guardrails on the page use the correct discriminator names and property names: `allowedStages`, `allowedRegions`, `blockedCommands`, `blockedResourceTypes`, and `maxResources`.",
+            "The draft keeps “When NOT to use deployment guardrails” as an H2, not nested under “When to use.”",
+            "The draft does not include forbidden hand-authored YAML, plain-object `StacktapeConfig`, or fenced TypeScript Stacktape config examples."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 5,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/guardrails__deployment/iteration-5.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opens with a self-contained 50-word paragraph that correctly distinguishes guardrails (preventive, pre-deploy) from alarms (reactive, runtime) — well-suited for AEO extraction.",
+            "The upfront summary table maps guardrail type → key property → purpose in one glance; best scannability decision on the page.",
+            "Every guardrail section has concrete 'When to use' and 'When to skip' guidance — opinionated and actually useful for decision-making, not just configuration.",
+            "FAQ covers all three required categories: Stacktape-specific questions, underlying AWS service questions (SCPs, IAM, CloudFormation limits), and comparison/choosing questions.",
+            "The 'Combining guardrails' table of layered policies gives a realistic production-policy blueprint that first-timers can copy directly.",
+            "All claims are accurately grounded in guardrails.d.ts — JSDoc examples (delete/rollback, open-search-domain/redis-cluster, maxResources: 20) are cited correctly and match the source.",
+            "The Info callout correctly acknowledges the other 10 guardrail types and cross-links to dedicated pages without derailing the page's focus on deployment restrictions.",
+            "No forbidden patterns present: no YAML resource blocks, no StacktapeConfig type import, no fenced TypeScript with defineConfig, no marketing language."
+          ],
+          "problems": [
+            "Biggest gap for a first-time reader: the page explains what each guardrail does and why to use it, but never explains how to create one in the Stacktape Console. The reader is told guardrails live in the Console, then immediately left without any guidance on where to find the guardrails UI, what the creation flow looks like, or what fields to fill in. For a low-AWS-experience audience, this is the most likely point of abandonment.",
+            "The 'Combining guardrails' section is partially redundant. The prose in the opening two paragraphs restates what the individual guardrail sections already said. The FeatureComparisonTable that follows is the third time the same five guardrails are summarized (after the intro table and the individual sections) — adds noise rather than value.",
+            "No <ApiReference> component anywhere on the page. The source defines a well-formed GuardrailDefinition union type with 15 members, each with a typed properties object. A reader who wants to check optional fields (e.g. whether allowedStages is optional or required, or what AWSRegion values are valid) has no link to the full type structure.",
+            "The StpResourceType identifiers list in the 'Resource type identifiers' subsection is hand-authored and will silently go stale if the source union changes. It also omits `custom-resource` and `deployment-script` which appear in the type definitions.",
+            "The FeatureComparisonTable at the end of 'Combining guardrails' duplicates the top-of-page table almost exactly (same five guardrails, similar categories). A reader scanning the page sees the same content tripled and may wonder what they missed."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a short Console walkthrough under 'Where guardrails are configured' — even two or three steps ('Navigate to Settings → Guardrails → New guardrail, select the type, fill in the values, save') would close the biggest gap for first-time readers who cannot figure out where to go after reading the page.",
+            "Add <ApiReference definitionName=\"GuardrailDefinition\" /> (or the most specific subtype available in the generated schema) at the bottom of the page. If the generated schema key differs, use whichever definitionName covers the GuardrailDefinition union. This lets readers check optional vs required properties and valid values without leaving the page.",
+            "Trim the 'Combining guardrails' prose to one paragraph (the motivation for combining multiple guardrails) and remove the FeatureComparisonTable — it repeats the intro table. The cross-guardrail policy example table (Guardrail / Configuration / Purpose) is genuinely new and should be kept.",
+            "Replace the hand-authored StpResourceType identifier list with a note that the complete set is available via the API reference or the Resources documentation, and keep only the most commonly blocked types (open-search-domain, redis-cluster, batch-job) as illustrative examples. This prevents the list from going stale.",
+            "In the 'How validation works' section, clarify whether resource-type and resource-count guardrails are also evaluated during codebuild:deploy or only during the local CLI commands. The source is silent on this distinction and the page currently asserts it without a source-grounded basis.",
+            "The 'Combining guardrails' intro sentence 'You can configure multiple guardrails together; each guardrail expresses a separate restriction' is redundant with 'Combine multiple deployment guardrails to build layered policies' in the same paragraph. Collapse to one sentence."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Summary table at the top listing all five primary guardrails with key properties and scope is immediately actionable — a production engineer can cross-reference it in under 10 seconds.",
+            "Guardrails vs. alarms distinction is made in the very first paragraph and reinforced in the FAQ; this is the single most important conceptual distinction on the page and it is handled correctly.",
+            "Every guardrail type has symmetric 'When to use' and 'When to skip' subsections with concrete scenarios rather than circular definitions.",
+            "The resource type identifiers section is genuinely useful — grouping identifiers by category (Compute, Frontend, Databases, etc.) makes `blockedResourceTypes` actionable without requiring the reader to hunt through other pages.",
+            "The FAQ is broad and covers all three required categories: Stacktape-specific questions, AWS service mechanics (CloudFormation 500-resource limit, SCPs), and choosing/comparison questions (guardrails vs. IAM, guardrails vs. SCPs).",
+            "The 'Combining guardrails' section with a layered policy table gives a realistic production-readiness checklist — the kind of thing a team lead would actually hand to an engineer.",
+            "Correctly explains that guardrails are Console-configured, not project-config, which prevents reader confusion and correctly justifies the absence of defineConfig examples.",
+            "All 15 guardrail types are accounted for: 5 covered in depth, the remaining 10 referenced in the Info callout and cross-linked to sister pages."
+          ],
+          "problems": [
+            "Runtime behavior claims are not grounded in the provided source file. Specific claims — 'The validator evaluates guardrails sequentially. If multiple guardrails would fail, the first violation is reported.' and 'Resource-type and resource-count guardrails are evaluated only when a configuration file is present.' and 'Commands that do not modify infrastructure — such as debug:logs or info:stack — do not trigger guardrail checks' — have no basis in the provided types/stacktape-config/guardrails.d.ts source. The source only defines type shapes; it does not document validation ordering, short-circuit behavior, or per-command trigger logic. A production engineer relying on 'first violation is reported' to plan their rollout could be surprised.",
+            "The StpResourceType identifier list (function, web-service, private-service, worker-service, etc.) is presented as if sourced from the type definitions, but StpResourceType is only referenced in guardrails.d.ts — it is not defined there. The values listed may be correct, but they are not verifiable from the provided source file.",
+            "'Guardrails are organization-level policies managed in the Stacktape Console — they are not part of your local stacktape.ts project configuration' is stated as a definitive fact but is not grounded in any of the provided source files. The guardrails.d.ts file only defines types, not where they are configured.",
+            "The FeatureComparisonTable immediately follows a markdown table that partially overlaps its content in the 'Combining guardrails' section, creating mild redundancy. The markdown table covers 6 guardrails with config + purpose; the FeatureComparisonTable re-covers only the 5 deployment guardrails with Policy style, Scope, Best for — different columns but same subject area within two paragraphs."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Qualify runtime behavior claims that are not in the source. Replace 'The validator evaluates guardrails sequentially. If multiple guardrails would fail, the first violation is reported.' with a softer framing ('When a guardrail is violated, the operation is blocked with an error identifying the guardrail and the offending value — consult Stacktape Console documentation for exact evaluation order') or remove the sequential-evaluation claim entirely. Same for the command-trigger list and 'only when a configuration file is present' qualifier.",
+            "Add an explicit source note or link for StpResourceType values. Either link to the resource type documentation page where readers can verify the identifiers, or add a sentence like 'The complete StpResourceType union is enumerated in the Stacktape resource types reference' to frame the list as representative rather than exhaustive.",
+            "Remove or consolidate the FeatureComparisonTable in 'Combining guardrails'. The markdown table above it already gives a more concrete and actionable overview (with actual config values). The FeatureComparisonTable adds Policy style / Scope / Best for columns but the same information is present in prose and the markdown table. Either replace the markdown table with the FeatureComparisonTable or drop the FeatureComparisonTable — having both creates visual clutter without adding information.",
+            "The error message example in a fenced code block is unlabelled. Consider adding a brief prose sentence before it ('The error message names the violated guardrail and the offending value:') so the block does not appear to be a command the reader should run.",
+            "Consider adding a brief note under 'Stage restriction' about the stacks-per-git-branch pattern tradeoff more precisely: specifically that wildcard or prefix-matching is not mentioned in the type definition, so teams using dynamic stage names may need to enumerate many values or skip this guardrail. The current 'When to skip' paragraph covers this but the type definition only shows `string[]` — no wildcards — so being explicit about this limitation helps readers who might assume regex or glob support."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is answer-first, self-contained, and clearly distinguishes preventive guardrails from reactive alarms.",
+            "The page is easy to scan: compact H2s, comparison tables, concrete property names, and a broad FAQ help extraction and navigation.",
+            "Core guardrail properties from the source are named accurately: allowedStages, allowedRegions, blockedCommands, blockedResourceTypes, and maxResources.",
+            "The page gives useful decision support for stage, region, command, resource-type, and resource-count restrictions instead of only listing properties."
+          ],
+          "problems": [
+            "Several operational claims are not grounded in the provided source file: Console configuration, organization-wide scope, Console API fetching, validation before specific commands, sequential evaluation, first-violation behavior, and exact error-message text are not present in guardrails.d.ts.",
+            "The FAQ repeats unsupported CLI enforcement claims, including that deploy, codebuild:deploy, delete, and preview-changes run validation and that debug:logs or info:stack do not trigger checks.",
+            "The page says guardrails are not part of stacktape.ts project configuration, but the source only defines guardrail types; it does not establish where guardrails are configured.",
+            "The resource type identifier section lists many StpResourceType values that are not visible in the provided source. Because the source only says blockedResourceTypes?: StpResourceType[], the full identifier list is ungrounded here.",
+            "The CloudFormation 500-resource limit, resource mapping details, orphaned-stack cost behavior, GDPR/HIPAA examples, IAM/SCP comparison, and regional pricing comments are useful context but not grounded in the provided source files.",
+            "The page claims the type definitions include 15 guardrail types, which is grounded, but then only documents five in depth while pushing the other ten to related pages. That is reasonable structurally, but the reader may expect clearer boundaries for what this page covers versus the full guardrail model."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify unsupported implementation details about Console storage, organization-level scope, Console API fetching, exact CLI validation timing, sequential validation, first reported violation, and exact error messages unless additional source files are provided.",
+            "Replace the ungrounded full StpResourceType identifier list with a narrower statement grounded in the source: blockedResourceTypes accepts StpResourceType values, and the JSDoc examples are open-search-domain and redis-cluster. Only list more identifiers if their type source is provided.",
+            "Revise the FAQ answers about command enforcement and non-mutating commands so they only state what guardrails.d.ts supports, or add CLI source files that prove those behaviors.",
+            "Remove or clearly frame unsupported AWS and governance context such as CloudFormation’s 500-resource limit, SCP/IAM behavior, GDPR/HIPAA requirements, and regional pricing as general background only if the review policy allows it for this page; do not present it as Stacktape behavior.",
+            "For every corrected claim, replace it with the source-grounded fact rather than deleting the topic entirely: name the guardrail type and exact property from guardrails.d.ts."
+          ],
+          "optionalImprovements": [
+            "Add a compact table covering all 15 guardrail types with their exact property names, then keep the deeper sections focused on the five deployment-oriented guardrails.",
+            "Add a short note that optional properties are shown with ? in the TypeScript definitions, and avoid implying that an empty or omitted property has a documented default unless a validator source proves it.",
+            "Consider replacing the raw example error block with a clearly marked illustrative example, or remove it unless CLI validator source provides the exact message.",
+            "Tighten the FAQ to 8-9 higher-confidence questions after removing unsupported implementation claims."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No concrete factual or source-grounding issues found in the draft. The page stays within the deployment guardrail variants and property shapes present in the provided sources, avoids forbidden Stacktape config examples, and uses valid navigation links.",
+          "issues": [],
+          "positiveFindings": [
+            "The draft correctly distinguishes guardrails as preventive policies from alarms as reactive monitoring, matching the page guidance and linked observability route.",
+            "The five deployment guardrail variants covered on the page match the relevant definitions in `types/stacktape-config/guardrails.d.ts`: stage, region, command, resource type, and resource count restrictions.",
+            "The draft avoids hand-authored YAML, plain-object `StacktapeConfig`, and fenced TypeScript Stacktape config examples.",
+            "The draft scopes guardrail property claims to the exact documented properties such as `allowedStages`, `allowedRegions`, `blockedCommands`, `blockedResourceTypes`, and `maxResources`."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -1260,8 +1649,14 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\guardrails\\deployment.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.5, hard blockers 8, advisory high 0, verifier medium 9"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/guardrails/deployment.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 2,
+  "refinementStalled": false,
+  "completedAt": "2026-05-22T03:35:17.564Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/guardrails.d.ts": "32e5dde4b6012ee1e15ada514d5495af7b5fb617",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/guardrails/deployment.md": "4673094a47cade5fe0ebea077d3c868bb2c6a3b9"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

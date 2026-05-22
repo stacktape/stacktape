@@ -1,0 +1,116 @@
+# mcp
+
+The `stacktape mcp` command starts a local MCP (Model Context Protocol) server that exposes Stacktape tools and documentation to AI coding agents. The server communicates over stdio and is spawned automatically by MCP-compatible clients like Claude Code, Cursor, Windsurf, and VS Code Copilot.
+
+## Usage
+
+```bash
+stacktape mcp
+```
+
+You typically do not run this command directly. Instead, configure your AI coding agent to spawn it as an MCP server. The [`mcp:add`](/cli/mcp-add) command automates this setup for supported clients.
+
+## What the server provides
+
+The MCP server exposes four tools that AI agents use to interact with your Stacktape infrastructure:
+
+| Tool | Purpose |
+|------|---------|
+| `stacktape_docs` | Search Stacktape documentation for configuration help, resource types, and troubleshooting |
+| `stacktape_ops` | Execute infrastructure operations: deploy, delete, preview changes, manage secrets, run scripts |
+| `stacktape_diagnose` | Read-only inspection: view logs, metrics, alarms, query databases, execute container commands |
+| `stacktape_dev` | Control dev mode: start, check status, read logs, rebuild workloads, stop |
+
+## How it works
+
+When an MCP-compatible client starts the server, Stacktape builds a lexical search index from its documentation, then listens for tool calls over stdio using the MCP protocol. Each tool call maps to one or more Stacktape CLI commands executed in the background, with structured JSON output returned to the agent.
+
+The server does not require a Stacktape API key to start. However, tools that interact with deployed infrastructure (`stacktape_ops`, `stacktape_diagnose`, `stacktape_dev`) require a valid API key configured via [`stacktape login`](/cli/login).
+
+## Client configuration
+
+The fastest way to configure your AI coding agent is to run [`stacktape mcp:add`](/cli/mcp-add), which detects supported clients and adds the MCP server entry automatically.
+
+To configure manually, add an entry like this to your client's MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "stacktape": {
+      "command": "stacktape",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+The exact file location depends on your client:
+
+| Client | Configuration file |
+|--------|-------------------|
+| Claude Code | `~/.claude.json` or project `.mcp.json` |
+| Cursor | `~/.cursor/mcp.json` |
+| VS Code / Copilot | `.vscode/mcp.json` in workspace |
+| Windsurf | `~/.windsurf/mcp.json` |
+
+
+> **Tip:** Use [`stacktape mcp:add`](/cli/mcp-add) to handle detection and configuration automatically. It creates timestamped backups before modifying existing files.
+
+
+## Important flags
+
+
+## CLI Options: `stacktape mcp`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
+
+`info`: Basic information about the operation.
+`error`: Only errors.
+`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+
+
+## Examples
+
+Start the MCP server with debug-level logging for troubleshooting connection issues:
+
+```bash
+stacktape mcp --logLevel debug
+```
+
+## FAQ
+
+### What is MCP?
+
+MCP (Model Context Protocol) is an open protocol that lets AI coding agents discover and call tools exposed by external servers. Stacktape's MCP server gives agents the ability to search docs, deploy stacks, inspect logs, query databases, and control dev mode — all without the agent needing to construct shell commands.
+
+### Which AI clients support MCP?
+
+Claude Code, Cursor, VS Code Copilot, Windsurf, OpenCode, and Codex all support MCP servers. Any client that implements the MCP stdio transport can use `stacktape mcp`. Run [`stacktape mcp:add`](/cli/mcp-add) to auto-detect and configure supported clients on your machine.
+
+### Do I need an API key to use the MCP server?
+
+The server itself starts without an API key. However, any tool that interacts with deployed infrastructure (deploying, viewing logs, querying databases) requires a valid API key. Run [`stacktape login`](/cli/login) to configure one.
+
+### Can the MCP server modify my infrastructure?
+
+Yes. The `stacktape_ops` tool supports deploy, delete, rollback, and secret management. Destructive operations like `delete` require explicit confirmation (`confirm: true`) from the agent before executing.
+
+### Is the MCP server a long-running process?
+
+Yes. It runs as long as the AI client keeps the stdio connection open. When the client disconnects, the server process exits. You do not need to manage its lifecycle manually.
+
+### How does `stacktape_docs` search work?
+
+The server builds a lexical (BM25) search index from generated LLM documentation at startup. Queries are matched against section-level chunks and returned with route, source file, heading path, and generated docs kind metadata. Syntax and property lookups are biased toward `config-reference` chunks, workflow questions are biased toward `docs-page` chunks, and near-duplicate top results from the same page are skipped. This ensures agents get accurate, up-to-date answers grounded in the current Stacktape docs rather than relying on training data.
+
+### Can I use MCP tools alongside dev mode?
+
+Yes. The `stacktape_dev` tool lets agents start, monitor, rebuild, and stop dev sessions. When a dev session is active, agents can also read structured logs and trigger workload rebuilds without you needing to interact with the terminal.
+
+## Related commands
+
+- [`mcp:add`](/cli/mcp-add) — Automatically installs MCP server configuration into supported AI coding clients.
+- [`dev`](/cli/dev) — Starts local development mode (can also be controlled through the MCP `stacktape_dev` tool).
+- [`login`](/cli/login) — Configures the API key required for infrastructure operations through MCP.

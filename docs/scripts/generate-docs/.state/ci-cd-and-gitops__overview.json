@@ -2,7 +2,7 @@
   "pageId": "ci-cd-and-gitops__overview",
   "pageRoute": "ci-cd-and-gitops/overview",
   "startedAt": "2026-05-17T18:12:12.751Z",
-  "updatedAt": "2026-05-17T18:31:16.457Z",
+  "updatedAt": "2026-05-21T14:55:31.576Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1105,6 +1105,278 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/ci-cd-and-gitops__overview/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 6,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong decision-support framing throughout — the 'Choosing the right approach' section with the combined-pattern table is genuinely helpful for a first-time reader trying to decide where to start.",
+            "The GitHub Actions YAML example is realistic and copyable, with the --autoConfirmOperation flag called out explicitly so CI runners don't block.",
+            "The FeatureComparisonTable at the top gives a genuine at-a-glance comparison before any prose, which serves the 'find it fast' reader well.",
+            "FAQ section is comprehensive with 10 entries spanning Stacktape-specific, AWS-service, and comparison questions — good AEO coverage.",
+            "The codebuild:deploy section correctly describes the upload-zip-start-stream lifecycle sourced from the CLI implementation, including the fact that configuration errors surface locally before CodeBuild provisions.",
+            "The Warning callout about PR preview cost accumulation is well-placed and addresses a real gotcha that new users consistently miss.",
+            "The Stacks per git branch table is concise and immediately actionable — pattern, naming convention, example all in one row."
+          ],
+          "problems": [
+            "HEADING HIERARCHY VIOLATION: 'When to use GitOps' is H3 nested under '## GitOps with Console', but 'When NOT to use GitOps' is a standalone H2 — an asymmetric peer gap. The two sections cover one concept (GitOps fitness) and must sit at the same heading level. In contrast, the Custom CI/CD section correctly nests both 'When to use' and 'When NOT to use' as H3 peers under '## Custom CI/CD', making the inconsistency obvious in the TOC.",
+            "Build runners section is thin: the section instruction explicitly requires distinguishing CodeBuild-based runners from EC2-based runners. The draft only names them in a parenthetical and defers entirely to the linked page, providing no distinguishing prose whatsoever.",
+            "FeatureComparisonTable PR previews cell for GitOps reads 'Configuration displays stage as pr-{#number}' — ambiguous (what configuration? displayed where?). The LLM-docs source uses 'Built-in — stage named pr-{#number}' which is clearer.",
+            "Stage name format constraint (lowercase alphanumeric + dashes, minimum 2 characters) is stated in the LLM-docs FAQ but omitted from the Stacks per git branch section and only partially hinted at in prose. A first-time user trying the PR pattern will hit a validation error without this.",
+            "FAQ answer for 'Do I need AWS credentials' leads with 'Stacktape deploys through your connected AWS account in the Stacktape Console' but buries the operative fact (STACKTAPE_API_KEY is what authenticates the CLI run) in the second sentence. The lead should be the mechanism."
+          ],
+          "mandatoryFixes": [
+            "Fix heading hierarchy for the GitOps section: 'When to use GitOps' (H3) and 'When NOT to use GitOps' (H2) are at different levels, breaking the TOC structure. Make them consistent peers — either both H3 under '## GitOps with Console' (matching the Custom CI/CD pattern used later on the page), or both H2 standalone sections. The current mix causes 'When NOT to use GitOps' to appear as a top-level section between '## GitOps with Console' and '## Custom CI/CD', which will confuse any reader scanning the page."
+          ],
+          "optionalImprovements": [
+            "Expand the Build runners section with at least two bullet points distinguishing CodeBuild-managed runners (fresh environment per deploy, no persistent infra) from EC2-based runners (persistent instances, no per-deploy provisioning overhead). The section instruction requires this distinction to appear on the overview page, not just on the dedicated Build runners page.",
+            "Add the stage name format constraint to the Stacks per git branch section: lowercase alphanumeric characters and dashes only, minimum 2 characters. This belongs in the prose alongside the table, not only in the FAQ.",
+            "Rewrite the FeatureComparisonTable PR previews cell for GitOps from 'Configuration displays stage as pr-{#number}' to 'Built-in — stage named pr-{#number}' to match the source docs and be unambiguous.",
+            "Reorder the FAQ answer for 'Do I need AWS credentials' to lead with the mechanism: 'No. The Stacktape CLI authenticates via a STACKTAPE_API_KEY environment variable — you do not need IAM access keys or AWS secrets in your pipeline.' Then follow with details about the connected AWS account.",
+            "The Maintenance row of the FeatureComparisonTable for self-hosted runners says 'You own the workflow' but the LLM-docs source says 'You own the workflow; Stacktape manages runner infrastructure' — the second half is a meaningful differentiator worth restoring."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Comparison table at the top gives a fast orientation for readers choosing between paths — well-structured and uses FeatureComparisonTable correctly.",
+            "Every bash block contains exactly one command; the multi-command split between 'deploy a PR stage' and 'clean up' blocks is correct.",
+            "Decision support is present for every option: both GitOps and Custom CI/CD have explicit 'when to use / when not to use' guidance, not just configuration instructions.",
+            "FAQ spans all three required categories (Stacktape-specific, AWS service questions, comparison questions) and reaches 10 entries with useful, non-padded answers.",
+            "Warning callout about PR preview costs is grounded in source behavior and directly useful for production engineers.",
+            "The GitHub Actions YAML example is realistic, copyable, and correctly uses a fenced yaml block (CI pipeline config, not Stacktape config) — no forbidden patterns present.",
+            "No Stacktape config in YAML, no StacktapeConfig type imports, no defineConfig in fenced TypeScript blocks — all absolute forbidden patterns are clean.",
+            "Pragmatic, non-marketing tone throughout; 'Start here unless you have a specific reason not to' is the kind of opinionated guidance the audience needs."
+          ],
+          "problems": [
+            "Heading hierarchy asymmetry: 'When to use GitOps' is H3 inside the 'GitOps with Console' H2, but 'When NOT to use GitOps' is a standalone H2. The two paired sections are at different levels, which breaks ToC structure and implies they are unrelated decisions. By contrast, the Custom CI/CD section correctly places both 'When to use' and 'When NOT to use' as peer H3s.",
+            "Authentication mechanism missing from Custom CI/CD section body: the code example shows `STACKTAPE_API_KEY` but the surrounding prose never explains it is the authentication mechanism, where to create it, or that you do not need raw AWS credentials. This information is in the source (LLM docs) and is critical for a reader setting up their first pipeline.",
+            "Build runners section is too thin and violates the section instruction ('Distinguish CodeBuild-based runners from EC2 runners explicitly'). The draft only mentions the two types in passing and defers to the linked page. The source provides inline one-line descriptions of each type, which the draft dropped.",
+            "Stage name format constraints are omitted from the Stacks per Git branch section. The source explicitly states the constraint (lowercase alphanumeric with dashes only, minimum 2 characters). Without this, practitioners who use uppercase, underscores, or single-character names will hit runtime errors with no prior warning on this page.",
+            "FAQ answer for 'Do I need AWS credentials in my CI pipeline?' describes authentication as 'Stacktape deploys through your connected AWS account' without naming STACKTAPE_API_KEY as the credential to set in the pipeline. The code example above shows it, but the FAQ answer does not, making the answer incomplete as a standalone extract."
+          ],
+          "mandatoryFixes": [
+            "Fix the GitOps heading asymmetry: move 'When to use GitOps' from H3 up to H2 (or move 'When NOT to use GitOps' down to H3 inside the GitOps section). Either approach works, but both sections must be at the same heading level. The current ToC has an H3 nested under 'GitOps with Console' and then a top-level H2 that is conceptually its pair — this is structurally broken.",
+            "Add authentication prose to the Custom CI/CD section before or immediately after the code example. The required content: the CLI authenticates via a STACKTAPE_API_KEY environment variable; create an API key in the Console under /stacktape-console/api-keys; you do not need IAM access keys or AWS secret keys. The code already shows the env var but the section never explains it in prose, leaving a practitioner who copies the example to discover authentication failure themselves.",
+            "Expand the Build runners section to explicitly describe both runner types inline, not just link to the dedicated page. The section instruction requires this. At minimum: one sentence per type — CodeBuild-managed runners provision a fresh build environment per deployment (no persistent infrastructure), EC2-based runners use persistent instances that stay available between deployments (lower per-deployment overhead). Then link to the dedicated page for full comparison and configuration.",
+            "Add the stage name format constraint to the Stacks per Git branch section: stage names must be lowercase alphanumeric with dashes only and at least 2 characters long. This constraint is grounded in source, is directly actionable, and its absence will cause practitioner errors when branch names contain uppercase letters, underscores, or slashes."
+          ],
+          "optionalImprovements": [
+            "The FAQ authentication answer should name STACKTAPE_API_KEY explicitly and link to /stacktape-console/api-keys, matching the level of detail the LLM-docs source provides and making the answer self-contained as a search extract.",
+            "In the GitOps section, clarify the PR stage naming more precisely: the Console derives `pr-{#number}` from the actual pull request number at event time (grounded in the Console source code: `gitDeploymentConfig.stage || 'pr-{#number}'`). The current phrasing 'when no explicit stage is set' is accurate but could be followed by a one-line example ('PR #42 → stage `pr-42`') to make it concrete.",
+            "The FeatureComparisonTable 'PR previews' row for GitOps says 'Configuration displays stage as pr-{#number}' — this is slightly awkward wording. The source phrasing 'Built-in — stage named pr-{#number}' from the LLM docs is more direct and matches what a practitioner sees in the Console.",
+            "Consider adding a one-line note that the YAML example uses `npx stacktape` while teams can also install the CLI globally (`npm install -g stacktape`) for cleaner pipeline scripts — this is a common first question for teams setting up CI for the first time."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and gives a useful high-level map of Stacktape deployment automation options.",
+            "The page is easy to scan: short H2s, comparison tables, clear when-to-use guidance, and one-command shell blocks.",
+            "The GitOps Console table details are grounded in the provided Console source, including trigger labels, branch, stage fallback, region, and AWS account display.",
+            "The page gives practical decision guidance for GitOps vs custom CI/CD vs self-hosted GitHub Actions runners instead of only listing features.",
+            "The FAQ has broad coverage across Stacktape-specific questions, CodeBuild/AWS cost model questions, and choosing/comparison questions."
+          ],
+          "problems": [
+            "The comparison table titled “Automation options at a glance” omits `codebuild:deploy`, even though the opening paragraph presents it as one of the main automation paths. A reader scanning only the table misses a core option.",
+            "The Build runners section does not explicitly distinguish CodeBuild-managed runners from EC2-based runners beyond naming them. The human-maintained instruction specifically requires distinguishing CodeBuild-based runners from EC2 runners.",
+            "The page makes a few broad claims that are useful but not clearly grounded in the provided source, such as “handles PR previews automatically,” “takes minutes to set up,” and “There is no migration cost.” These should be narrowed or tied to visible behavior in the sources.",
+            "The self-hosted GitHub Actions runners section is thin for an option that materially affects cost, maintenance, and infrastructure ownership. It names good scenarios but gives less decision support than GitOps and custom CI/CD.",
+            "The FAQ answer on AWS CodeBuild pricing includes specific free-tier information not present in the provided source files. FAQ entries may use general AWS facts, but concrete pricing/free-tier details are risky and should be sourced or softened.",
+            "Some claims use absolute language that may overstate the source, such as “No. Stacktape deploys through your connected AWS account” for all CI pipelines. The provided source strongly supports this for CodeBuild and generated docs support CLI API-key auth, but the page should be careful when generalizing."
+          ],
+          "mandatoryFixes": [
+            "Add `codebuild:deploy` to the “Automation options at a glance” comparison table or rename/reframe the table so it does not imply complete coverage of all automation options.",
+            "Expand the Build runners section to explicitly distinguish CodeBuild-managed runners from EC2-based runners, including what runs where and the practical tradeoff between fresh CodeBuild environments and persistent EC2 runner capacity.",
+            "Replace over-broad or weakly sourced phrases such as “takes minutes to set up,” “handles PR previews automatically,” and “There is no migration cost” with narrower, source-grounded wording tied to GitOps configuration rows, PR-opened triggers, CLI commands, and independent stage targeting."
+          ],
+          "optionalImprovements": [
+            "Add one short row to the comparison table for “Where the build runs” to make the CodeBuild/custom CI/self-hosted runner distinction visible in under 30 seconds.",
+            "In the CodeBuild section, mention the command’s concrete phases from source: local validation/resource resolution, git zip archive, S3 upload, CodeBuild start, and CloudWatch log streaming.",
+            "Soften the CodeBuild pricing FAQ to avoid unsourced free-tier specifics, or cite a dedicated pricing source if the docs system supports it.",
+            "Replace “zero-maintenance” with a more concrete phrase such as “no pipeline file to maintain.”",
+            "Add a short note that custom CI/CD examples require `STACKTAPE_API_KEY`, since that appears in the workflow and generated source but the main Custom CI/CD section only explains `--autoConfirmOperation`."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "No publication-blocking factual issues found. The draft’s Stacktape-specific claims are grounded in the provided GitOps Console source, the codebuild:deploy command source, or the generated CI/CD overview source, and the links point to routes present in the navigation index.",
+          "issues": [],
+          "positiveFindings": [
+            "The GitOps table details match the Console source: deployment trigger, branch, stage name, region, and AWS account are all rendered in GitOps.tsx.",
+            "The codebuild:deploy description is well grounded in the command source: local resource resolution occurs before upload, the project is zipped, uploaded to S3, CodeBuild is started, and CloudWatch logs are streamed back.",
+            "The page avoids forbidden Stacktape config patterns: there are no hand-authored Stacktape YAML examples, no StacktapeConfig typed plain objects, and no fenced TypeScript Stacktape config blocks.",
+            "All checked markdown links target routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided CodeBuild and GitOps sources. The strongest issues are unsupported Console/GitHub mechanics and a few claims that go beyond the visible source files, especially around self-hosted runners, GitOps cleanup, and multiple matching GitOps configurations triggering from one event.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You connect your repository in the Stacktape Console and create one or more GitOps configurations from the GitOps page.”",
+              "reason": "The provided Console source grounds the GitOps configurations table and the “New GitOps configuration” button, but it does not show a repository-connection flow. It derives repository owner/name from an existing project git URL, so the draft should avoid describing repository connection mechanics on this page unless source for that flow is provided.",
+              "suggestedFix": "Narrow to the grounded UI: “For a project with a connected git repository, the GitOps page lets you create one or more GitOps configurations.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "const { repositoryName, repositoryOwner } = projectDetailsQuery.isFetched\n    ? getRepositoryDetailsFromGitUrl(projectDetails!.gitUrl!)\n    : { repositoryName: null, repositoryOwner: null };"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "text=\"New GitOps configuration\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“GitOps ... handles PR previews automatically” and “PR previews | GitOps | Isolated stage for every PR, named `pr-{#number}`.”",
+              "reason": "The Console source shows the table label falls back to `pr-{#number}` when `gitDeploymentConfig.stage` is absent, and it shows a `PULL_REQUEST_OPENED` trigger. It does not prove that GitOps automatically creates and manages a preview stack for every PR, or that every PR preview is isolated beyond normal Stacktape stage semantics.",
+              "suggestedFix": "Use the grounded display behavior: “PR-opened GitOps configurations are displayed with `pr-{#number}` when no explicit stage is stored. The stacks-per-branch pattern uses separate Stacktape stages for PR previews.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "gitDeploymentConfig.deployOnGitEvent === 'PULL_REQUEST_OPENED' ? (\n                  <Badge color=\"blue2\">PR Opened</Badge>\n                ) : (\n                  <Badge color=\"purple\">Push to Branch</Badge>\n                )"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "label: gitDeploymentConfig.stage || 'pr-{#number}',"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Self-hosted GitHub Actions runners let you run GitHub Actions workflows on runner infrastructure in your AWS account instead of on GitHub's hosted runners.”",
+              "reason": "No self-hosted runner implementation source is included. The generated LLM docs say this, but the verifier instructions prioritize source code and the page source list does not include runner source. Because this is a concrete product capability, the draft should either cite only the existence of the dedicated page or phrase the details cautiously.",
+              "suggestedFix": "Narrow to: “Stacktape also has a dedicated page for self-hosted GitHub Actions runners when you want GitHub Actions workflows to run outside GitHub-hosted runners.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/ci-cd-and-gitops/overview.md",
+                  "quote": "[Self-hosted GitHub Actions runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) let you run GitHub Actions workflows on Stacktape-managed infrastructure in your AWS account instead of on GitHub's hosted runners."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Configure cleanup (via GitOps or a CI pipeline step) to avoid accumulating unused infrastructure.”",
+              "reason": "The provided GitOps Console source shows creating and deleting GitOps configurations, not cleanup of PR preview stacks or any GitOps cleanup behavior. A CI cleanup step using `delete` is plausible and partly illustrated, but “cleanup via GitOps” is not grounded by the provided source.",
+              "suggestedFix": "Remove “via GitOps” or make it cautious: “Configure cleanup, for example with a CI pipeline step that runs `stacktape delete`, to avoid accumulating unused infrastructure.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "const deleteGitDeploymentConfigurationMutation = trpc.deleteGitDeploymentConfiguration.useMutation();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "heading=\"Delete Git auto-deployment configuration\""
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Can multiple GitOps configurations target the same branch? Yes. You can create multiple GitOps configurations for the same project ... for example two configurations watching `main`, one for `us-east-1` and one for `eu-west-1`.”",
+              "reason": "The source supports listing multiple GitOps configurations for a project, with branch, region, and account per row. It does not show uniqueness rules, whether duplicate branch/trigger combinations are allowed, or that a single matching git event triggers all matching configurations.",
+              "suggestedFix": "Narrow to what is visible: “The GitOps page lists multiple configurations for a project, and each row has its own trigger, branch, stage, region, and AWS account. See the GitOps guide for supported combinations.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "rows={gitDeploymentConfigs.map((gitDeploymentConfig) => ["
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/console-app/src/pages/ProjectsPage/GitOps/GitOps.tsx",
+                  "quote": "columnHeaders={[\n            ['Deployment trigger', 185],\n            'From branch',\n            ['Stage name', 135],\n            ['Region', 135],\n            'AWS Account',"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Build runners ... for runner types (CodeBuild-managed vs. EC2-based), configuration, compute sizing, and a detailed comparison.”",
+              "reason": "The provided source for this page includes CodeBuild deploy implementation, but no build-runner source or EC2 runner source. The claim may be true on the dedicated build-runners page, but it is not grounded by the supplied source files for this verification task.",
+              "suggestedFix": "Keep the link but make the overview less specific unless runner source is supplied: “See Build runners for the supported runner options and configuration details.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“No. Stacktape deploys through your connected AWS account in the Stacktape Console, so you do not need IAM access keys in your pipeline.”",
+              "reason": "The CodeBuild source confirms `codebuild:deploy` passes Stacktape user info including an API key to the remote build, but the provided source does not show custom CI authentication behavior for `stacktape deploy` or prove that every pipeline never needs AWS credentials. The statement is likely correct from product docs, but over-broad from the provided source list.",
+              "suggestedFix": "Scope the claim to the documented Stacktape CLI authentication path: “For the standard Stacktape CI flow, authenticate the CLI with a Stacktape API key instead of storing AWS IAM access keys in the pipeline.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The CodeBuild deploy description is well grounded: the source shows local initialization, guardrail validation, resource resolution, git zip creation, S3 upload, CodeBuild start, and CloudWatch log streaming.",
+            "The GitOps table details are grounded in the Console source: trigger labels, branch, stage fallback, target region, and AWS account columns match the implementation.",
+            "The draft correctly keeps “When NOT to use GitOps” as an H2 peer section rather than nesting it under “When to use GitOps.”",
+            "All cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "Shell snippets follow the one-command-per-block rule."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"When NOT to use\" is nested as `### When NOT to use` (H3); should be `## When NOT to use` (H2).",
+              "reason": "\"When to use\" and \"When NOT to use\" are PEER H2 decisions on resource pages. Nesting \"When NOT to use\" as H3 under \"When to use\" breaks the TOC and hides the negative-case guidance.",
+              "suggestedFix": "Promote `### When NOT to use` to `## When NOT to use`."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1117,8 +1389,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\ci-cd-and-gitops\\overview.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/ci-cd-and-gitops/overview.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 11, advisory high 2, verifier medium 12"
+  "pipelineReviewSummary": "reviewer-avg 7.3, hard blockers 1, advisory high 0, verifier medium 5",
+  "refinementAttempts": 1,
+  "refinementStalled": false
 }

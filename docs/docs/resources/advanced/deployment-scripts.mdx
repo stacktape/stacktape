@@ -1,10 +1,8 @@
 ---
-title: 'Deployment Scripts'
-order: 67
 seoTitle: 'Deployment Scripts — Run Migrations on Deploy | Stacktape'
 seoDescription: 'Run database migrations, seed data, and cleanup tasks during deploy or delete with Stacktape deployment scripts. Lambda-backed and VPC-aware, with rollback for failed after-deploy scripts.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 8.5, hard blockers 1, advisory high 0, verifier medium 8'
+pipelineReviewSummary: 'reviewer-avg 8.5, hard blockers 1, advisory high 0, verifier medium 9'
 ---
 
 # Deployment Scripts
@@ -42,7 +40,7 @@ Not every deploy-time task needs a deployment script. Consider alternatives:
   ]}
 />
 
-Lifecycle hooks run a `local-script` on your machine or CI runner. If the local command needs VPC-only resources (databases, Redis), define a `local-script-with-bastion-tunneling` script that tunnels connections through a [bastion host](/resources/security/bastion-host). See [hooks and scripts](/configuration/hooks-and-scripts) for details.
+Lifecycle hooks run a `local-script` on your machine or CI runner. For commands that need to reach VPC-protected resources, define a `local-script-with-bastion-tunneling` script — it still runs locally, but tunnels connections through a [bastion host](/resources/security/bastion-host) to supported protected resources, including relational databases and Redis clusters. Set the optional `bastionResource` property when you need to pick a specific bastion. See [hooks and scripts](/configuration/hooks-and-scripts) for details.
 
 ## Basic example
 
@@ -293,7 +291,7 @@ Yes. Define multiple `DeploymentScript` resources in your config, each with its 
 
 ### Should I use a deployment script or a lifecycle hook for migrations?
 
-Use a deployment script when the migration needs direct VPC access to the database (the common case). A deployment script runs inside AWS as a Lambda function, so it can reach VPC-protected databases when `joinDefaultVpc` is enabled. Use a lifecycle hook with a `local-script` when the migration tool doesn't package well as a Lambda or takes longer than 15 minutes. If the local script needs VPC-only resources, define a `local-script-with-bastion-tunneling` script to tunnel connections through a [bastion host](/resources/security/bastion-host).
+Use a deployment script when the migration needs direct VPC access to the database (the common case). A deployment script runs inside AWS as a Lambda function, so it can reach VPC-protected databases when `joinDefaultVpc` is enabled. Use a lifecycle hook with a `local-script` when the migration tool doesn't package well as a Lambda or takes longer than 15 minutes. If the local script needs to reach VPC-protected resources, a `local-script-with-bastion-tunneling` script runs locally and can tunnel connections to supported protected resources, including relational databases and Redis clusters, through a [bastion host](/resources/security/bastion-host); set the optional `bastionResource` property when you need to choose a specific bastion.
 
 ### When should I use a batch job instead of a deployment script?
 

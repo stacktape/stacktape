@@ -2,7 +2,7 @@
   "pageId": "deployment-and-lifecycle__destroying-stacks",
   "pageRoute": "deployment-and-lifecycle/destroying-stacks",
   "startedAt": "2026-05-17T14:53:57.506Z",
-  "updatedAt": "2026-05-17T15:09:11.007Z",
+  "updatedAt": "2026-05-22T06:24:03.469Z",
   "iterations": [
     {
       "iteration": 1,
@@ -854,6 +854,659 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/deployment-and-lifecycle__destroying-stacks/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Deletion sequence (steps 1-7) is accurately grounded in the source code flow — matches the exact order in commandDelete(): guardrails → prompt → termination check → hooks → artifacts → stack.",
+            "CLI examples are clean: one command per fenced block, no # comment noise inside the blocks, prose explains each variant before its block.",
+            "The failure recovery table (Cause / Fix columns) is the most practically useful section on the page — gives a first-time user an immediate action for the most common DELETE_FAILED scenarios.",
+            "The 'When to delete vs. when to keep' decision table adds genuine editorial value rather than just restating configuration. The per-resource-type cost note at the bottom is a concrete, actionable signal.",
+            "FAQ section spans all three required categories (Stacktape-specific, AWS-service-level, comparison/choosing) with 10 Q&A pairs that read as real user questions, not filler.",
+            "The <Warning> callout about irreversibility is positioned correctly — after the sequence description and before the CLI section, where the reader still has a chance to act on it.",
+            "CodeBlock examples use the correct defineConfig + class-based pattern, focus markers hide the import line, and both examples are realistic rather than toy configurations."
+          ],
+          "problems": [
+            "'When to use termination protection' is a standalone H2 containing a single paragraph that largely restates the recommendation already made in the previous 'Termination protection' H2. Two consecutive sections on the same topic with thin content hurts scannability — the latter reads as a padded backbone section.",
+            "Step 7 in 'How deletion works' asserts that afterDelete hooks execute after stack deletion completes. The provided source (commandDelete()) shows only processHooks({ captureType: 'START' }) before artifact/stack deletion — no captureType: 'END' call is visible. The page presents afterDelete hooks as a confirmed behavior without source support for this specific claim.",
+            "The claim 'In non-interactive environments (CI/CD runners without a TTY), --autoConfirmOperation is required — the command throws an error without it' is stated with certainty. The source calls potentiallyPromptBeforeOperation() whose name suggests conditional behavior, but the specific error-throw assertion is not directly visible in the provided source.",
+            "The lifecycle hooks code example introduces a scripts section with shape { type: 'local-script', properties: { executeCommand: '...' } } and hook options skipOnCI / skipOnLocal. None of these API shapes are verifiable from the provided source files, making them plausible-but-ungrounded claims.",
+            "The page has no <ApiReference> component. While this is a deployment page rather than a resource page, the CLI flags and configuration properties (terminationProtection, hooks shape) have no schema anchor anywhere on the page, leaving readers to visit /cli/delete for flag details with no inline reference."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Merge 'When to use termination protection' into the 'Termination protection' H2 as a closing paragraph rather than a separate section. The content (enable for production, skip for ephemeral stages) fits naturally as the recommendation ending the parent section and eliminates the thin standalone H2.",
+            "Qualify the afterDelete hook claim to reflect source ambiguity: e.g., 'afterDelete hooks are registered and processed after the stack deletion completes — see the hooks and scripts reference for the full lifecycle'. Avoid stating it as confirmed behavior when only captureType: START is visible in the source.",
+            "Soften the TTY/non-interactive claim: 'In CI/CD pipelines, pass --autoConfirmOperation to skip the interactive prompt' — without asserting the exact error condition, since potentiallyPromptBeforeOperation's behavior in non-TTY contexts is not confirmed in the provided source.",
+            "Add a brief one-liner footnote or caveat before the lifecycle hooks code example acknowledging that the scripts API shape (type, properties, executeCommand, skipOnCI, skipOnLocal) is documented on the hooks and scripts reference page — this protects readers from copy-pasting a potentially wrong API shape without a verification path.",
+            "Consider adding a one-line pricing context sentence near the top, consistent with the style guide's recommendation for deployment/resource pages. For example: 'After deletion completes, AWS billing for the removed resources stops — the delete operation itself is free.' This grounds the cost FAQ question in the page flow rather than burying it at FAQ #6.",
+            "The 'Guardrails' section is the weakest prose section — it explains what guardrails do only in terms of the failure case, not the success case. One sentence noting what a typical guardrail looks like (e.g., restricting delete to specific stages or IAM roles) would make the section more decision-supporting for readers who haven't visited /guardrails/overview yet."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Deletion sequence in 'How deletion works' accurately matches the source-code order: init → prompt → termination-protection check → hooks → delete artifacts → delete stack.",
+            "The --autoConfirmOperation CI/CD requirement is clearly called out with a concrete explanation ('throws an error without it in non-interactive environments').",
+            "'No config file required' nuance is correctly documented both in the CLI section and in the FAQ, with the accurate caveat that hooks won't run without --configPath.",
+            "Failure-mode table (S3 objects, deletion protection, cross-stack SG references, external IAM policy) is practical and actionable.",
+            "FAQ covers all three required categories: Stacktape-specific, underlying AWS service behavior, and choosing/comparison questions.",
+            "'When to delete vs keep' decision table with cost-context explanations (container hourly charges, Lambda on-demand zero-cost, RDS hourly billing) gives readers the right mental model."
+          ],
+          "problems": [
+            "afterDelete hooks (listed as step 7 of the deletion sequence) are not visible in the provided source file. The source shows only `processHooks({ captureType: 'START' })` — an END-phase call that would run afterDelete hooks is absent from the provided code. The page asserts these run 'after the stack has been fully deleted' without source support, which could mislead users relying on afterDelete for critical cleanup.",
+            "The lifecycle-hooks CodeBlock example includes a full `hooks.beforeDelete`, `hooks.afterDelete`, and `scripts` block structure that is not verifiable from the delete command source. The delete source only references `configManager.hooks` opaquely. If the schema is wrong (e.g. nesting, property names), the example would silently misconfigure user stacks.",
+            "'When to use termination protection' is a standalone H2 section immediately after 'Termination protection'. The content (3 sentences) is thin enough that it reads as a padded backbone section rather than a meaningfully separate topic. A single-sentence recommendation embedded in the preceding section would serve equally well."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Qualify the afterDelete hooks claim with source-grounding context: note that afterDelete hook execution is handled by the broader event lifecycle and link to the hooks-and-scripts reference rather than asserting it as a verified step in the delete-command sequence.",
+            "Merge 'When to use termination protection' into the 'Termination protection' H2 as a short inline recommendation paragraph. The section is too thin to justify a standalone heading and makes the TOC longer than it needs to be.",
+            "The lifecycle-hooks CodeBlock uses a concrete `scripts` structure (type: 'local-script', properties.executeCommand). Add a one-line prose note pointing to the hooks-and-scripts reference for the full schema, so readers know this example is illustrative, not the only supported hook shape.",
+            "The 'How deletion works' step list collapses guardrails validation and global config load into step 1 ('Initialize'). The source shows these happen as distinct sequential calls before the prompt. Consider splitting into two steps ('Load configuration and validate guardrails') to give readers a more accurate mental model when debugging a guardrails block.",
+            "FAQ answer for 'How long does CloudFormation stack deletion take?' cites specific minute ranges (1-3, 5-15, 3-5 for NAT Gateways). These are plausible but not sourced — phrase them as rough approximations ('typically a few minutes', 'can take 10+ minutes for VPC resources') rather than implicit guarantees."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 4,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The page is easy to scan, with short H2s, tables for decisions and failure causes, and a broad FAQ that matches real search intent.",
+            "The opening paragraph is answer-first and clearly explains the purpose of deleting a Stacktape stack.",
+            "The CLI examples follow the one-command-per-block rule and avoid forbidden YAML or plain-object Stacktape config style.",
+            "The page correctly distinguishes that the delete command does not require config, and that hooks only run when config is loaded."
+          ],
+          "problems": [
+            "Many technical claims are not grounded in the provided source file, including exact CLI flags, non-interactive TTY behavior, Console deletion, lifecycle hook names afterDelete/beforeDelete, hook options skipOnCI/skipOnLocal defaults, failed-deletion recovery details, and CloudFormation timing estimates.",
+            "The deletion sequence overstates source-backed behavior. The source shows guardrail validation, prompt, termination-protection check, optional hook processing with captureType START, artifact deletion, and stack deletion, but it does not show afterDelete hooks or that CloudFormation deletes resources in dependency order.",
+            "The page makes unsupported data-loss claims for all databases, buckets, Redis, DynamoDB, and other stateful resources. The provided delete command source does not define per-resource deletion or backup behavior.",
+            "The Stacktape Console sentence is unsupported by the provided source. The page has no console-app source grounding for delete-from-console behavior.",
+            "The FAQ contains several unsupported numeric claims, including Lambda stack deletion in 1-3 minutes, RDS/container/VPC deletion in 5-15 minutes, and NAT Gateway deletion in 3-5 minutes.",
+            "The termination-protection section claims a default of false and direct AWS Console behavior, but the provided source only shows the command checking EnableTerminationProtection and throwing an error when enabled.",
+            "The lifecycle-hooks example uses hook names and script configuration that are not visible in the provided source. The source only shows registerHooks(configManager.hooks) and processHooks({ captureType: 'START' }).",
+            "The page does not explain the CloudFormation stack states requested by the section instructions beyond FAQ mentions of UPDATE_IN_PROGRESS and CREATE_IN_PROGRESS, and those states are not grounded in the provided source.",
+            "The FAQ answer about rollback claims rollback keeps resources running and redeploys an earlier template, but no rollback source file is provided."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow every Stacktape-specific claim that is not supported by the provided delete command source, or add the missing source files before publishing those details.",
+            "Correct the lifecycle hook wording to match the source: when config is present, Stacktape registers configured hooks and processes hooks with captureType START before artifact deletion. Do not claim afterDelete behavior unless a source proves it.",
+            "Remove the unsupported Console deletion claim, or add console-app source files that prove the workflow.",
+            "Remove unsupported numeric deletion-time estimates from the FAQ unless source files provide those numbers.",
+            "Replace broad unsupported data-loss and resource-deletion specifics with cautious wording grounded in stackManager.deleteStack and deploymentArtifactManager.deleteAllArtifacts, or add resource/CloudFormation sources proving the behavior.",
+            "Remove unsupported CLI flag and non-interactive TTY claims unless the relevant CLI argument/common prompt source is provided.",
+            "Remove or source the claims about hook options skipOnCI, skipOnLocal, and their defaults."
+          ],
+          "optionalImprovements": [
+            "Add a short section grounded in the source that distinguishes the two delete targets: Stacktape deployment artifacts are deleted first, then the CloudFormation stack is deleted.",
+            "If the docs system supports deployment pages without an API reference, no ApiReference is needed; otherwise add only the appropriate reference component once.",
+            "Keep the FAQ, but rewrite answers to avoid unsupported Stacktape behavior and use only broadly safe AWS background where it is clearly framed as AWS behavior rather than Stacktape-specific behavior.",
+            "Consider replacing the detailed failure-cause table with a smaller, cautious troubleshooting section unless CloudFormation event and rollback sources are added."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the delete command source for the core sequence, termination-protection check, optional hook registration, artifact deletion, and CloudFormation stack deletion. The main issues are Stacktape-specific claims that go beyond the provided command source, especially around delete recovery, resource cleanup guarantees, and exact CLI flag names.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Skip problematic resources. The `stacktape cf:rollback` command provides additional recovery options for stacks stuck in a failed state.”",
+              "reason": "The provided delete command source does not invoke `cf:rollback`, mention failed-deletion recovery, or establish that `cf:rollback` can skip problematic resources during deletion. This is a Stacktape-specific recovery claim that would affect what a reader does when a stack is stuck.",
+              "suggestedFix": "Remove the “skip problematic resources” claim or narrow it to a sourced statement such as: “If deletion fails, inspect the CloudFormation events, fix the underlying AWS resource issue, and retry `stacktape delete`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await deploymentArtifactManager.deleteAllArtifacts();\n  await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After deletion, the stack no longer exists in your AWS account. There is no Stacktape-level backup or undo mechanism.”",
+              "reason": "The source shows that Stacktape calls `stackManager.deleteStack()` and sends a success notification, but it does not document backup behavior or absence of Stacktape-level undo. The no-backup claim may be true, but it is not grounded in the provided source files.",
+              "suggestedFix": "Keep the irreversible warning, but avoid unsupported Stacktape backup wording unless another source file explicitly covers backups. For example: “After CloudFormation deletion succeeds, Stacktape reports the deletion as successful. Export data you need before deleting.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await notificationManager.sendDeploymentNotification({\n    message: { text: `Stack ${stackName} deleted successfully.`, type: 'success' }\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The delete command does **not** require a configuration file. Specify `--projectName`, `--stage`, and `--region` to delete any stack — even without the source code locally.”",
+              "reason": "The command source supports `commandRequiresConfig: false`, but the provided source does not establish the exact CLI flag names `--projectName`, `--stage`, and `--region`. CLI flag names are Stacktape-specific and should be verified from CLI command config, which is not included in the provided source list.",
+              "suggestedFix": "Keep the sourced part: “The delete command does not require a configuration file.” Either cite the CLI reference without naming flags, or verify flag names from the CLI command definition source before keeping the exact invocation.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Configured guardrails are validated before the delete command proceeds. If a guardrail blocks the operation — for example, by restricting the `delete` command or limiting which stages or regions can be modified — the command fails immediately with an error.”",
+              "reason": "The source confirms global config loading and guardrail validation, but it does not show guardrail types, whether guardrails can restrict the `delete` command, or the exact failure behavior. The examples may be correct elsewhere, but they are not grounded in the provided source files.",
+              "suggestedFix": "Narrow the section to the sourced behavior: “Stacktape loads global config and validates configured guardrails before deletion proceeds.” Link to the guardrails page for specific guardrail types instead of listing examples unless their source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await configManager.loadGlobalConfig();\n  validateGuardrails({ guardrails: configManager.guardrails, hasConfig: !!configManager.config });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Deployment artifacts — Stacktape-managed artifacts stored outside the CloudFormation stack (such as packaged code and build outputs) are deleted first.”",
+              "reason": "The delete command source only shows `deploymentArtifactManager.deleteAllArtifacts()` before `stackManager.deleteStack()`. It does not describe where artifacts are stored or that they include packaged code and build outputs.",
+              "suggestedFix": "Use the narrower sourced wording: “Stacktape deletes deployment artifacts before deleting the CloudFormation stack.” Avoid examples of artifact contents unless supported by deployment artifact manager source.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await deploymentArtifactManager.deleteAllArtifacts();\n  await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When `terminationProtection` is enabled in your `deploymentConfig`, the delete command refuses to proceed and displays an error explaining that you must first deploy with `terminationProtection` set to `false`.”",
+              "reason": "The command source confirms Stacktape checks the deployed CloudFormation stack's `EnableTerminationProtection` flag and tells the user to deploy with the `terminationProtection` property set to false. The source does not show that this value specifically comes from `deploymentConfig`; the TypeScript config type source is not included.",
+              "suggestedFix": "Phrase the runtime behavior directly: “When the deployed CloudFormation stack has termination protection enabled, the delete command stops and tells you to redeploy with `terminationProtection` set to `false`.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "if (stackManager.existingStackDetails.EnableTerminationProtection) {\n    throw new ExpectedError(\n      'STACK',\n      `Unable to delete stack \"${tuiManager.colorize('red', stackName)}\". Termination protection is enabled on the stack.`,\n      `To disable termination protection, you first need to deploy(update) stack with ${tuiManager.colorize(\n        'blue',\n        'terminationProtection'\n      )} property set to false.`\n    );\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“If AWS CloudFormation cannot delete a resource — due to dependencies, non-empty S3 buckets populated outside of Stacktape, or permission issues — the stack enters a `DELETE_FAILED` state.”",
+              "reason": "This is plausible AWS behavior, but the provided Stacktape source does not document failed deletion states or common causes. Because general AWS mechanics are allowed, this is only a low-severity grounding concern; the Stacktape-specific page could still benefit from cautious wording.",
+              "suggestedFix": "Frame this as AWS CloudFormation behavior rather than Stacktape behavior: “AWS CloudFormation commonly reports deletion failures as `DELETE_FAILED`; inspect stack events to find the failed resource.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“A Lambda-based stack typically deletes in 1-3 minutes… RDS databases, container workloads, or VPC resources take 5-15 minutes… NAT Gateways alone take 3-5 minutes to delete.”",
+              "reason": "These concrete timing ranges are not present in the provided source files. They are general AWS guidance rather than Stacktape-specific behavior, but exact ranges are likely to drift and should be softened unless sourced.",
+              "suggestedFix": "Replace exact ranges with cautious wording: “Lambda-only stacks usually delete faster than stacks with databases, containers, VPC resources, or NAT Gateways.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly avoids forbidden hand-authored YAML and uses `<CodeBlock intellisense>` with a `TypeScript` tab for the Stacktape config example.",
+            "The main delete sequence matches the command source: Stacktape initializes deployed-stack services, loads global config, validates guardrails, initializes notifications, prompts, checks termination protection, registers START hooks when config exists, deletes artifacts, and deletes the CloudFormation stack.",
+            "The draft correctly distinguishes the CLI path from Console behavior and does not invent a Console deletion workflow.",
+            "All markdown cross-links in the draft point to routes present in the provided documentation navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the delete command implementation, especially the command sequence, termination-protection check, config-optional behavior, and START-hook timing. The main factual risks are around claims that go beyond the provided delete-command source, especially deletion failure recovery and exact CLI flag names.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `stacktape cf:rollback` command provides additional recovery options for stacks stuck in a failed state.”",
+              "reason": "The provided delete-command source does not call or reference `cf:rollback`, and the provided generated docs repeat the claim without source-code evidence. The statement may be true elsewhere, but it is not grounded in the supplied source files for this page and could send readers to the wrong recovery command for deletion failures.",
+              "suggestedFix": "Either remove this sentence or narrow it to a link such as “For CloudFormation rollback-specific recovery, see [`stacktape cf:rollback`](/cli/cf-rollback)” without claiming it handles delete failures, unless the `cf:rollback` command source is added and confirms the behavior.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await deploymentArtifactManager.deleteAllArtifacts();\n  await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When `terminationProtection` is enabled in your `deploymentConfig`, the delete command refuses to proceed and displays an error explaining that you must first deploy with `terminationProtection` set to `false`.”",
+              "reason": "The command verifies the deployed stack’s CloudFormation `EnableTerminationProtection` flag, not the local `deploymentConfig` directly. The source supports the error and remediation text, but the trigger should be phrased as deployed stack termination protection, not necessarily the current config value.",
+              "suggestedFix": "Write: “When the deployed CloudFormation stack has termination protection enabled, `stacktape delete` stops and tells you to redeploy with `terminationProtection: false` before deleting.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "if (stackManager.existingStackDetails.EnableTerminationProtection) {\n    throw new ExpectedError(\n      'STACK',\n      `Unable to delete stack \"${tuiManager.colorize('red', stackName)}\". Termination protection is enabled on the stack.`,\n      `To disable termination protection, you first need to deploy(update) stack with ${tuiManager.colorize(\n        'blue',\n        'terminationProtection'\n      )} property set to false.`\n    );\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“If a guardrail blocks the operation — for example, by restricting the `delete` command or limiting which stages or regions can be modified — the command fails immediately with an error.”",
+              "reason": "The delete source confirms that guardrails are validated, but the provided files do not show the available guardrail rule types or that command, stage, and region restrictions are supported. This may be true, but it is not grounded in the supplied source list.",
+              "suggestedFix": "Keep the grounded part and remove the examples, or add guardrail source files that prove command/stage/region restrictions. Example: “Configured guardrails are validated before the delete command proceeds. If validation fails, the command stops before deletion.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await configManager.loadGlobalConfig();\n  validateGuardrails({ guardrails: configManager.guardrails, hasConfig: !!configManager.config });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape removes deployment artifacts managed outside the CloudFormation stack (such as packaged code and build outputs)…”",
+              "reason": "The source supports that Stacktape calls `deleteAllArtifacts()`, but it does not identify which artifact categories are deleted or that they are “packaged code and build outputs.” That detail is plausible but not grounded in the supplied source.",
+              "suggestedFix": "Narrow to the sourced behavior: “Stacktape deletes deployment artifacts through its deployment artifact manager before deleting the CloudFormation stack.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await deploymentArtifactManager.deleteAllArtifacts();\n  await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After deletion, the stack no longer exists in your AWS account. There is no Stacktape-level backup or undo mechanism.”",
+              "reason": "The delete command source shows Stacktape calls `deleteStack()` and sends a success notification, but it does not document backup or undo semantics. The “no Stacktape-level backup” claim may be true, but it is not proven by the supplied source files.",
+              "suggestedFix": "Replace with a narrower statement: “After `deleteStack()` succeeds, Stacktape reports the deletion as successful. Treat deletion as irreversible unless you have separately configured AWS-level backups or exports.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await stackManager.deleteStack();\n\n  await notificationManager.sendDeploymentNotification({\n    message: { text: `Stack ${stackName} deleted successfully.`, type: 'success' }\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The draft uses the exact CLI flags `--projectName`, `--stage`, `--region`, and `--autoConfirmOperation`.",
+              "reason": "These flag names are not visible in the provided delete-command source or generated page source beyond prose examples. They may be valid, but the verifier cannot confirm them without the CLI command definitions listed in the prompt’s source-priority rules.",
+              "suggestedFix": "Add `src/config/cli/commands.ts` or the delete CLI command definition source to the source list, or avoid making exact flag-name claims beyond what the CLI reference page will cover.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“A Lambda-based stack typically deletes in 1-3 minutes… RDS databases, container workloads, or VPC resources take 5-15 minutes… NAT Gateways alone take 3-5 minutes to delete.”",
+              "reason": "These are general AWS timing estimates rather than Stacktape-specific behavior. They are allowed as general context, but the exact numeric ranges are not grounded in the provided source and can vary significantly by account, region, dependencies, and AWS state.",
+              "suggestedFix": "Soften the numbers: “A small Lambda-based stack often deletes in a few minutes. Stacks with databases, container workloads, VPC resources, or NAT Gateways can take noticeably longer.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly avoids hand-authored Stacktape YAML and uses `<CodeBlock intellisense>` with a `TypeScript` tab for the Stacktape config example.",
+            "The command sequence is broadly grounded in `src/commands/delete/index.ts`: initialization, global config load, guardrail validation, notification initialization, prompt, termination-protection check, START hooks when config is loaded, artifact deletion, and CloudFormation stack deletion.",
+            "The draft correctly distinguishes that hooks only run when `configManager.config` is present, matching the command source.",
+            "All markdown cross-links checked against the provided navigation index point to valid routes."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/deployment-and-lifecycle__destroying-stacks/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Deletion sequence (steps 1-7) is accurately grounded in the source code flow — matches the exact order in commandDelete(): guardrails → prompt → termination check → hooks → artifacts → stack.",
+            "CLI examples are clean: one command per fenced block, no # comment noise inside the blocks, prose explains each variant before its block.",
+            "The failure recovery table (Cause / Fix columns) is the most practically useful section on the page — gives a first-time user an immediate action for the most common DELETE_FAILED scenarios.",
+            "The 'When to delete vs. when to keep' decision table adds genuine editorial value rather than just restating configuration. The per-resource-type cost note at the bottom is a concrete, actionable signal.",
+            "FAQ section spans all three required categories (Stacktape-specific, AWS-service-level, comparison/choosing) with 10 Q&A pairs that read as real user questions, not filler.",
+            "The <Warning> callout about irreversibility is positioned correctly — after the sequence description and before the CLI section, where the reader still has a chance to act on it.",
+            "CodeBlock examples use the correct defineConfig + class-based pattern, focus markers hide the import line, and both examples are realistic rather than toy configurations."
+          ],
+          "problems": [
+            "'When to use termination protection' is a standalone H2 containing a single paragraph that largely restates the recommendation already made in the previous 'Termination protection' H2. Two consecutive sections on the same topic with thin content hurts scannability — the latter reads as a padded backbone section.",
+            "Step 7 in 'How deletion works' asserts that afterDelete hooks execute after stack deletion completes. The provided source (commandDelete()) shows only processHooks({ captureType: 'START' }) before artifact/stack deletion — no captureType: 'END' call is visible. The page presents afterDelete hooks as a confirmed behavior without source support for this specific claim.",
+            "The claim 'In non-interactive environments (CI/CD runners without a TTY), --autoConfirmOperation is required — the command throws an error without it' is stated with certainty. The source calls potentiallyPromptBeforeOperation() whose name suggests conditional behavior, but the specific error-throw assertion is not directly visible in the provided source.",
+            "The lifecycle hooks code example introduces a scripts section with shape { type: 'local-script', properties: { executeCommand: '...' } } and hook options skipOnCI / skipOnLocal. None of these API shapes are verifiable from the provided source files, making them plausible-but-ungrounded claims.",
+            "The page has no <ApiReference> component. While this is a deployment page rather than a resource page, the CLI flags and configuration properties (terminationProtection, hooks shape) have no schema anchor anywhere on the page, leaving readers to visit /cli/delete for flag details with no inline reference."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Merge 'When to use termination protection' into the 'Termination protection' H2 as a closing paragraph rather than a separate section. The content (enable for production, skip for ephemeral stages) fits naturally as the recommendation ending the parent section and eliminates the thin standalone H2.",
+            "Qualify the afterDelete hook claim to reflect source ambiguity: e.g., 'afterDelete hooks are registered and processed after the stack deletion completes — see the hooks and scripts reference for the full lifecycle'. Avoid stating it as confirmed behavior when only captureType: START is visible in the source.",
+            "Soften the TTY/non-interactive claim: 'In CI/CD pipelines, pass --autoConfirmOperation to skip the interactive prompt' — without asserting the exact error condition, since potentiallyPromptBeforeOperation's behavior in non-TTY contexts is not confirmed in the provided source.",
+            "Add a brief one-liner footnote or caveat before the lifecycle hooks code example acknowledging that the scripts API shape (type, properties, executeCommand, skipOnCI, skipOnLocal) is documented on the hooks and scripts reference page — this protects readers from copy-pasting a potentially wrong API shape without a verification path.",
+            "Consider adding a one-line pricing context sentence near the top, consistent with the style guide's recommendation for deployment/resource pages. For example: 'After deletion completes, AWS billing for the removed resources stops — the delete operation itself is free.' This grounds the cost FAQ question in the page flow rather than burying it at FAQ #6.",
+            "The 'Guardrails' section is the weakest prose section — it explains what guardrails do only in terms of the failure case, not the success case. One sentence noting what a typical guardrail looks like (e.g., restricting delete to specific stages or IAM roles) would make the section more decision-supporting for readers who haven't visited /guardrails/overview yet."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Deletion sequence in 'How deletion works' accurately matches the source-code order: init → prompt → termination-protection check → hooks → delete artifacts → delete stack.",
+            "The --autoConfirmOperation CI/CD requirement is clearly called out with a concrete explanation ('throws an error without it in non-interactive environments').",
+            "'No config file required' nuance is correctly documented both in the CLI section and in the FAQ, with the accurate caveat that hooks won't run without --configPath.",
+            "Failure-mode table (S3 objects, deletion protection, cross-stack SG references, external IAM policy) is practical and actionable.",
+            "FAQ covers all three required categories: Stacktape-specific, underlying AWS service behavior, and choosing/comparison questions.",
+            "'When to delete vs keep' decision table with cost-context explanations (container hourly charges, Lambda on-demand zero-cost, RDS hourly billing) gives readers the right mental model."
+          ],
+          "problems": [
+            "afterDelete hooks (listed as step 7 of the deletion sequence) are not visible in the provided source file. The source shows only `processHooks({ captureType: 'START' })` — an END-phase call that would run afterDelete hooks is absent from the provided code. The page asserts these run 'after the stack has been fully deleted' without source support, which could mislead users relying on afterDelete for critical cleanup.",
+            "The lifecycle-hooks CodeBlock example includes a full `hooks.beforeDelete`, `hooks.afterDelete`, and `scripts` block structure that is not verifiable from the delete command source. The delete source only references `configManager.hooks` opaquely. If the schema is wrong (e.g. nesting, property names), the example would silently misconfigure user stacks.",
+            "'When to use termination protection' is a standalone H2 section immediately after 'Termination protection'. The content (3 sentences) is thin enough that it reads as a padded backbone section rather than a meaningfully separate topic. A single-sentence recommendation embedded in the preceding section would serve equally well."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Qualify the afterDelete hooks claim with source-grounding context: note that afterDelete hook execution is handled by the broader event lifecycle and link to the hooks-and-scripts reference rather than asserting it as a verified step in the delete-command sequence.",
+            "Merge 'When to use termination protection' into the 'Termination protection' H2 as a short inline recommendation paragraph. The section is too thin to justify a standalone heading and makes the TOC longer than it needs to be.",
+            "The lifecycle-hooks CodeBlock uses a concrete `scripts` structure (type: 'local-script', properties.executeCommand). Add a one-line prose note pointing to the hooks-and-scripts reference for the full schema, so readers know this example is illustrative, not the only supported hook shape.",
+            "The 'How deletion works' step list collapses guardrails validation and global config load into step 1 ('Initialize'). The source shows these happen as distinct sequential calls before the prompt. Consider splitting into two steps ('Load configuration and validate guardrails') to give readers a more accurate mental model when debugging a guardrails block.",
+            "FAQ answer for 'How long does CloudFormation stack deletion take?' cites specific minute ranges (1-3, 5-15, 3-5 for NAT Gateways). These are plausible but not sourced — phrase them as rough approximations ('typically a few minutes', 'can take 10+ minutes for VPC resources') rather than implicit guarantees."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 4,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "The page is easy to scan, with short H2s, tables for decisions and failure causes, and a broad FAQ that matches real search intent.",
+            "The opening paragraph is answer-first and clearly explains the purpose of deleting a Stacktape stack.",
+            "The CLI examples follow the one-command-per-block rule and avoid forbidden YAML or plain-object Stacktape config style.",
+            "The page correctly distinguishes that the delete command does not require config, and that hooks only run when config is loaded."
+          ],
+          "problems": [
+            "Many technical claims are not grounded in the provided source file, including exact CLI flags, non-interactive TTY behavior, Console deletion, lifecycle hook names afterDelete/beforeDelete, hook options skipOnCI/skipOnLocal defaults, failed-deletion recovery details, and CloudFormation timing estimates.",
+            "The deletion sequence overstates source-backed behavior. The source shows guardrail validation, prompt, termination-protection check, optional hook processing with captureType START, artifact deletion, and stack deletion, but it does not show afterDelete hooks or that CloudFormation deletes resources in dependency order.",
+            "The page makes unsupported data-loss claims for all databases, buckets, Redis, DynamoDB, and other stateful resources. The provided delete command source does not define per-resource deletion or backup behavior.",
+            "The Stacktape Console sentence is unsupported by the provided source. The page has no console-app source grounding for delete-from-console behavior.",
+            "The FAQ contains several unsupported numeric claims, including Lambda stack deletion in 1-3 minutes, RDS/container/VPC deletion in 5-15 minutes, and NAT Gateway deletion in 3-5 minutes.",
+            "The termination-protection section claims a default of false and direct AWS Console behavior, but the provided source only shows the command checking EnableTerminationProtection and throwing an error when enabled.",
+            "The lifecycle-hooks example uses hook names and script configuration that are not visible in the provided source. The source only shows registerHooks(configManager.hooks) and processHooks({ captureType: 'START' }).",
+            "The page does not explain the CloudFormation stack states requested by the section instructions beyond FAQ mentions of UPDATE_IN_PROGRESS and CREATE_IN_PROGRESS, and those states are not grounded in the provided source.",
+            "The FAQ answer about rollback claims rollback keeps resources running and redeploys an earlier template, but no rollback source file is provided."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow every Stacktape-specific claim that is not supported by the provided delete command source, or add the missing source files before publishing those details.",
+            "Correct the lifecycle hook wording to match the source: when config is present, Stacktape registers configured hooks and processes hooks with captureType START before artifact deletion. Do not claim afterDelete behavior unless a source proves it.",
+            "Remove the unsupported Console deletion claim, or add console-app source files that prove the workflow.",
+            "Remove unsupported numeric deletion-time estimates from the FAQ unless source files provide those numbers.",
+            "Replace broad unsupported data-loss and resource-deletion specifics with cautious wording grounded in stackManager.deleteStack and deploymentArtifactManager.deleteAllArtifacts, or add resource/CloudFormation sources proving the behavior.",
+            "Remove unsupported CLI flag and non-interactive TTY claims unless the relevant CLI argument/common prompt source is provided.",
+            "Remove or source the claims about hook options skipOnCI, skipOnLocal, and their defaults."
+          ],
+          "optionalImprovements": [
+            "Add a short section grounded in the source that distinguishes the two delete targets: Stacktape deployment artifacts are deleted first, then the CloudFormation stack is deleted.",
+            "If the docs system supports deployment pages without an API reference, no ApiReference is needed; otherwise add only the appropriate reference component once.",
+            "Keep the FAQ, but rewrite answers to avoid unsupported Stacktape behavior and use only broadly safe AWS background where it is clearly framed as AWS behavior rather than Stacktape-specific behavior.",
+            "Consider replacing the detailed failure-cause table with a smaller, cautious troubleshooting section unless CloudFormation event and rollback sources are added."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the provided delete command source and avoids the earlier generated page's unsupported afterDelete/beforeDelete specificity. The main problems are a few Stacktape-specific overstatements about exact prompt behavior, guardrail coverage examples, and deletion outcomes that are broader than the provided source proves.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Configured guardrails are validated before the delete command proceeds. If a guardrail blocks the operation — for example, by restricting the `delete` command or limiting which stages or regions can be modified — the command fails immediately with an error.”",
+              "reason": "The command source proves that global config is loaded and guardrails are validated, but the provided sources do not show which guardrail types exist or that they can specifically restrict the delete command, stages, or regions. Those examples may be true elsewhere, but they are not grounded in the provided source set.",
+              "suggestedFix": "Keep the grounded behavior and narrow the examples: “Stacktape loads global config and validates configured guardrails before deletion. If validation rejects the requested operation, deletion does not proceed.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await configManager.loadGlobalConfig();\n  validateGuardrails({ guardrails: configManager.guardrails, hasConfig: !!configManager.config });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If the prompt returns `abort`, the command exits without deleting anything.”",
+              "reason": "The source shows that an abort triggers `applicationManager.handleExitSignal('SIGINT')` and returns before deletion calls. It does not prove the broader phrase “without deleting anything,” because initialization, global config loading, guardrail validation, and notification initialization have already happened before the prompt. The intended resource-safety point is valid, but the wording is too broad.",
+              "suggestedFix": "Say “If the prompt returns `abort`, the command exits before termination-protection checks, hooks, artifact deletion, or CloudFormation deletion run.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff: templateManager.getOldTemplateDiff() });\n  if (abort) {\n    await applicationManager.handleExitSignal('SIGINT');\n    return;\n  }"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“All data stored in databases, buckets, and other stateful resources within the stack is permanently lost.” and “After deletion, the stack no longer exists in your AWS account. There is no Stacktape-level backup or undo mechanism.”",
+              "reason": "The source proves Stacktape calls CloudFormation stack deletion after artifact deletion, but it does not prove the final fate of every stateful resource or the absence of any Stacktape-level backup mechanism. This is partly reasonable warning text, but it is written as a universal Stacktape-specific guarantee.",
+              "suggestedFix": "Narrow to an operational warning: “CloudFormation deletion can remove stateful resources defined in the stack. Treat `stacktape delete` as destructive, and export or back up any data you need before deleting.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await deploymentArtifactManager.deleteAllArtifacts();\n  await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape-managed artifacts stored outside the CloudFormation stack (such as packaged code and build outputs) are deleted first.”",
+              "reason": "The source proves that `deploymentArtifactManager.deleteAllArtifacts()` runs before `stackManager.deleteStack()`, but it does not identify the artifact categories as packaged code and build outputs. The examples may be plausible, but they are not grounded in the provided source files.",
+              "suggestedFix": "Write only the grounded sequence: “Stacktape deletes deployment artifacts via the deployment artifact manager before requesting CloudFormation stack deletion.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await deploymentArtifactManager.deleteAllArtifacts();\n  await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape initializes stack services, validates configured guardrails, prompts for confirmation, checks termination protection, then deletes deployment artifacts and the CloudFormation stack.”",
+              "reason": "The sequence is broadly correct, but it skips notification initialization, optional hook registration/START hook processing, and deployment notifications. Because the page later lists those details, this is not materially misleading, but the opening paragraph could better match the source sequence.",
+              "suggestedFix": "Mention optional hooks in the opening sequence or simplify it to avoid implying an exhaustive list.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“In interactive terminals, Stacktape may prompt you before proceeding.”",
+              "reason": "The provided source calls `potentiallyPromptBeforeOperation`, but the implementation of that helper is not included, so the exact interactive/non-interactive prompting behavior is not verifiable from the provided source. The wording “may” is cautious, so this is low risk.",
+              "suggestedFix": "Keep the cautious wording, or say “Stacktape calls its pre-operation confirmation helper before deletion proceeds.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses the documented `stacktape delete` command and links to the valid `/cli/delete` route.",
+            "The draft correctly states that the delete command initializes services with `commandRequiresConfig: false`.",
+            "The draft correctly says termination protection stops deletion before artifacts or the CloudFormation stack are deleted.",
+            "The draft avoids the unsupported `beforeDelete`/`afterDelete` hook claims from the generated source and instead uses the source-grounded START hook behavior.",
+            "The Stacktape config example uses `defineConfig` inside `<CodeBlock intellisense>` with a `TypeScript` tab and does not hand-author YAML."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly aligned with the delete command source: the core sequence, config-optional behavior, guardrail validation, termination-protection check, artifact deletion, and CloudFormation deletion are grounded. The main publication risks are unsupported specifics about what counts as “all associated AWS resources,” unsupported backup/undo claims, unsupported failed-deletion examples, and timing estimates that are not present in the provided sources.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“The `stacktape delete` command permanently removes a deployed stack from AWS.” and “Delete deployed Stacktape stacks and all associated AWS resources.”",
+              "reason": "The CLI source supports deleting deployment artifacts and invoking CloudFormation stack deletion. It does not support the broader claim that every associated AWS resource is permanently removed, especially resources not owned by the CloudFormation stack or deletion-retained resources. This wording can mislead readers about data/resource retention behavior.",
+              "suggestedFix": "Narrow the claim to: “The `stacktape delete` command deletes Stacktape deployment artifacts and asks AWS CloudFormation to delete the deployed stack.” Then separately warn that CloudFormation behavior depends on the resources and their AWS deletion policies.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await deploymentArtifactManager.deleteAllArtifacts();\n  await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“There is no Stacktape-level backup or undo mechanism.” and “Stacktape does not maintain backups of deleted stacks.”",
+              "reason": "The delete command source shows the deletion flow but does not state whether Stacktape has no backup or undo mechanism. The claim is plausible, but unsupported by the provided source files and is a strong assurance about product behavior.",
+              "suggestedFix": "Use narrower wording grounded in the command behavior: “The delete command does not perform a restore step. Plan your own backup/export before deleting stateful resources.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await deploymentArtifactManager.deleteAllArtifacts();\n  await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“AWS CloudFormation then removes every resource defined in the stack template: Lambda functions, container workloads, databases, buckets, API gateways, load balancers, VPC resources, IAM roles, and all supporting infrastructure.”",
+              "reason": "The source only shows that Stacktape calls `stackManager.deleteStack()`. It does not enumerate which resource types are present or guarantee that CloudFormation removes every named resource in every case. The wording should leave room for CloudFormation failures, retention policies, and resources outside the stack.",
+              "suggestedFix": "Write: “AWS CloudFormation then deletes the resources it manages in that stack, subject to AWS deletion behavior and any resource-level retention/protection settings.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If AWS CloudFormation cannot delete a resource — due to dependencies, non-empty S3 buckets populated outside of Stacktape, or permission issues — the stack enters a `DELETE_FAILED` state.” plus the common-cause table.",
+              "reason": "The provided Stacktape source does not document these specific failure causes or the resulting CloudFormation state. General CloudFormation failures are useful context, but the draft presents several exact causes and fixes as if they are covered by the page’s sources.",
+              "suggestedFix": "Keep a cautious, AWS-framed troubleshooting section: “CloudFormation can fail deletion and report the failing resource in stack events. Common AWS-side causes include dependencies, non-empty buckets, or permissions.” Avoid presenting the table as Stacktape-source-backed unless additional AWS/Stacktape source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A Lambda-based stack typically deletes in 1-3 minutes. Stacks with RDS databases, container workloads, or VPC resources take 5-15 minutes… NAT Gateways alone take 3-5 minutes to delete.”",
+              "reason": "The provided sources contain no deletion-duration numbers. These estimates could become misleading and are not grounded in Stacktape source or the generated page source as authoritative behavior.",
+              "suggestedFix": "Remove the numeric estimates or phrase without numbers: “Deletion time depends on the AWS resources in the stack. Databases, container workloads, VPC resources, and network dependencies usually take longer than a small Lambda-only stack.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await stackManager.deleteStack();"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Idle Lambda functions and DynamoDB tables with on-demand pricing cost nothing when they receive no traffic.”",
+              "reason": "This is too absolute. Lambda and DynamoDB on-demand are primarily usage-based, but the provided sources do not support the exact cost claim, and DynamoDB can still have storage, backup, stream, replication, or other charges even without request traffic.",
+              "suggestedFix": "Use less absolute wording: “Lambda functions and DynamoDB on-demand tables usually have much lower idle compute/request cost than always-on containers, though stored data and enabled AWS features can still incur charges.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/deployment-and-lifecycle/destroying-stacks.md",
+                  "quote": "Idle container workloads ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service)) incur hourly charges even when unused. Idle [Lambda functions](/resources/compute/lambda-function) and [DynamoDB tables](/resources/databases/dynamodb) with on-demand pricing cost nothing when they receive no traffic."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If a stack is in an `UPDATE_IN_PROGRESS` or `CREATE_IN_PROGRESS` CloudFormation state, you must wait for the operation to complete or fail before issuing a delete.”",
+              "reason": "The Stacktape delete source does not contain logic or documentation for handling in-progress CloudFormation states. The human-maintained instructions ask to describe deploy-time states inline where relevant, but the provided source does not ground these exact states or required action.",
+              "suggestedFix": "Frame this as AWS CloudFormation behavior rather than Stacktape-specific behavior, or remove the exact state names unless a CloudFormation/Stacktape source is provided.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/delete/index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: true,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“When `terminationProtection` is enabled in your `deploymentConfig`…” and “It defaults to `false`.”",
+              "reason": "The delete source checks AWS CloudFormation’s `EnableTerminationProtection`, and the error text names the `terminationProtection` property. However, the provided source files do not include the config type or default-setting code proving the `deploymentConfig` path or default value. This is likely true, but not fully grounded in the provided files.",
+              "suggestedFix": "Either provide the deployment config type/default source, or narrow to what the delete command source proves: “If the deployed CloudFormation stack has termination protection enabled, Stacktape refuses deletion and tells you to redeploy with `terminationProtection` set to `false`.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly distinguishes CLI deletion behavior from Console behavior and does not invent a Console UI flow.",
+            "The CLI sequence is mostly grounded in `src/commands/delete/index.ts`: global config loading, guardrail validation, notification initialization, confirmation handling, termination-protection check, START hook processing when config exists, artifact deletion, and CloudFormation stack deletion are all represented.",
+            "The Stacktape config example follows the required `defineConfig` plus class-based resource pattern inside `<CodeBlock intellisense>` with a `TypeScript` tab, and it does not hand-author YAML.",
+            "All cross-links in the draft point to routes present in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -866,8 +1519,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\deployment-and-lifecycle\\destroying-stacks.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/deployment-and-lifecycle/destroying-stacks.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.2, hard blockers 7, advisory high 2, verifier medium 13"
+  "pipelineReviewSummary": "reviewer-avg 7.2, hard blockers 1, advisory high 0, verifier medium 10",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

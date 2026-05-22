@@ -1,9 +1,8 @@
-import { useRouter } from 'next/router';
-import { useSyncExternalStore } from 'react';
+import { memo } from 'react';
 import { ChevronRight } from 'react-feather';
 import { Link } from '@/components/Mdx/Link';
 import { colors, fontFamily } from '@/styles/variables';
-import config from '../../../../config';
+import { useExpansionToggle, useIsActiveUrl, useIsExpanded } from './expansion-store';
 import type { NavItem } from './navigation-data';
 
 const COLLAPSE_DURATION_MS = 220;
@@ -21,133 +20,122 @@ const ROW_PADDING_Y = 7;
 const ROW_MIN_HEIGHT = 32;
 const ROW_BORDER_RADIUS = 7;
 
-export function ContentTreeNode({
-  item,
-  expandedItems,
-  toggle,
-  depth
-}: {
-  item: NavItem;
-  expandedItems: Record<string, boolean>;
-  toggle: (key: string) => void;
-  depth: number;
-}) {
-  const router = useRouter();
+// Static portions of the row styles — hoisted out of render so Emotion only serializes them once
+// rather than once per node per render. Dynamic bits (depth offset, active state) are merged in
+// the small `interactiveRowStyles` spread below.
+const rowStyleBase = {
+  fontFamily,
+  position: 'relative' as const,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  minHeight: `${ROW_MIN_HEIGHT}px`,
+  paddingTop: `${ROW_PADDING_Y}px`,
+  paddingBottom: `${ROW_PADDING_Y}px`,
+  paddingLeft: `${ROW_BASE_INDENT}px`,
+  paddingRight: `${ROW_PADDING_RIGHT}px`,
+  borderRadius: `${ROW_BORDER_RADIUS}px`,
+  color: colors.fontColorPrimary,
+  textDecoration: 'none',
+  cursor: 'pointer',
+  transition: 'background 140ms ease, box-shadow 140ms ease, color 140ms ease'
+} as const;
+
+const rowActiveStyle = {
+  background: 'linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47))',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+  '&:hover': {
+    boxShadow: '0 5px 14px rgba(0, 0, 0, 0.49), 0 0 0 1px rgba(220, 220, 220, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.11)'
+  }
+} as const;
+
+const rowInactiveHoverStyle = {
+  '&:hover': {
+    background: 'rgba(255, 255, 255, 0.06)',
+    boxShadow: '0 6px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+  }
+} as const;
+
+const labelBaseStyles = {
+  flex: 1,
+  minWidth: 0,
+  lineHeight: 1.4,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap' as const,
+  userSelect: 'none' as const
+} as const;
+
+const labelSubgroupStyles = {
+  ...labelBaseStyles,
+  color: colors.lightGray,
+  fontSize: '12px',
+  fontWeight: 600,
+  letterSpacing: '0.5px',
+  textTransform: 'uppercase' as const
+} as const;
+
+const labelLeafStyles = {
+  ...labelBaseStyles,
+  color: colors.fontColorPrimary,
+  fontSize: '13.5px',
+  fontWeight: 400,
+  letterSpacing: '0.02em',
+  textTransform: 'none' as const
+} as const;
+
+const iconWrapStyles = { flexShrink: 0, display: 'inline-flex', opacity: 0.85 } as const;
+const listItemRowStyles = { listStyle: 'none' as const, display: 'block', padding: 0, margin: 0 } as const;
+const listItemInnerListStyles = {
+  position: 'relative' as const,
+  overflow: 'hidden',
+  minHeight: 0,
+  padding: 0,
+  margin: 0
+} as const;
+const chevronBaseStyles = { flexShrink: 0, opacity: 0.5, transition: `transform ${COLLAPSE_DURATION_MS}ms ease` };
+
+function ContentTreeNodeInner({ item, depth }: { item: NavItem; depth: number }) {
+  const toggle = useExpansionToggle();
   const hasChildren = item.children.length > 0;
-  const isVirtual = item.url === null;
 
-  const normalizedPath = (router.asPath || '/').split('?')[0].replace(/\/$/, '') || '/';
-  const normalizedUrl = (item.url || '/').replace(/\/$/, '') || '/';
-  const isActive = !isVirtual && (normalizedPath === normalizedUrl || normalizedPath === config.metadata.pathPrefix + normalizedUrl);
-
-  const isExpanded = expandedItems[item.key] ?? false;
-
-  // Only show active styles after client mount to avoid hydration mismatch.
-  const isClient = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-  const showActive = isClient && isActive;
+  // Per-key store selectors — only this component re-renders when its own slice changes.
+  // Sibling/cousin toggles and unrelated route changes don't reach us. `useIsActiveUrl`'s SSR
+  // snapshot returns false, so SSR HTML never shows an active pill — hydration matches.
+  const isExpanded = useIsExpanded(item.key);
+  const showActive = useIsActiveUrl(item.url);
 
   const isSubgroup = hasChildren;
   // Push the pill itself inward with depth so the hover/active background gets narrower as
   // items nest deeper — visually reinforces hierarchy and avoids a wall of full-width pills.
-  // Padding only carries the base indent; the depth-based offset rides on the left margin so
-  // the label still lands in the same column.
   const rowMarginLeft = ROW_OUTER_MARGIN_X + depth * DEPTH_STEP;
-  const indent = ROW_BASE_INDENT;
 
-  // Whole-row interactive surface. Rounded pill with horizontal margin so it doesn't touch the
-  // sidebar edge. Active state shows a small rounded indicator bar via `::before`. Hover/active
-  // styles AND the click handler live here so the hover background exactly matches what's
-  // clickable, and clicks land regardless of whether the pointer is over the chevron, the gap,
-  // or the label.
+  // Only the truly dynamic slice is constructed per render. The rest is hoisted at module scope.
   const interactiveRowStyles = {
-    fontFamily,
-    position: 'relative' as const,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    minHeight: `${ROW_MIN_HEIGHT}px`,
+    ...rowStyleBase,
     margin: `1px ${ROW_OUTER_MARGIN_X}px 1px ${rowMarginLeft}px`,
-    paddingTop: `${ROW_PADDING_Y}px`,
-    paddingBottom: `${ROW_PADDING_Y}px`,
-    paddingLeft: `${indent}px`,
-    paddingRight: `${ROW_PADDING_RIGHT}px`,
-    borderRadius: `${ROW_BORDER_RADIUS}px`,
-    background: showActive ? 'linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47))' : 'transparent',
-    boxShadow: showActive
-      ? '0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-      : 'none',
-    color: colors.fontColorPrimary,
-    textDecoration: 'none',
-    cursor: 'pointer',
-    transition: 'background 140ms ease, box-shadow 140ms ease, color 140ms ease',
-    '&::before': {
-      content: '""',
-      position: 'absolute',
-      left: '6px',
-      top: '20%',
-      width: '3px',
-      height: '60%',
-      borderRadius: '999px',
-      background: colors.fontColorPrimary,
-      opacity: showActive ? 1 : 0,
-      transition: 'opacity 150ms ease'
-    },
-    '&:hover': showActive
-      ? {
-          boxShadow:
-            '0 5px 14px rgba(0, 0, 0, 0.49), 0 0 0 1px rgba(220, 220, 220, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.11)'
-        }
-      : {
-          background: 'rgba(255, 255, 255, 0.06)',
-          boxShadow: '0 6px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-        },
-    '&:hover::before': showActive ? undefined : { opacity: 0.4 }
-  } as const;
+    ...(showActive ? rowActiveStyle : rowInactiveHoverStyle)
+  };
 
-  const labelStyles = {
-    flex: 1,
-    minWidth: 0,
-    color: isSubgroup ? colors.lightGray : colors.fontColorPrimary,
-    fontSize: isSubgroup ? '12px' : '13.5px',
-    fontWeight: isSubgroup ? 600 : 400,
-    letterSpacing: isSubgroup ? '0.5px' : '0.02em',
-    textTransform: isSubgroup ? ('uppercase' as const) : ('none' as const),
-    lineHeight: 1.4,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap' as const,
-    userSelect: 'none' as const
-  } as const;
+  const labelStyles = isSubgroup ? labelSubgroupStyles : labelLeafStyles;
 
   // Chevron lives on the right edge — matches the top-level group header so every expandable
   // row uses the same indicator regardless of depth. Leaves don't render one.
   const chevronEl = hasChildren ? (
     <ChevronRight
       size={CHEVRON_SIZE}
-      css={{
-        flexShrink: 0,
-        opacity: 0.5,
-        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-        transition: `transform ${COLLAPSE_DURATION_MS}ms ease`
-      }}
+      css={{ ...chevronBaseStyles, transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
     />
   ) : null;
 
   // Subgroup icon — only rendered on virtual subgroup nodes that have a configured icon
   // (e.g. Resources/Compute, Packaging/Containers). Real pages and unconfigured virtual nodes
-  // skip it. The icon sits before the label and uses a slightly smaller size than the top-level
-  // group icon so the hierarchy reads visually.
-  const iconEl = item.icon ? (
-    <span css={{ flexShrink: 0, display: 'inline-flex', opacity: 0.85 }}>{item.icon({ size: 14 })}</span>
-  ) : null;
+  // skip it.
+  const iconEl = item.icon ? <span css={iconWrapStyles}>{item.icon({ size: 14 })}</span> : null;
 
   return (
     <>
-      <li data-guide-row="true" css={{ listStyle: 'none', display: 'block', padding: 0, margin: 0 }}>
+      <li data-guide-row="true" css={listItemRowStyles}>
         {hasChildren ? (
           <div
             role="button"
@@ -182,23 +170,9 @@ export function ContentTreeNode({
             transition: `grid-template-rows ${COLLAPSE_DURATION_MS}ms ease`
           }}
         >
-          <ul
-            css={{
-              position: 'relative',
-              overflow: 'hidden',
-              minHeight: 0,
-              padding: 0,
-              margin: 0
-            }}
-          >
+          <ul css={listItemInnerListStyles}>
             {item.children.map((child) => (
-              <ContentTreeNode
-                key={child.key}
-                item={child}
-                expandedItems={expandedItems}
-                toggle={toggle}
-                depth={depth + 1}
-              />
+              <ContentTreeNode key={child.key} item={child} depth={depth + 1} />
             ))}
           </ul>
         </li>
@@ -206,3 +180,8 @@ export function ContentTreeNode({
     </>
   );
 }
+
+// memo so a parent re-render (e.g. ContentTreeGroup recomputing its guide path) doesn't ripple
+// through unchanged subtrees. `item` is a stable reference from the memoized navigation tree, so
+// default shallow equality is enough.
+export const ContentTreeNode = memo(ContentTreeNodeInner);

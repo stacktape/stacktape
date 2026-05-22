@@ -4,7 +4,7 @@ order: 109
 seoTitle: 'Custom CI/CD with Stacktape | Stacktape Docs'
 seoDescription: 'Integrate Stacktape into GitHub Actions, GitLab CI, Bitbucket Pipelines, and other CI/CD systems. Authenticate with an API key and deploy AWS infrastructure from your existing pipelines.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.5, hard blockers 8, advisory high 0, verifier medium 8'
+pipelineReviewSummary: 'reviewer-avg 7.5, hard blockers 0, advisory high 2, verifier medium 11'
 ---
 
 # Custom CI/CD
@@ -31,7 +31,7 @@ You can combine both: GitOps for staging and PR previews, custom CI for producti
 
 ## Authentication
 
-The Stacktape CLI reads the `STACKTAPE_API_KEY` environment variable for authentication. If no API key is found and the environment is non-interactive (as in CI), the CLI exits with an error. Create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys), then store it as a secret in your CI provider.
+CI pipelines need an API key to authenticate the Stacktape CLI. Create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys), then store it as a secret in your CI provider and supply it to the CLI — either by passing it to [`stacktape login`](/cli/login) as an argument, or via your CI provider's secret-injection mechanism. The API key authenticates the CLI with your Stacktape user and organization.
 
 | Provider | Where to store the secret |
 |----------|--------------------------|
@@ -39,8 +39,6 @@ The Stacktape CLI reads the `STACKTAPE_API_KEY` environment variable for authent
 | GitLab CI | Settings → CI/CD → Variables (masked) |
 | Bitbucket Pipelines | Repository Settings → Pipeline → Repository variables |
 | CircleCI | Project Settings → Environment Variables |
-
-The API key links the CLI to your Stacktape account and connected AWS account. Deployments run through the AWS account you've connected in the Stacktape Console.
 
 <Tip>
 Create a dedicated API key for CI/CD rather than reusing a personal key. This makes it easy to rotate without disrupting developer workflows.
@@ -54,7 +52,7 @@ The `--autoConfirmOperation` flag automatically confirms prompts during [`deploy
 
 ### --stage and --region
 
-CI commands should pass `--stage` and `--region` explicitly so the deployment target is unambiguous. Set the stage to match your environment (e.g. `production`, `staging`, or a dynamic PR name). Stage names must be lowercase alphanumeric with dashes, at most 12 characters long.
+CI commands should pass `--stage` and `--region` explicitly so the deployment target is unambiguous. Set the stage to match your environment (e.g. `production`, `staging`, or a dynamic PR name). If the combined project name and stage name produces a stack name that's too long, Stacktape warns that some AWS resource names will be obfuscated to stay within CloudFormation naming limits — keep stage names short when deriving them from PR numbers or branch names.
 
 A full deploy command in CI:
 
@@ -74,7 +72,7 @@ The `--projectName` flag is optional when your configuration file specifies a pr
 
 ### --hotSwap
 
-The `--hotSwap` flag attempts a faster deployment for code-only changes by updating [Lambda functions](/resources/compute/lambda-function) and [multi-container workloads](/resources/compute/multi-container-workload) directly, without using CloudFormation. Hot-swap is only used if all stack changes are hot-swappable — if Stacktape determines hot-swap is not possible, it falls back to a full CloudFormation deploy automatically.
+The `--hotSwap` flag attempts a faster deployment by updating eligible [Lambda functions](/resources/compute/lambda-function) and container workloads — [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), and [worker services](/resources/compute/worker-service) — directly when Stacktape determines the stack changes are hot-swappable. If hot-swap isn't possible for the pending changes, Stacktape falls back to a full CloudFormation deploy automatically.
 
 ```bash
 npx stacktape deploy --stage staging --region us-east-1 --hotSwap --autoConfirmOperation
@@ -314,7 +312,7 @@ Store `STACKTAPE_API_KEY` as a project environment variable in CircleCI.
 
 ## Using codebuild:deploy in pipelines
 
-For large projects where uploading built artifacts from your CI runner is slow, use [`codebuild:deploy`](/cli/codebuild-deploy) to offload the deployment to AWS CodeBuild. The CLI zips your project, uploads it to S3, then starts a CodeBuild build that runs the deployment inside your AWS account. The build progress is streamed back via CloudWatch logs. The API key is passed to the CodeBuild environment so the remote build can authenticate.
+For large projects where uploading built artifacts from your CI runner is slow, use [`codebuild:deploy`](/cli/codebuild-deploy) to offload the deployment to AWS CodeBuild. The `codebuild:deploy` command runs the deployment inside your AWS account using AWS CodeBuild instead of your local CI runner. See the [`codebuild:deploy` CLI reference](/cli/codebuild-deploy) for details on the build environment and configuration.
 
 ```bash
 npx stacktape codebuild:deploy --stage production --region us-east-1 --autoConfirmOperation
@@ -350,13 +348,13 @@ Use the `$CfParam()` [directive](/configuration/directives) to parameterize your
 
 ## Previewing changes before deploying
 
-In workflows with approval gates, use [`preview-changes`](/cli/preview-changes) as an earlier pipeline step to see what a deployment would change. The command packages your workloads, resolves all resources, and generates a CloudFormation change set showing which resources would be created, updated, replaced, or deleted — without actually deploying.
+In workflows with approval gates, use [`preview-changes`](/cli/preview-changes) as an earlier pipeline step to inspect what a deployment would change before approving it. This gives reviewers a chance to see the planned infrastructure diff without actually applying changes.
 
 ```bash
 npx stacktape preview-changes --stage production --region us-east-1
 ```
 
-This is useful in production pipelines where a reviewer needs to see the infrastructure diff before approving. Pair it with a manual approval step so the team can review changes before the deploy job runs.
+This is useful in production pipelines where a reviewer needs to see the infrastructure diff before approving. Pair it with a manual approval step so the team can review changes before the deploy job runs. See the [`preview-changes` CLI reference](/cli/preview-changes) for details on its output.
 
 ## Troubleshooting
 
@@ -366,11 +364,11 @@ Add `--autoConfirmOperation` to your [`deploy`](/cli/deploy) or [`delete`](/cli/
 
 ### Authentication fails
 
-Verify that `STACKTAPE_API_KEY` is set in the environment where the command runs. The variable name is case-sensitive. Check that the API key hasn't been revoked in the Console under [API keys](/stacktape-console/api-keys).
+Verify that your API key is available to the CLI in the environment where the command runs. Check that the API key hasn't been revoked in the Console under [API keys](/stacktape-console/api-keys), and rotate it if necessary.
 
-### Stage name too long or resource names obfuscated
+### Stack name too long or resource names obfuscated
 
-Stage names have a maximum length of 12 characters and must be lowercase alphanumeric with dashes. When deriving stage names from PR numbers, keep them short — `pr-42` fits, but `feature-branch-name-42` does not. If the combined project name and stage name is long, Stacktape may obfuscate some AWS resource names to stay within CloudFormation naming limits.
+If the combined project name and stage name produces a stack name that exceeds CloudFormation naming limits, Stacktape warns that some AWS resource names will be obfuscated. When deriving stage names from PR numbers or branch names, keep them short — `pr-42` is fine, but a long descriptive name combined with a long project name may trigger obfuscation.
 
 ### Concurrent deploys to the same stage
 
@@ -380,7 +378,7 @@ Stacktape deploys use CloudFormation, which serializes updates to a single stack
 
 ### How do I authenticate Stacktape in a CI pipeline?
 
-Set the `STACKTAPE_API_KEY` environment variable in your CI provider's secret store. The CLI reads this variable automatically. If the API key is missing in a non-interactive (non-TTY) environment, the CLI exits with an error. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated key for CI rather than a personal key.
+Create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. Supply the key to the CLI through your CI provider's secret-injection mechanism, or pass it explicitly to [`stacktape login`](/cli/login). Use a dedicated key for CI rather than a personal key so you can rotate it without disrupting developer workflows.
 
 ### When should I use custom CI/CD vs GitOps?
 

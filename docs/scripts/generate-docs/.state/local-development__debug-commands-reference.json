@@ -2,7 +2,7 @@
   "pageId": "local-development__debug-commands-reference",
   "pageRoute": "local-development/debug-commands-reference",
   "startedAt": "2026-05-17T19:39:23.200Z",
-  "updatedAt": "2026-05-17T19:53:38.356Z",
+  "updatedAt": "2026-05-22T06:29:07.221Z",
   "iterations": [
     {
       "iteration": 1,
@@ -1018,6 +1018,399 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/local-development__debug-commands-reference/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Command overview table at the top is excellent — a first-time user can orient themselves in seconds and pick the right command",
+            "debug:logs section is thorough: time range options, two filtering variants shown in separate blocks, Logs Insights query path, output flags (--raw/--limit/--container), and agent mode JSON schema all covered with concrete examples",
+            "debug:metrics section includes the supported-resource-types table with CloudWatch namespace and available metrics per type — this is the highest-signal information for that command and saves a round-trip to CLI reference",
+            "Warning callout for non-read-only container/bastion commands is correctly placed and appropriately scoped",
+            "Dev-mode vs deployed-stack distinction is handled explicitly ('All commands require a deployed stack... not just dev mode stacks') in compliance with section instructions",
+            "FAQ mixes Stacktape-specific questions, AWS-service questions (cost, read-only SQL), and comparison questions (exec vs session), which is the right coverage pattern",
+            "No mandatory style violations: no hand-authored YAML config, no StacktapeConfig type pattern, no defineConfig in fenced TypeScript blocks, no multi-command bash blocks"
+          ],
+          "problems": [
+            "Nine of twelve commands receive only a one-sentence description plus a 'See the CLI reference' link — no working example, no flags, no tradeoffs. The source llm-docs file demonstrates that full flag tables, usage examples, and operation lists exist for debug:sql, debug:dynamodb, debug:redis, debug:opensearch, debug:aws-sdk, debug:container-exec, container:session, bastion:tunnel, and bastion:session. A developer arriving at this page with a broken Redis cluster or DynamoDB query finds nothing actionable.",
+            "debug:alarms section has zero usage examples and no flag documentation. The llm-docs source shows the command supports --state filtering (ALARM/OK/INSUFFICIENT_DATA) and --resourceName scoping — both are high-value for a developer triage workflow.",
+            "Credentials and permissions section is too vague: 'each command's CLI reference page documents its specific credential and IAM behavior' tells the reader nothing. The source llm-docs covers the debug agent role, when it applies, fallback behavior, and SSM-tunneled commands — all relevant context a developer encounters when a debug command fails with a permissions error.",
+            "bastion:tunnel supported resource types are not mentioned — the source llm-docs enumerates relational-database, redis-cluster, application-load-balancer, private-service. A developer with a mongo-atlas or kinesis-stream will hit an error; knowing up front which types are supported prevents wasted troubleshooting."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a basic usage example and a condensed flags table to each thin section (debug:sql, debug:dynamodb, debug:redis, debug:opensearch, debug:aws-sdk, debug:container-exec, container:session, bastion:tunnel, bastion:session). Even a single copy-pasteable command per section and a 4-5 row flags list is enough to make the page self-contained for common cases. The llm-docs source has all of this content already.",
+            "debug:alarms: add the basic usage example (no --resourceName required), a filter-by-state example using --state ALARM, and the note that it scans alarms by stack-name prefix. Without these, the section is a stub.",
+            "Credentials and permissions: replace the 'see each CLI reference page' cop-out with the actual behavior from the source — the debug agent role stored as DebugAgentRoleArn, which commands attempt role assumption (debug:dynamodb, debug:opensearch, debug:aws-sdk), the fallback to configured credentials, and the recommendation to redeploy to provision the role.",
+            "bastion:tunnel: add the supported resource types list (relational-database, redis-cluster, application-load-balancer, private-service) so developers know immediately whether their resource can be tunneled before attempting the command.",
+            "debug:container-exec: clarify that it targets ECS workloads specifically (web services, private services, worker services, multi-container workloads) — Lambda functions are not supported and a developer unfamiliar with ECS will not know this distinction.",
+            "The intro accurately warns 'treat them with appropriate care in production stages' for container/bastion commands but conflates bastion:session (SSM shell on EC2) with debug:container-exec/container:session (shell inside a container). Consider splitting the read-only vs non-read-only distinction more clearly in the intro, matching the llm-docs framing."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The command-overview table at the top is excellent — a developer can immediately see the full command surface and jump to what they need.",
+            "debug:logs and debug:metrics are documented to genuine reference depth: time-range parsing, filter syntax, Insights query examples, output flags, default values, and agent-mode JSON are all covered with source-grounded accuracy.",
+            "Separate code blocks per command variant in the filtering section follow the one-command-per-block rule correctly — no copy-button traps.",
+            "The Warning callout on container-exec and container:session correctly flags these as non-read-only and production-dangerous, which the audience cares about.",
+            "FAQ section covers all three required categories (Stacktape-specific, AWS-service mechanics, comparison) with concrete, actionable answers.",
+            "The `<Info>` callout on deployed-stack requirement is well-placed and accurate — dev-mode stacks are correctly noted as in scope when deployed.",
+            "No mandatory style violations: no YAML Stacktape config blocks, no StacktapeConfig plain-object pattern, no fenced TypeScript with defineConfig, no multi-command bash blocks with comment labels."
+          ],
+          "problems": [
+            "Ten of twelve commands — debug:alarms, debug:sql, debug:dynamodb, debug:redis, debug:opensearch, debug:aws-sdk, debug:container-exec, container:session, bastion:tunnel, and bastion:session — are documented only as one- or two-sentence stubs that defer to the CLI reference. A page titled 'Debug Commands Reference' that provides no flags, no examples, and no usage guidance for most of its commands does not function as a reference.",
+            "The 'Credentials and permissions' section is effectively empty. It says only 'each command's CLI reference page documents its specific credential and IAM behavior.' The source (llm-docs) documents a concrete, practically important detail — that debug:dynamodb, debug:opensearch, and debug:aws-sdk attempt to assume a dedicated debug agent IAM role stored as DebugAgentRoleArn in stack outputs, with a fallback to configured AWS credentials if the role isn't present. A developer hitting a permissions error needs this information.",
+            "debug:logs output format is understated: the draft says 'Stacktape passes the limited events to the formatted log printer' without mentioning the color-coding by severity (red ERROR/FATAL/CRITICAL, yellow WARN, gray DEBUG) or the counts-by-level summary. The llm-docs source explicitly describes this behavior.",
+            "debug:metrics terminal output description is vague — 'renders a chart of the returned datapoints with summary statistics' omits the sparkline visualization and the specific statistics (min, max, average, sum) described in the source.",
+            "The debug:alarms section provides no examples and no flag documentation. The source shows that the command supports --state filtering (ALARM, OK, INSUFFICIENT_DATA) and --resourceName scoping, neither of which appear in the draft.",
+            "debug:sql is documented with no flags table, no read-only enforcement details, no VPC tunneling example, and no concrete usage sample. The source shows exact allowed SQL prefixes (SELECT, SHOW, DESCRIBE, EXPLAIN, \\d) and the --bastionResource flag for VPC databases — both operationally critical for a developer using this command."
+          ],
+          "mandatoryFixes": [
+            "Expand debug:alarms from a stub into a real section: add a basic usage example (listing all alarms with --projectName/--stage/--region), document the --state flag with allowed values (ALARM, OK, INSUFFICIENT_DATA), and the --resourceName filter. The source supports all of this.",
+            "Expand debug:sql into a real section: show a basic usage example with --sql and --resourceName, document the allowed read-only SQL prefixes (SELECT, SHOW, DESCRIBE, EXPLAIN, \\d) as an enforcement detail, show a --bastionResource example for VPC-only databases, and list the key flags (--sql, --resourceName, --bastionResource, --limit, --timeout).",
+            "Expand debug:dynamodb into a real section: add the operations table (sample, scan, query, get, schema), show at minimum a sample fetch and a query-by-partition-key example, and document required vs optional flags per operation.",
+            "Expand debug:redis into a real section: add the operations table (info, keys, get, ttl, type), note that VPC-only clusters typically require --bastionResource, and show a server info and a key-lookup example.",
+            "Expand debug:opensearch into a real section: add the operations table (indices, count, mapping, get, search), show a search example with query DSL, and document key flags.",
+            "Expand debug:aws-sdk into a real section: state the read-only enforcement (List*, Get*, Describe*, Head*, Batch* prefixes only), show two concrete examples (S3 ListObjectsV2 and EC2 DescribeInstances as in the source), and list the required flags (--service, --command, --input).",
+            "Expand debug:container-exec and container:session beyond one-sentence stubs: for container-exec, show the basic usage with --command, document the --container and --taskArn flags, and describe what the output includes (exit code, container name, task ARN). For container:session, show the basic invocation and the multi-task prompt behavior.",
+            "Rewrite the 'Credentials and permissions' section with source-grounded content: state that debug:dynamodb, debug:opensearch, and debug:aws-sdk attempt to assume the DebugAgentRoleArn debug agent role from stack outputs; that VPC-access commands (debug:sql, debug:redis) use configured AWS credentials for SSM tunneling plus SSM Parameter Store credentials for the database; that ECS commands use configured credentials for the ECS Exec API; and that if the debug agent role is absent (e.g., older deployment), the commands fall back to configured credentials with a warning.",
+            "Update debug:logs output format description: replace 'Stacktape passes the limited events to the formatted log printer' with a description that mentions severity-based color-coding (red for ERROR/FATAL/CRITICAL, yellow for WARN, gray for DEBUG) and the counts-by-level summary line shown in the source.",
+            "Update debug:metrics terminal output description: replace the vague 'renders a chart of the returned datapoints with summary statistics' with the source-accurate description — a sparkline visualization with min, max, average, and sum statistics, with chart header showing metric name, resource name, stat type, and period."
+          ],
+          "optionalImprovements": [
+            "Add a brief note to the debug:logs section that supported resource types include Lambda functions, container workloads (web services, private services, worker services, multi-container workloads), and batch jobs — any resource producing a CloudWatch log group. This helps a developer know immediately whether their resource type is covered.",
+            "The bastion:session section could add a one-sentence explanation of its primary use cases (network debugging, running curl against private endpoints, verifying VPC connectivity) as in the llm-docs source, rather than just linking to the CLI reference.",
+            "The bastion:tunnel section could add a concrete example showing the local-port mapping output (127.0.0.1:54321 -> mainDb-host:5432) to clarify what the developer will see and how to use the printed port with their database client.",
+            "Consider adding a one-line note in the debug:container-exec / container:session sections that these target ECS services specifically (web services, private services, worker services, multi-container workloads) — to prevent confusion for developers trying to exec into non-ECS Lambda-based workloads."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The opening paragraph is self-contained, within the target length, and clearly distinguishes deployed-stack debugging from dev mode behavior.",
+            "The command overview table is highly scannable and gives readers a fast map of the available CLI surface.",
+            "The `debug:logs` and `debug:metrics` sections are concrete, with supported flags, defaults, examples, and output behavior grounded in the supplied command sources.",
+            "Shell examples follow the one-command-per-block rule and avoid explanatory `#` comments inside terminal snippets.",
+            "The FAQ covers Stacktape-specific usage, underlying AWS cost mechanics, and choosing between related commands."
+          ],
+          "problems": [
+            "The first paragraph slightly blurs command behavior: `debug:container-exec` runs a one-shot command, but the sentence groups it with commands that open interactive sessions.",
+            "Several H2 sections after `Viewing alarms` are thin link stubs. They are scannable, but not self-contained enough for AI extraction because the first paragraph often says only to see another CLI reference page.",
+            "The `Stack targeting` section claims every command identifies the target stack using `--projectName`, `--stage`, and `--region`; the supplied source shows stack initialization but does not prove those exact flags for every listed command.",
+            "The page states detailed credential and IAM behavior for all debug commands even though only `debug:logs`, `debug:metrics`, and the generated summary are provided. The wording should be narrower unless command-specific sources are added.",
+            "The FAQ includes a concrete CloudWatch Logs Insights price of `~$0.005/GB scanned` that is not present in the supplied source files; pricing rules require concrete pricing only when present in source.",
+            "Some FAQ answers refer to earlier tables or sections, such as “listed in the metrics table above,” which weakens extractability when the paragraph is cited alone."
+          ],
+          "mandatoryFixes": [
+            "Revise the opening paragraph so `debug:container-exec` is described as a one-shot container command and only `container:session` / `bastion:session` are described as interactive shell sessions.",
+            "Remove or source the concrete CloudWatch Logs Insights price. If no pricing source is provided, say AWS charges for Logs Insights queries based on data scanned without quoting a dollar amount.",
+            "Narrow the `Stack targeting` claim to avoid saying every command uses `--projectName`, `--stage`, and `--region` unless the command sources prove it. For example: “Debug commands target a deployed stack through the usual Stacktape stack-selection flags; resource-specific commands also require `--resourceName`.”"
+          ],
+          "optionalImprovements": [
+            "Make each thin command section more extractable by adding one concrete sentence about when to use the command and one caution or limitation, instead of only linking to the CLI reference.",
+            "Turn the read-only versus live-interaction distinction into a small table near the top so readers can quickly identify safe inspection commands versus commands that execute inside infrastructure.",
+            "In FAQ answers, repeat the relevant command names and supported values instead of relying on “above” references.",
+            "Consider adding a short “Dev mode vs deployed stacks” section because the route is under local development and the human-maintained instruction explicitly asks to separate those behaviors."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded for `debug:logs` and `debug:metrics`, which are covered by the provided CLI source. The main issues are over-broad wording for container execution, an unsupported blanket claim about stack-targeting flags, and an over-specific credentials/IAM section not supported by the provided command sources.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The container execution commands (`debug:container-exec`, `container:session`) and the bastion shell command (`bastion:session`) open interactive sessions where you can run arbitrary commands inside live infrastructure.",
+              "reason": "The statement incorrectly groups `debug:container-exec` with interactive session commands. The provided generated source describes `debug:container-exec` as a one-shot command, while `container:session` is the interactive shell command.",
+              "suggestedFix": "Rewrite to distinguish the commands: `debug:container-exec` runs a one-shot command in a container, while `container:session` and `bastion:session` open interactive sessions.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/debug-commands-reference.md",
+                  "quote": "The [`stacktape debug:container-exec`](/cli/debug-container-exec) command runs a one-shot command inside a running ECS container and returns the output."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/debug-commands-reference.md",
+                  "quote": "The [`stacktape container:session`](/cli/container-session) command opens an interactive shell session inside a running ECS container."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "Every command identifies the target stack using `--projectName`, `--stage`, and `--region`.",
+              "reason": "The provided authoritative CLI source for `debug:logs` and `debug:metrics` does not show these flags as command-specific requirements. It loads target stack info through global state/initialization helpers, and the draft's universal wording covers commands whose source files were not provided. This is too broad for the available evidence.",
+              "suggestedFix": "Narrow the wording: say debug commands run against the currently targeted Stacktape stack, and many examples include `--projectName`, `--stage`, and `--region`; direct readers to each CLI reference for exact targeting flags.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-logs/index.ts",
+                  "quote": "await globalStateManager.loadTargetStackInfo();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: false,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Debug commands use your configured AWS credentials to talk to AWS APIs and SSM. Each command's CLI reference page documents its specific credential and IAM behavior, including any stack-provisioned debug roles that may be assumed.",
+              "reason": "The provided CLI sources support credential loading for `debug:logs`, but not the broad claim that each command uses configured AWS credentials, talks to SSM, or may assume stack-provisioned debug roles. The `debug:metrics` source initializes deployed-stack services but does not show SSM or debug-role behavior.",
+              "suggestedFix": "Keep this section narrower: `debug:logs` loads user credentials before querying CloudWatch Logs. Other commands may have command-specific credential behavior; link to their CLI references instead of asserting SSM or debug-role assumptions page-wide.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-logs/index.ts",
+                  "quote": "await loadUserCredentials();"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/debug-metrics/index.ts",
+                  "quote": "await initializeStackServicesForWorkingWithDeployedStack({\n    commandModifiesStack: false,\n    commandRequiresConfig: false\n  });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`debug:sql` is intentionally scoped to read-only access from the CLI so you can't accidentally mutate data while inspecting it. For write operations, use deployment scripts or connect through `bastion:tunnel` with your preferred database client.",
+              "reason": "The provided generated source supports read-only enforcement for `debug:sql`, but it does not support the recommendation that deployment scripts or `bastion:tunnel` are the intended write-operation paths in the wording used by the draft. It says deployment scripts or direct connection via bastion tunnel, but the draft turns that into stronger operational guidance without command source.",
+              "suggestedFix": "Use the grounded wording from the generated source: `debug:sql` enforces read-only prefixes; for mutations, use your normal application path or connect directly through a bastion tunnel where appropriate. Avoid implying Stacktape prescribes deployment scripts for general write operations.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/debug-commands-reference.md",
+                  "quote": "The command validates that the SQL statement starts with one of: `SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`, or `\\d`. Any other prefix is rejected before the query reaches the database."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/debug-commands-reference.md",
+                  "quote": "For write operations, use [deployment scripts](/deployment-and-lifecycle/deployment-scripts-and-hooks) or connect directly via [`bastion:tunnel`](/cli/bastion-tunnel) with your preferred database client."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Debug commands themselves are CLI operations with no direct charge. The underlying AWS API calls ... incur standard AWS API charges, which are negligible for debugging use. CloudWatch Logs Insights queries ... are billed ... (~$0.005/GB scanned).",
+              "reason": "The provided source files do not include pricing data. The general AWS pricing model is acceptable background, but the concrete Logs Insights price and the claim that charges are negligible are not grounded in the provided sources and may drift over time.",
+              "suggestedFix": "Remove the concrete price and soften the cost claim: say debug commands can trigger normal AWS API and CloudWatch Logs Insights charges, and link to AWS pricing or the relevant CLI reference if pricing is documented elsewhere.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "For real-time log streaming during development, use dev mode which shows live logs as requests come in.",
+              "reason": "The page source for debug commands does not include dev-mode implementation details. The local-development section instruction asks to separate dev-mode behavior from deployed-stack behavior, but the provided source does not verify this specific live-log behavior.",
+              "suggestedFix": "Narrow the answer: `debug:logs` fetches historical deployed-stack logs. For dev-mode logging behavior, link to `/local-development/dev-mode-overview` without describing exact live-stream semantics unless sourced from dev-mode code/docs.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly links documented CLI routes from the provided navigation index, including `/cli/debug-logs`, `/cli/debug-metrics`, and the other debug command pages.",
+            "The `debug:logs` time parsing, default one-hour lookback, `--limit` default of 100, `--raw` JSON behavior, `--filter`, `--query`, and `--container` descriptions are consistent with `src/commands/debug-logs/index.ts`.",
+            "The `debug:metrics` supported resource types, metric names, default `--period` of 300, default `--stat` of `Average`, time parsing, chart output, and agent-mode JSON behavior are consistent with `src/commands/debug-metrics/index.ts`."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/local-development__debug-commands-reference/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Command overview table at the top is excellent — a first-time user can orient themselves in seconds and pick the right command",
+            "debug:logs section is thorough: time range options, two filtering variants shown in separate blocks, Logs Insights query path, output flags (--raw/--limit/--container), and agent mode JSON schema all covered with concrete examples",
+            "debug:metrics section includes the supported-resource-types table with CloudWatch namespace and available metrics per type — this is the highest-signal information for that command and saves a round-trip to CLI reference",
+            "Warning callout for non-read-only container/bastion commands is correctly placed and appropriately scoped",
+            "Dev-mode vs deployed-stack distinction is handled explicitly ('All commands require a deployed stack... not just dev mode stacks') in compliance with section instructions",
+            "FAQ mixes Stacktape-specific questions, AWS-service questions (cost, read-only SQL), and comparison questions (exec vs session), which is the right coverage pattern",
+            "No mandatory style violations: no hand-authored YAML config, no StacktapeConfig type pattern, no defineConfig in fenced TypeScript blocks, no multi-command bash blocks"
+          ],
+          "problems": [
+            "Nine of twelve commands receive only a one-sentence description plus a 'See the CLI reference' link — no working example, no flags, no tradeoffs. The source llm-docs file demonstrates that full flag tables, usage examples, and operation lists exist for debug:sql, debug:dynamodb, debug:redis, debug:opensearch, debug:aws-sdk, debug:container-exec, container:session, bastion:tunnel, and bastion:session. A developer arriving at this page with a broken Redis cluster or DynamoDB query finds nothing actionable.",
+            "debug:alarms section has zero usage examples and no flag documentation. The llm-docs source shows the command supports --state filtering (ALARM/OK/INSUFFICIENT_DATA) and --resourceName scoping — both are high-value for a developer triage workflow.",
+            "Credentials and permissions section is too vague: 'each command's CLI reference page documents its specific credential and IAM behavior' tells the reader nothing. The source llm-docs covers the debug agent role, when it applies, fallback behavior, and SSM-tunneled commands — all relevant context a developer encounters when a debug command fails with a permissions error.",
+            "bastion:tunnel supported resource types are not mentioned — the source llm-docs enumerates relational-database, redis-cluster, application-load-balancer, private-service. A developer with a mongo-atlas or kinesis-stream will hit an error; knowing up front which types are supported prevents wasted troubleshooting."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a basic usage example and a condensed flags table to each thin section (debug:sql, debug:dynamodb, debug:redis, debug:opensearch, debug:aws-sdk, debug:container-exec, container:session, bastion:tunnel, bastion:session). Even a single copy-pasteable command per section and a 4-5 row flags list is enough to make the page self-contained for common cases. The llm-docs source has all of this content already.",
+            "debug:alarms: add the basic usage example (no --resourceName required), a filter-by-state example using --state ALARM, and the note that it scans alarms by stack-name prefix. Without these, the section is a stub.",
+            "Credentials and permissions: replace the 'see each CLI reference page' cop-out with the actual behavior from the source — the debug agent role stored as DebugAgentRoleArn, which commands attempt role assumption (debug:dynamodb, debug:opensearch, debug:aws-sdk), the fallback to configured credentials, and the recommendation to redeploy to provision the role.",
+            "bastion:tunnel: add the supported resource types list (relational-database, redis-cluster, application-load-balancer, private-service) so developers know immediately whether their resource can be tunneled before attempting the command.",
+            "debug:container-exec: clarify that it targets ECS workloads specifically (web services, private services, worker services, multi-container workloads) — Lambda functions are not supported and a developer unfamiliar with ECS will not know this distinction.",
+            "The intro accurately warns 'treat them with appropriate care in production stages' for container/bastion commands but conflates bastion:session (SSM shell on EC2) with debug:container-exec/container:session (shell inside a container). Consider splitting the read-only vs non-read-only distinction more clearly in the intro, matching the llm-docs framing."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The command-overview table at the top is excellent — a developer can immediately see the full command surface and jump to what they need.",
+            "debug:logs and debug:metrics are documented to genuine reference depth: time-range parsing, filter syntax, Insights query examples, output flags, default values, and agent-mode JSON are all covered with source-grounded accuracy.",
+            "Separate code blocks per command variant in the filtering section follow the one-command-per-block rule correctly — no copy-button traps.",
+            "The Warning callout on container-exec and container:session correctly flags these as non-read-only and production-dangerous, which the audience cares about.",
+            "FAQ section covers all three required categories (Stacktape-specific, AWS-service mechanics, comparison) with concrete, actionable answers.",
+            "The `<Info>` callout on deployed-stack requirement is well-placed and accurate — dev-mode stacks are correctly noted as in scope when deployed.",
+            "No mandatory style violations: no YAML Stacktape config blocks, no StacktapeConfig plain-object pattern, no fenced TypeScript with defineConfig, no multi-command bash blocks with comment labels."
+          ],
+          "problems": [
+            "Ten of twelve commands — debug:alarms, debug:sql, debug:dynamodb, debug:redis, debug:opensearch, debug:aws-sdk, debug:container-exec, container:session, bastion:tunnel, and bastion:session — are documented only as one- or two-sentence stubs that defer to the CLI reference. A page titled 'Debug Commands Reference' that provides no flags, no examples, and no usage guidance for most of its commands does not function as a reference.",
+            "The 'Credentials and permissions' section is effectively empty. It says only 'each command's CLI reference page documents its specific credential and IAM behavior.' The source (llm-docs) documents a concrete, practically important detail — that debug:dynamodb, debug:opensearch, and debug:aws-sdk attempt to assume a dedicated debug agent IAM role stored as DebugAgentRoleArn in stack outputs, with a fallback to configured AWS credentials if the role isn't present. A developer hitting a permissions error needs this information.",
+            "debug:logs output format is understated: the draft says 'Stacktape passes the limited events to the formatted log printer' without mentioning the color-coding by severity (red ERROR/FATAL/CRITICAL, yellow WARN, gray DEBUG) or the counts-by-level summary. The llm-docs source explicitly describes this behavior.",
+            "debug:metrics terminal output description is vague — 'renders a chart of the returned datapoints with summary statistics' omits the sparkline visualization and the specific statistics (min, max, average, sum) described in the source.",
+            "The debug:alarms section provides no examples and no flag documentation. The source shows that the command supports --state filtering (ALARM, OK, INSUFFICIENT_DATA) and --resourceName scoping, neither of which appear in the draft.",
+            "debug:sql is documented with no flags table, no read-only enforcement details, no VPC tunneling example, and no concrete usage sample. The source shows exact allowed SQL prefixes (SELECT, SHOW, DESCRIBE, EXPLAIN, \\d) and the --bastionResource flag for VPC databases — both operationally critical for a developer using this command."
+          ],
+          "mandatoryFixes": [
+            "Expand debug:alarms from a stub into a real section: add a basic usage example (listing all alarms with --projectName/--stage/--region), document the --state flag with allowed values (ALARM, OK, INSUFFICIENT_DATA), and the --resourceName filter. The source supports all of this.",
+            "Expand debug:sql into a real section: show a basic usage example with --sql and --resourceName, document the allowed read-only SQL prefixes (SELECT, SHOW, DESCRIBE, EXPLAIN, \\d) as an enforcement detail, show a --bastionResource example for VPC-only databases, and list the key flags (--sql, --resourceName, --bastionResource, --limit, --timeout).",
+            "Expand debug:dynamodb into a real section: add the operations table (sample, scan, query, get, schema), show at minimum a sample fetch and a query-by-partition-key example, and document required vs optional flags per operation.",
+            "Expand debug:redis into a real section: add the operations table (info, keys, get, ttl, type), note that VPC-only clusters typically require --bastionResource, and show a server info and a key-lookup example.",
+            "Expand debug:opensearch into a real section: add the operations table (indices, count, mapping, get, search), show a search example with query DSL, and document key flags.",
+            "Expand debug:aws-sdk into a real section: state the read-only enforcement (List*, Get*, Describe*, Head*, Batch* prefixes only), show two concrete examples (S3 ListObjectsV2 and EC2 DescribeInstances as in the source), and list the required flags (--service, --command, --input).",
+            "Expand debug:container-exec and container:session beyond one-sentence stubs: for container-exec, show the basic usage with --command, document the --container and --taskArn flags, and describe what the output includes (exit code, container name, task ARN). For container:session, show the basic invocation and the multi-task prompt behavior.",
+            "Rewrite the 'Credentials and permissions' section with source-grounded content: state that debug:dynamodb, debug:opensearch, and debug:aws-sdk attempt to assume the DebugAgentRoleArn debug agent role from stack outputs; that VPC-access commands (debug:sql, debug:redis) use configured AWS credentials for SSM tunneling plus SSM Parameter Store credentials for the database; that ECS commands use configured credentials for the ECS Exec API; and that if the debug agent role is absent (e.g., older deployment), the commands fall back to configured credentials with a warning.",
+            "Update debug:logs output format description: replace 'Stacktape passes the limited events to the formatted log printer' with a description that mentions severity-based color-coding (red for ERROR/FATAL/CRITICAL, yellow for WARN, gray for DEBUG) and the counts-by-level summary line shown in the source.",
+            "Update debug:metrics terminal output description: replace the vague 'renders a chart of the returned datapoints with summary statistics' with the source-accurate description — a sparkline visualization with min, max, average, and sum statistics, with chart header showing metric name, resource name, stat type, and period."
+          ],
+          "optionalImprovements": [
+            "Add a brief note to the debug:logs section that supported resource types include Lambda functions, container workloads (web services, private services, worker services, multi-container workloads), and batch jobs — any resource producing a CloudWatch log group. This helps a developer know immediately whether their resource type is covered.",
+            "The bastion:session section could add a one-sentence explanation of its primary use cases (network debugging, running curl against private endpoints, verifying VPC connectivity) as in the llm-docs source, rather than just linking to the CLI reference.",
+            "The bastion:tunnel section could add a concrete example showing the local-port mapping output (127.0.0.1:54321 -> mainDb-host:5432) to clarify what the developer will see and how to use the printed port with their database client.",
+            "Consider adding a one-line note in the debug:container-exec / container:session sections that these target ECS services specifically (web services, private services, worker services, multi-container workloads) — to prevent confusion for developers trying to exec into non-ECS Lambda-based workloads."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The opening paragraph is self-contained, within the target length, and clearly distinguishes deployed-stack debugging from dev mode behavior.",
+            "The command overview table is highly scannable and gives readers a fast map of the available CLI surface.",
+            "The `debug:logs` and `debug:metrics` sections are concrete, with supported flags, defaults, examples, and output behavior grounded in the supplied command sources.",
+            "Shell examples follow the one-command-per-block rule and avoid explanatory `#` comments inside terminal snippets.",
+            "The FAQ covers Stacktape-specific usage, underlying AWS cost mechanics, and choosing between related commands."
+          ],
+          "problems": [
+            "The first paragraph slightly blurs command behavior: `debug:container-exec` runs a one-shot command, but the sentence groups it with commands that open interactive sessions.",
+            "Several H2 sections after `Viewing alarms` are thin link stubs. They are scannable, but not self-contained enough for AI extraction because the first paragraph often says only to see another CLI reference page.",
+            "The `Stack targeting` section claims every command identifies the target stack using `--projectName`, `--stage`, and `--region`; the supplied source shows stack initialization but does not prove those exact flags for every listed command.",
+            "The page states detailed credential and IAM behavior for all debug commands even though only `debug:logs`, `debug:metrics`, and the generated summary are provided. The wording should be narrower unless command-specific sources are added.",
+            "The FAQ includes a concrete CloudWatch Logs Insights price of `~$0.005/GB scanned` that is not present in the supplied source files; pricing rules require concrete pricing only when present in source.",
+            "Some FAQ answers refer to earlier tables or sections, such as “listed in the metrics table above,” which weakens extractability when the paragraph is cited alone."
+          ],
+          "mandatoryFixes": [
+            "Revise the opening paragraph so `debug:container-exec` is described as a one-shot container command and only `container:session` / `bastion:session` are described as interactive shell sessions.",
+            "Remove or source the concrete CloudWatch Logs Insights price. If no pricing source is provided, say AWS charges for Logs Insights queries based on data scanned without quoting a dollar amount.",
+            "Narrow the `Stack targeting` claim to avoid saying every command uses `--projectName`, `--stage`, and `--region` unless the command sources prove it. For example: “Debug commands target a deployed stack through the usual Stacktape stack-selection flags; resource-specific commands also require `--resourceName`.”"
+          ],
+          "optionalImprovements": [
+            "Make each thin command section more extractable by adding one concrete sentence about when to use the command and one caution or limitation, instead of only linking to the CLI reference.",
+            "Turn the read-only versus live-interaction distinction into a small table near the top so readers can quickly identify safe inspection commands versus commands that execute inside infrastructure.",
+            "In FAQ answers, repeat the relevant command names and supported values instead of relying on “above” references.",
+            "Consider adding a short “Dev mode vs deployed stacks” section because the route is under local development and the human-maintained instruction explicitly asks to separate those behaviors."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly consistent with the provided command source and generated debug-command source. I found one credential wording issue that could mislead readers about when Stacktape uses configured AWS credentials directly versus assuming a stack-provisioned debug role.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“Debug commands use your configured AWS credentials to talk to AWS APIs and SSM.”",
+              "reason": "The generated source says some debug commands first attempt to assume a dedicated debug agent IAM role and only fall back to configured AWS credentials if that role is unavailable or assumption fails. The draft mentions stack-provisioned roles later in the sentence, but the opening sentence is too broad and can read as if configured credentials are always the credentials used for AWS API calls.",
+              "suggestedFix": "Write narrowly: “Debug commands start from your configured AWS credentials. Some inspection commands may assume a stack-provisioned debug agent role; commands that access VPC resources or ECS/SSM sessions use AWS credentials to establish those sessions.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/local-development/debug-commands-reference.md",
+                  "quote": "Debug commands that query AWS services (`debug:dynamodb`, `debug:opensearch`, `debug:aws-sdk`) attempt to assume a dedicated debug agent IAM role provisioned with your stack. This role is stored as `DebugAgentRoleArn` in the stack's custom outputs and scoped to the stack's resources. If the role isn't available or assumption fails (e.g., the stack was deployed before debug roles were introduced), commands fall back to your configured AWS credentials."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses the documented `stacktape debug:logs` command and links to the existing `/cli/debug-logs` route.",
+            "The `debug:logs` time range behavior, `--resourceName` requirement, `--filter`, `--query`, `--limit` default, `--raw`, and agent-mode JSON behavior match the provided `src/commands/debug-logs/index.ts` source.",
+            "The `debug:metrics` supported resource types, metric lists, default `period` of `300`, default `stat` of `Average`, and unsupported-resource error behavior match `src/commands/debug-metrics/index.ts`.",
+            "All cross-links in the draft point to routes present in the provided documentation navigation index.",
+            "The draft keeps dev-mode behavior separate from deployed-stack behavior by repeatedly stating that debug commands require deployed stacks and by directing real-time development logs to dev mode."
+          ]
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
@@ -1030,8 +1423,10 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\local-development\\debug-commands-reference.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/local-development/debug-commands-reference.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 6.9, hard blockers 4, advisory high 0, verifier medium 14"
+  "pipelineReviewSummary": "reviewer-avg 6.8, hard blockers 0, advisory high 0, verifier medium 1",
+  "refinementAttempts": 2,
+  "refinementStalled": false
 }

@@ -2,7 +2,7 @@
   "pageId": "configuration__triggers__http-triggers",
   "pageRoute": "configuration/triggers/http-triggers",
   "startedAt": "2026-05-15T17:49:23.540Z",
-  "updatedAt": "2026-05-15T18:13:58.675Z",
+  "updatedAt": "2026-05-22T06:50:07.201Z",
   "iterations": [
     {
       "iteration": 1,
@@ -799,20 +799,512 @@
       ],
       "status": "failed",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__triggers__http-triggers/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The upfront FeatureComparisonTable gives low-AWS-experience readers an immediate, concrete basis for choosing between trigger types before they read a single prose paragraph.",
+            "Both code examples (HttpApiIntegration and ApplicationLoadBalancerIntegration) are realistic, copy-ready, and annotated with inline prose explaining every non-obvious property value (loadBalancerName matching, priority gaps, method wildcard).",
+            "The routing conditions table for ALB is source-accurate and maps directly to the TypeScript types — readers can cross-reference it with the source without getting lost.",
+            "FAQ section hits all three required categories (Stacktape-specific, AWS service mechanics, choosing/comparison) and the answers are correctly sized at 2-4 sentences.",
+            "Decision support throughout is concrete and opinionated: 'Use HTTP API Gateway when...' / 'Use ALB when...' avoids circular reasoning and gives readers an actionable recommendation.",
+            "The container workloads section correctly distinguishes between web/private services (loadBalancing property on the resource) and multi-container workloads (per-container events array) — a non-obvious architectural difference that would otherwise send readers to trial-and-error."
+          ],
+          "problems": [
+            "Missing `<ApiReference>` component — the standard page rhythm requires exactly one; its absence leaves readers with no path to discover all available properties beyond what the prose explicitly mentions.",
+            "The container workloads section is prose-only with no code example. A reader wanting to wire a multi-container workload to an HTTP API Gateway has to navigate away to another page to find a working snippet.",
+            "The page refers to `MultiContainerWorkloadHttpApiIntegration` and `MultiContainerWorkloadLoadBalancerIntegration` in prose, but the source file defines the interface names as `ContainerWorkloadHttpApiIntegration` and `ContainerWorkloadLoadBalancerIntegration`. These class names need verification against the actual npm package exports — if wrong, readers copy-pasting will get a type error.",
+            "The authorization subsection says 'see User auth pools for setting up authorizers' but does not explain where on the gateway resource the authorizer is actually configured (on the HttpApiGateway resource itself vs on the integration). Low-AWS-experience readers are likely to look in the wrong place."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add `<ApiReference definitionName=\"HttpApiIntegrationProps\" />` (and optionally `ApplicationLoadBalancerIntegrationProps`) so readers have a complete property reference without leaving the page.",
+            "Add a short code example using `MultiContainerWorkloadHttpApiIntegration` (or the correct class name) in the container workloads section so readers can act on that configuration without a round-trip to another page.",
+            "Audit the class names `MultiContainerWorkloadHttpApiIntegration` and `MultiContainerWorkloadLoadBalancerIntegration` against the npm package exports — if they are actually `ContainerWorkloadHttpApiIntegration` / `ContainerWorkloadLoadBalancerIntegration`, update the prose before publication.",
+            "In the authorization subsection, add one sentence explaining that the authorizer is configured on the `HttpApiIntegration` (the `authorizer` property on the integration itself) rather than on the gateway resource — this is the stumbling block for new users.",
+            "The payload format section's recommendation ('if you are starting a new project and writing raw handlers, 2.0 has a simpler structure') could be made into a `<Tip>` callout to make it more visually prominent for skim readers who land on that section looking for a quick recommendation."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The FeatureComparisonTable between HTTP API Gateway and ALB is immediately useful — it puts the most important decision (which trigger type to use) front and center with concrete differentiators, not marketing language.",
+            "Route matching specificity (exact → parameterized → greedy) is explained accurately and in order of precedence, matching the source JSDoc.",
+            "The ALB routing conditions table is accurate against the source (paths, methods, hosts, headers, queryParams, sourceIps) with per-condition matching semantics spelled out.",
+            "Decision support ('Use HTTP API Gateway when... / Use an ALB when...') gives concrete tradeoff signals — per-request vs hourly pricing, routing complexity dimensions — rather than circular guidance.",
+            "The payload format section ends with an opinionated recommendation ('if starting a new project and writing raw handlers, 2.0 has a simpler structure') which is exactly what the audience needs.",
+            "FAQ covers all three required categories well: Stacktape-specific, AWS service mechanics, and comparison questions. 10 pairs as required.",
+            "No mandatory style violations: no hand-authored YAML Stacktape config, no StacktapeConfig type import, no defineConfig in a fenced TypeScript block."
+          ],
+          "problems": [
+            "Factual class name discrepancy in the container workloads section: the page names 'MultiContainerWorkloadHttpApiIntegration' and 'MultiContainerWorkloadLoadBalancerIntegration', but the source file defines interfaces named 'ContainerWorkloadHttpApiIntegration' and 'ContainerWorkloadLoadBalancerIntegration'. The 'Multi' prefix is not present in the source types.",
+            "Container workloads section is entirely prose with no code example. A reader trying to configure HTTP integration on a MultiContainerWorkload cannot act on this section without finding an example elsewhere — the required 'containerPort' property is described but never shown in use.",
+            "No <ApiReference> block appears anywhere on the page. Although this is a conceptual triggers page (not a single resource page), it documents typed config interfaces (HttpApiIntegrationProps, ApplicationLoadBalancerIntegrationProps) that readers will want to browse. The absence forces readers to track down the schema themselves.",
+            "The authorization subsection is thin: it states that Cognito and Lambda authorizers are supported and links away, but gives no indication of how the 'authorizer' property is structured on the integration or what a minimal setup looks like. An engineer reaching production who needs to protect a route gets no actionable signal here."
+          ],
+          "mandatoryFixes": [
+            "Correct the class names for container workload integrations: replace 'MultiContainerWorkloadHttpApiIntegration' and 'MultiContainerWorkloadLoadBalancerIntegration' with 'ContainerWorkloadHttpApiIntegration' and 'ContainerWorkloadLoadBalancerIntegration', which match the source file's interface names. The 'Multi' prefix appears nowhere in the source types."
+          ],
+          "optionalImprovements": [
+            "Add a minimal <CodeBlock intellisense> example in the container workloads section showing a MultiContainerWorkload with a ContainerWorkloadHttpApiIntegration, with 'containerPort' visible — this is the property that distinguishes container integrations from Lambda integrations and deserves one concrete illustration.",
+            "Add <ApiReference definitionName=\"HttpApiIntegrationProps\" /> (and optionally a second for ApplicationLoadBalancerIntegrationProps) so readers can browse all available properties without leaving the page. If only one is added, place it at the bottom of the HTTP API Gateway section where it's most relevant.",
+            "Expand the authorization subsection with at least one sentence describing the StpAuthorizer shape — even a hint that it takes a 'type' of 'cognito' or 'lambda' would help readers know whether they can configure it inline or need a separate resource. Right now the section sends readers away without any structural preview.",
+            "In the FAQ answer for 'What is the maximum request payload size for HTTP API Gateway?', the 10 MB limit and the suggestion to use ALB as an alternative are correct, but the claim that 'ALB does not enforce this limit' should be softened to 'ALB has a higher limit' since AWS ALB does have its own payload constraints (though different from API Gateway's 10 MB cap)."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong, self-contained opening paragraph that clearly answers 'what are HTTP triggers and why do they matter' in under 75 words — extractable as a Featured Snippet.",
+            "FeatureComparisonTable is concrete, accurate, and maps directly to the source-file type properties. Rows cover all eight meaningful axes (routing dimensions, evaluation model, authorization, payload format, workload compatibility, pricing). This is the best possible format for this decision.",
+            "Decision guidance after the table is opinionated and cost-grounded: 'pay nothing at zero traffic' for API Gateway vs 'charges hourly regardless of traffic' for ALB. Readers can act on this without additional research.",
+            "Both code examples are realistic, complete, and copy-paste runnable. The API Gateway example uses a catch-all catch-all pattern a real team would use; the ALB example shows a realistic CRUD path with explicit method list. Neither has placeholder values.",
+            "ALB routing conditions table is fact-dense and maps cleanly to the source interface (paths, methods, hosts, headers, queryParams, sourceIps). Matching behavior column handles the case-sensitivity and wildcard nuances that would otherwise confuse readers.",
+            "FAQ has exactly 10 questions with strong category coverage: Stacktape-specific (routing paths, authentication, custom domains, logs), AWS use-case (API Gateway cost, payload limits), and comparison (API Gateway vs ALB, ALB vs NLB).",
+            "Container workloads section usefully distinguishes web services, private services, multi-container workloads, and worker services — a classification that would otherwise require consulting four separate resource pages.",
+            "Practical priority-gap advice ('leave gaps between numbers, e.g. 10, 20, 30') is the kind of non-obvious operational guidance that prevents production pain.",
+            "Route matching H3 clearly distinguishes exact, parameterized, and greedy path shapes with concrete examples and payloadParameter access pattern — directly sourced from the type JSDoc."
+          ],
+          "problems": [
+            "Missing required <ApiReference> component. The style guide requires exactly one <ApiReference definitionName=\"...\" /> somewhere on the page. For this multi-integration-type page, the primary candidate is HttpApiIntegrationProps; the ALB counterpart can be reached via drill-down. Absence is a completeness gap.",
+            "The 'Container workloads' section uses the class names MultiContainerWorkloadHttpApiIntegration and MultiContainerWorkloadLoadBalancerIntegration in prose, but the provided source file defines the interfaces as ContainerWorkloadHttpApiIntegration and ContainerWorkloadLoadBalancerIntegration (with no 'Multi' prefix). This is a potential factual mismatch that could confuse readers looking up the class names.",
+            "No code example for multi-container workload HTTP/ALB triggers despite the section introducing containerPort as a required differentiating property. The section describes how it works but gives no runnable snippet, leaving a depth gap compared with the Lambda sections that each have a complete example.",
+            "FAQ answer for 'How do I view logs' claims: 'For HTTP API Gateway access logs... enable logging on the HTTP API Gateway resource itself.' This configuring-access-logs capability is not present in the provided source files — it's a borderline unsupported Stacktape-specific claim.",
+            "The Info callout about Network Load Balancers at the end of 'Choosing a trigger type' slightly disrupts the section's close. The NLB is fully covered later in 'Container workloads' — the early mention adds minor noise without decision value at that point."
+          ],
+          "mandatoryFixes": [
+            "Add <ApiReference definitionName=\"HttpApiIntegrationProps\" /> at the bottom of the page (or after the ALB section). For a page covering multiple primary types, pick one as the anchor and let the component's drill-down handle the rest. Do not add a second <ApiReference> for ApplicationLoadBalancerIntegrationProps — that violates the one-per-page rule.",
+            "Audit and correct the multi-container integration class names in the 'Container workloads' prose section. The source file defines ContainerWorkloadHttpApiIntegration (not MultiContainerWorkloadHttpApiIntegration) and ContainerWorkloadLoadBalancerIntegration (not MultiContainerWorkloadLoadBalancerIntegration). Either verify the exported npm class names and update the prose to match, or replace the class-name references with integration-type strings ('http-api-gateway', 'application-load-balancer') which are source-grounded."
+          ],
+          "optionalImprovements": [
+            "Add a short code example for multi-container workload HTTP triggers showing the containerPort property alongside the routing properties. Even a minimal four-property snippet would give the section equal practical depth to the Lambda examples and make containerPort concrete rather than described-only.",
+            "Remove or qualify the 'enable logging on the HTTP API Gateway resource itself' claim in the logs FAQ answer until the configuring-access-logs capability is grounded in the source. Narrow to: 'Lambda and container logs are available via stacktape debug:logs; for API Gateway request-level logging, consult the AWS API Gateway documentation.'",
+            "Consider moving the NLB Info callout from 'Choosing a trigger type' to the top of the 'Container workloads' section where NLBs are fully covered, to avoid a forward-reference in the middle of the comparison table's conclusion paragraphs.",
+            "The payload format section says 'Most web frameworks handle both formats transparently' — this is slightly vague. Specify which formats Hono, Express, and Fastify are known to handle, or remove the specific framework list and generalize: 'frameworks that use the aws-lambda adapter layer handle both formats transparently'."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided event integration types and the generated HTTP triggers summary. I found a few Stacktape-specific claims that are either unsupported by the provided source or stronger than the source allows, mainly around ALB uniqueness scope, container workload resource coverage, and HTTP API payload behavior.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"The `priority` property is required for every ALB integration. Load balancer rules are evaluated from the lowest priority number to the highest — the first rule that matches an incoming request handles the request. As an AWS ALB constraint, priority values must be unique across all rules on the same listener.\"",
+              "reason": "The provided Stacktape source only states that `priority` is required and that rules are evaluated from lowest to highest. It does not state the uniqueness requirement or scope it to a listener. The generated page claims uniqueness across the same listener, while the draft earlier says relative to other rules on the same load balancer, so the uniqueness scope is inconsistent and not grounded in the provided source.",
+              "suggestedFix": "Keep the grounded behavior: \"The `priority` property is required. Load balancer rules are evaluated from the lowest priority to the highest, and the first matching rule handles the request.\" If you want to mention AWS uniqueness, phrase it as AWS ALB background and avoid asserting a Stacktape-specific listener scope unless sourced elsewhere.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ApplicationLoadBalancerIntegrationProps {\n  /**\n   * #### The name of the Application Load Balancer.\n   *\n   * ---\n   *\n   * This must reference a load balancer defined in your Stacktape configuration.\n   */\n  loadBalancerName: string;\n  /**\n   * #### The port of the load balancer listener to attach to.\n   *\n   * ---\n   *\n   * You only need to specify this if the load balancer uses custom listeners.\n   */\n  listenerPort?: number;\n  /**\n   * #### The priority of this integration rule.\n   *\n   * ---\n   *\n   * Load balancer rules are evaluated in order from the lowest priority to the highest.\n   * The first rule that matches an incoming request will handle it.\n   */\n  priority: number;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Container workload resources — web services, private services, and multi-container workloads — receive HTTP traffic through the same underlying HTTP API Gateway and Application Load Balancer infrastructure as Lambda functions, but the mechanism differs by resource type. Web services and private services configure their traffic source through properties on the resource itself rather than through per-container event triggers.\"",
+              "reason": "The provided source only defines generic container workload HTTP API and ALB integration types with a required `containerPort`. It does not identify which resource classes use per-container events versus top-level resource properties, and it does not mention web-service or private-service configuration behavior. This is likely true in broader source, but it is not grounded in the provided files for this page.",
+              "suggestedFix": "Narrow the section to what the provided source supports: container HTTP API and ALB integrations add `containerPort`, and multi-container/per-container usage should only be described if a source file for that resource type is provided. Otherwise link to the web-service/private-service pages without stating their internal configuration mechanism.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ContainerWorkloadLoadBalancerIntegrationProps extends ApplicationLoadBalancerIntegrationProps {\n  /**\n   * #### The container port that will receive traffic from the load balancer.\n   */\n  containerPort: number;\n}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ContainerWorkloadHttpApiIntegrationProps extends HttpApiIntegrationProps {\n  /**\n   * #### The container port that will receive traffic from the API Gateway.\n   */\n  containerPort: number;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Payload format `'1.0'` ... wraps the request in a detailed event envelope with `requestContext`, `headers`, `multiValueHeaders`, and `queryStringParameters`; payload format `'2.0'` ... merges cookies into a dedicated field and simplifies header and query parameter handling.\"",
+              "reason": "The Stacktape source only documents that `payloadFormat` can be `'1.0'` or `'2.0'`, defaults to `'1.0'`, and links AWS documentation for differences. It does not spell out the event fields or cookie behavior. These are AWS details, but the draft presents them as part of Stacktape documentation without source grounding. The statement is also inconsistent between the main section and FAQ: the FAQ uses `multiValueQueryStringParameters`, while the main section uses `queryStringParameters`.",
+              "suggestedFix": "Keep the sourced Stacktape facts and defer detailed field differences to AWS docs: \"`payloadFormat` selects API Gateway's Lambda event format. Stacktape supports `'1.0'` and `'2.0'`; if omitted, Stacktape uses `'1.0'`. Use AWS's payload format documentation when writing raw handlers.\"",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "  /**\n   * #### The payload format version for the Lambda integration.\n   *\n   * ---\n   *\n   * For details on the differences between formats, see the [AWS documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html).\n   *\n   * @default '1.0'\n   */\n  payloadFormat?: '1.0' | '2.0';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Application Load Balancer integrations do not support built-in authorizers.\" and \"Stacktape supports both Cognito authorizers and Lambda authorizers.\"",
+              "reason": "The source supports `authorizer?: StpAuthorizer` only on `HttpApiIntegrationProps`, and no `authorizer` property appears on `ApplicationLoadBalancerIntegrationProps`. However, the provided source does not define `StpAuthorizer`, so the specific claim that Stacktape supports both Cognito and Lambda authorizers is not grounded in the provided files.",
+              "suggestedFix": "State only the sourced distinction on this page: \"HTTP API Gateway integrations have an `authorizer` property; ALB integrations do not expose an `authorizer` property in this integration type.\" If authorizer variants need to be named, include a source file defining `StpAuthorizer`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "  /**\n   * #### An authorizer to protect this route.\n   *\n   * ---\n   *\n   * Unauthorized requests will be rejected with a `401 Unauthorized` response.\n   */\n  authorizer?: StpAuthorizer;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ApplicationLoadBalancerIntegrationProps {\n  /**\n   * #### The name of the Application Load Balancer.\n   *\n   * ---\n   *\n   * This must reference a load balancer defined in your Stacktape configuration.\n   */\n  loadBalancerName: string;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"For HTTP API Gateway access logs (request IDs, status codes, latency), enable logging on the HTTP API Gateway resource itself.\"",
+              "reason": "No HTTP API Gateway resource source file is included, so the draft cannot ground the claim that the resource has a logging setting or that it specifically exposes request IDs, status codes, and latency in access logs. The route link is valid, but the behavior is not verifiable from the provided source list.",
+              "suggestedFix": "Either remove the access-log sentence from this page or include the HTTP API Gateway resource source file and verify the exact logging property and emitted fields.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense>` for Stacktape configuration examples and does not hand-author YAML configuration.",
+            "The HTTP API integration example uses `defineConfig`, `LambdaFunction`, `HttpApiGateway`, `HttpApiIntegration`, and `StacktapeLambdaBuildpackPackaging` in the documented modern style.",
+            "The ALB routing condition names, `listenerPort`, `priority`, `paths`, `methods`, `hosts`, `headers`, `queryParams`, and `sourceIps` are grounded in `events.d.ts`.",
+            "The HTTP API `method` enum, `path` behavior, `authorizer` property, and default `payloadFormat: '1.0'` are correctly reflected from the source.",
+            "All internal documentation links in the draft point to routes present in the provided navigation index."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
+    },
+    {
+      "iteration": 4,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/configuration__triggers__http-triggers/iteration-4.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The upfront FeatureComparisonTable gives low-AWS-experience readers an immediate, concrete basis for choosing between trigger types before they read a single prose paragraph.",
+            "Both code examples (HttpApiIntegration and ApplicationLoadBalancerIntegration) are realistic, copy-ready, and annotated with inline prose explaining every non-obvious property value (loadBalancerName matching, priority gaps, method wildcard).",
+            "The routing conditions table for ALB is source-accurate and maps directly to the TypeScript types — readers can cross-reference it with the source without getting lost.",
+            "FAQ section hits all three required categories (Stacktape-specific, AWS service mechanics, choosing/comparison) and the answers are correctly sized at 2-4 sentences.",
+            "Decision support throughout is concrete and opinionated: 'Use HTTP API Gateway when...' / 'Use ALB when...' avoids circular reasoning and gives readers an actionable recommendation.",
+            "The container workloads section correctly distinguishes between web/private services (loadBalancing property on the resource) and multi-container workloads (per-container events array) — a non-obvious architectural difference that would otherwise send readers to trial-and-error."
+          ],
+          "problems": [
+            "Missing `<ApiReference>` component — the standard page rhythm requires exactly one; its absence leaves readers with no path to discover all available properties beyond what the prose explicitly mentions.",
+            "The container workloads section is prose-only with no code example. A reader wanting to wire a multi-container workload to an HTTP API Gateway has to navigate away to another page to find a working snippet.",
+            "The page refers to `MultiContainerWorkloadHttpApiIntegration` and `MultiContainerWorkloadLoadBalancerIntegration` in prose, but the source file defines the interface names as `ContainerWorkloadHttpApiIntegration` and `ContainerWorkloadLoadBalancerIntegration`. These class names need verification against the actual npm package exports — if wrong, readers copy-pasting will get a type error.",
+            "The authorization subsection says 'see User auth pools for setting up authorizers' but does not explain where on the gateway resource the authorizer is actually configured (on the HttpApiGateway resource itself vs on the integration). Low-AWS-experience readers are likely to look in the wrong place."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add `<ApiReference definitionName=\"HttpApiIntegrationProps\" />` (and optionally `ApplicationLoadBalancerIntegrationProps`) so readers have a complete property reference without leaving the page.",
+            "Add a short code example using `MultiContainerWorkloadHttpApiIntegration` (or the correct class name) in the container workloads section so readers can act on that configuration without a round-trip to another page.",
+            "Audit the class names `MultiContainerWorkloadHttpApiIntegration` and `MultiContainerWorkloadLoadBalancerIntegration` against the npm package exports — if they are actually `ContainerWorkloadHttpApiIntegration` / `ContainerWorkloadLoadBalancerIntegration`, update the prose before publication.",
+            "In the authorization subsection, add one sentence explaining that the authorizer is configured on the `HttpApiIntegration` (the `authorizer` property on the integration itself) rather than on the gateway resource — this is the stumbling block for new users.",
+            "The payload format section's recommendation ('if you are starting a new project and writing raw handlers, 2.0 has a simpler structure') could be made into a `<Tip>` callout to make it more visually prominent for skim readers who land on that section looking for a quick recommendation."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The FeatureComparisonTable between HTTP API Gateway and ALB is immediately useful — it puts the most important decision (which trigger type to use) front and center with concrete differentiators, not marketing language.",
+            "Route matching specificity (exact → parameterized → greedy) is explained accurately and in order of precedence, matching the source JSDoc.",
+            "The ALB routing conditions table is accurate against the source (paths, methods, hosts, headers, queryParams, sourceIps) with per-condition matching semantics spelled out.",
+            "Decision support ('Use HTTP API Gateway when... / Use an ALB when...') gives concrete tradeoff signals — per-request vs hourly pricing, routing complexity dimensions — rather than circular guidance.",
+            "The payload format section ends with an opinionated recommendation ('if starting a new project and writing raw handlers, 2.0 has a simpler structure') which is exactly what the audience needs.",
+            "FAQ covers all three required categories well: Stacktape-specific, AWS service mechanics, and comparison questions. 10 pairs as required.",
+            "No mandatory style violations: no hand-authored YAML Stacktape config, no StacktapeConfig type import, no defineConfig in a fenced TypeScript block."
+          ],
+          "problems": [
+            "Factual class name discrepancy in the container workloads section: the page names 'MultiContainerWorkloadHttpApiIntegration' and 'MultiContainerWorkloadLoadBalancerIntegration', but the source file defines interfaces named 'ContainerWorkloadHttpApiIntegration' and 'ContainerWorkloadLoadBalancerIntegration'. The 'Multi' prefix is not present in the source types.",
+            "Container workloads section is entirely prose with no code example. A reader trying to configure HTTP integration on a MultiContainerWorkload cannot act on this section without finding an example elsewhere — the required 'containerPort' property is described but never shown in use.",
+            "No <ApiReference> block appears anywhere on the page. Although this is a conceptual triggers page (not a single resource page), it documents typed config interfaces (HttpApiIntegrationProps, ApplicationLoadBalancerIntegrationProps) that readers will want to browse. The absence forces readers to track down the schema themselves.",
+            "The authorization subsection is thin: it states that Cognito and Lambda authorizers are supported and links away, but gives no indication of how the 'authorizer' property is structured on the integration or what a minimal setup looks like. An engineer reaching production who needs to protect a route gets no actionable signal here."
+          ],
+          "mandatoryFixes": [
+            "Correct the class names for container workload integrations: replace 'MultiContainerWorkloadHttpApiIntegration' and 'MultiContainerWorkloadLoadBalancerIntegration' with 'ContainerWorkloadHttpApiIntegration' and 'ContainerWorkloadLoadBalancerIntegration', which match the source file's interface names. The 'Multi' prefix appears nowhere in the source types."
+          ],
+          "optionalImprovements": [
+            "Add a minimal <CodeBlock intellisense> example in the container workloads section showing a MultiContainerWorkload with a ContainerWorkloadHttpApiIntegration, with 'containerPort' visible — this is the property that distinguishes container integrations from Lambda integrations and deserves one concrete illustration.",
+            "Add <ApiReference definitionName=\"HttpApiIntegrationProps\" /> (and optionally a second for ApplicationLoadBalancerIntegrationProps) so readers can browse all available properties without leaving the page. If only one is added, place it at the bottom of the HTTP API Gateway section where it's most relevant.",
+            "Expand the authorization subsection with at least one sentence describing the StpAuthorizer shape — even a hint that it takes a 'type' of 'cognito' or 'lambda' would help readers know whether they can configure it inline or need a separate resource. Right now the section sends readers away without any structural preview.",
+            "In the FAQ answer for 'What is the maximum request payload size for HTTP API Gateway?', the 10 MB limit and the suggestion to use ALB as an alternative are correct, but the claim that 'ALB does not enforce this limit' should be softened to 'ALB has a higher limit' since AWS ALB does have its own payload constraints (though different from API Gateway's 10 MB cap)."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages MUST have a 10-question FAQ that mixes (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?', 'How do I run RDS migrations?'), and (c) choosing/comparison questions ('Web service vs Lambda?', 'ALB vs API Gateway?'). Penalize a Stacktape-only FAQ — it should cover what readers actually search for, not just what's in our types. Penalize FAQs with fewer than 10 questions. Do NOT penalize FAQ absence on pure narrative pages (Getting Started steps, recipes).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong, self-contained opening paragraph that clearly answers 'what are HTTP triggers and why do they matter' in under 75 words — extractable as a Featured Snippet.",
+            "FeatureComparisonTable is concrete, accurate, and maps directly to the source-file type properties. Rows cover all eight meaningful axes (routing dimensions, evaluation model, authorization, payload format, workload compatibility, pricing). This is the best possible format for this decision.",
+            "Decision guidance after the table is opinionated and cost-grounded: 'pay nothing at zero traffic' for API Gateway vs 'charges hourly regardless of traffic' for ALB. Readers can act on this without additional research.",
+            "Both code examples are realistic, complete, and copy-paste runnable. The API Gateway example uses a catch-all catch-all pattern a real team would use; the ALB example shows a realistic CRUD path with explicit method list. Neither has placeholder values.",
+            "ALB routing conditions table is fact-dense and maps cleanly to the source interface (paths, methods, hosts, headers, queryParams, sourceIps). Matching behavior column handles the case-sensitivity and wildcard nuances that would otherwise confuse readers.",
+            "FAQ has exactly 10 questions with strong category coverage: Stacktape-specific (routing paths, authentication, custom domains, logs), AWS use-case (API Gateway cost, payload limits), and comparison (API Gateway vs ALB, ALB vs NLB).",
+            "Container workloads section usefully distinguishes web services, private services, multi-container workloads, and worker services — a classification that would otherwise require consulting four separate resource pages.",
+            "Practical priority-gap advice ('leave gaps between numbers, e.g. 10, 20, 30') is the kind of non-obvious operational guidance that prevents production pain.",
+            "Route matching H3 clearly distinguishes exact, parameterized, and greedy path shapes with concrete examples and payloadParameter access pattern — directly sourced from the type JSDoc."
+          ],
+          "problems": [
+            "Missing required <ApiReference> component. The style guide requires exactly one <ApiReference definitionName=\"...\" /> somewhere on the page. For this multi-integration-type page, the primary candidate is HttpApiIntegrationProps; the ALB counterpart can be reached via drill-down. Absence is a completeness gap.",
+            "The 'Container workloads' section uses the class names MultiContainerWorkloadHttpApiIntegration and MultiContainerWorkloadLoadBalancerIntegration in prose, but the provided source file defines the interfaces as ContainerWorkloadHttpApiIntegration and ContainerWorkloadLoadBalancerIntegration (with no 'Multi' prefix). This is a potential factual mismatch that could confuse readers looking up the class names.",
+            "No code example for multi-container workload HTTP/ALB triggers despite the section introducing containerPort as a required differentiating property. The section describes how it works but gives no runnable snippet, leaving a depth gap compared with the Lambda sections that each have a complete example.",
+            "FAQ answer for 'How do I view logs' claims: 'For HTTP API Gateway access logs... enable logging on the HTTP API Gateway resource itself.' This configuring-access-logs capability is not present in the provided source files — it's a borderline unsupported Stacktape-specific claim.",
+            "The Info callout about Network Load Balancers at the end of 'Choosing a trigger type' slightly disrupts the section's close. The NLB is fully covered later in 'Container workloads' — the early mention adds minor noise without decision value at that point."
+          ],
+          "mandatoryFixes": [
+            "Add <ApiReference definitionName=\"HttpApiIntegrationProps\" /> at the bottom of the page (or after the ALB section). For a page covering multiple primary types, pick one as the anchor and let the component's drill-down handle the rest. Do not add a second <ApiReference> for ApplicationLoadBalancerIntegrationProps — that violates the one-per-page rule.",
+            "Audit and correct the multi-container integration class names in the 'Container workloads' prose section. The source file defines ContainerWorkloadHttpApiIntegration (not MultiContainerWorkloadHttpApiIntegration) and ContainerWorkloadLoadBalancerIntegration (not MultiContainerWorkloadLoadBalancerIntegration). Either verify the exported npm class names and update the prose to match, or replace the class-name references with integration-type strings ('http-api-gateway', 'application-load-balancer') which are source-grounded."
+          ],
+          "optionalImprovements": [
+            "Add a short code example for multi-container workload HTTP triggers showing the containerPort property alongside the routing properties. Even a minimal four-property snippet would give the section equal practical depth to the Lambda examples and make containerPort concrete rather than described-only.",
+            "Remove or qualify the 'enable logging on the HTTP API Gateway resource itself' claim in the logs FAQ answer until the configuring-access-logs capability is grounded in the source. Narrow to: 'Lambda and container logs are available via stacktape debug:logs; for API Gateway request-level logging, consult the AWS API Gateway documentation.'",
+            "Consider moving the NLB Info callout from 'Choosing a trigger type' to the top of the 'Container workloads' section where NLBs are fully covered, to avoid a forward-reference in the middle of the comparison table's conclusion paragraphs.",
+            "The payload format section says 'Most web frameworks handle both formats transparently' — this is slightly vague. Specify which formats Hono, Express, and Fastify are known to handle, or remove the specific framework list and generalize: 'frameworks that use the aws-lambda adapter layer handle both formats transparently'."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is mostly grounded in the provided event integration types and follows the required CodeBlock pattern. The main publication risks are Stacktape-specific claims that go beyond the source for container workload coverage, authorizer variants, custom domains, and logging configuration.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“HTTP triggers route incoming web requests to your Stacktape Lambda functions and container workloads.” and the comparison table says HTTP API Gateway and ALB both “work with container workloads.”",
+              "reason": "The provided source supports HTTP API Gateway and ALB integrations for generic container workload integration interfaces, but it does not support the broad page-level implication that all container workload resource types use these event triggers. The draft later narrows web services and private services as using resource-level traffic properties, but the opening/table remain broader than the source. This could mislead readers into adding per-resource HTTP events to workload types that do not expose them in this source.",
+              "suggestedFix": "Narrow the claim to “Lambda functions and container workloads that expose per-container events, such as multi-container workloads,” then separately say web services and private services configure HTTP traffic on the resource itself.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ContainerWorkloadHttpApiIntegration {\n  type: 'http-api-gateway';\n  properties: ContainerWorkloadHttpApiIntegrationProps;\n}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ContainerWorkloadLoadBalancerIntegration {\n  type: 'application-load-balancer';\n  properties: ContainerWorkloadLoadBalancerIntegrationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape supports both Cognito authorizers and Lambda authorizers.”",
+              "reason": "The provided source only shows an optional `authorizer?: StpAuthorizer` on HTTP API integrations and does not define `StpAuthorizer` or enumerate Cognito and Lambda authorizer variants. The claim may be true elsewhere, but it is not grounded in the supplied source files.",
+              "suggestedFix": "Write only that HTTP API Gateway integrations support an optional `authorizer`, and that unauthorized requests are rejected with `401 Unauthorized`. If naming Cognito or Lambda authorizers is required, include the source file that defines `StpAuthorizer`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "authorizer?: StpAuthorizer;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "Unauthorized requests will be rejected with a `401 Unauthorized` response."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "“Both HTTP API Gateways and Application Load Balancers support custom domains. Attach your domain to the gateway or load balancer resource, and all routes served through it become available under your domain name.”",
+              "reason": "The supplied source files contain only event integration types and the generated HTTP-trigger summary. They do not include the HTTP API Gateway or Application Load Balancer resource type definitions, so this Stacktape-specific custom-domain configuration claim is not grounded in the provided sources.",
+              "suggestedFix": "Either remove the custom-domain FAQ from this page or narrow it to “custom domains are configured on the gateway or load balancer resource; see Custom domains” only if the relevant gateway/load-balancer source files are supplied.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface HttpApiIntegrationProps {\n  /**\n   * #### The name of the HTTP API Gateway.\n   */\n  httpApiGatewayName: string;"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ApplicationLoadBalancerIntegrationProps {\n  /**\n   * #### The name of the Application Load Balancer.\n   *\n   * ---\n   *\n   * This must reference a load balancer defined in your Stacktape configuration.\n   */\n  loadBalancerName: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For HTTP API Gateway access logs (request IDs, status codes, latency), enable logging on the HTTP API Gateway resource itself.”",
+              "reason": "The provided source files do not include HTTP API Gateway resource properties or any logging configuration. The draft makes a Stacktape-specific configuration claim about where access logs are enabled without source backing.",
+              "suggestedFix": "Remove the access-log sentence or replace it with a cautious link-only sentence such as “Gateway-level logging is configured on the HTTP API Gateway resource; see the HTTP API Gateway page” if the gateway source backs it in a wider source set.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface HttpApiIntegrationProps {\n  /**\n   * #### The name of the HTTP API Gateway.\n   */\n  httpApiGatewayName: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Web services and private services configure their traffic source through properties on the resource itself rather than through per-container event triggers.”",
+              "reason": "The provided source supports per-container HTTP API and ALB integrations, but it does not include WebService or PrivateService resource definitions showing that those resource types configure traffic through resource properties. This is a Stacktape-specific resource behavior claim outside the supplied source.",
+              "suggestedFix": "Either include the web-service/private-service type sources in the verifier source set or rewrite as a cross-link without asserting the mechanism: “For web service and private service traffic configuration, see their resource pages.”",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ContainerWorkloadHttpApiIntegrationProps extends HttpApiIntegrationProps {\n  /**\n   * #### The container port that will receive traffic from the API Gateway.\n   */\n  containerPort: number;\n}"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "interface ContainerWorkloadLoadBalancerIntegrationProps extends ApplicationLoadBalancerIntegrationProps {\n  /**\n   * #### The container port that will receive traffic from the load balancer.\n   */\n  containerPort: number;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`service-connect` ... Supports an optional `alias` for service discovery (e.g., `http://my-service:8080`) and a `protocol` declaration (`http`, `http2`, or `grpc`) for protocol-specific metrics.”",
+              "reason": "The source says other resources can connect using a URL like `protocol://alias:port`, gives an example, and says specifying protocol allows AWS to capture protocol-specific metrics. The draft's example `http://my-service:8080` is not the source example and may imply that `alias: 'my-service'` creates exactly that URL. The source example is generic and also documents a default alias derived from resource and container names, which the draft omits.",
+              "suggestedFix": "Use the source wording: “Other resources in the stack can connect using `protocol://alias:port`; by default, the alias is derived from the resource and container names.” Keep the allowed protocols list.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "Other resources in the stack can connect to this service using a URL like `protocol://alias:port` (e.g., `http://my-service:8080`).\n   * By default, the alias is derived from the resource and container names (e.g., `my-resource-my-container`)."
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "protocol?: 'http' | 'http2' | 'grpc';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `httpApiGatewayName` must match the key used for the gateway in the `resources` object” and “The `loadBalancerName` must match the key used for the ALB resource.”",
+              "reason": "The source says these fields are the name of the referenced resource and, for ALB, must reference a load balancer defined in the Stacktape configuration. It does not explicitly say the name is the object key in `resources`, although that may be true by Stacktape convention.",
+              "suggestedFix": "Narrow to “must reference the gateway/load balancer resource defined in the same Stacktape configuration” unless the source set includes resource-name/key semantics.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“AWS HTTP API Gateway accepts request and response payloads up to 10 MB. For larger payloads, use an Application Load Balancer (which does not enforce this limit).”",
+              "reason": "This is general AWS context rather than a Stacktape-specific claim, but the “does not enforce this limit” phrasing is broad and could be read as no meaningful ALB payload/body limit. The provided Stacktape sources do not discuss payload limits for either integration.",
+              "suggestedFix": "Keep the API Gateway 10 MB statement if desired as AWS background, but avoid implying ALB has no payload limit. Prefer “For larger uploads, use direct S3 uploads with presigned URLs.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The Stacktape configuration examples use `<CodeBlock intellisense>` with a `TypeScript` tab and do not hand-author YAML.",
+            "The HTTP API integration example uses source-backed properties: `httpApiGatewayName`, `method`, `path`, and Lambda `events`.",
+            "The ALB integration example uses source-backed properties: `loadBalancerName`, `priority`, `paths`, and `methods`.",
+            "The draft correctly states that HTTP API integration `payloadFormat` supports `'1.0'` and `'2.0'`, with `'1.0'` as the default.",
+            "The draft correctly distinguishes HTTP API Gateway method/path routing from ALB routing conditions and ALB priority evaluation."
+          ]
+        },
+        {
+          "verifierId": "code-block-validator",
+          "modelProvider": "deterministic",
+          "modelName": "local",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): cannot generate YAML tab from TypeScript source.",
+              "reason": "The TypeScript example parsed and type-checked, but the docs YAML converter could not derive a YAML tab. This may be a docs-converter coverage gap for valid class-based config.",
+              "suggestedFix": "If the example is valid Stacktape TypeScript, extend the YAML converter for this class/property shape. Otherwise simplify the example to a converter-supported class-based defineConfig shape."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "status": "needs-human-review",
+      "passed": false
     }
   ],
   "agentModelAssignments": {
     "page-writer": "claude:cli-default",
     "first-time-user-reviewer": "claude:claude-sonnet-4-6",
     "production-engineer-reviewer": "claude:claude-sonnet-4-6",
-    "ai-consumer-reviewer": "claude:claude-sonnet-4-6",
-    "factual-accuracy-verifier": "claude:cli-default",
+    "ai-consumer-reviewer": "codex:cli-default",
+    "factual-accuracy-verifier": "codex:cli-default",
     "source-grounding-verifier": "codex:cli-default",
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\configuration\\triggers\\http-triggers.mdx",
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/configuration/triggers/http-triggers.mdx",
   "outcome": "needs-human-review",
   "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 1, advisory high 0, verifier medium 11"
+  "pipelineReviewSummary": "reviewer-avg 7.9, hard blockers 1, advisory high 0, verifier medium 4",
+  "refinementAttempts": 2,
+  "refinementStalled": true
 }

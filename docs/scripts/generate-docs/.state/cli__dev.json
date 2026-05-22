@@ -2,7 +2,7 @@
   "pageId": "cli__dev",
   "pageRoute": "cli/dev",
   "startedAt": "2026-05-17T20:47:44.108Z",
-  "updatedAt": "2026-05-17T20:57:39.838Z",
+  "updatedAt": "2026-05-21T20:07:05.026Z",
   "iterations": [
     {
       "iteration": 1,
@@ -734,6 +734,189 @@
       ],
       "status": "needs-human-review",
       "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "/Users/congy/Desktop/projects/stacktape/docs/scripts/generate-docs/.state/cli__dev/iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "first-time-user-reviewer",
+          "persona": "Developer trying Stacktape for the first time. Low AWS experience. Wants to copy-paste a working example and ship something, then come back to the page when they need to extend it. Cares about: a clear path from \"what is this\" to \"I have it running\", absence of unexplained AWS jargon, a runnable example near the top, and confidence that the page is telling them everything they need to start. Does NOT care about exhaustive option coverage — that's what the API reference is for.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Every flag in the 'Important flags' section has its own runnable example command — a first-time user can copy and run immediately.",
+            "The supported resource types table gives a quick visual inventory of what dev mode can handle without reading prose.",
+            "FAQ section covers all three required question categories: Stacktape-specific (--disableEmulation timing, --freshDb), AWS use-case (Docker dependency), and choosing/comparison (dev vs deploy). Nine questions hits the target.",
+            "Examples section is diverse and realistic — basic usage, scoped resources, legacy mode, agent mode, freshDb — each a scenario a real developer would face.",
+            "Agent mode is documented with accurate detail (daemonizes, JSONL output, HTTP server, how to stop it), which is non-obvious behavior worth calling out."
+          ],
+          "problems": [
+            "The 'Interactive commands' section contains a grammatically broken, reader-confusing sentence: 'The command description supports typing a number + Enter to rebuild a specific workload, or `a` + Enter to rebuild all workloads.' The phrase 'command description' has no referent the reader can understand. These are TUI keyboard shortcuts, not text commands — they are a different input mechanism from the table below, but the page never explains the distinction.",
+            "The intro paragraph accurately summarizes both modes but the following 'What it does' section repeats the same structural content (normal mode bullets, legacy mode bullets) with modest expansion. For a first-time reader, this creates the impression of getting the same information twice before any examples appear.",
+            "The keyboard shortcut mechanism (number + Enter, a + Enter to rebuild) and the text command mechanism (rs, rs <name>, q, c) are two different input paths inside the dev TUI. The page documents them in the same section without distinguishing that one is a TUI key sequence and the other is a typed command, leaving the reader unsure whether to press `1` or type `rs 1`."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Rewrite the opening of 'Interactive commands' to separate keyboard shortcuts from text commands: e.g., 'The dev TUI accepts two input forms. Keyboard shortcuts: press a digit then Enter to rebuild that workload by its numbered position, or press `a` then Enter to rebuild all. Text commands (type the command and press Enter):' followed by the table.",
+            "Either merge the 'What it does' content into the intro paragraph (making it a fuller lede) or relabel 'What it does' as 'Dev modes' and cut the bullets that duplicate the intro, keeping only the additional depth (legacy requires deployed stack, normal auto-creates the dev stack, tunneling for Lambda-to-local).",
+            "Add the default agent port (7331) to the '--agent / --agentPort' subsection so readers know what port to expect when they omit --agentPort. This is a concrete, source-grounded detail that helps users configure firewalls or check connectivity.",
+            "The '--noTunnel' subsection could mention that tunnels use bore.pub (documented in the arg description source) so users who hit corporate firewall restrictions know what to whitelist or why tunneling fails.",
+            "The 'Related commands' section lists only three entries. Consider adding `preview-changes` since new users often want to inspect what dev mode will affect before running it."
+          ]
+        },
+        {
+          "reviewerId": "production-engineer-reviewer",
+          "persona": "Engineer already shipping with Stacktape, looking up how to configure something correctly under real conditions. Cares about: accuracy of defaults, limits, and behavior under load; whether edge cases and failure modes are mentioned where relevant (scaling, security defaults, cost ceilings, rollback behavior); whether the page would mislead them when they reach production. Does NOT nitpick prose polish or MDX component choices — only flags things that change what they'd configure.",
+          "modelProvider": "claude",
+          "modelName": "claude-sonnet-4-6",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "All major flags are documented with individual code examples — one command per bash block, no copy-button traps.",
+            "Normal vs legacy dev mode comparison is clear, practical, and grounded in the source's devMode enum and implementation.",
+            "Interactive commands table matches the actual handleCommand implementation (rs, rs <name>, q/quit, c/clear).",
+            "Supported resource types table accurately reflects getDevCompatibleResources() and mapResourceType() in the source.",
+            "Agent mode section correctly documents both --agent and --agentPort enabling daemon mode, and the implicit port-enables-agent behavior is grounded in the source: `Boolean(globalStateManager.args.agent || agentPortArg !== undefined)`.",
+            "FAQ spans all three required categories: Stacktape-specific, AWS use-case (Docker requirement), and comparison (dev vs deploy).",
+            "The hosting-bucket note '(with dev config)' is correctly sourced from the filter((b) => b.dev) check in the implementation.",
+            "No mandatory style violations: no YAML Stacktape config blocks, no StacktapeConfig type usage, no fenced TypeScript defineConfig blocks."
+          ],
+          "problems": [
+            "The 'Interactive commands' prose section says 'typing a number + Enter to rebuild a specific workload, or `a` + Enter to rebuild all workloads.' The handleCommand implementation in src/commands/dev/index.ts does NOT handle digit inputs or the `a` command — it only handles `rs`, `rs <name>`, `q`/`quit`, and `c`/`clear`. These keyboard shortcuts may exist at the TUI key-binding level (devTuiManager.setRebuildHandler is wired), but the provided source does not confirm them. Asserting them as user-typeable text commands is misleading when the command handler doesn't support them. The table entries are correct; the prose intro sentence is the problem.",
+            "Minor redundancy: the intro paragraph and the 'What it does' H2 section cover identical ground (modes, emulation, credential injection). The H2 section adds per-mode bullet detail which is valuable, but the first sentence of each subsection restates what the intro already said. Not a hard failure, but it adds page weight without aiding the reader.",
+            "--freshDb and --noTunnel are documented without noting they are no-ops in legacy dev mode (no local databases exist in legacy mode). An engineer switching to --devMode legacy could add these flags and see nothing happen, with no hint from the docs that they're irrelevant in that mode."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify the prose sentence 'The command description supports typing a number + Enter to rebuild a specific workload, or `a` + Enter to rebuild all workloads.' The handleCommand implementation in src/commands/dev/index.ts does not handle digit or `a` text commands. Either verify this behavior exists at the TUI keyboard-event level (not shown in the provided source) and cite it explicitly, or remove the claim and keep only the table of confirmed text commands (rs, rs <name>, q/quit, c/clear)."
+          ],
+          "optionalImprovements": [
+            "In the --freshDb and --noTunnel flag sections, add a one-sentence note that these flags only apply in normal dev mode — they have no effect in legacy mode where no local databases or tunnels exist.",
+            "Surface the Docker requirement in the main content (e.g., a brief note in the 'Normal mode' subsection or a callout before the flags section), not just in the FAQ. Engineers scanning flags rather than reading FAQ may miss it.",
+            "Consider trimming the opening sentence of the 'Normal mode' and 'Legacy mode' H3 sections — they repeat the intro paragraph. Start with the bullet list directly, or replace the repeated sentence with mode-specific nuance not already in the intro.",
+            "The examples section at the bottom duplicates every pattern already shown in the flag sections. Consider replacing it with 2-3 patterns that are genuinely non-obvious composites (e.g., combining --remoteResources with --watch, or agent mode with --resources) rather than restating the single-flag patterns."
+          ]
+        },
+        {
+          "reviewerId": "ai-consumer-reviewer",
+          "persona": "AI answer engine, search index, or coding assistant reading this page to cite from it or extract a paragraph as a snippet. This reviewer combines what was previously two lenses (LLM consumer + SEO/AEO) and is the only persona judging extractability. Hard criteria — penalize each missing item by at least 1 point in the most relevant category:\n1. **Answer-first paragraph.** The first paragraph (40-75 words) must answer 'what is this and why does it matter' in self-contained prose. No 'this guide will cover...' framing. AI Overviews extract this verbatim.\n2. **Self-contained sections.** Every H2 section, when extracted alone, must make sense — its first paragraph defines the concept being discussed (e.g. 'A Stacktape web service can front traffic through CloudFront to cache...' not 'You can also enable a CDN'). Pronouns like 'this', 'it', 'the resource' that depend on surrounding context score worse.\n3. **Explicit entity naming.** Say 'Stacktape web service' or 'a web service' — never just 'the service' or 'this resource'. Named entities anchor citations.\n4. **Fact-dense, concrete.** Numbers, defaults, limits, supported values written as literals. 'Up to 16 vCPU and 120 GB memory' beats 'large resource limits'. Vague qualifiers ('fast', 'flexible', 'easy') are penalized.\n5. **Tables for comparisons.** When the page compares options (engines, sizes, modes, packaging types), a table is preferred over prose — tables get cited 2-4x more often.\n6. **Complete code examples.** No `<your-here>` / `// fill in` / `...` placeholders inside example bodies. The example must be copy-paste runnable as shown.\n7. **Compact, descriptive headings.** Short noun-form H2s (Scaling, Networking) for navigation. Question-form H3s are allowed and welcome for FAQ-style subsections and common-question anchors. Avoid full-sentence H2s.\n8. **FAQ section, broad scope.** Resource, reference, and concept pages SHOULD have an FAQ section, aiming for 8-10 Q&A pairs but accepting fewer when the page's scope doesn't yield that many distinct, useful questions. A narrow-scope page might have 4-6 strong FAQs; that's fine — quality over quota. Mix (a) Stacktape-specific questions, (b) use-case questions about the underlying AWS service (e.g. 'How much does ECS Fargate cost?'), and (c) choosing/comparison questions ('Web service vs Lambda?'). Penalize a Stacktape-only FAQ (it should cover what readers actually search for), and penalize FAQs padded with synthetic or near-duplicate questions just to hit a number. Do NOT penalize a smaller FAQ when the page's scope justifies it; do NOT penalize FAQ absence on pure narrative pages (Getting Started steps).\n9. **Meta description suitability.** A clean 150-character summary should be derivable directly from the opening paragraph and frontmatter.\n10. **No stripped pronouns / antecedent gaps.** A paragraph starting with 'This is configured by...' fails. Extracted paragraphs lose surrounding context — every paragraph should name what it's about up front.\n11. **Union-type coverage discipline.** When a section documents a property that has multiple variants in the source's union type (packaging modes, compute engines, load balancer kinds, database engines, deployment strategies, trigger sources, etc.), all variants must be named somewhere on the page — not just the one being deep-dived. A page that has '### Using a custom Dockerfile' under Packaging without mentioning the four other packaging modes is misleading. Penalize heavily.\n12. **Per-variant equal depth.** When a section covers multiple variants, each must be developed to roughly equivalent depth: code example per variant, tradeoffs per variant, cost/constraint context per variant. Enumeration without follow-through is not documentation. Example: a 'Compute resources' section that gives Fargate an example + cost table while EC2 gets two sentences fails this criterion.\n13. **Decision support for opt-in features.** Sections introducing opt-ins (CDN, custom domains, gradual deployments, side containers, firewall, ARM, EC2 mode, warm pools, etc.) must help the reader DECIDE, not just CONFIGURE. Look for: when-to-enable (concrete scenario), when-default-suffices, cost/tradeoff signal, and an opinionated recommendation. A section that jumps from a 1-line definition to a code example without addressing these is a recipe, not a guide. Penalize as missing completeness AND practicalUsefulness.\n14. **Unexplained tunable values.** Code examples that set specific tunable values (\\`cloudfrontPriceClass: 'PriceClass_100'\\`, \\`instanceTypes: ['t3.medium']\\`, \\`enableWarmPool: true\\`) need 1-2 sentences of prose explaining what the property controls and what the alternatives are. Otherwise the value reads as magic or required when it isn't.\n15. **Section depth — AEO is about the first paragraph only.** The 40-75 word self-contained-snippet rule applies to the FIRST paragraph of each section. The rest of the section must develop the topic — examples, tradeoffs, cost, edge cases. Sections that consist of one short paragraph + one code example with no surrounding context are too brief and fail completeness, even if they look 'scannable'.",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The opening paragraph is answer-first, self-contained, and grounded in the command definition.",
+            "The page follows the CLI-page shape reasonably well: one command, a realistic usage command with required flags, the generated CLI argument reference, examples, FAQ, and related commands.",
+            "Shell examples obey the one-command-per-block rule and avoid explanatory comments inside copyable command blocks.",
+            "The normal vs legacy mode distinction is useful and mostly grounded in `commands.ts` and `src/commands/dev/index.ts`.",
+            "The resource-selection examples are practical and match the `--resources`, `--skipResources`, and comma-separated parsing behavior in the command implementation."
+          ],
+          "problems": [
+            "The page repeats the same normal/legacy/resource-selection facts across the opening paragraph, generated reference, What it does, Important flags, Examples, and FAQ. That weakens scannability and makes the page feel longer than a CLI reference needs to be.",
+            "Some claims are broader than the provided source supports. For example, the opening says dev mode gives a “production-like environment”; source supports local workloads, local emulation, tunnels, credentials, and logs, but not a broad production-likeness claim.",
+            "The Supported resource types table is useful but slightly under-scoped in wording: source code supports `redis-cluster`, `dynamo-db-table`, and `open-search-domain`; the table lists friendly engine names without naming the Stacktape resource types for databases, which makes the mapping less precise.",
+            "The `--resourceName / --container` section is low-value for `stacktape dev` as written. The source exposes both args, but the draft does not explain a concrete dev workflow where `--resourceName` affects behavior, so the section reads like generic flag restatement.",
+            "The FAQ is useful but mostly repeats earlier sections. It has good Stacktape-specific and choosing questions, but only light underlying-service coverage, mostly Docker/local emulation rather than deeper AWS-local-development tradeoffs."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Replace “production-like environment” with a narrower source-grounded phrase such as “a local development loop that still uses the selected Stacktape stage, AWS credentials, secrets, and generated environment variables.”",
+            "Trim duplication by merging `What it does` and `Important flags` into a tighter `Modes` section plus a `Common flags` table. Keep detailed examples only where they add a non-obvious pattern.",
+            "In `Supported resource types`, name both the Stacktape resource type and the local emulation type, for example `redis-cluster -> Redis`, `dynamo-db-table -> DynamoDB`, and `open-search-domain -> OpenSearch`.",
+            "Either remove the `--resourceName / --container` subsection or add a source-grounded explanation of when `stacktape dev` uses those flags; otherwise leave the generated API reference to document them.",
+            "Broaden the FAQ with one or two non-redundant underlying-service questions, such as when local Docker emulation is not enough versus when `--remoteResources` is safer. Keep the answers tied to normal/legacy mode behavior from the source."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "factual-accuracy-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "I found one medium factual coverage issue. The draft is broadly grounded in the provided CLI command definitions and dev command implementation, with required flags, command examples, links, and the CLI reference component aligned to the source.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The draft says the `dev` command emulates only `PostgreSQL, MySQL, DynamoDB, Redis` in the supported resource table and FAQ, while presenting the table as the full list of supported local database resources.",
+              "reason": "The dev command source also models OpenSearch as an emulatable resource type and maps MariaDB relational databases as a local resource type. Omitting them from an exhaustive-looking supported resources list could mislead readers into thinking MariaDB and OpenSearch are not supported by dev mode.",
+              "suggestedFix": "Update the supported resource table and Docker FAQ to include MariaDB and OpenSearch, for example: `PostgreSQL, MySQL, MariaDB, Redis, DynamoDB, OpenSearch`.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "type EmulateableResource = {\n  name: string;\n  type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table' | 'open-search-domain';\n  engineType: string;\n};"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "if (engineType === 'mariadb') return 'mariadb';"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "if (type === 'open-search-domain') return 'opensearch';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The usage examples include the required `--stage` and `--region` flags for `stacktape dev`.",
+            "The draft correctly uses `<CliCommandsApiReference command=\"dev\" ... />` for the command reference rather than hand-authoring a flags table.",
+            "The normal and legacy mode descriptions match the command definition and runtime checks in the provided sources.",
+            "The documented `--agentPort` behavior is grounded in the implementation: providing `agentPort` enables agent mode even without `--agent`.",
+            "All internal documentation links used in the draft point to routes present in the navigation index."
+          ]
+        },
+        {
+          "verifierId": "source-grounding-verifier",
+          "modelProvider": "codex",
+          "modelName": "cli-default",
+          "summary": "The draft is largely grounded in the provided CLI command definition and dev command implementation. The main factual gap is that the supported local emulation list is incomplete while phrased as exhaustive.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "In `Supported resource types`, the draft says databases emulated in normal mode are `PostgreSQL, MySQL, DynamoDB, Redis`. The FAQ similarly says normal dev mode uses Docker to emulate `PostgreSQL, MySQL, DynamoDB` and Redis.",
+              "reason": "The dev implementation also includes MariaDB and OpenSearch as local resource types. Because the draft introduces the table as “the following resource types,” the omission makes the supported set look narrower than the source code supports.",
+              "suggestedFix": "Add `MariaDB` and `OpenSearch` to the emulated database/local resource list, or narrow the wording if the page intentionally lists only common examples.",
+              "evidence": [
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "type EmulateableResource = {\n  name: string;\n  type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table' | 'open-search-domain';\n  engineType: string;\n};"
+                },
+                {
+                  "file": "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts",
+                  "quote": "if (type === 'relational-database') {\n    // Check engine type for relational databases\n    if (engineType === 'mysql' || engineType?.includes('mysql')) return 'mysql';\n    if (engineType === 'mariadb') return 'mariadb';\n    return 'postgres'; // Default for postgres, aurora-postgres, etc.\n  }\n  if (type === 'redis-cluster') return 'redis';\n  if (type === 'dynamo-db-table') return 'dynamodb';\n  if (type === 'open-search-domain') return 'opensearch';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The required `--stage` and `--region` usage example matches the command definition.",
+            "The `<CliCommandsApiReference command=\"dev\" ... />` component targets the correct command and uses the generated argument structure.",
+            "The normal and legacy dev mode descriptions match `src/config/cli/commands.ts` and the dev command flow in `src/commands/dev/index.ts`.",
+            "The `--resources`, `--skipResources`, `--agentPort`, `--freshDb`, `--noTunnel`, and interactive command descriptions are supported by the implementation.",
+            "All internal cross-links in the draft point to routes present in the provided navigation index."
+          ]
+        }
+      ],
+      "status": "passed",
+      "passed": true
     }
   ],
   "agentModelAssignments": {
@@ -746,8 +929,16 @@
     "api-completeness-auditor": "codex:cli-default",
     "code-block-validator": "local"
   },
-  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\cli\\dev.mdx",
-  "outcome": "needs-human-review",
-  "pipelineStatus": "needs-human-review",
-  "pipelineReviewSummary": "reviewer-avg 8.0, hard blockers 3, advisory high 0, verifier medium 10"
+  "finalOutputPath": "/Users/congy/Desktop/projects/stacktape/docs/docs/cli/dev.mdx",
+  "outcome": "passed",
+  "refinementAttempts": 1,
+  "refinementStalled": false,
+  "completedAt": "2026-05-21T20:07:05.026Z",
+  "inputHashes": {
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/commands.ts": "6098b456753a77a11f278efda9570783aea0d226",
+    "/Users/congy/Desktop/projects/stacktape/src/config/cli/utils.ts": "bdf16b4327d16ccf5a14a80fea742a3efc8d8ba9",
+    "/Users/congy/Desktop/projects/stacktape/src/commands/dev/index.ts": "da7c0365580dc32d67916e5ae60a41cd93b89586",
+    "/Users/congy/Desktop/projects/stacktape/@generated/llm-docs/pages/cli/dev.md": "2bed69c0837120407f2f24f01a3996d8d59a57c3"
+  },
+  "styleGuideHash": "9409625195f1f71d6e88b7be273033ddf350c4a4"
 }

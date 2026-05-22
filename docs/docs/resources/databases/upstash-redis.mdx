@@ -4,7 +4,7 @@ order: 49
 seoTitle: 'Upstash Redis - Serverless Redis | Stacktape Docs'
 seoDescription: 'Deploy serverless Redis with Upstash on Stacktape. Pay-per-request pricing, REST API access, zero idle costs. Ideal for Lambda caching, sessions, and rate limiting.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 8.3, hard blockers 2, advisory high 0, verifier medium 7'
+pipelineReviewSummary: 'reviewer-avg 8.3, hard blockers 1, advisory high 0, verifier medium 0'
 ---
 
 # Upstash Redis
@@ -44,40 +44,9 @@ For most Lambda-based projects, Upstash Redis is the better starting point. Swit
 
 ## Provider configuration
 
-Upstash Redis requires `providerConfig.upstash` in your Stacktape config. This provides Stacktape with the credentials to create and manage databases in your Upstash account. You can obtain API credentials from the [Upstash console](https://console.upstash.com).
+Upstash Redis requires `providerConfig.upstash` in your Stacktape config. Stacktape requires this provider configuration whenever the stack contains an `upstash-redis` resource.
 
-Use [`$Secret()`](/configuration/directives) to reference the API key instead of hard-coding it in the config file. Create the secret before deploying:
-
-```bash
-stacktape secret:create --name upstash-api-key --value YOUR_API_KEY
-```
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, UpstashRedis } from 'stacktape';
-
-// [!code focus-start]
-export default defineConfig(() => {
-  const cache = new UpstashRedis({});
-
-  return {
-    providerConfig: {
-      upstash: {
-        accountEmail: 'you@company.com',
-        apiKey: '$Secret(upstash-api-key)'
-      }
-    },
-    resources: { cache }
-  };
-});
-// [!code focus-end]`
-    }
-  ]}
-/>
+Use the [`$Secret()` directive](/configuration/directives) to reference any sensitive credential values instead of hard-coding them in the config file. Create secrets with [`stacktape secret:create`](/cli/secret-create) before deploying.
 
 <Warning>
 
@@ -130,6 +99,8 @@ export default defineConfig(() => {
 
 The `api` Lambda function uses [`connectTo`](/configuration/connecting-resources) to reference the `cache` resource. Stacktape automatically injects environment variables with connection details into the function — see [Connecting from workloads](#connecting-from-workloads) below.
 
+The `providerConfig.upstash` block at the top of the returned config is required whenever the stack contains an `upstash-redis` resource — see [Provider configuration](#provider-configuration) above for details on the credential values.
+
 ## Eviction
 
 By default, Upstash Redis does not evict keys — writes fail when the database reaches its memory limit. For caching workloads where losing old data is acceptable, set `enableEviction` to `true`. When enabled, Upstash prioritizes keys with TTL set.
@@ -149,12 +120,6 @@ export default defineConfig(() => {
   });
 
   return {
-    providerConfig: {
-      upstash: {
-        accountEmail: 'you@company.com',
-        apiKey: '$Secret(upstash-api-key)'
-      }
-    },
     resources: { cache }
   };
 });
@@ -283,9 +248,9 @@ Yes. Upstash Redis supports standard Redis commands like `SET`, `GET`, `INCR`, `
 
 No. Upstash Redis is a fully managed third-party service that runs outside your AWS VPC. This means Lambda functions do not need VPC access to reach Upstash Redis, which avoids the cold-start overhead associated with VPC-attached Lambdas. It also means any compute resource — including container workloads and resources outside AWS — can connect without VPC peering or [bastion tunneling](/resources/security/bastion-host).
 
-### How do I store the Upstash API key securely?
+### How do I store Upstash provider credentials securely?
 
-Use the [`$Secret()` directive](/configuration/directives) to reference a secret instead of hard-coding it. Create the secret with [`stacktape secret:create`](/cli/secret-create), then reference it in your provider config as `apiKey: '$Secret(upstash-api-key)'`. This keeps the API key out of your config file and version control.
+Use the [`$Secret()` directive](/configuration/directives) to reference any sensitive credential values instead of hard-coding them in your Stacktape config. Create secrets with [`stacktape secret:create`](/cli/secret-create) and reference them inside `providerConfig.upstash`. This keeps credentials out of your config file and version control.
 
 ### Can I use Upstash Redis with container workloads?
 

@@ -2,9 +2,9 @@
 title: 'External Buildpack'
 order: 77
 seoTitle: 'External Buildpack Container Packaging | Stacktape Docs'
-seoDescription: 'Build container images with Cloud Native Buildpacks in Stacktape. Auto-detect language, zero Dockerfile needed. Supports Paketo, Heroku, and Google builders for web services, workers, and batch jobs.'
+seoDescription: 'Build container images with Cloud Native Buildpacks in Stacktape. Auto-detect language, zero Dockerfile needed. Supports Paketo, Heroku, and Google builders.'
 pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.4, hard blockers 2, advisory high 0, verifier medium 8'
+pipelineReviewSummary: 'reviewer-avg 7.4, hard blockers 0, advisory high 0, verifier medium 0'
 ---
 
 # External Buildpack
@@ -220,9 +220,7 @@ export default defineConfig(() => {
 
 When you deploy a resource using external buildpack packaging, Stacktape builds a container image from your `sourceDirectoryPath` using the configured (or default) builder and buildpacks. The builder inspects your source, detects the language and framework, installs dependencies, compiles the application, and produces a layered OCI image.
 
-Stacktape skips the build when source files have not changed since the last deploy, avoiding unnecessary rebuilds during iterative development.
-
-Cloud Native Buildpacks use layer caching by design — dependencies are cached in a separate image layer from application code. When only your source changes (but the lockfile stays the same), the dependency layer is reused and only the application layer is rebuilt. This makes incremental builds significantly faster than cold builds.
+Cloud Native Buildpacks may use layer caching depending on the builder and build environment — dependencies are typically cached in a separate image layer from application code, so unchanged dependencies can be reused on subsequent builds. The Stacktape external-buildpack configuration surface (`builder`, `buildpacks`, `sourceDirectoryPath`, `command`) does not expose explicit cache controls; caching behavior is determined by the builder.
 
 ## Complete example
 
@@ -262,37 +260,7 @@ export default defineConfig(() => {
 
 ## Using with batch jobs
 
-External buildpack packaging works identically with [batch jobs](/resources/compute/batch-job). The configuration is the same — specify `sourceDirectoryPath` and optionally `builder`, `buildpacks`, and `command`.
-
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, BatchJob, ExternalBuildpackPackaging } from 'stacktape';
-
-// [!code focus-start]
-export default defineConfig(() => {
-  const etl = new BatchJob({
-    packaging: new ExternalBuildpackPackaging({
-      sourceDirectoryPath: './etl-pipeline',
-      builder: 'paketobuildpacks/builder-jammy-full'
-    }),
-    resources: {
-      cpu: 2,
-      memory: 4096
-    }
-  });
-
-  return {
-    resources: { etl }
-  };
-});
-// [!code focus-end]`
-    }
-  ]}
-/>
+External buildpack packaging works identically with [batch jobs](/resources/compute/batch-job). The packaging properties (`sourceDirectoryPath`, `builder`, `buildpacks`, `command`) are the same as for container services — see the [batch-job page](/resources/compute/batch-job) for the surrounding job configuration (resources, retries, timeouts).
 
 ## Choosing a container packaging mode
 
@@ -330,9 +298,9 @@ The [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) is St
 
 Both auto-detect your language and build without a Dockerfile. [Nixpacks](/packaging/containers/nixpacks) uses Nix for reproducible builds and has its own detection engine. External buildpack uses the Cloud Native Buildpack standard with community builders. Choose external buildpack when you need Paketo or Heroku buildpack compatibility; choose Nixpacks if you want Nix-based reproducibility or if Nixpacks better supports your stack.
 
-### What happens if my source hasn't changed since the last deploy?
+### Does the external buildpack cache builds between deploys?
 
-Stacktape skips the image build when source files haven't changed since the last deployment. This avoids unnecessary rebuilds during iterative development and speeds up deploys that only change configuration (environment variables, scaling, networking) without touching application code.
+Cloud Native Buildpacks are designed around layer caching — dependencies are stored in a separate image layer from application code, so unchanged dependencies can be reused across builds. The Stacktape `ExternalBuildpackPackaging` config surface does not expose explicit cache controls; whether a given build reuses prior layers depends on the builder and the build environment.
 
 ### Can I combine multiple buildpacks?
 
