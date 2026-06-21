@@ -98,9 +98,10 @@ export const {
   // Bucket Lifecycle Rules
   ExpirationLifecycleRule,
   NonCurrentVersionExpirationLifecycleRule,
-  // EFS Mounts
+  // Volume Mounts
   ContainerEfsMount,
   LambdaEfsMount,
+  LambdaS3FilesMount,
   // Authorizers
   CognitoAuthorizer,
   LambdaAuthorizer,

@@ -1,0 +1,8 @@
+name: S3 Files Dataset Reporting
+tags:
+  - Typescript
+  - Lambda
+  - Event-Driven
+  - REST API
+icon: typescript.svg
+priority: 0

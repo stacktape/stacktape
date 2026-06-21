@@ -98,14 +98,14 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * ---
    *
-   * **You usually don't need to set this manually.** Stacktape will tell you if a resource in your `connectTo`
-   * requires it (e.g., a database with `accessibilityMode: 'vpc'`, or any Redis cluster).
+   * Set this to `true` when the function must reach VPC-only resources such as a database with
+   * `accessibilityMode: 'vpc'`/`'scoping-workloads-in-vpc'`, a Redis cluster, or EFS.
    *
    * **Tradeoff:** The function loses direct internet access. It can still reach S3 and DynamoDB
    * (Stacktape auto-creates VPC endpoints), but calls to external APIs (Stripe, OpenAI, etc.) will fail.
    * If you need both VPC access and internet, use a `web-service` or `worker-service` instead.
    *
-   * Required when using `volumeMounts` (EFS).
+   * Required when using `volumeMounts` (EFS or S3 Files).
    *
    * @default false
    */
@@ -213,14 +213,15 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    */
   storage?: number;
   /**
-   * #### Persistent EFS storage shared across invocations and functions.
+   * #### Persistent file-system mounts shared across invocations and functions.
    *
    * ---
    *
-   * Unlike `/tmp`, EFS data persists indefinitely and can be shared across multiple functions.
+   * Unlike `/tmp`, mounted file systems persist independently from the function runtime and can be
+   * shared across multiple functions.
    * Requires `joinDefaultVpc: true` (Stacktape will remind you if you forget).
    */
-  volumeMounts?: LambdaEfsMount[];
+  volumeMounts?: (LambdaEfsMount | LambdaS3FilesMount)[];
 }
 
 interface LambdaUrlConfig {
@@ -377,6 +378,29 @@ interface LambdaEfsMountProps {
 
   /**
    * #### Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/data`).
+   */
+  mountPath: string;
+}
+
+interface LambdaS3FilesMount {
+  /**
+   * #### The type of the volume mount.
+   */
+  type: 's3files';
+  /**
+   * #### Properties for the S3 Files volume mount.
+   */
+  properties: LambdaS3FilesMountProps;
+}
+
+interface LambdaS3FilesMountProps {
+  /**
+   * #### ARN of an existing S3 Files access point.
+   */
+  accessPointArn: string | IntrinsicFunction;
+
+  /**
+   * #### Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`).
    */
   mountPath: string;
 }

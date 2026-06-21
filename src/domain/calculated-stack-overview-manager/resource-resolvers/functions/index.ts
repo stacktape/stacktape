@@ -29,6 +29,7 @@ import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import { getAugmentedEnvironment, getLanguageFromExtension } from '@utils/environment';
 import { ExpectedError } from '@utils/errors';
+import { normalizeCloudformationFunction } from '@utils/cloudformation';
 import { getLambdaIssueFilterPattern, isIssueDetectionSupportedLanguage } from '../_utils/issue-detection';
 import { resolveAlarmsForResource } from '../_utils/alarms';
 import {
@@ -169,9 +170,16 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   const lambdaIsUsedInDeploymentHook = configManager.allLambdasUsedInDeploymentHooks.some(
     ({ name: hookLambdaName }) => hookLambdaName === name
   );
-  const mountedEfsFilesystems = volumeMounts?.length
+  const efsVolumeMounts = (volumeMounts || []).filter((mount): mount is LambdaEfsMount => mount.type === 'efs');
+  const s3FilesVolumeMounts = (volumeMounts || []).filter(
+    (mount): mount is LambdaS3FilesMount => mount.type === 's3files'
+  );
+  const mountedEfsFilesystems = efsVolumeMounts.length
     ? resolveReferencesToMountedEfsFilesystems({ resource: lambdaProps as StpLambdaFunction })
     : [];
+  const mountedS3FilesAccessPointArns = s3FilesVolumeMounts.map((mount) =>
+    normalizeCloudformationFunction(mount.properties.accessPointArn)
+  );
   mountedEfsFilesystems.forEach(({ name: efsFilesystemName }) => {
     lambdaDependsOn.push(cfLogicalNames.efsMountTarget(efsFilesystemName, 0));
     lambdaDependsOn.push(cfLogicalNames.efsMountTarget(efsFilesystemName, 1));
@@ -190,7 +198,8 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       workloadName: name,
       isUsedInDeploymentHook: lambdaIsUsedInDeploymentHook,
       configParentResourceType,
-      mountedEfsFilesystems
+      mountedEfsFilesystems,
+      mountedS3FilesAccessPointArns
     }),
     nameChain
   });
@@ -226,7 +235,14 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   }).forEach(({ name: varName, value: varVal }) => {
     transformedEnvVars[varName] = varVal;
   });
-  const fileSystemConfigs = (volumeMounts || []).map((mount: any) => {
+  const fileSystemConfigs = (volumeMounts || []).map((mount) => {
+    if (mount.type === 's3files') {
+      return {
+        Arn: normalizeCloudformationFunction(mount.properties.accessPointArn),
+        LocalMountPath: mount.properties.mountPath
+      };
+    }
+
     const accessPointLogicalName = cfLogicalNames.efsAccessPoint({
       stpResourceName: name,
       efsFilesystemName: mount.properties.efsFilesystemName,
@@ -360,7 +376,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       resource: getLambdaAliasResource({ lambdaProps, provisionedConcurrency })
     });
     // Add codeDigest to version publisher custom resource so it's re-invoked when (and only when) code changes.
-    // This replaces the old forceUpdate: Date.now() which caused false positives in preview-changes.
+    // This replaces the old forceUpdate: Date.now() which caused false positives in diff.
     templateManager.addFinalTemplateOverrideFn(async (template) => {
       const { digest } = deploymentArtifactManager.getLambdaS3UploadInfo({ artifactName, packaging });
       template.Resources[versionPublisherLogicalName].Properties.codeDigest = digest;

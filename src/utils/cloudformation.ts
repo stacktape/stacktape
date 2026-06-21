@@ -77,6 +77,28 @@ export const isCloudformationFunction = (node: any) => {
   return singleKey && (singleKey.startsWith('Fn::') || singleKey === 'Ref');
 };
 
+export const normalizeCloudformationFunction = (node: any): any => {
+  if (Array.isArray(node)) {
+    return node.map((nodeValue) => normalizeCloudformationFunction(nodeValue));
+  }
+
+  if (node && typeof node === 'object') {
+    if (typeof node.name === 'string' && 'payload' in node && (node.name.startsWith('Fn::') || node.name === 'Ref')) {
+      return { [node.name]: normalizeCloudformationFunction(node.payload) };
+    }
+
+    if (isCloudformationFunction(node)) {
+      return serialize(node);
+    }
+
+    return Object.fromEntries(
+      Object.entries(node).map(([key, value]) => [key, normalizeCloudformationFunction(value)])
+    );
+  }
+
+  return node;
+};
+
 export const isCloudformationRefFunction = (node: any) => isCloudformationFunction(node) && node.Ref;
 
 export const getCloudformationReferencedParamOrResource = (

@@ -38,7 +38,7 @@ export const resolveReferencesToMountedEfsFilesystems = ({
   } else if (resource.type === 'function') {
     // Treat as Lambda Function
     resource.volumeMounts.forEach((mount) => {
-      if (mount.properties?.efsFilesystemName) {
+      if (mount.type === 'efs' && mount.properties?.efsFilesystemName) {
         uniqueFilesystemNames.add(mount.properties.efsFilesystemName);
       }
     });
@@ -68,7 +68,7 @@ export const getMountsForEfsFilesystem = ({
       const { name, volumeMounts } = mountingResource;
       if (volumeMounts) {
         volumeMounts.forEach((mount) => {
-          if (mount.properties?.efsFilesystemName === resourceReferenceableName) {
+          if (mount.type === 'efs' && mount.properties?.efsFilesystemName === resourceReferenceableName) {
             result.push({
               mountingResource,
               mountingResourceCfLogicalNameOfSecurityGroup: cfLogicalNames.workloadSecurityGroup(name)

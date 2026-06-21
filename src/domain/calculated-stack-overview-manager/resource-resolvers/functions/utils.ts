@@ -53,7 +53,8 @@ export const getLambdaFunctionRole = ({
   destinations,
   isUsedInDeploymentHook,
   configParentResourceType,
-  mountedEfsFilesystems
+  mountedEfsFilesystems,
+  mountedS3FilesAccessPointArns
 }: {
   workloadName: string;
   lambdaResourceName: string;
@@ -65,6 +66,7 @@ export const getLambdaFunctionRole = ({
   isUsedInDeploymentHook?: boolean;
   configParentResourceType: StpLambdaFunction['configParentResourceType'];
   mountedEfsFilesystems?: StpEfsFilesystem[];
+  mountedS3FilesAccessPointArns?: (string | IntrinsicFunction)[];
 }) => {
   const isDevStack = globalStateManager.command === 'dev';
   const role = new Role({
@@ -94,7 +96,8 @@ export const getLambdaFunctionRole = ({
     iamRoleStatements,
     accessToResourcesRequiringRoleChanges,
     accessToAwsServices,
-    mountedEfsFilesystems
+    mountedEfsFilesystems,
+    mountedS3FilesAccessPointArns
   });
   if (joinVpc) {
     policies.push(

@@ -306,12 +306,14 @@ export const getPoliciesForRoles = ({
   iamRoleStatements,
   accessToResourcesRequiringRoleChanges,
   accessToAwsServices,
-  mountedEfsFilesystems
+  mountedEfsFilesystems,
+  mountedS3FilesAccessPointArns
 }: {
   iamRoleStatements: StpIamRoleStatement[];
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
   accessToAwsServices: ConnectToAwsServicesMacro[];
   mountedEfsFilesystems?: StpEfsFilesystem[];
+  mountedS3FilesAccessPointArns?: (string | IntrinsicFunction)[];
 }) => {
   const policies: Policy[] = [];
   if (iamRoleStatements?.length) {
@@ -319,6 +321,9 @@ export const getPoliciesForRoles = ({
   }
   if (mountedEfsFilesystems?.length) {
     policies.push(getPolicyForMountedEfsFilesystems(mountedEfsFilesystems));
+  }
+  if (mountedS3FilesAccessPointArns?.length) {
+    policies.push(getPolicyForMountedS3FilesAccessPoints(mountedS3FilesAccessPointArns));
   }
   if (accessToResourcesRequiringRoleChanges?.length || accessToAwsServices?.length) {
     const connectToStatements = [];
@@ -488,6 +493,29 @@ const getPolicyForMountedEfsFilesystems = (mountedEfsFilesystems: StpEfsFilesyst
     PolicyDocument: {
       Version: '2012-10-17',
       Statement: statements // Use the combined statements array
+    }
+  });
+};
+
+const getPolicyForMountedS3FilesAccessPoints = (
+  mountedS3FilesAccessPointArns: (string | IntrinsicFunction)[]
+): Policy => {
+  return new Policy({
+    PolicyName: 's3-files-mount-access',
+    PolicyDocument: {
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Action: ['s3files:ClientMount', 's3files:ClientWrite'],
+          Resource: '*',
+          Condition: {
+            StringEquals: {
+              's3files:AccessPointArn': mountedS3FilesAccessPointArns
+            }
+          }
+        }
+      ]
     }
   });
 };
