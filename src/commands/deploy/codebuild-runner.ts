@@ -34,7 +34,7 @@ import { initializeAllStackServices } from '../_utils/initialization';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 
-export const commandCodebuildDeploy = async () => {
+export const deployWithCodebuildRunner = async () => {
   // Configure TUI for codebuild deploy (Initialize, Prepare Pipeline, Deploy - no Build & Package)
   tuiManager.configureForCodebuildDeploy();
 
@@ -159,41 +159,33 @@ export const commandCodebuildDeploy = async () => {
     projectName: globalStateManager.targetStack.projectName
   });
 
-  // Print phase header before streaming mode (so logs appear under correct phase)
   tuiManager.printLines([
     '',
     `${tuiManager.makeBold('PHASE 3')} • ${tuiManager.makeBold('Deploy')}`,
     tuiManager.colorize('gray', '─'.repeat(54))
   ]);
 
-  // Enable streaming mode to hide TUI during log streaming (prevents duplicate phase headers)
-  tuiManager.setStreamingMode(true);
-
-  try {
-    do {
-      await wait(1000);
-      build = await awsSdkManager.getCodebuildDeployment({ buildId: build.id });
-      if (
-        [StatusType.FAILED, StatusType.FAULT, StatusType.STOPPED, StatusType.TIMED_OUT].includes(
-          build.buildStatus as StatusType as any
-        )
-      ) {
-        // wait for logs to come to cloudwatch
-        await wait(10000);
-        await cloudwatchLogPrinter.printLogs();
-        throw stpErrors.e64({
-          stackName: globalStateManager.targetStack.stackName,
-          projectName: globalStateManager.targetStack.projectName,
-          invocationId: globalStateManager.invocationId,
-          buildId: build.id,
-          stage: globalStateManager.targetStack.stage
-        });
-      }
+  do {
+    await wait(1000);
+    build = await awsSdkManager.getCodebuildDeployment({ buildId: build.id });
+    if (
+      [StatusType.FAILED, StatusType.FAULT, StatusType.STOPPED, StatusType.TIMED_OUT].includes(
+        build.buildStatus as StatusType as any
+      )
+    ) {
+      // wait for logs to come to cloudwatch
+      await wait(10000);
       await cloudwatchLogPrinter.printLogs();
-    } while (build.buildStatus !== StatusType.SUCCEEDED);
-  } finally {
-    tuiManager.setStreamingMode(false);
-  }
+      throw stpErrors.e64({
+        stackName: globalStateManager.targetStack.stackName,
+        projectName: globalStateManager.targetStack.projectName,
+        invocationId: globalStateManager.invocationId,
+        buildId: build.id,
+        stage: globalStateManager.targetStack.stage
+      });
+    }
+    await cloudwatchLogPrinter.printLogs();
+  } while (build.buildStatus !== StatusType.SUCCEEDED);
 
   await eventManager.finishEvent({ eventType: 'DEPLOY' });
 
@@ -259,6 +251,7 @@ const adjustArguments = ({ cliArguments }: { cliArguments: StacktapeArgs }) => {
   // if user uses this setting, sensitive values will be printed to him anyway during final colorized stack info print
   // const dummy: string = 5;
   finalArgs.showSensitiveValues = false;
+  delete finalArgs.runner;
   finalArgs.projectName = globalStateManager.targetStack.projectName;
   finalArgs.stage = globalStateManager.targetStack.stage;
 

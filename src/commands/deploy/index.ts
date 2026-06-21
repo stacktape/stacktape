@@ -31,10 +31,24 @@ import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deploym
 import { getLambdaFunctionHotswapInformation, updateFunctionCode } from '../_utils/fn-deployment';
 import { initializeAllStackServices } from '../_utils/initialization';
 import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
+import { deployConvexFunctions } from '../_utils/convex-post-deploy';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
+import { deployWithCodebuildRunner } from './codebuild-runner';
+import { deployWithEc2Runner } from './ec2-runner';
 
 export const commandDeploy = async () => {
+  const runner = globalStateManager.args.runner ?? 'local';
+  if (runner === 'codebuild') {
+    return deployWithCodebuildRunner();
+  }
+  if (runner === 'ec2') {
+    return deployWithEc2Runner();
+  }
+  return deployLocally();
+};
+
+const deployLocally = async () => {
   await initializeAllStackServices({
     commandRequiresDeployedStack: false,
     commandModifiesStack: true,
@@ -142,6 +156,8 @@ export const commandDeploy = async () => {
       budgetInfo: budgetManager.getBudgetInfoForSpecifiedStack({ stackName: globalStateManager.targetStack.stackName })
     });
   }
+
+  await deployConvexFunctions();
 
   if (configManager.allBucketsToSync.length) {
     await injectEnvironmentToHostedHtmlFiles();

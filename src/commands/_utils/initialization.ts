@@ -4,6 +4,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { RECORDED_STACKTAPE_COMMANDS } from '@config';
+import { getCanonicalCommand } from '../../config/cli/commands';
 import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cloudformationRegistryManager } from '@domain-services/cloudformation-registry-manager';
@@ -43,8 +44,11 @@ export const initializeAllStackServices = async ({
   requiresSubscription?: boolean;
 }) => {
   const getHeaderAction = () => {
-    if (globalStateManager.command === 'delete') return 'DELETING';
-    if (globalStateManager.command === 'preview-changes') return 'PREVIEWING CHANGES';
+    const command = getCanonicalCommand(globalStateManager.command);
+    if (command === 'delete') return 'DELETING';
+    if (command === 'synth') return 'COMPILING TEMPLATE';
+    if (command === 'diff') return 'PREVIEWING CHANGES';
+    if (command === 'validate') return 'VALIDATING';
     return 'DEPLOYING';
   };
   tuiManager.showCommandHeader({
@@ -153,7 +157,7 @@ export const initializeAllStackServices = async ({
   await eventManager.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS' });
 
   await eventManager.registerHooks(configManager.hooks);
-  if (globalStateManager.command !== 'codebuild:deploy') {
+  if (!isRemoteRunnerDeployInvocation()) {
     await dependencyInstaller.install({
       rootProjectDirPath: globalStateManager.workingDir,
       progressLogger: eventManager,
@@ -420,17 +424,16 @@ export const loadUserCredentials = async () => {
 };
 
 export const recordStackOperationStart = async () => {
-  const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(
-    globalStateManager.command as StacktapeRecordedCommand
-  );
+  const command = getCanonicalCommand(globalStateManager.command);
+  const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(command as StacktapeRecordedCommand);
   if (isCommandToBeRecorded) {
     // stack operation start
     if (!globalStateManager.isExecutingInsideCodebuild) {
       await stacktapeTrpcApiManager.recordStackOperationStart({
-        startingCodebuildOperation: globalStateManager.command === 'codebuild:deploy'
+        startingCodebuildOperation: isCodebuildDeployInvocation()
       });
     }
-    if (globalStateManager.command !== 'codebuild:deploy') {
+    if (!isRemoteRunnerDeployInvocation()) {
       // stack operation end
       applicationManager.registerCleanUpHook(async ({ success, interrupted, err }) => {
         await stacktapeTrpcApiManager.recordStackOperationEnd({
@@ -453,22 +456,20 @@ export const startStackOperationRecording = async ({
 }) => {
   // for recorded stacktape commands we are sending logs into cloudwatch
   // we are also recording the start and end of operation through Stacktape API
-  const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(
-    globalStateManager.command as StacktapeRecordedCommand
-  );
+  const command = getCanonicalCommand(globalStateManager.command);
+  const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(command as StacktapeRecordedCommand);
 
   // const shouldRecordStackOperationProgress =
   //   isCommandToBeRecorded && !globalStateManager.command.startsWith('codebuild');
 
-  // we are NOT collecting logs from local or within codebuild operation when we are doing "codebuild:deploy" as logs are automatically collected inside codebuild execution
+  // Remote runner launchers collect logs inside the remote execution.
   const shouldCollectLogs =
-    isCommandToBeRecorded &&
-    !globalStateManager.isExecutingInsideCodebuild &&
-    !globalStateManager.command.startsWith('codebuild');
+    isCommandToBeRecorded && !globalStateManager.isExecutingInsideCodebuild && !isRemoteRunnerDeployInvocation();
 
-  // we are NOT recording stack operation end on cleanup in case this is local monitoring of codebuild operation (i.e command is codebuild:deploy)
+  // we are NOT recording stack operation end on cleanup in case this is local monitoring of a remote deploy runner.
   // stack operation end will be recorded inside the codebuild operation itself
-  // for cases when operation fails before stacktape operation inside codebuild build even starts, we should record stack operation end manually (see commands/codebuild-deploy)
+  // for cases when operation fails before stacktape operation inside the remote runner starts,
+  // we should record stack operation end manually.
   const logStreamName = globalStateManager.getStackOperationLogStreamName({ stackName });
 
   if (isCommandToBeRecorded) {
@@ -484,3 +485,11 @@ export const startStackOperationRecording = async ({
     applicationManager.registerCleanUpHook(logCollectorStream.makeFinalSend);
   }
 };
+
+const isCodebuildDeployInvocation = () =>
+  globalStateManager.command === 'deploy' && globalStateManager.args.runner === 'codebuild';
+
+const isEc2RunnerDeployInvocation = () =>
+  globalStateManager.command === 'deploy' && globalStateManager.args.runner === 'ec2';
+
+const isRemoteRunnerDeployInvocation = () => isCodebuildDeployInvocation() || isEc2RunnerDeployInvocation();
