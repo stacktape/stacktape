@@ -1,0 +1,106 @@
+version: 1
+projectName: Stacktape Docs
+pagesFile: pages.yml
+
+paths:
+  workspaceRoot: ..
+  outputRoot: docs
+
+instructions:
+  global:
+    - instructions/writer.md
+  styleGuideFile: instructions/style-guide.md
+  sectionsFile: section-instructions.yml
+
+agents:
+  writer:
+    id: page-writer
+    provider: claude
+
+  reviewers:
+    - id: first-time-user-reviewer
+      provider: claude
+      model: claude-sonnet-4-6
+      persona: Developer trying Stacktape for the first time with low AWS experience.
+      instructionsFile: instructions/reviewers/first-time-user.md
+    - id: production-engineer-reviewer
+      provider: claude
+      model: claude-sonnet-4-6
+      persona: Engineer already shipping Stacktape workloads in production.
+      instructionsFile: instructions/reviewers/production-engineer.md
+    - id: ai-consumer-reviewer
+      provider: codex
+      persona: AI answer engine, search index, or coding assistant reading the docs for extraction and citation.
+      instructionsFile: instructions/reviewers/ai-consumer.md
+      fallbackProvider: claude
+      fallbackModel: claude-sonnet-4-6
+
+  verifiers:
+    - id: factual-accuracy-verifier
+      provider: codex
+      instructionsFile: instructions/verifiers/factual-accuracy.md
+      fallbackProvider: claude
+      blocking: true
+    - id: source-grounding-verifier
+      provider: codex
+      instructionsFile: instructions/verifiers/source-grounding.md
+      fallbackProvider: claude
+      blocking: true
+    - id: api-completeness-auditor
+      provider: codex
+      instructionsFile: instructions/verifiers/api-completeness.md
+      fallbackProvider: claude
+      blocking: false
+      skipOnAvailabilityError: true
+
+qualityGate:
+  minReviewersRequired: 2
+  reviewerGrandAvgThreshold: 7
+  reviewerMinScoreThreshold: 5
+  reviewerPerReviewerAvgThreshold: 6.5
+  softRouteReviewerAvgThreshold: 6.5
+  catastrophicReviewerAvgThreshold: 5
+
+validators:
+  regex:
+    - id: no-handwritten-yaml-stacktape-config
+      pattern: |
+        ```ya?ml[\s\S]*?\bresources\s*:
+      flags: im
+      severity: high
+      score: 8
+      type: incorrect-claim
+      statement: Stacktape configuration is shown as a hand-authored YAML resources block.
+      reason: Stacktape docs use TypeScript class-based config examples; the docs renderer derives YAML tabs from TypeScript.
+      suggestedFix: Replace the YAML resources block with a TypeScript `<CodeBlock intellisense>` example using `defineConfig` and Stacktape resource classes.
+
+    - id: no-plain-object-stacktape-config
+      pattern: "\\bStacktapeConfig\\b"
+      flags: im
+      severity: high
+      score: 8
+      type: incorrect-claim
+      statement: The draft documents the plain-object `StacktapeConfig` API style.
+      reason: The documented Stacktape surface is `defineConfig` with class-based resources.
+      suggestedFix: Rewrite the example to import `defineConfig` and resource classes from `stacktape`.
+
+    - id: no-fenced-typescript-stacktape-config
+      pattern: |
+        ```(?:ts|typescript)[\s\S]*?\bdefineConfig\s*\(
+      flags: im
+      severity: high
+      score: 8
+      type: incorrect-claim
+      statement: A Stacktape config example is inside a fenced TypeScript block.
+      reason: Stacktape config examples need `<CodeBlock intellisense>` so Twoslash, copy, and generated YAML tabs work.
+      suggestedFix: "Move the config example into `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />`."
+
+    - id: no-obsolete-resource-object-type
+      pattern: "type\\s*:\\s*['\\\"](?:lambda-function|dynamo-db-table|web-service|relational-database)['\\\"]"
+      flags: im
+      severity: high
+      score: 9
+      type: incorrect-claim
+      statement: The draft shows obsolete Stacktape resource object syntax.
+      reason: Resource object `type` strings are no longer the documented config style.
+      suggestedFix: Use class constructors such as `new LambdaFunction(...)`, `new DynamoDbTable(...)`, or `new WebService(...)` inside `defineConfig`.

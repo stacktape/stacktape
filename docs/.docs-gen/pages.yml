@@ -1,0 +1,1852 @@
+pages:
+  - id: index
+    title: Introduction
+    route: index
+    order: 1
+    section: index
+    shortDescription: Top-level introduction to Stacktape.
+    instructions:
+      - Code-first landing page. The CURRENT docs/index.mdx is the hand-edited
+        reference — match its structure, length, and tone exactly. Do not
+        produce a positioning essay; produce a punchy, example-driven landing
+        page.
+      - "Structure (in order, no other H2s):"
+      - '  1. H1 "Stacktape" + a one-line BOLD tagline that promises speed + AWS
+        control. ~25 words.'
+      - "  2. A 60-80 word opening paragraph explaining what Stacktape does
+        concretely: TypeScript file → one `stacktape deploy` command → 30+ AWS
+        resources provisioned with sane defaults + automatic IAM + full override
+        access. Name 5-7 specific resource types. State the value vs both
+        Terraform and Vercel-style PaaS."
+      - "  3. ## A real Stacktape config — a SINGLE <CodeBlock intellisense />
+        with a complete 15-22 line stacktape.ts. Required content: defineConfig,
+        an HttpApiGateway, a DynamoDbTable with a primaryKey, a LambdaFunction
+        with StacktapeLambdaBuildpackPackaging, connectTo wiring the Lambda to
+        the table with readWrite access, an HttpApiIntegration event. Use real
+        class names from `stacktape` imports. Followed by 1-2 sentences naming
+        what gets created on deploy (endpoint, table, IAM auto-injected env var
+        `STP_*_NAME`)."
+      - '  4. ## What you can build with Stacktape — a <NavBoxGrid columns={2}>
+        with 5-6 <NavBox/> entries. Each NavBox has text="...", url="...",
+        description="...". Cover concrete use cases: fullstack web apps,
+        serverless APIs, long-running services, event-driven pipelines, AI
+        agents (agentcore), workflows.'
+      - "  5. ## Why Stacktape — 5-6 punchy markdown bullets, each starting with
+        a **bold lead phrase**. Concrete advantages: your AWS account / your
+        costs (no markup), containers + serverless together, sensible defaults
+        with full overrides, no redeploy loop via `stacktape dev`, built-in
+        CI/CD + observability, open-source CLI core."
+      - "  6. ## Get started — two <NavBoxGrid columns={3}> blocks. First grid:
+        configure / dev mode / first deploy. Second grid: resources / console /
+        using-with-ai."
+      - 'Tone: direct, concrete, no marketing fluff, no emoji, no "🎉" callouts,
+        no "PaaS 2.0" or other slogans. The README has marketing copy — copy the
+        substance, drop the framing. Reference SST docs style for vibe.'
+      - "Length: ~700 words prose total (counting NavBox descriptions). The code
+        block is the centerpiece — do not skimp on it."
+      - NEVER include a "next →" trailing link. The Get started NavBoxGrid IS
+        the navigation.
+    pageType: introduction
+  - id: getting-started__configure-your-stack
+    title: Configure Your Stack
+    route: getting-started/configure-your-stack
+    order: 2
+    section: getting-started
+    shortDescription: Write your stacktape.ts. Pick a starter, generate config from
+      a repo, or use the visual editor.
+    instructions:
+      - "Step 1 of Getting Started. Hands-on. Show three paths: (a) `stacktape
+        init` to bootstrap from a starter, (b) the Console's AI config
+        generation from a Git repo, (c) the visual config editor with
+        IntelliSense and live price estimation."
+      - Lead with TypeScript class-based config (defineConfig + class
+        resources). Show a concrete ~20-line example.
+      - Briefly mention the visual editor + AI config generation as alternatives
+        — link to the Console pages, do not deep-dive here.
+      - End with "next → Use the dev mode".
+    pageType: getting-started
+  - id: getting-started__use-the-dev-mode
+    title: Use the Dev Mode
+    route: getting-started/use-the-dev-mode
+    order: 3
+    section: getting-started
+    shortDescription: Run `stacktape dev` once, then iterate locally without
+      redeploys. The wow moment.
+    instructions:
+      - Step 2 of Getting Started. The wow moment. Show how `stacktape dev` runs
+        Lambda + container code locally with live AWS resources, no redeploy
+        needed.
+      - "Concretely: code change → save → see the result. Mention which
+        resources can run locally and which proxy to AWS."
+      - Touch on debugging (debug-logs, debug-metrics) only briefly — link to
+        /local-development for depth.
+      - End with "next → Deploy your first stage".
+    pageType: getting-started
+  - id: getting-started__deploy-your-first-stage
+    title: Deploy Your First Stage
+    route: getting-started/deploy-your-first-stage
+    order: 4
+    section: getting-started
+    shortDescription: Login, connect AWS, run `stacktape deploy`. Watch a real stack
+      come up in your AWS account.
+    instructions:
+      - Step 3 of Getting Started. Hands-on. Show CLI login, AWS account
+        connection, `stacktape deploy --stage <name> --region <region>`.
+      - Document what gets created on AWS at deploy time (CloudFormation stack,
+        resources, deployment artifacts).
+      - Show both CLI and Console deploy paths — link to
+        /stacktape-console/connecting-your-aws-account for the Console-side AWS
+        setup.
+      - End with "next → Manage your app in the Console".
+    pageType: getting-started
+  - id: getting-started__using-console-ui
+    title: Using Console UI
+    route: getting-started/using-console-ui
+    order: 5
+    section: getting-started
+    shortDescription: After deploying, the Console gives you logs, metrics, alarms,
+      issues, secrets, and cost — for free.
+    instructions:
+      - Step 4 of Getting Started. Walk the reader through the Console after
+        deploying. Sell the "you got all of this for free" angle.
+      - "Cover: project/stage overview, logs (live tail), metrics, alarms,
+        issues (auto error tracking), cost dashboards, secrets management."
+      - Each subsection should be 2-3 sentences and link to /operations/<page>
+        for the deep dive.
+      - End with "next → CI/CD".
+    pageType: getting-started
+  - id: getting-started__ci-cd
+    title: CI/CD
+    route: getting-started/ci-cd
+    order: 6
+    section: getting-started
+    shortDescription: Wire up auto-deploy on push and PR previews via GitOps. Or
+      integrate with your own CI.
+    instructions:
+      - Step 5 of Getting Started. Set up automated deploys.
+      - "Show two paths: (a) GitOps via Console (push-to-deploy, PR preview
+        environments) — the recommended path; (b) custom CI integration (GitHub
+        Actions, CircleCI, etc.) using the CLI."
+      - Brief — link to /ci-cd-and-gitops/* for depth.
+      - End with "next → Going to production".
+    pageType: getting-started
+  - id: getting-started__going-to-production
+    title: Going to Production
+    route: getting-started/going-to-production
+    order: 7
+    section: getting-started
+    shortDescription: "Production-readiness checklist: alarms, budgets, custom
+      domains, multi-region, gradual deployments, guardrails."
+    instructions:
+      - Step 6 of Getting Started (final). The production checklist.
+      - "Cover: alarms, budgets, custom domains, multi-region, gradual
+        deployments (canary/linear), guardrails. Brief — each item gets 2-4
+        sentences and a link to its full page."
+      - 'End with branching cards: "Build with Recipes", "Customize Resources",
+        "Operations deep-dive".'
+    pageType: getting-started
+  - id: configuration__configuration-files
+    title: Configuration Files
+    route: configuration/configuration-files
+    order: 8
+    section: configuration
+    shortDescription: YAML vs TypeScript configuration.
+    pageType: concept
+  - id: configuration__resources
+    title: Resources
+    route: configuration/resources
+    order: 9
+    section: configuration
+    shortDescription: Explain Stacktape resources and how they map to AWS.
+    pageType: concept
+  - id: configuration__stages-and-environments
+    title: Stages and Environments
+    route: configuration/stages-and-environments
+    order: 10
+    section: configuration
+    shortDescription: Explain stage-based deployments.
+    pageType: concept
+  - id: configuration__connecting-resources
+    title: Connecting Resources
+    route: configuration/connecting-resources
+    order: 11
+    section: configuration
+    shortDescription: Explain connectTo and document the environment variables it
+      injects per resource type.
+    instructions:
+      - Cover BOTH the concept of connectTo AND the table of environment
+        variables injected per resource type (formerly
+        /reference/environment-variables-injected-by-connectto). The reference
+        content lives here now — do not link out to a separate page.
+      - Include a complete, copyable TypeScript constructor-style example for a
+        Hono-style Lambda API connected to a DynamoDB table. It must keep
+        imports, defineConfig, DynamoDbTable, HttpApiGateway, LambdaFunction,
+        StacktapeLambdaBuildpackPackaging, connectTo, and the returned resources
+        object in one CodeBlock so the generated LLM-doc chunk answers MCP agent
+        prompts without needing another chunk.
+      - 'The Lambda + DynamoDB example must use connectTo for read/write
+        DynamoDB access and mention the injected STP_USERS_TABLE_NAME
+        environment variable. Do not use legacy resource object syntax such as
+        type: "lambda-function" or type: "dynamo-db-table".'
+    pageType: concept
+  - id: configuration__directives
+    title: Directives
+    route: configuration/directives
+    order: 12
+    section: configuration
+    shortDescription: Built-in directives like $Secret, $ResourceParam, $File —
+      concept and full reference.
+    instructions:
+      - Cover BOTH the concept (when to use directives) AND the full reference
+        table of every built-in directive (formerly
+        /reference/directives-reference). The reference content lives here now —
+        do not link out to a separate page.
+    pageType: concept
+  - id: configuration__variables-and-reuse
+    title: Variables and Reuse
+    route: configuration/variables-and-reuse
+    order: 13
+    section: configuration
+    shortDescription: Reuse values and reduce duplication.
+    pageType: concept
+  - id: configuration__hooks-and-scripts
+    title: Hooks and Scripts
+    route: configuration/hooks-and-scripts
+    order: 14
+    section: configuration
+    shortDescription: Lifecycle hooks and scripts.
+    pageType: concept
+  - id: configuration__overrides-and-escape-hatches
+    title: Overrides and Escape Hatches
+    route: configuration/overrides-and-escape-hatches
+    order: 15
+    section: configuration
+    shortDescription: Overrides, CDK, and raw CloudFormation.
+    pageType: concept
+  - id: configuration__secrets
+    title: Secrets
+    route: configuration/secrets
+    order: 16
+    section: configuration
+    shortDescription: Manage secrets with the Stacktape Console and reference them
+      in your config via $Secret().
+    instructions:
+      - Show how to create secrets in the Console, reference them via
+        $Secret(name) in stacktape.ts, and inject them into Lambda/container env
+        vars.
+    pageType: concept
+  - id: configuration__referenceable-parameters
+    title: Referenceable Parameters
+    route: configuration/referenceable-parameters
+    order: 17
+    section: configuration
+    shortDescription: Parameters available via $ResourceParam, grouped by resource type.
+    instructions:
+      - Pure reference lookup page. List $ResourceParam values per resource
+        type. Use the <ReferenceableParams> component plus a short orientation
+        paragraph.
+    pageType: reference
+  - id: configuration__triggers__overview
+    title: Triggers Overview
+    route: configuration/triggers/overview
+    order: 18
+    section: configuration
+    shortDescription: Overview of event sources and triggers.
+    pageType: events
+  - id: configuration__triggers__http-triggers
+    title: HTTP Triggers
+    route: configuration/triggers/http-triggers
+    order: 19
+    section: configuration
+    shortDescription: HTTP integrations and triggers.
+    pageType: events
+  - id: configuration__triggers__schedule-triggers
+    title: Schedule Triggers
+    route: configuration/triggers/schedule-triggers
+    order: 20
+    section: configuration
+    shortDescription: Cron and schedule-based execution.
+    pageType: events
+  - id: configuration__triggers__s3-events
+    title: S3 Events
+    route: configuration/triggers/s3-events
+    order: 21
+    section: configuration
+    shortDescription: Trigger on S3 object events.
+    pageType: events
+  - id: configuration__triggers__sqs-events
+    title: SQS Events
+    route: configuration/triggers/sqs-events
+    order: 22
+    section: configuration
+    shortDescription: Trigger on SQS queue messages.
+    pageType: events
+  - id: configuration__triggers__sns-events
+    title: SNS Events
+    route: configuration/triggers/sns-events
+    order: 23
+    section: configuration
+    shortDescription: Trigger on SNS deliveries.
+    pageType: events
+  - id: configuration__triggers__dynamodb-streams
+    title: DynamoDB Streams
+    route: configuration/triggers/dynamodb-streams
+    order: 24
+    section: configuration
+    shortDescription: Trigger on DynamoDB changes.
+    pageType: events
+  - id: configuration__triggers__kinesis-events
+    title: Kinesis Events
+    route: configuration/triggers/kinesis-events
+    order: 25
+    section: configuration
+    shortDescription: Trigger on Kinesis streams.
+    pageType: events
+  - id: configuration__triggers__event-bus-events
+    title: Event Bus Events
+    route: configuration/triggers/event-bus-events
+    order: 26
+    section: configuration
+    shortDescription: Trigger on EventBridge events.
+    pageType: events
+  - id: configuration__triggers__cloudwatch-logs
+    title: CloudWatch Logs
+    route: configuration/triggers/cloudwatch-logs
+    order: 27
+    section: configuration
+    shortDescription: Trigger on CloudWatch log events.
+    pageType: events
+  - id: configuration__triggers__alarms-as-triggers
+    title: Alarms as Triggers
+    route: configuration/triggers/alarms-as-triggers
+    order: 28
+    section: configuration
+    shortDescription: Use alarms as event sources.
+    pageType: events
+  - id: configuration__triggers__kafka-topics
+    title: Kafka Topics
+    route: configuration/triggers/kafka-topics
+    order: 29
+    section: configuration
+    shortDescription: Trigger on Kafka topics.
+    pageType: events
+  - id: resources__compute__lambda-function
+    title: Lambda Function
+    route: resources/compute/lambda-function
+    order: 30
+    section: resources
+    shortDescription: Serverless event-driven compute.
+    typeName: LambdaFunctionProps
+    referenceableResourceType: function
+    pageType: resource
+    topicGroup: compute
+  - id: resources__compute__web-service
+    title: Web Service
+    route: resources/compute/web-service
+    order: 31
+    section: resources
+    shortDescription: Always-on container with a public HTTPS URL.
+    typeName: WebServiceProps
+    referenceableResourceType: web-service
+    pageType: resource
+    topicGroup: compute
+  - id: resources__compute__private-service
+    title: Private Service
+    route: resources/compute/private-service
+    order: 32
+    section: resources
+    shortDescription: Always-on container reachable only inside your stack or VPC.
+    typeName: PrivateServiceProps
+    referenceableResourceType: private-service
+    pageType: resource
+    topicGroup: compute
+  - id: resources__compute__worker-service
+    title: Worker Service
+    route: resources/compute/worker-service
+    order: 33
+    section: resources
+    shortDescription: Always-on background worker without a public endpoint.
+    typeName: WorkerServiceProps
+    referenceableResourceType: worker-service
+    pageType: resource
+    topicGroup: compute
+  - id: resources__compute__multi-container-workload
+    title: Multi-Container Workload
+    route: resources/compute/multi-container-workload
+    order: 34
+    section: resources
+    shortDescription: Run multiple containers together.
+    typeName: ContainerWorkloadProps
+    referenceableResourceType: multi-container-workload
+    pageType: resource
+    topicGroup: compute
+  - id: resources__compute__batch-job
+    title: Batch Job
+    route: resources/compute/batch-job
+    order: 35
+    section: resources
+    shortDescription: Run compute-heavy or long-running jobs to completion.
+    typeName: BatchJobProps
+    referenceableResourceType: batch-job
+    pageType: resource
+    topicGroup: compute
+  - id: resources__compute__edge-function
+    title: Edge Function
+    route: resources/compute/edge-function
+    order: 36
+    section: resources
+    shortDescription: Run Lambda code at CloudFront edge locations.
+    typeName: EdgeLambdaFunctionProps
+    referenceableResourceType: edge-lambda-function
+    pageType: resource
+    topicGroup: compute
+  - id: resources__compute__convex
+    title: Convex
+    route: resources/compute/convex
+    order: 37
+    section: resources
+    shortDescription: Self-hosted Convex backend (reactive database + functions +
+      dashboard) on AWS.
+    typeName: ConvexProps
+    referenceableResourceType: convex
+    pageType: resource
+    topicGroup: compute
+  - id: resources__frontend__static-hosting
+    title: Static Hosting
+    route: resources/frontend/static-hosting
+    order: 38
+    section: resources
+    shortDescription: Static sites on S3 and CloudFront.
+    typeName: HostingBucketProps
+    referenceableResourceType: hosting-bucket
+    pageType: resource
+    topicGroup: frontend
+  - id: resources__frontend__nextjs
+    title: Next.js
+    route: resources/frontend/nextjs
+    order: 39
+    section: resources
+    shortDescription: Deploy a Next.js app on AWS.
+    typeName: NextjsWebProps
+    referenceableResourceType: nextjs-web
+    pageType: resource
+    topicGroup: frontend
+  - id: resources__frontend__astro
+    title: Astro
+    route: resources/frontend/astro
+    order: 40
+    section: resources
+    shortDescription: Deploy an Astro SSR app on AWS.
+    typeName: AstroWebProps
+    pageType: resource
+    topicGroup: frontend
+  - id: resources__frontend__nuxt
+    title: Nuxt
+    route: resources/frontend/nuxt
+    order: 41
+    section: resources
+    shortDescription: Deploy a Nuxt SSR app on AWS.
+    typeName: NuxtWebProps
+    pageType: resource
+    topicGroup: frontend
+  - id: resources__frontend__sveltekit
+    title: SvelteKit
+    route: resources/frontend/sveltekit
+    order: 42
+    section: resources
+    shortDescription: Deploy a SvelteKit app on AWS.
+    typeName: SvelteKitWebProps
+    pageType: resource
+    topicGroup: frontend
+  - id: resources__frontend__solidstart
+    title: SolidStart
+    route: resources/frontend/solidstart
+    order: 43
+    section: resources
+    shortDescription: Deploy a SolidStart app on AWS.
+    typeName: SolidStartWebProps
+    pageType: resource
+    topicGroup: frontend
+  - id: resources__frontend__tanstack-start
+    title: TanStack Start
+    route: resources/frontend/tanstack-start
+    order: 44
+    section: resources
+    shortDescription: Deploy a TanStack Start app on AWS.
+    typeName: TanStackWebProps
+    pageType: resource
+    topicGroup: frontend
+  - id: resources__frontend__remix
+    title: Remix
+    route: resources/frontend/remix
+    order: 45
+    section: resources
+    shortDescription: Deploy a Remix app on AWS.
+    typeName: RemixWebProps
+    pageType: resource
+    topicGroup: frontend
+  - id: resources__databases__relational-database
+    title: Relational Database
+    route: resources/databases/relational-database
+    order: 46
+    section: resources
+    shortDescription: Managed SQL databases on AWS.
+    typeName: RelationalDatabaseProps
+    referenceableResourceType: relational-database
+    pageType: resource
+    topicGroup: databases
+  - id: resources__databases__dynamodb
+    title: DynamoDB
+    route: resources/databases/dynamodb
+    order: 47
+    section: resources
+    shortDescription: Serverless key-value and document database.
+    typeName: DynamoDbTableProps
+    referenceableResourceType: dynamo-db-table
+    pageType: resource
+    topicGroup: databases
+  - id: resources__databases__redis
+    title: Redis
+    route: resources/databases/redis
+    order: 48
+    section: resources
+    shortDescription: Managed Redis for caching, sessions, and queues.
+    typeName: RedisClusterProps
+    referenceableResourceType: redis-cluster
+    pageType: resource
+    topicGroup: databases
+  - id: resources__databases__mongodb-atlas
+    title: MongoDB Atlas
+    route: resources/databases/mongodb-atlas
+    order: 49
+    section: resources
+    shortDescription: Provision MongoDB Atlas clusters from Stacktape.
+    typeName: MongoDbAtlasClusterProps
+    referenceableResourceType: mongo-db-atlas-cluster
+    pageType: resource
+    topicGroup: databases
+  - id: resources__databases__upstash-redis
+    title: Upstash Redis
+    route: resources/databases/upstash-redis
+    order: 50
+    section: resources
+    shortDescription: Serverless Redis by Upstash.
+    typeName: UpstashRedisProps
+    referenceableResourceType: upstash-redis
+    pageType: resource
+    topicGroup: databases
+  - id: resources__databases__opensearch
+    title: OpenSearch
+    route: resources/databases/opensearch
+    order: 51
+    section: resources
+    shortDescription: Managed OpenSearch for search and analytics.
+    typeName: OpenSearchDomainProps
+    referenceableResourceType: open-search-domain
+    pageType: resource
+    topicGroup: databases
+  - id: resources__storage__s3-bucket
+    title: S3 Bucket
+    route: resources/storage/s3-bucket
+    order: 52
+    section: resources
+    shortDescription: S3 object storage.
+    typeName: BucketProps
+    referenceableResourceType: bucket
+    pageType: resource
+    topicGroup: storage
+  - id: resources__storage__efs-filesystem
+    title: EFS Filesystem
+    route: resources/storage/efs-filesystem
+    order: 53
+    section: resources
+    shortDescription: Elastic shared file storage.
+    typeName: EfsFilesystemProps
+    pageType: resource
+    topicGroup: storage
+  - id: resources__networking__http-api-gateway
+    title: HTTP API Gateway
+    route: resources/networking/http-api-gateway
+    order: 54
+    section: resources
+    shortDescription: Serverless HTTP APIs on AWS API Gateway.
+    typeName: HttpApiGatewayProps
+    referenceableResourceType: http-api-gateway
+    pageType: resource
+    topicGroup: networking
+  - id: resources__networking__application-load-balancer
+    title: Application Load Balancer
+    route: resources/networking/application-load-balancer
+    order: 55
+    section: resources
+    shortDescription: HTTP/HTTPS load balancing.
+    typeName: ApplicationLoadBalancerProps
+    referenceableResourceType: application-load-balancer
+    pageType: resource
+    topicGroup: networking
+  - id: resources__networking__network-load-balancer
+    title: Network Load Balancer
+    route: resources/networking/network-load-balancer
+    order: 56
+    section: resources
+    shortDescription: TCP/TLS load balancing.
+    typeName: NetworkLoadBalancerProps
+    referenceableResourceType: network-load-balancer
+    pageType: resource
+    topicGroup: networking
+  - id: resources__networking__cdn
+    title: CDN
+    route: resources/networking/cdn
+    order: 57
+    section: resources
+    shortDescription: CloudFront-based content delivery and edge routing.
+    typeName: CdnConfiguration
+    pageType: resource
+    topicGroup: networking
+  - id: resources__networking__custom-domains
+    title: Custom Domains
+    route: resources/networking/custom-domains
+    order: 58
+    section: resources
+    shortDescription: Attach your own domains to Stacktape resources.
+    typeName: DomainConfiguration
+    pageType: resource
+    topicGroup: networking
+  - id: resources__messaging__event-bus
+    title: Event Bus
+    route: resources/messaging/event-bus
+    order: 59
+    section: resources
+    shortDescription: EventBridge event buses.
+    typeName: EventBusProps
+    referenceableResourceType: event-bus
+    pageType: resource
+    topicGroup: messaging
+  - id: resources__messaging__sqs-queue
+    title: SQS Queue
+    route: resources/messaging/sqs-queue
+    order: 60
+    section: resources
+    shortDescription: Serverless message queues.
+    typeName: SqsQueueProps
+    referenceableResourceType: sqs-queue
+    pageType: resource
+    topicGroup: messaging
+  - id: resources__messaging__sns-topic
+    title: SNS Topic
+    route: resources/messaging/sns-topic
+    order: 61
+    section: resources
+    shortDescription: Pub/sub fanout via SNS.
+    typeName: SnsTopicProps
+    referenceableResourceType: sns-topic
+    pageType: resource
+    topicGroup: messaging
+  - id: resources__messaging__kinesis-stream
+    title: Kinesis Stream
+    route: resources/messaging/kinesis-stream
+    order: 62
+    section: resources
+    shortDescription: Real-time data streams.
+    typeName: KinesisStreamProps
+    pageType: resource
+    topicGroup: messaging
+  - id: resources__orchestration__state-machine
+    title: State Machine
+    route: resources/orchestration/state-machine
+    order: 63
+    section: resources
+    shortDescription: Step Functions workflows.
+    typeName: StateMachineProps
+    referenceableResourceType: state-machine
+    pageType: resource
+    topicGroup: orchestration
+  - id: resources__security__user-auth-pool
+    title: User Authentication Pool
+    route: resources/security/user-auth-pool
+    order: 64
+    section: resources
+    shortDescription: Cognito-based authentication.
+    typeName: UserAuthPoolProps
+    referenceableResourceType: user-auth-pool
+    pageType: resource
+    topicGroup: security
+  - id: resources__security__web-application-firewall
+    title: Web Application Firewall
+    route: resources/security/web-application-firewall
+    order: 65
+    section: resources
+    shortDescription: AWS WAF for APIs, ALBs, CDNs, and auth.
+    typeName: WebAppFirewallProps
+    referenceableResourceType: web-app-firewall
+    pageType: resource
+    topicGroup: security
+  - id: resources__security__bastion-host
+    title: Bastion Host
+    route: resources/security/bastion-host
+    order: 66
+    section: resources
+    shortDescription: Secure access to private resources.
+    typeName: BastionProps
+    referenceableResourceType: bastion
+    pageType: resource
+    topicGroup: security
+  - id: resources__advanced__custom-resources
+    title: Custom Resources
+    route: resources/advanced/custom-resources
+    order: 67
+    section: resources
+    shortDescription: Lambda-backed provisioning logic.
+    typeName: CustomResourceDefinitionProps
+    referenceableResourceType: custom-resource-definition
+    pageType: resource
+    topicGroup: advanced
+  - id: resources__advanced__deployment-scripts
+    title: Deployment Scripts
+    route: resources/advanced/deployment-scripts
+    order: 68
+    section: resources
+    shortDescription: Run scripts during deploy or delete.
+    typeName: DeploymentScriptProps
+    referenceableResourceType: deployment-script
+    pageType: resource
+    topicGroup: advanced
+  - id: resources__advanced__aws-cdk-constructs
+    title: AWS CDK Constructs
+    route: resources/advanced/aws-cdk-constructs
+    order: 69
+    section: resources
+    shortDescription: Embed CDK constructs in Stacktape.
+    typeName: AwsCdkConstructProps
+    referenceableResourceType: aws-cdk-construct
+    pageType: resource
+    topicGroup: advanced
+  - id: resources__advanced__raw-cloudformation-resources
+    title: Raw CloudFormation Resources
+    route: resources/advanced/raw-cloudformation-resources
+    order: 70
+    section: resources
+    shortDescription: Use raw CloudFormation as an escape hatch.
+    typeName: ConfigRoot
+    pageType: resource
+    topicGroup: advanced
+  - id: resources__ai__agentcore-runtime
+    title: AgentCore Runtime
+    route: resources/ai/agentcore-runtime
+    order: 71
+    section: resources
+    shortDescription: Container-packaged AI agent runtime on AWS Bedrock AgentCore.
+    typeName: AgentCoreRuntimeProps
+    referenceableResourceType: agentcore-runtime
+    pageType: resource
+    topicGroup: ai
+  - id: resources__ai__agentcore-memory
+    title: AgentCore Memory
+    route: resources/ai/agentcore-memory
+    order: 72
+    section: resources
+    shortDescription: Persistent memory store for AgentCore agents.
+    typeName: AgentCoreMemoryProps
+    referenceableResourceType: agentcore-memory
+    pageType: resource
+    topicGroup: ai
+  - id: resources__ai__agentcore-gateway
+    title: AgentCore Gateway
+    route: resources/ai/agentcore-gateway
+    order: 73
+    section: resources
+    shortDescription: MCP-style tool gateway for AgentCore agents, with JWT auth.
+    typeName: AgentCoreGatewayProps
+    referenceableResourceType: agentcore-gateway
+    pageType: resource
+    topicGroup: ai
+  - id: resources__ai__agentcore-browser
+    title: AgentCore Browser
+    route: resources/ai/agentcore-browser
+    order: 74
+    section: resources
+    shortDescription: Sandboxed browser tool for AgentCore agents, with optional
+      session recording.
+    typeName: AgentCoreBrowserProps
+    referenceableResourceType: agentcore-browser
+    pageType: resource
+    topicGroup: ai
+  - id: resources__ai__agentcore-code-interpreter
+    title: AgentCore Code Interpreter
+    route: resources/ai/agentcore-code-interpreter
+    order: 75
+    section: resources
+    shortDescription: Sandboxed code execution tool for AgentCore agents.
+    typeName: AgentCoreCodeInterpreterProps
+    referenceableResourceType: agentcore-code-interpreter
+    pageType: resource
+    topicGroup: ai
+  - id: packaging__overview
+    title: Packaging Overview
+    route: packaging/overview
+    order: 76
+    section: packaging
+    shortDescription: How Stacktape builds and uploads your code. Decide between
+      function packaging and container packaging.
+    instructions:
+      - "Hub page. Explain the split: Lambda packaging vs container packaging.
+        Decision-oriented — when to pick each."
+    pageType: packaging
+  - id: packaging__function__stacktape-buildpack
+    title: Stacktape Buildpack for Lambda
+    route: packaging/function/stacktape-buildpack
+    order: 77
+    section: packaging
+    shortDescription: Zero-config Lambda packaging. Point to a source file;
+      Stacktape bundles, uploads, and configures the function.
+    pageType: packaging
+  - id: packaging__function__custom-artifact
+    title: Custom Artifact
+    route: packaging/function/custom-artifact
+    order: 78
+    section: packaging
+    shortDescription: Provide a pre-built Lambda zip. Stacktape uploads it as-is.
+    pageType: packaging
+  - id: packaging__containers__stacktape-buildpack
+    title: Stacktape Buildpack for Containers
+    route: packaging/containers/stacktape-buildpack
+    order: 79
+    section: packaging
+    shortDescription: Zero-config container image build. Stacktape produces an OCI
+      image from your source.
+    pageType: packaging
+  - id: packaging__containers__custom-dockerfile
+    title: Custom Dockerfile
+    route: packaging/containers/custom-dockerfile
+    order: 80
+    section: packaging
+    shortDescription: Build a container image from your own Dockerfile.
+    pageType: packaging
+  - id: packaging__containers__prebuilt-image
+    title: Prebuilt Image
+    route: packaging/containers/prebuilt-image
+    order: 81
+    section: packaging
+    shortDescription: Reference an existing image from a registry — Stacktape skips
+      the build step.
+    pageType: packaging
+  - id: packaging__containers__nixpacks
+    title: Nixpacks
+    route: packaging/containers/nixpacks
+    order: 82
+    section: packaging
+    shortDescription: Build a container image with Nixpacks.
+    pageType: packaging
+  - id: packaging__containers__external-buildpack
+    title: External Buildpack
+    route: packaging/containers/external-buildpack
+    order: 83
+    section: packaging
+    shortDescription: Use an external Cloud Native Buildpack to build a container image.
+    pageType: packaging
+  - id: deployment-and-lifecycle__deploying-stacks
+    title: Deploying Stacks
+    route: deployment-and-lifecycle/deploying-stacks
+    order: 84
+    section: deployment-and-lifecycle
+    shortDescription: How deployment works in Stacktape.
+    pageType: deployment
+  - id: deployment-and-lifecycle__previewing-changes
+    title: Previewing Changes
+    route: deployment-and-lifecycle/previewing-changes
+    order: 85
+    section: deployment-and-lifecycle
+    shortDescription: Preview what a deployment would change with `stacktape diff`.
+    instructions:
+      - The CLI command is `stacktape diff`. The old name was `preview-changes`
+        — DO NOT mention or link to it.
+    pageType: deployment
+  - id: deployment-and-lifecycle__gradual-deployments
+    title: Gradual Deployments
+    route: deployment-and-lifecycle/gradual-deployments
+    order: 86
+    section: deployment-and-lifecycle
+    shortDescription: Canary and linear deployment strategies.
+    pageType: deployment
+  - id: deployment-and-lifecycle__rollbacks
+    title: Rollbacks
+    route: deployment-and-lifecycle/rollbacks
+    order: 87
+    section: deployment-and-lifecycle
+    shortDescription: Rollback a deployment safely.
+    pageType: deployment
+  - id: deployment-and-lifecycle__destroying-stacks
+    title: Destroying Stacks
+    route: deployment-and-lifecycle/destroying-stacks
+    order: 88
+    section: deployment-and-lifecycle
+    shortDescription: Delete deployed stacks.
+    pageType: deployment
+  - id: deployment-and-lifecycle__deployment-scripts-and-hooks
+    title: Deployment Scripts and Hooks
+    route: deployment-and-lifecycle/deployment-scripts-and-hooks
+    order: 89
+    section: deployment-and-lifecycle
+    shortDescription: Automate work before and after deployments.
+    pageType: deployment
+  - id: deployment-and-lifecycle__multi-region-deployments
+    title: Multi-Region Deployments
+    route: deployment-and-lifecycle/multi-region-deployments
+    order: 90
+    section: deployment-and-lifecycle
+    shortDescription: Run stages in more than one region.
+    pageType: deployment
+  - id: deployment-and-lifecycle__deploy-time-parameters
+    title: Deploy-Time Parameters
+    route: deployment-and-lifecycle/deploy-time-parameters
+    order: 91
+    section: deployment-and-lifecycle
+    shortDescription: Use runtime directives and CLI arguments at deploy time.
+    pageType: deployment
+  - id: observability__overview
+    title: Observability Overview
+    route: observability/overview
+    order: 92
+    section: observability
+    shortDescription: Logs, metrics, alarms, issues, alert channels, notifications,
+      log forwarding — all in one place.
+    pageType: observability
+  - id: observability__logs
+    title: Logs
+    route: observability/logs
+    order: 93
+    section: observability
+    shortDescription: View logs and live tail.
+    instructions:
+      - The CLI command is `stacktape logs` (formerly `debug-logs`). DO NOT
+        reference the old name.
+    pageType: observability
+  - id: observability__metrics
+    title: Metrics
+    route: observability/metrics
+    order: 94
+    section: observability
+    shortDescription: View CloudWatch metrics.
+    instructions:
+      - The CLI command is `stacktape metrics` (formerly `debug-metrics`). DO
+        NOT reference the old name.
+    pageType: observability
+  - id: observability__alarms
+    title: Alarms
+    route: observability/alarms
+    order: 95
+    section: observability
+    shortDescription: Create and use alarm rules.
+    pageType: observability
+  - id: observability__issues
+    title: Issues
+    route: observability/issues
+    order: 96
+    section: observability
+    shortDescription: Track and resolve runtime issues.
+    pageType: observability
+  - id: observability__alert-channels
+    title: Alert Channels
+    route: observability/alert-channels
+    order: 97
+    section: observability
+    shortDescription: Configure Slack, Teams, Email, Discord, and Webhook targets.
+    pageType: observability
+  - id: observability__notifications
+    title: Notifications
+    route: observability/notifications
+    order: 98
+    section: observability
+    shortDescription: Send alerts for deployment and org events.
+    pageType: observability
+  - id: observability__alert-history
+    title: Alert History
+    route: observability/alert-history
+    order: 99
+    section: observability
+    shortDescription: Unified history of alerts.
+    pageType: observability
+  - id: observability__log-forwarding
+    title: Log Forwarding
+    route: observability/log-forwarding
+    order: 100
+    section: observability
+    shortDescription: Forward logs to external services.
+    pageType: observability
+  - id: managing-costs__overview
+    title: Managing Costs Overview
+    route: managing-costs/overview
+    order: 101
+    section: managing-costs
+    shortDescription: "Understand and control AWS spend in Stacktape: dashboards,
+      budgets, attribution, and optimization."
+    pageType: cost
+  - id: managing-costs__dashboards
+    title: Cost Dashboards
+    route: managing-costs/dashboards
+    order: 102
+    section: managing-costs
+    shortDescription: Understand AWS spend in Stacktape Console.
+    pageType: cost
+  - id: managing-costs__budgets
+    title: Budgets
+    route: managing-costs/budgets
+    order: 103
+    section: managing-costs
+    shortDescription: Set up budget alerts.
+    pageType: cost
+  - id: managing-costs__per-resource-breakdown
+    title: Per-Resource Cost Breakdown
+    route: managing-costs/per-resource-breakdown
+    order: 104
+    section: managing-costs
+    shortDescription: Break down cost by project, stage, and resource.
+    pageType: cost
+  - id: managing-costs__optimization-tips
+    title: Cost Optimization Tips
+    route: managing-costs/optimization-tips
+    order: 105
+    section: managing-costs
+    shortDescription: Practical ways to reduce cost.
+    pageType: cost
+  - id: guardrails__overview
+    title: Guardrails Overview
+    route: guardrails/overview
+    order: 106
+    section: guardrails
+    shortDescription: Overview of organization-wide guardrails.
+    pageType: governance
+  - id: guardrails__deployment
+    title: Deployment Guardrails
+    route: guardrails/deployment
+    order: 107
+    section: guardrails
+    shortDescription: Restrict stages, regions, and commands.
+    pageType: governance
+  - id: guardrails__security-and-data-protection
+    title: Security and Data Protection Guardrails
+    route: guardrails/security-and-data-protection
+    order: 108
+    section: guardrails
+    shortDescription: Require secure defaults.
+    pageType: governance
+  - id: guardrails__resource-limits
+    title: Resource Limit Guardrails
+    route: guardrails/resource-limits
+    order: 109
+    section: guardrails
+    shortDescription: Limit function and container sizes.
+    pageType: governance
+  - id: guardrails__databases
+    title: Database Guardrails
+    route: guardrails/databases
+    order: 110
+    section: guardrails
+    shortDescription: Restrict database engines and shapes.
+    pageType: governance
+  - id: ci-cd-and-gitops__overview
+    title: CI/CD and GitOps Overview
+    route: ci-cd-and-gitops/overview
+    order: 111
+    section: ci-cd-and-gitops
+    shortDescription: Overview of deployment automation options.
+    instructions:
+      - "Build/runner selection is now a flag: `stacktape deploy --runner
+        local|codebuild|ec2` (default `local`). The old `codebuild:deploy`
+        command was removed in 4.0 — DO NOT reference it. Use `deploy --runner
+        codebuild` instead."
+    pageType: cicd
+  - id: ci-cd-and-gitops__gitops-with-console
+    title: GitOps with Console
+    route: ci-cd-and-gitops/gitops-with-console
+    order: 112
+    section: ci-cd-and-gitops
+    shortDescription: Auto-deploy on push and PR workflows.
+    pageType: cicd
+  - id: ci-cd-and-gitops__build-runners
+    title: Build Runners
+    route: ci-cd-and-gitops/build-runners
+    order: 113
+    section: ci-cd-and-gitops
+    shortDescription: EC2 runners vs CodeBuild.
+    pageType: cicd
+  - id: ci-cd-and-gitops__self-hosted-github-actions-runners
+    title: Self-Hosted GitHub Actions Runners
+    route: ci-cd-and-gitops/self-hosted-github-actions-runners
+    order: 114
+    section: ci-cd-and-gitops
+    shortDescription: Use Stacktape-managed GitHub Actions runners.
+    pageType: cicd
+  - id: ci-cd-and-gitops__custom-ci-cd
+    title: Custom CI/CD
+    route: ci-cd-and-gitops/custom-ci-cd
+    order: 115
+    section: ci-cd-and-gitops
+    shortDescription: Integrate Stacktape into your own pipelines.
+    pageType: cicd
+  - id: ci-cd-and-gitops__stacks-per-git-branch-pattern
+    title: Stacks per Git Branch Pattern
+    route: ci-cd-and-gitops/stacks-per-git-branch-pattern
+    order: 116
+    section: ci-cd-and-gitops
+    shortDescription: Map branches and PRs to stages.
+    pageType: cicd
+  - id: local-development__dev-mode-overview
+    title: Dev Mode Overview
+    route: local-development/dev-mode-overview
+    order: 117
+    section: local-development
+    shortDescription: How stacktape dev works.
+    pageType: local-development
+  - id: local-development__local-databases
+    title: Local Databases
+    route: local-development/local-databases
+    order: 118
+    section: local-development
+    shortDescription: Which databases can run locally and how.
+    pageType: local-development
+  - id: local-development__debugging-lambda-functions
+    title: Debugging Lambda Functions
+    route: local-development/debugging-lambda-functions
+    order: 119
+    section: local-development
+    shortDescription: Debug Lambda functions in dev mode.
+    instructions:
+      - The CLI command for logs is `stacktape logs` (formerly `debug-logs`). DO
+        NOT reference the old name.
+    pageType: local-development
+  - id: local-development__debugging-containers
+    title: Debugging Containers
+    route: local-development/debugging-containers
+    order: 120
+    section: local-development
+    shortDescription: Debug container workloads and sessions.
+    instructions:
+      - The CLI command for one-off command execution is `stacktape
+        container:exec` (formerly `debug-container-exec`). For an interactive
+        shell use `stacktape container:session`. DO NOT reference the old
+        `debug-container-exec` name.
+    pageType: local-development
+  - id: local-development__debug-commands-reference
+    title: Debug Commands Reference
+    route: local-development/debug-commands-reference
+    order: 121
+    section: local-development
+    shortDescription: Reference for the data-inspection and debugging CLI commands.
+    instructions:
+      - "List the new 4.0 command names: `logs`, `metrics`, `alarms`,
+        `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch`,
+        `aws:call`. DO NOT reference any `debug-*` prefixed name — they were
+        renamed in 4.0."
+    pageType: local-development
+  - id: using-with-ai__overview
+    title: Using Stacktape with AI
+    route: using-with-ai/overview
+    order: 122
+    section: using-with-ai
+    shortDescription: "Overview of AI-related workflows: agent mode, MCP server, AI
+      config generation, coding-assistant integrations."
+    pageType: ai
+  - id: using-with-ai__agent-mode-in-dev
+    title: Agent Mode in Dev
+    route: using-with-ai/agent-mode-in-dev
+    order: 123
+    section: using-with-ai
+    shortDescription: Use dev mode with agents and coding assistants.
+    pageType: ai
+  - id: using-with-ai__config-generation-from-repository
+    title: AI Config Generation
+    route: using-with-ai/config-generation-from-repository
+    order: 124
+    section: using-with-ai
+    shortDescription: Generate a Stacktape config from a repository, in the Console.
+    pageType: ai
+  - id: using-with-ai__ai-coding-assistant-integrations
+    title: AI Coding Assistant Integrations
+    route: using-with-ai/ai-coding-assistant-integrations
+    order: 125
+    section: using-with-ai
+    shortDescription: Use Stacktape with Claude Code, Cursor, Windsurf, and other
+      coding assistants.
+    pageType: ai
+  - id: using-with-ai__mcp-server-setup
+    title: MCP Server Setup
+    route: using-with-ai/mcp-server-setup
+    order: 126
+    section: using-with-ai
+    shortDescription: Set up the Stacktape MCP server so AI coding assistants can
+      deploy, inspect, and debug your stacks.
+    instructions:
+      - MCP server is GA. Document the setup flow for Claude Code, Cursor, and
+        other MCP-aware editors. Show the `stacktape mcp-add` command, the
+        resulting client config, and the major tools exposed (docs, ops,
+        diagnose, dev). No "preview" or "in active development" callouts.
+    pageType: ai
+  - id: stacktape-console__console-overview
+    title: Console Overview
+    route: stacktape-console/console-overview
+    order: 127
+    section: stacktape-console
+    shortDescription: Overview of Stacktape Console.
+    pageType: console
+  - id: stacktape-console__connecting-your-aws-account
+    title: Connecting Your AWS Account
+    route: stacktape-console/connecting-your-aws-account
+    order: 128
+    section: stacktape-console
+    shortDescription: Connect AWS accounts to Stacktape.
+    pageType: console
+  - id: stacktape-console__aws-permissions
+    title: AWS Permissions Needed
+    route: stacktape-console/aws-permissions
+    order: 129
+    section: stacktape-console
+    shortDescription: What AWS permissions Stacktape requires when you connect an AWS account.
+    instructions:
+      - This is the permission inventory page. List the IAM actions Stacktape
+        needs and why. Link back to
+        /stacktape-console/connecting-your-aws-account for the setup flow.
+    pageType: console
+  - id: stacktape-console__organizations-projects-and-stages
+    title: Organizations, Projects, and Stages
+    route: stacktape-console/organizations-projects-and-stages
+    order: 130
+    section: stacktape-console
+    shortDescription: How the Console organizes work.
+    pageType: console
+  - id: stacktape-console__visual-config-editor
+    title: Visual Config Editor
+    route: stacktape-console/visual-config-editor
+    order: 131
+    section: stacktape-console
+    shortDescription: Use the Monaco-based config editor.
+    pageType: console
+  - id: stacktape-console__api-keys
+    title: API Keys
+    route: stacktape-console/api-keys
+    order: 132
+    section: stacktape-console
+    shortDescription: Manage Stacktape API keys.
+    pageType: console
+  - id: stacktape-console__team-and-access-control
+    title: Team and Access Control
+    route: stacktape-console/team-and-access-control
+    order: 133
+    section: stacktape-console
+    shortDescription: Invite users, assign roles, and scope permissions to specific projects.
+    instructions:
+      - "Cover the FULL role + permission model: OWNER, ADMIN, MEMBER, VIEWER
+        roles, plus per-project scoping for members. Show how to invite users,
+        assign a role, and limit access to specific projects."
+      - Document the permission check pattern
+        (hasPermission("members:update-role") etc.) at a high level so readers
+        understand what each role can do.
+      - Cross-link to /stacktape-console/account-settings for the per-user MFA /
+        password / sign-in management.
+    pageType: console
+  - id: stacktape-console__account-settings
+    title: Account Settings
+    route: stacktape-console/account-settings
+    order: 134
+    section: stacktape-console
+    shortDescription: "Manage your personal Stacktape account: password, username,
+      multi-factor authentication, and connected sign-in methods."
+    instructions:
+      - "New page covering the per-user Account Settings area of the Console.
+        Document: change password, change username, set up Time-based One-Time
+        Password (TOTP) multi-factor authentication with an authenticator app,
+        manage Google sign-in connection."
+      - This is a personal-account page, distinct from
+        /stacktape-console/team-and-access-control which covers
+        organization-wide team management.
+      - Underlying auth uses AWS Amplify (Cognito) — mention only if the reader
+        benefits from knowing (e.g. for SDK debugging). Otherwise stay
+        product-focused.
+    pageType: console
+  - id: stacktape-console__billing-and-subscription
+    title: Billing and Subscription
+    route: stacktape-console/billing-and-subscription
+    order: 135
+    section: stacktape-console
+    shortDescription: Subscription plans, billing, and invoices.
+    pageType: console
+  - id: cli__deploy
+    title: deploy
+    route: cli/deploy
+    order: 136
+    section: cli
+    shortDescription: CLI reference page for `deploy`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: deploy
+    pageType: cli
+  - id: cli__dev
+    title: dev
+    route: cli/dev
+    order: 137
+    section: cli
+    shortDescription: CLI reference page for `dev`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: dev
+    pageType: cli
+  - id: cli__dev__stop
+    title: dev:stop
+    route: cli/dev-stop
+    order: 138
+    section: cli
+    shortDescription: CLI reference page for `dev:stop`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: dev:stop
+    pageType: cli
+  - id: cli__deployment-script__run
+    title: deployment-script:run
+    route: cli/deployment-script-run
+    order: 139
+    section: cli
+    shortDescription: CLI reference page for `deployment-script:run`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: deployment-script:run
+    pageType: cli
+  - id: cli__delete
+    title: delete
+    route: cli/delete
+    order: 140
+    section: cli
+    shortDescription: CLI reference page for `delete`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: delete
+    pageType: cli
+  - id: cli__help
+    title: help
+    route: cli/help
+    order: 141
+    section: cli
+    shortDescription: CLI reference page for `help`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: help
+    pageType: cli
+  - id: cli__version
+    title: version
+    route: cli/version
+    order: 142
+    section: cli
+    shortDescription: CLI reference page for `version`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: version
+    pageType: cli
+  - id: cli__synth
+    title: synth
+    route: cli/synth
+    order: 143
+    section: cli
+    shortDescription: CLI reference page for `synth`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: synth
+    pageType: cli
+  - id: cli__validate
+    title: validate
+    route: cli/validate
+    order: 144
+    section: cli
+    shortDescription: CLI reference page for `validate`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: validate
+    pageType: cli
+  - id: cli__aws-profile__create
+    title: aws-profile:create
+    route: cli/aws-profile-create
+    order: 145
+    section: cli
+    shortDescription: CLI reference page for `aws-profile:create`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: aws-profile:create
+    pageType: cli
+  - id: cli__aws-profile__update
+    title: aws-profile:update
+    route: cli/aws-profile-update
+    order: 146
+    section: cli
+    shortDescription: CLI reference page for `aws-profile:update`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: aws-profile:update
+    pageType: cli
+  - id: cli__aws-profile__delete
+    title: aws-profile:delete
+    route: cli/aws-profile-delete
+    order: 147
+    section: cli
+    shortDescription: CLI reference page for `aws-profile:delete`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: aws-profile:delete
+    pageType: cli
+  - id: cli__aws-profile__list
+    title: aws-profile:list
+    route: cli/aws-profile-list
+    order: 148
+    section: cli
+    shortDescription: CLI reference page for `aws-profile:list`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: aws-profile:list
+    pageType: cli
+  - id: cli__domain__add
+    title: domain:add
+    route: cli/domain-add
+    order: 149
+    section: cli
+    shortDescription: CLI reference page for `domain:add`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: domain:add
+    pageType: cli
+  - id: cli__cf-module__update
+    title: cf-module:update
+    route: cli/cf-module-update
+    order: 150
+    section: cli
+    shortDescription: CLI reference page for `cf-module:update`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: cf-module:update
+    pageType: cli
+  - id: cli__secret__set
+    title: secret:set
+    route: cli/secret-set
+    order: 151
+    section: cli
+    shortDescription: CLI reference page for `secret:set`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: secret:set
+    pageType: cli
+  - id: cli__secret__get
+    title: secret:get
+    route: cli/secret-get
+    order: 152
+    section: cli
+    shortDescription: CLI reference page for `secret:get`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: secret:get
+    pageType: cli
+  - id: cli__secret__delete
+    title: secret:delete
+    route: cli/secret-delete
+    order: 153
+    section: cli
+    shortDescription: CLI reference page for `secret:delete`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: secret:delete
+    pageType: cli
+  - id: cli__rollback
+    title: rollback
+    route: cli/rollback
+    order: 154
+    section: cli
+    shortDescription: CLI reference page for `rollback`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: rollback
+    pageType: cli
+  - id: cli__cf__rollback
+    title: cf:rollback
+    route: cli/cf-rollback
+    order: 155
+    section: cli
+    shortDescription: CLI reference page for `cf:rollback`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: cf:rollback
+    pageType: cli
+  - id: cli__package
+    title: package
+    route: cli/package
+    order: 156
+    section: cli
+    shortDescription: CLI reference page for `package`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: package
+    pageType: cli
+  - id: cli__diff
+    title: diff
+    route: cli/diff
+    order: 157
+    section: cli
+    shortDescription: CLI reference page for `diff`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: diff
+    pageType: cli
+  - id: cli__logs
+    title: logs
+    route: cli/logs
+    order: 158
+    section: cli
+    shortDescription: CLI reference page for `logs`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: logs
+    pageType: cli
+  - id: cli__alarms
+    title: alarms
+    route: cli/alarms
+    order: 159
+    section: cli
+    shortDescription: CLI reference page for `alarms`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: alarms
+    pageType: cli
+  - id: cli__metrics
+    title: metrics
+    route: cli/metrics
+    order: 160
+    section: cli
+    shortDescription: CLI reference page for `metrics`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: metrics
+    pageType: cli
+  - id: cli__init
+    title: init
+    route: cli/init
+    order: 161
+    section: cli
+    shortDescription: CLI reference page for `init`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: init
+    pageType: cli
+  - id: cli__bucket__sync
+    title: bucket:sync
+    route: cli/bucket-sync
+    order: 162
+    section: cli
+    shortDescription: CLI reference page for `bucket:sync`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: bucket:sync
+    pageType: cli
+  - id: cli__bastion__session
+    title: bastion:session
+    route: cli/bastion-session
+    order: 163
+    section: cli
+    shortDescription: CLI reference page for `bastion:session`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: bastion:session
+    pageType: cli
+  - id: cli__bastion__tunnel
+    title: bastion:tunnel
+    route: cli/bastion-tunnel
+    order: 164
+    section: cli
+    shortDescription: CLI reference page for `bastion:tunnel`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: bastion:tunnel
+    pageType: cli
+  - id: cli__container__session
+    title: container:session
+    route: cli/container-session
+    order: 165
+    section: cli
+    shortDescription: CLI reference page for `container:session`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: container:session
+    pageType: cli
+  - id: cli__container__exec
+    title: container:exec
+    route: cli/container-exec
+    order: 166
+    section: cli
+    shortDescription: CLI reference page for `container:exec`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: container:exec
+    pageType: cli
+  - id: cli__query__sql
+    title: query:sql
+    route: cli/query-sql
+    order: 167
+    section: cli
+    shortDescription: CLI reference page for `query:sql`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: query:sql
+    pageType: cli
+  - id: cli__aws__call
+    title: aws:call
+    route: cli/aws-call
+    order: 168
+    section: cli
+    shortDescription: CLI reference page for `aws:call`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: aws:call
+    pageType: cli
+  - id: cli__query__dynamodb
+    title: query:dynamodb
+    route: cli/query-dynamodb
+    order: 169
+    section: cli
+    shortDescription: CLI reference page for `query:dynamodb`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: query:dynamodb
+    pageType: cli
+  - id: cli__query__redis
+    title: query:redis
+    route: cli/query-redis
+    order: 170
+    section: cli
+    shortDescription: CLI reference page for `query:redis`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: query:redis
+    pageType: cli
+  - id: cli__query__opensearch
+    title: query:opensearch
+    route: cli/query-opensearch
+    order: 171
+    section: cli
+    shortDescription: CLI reference page for `query:opensearch`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: query:opensearch
+    pageType: cli
+  - id: cli__defaults__configure
+    title: defaults:configure
+    route: cli/defaults-configure
+    order: 172
+    section: cli
+    shortDescription: CLI reference page for `defaults:configure`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: defaults:configure
+    pageType: cli
+  - id: cli__defaults__list
+    title: defaults:list
+    route: cli/defaults-list
+    order: 173
+    section: cli
+    shortDescription: CLI reference page for `defaults:list`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: defaults:list
+    pageType: cli
+  - id: cli__script__run
+    title: script:run
+    route: cli/script-run
+    order: 174
+    section: cli
+    shortDescription: CLI reference page for `script:run`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: script:run
+    pageType: cli
+  - id: cli__param__get
+    title: param:get
+    route: cli/param-get
+    order: 175
+    section: cli
+    shortDescription: CLI reference page for `param:get`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: param:get
+    pageType: cli
+  - id: cli__info__stacks
+    title: info:stacks
+    route: cli/info-stacks
+    order: 176
+    section: cli
+    shortDescription: CLI reference page for `info:stacks`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: info:stacks
+    pageType: cli
+  - id: cli__upgrade
+    title: upgrade
+    route: cli/upgrade
+    order: 177
+    section: cli
+    shortDescription: CLI reference page for `upgrade`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: upgrade
+    pageType: cli
+  - id: cli__login
+    title: login
+    route: cli/login
+    order: 178
+    section: cli
+    shortDescription: CLI reference page for `login`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: login
+    pageType: cli
+  - id: cli__logout
+    title: logout
+    route: cli/logout
+    order: 179
+    section: cli
+    shortDescription: CLI reference page for `logout`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: logout
+    pageType: cli
+  - id: cli__org__create
+    title: org:create
+    route: cli/org-create
+    order: 180
+    section: cli
+    shortDescription: CLI reference page for `org:create`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: org:create
+    pageType: cli
+  - id: cli__org__list
+    title: org:list
+    route: cli/org-list
+    order: 181
+    section: cli
+    shortDescription: CLI reference page for `org:list`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: org:list
+    pageType: cli
+  - id: cli__org__delete
+    title: org:delete
+    route: cli/org-delete
+    order: 182
+    section: cli
+    shortDescription: CLI reference page for `org:delete`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: org:delete
+    pageType: cli
+  - id: cli__project__create
+    title: project:create
+    route: cli/project-create
+    order: 183
+    section: cli
+    shortDescription: CLI reference page for `project:create`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: project:create
+    pageType: cli
+  - id: cli__project__list
+    title: project:list
+    route: cli/project-list
+    order: 184
+    section: cli
+    shortDescription: CLI reference page for `project:list`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: project:list
+    pageType: cli
+  - id: cli__info__whoami
+    title: info:whoami
+    route: cli/info-whoami
+    order: 185
+    section: cli
+    shortDescription: CLI reference page for `info:whoami`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: info:whoami
+    pageType: cli
+  - id: cli__info__operations
+    title: info:operations
+    route: cli/info-operations
+    order: 186
+    section: cli
+    shortDescription: CLI reference page for `info:operations`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: info:operations
+    pageType: cli
+  - id: cli__info__stack
+    title: info:stack
+    route: cli/info-stack
+    order: 187
+    section: cli
+    shortDescription: CLI reference page for `info:stack`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: info:stack
+    pageType: cli
+  - id: cli__mcp
+    title: mcp
+    route: cli/mcp
+    order: 188
+    section: cli
+    shortDescription: CLI reference page for `mcp`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: mcp
+    pageType: cli
+  - id: cli__mcp__add
+    title: mcp:add
+    route: cli/mcp-add
+    order: 189
+    section: cli
+    shortDescription: CLI reference page for `mcp:add`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: mcp:add
+    pageType: cli
+  - id: cli__issues__list
+    title: issues:list
+    route: cli/issues-list
+    order: 190
+    section: cli
+    shortDescription: CLI reference page for `issues:list`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: issues:list
+    pageType: cli
+  - id: cli__issues__resolve
+    title: issues:resolve
+    route: cli/issues-resolve
+    order: 191
+    section: cli
+    shortDescription: CLI reference page for `issues:resolve`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: issues:resolve
+    pageType: cli
+  - id: cli__issues__ignore
+    title: issues:ignore
+    route: cli/issues-ignore
+    order: 192
+    section: cli
+    shortDescription: CLI reference page for `issues:ignore`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: issues:ignore
+    pageType: cli
+  - id: cli__issues__reopen
+    title: issues:reopen
+    route: cli/issues-reopen
+    order: 193
+    section: cli
+    shortDescription: CLI reference page for `issues:reopen`.
+    instructions:
+      - This page should document exactly one command.
+    cliCommand: issues:reopen
+    pageType: cli
