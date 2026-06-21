@@ -39,6 +39,11 @@ export {
   TanStackWeb,
   RemixWeb,
   Bastion,
+  AgentCoreRuntime,
+  AgentCoreMemory,
+  AgentCoreGateway,
+  AgentCoreBrowser,
+  AgentCoreCodeInterpreter,
   RdsEnginePostgres,
   RdsEngineMariadb,
   RdsEngineMysql,
@@ -98,6 +103,7 @@ export {
   NonCurrentVersionExpirationLifecycleRule,
   ContainerEfsMount,
   LambdaEfsMount,
+  LambdaS3FilesMount,
   CognitoAuthorizer,
   LambdaAuthorizer,
   ApplicationLoadBalancerCustomTrigger,
@@ -223,7 +229,7 @@ export declare const AWS_SES: "aws:ses";
  * Resources section type (accepts class instances).
  * Use this with defineConfig for enhanced type-safe configs.
  */
-export type StacktapeResources = { [resourceName: string]: import('./types').RelationalDatabase | import('./types').WebService | import('./types').PrivateService | import('./types').WorkerService | import('./types').MultiContainerWorkload | import('./types').LambdaFunction | import('./types').BatchJob | import('./types').Bucket | import('./types').HostingBucket | import('./types').DynamoDbTable | import('./types').EventBus | import('./types').HttpApiGateway | import('./types').ApplicationLoadBalancer | import('./types').NetworkLoadBalancer | import('./types').RedisCluster | import('./types').MongoDbAtlasCluster | import('./types').StateMachine | import('./types').UserAuthPool | import('./types').UpstashRedis | import('./types').SqsQueue | import('./types').SnsTopic | import('./types').KinesisStream | import('./types').WebAppFirewall | import('./types').OpenSearchDomain | import('./types').EfsFilesystem | import('./types').NextjsWeb | import('./types').AstroWeb | import('./types').NuxtWeb | import('./types').SvelteKitWeb | import('./types').SolidStartWeb | import('./types').TanStackWeb | import('./types').RemixWeb | import('./types').Bastion | import('./plain').StacktapeResourceDefinition };
+export type StacktapeResources = { [resourceName: string]: import('./types').RelationalDatabase | import('./types').WebService | import('./types').PrivateService | import('./types').WorkerService | import('./types').MultiContainerWorkload | import('./types').LambdaFunction | import('./types').BatchJob | import('./types').Bucket | import('./types').HostingBucket | import('./types').DynamoDbTable | import('./types').EventBus | import('./types').HttpApiGateway | import('./types').ApplicationLoadBalancer | import('./types').NetworkLoadBalancer | import('./types').RedisCluster | import('./types').MongoDbAtlasCluster | import('./types').StateMachine | import('./types').UserAuthPool | import('./types').UpstashRedis | import('./types').SqsQueue | import('./types').SnsTopic | import('./types').KinesisStream | import('./types').WebAppFirewall | import('./types').OpenSearchDomain | import('./types').EfsFilesystem | import('./types').NextjsWeb | import('./types').AstroWeb | import('./types').NuxtWeb | import('./types').SvelteKitWeb | import('./types').SolidStartWeb | import('./types').TanStackWeb | import('./types').RemixWeb | import('./types').Bastion | import('./types').AgentCoreRuntime | import('./types').AgentCoreMemory | import('./types').AgentCoreGateway | import('./types').AgentCoreBrowser | import('./types').AgentCoreCodeInterpreter | import('./plain').StacktapeResourceDefinition };
 
 /**
  * Scripts section type (accepts class instances).

@@ -17459,6 +17459,597 @@ export type AwsSsmAssociation = {
 };
 
 
+/** Resource Type definition for AWS::BedrockAgentCore::Runtime */
+export type AwsBedrockagentcoreRuntime = {
+  /** The Amazon Resource Name(ARN) that uniquely identifies the Agent */
+  AgentRuntimeArn?: string;
+  /** Identifier for a resource */
+  AgentRuntimeId?: string;
+  /** Name for a resource */
+  AgentRuntimeName: string;
+  /** Description of the resource */
+  Description?: string;
+  /** The artifact of the agent */
+  AgentRuntimeArtifact: {
+    ContainerConfiguration?: {
+      ContainerUri: string;
+    };
+    CodeConfiguration?: {
+      Code: {
+        S3?: {
+          /**
+           * S3 bucket name
+           * @pattern ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$
+           */
+          Bucket: string;
+          /**
+           * S3 object key prefix
+           * @minLength 1
+           * @maxLength 1024
+           */
+          Prefix: string;
+          /**
+           * S3 object version ID
+           * @minLength 3
+           * @maxLength 1024
+           */
+          VersionId?: string;
+        };
+      };
+      Runtime: "PYTHON_3_10" | "PYTHON_3_11" | "PYTHON_3_12" | "PYTHON_3_13";
+      EntryPoint: string[];
+    };
+  };
+  /** Amazon Resource Name (ARN) of an IAM role */
+  RoleArn: string;
+  /** Network access configuration for the Agent */
+  NetworkConfiguration: {
+    NetworkMode: "PUBLIC" | "VPC";
+    NetworkModeConfig?: {
+      SecurityGroups: string[];
+      Subnets: string[];
+    };
+  };
+  /** Protocol configuration for the agent runtime */
+  ProtocolConfiguration?: "MCP" | "HTTP" | "A2A";
+  /** Environment variables for the agent runtime */
+  EnvironmentVariables?: Record<string, string>;
+  /** Authorizer configuration for the agent runtime */
+  AuthorizerConfiguration?: {
+    CustomJWTAuthorizer?: {
+      DiscoveryUrl: string;
+      AllowedAudience?: string[];
+      AllowedClients?: string[];
+    };
+  };
+  /** Lifecycle configuration for managing runtime sessions */
+  LifecycleConfiguration?: {
+    /**
+     * Timeout in seconds for idle runtime sessions
+     * @minimum 60
+     * @maximum 28800
+     */
+    IdleRuntimeSessionTimeout?: number;
+    /**
+     * Maximum lifetime in seconds for runtime sessions
+     * @minimum 60
+     * @maximum 28800
+     */
+    MaxLifetime?: number;
+  };
+  /** Configuration for HTTP request headers */
+  RequestHeaderConfiguration?: {
+    RequestHeaderAllowlist?: string[];
+  };
+  /** Version of the Agent */
+  AgentRuntimeVersion?: string;
+  /** Workload identity details for the agent */
+  WorkloadIdentityDetails?: {
+    WorkloadIdentityArn: string;
+  };
+  /** Timestamp when the Agent was created */
+  CreatedAt?: string;
+  /** When resource was last updated */
+  LastUpdatedAt?: string;
+  /** Current status of the agent */
+  Status?: "CREATING" | "CREATE_FAILED" | "UPDATING" | "UPDATE_FAILED" | "READY" | "DELETING";
+  Tags?: Record<string, string>;
+};
+
+
+/** Resource definition for AWS::BedrockAgentCore::RuntimeEndpoint */
+export type AwsBedrockagentcoreRuntimeendpoint = {
+  /** The ID of the parent Agent Runtime (required for creation) */
+  AgentRuntimeId: string;
+  /** The unique identifier of the AgentCore Runtime endpoint. */
+  Id?: string;
+  /** The name of the Agent Runtime Endpoint */
+  Name: string;
+  /** The version of the AgentCore Runtime to use for the endpoint. */
+  AgentRuntimeVersion?: string;
+  /** The Live version of the Agent Runtime */
+  LiveVersion?: string;
+  /** The target version of the AgentCore Runtime for the endpoint. */
+  TargetVersion?: string;
+  /** The description of the AgentCore Runtime endpoint. */
+  Description?: string;
+  /** The Amazon Resource Name (ARN) of the AgentCore Runtime. */
+  AgentRuntimeEndpointArn?: string;
+  /** The ARN of the Agent Runtime */
+  AgentRuntimeArn?: string;
+  /** The status of the Agent Runtime Endpoint */
+  Status?: "CREATING" | "CREATE_FAILED" | "UPDATING" | "UPDATE_FAILED" | "READY" | "DELETING";
+  /** The timestamp when the Agent Runtime Endpoint was created */
+  CreatedAt?: string;
+  /** The timestamp when the Agent Runtime Endpoint was last updated */
+  LastUpdatedAt?: string;
+  Tags?: Record<string, string>;
+  /** The reason for failure if the endpoint is in a failed state */
+  FailureReason?: string;
+};
+
+
+/** Resource Type definition for AWS::BedrockAgentCore::Memory */
+export type AwsBedrockagentcoreMemory = {
+  Name: string;
+  Description?: string;
+  EncryptionKeyArn?: string;
+  MemoryExecutionRoleArn?: string;
+  /**
+   * Duration in days until memory events expire
+   * @minimum 7
+   * @maximum 365
+   */
+  EventExpiryDuration: number;
+  MemoryArn?: string;
+  MemoryId?: string;
+  Status?: "CREATING" | "ACTIVE" | "FAILED" | "DELETING";
+  FailureReason?: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+  MemoryStrategies?: ({
+    SemanticMemoryStrategy?: {
+      Name: string;
+      Description?: string;
+      Namespaces?: string[];
+      /**
+       * Unique identifier for the memory strategy
+       * @minLength 12
+       * @pattern ^[a-zA-Z][a-zA-Z0-9-_]{0,99}-[a-zA-Z0-9]{10}$
+       */
+      StrategyId?: string;
+      /**
+       * Type of memory strategy
+       * @enum ["SEMANTIC","SUMMARIZATION","USER_PREFERENCE","CUSTOM"]
+       */
+      Type?: "SEMANTIC" | "SUMMARIZATION" | "USER_PREFERENCE" | "CUSTOM";
+      /**
+       * Status of the memory strategy
+       * @enum ["CREATING","ACTIVE","DELETING","FAILED"]
+       */
+      Status?: "CREATING" | "ACTIVE" | "DELETING" | "FAILED";
+      /** Creation timestamp of the memory strategy */
+      CreatedAt?: string;
+      /** Last update timestamp of the memory strategy */
+      UpdatedAt?: string;
+    };
+    SummaryMemoryStrategy?: {
+      Name: string;
+      Description?: string;
+      Namespaces?: string[];
+      /**
+       * Unique identifier for the memory strategy
+       * @minLength 12
+       * @pattern ^[a-zA-Z][a-zA-Z0-9-_]{0,99}-[a-zA-Z0-9]{10}$
+       */
+      StrategyId?: string;
+      /**
+       * Type of memory strategy
+       * @enum ["SEMANTIC","SUMMARIZATION","USER_PREFERENCE","CUSTOM"]
+       */
+      Type?: "SEMANTIC" | "SUMMARIZATION" | "USER_PREFERENCE" | "CUSTOM";
+      /**
+       * Status of the memory strategy
+       * @enum ["CREATING","ACTIVE","DELETING","FAILED"]
+       */
+      Status?: "CREATING" | "ACTIVE" | "DELETING" | "FAILED";
+      /** Creation timestamp of the memory strategy */
+      CreatedAt?: string;
+      /** Last update timestamp of the memory strategy */
+      UpdatedAt?: string;
+    };
+    UserPreferenceMemoryStrategy?: {
+      Name: string;
+      Description?: string;
+      Namespaces?: string[];
+      /**
+       * Unique identifier for the memory strategy
+       * @minLength 12
+       * @pattern ^[a-zA-Z][a-zA-Z0-9-_]{0,99}-[a-zA-Z0-9]{10}$
+       */
+      StrategyId?: string;
+      /**
+       * Type of memory strategy
+       * @enum ["SEMANTIC","SUMMARIZATION","USER_PREFERENCE","CUSTOM"]
+       */
+      Type?: "SEMANTIC" | "SUMMARIZATION" | "USER_PREFERENCE" | "CUSTOM";
+      /**
+       * Status of the memory strategy
+       * @enum ["CREATING","ACTIVE","DELETING","FAILED"]
+       */
+      Status?: "CREATING" | "ACTIVE" | "DELETING" | "FAILED";
+      /** Creation timestamp of the memory strategy */
+      CreatedAt?: string;
+      /** Last update timestamp of the memory strategy */
+      UpdatedAt?: string;
+    };
+    CustomMemoryStrategy?: {
+      Name: string;
+      Description?: string;
+      Namespaces?: string[];
+      Configuration?: {
+        SemanticOverride?: {
+          Extraction?: {
+            AppendToPrompt: string;
+            ModelId: string;
+          };
+          Consolidation?: {
+            AppendToPrompt: string;
+            ModelId: string;
+          };
+        };
+        SummaryOverride?: {
+          Consolidation?: {
+            AppendToPrompt: string;
+            ModelId: string;
+          };
+        };
+        UserPreferenceOverride?: {
+          Extraction?: {
+            AppendToPrompt: string;
+            ModelId: string;
+          };
+          Consolidation?: {
+            AppendToPrompt: string;
+            ModelId: string;
+          };
+        };
+        SelfManagedConfiguration?: {
+          TriggerConditions?: {
+            MessageBasedTrigger?: {
+              /**
+               * @minimum 1
+               * @maximum 50
+               */
+              MessageCount?: number;
+            };
+            TokenBasedTrigger?: {
+              /**
+               * @minimum 100
+               * @maximum 500000
+               */
+              TokenCount?: number;
+            };
+            TimeBasedTrigger?: {
+              /**
+               * @minimum 10
+               * @maximum 3000
+               */
+              IdleSessionTimeout?: number;
+            };
+          }[];
+          InvocationConfiguration?: {
+            TopicArn?: string;
+            /** @pattern ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$ */
+            PayloadDeliveryBucketName?: string;
+          };
+          /**
+           * @minimum 0
+           * @maximum 50
+           */
+          HistoricalContextWindowSize?: number;
+        };
+      };
+      /**
+       * Unique identifier for the memory strategy
+       * @minLength 12
+       * @pattern ^[a-zA-Z][a-zA-Z0-9-_]{0,99}-[a-zA-Z0-9]{10}$
+       */
+      StrategyId?: string;
+      /**
+       * Type of memory strategy
+       * @enum ["SEMANTIC","SUMMARIZATION","USER_PREFERENCE","CUSTOM"]
+       */
+      Type?: "SEMANTIC" | "SUMMARIZATION" | "USER_PREFERENCE" | "CUSTOM";
+      /**
+       * Status of the memory strategy
+       * @enum ["CREATING","ACTIVE","DELETING","FAILED"]
+       */
+      Status?: "CREATING" | "ACTIVE" | "DELETING" | "FAILED";
+      /** Creation timestamp of the memory strategy */
+      CreatedAt?: string;
+      /** Last update timestamp of the memory strategy */
+      UpdatedAt?: string;
+    };
+  })[];
+  Tags?: Record<string, string>;
+};
+
+
+/** Definition of AWS::BedrockAgentCore::Gateway Resource Type */
+export type AwsBedrockagentcoreGateway = {
+  AuthorizerConfiguration?: {
+    CustomJWTAuthorizer: {
+      /** @pattern ^.+/\.well-known/openid-configuration$ */
+      DiscoveryUrl: string;
+      /** @minItems 1 */
+      AllowedAudience?: string[];
+      /** @minItems 1 */
+      AllowedClients?: string[];
+    };
+  };
+  AuthorizerType: "CUSTOM_JWT" | "AWS_IAM";
+  CreatedAt?: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  Description?: string;
+  ExceptionLevel?: "DEBUG";
+  /** @pattern ^arn:aws(|-cn|-us-gov):bedrock-agentcore:[a-z0-9-]{1,20}:[0-9]{12}:gateway/([0-9a-z][-]?){1,100}-[a-z0-9]{10}$ */
+  GatewayArn?: string;
+  /** @pattern ^([0-9a-z][-]?){1,100}-[0-9a-z]{10}$ */
+  GatewayIdentifier?: string;
+  /**
+   * @minLength 1
+   * @maxLength 1024
+   */
+  GatewayUrl?: string;
+  /**
+   * @minLength 1
+   * @maxLength 2048
+   * @pattern ^arn:aws(|-cn|-us-gov):kms:[a-zA-Z0-9-]*:[0-9]{12}:key/[a-zA-Z0-9-]{36}$
+   */
+  KmsKeyArn?: string;
+  /** @pattern ^([0-9a-zA-Z][-]?){1,100}$ */
+  Name: string;
+  ProtocolConfiguration?: {
+    Mcp: {
+      SupportedVersions?: string[];
+      /**
+       * @minLength 1
+       * @maxLength 2048
+       */
+      Instructions?: string;
+      SearchType?: "SEMANTIC";
+    };
+  };
+  ProtocolType: "MCP";
+  /**
+   * @minLength 1
+   * @maxLength 2048
+   * @pattern ^arn:aws(-[^:]+)?:iam::([0-9]{12})?:role/.+$
+   */
+  RoleArn: string;
+  Status?: "CREATING" | "UPDATING" | "UPDATE_UNSUCCESSFUL" | "DELETING" | "READY" | "FAILED";
+  /** @maxItems 100 */
+  StatusReasons?: string[];
+  Tags?: Record<string, string>;
+  UpdatedAt?: string;
+  WorkloadIdentityDetails?: {
+    /**
+     * @minLength 1
+     * @maxLength 1024
+     */
+    WorkloadIdentityArn: string;
+  };
+};
+
+
+/** Definition of AWS::BedrockAgentCore::GatewayTarget Resource Type */
+export type AwsBedrockagentcoreGatewaytarget = {
+  CreatedAt?: string;
+  /**
+   * @minItems 1
+   * @maxItems 1
+   */
+  CredentialProviderConfigurations: ({
+    CredentialProviderType: "GATEWAY_IAM_ROLE" | "OAUTH" | "API_KEY";
+    CredentialProvider?: {
+      OauthCredentialProvider: {
+        /** @pattern ^arn:([^:]*):([^:]*):([^:]*):([0-9]{12})?:(.+)$ */
+        ProviderArn: string;
+        /** @maxItems 100 */
+        Scopes: string[];
+        CustomParameters?: Record<string, string>;
+      };
+    } | {
+      ApiKeyCredentialProvider: {
+        /** @pattern ^arn:([^:]*):([^:]*):([^:]*):([0-9]{12})?:(.+)$ */
+        ProviderArn: string;
+        /**
+         * @minLength 1
+         * @maxLength 64
+         */
+        CredentialParameterName?: string;
+        /**
+         * @minLength 1
+         * @maxLength 64
+         */
+        CredentialPrefix?: string;
+        CredentialLocation?: "HEADER" | "QUERY_PARAMETER";
+      };
+    };
+  })[];
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  Description?: string;
+  /** @pattern ^arn:aws(|-cn|-us-gov):bedrock-agentcore:[a-z0-9-]{1,20}:[0-9]{12}:gateway/([0-9a-z][-]?){1,100}-[a-z0-9]{10}$ */
+  GatewayArn?: string;
+  /** @pattern ^([0-9a-z][-]?){1,100}-[0-9a-z]{10}$ */
+  GatewayIdentifier?: string;
+  LastSynchronizedAt?: string;
+  /** @pattern ^([0-9a-zA-Z][-]?){1,100}$ */
+  Name: string;
+  Status?: "CREATING" | "UPDATING" | "UPDATE_UNSUCCESSFUL" | "DELETING" | "READY" | "FAILED" | "SYNCHRONIZING" | "SYNCHRONIZE_UNSUCCESSFUL";
+  /** @maxItems 100 */
+  StatusReasons?: string[];
+  TargetConfiguration: {
+    Mcp: {
+      OpenApiSchema: {
+        S3: {
+          /** @pattern ^s3://.{1,2043}$ */
+          Uri?: string;
+          /** @pattern ^[0-9]{12}$ */
+          BucketOwnerAccountId?: string;
+        };
+      } | {
+        InlinePayload: string;
+      };
+    } | {
+      SmithyModel: {
+        S3: {
+          /** @pattern ^s3://.{1,2043}$ */
+          Uri?: string;
+          /** @pattern ^[0-9]{12}$ */
+          BucketOwnerAccountId?: string;
+        };
+      } | {
+        InlinePayload: string;
+      };
+    } | {
+      Lambda: {
+        /**
+         * @minLength 1
+         * @maxLength 170
+         * @pattern ^arn:(aws[a-zA-Z-]*)?:lambda:([a-z]{2}(-gov)?-[a-z]+-\d{1}):(\d{12}):function:([a-zA-Z0-9-_.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$
+         */
+        LambdaArn: string;
+        ToolSchema: {
+          S3: {
+            /** @pattern ^s3://.{1,2043}$ */
+            Uri?: string;
+            /** @pattern ^[0-9]{12}$ */
+            BucketOwnerAccountId?: string;
+          };
+        } | {
+          InlinePayload: ({
+            Name: string;
+            Description: string;
+            InputSchema: {
+              Type: "string" | "number" | "object" | "array" | "boolean" | "integer";
+              Properties?: Record<string, unknown>;
+              Required?: string[];
+              Items?: unknown;
+              Description?: string;
+            };
+            OutputSchema?: {
+              Type: "string" | "number" | "object" | "array" | "boolean" | "integer";
+              Properties?: Record<string, unknown>;
+              Required?: string[];
+              Items?: unknown;
+              Description?: string;
+            };
+          })[];
+        };
+      };
+    } | {
+      McpServer: {
+        /** @pattern ^https://.* */
+        Endpoint: string;
+      };
+    };
+  };
+  /** @pattern ^[0-9a-zA-Z]{10}$ */
+  TargetId?: string;
+  UpdatedAt?: string;
+};
+
+
+/** Resource definition for AWS::BedrockAgentCore::BrowserCustom */
+export type AwsBedrockagentcoreBrowsercustom = {
+  /** The id of the browser. */
+  BrowserId?: string;
+  /** The ARN of a Browser resource. */
+  BrowserArn?: string;
+  /** The name of the browser. */
+  Name: string;
+  /** The description of the browser. */
+  Description?: string;
+  /** Network configuration for browser. */
+  NetworkConfiguration: {
+    /** @default "PUBLIC" */
+    NetworkMode: "PUBLIC" | "VPC";
+    VpcConfig?: {
+      SecurityGroups: string[];
+      Subnets: string[];
+    };
+  };
+  /** Recording configuration for browser. */
+  RecordingConfig?: {
+    /** @default false */
+    Enabled?: boolean;
+    S3Location?: {
+      /** @pattern ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$ */
+      Bucket: string;
+      /** @minLength 1 */
+      Prefix: string;
+    };
+  };
+  /** Browser signing configuration. */
+  BrowserSigning?: {
+    /** @default false */
+    Enabled?: boolean;
+  };
+  /** The Amazon Resource Name (ARN) of the IAM role that the browser uses to access resources. */
+  ExecutionRoleArn?: string;
+  /** Status of browser. */
+  Status?: "CREATING" | "CREATE_FAILED" | "READY" | "DELETING" | "DELETE_FAILED" | "DELETED";
+  /** The reason for failure if the browser creation or operation failed. */
+  FailureReason?: string;
+  /** Timestamp when the browser was created. */
+  CreatedAt?: string;
+  /** Timestamp when the browser was last updated. */
+  LastUpdatedAt?: string;
+  Tags?: Record<string, string>;
+};
+
+
+/** Resource definition for AWS::BedrockAgentCore::CodeInterpreterCustom */
+export type AwsBedrockagentcoreCodeinterpretercustom = {
+  /** The id of the code interpreter. */
+  CodeInterpreterId?: string;
+  /** The ARN of a CodeInterpreter resource. */
+  CodeInterpreterArn?: string;
+  /** The name of the code interpreter. */
+  Name: string;
+  /** The description of the code interpreter. */
+  Description?: string;
+  /** The ARN of the IAM role that the code interpreter uses to access resources. */
+  ExecutionRoleArn?: string;
+  /** Network configuration for code interpreter. */
+  NetworkConfiguration: {
+    /** @default "SANDBOX" */
+    NetworkMode: "PUBLIC" | "SANDBOX" | "VPC";
+    VpcConfig?: {
+      SecurityGroups: string[];
+      Subnets: string[];
+    };
+  };
+  /** Status of code interpreter. */
+  Status?: "CREATING" | "CREATE_FAILED" | "READY" | "DELETING" | "DELETE_FAILED" | "DELETED";
+  /** The reason for failure if the code interpreter creation or operation failed. */
+  FailureReason?: string;
+  /** Timestamp when the code interpreter was created. */
+  CreatedAt?: string;
+  /** Timestamp when the code interpreter was last updated. */
+  LastUpdatedAt?: string;
+  Tags?: Record<string, string>;
+};
+
+
 // ==========================================
 // CLOUDFORMATION RESOURCE TYPE
 // ==========================================
@@ -17505,6 +18096,13 @@ export type CloudFormationResource =
   | { Type: 'AWS::Batch::Computeenvironment'; Properties?: AwsBatchComputeenvironment } & CloudFormationResourceBase
   | { Type: 'AWS::Batch::Jobdefinition'; Properties?: AwsBatchJobdefinition } & CloudFormationResourceBase
   | { Type: 'AWS::Batch::Jobqueue'; Properties?: AwsBatchJobqueue } & CloudFormationResourceBase
+  | { Type: 'AWS::Bedrock::AgentcoreBrowsercustom'; Properties?: AwsBedrockagentcoreBrowsercustom } & CloudFormationResourceBase
+  | { Type: 'AWS::Bedrock::AgentcoreCodeinterpretercustom'; Properties?: AwsBedrockagentcoreCodeinterpretercustom } & CloudFormationResourceBase
+  | { Type: 'AWS::Bedrock::AgentcoreGateway'; Properties?: AwsBedrockagentcoreGateway } & CloudFormationResourceBase
+  | { Type: 'AWS::Bedrock::AgentcoreGatewaytarget'; Properties?: AwsBedrockagentcoreGatewaytarget } & CloudFormationResourceBase
+  | { Type: 'AWS::Bedrock::AgentcoreMemory'; Properties?: AwsBedrockagentcoreMemory } & CloudFormationResourceBase
+  | { Type: 'AWS::Bedrock::AgentcoreRuntime'; Properties?: AwsBedrockagentcoreRuntime } & CloudFormationResourceBase
+  | { Type: 'AWS::Bedrock::AgentcoreRuntimeendpoint'; Properties?: AwsBedrockagentcoreRuntimeendpoint } & CloudFormationResourceBase
   | { Type: 'AWS::CloudFormation::Customresource'; Properties?: AwsCloudformationCustomresource } & CloudFormationResourceBase
   | { Type: 'AWS::CloudFront::Cachepolicy'; Properties?: AwsCloudfrontCachepolicy } & CloudFormationResourceBase
   | { Type: 'AWS::CloudFront::Cloudfrontoriginaccessidentity'; Properties?: AwsCloudfrontCloudfrontoriginaccessidentity } & CloudFormationResourceBase

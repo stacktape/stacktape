@@ -255,6 +255,16 @@
     }
   },
   {
+    "name": "Kinesis Stream",
+    "description": "Amazon Kinesis Data Stream for ordered, replayable event streams.",
+    "resourceType": "kinesis-stream",
+    "category": "other-resource",
+    "referenceableParams": {
+      "arn": "Arn of the Kinesis stream.",
+      "name": "AWS (physical) name of the Kinesis stream."
+    }
+  },
+  {
     "name": "Bastion (Jump Host)",
     "description": null,
     "resourceType": "bastion",
@@ -342,6 +352,28 @@
     "referenceableParams": {
       "domainEndpoint": "Endpoint used for communicating with your opensearch-domain",
       "arn": "Arn of the domain"
+    }
+  },
+  {
+    "name": "Convex",
+    "description": "Self-hosted Convex backend running in your AWS account.",
+    "resourceType": "convex",
+    "category": "database-resource",
+    "referenceableParams": {
+      "url": "Cloud origin (CONVEX_CLOUD_ORIGIN) used by frontend clients.",
+      "siteUrl": "HTTP-actions origin (CONVEX_SITE_ORIGIN) where httpAction() routes live.",
+      "dashboardUrl": "Admin dashboard URL. Only available when the dashboard is enabled.",
+      "adminKey": "Sensitive root credentials for the deployment, resolved from AWS Secrets Manager. Reference explicitly with $ResourceParam; never auto-injected by connectTo.",
+      "instanceSecret": "Sensitive boot secret stored in AWS Secrets Manager. Almost never needed by user code."
+    }
+  },
+  {
+    "name": "EFS Filesystem",
+    "description": "Elastic File System filesystem.",
+    "resourceType": "efs-filesystem",
+    "category": "storage-resource",
+    "referenceableParams": {
+      "arn": "Arn of the EFS filesystem."
     }
   }
 ]

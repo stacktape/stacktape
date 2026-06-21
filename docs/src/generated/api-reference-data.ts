@@ -79,6 +79,1745 @@ export const apiReferenceData = {
     },
     "typeDeclaration": "import type { KeyValuePair } from 'stacktape';\n\n// [!code focus-start]\ntype AbortIncompleteMultipartUploadProps = {\n  /** Clean up incomplete multipart uploads after this many days. Prevents storage waste. */\n  daysAfterInitiation: number;\n  /** Only apply this rule to objects with this key prefix (e.g., logs/, uploads/). */\n  prefix?: string;\n  /** Only apply this rule to objects with these tags. */\n  tags?: Array<KeyValuePair>;\n};\n// [!code focus-end]"
   },
+  "AgentCoreBrowser": {
+    "definitionName": "AgentCoreBrowser",
+    "properties": [
+      {
+        "name": "properties",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "AgentCoreBrowserProps"
+        }
+      },
+      {
+        "name": "overrides",
+        "required": false,
+        "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>\n",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>\n<pre><code class=\"language-yaml\">overrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n</code></pre>\n",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 1
+    },
+    "typeDeclaration": "import type { AgentCoreBrowserProps } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreBrowser = {\n  properties: AgentCoreBrowserProps;\n  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */\n  overrides?: unknown;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreBrowserProps": {
+    "definitionName": "AgentCoreBrowserProps",
+    "properties": [
+      {
+        "name": "description",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "recording",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "tags",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "CloudformationTag"
+          }
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 0,
+      "optionalCount": 3
+    },
+    "typeDeclaration": "import type { CloudformationTag } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreBrowserProps = {\n  description?: string;\n  recording?: unknown;\n  tags?: Array<CloudformationTag>;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreCodeInterpreter": {
+    "definitionName": "AgentCoreCodeInterpreter",
+    "properties": [
+      {
+        "name": "properties",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "AgentCoreCodeInterpreterProps"
+        }
+      },
+      {
+        "name": "overrides",
+        "required": false,
+        "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>\n",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>\n<pre><code class=\"language-yaml\">overrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n</code></pre>\n",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 1
+    },
+    "typeDeclaration": "import type { AgentCoreCodeInterpreterProps } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreCodeInterpreter = {\n  properties: AgentCoreCodeInterpreterProps;\n  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */\n  overrides?: unknown;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreCodeInterpreterProps": {
+    "definitionName": "AgentCoreCodeInterpreterProps",
+    "properties": [
+      {
+        "name": "description",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "tags",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "CloudformationTag"
+          }
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 0,
+      "optionalCount": 2
+    },
+    "typeDeclaration": "import type { CloudformationTag } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreCodeInterpreterProps = {\n  description?: string;\n  tags?: Array<CloudformationTag>;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreGateway": {
+    "definitionName": "AgentCoreGateway",
+    "properties": [
+      {
+        "name": "properties",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "AgentCoreGatewayProps"
+        }
+      },
+      {
+        "name": "overrides",
+        "required": false,
+        "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>\n",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>\n<pre><code class=\"language-yaml\">overrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n</code></pre>\n",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 1
+    },
+    "typeDeclaration": "import type { AgentCoreGatewayProps } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreGateway = {\n  properties: AgentCoreGatewayProps;\n  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */\n  overrides?: unknown;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreGatewayProps": {
+    "definitionName": "AgentCoreGatewayProps",
+    "properties": [
+      {
+        "name": "authorizer",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "AgentCoreJwtAuthorizerConfig"
+        }
+      },
+      {
+        "name": "description",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "exceptionLevel",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "constValue": "DEBUG"
+        }
+      },
+      {
+        "name": "instructions",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "searchType",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "supportedVersions",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      },
+      {
+        "name": "tags",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "CloudformationTag"
+          }
+        }
+      },
+      {
+        "name": "tools",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "AgentCoreGatewayTool"
+          }
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 0,
+      "optionalCount": 8
+    },
+    "typeDeclaration": "import type { AgentCoreGatewayTool, AgentCoreJwtAuthorizerConfig, CloudformationTag } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreGatewayProps = {\n  authorizer?: AgentCoreJwtAuthorizerConfig;\n  description?: string;\n  exceptionLevel?: \"DEBUG\";\n  instructions?: string;\n  searchType?: string;\n  supportedVersions?: Array<string>;\n  tags?: Array<CloudformationTag>;\n  tools?: Array<AgentCoreGatewayTool>;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreGatewayTool": {
+    "definitionName": "AgentCoreGatewayTool",
+    "properties": [
+      {
+        "name": "name",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "toolSchema",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "AgentCoreToolDefinition"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "function",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "lambdaArn",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 2,
+      "optionalCount": 3
+    },
+    "typeDeclaration": "import type { AgentCoreToolDefinition } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreGatewayTool = {\n  name: string;\n  toolSchema: Array<AgentCoreToolDefinition>;\n  description?: string;\n  function?: string;\n  lambdaArn?: string;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreJwtAuthorizerConfig": {
+    "definitionName": "AgentCoreJwtAuthorizerConfig",
+    "properties": [
+      {
+        "name": "discoveryUrl",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "allowedAudience",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      },
+      {
+        "name": "allowedClients",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      },
+      {
+        "name": "allowedScopes",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 3
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype AgentCoreJwtAuthorizerConfig = {\n  discoveryUrl: string;\n  allowedAudience?: Array<string>;\n  allowedClients?: Array<string>;\n  allowedScopes?: Array<string>;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreMemory": {
+    "definitionName": "AgentCoreMemory",
+    "properties": [
+      {
+        "name": "properties",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "AgentCoreMemoryProps"
+        }
+      },
+      {
+        "name": "overrides",
+        "required": false,
+        "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>\n",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>\n<pre><code class=\"language-yaml\">overrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n</code></pre>\n",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 1
+    },
+    "typeDeclaration": "import type { AgentCoreMemoryProps } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreMemory = {\n  properties: AgentCoreMemoryProps;\n  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */\n  overrides?: unknown;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreMemoryProps": {
+    "definitionName": "AgentCoreMemoryProps",
+    "properties": [
+      {
+        "name": "description",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "encryptionKeyArn",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "eventExpiryDuration",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "number"
+          ]
+        }
+      },
+      {
+        "name": "expirationDays",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "number"
+          ]
+        }
+      },
+      {
+        "name": "memoryStrategies",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "unknown"
+          }
+        }
+      },
+      {
+        "name": "tags",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "CloudformationTag"
+          }
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 0,
+      "optionalCount": 6
+    },
+    "typeDeclaration": "import type { CloudformationTag } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreMemoryProps = {\n  description?: string;\n  encryptionKeyArn?: string;\n  eventExpiryDuration?: number;\n  expirationDays?: number;\n  memoryStrategies?: Array<unknown>;\n  tags?: Array<CloudformationTag>;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreRuntime": {
+    "definitionName": "AgentCoreRuntime",
+    "properties": [
+      {
+        "name": "properties",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "AgentCoreRuntimeProps"
+        }
+      },
+      {
+        "name": "overrides",
+        "required": false,
+        "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>\n",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>\n<pre><code class=\"language-yaml\">overrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n</code></pre>\n",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 1
+    },
+    "typeDeclaration": "import type { AgentCoreRuntimeProps } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreRuntime = {\n  properties: AgentCoreRuntimeProps;\n  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */\n  overrides?: unknown;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreRuntimeEndpointConfig": {
+    "definitionName": "AgentCoreRuntimeEndpointConfig",
+    "properties": [
+      {
+        "name": "name",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "description",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "runtimeVersion",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 2
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype AgentCoreRuntimeEndpointConfig = {\n  name: string;\n  description?: string;\n  runtimeVersion?: string;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreRuntimeLifecycleConfig": {
+    "definitionName": "AgentCoreRuntimeLifecycleConfig",
+    "properties": [
+      {
+        "name": "idleRuntimeSessionTimeout",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "number"
+          ]
+        }
+      },
+      {
+        "name": "maxLifetime",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "number"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 0,
+      "optionalCount": 2
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype AgentCoreRuntimeLifecycleConfig = {\n  idleRuntimeSessionTimeout?: number;\n  maxLifetime?: number;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreRuntimeProps": {
+    "definitionName": "AgentCoreRuntimeProps",
+    "properties": [
+      {
+        "name": "packaging",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": "type",
+          "branches": [
+            {
+              "label": "stacktape-image-buildpack",
+              "typeName": "StpBuildpackCwImagePackaging",
+              "shortDescription": "<p> A zero-config buildpack that creates a container image from your source code.</p>\n",
+              "properties": [
+                {
+                  "name": "languageSpecificConfig",
+                  "required": false,
+                  "shortDescription": "<p> Language-specific packaging configuration.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "union",
+                    "discriminator": null,
+                    "branches": [
+                      {
+                        "label": "Es",
+                        "typeName": "EsLanguageSpecificConfig",
+                        "properties": [
+                          {
+                            "name": "tsConfigPath",
+                            "required": false,
+                            "shortDescription": "<p> The path to the <code>tsconfig.json</code> file.</p>\n",
+                            "longDescription": "<p>This is primarily used to resolve path aliases during the build process.</p>\n",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "string"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "emitTsDecoratorMetadata",
+                            "required": false,
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "dependenciesToExcludeFromBundle",
+                            "required": false,
+                            "shortDescription": "<p> A list of dependencies to exclude from the main bundle.</p>\n",
+                            "longDescription": "<p>These dependencies will be treated as &quot;external&quot; and will not be bundled directly into your application&#39;s code.\nInstead, they will be installed separately in the deployment package.\nUse <code>*</code> to exclude all dependencies from the bundle.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "outputModuleFormat",
+                            "required": false,
+                            "shortDescription": "<p> Output module format: <code>cjs</code> (CommonJS) or <code>esm</code> (ES Modules, enables top-level <code>await</code>).</p>\n",
+                            "longDescription": "<p><strong>Note:</strong> Some npm packages don&#39;t support ESM. ESM may also produce less readable stack traces.</p>\n",
+                            "defaultValue": "'cjs'",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "string"
+                              ],
+                              "enumValues": [
+                                "cjs",
+                                "esm"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "nodeVersion",
+                            "required": false,
+                            "shortDescription": "<p> The major version of Node.js to use.</p>\n",
+                            "longDescription": "",
+                            "defaultValue": "18",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "number"
+                              ],
+                              "enumValues": [
+                                16,
+                                17,
+                                18,
+                                19,
+                                20,
+                                21,
+                                22,
+                                23,
+                                24
+                              ]
+                            }
+                          },
+                          {
+                            "name": "disableSourceMaps",
+                            "required": false,
+                            "shortDescription": "<p> Skip generating source maps. Reduces package size but makes production errors harder to debug.</p>\n",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "outputSourceMapsTo",
+                            "required": false,
+                            "shortDescription": "<p> Save source maps to a local directory instead of uploading them to AWS.</p>\n",
+                            "longDescription": "<p>Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won&#39;t be mapped.</p>\n",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "string"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "dependenciesToExcludeFromDeploymentPackage",
+                            "required": false,
+                            "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>\n",
+                            "longDescription": "<p>This only applies to dependencies that are not statically bundled.\nTo exclude a dependency from the static bundle, use <code>dependenciesToExcludeFromBundle</code>.\nUse <code>*</code> to exclude all non-bundled dependencies.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Py",
+                        "typeName": "PyLanguageSpecificConfig",
+                        "properties": [
+                          {
+                            "name": "packageManagerFile",
+                            "required": false,
+                            "shortDescription": "<p> The path to your project&#39;s dependency file.</p>\n",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>\n",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "string"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "packageManager",
+                            "required": false,
+                            "shortDescription": "<p> The Python package manager to use.</p>\n",
+                            "longDescription": "<p>Stacktape uses <code>uv</code> for dependency resolution and installation. This option is kept\nfor compatibility and must be set to <code>uv</code> if provided.</p>\n",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "string"
+                              ],
+                              "constValue": "uv"
+                            }
+                          },
+                          {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "pythonVersion",
+                            "required": false,
+                            "shortDescription": "<p> The version of Python to use.</p>\n",
+                            "longDescription": "",
+                            "defaultValue": "3.9",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "number"
+                              ],
+                              "enumValues": [
+                                2.7,
+                                3.11,
+                                3.12,
+                                3.13,
+                                3.14,
+                                3.6,
+                                3.7,
+                                3.8,
+                                3.9
+                              ]
+                            }
+                          },
+                          {
+                            "name": "runAppAs",
+                            "required": false,
+                            "shortDescription": "<p> Python server type: <code>WSGI</code> (Flask, Django) or <code>ASGI</code> (FastAPI, Starlette).</p>\n",
+                            "longDescription": "<p>Only for <code>stacktape-image-buildpack</code>. Auto-binds to the <code>PORT</code> env var.\nSet <code>entryfilePath</code> to <code>module/file.py:app</code> (e.g., <code>app/main.py:app</code>).</p>\n",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "string"
+                              ],
+                              "enumValues": [
+                                "ASGI",
+                                "WSGI"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify Python code to reduce package size. Makes production stack traces harder to read.</p>\n",
+                            "longDescription": "",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Java",
+                        "typeName": "JavaLanguageSpecificConfig",
+                        "properties": [
+                          {
+                            "name": "useMaven",
+                            "required": false,
+                            "shortDescription": "<p> Specifies whether to use Maven instead of Gradle.</p>\n",
+                            "longDescription": "<p>By default, Stacktape uses Gradle to build Java projects.</p>\n",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "packageManagerFile",
+                            "required": false,
+                            "shortDescription": "<p> The path to your project&#39;s build file (<code>pom.xml</code> for Maven or <code>build.gradle</code> for Gradle).</p>\n",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "string"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "javaVersion",
+                            "required": false,
+                            "shortDescription": "<p> The version of Java to use.</p>\n",
+                            "longDescription": "",
+                            "defaultValue": "11",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "number"
+                              ],
+                              "enumValues": [
+                                11,
+                                17,
+                                19,
+                                8
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Php",
+                        "typeName": "PhpLanguageSpecificConfig",
+                        "properties": [
+                          {
+                            "name": "phpVersion",
+                            "required": false,
+                            "shortDescription": "<p> The version of PHP to use.</p>\n",
+                            "longDescription": "",
+                            "defaultValue": "8.3",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "number"
+                              ],
+                              "enumValues": [
+                                8.2,
+                                8.3
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Dotnet",
+                        "typeName": "DotnetLanguageSpecificConfig",
+                        "properties": [
+                          {
+                            "name": "projectFile",
+                            "required": false,
+                            "shortDescription": "<p> The path to your .NET project file (.csproj).</p>\n",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "string"
+                              ]
+                            }
+                          },
+                          {
+                            "name": "dotnetVersion",
+                            "required": false,
+                            "shortDescription": "<p> The version of .NET to use.</p>\n",
+                            "longDescription": "",
+                            "defaultValue": "8",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "number"
+                              ],
+                              "enumValues": [
+                                6,
+                                8
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Go",
+                        "typeName": "GoLanguageSpecificConfig",
+                        "properties": []
+                      },
+                      {
+                        "label": "Ruby",
+                        "typeName": "RubyLanguageSpecificConfig",
+                        "properties": [
+                          {
+                            "name": "rubyVersion",
+                            "required": false,
+                            "shortDescription": "<p> The version of Ruby to use.</p>\n",
+                            "longDescription": "",
+                            "defaultValue": "3.3",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "number"
+                              ],
+                              "enumValues": [
+                                3.2,
+                                3.3
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "name": "requiresGlibcBinaries",
+                  "required": false,
+                  "shortDescription": "<p> Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.</p>\n",
+                  "longDescription": "<p>Results in a larger image. Common packages needing this: <code>sharp</code>, <code>canvas</code>, <code>bcrypt</code>, <code>puppeteer</code>.</p>\n",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  }
+                },
+                {
+                  "name": "customDockerBuildCommands",
+                  "required": false,
+                  "shortDescription": "<p> A list of commands to be executed during the <code>docker build</code> process.</p>\n",
+                  "longDescription": "<p>These commands are executed using the <code>RUN</code> directive in the Dockerfile.\nThis is useful for installing additional system dependencies in your container.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "entryfilePath",
+                  "required": true,
+                  "shortDescription": "<p> Path to your app&#39;s entry point, relative to the Stacktape config file.</p>\n",
+                  "longDescription": "<p>For JS/TS: code is bundled into a single file. Dependencies with native binaries are installed separately.\nFor Python: use <code>module/file.py:app</code> format when using <code>runAppAs</code> (WSGI/ASGI).</p>\n",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "includeFiles",
+                  "required": false,
+                  "shortDescription": "<p> A glob pattern of files to explicitly include in the deployment package.</p>\n",
+                  "longDescription": "<p>The path is relative to your Stacktape configuration file.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "excludeFiles",
+                  "required": false,
+                  "shortDescription": "<p> A glob pattern of files to explicitly exclude from the deployment package.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "excludeDependencies",
+                  "required": false,
+                  "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "external-buildpack",
+              "typeName": "ExternalBuildpackCwImagePackaging",
+              "shortDescription": "<p> Builds a container image using an external buildpack.</p>\n",
+              "properties": [
+                {
+                  "name": "builder",
+                  "required": false,
+                  "shortDescription": "<p> The Buildpack Builder to use.</p>\n",
+                  "longDescription": "",
+                  "defaultValue": "paketobuildpacks/builder-jammy-base",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "buildpacks",
+                  "required": false,
+                  "shortDescription": "<p> The specific Buildpack to use.</p>\n",
+                  "longDescription": "<p>By default, the buildpack is detected automatically.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "sourceDirectoryPath",
+                  "required": true,
+                  "shortDescription": "<p> The path to the source code directory.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "command",
+                  "required": false,
+                  "shortDescription": "<p> A command to be executed when the container starts.</p>\n",
+                  "longDescription": "<p>Example: <code>['/app/start.sh']</code></p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "prebuilt-image",
+              "typeName": "PrebuiltCwImagePackaging",
+              "shortDescription": "<p> Uses a pre-built container image.</p>\n",
+              "properties": [
+                {
+                  "name": "repositoryCredentialsSecretArn",
+                  "required": false,
+                  "shortDescription": "<p> The ARN of a secret containing credentials for a private container registry.</p>\n",
+                  "longDescription": "<p>The secret must be a JSON object with <code>username</code> and <code>password</code> keys.\nYou can create secrets using the <code>stacktape secret:create</code> command.</p>\n",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "entryPoint",
+                  "required": false,
+                  "shortDescription": "<p> A script to be executed when the container starts.</p>\n",
+                  "longDescription": "<p>This overrides the <code>ENTRYPOINT</code> instruction in the Dockerfile.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "image",
+                  "required": true,
+                  "shortDescription": "<p> The name or URL of the container image.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "command",
+                  "required": false,
+                  "shortDescription": "<p> A command to be executed when the container starts.</p>\n",
+                  "longDescription": "<p>This overrides the <code>CMD</code> instruction in the Dockerfile.</p>\n<p>Example: <code>['/app/start.sh']</code></p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "custom-dockerfile",
+              "typeName": "CustomDockerfileCwImagePackaging",
+              "shortDescription": "<p> Builds a container image from your own Dockerfile.</p>\n",
+              "properties": [
+                {
+                  "name": "entryPoint",
+                  "required": false,
+                  "shortDescription": "<p> A script to be executed when the container starts.</p>\n",
+                  "longDescription": "<p>This overrides the <code>ENTRYPOINT</code> instruction in the Dockerfile.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "dockerfilePath",
+                  "required": false,
+                  "shortDescription": "<p> The path to the Dockerfile, relative to <code>buildContextPath</code>.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "buildContextPath",
+                  "required": true,
+                  "shortDescription": "<p> The path to the build context directory, relative to your Stacktape configuration file.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "buildArgs",
+                  "required": false,
+                  "shortDescription": "<p> A list of arguments to pass to the <code>docker build</code> command.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "reference",
+                      "typeName": "DockerBuildArg"
+                    }
+                  }
+                },
+                {
+                  "name": "command",
+                  "required": false,
+                  "shortDescription": "<p> A command to be executed when the container starts.</p>\n",
+                  "longDescription": "<p>This overrides the <code>CMD</code> instruction in the Dockerfile.</p>\n<p>Example: <code>['/app/start.sh']</code></p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "nixpacks",
+              "typeName": "NixpacksCwImagePackaging",
+              "shortDescription": "<p> Builds a container image using Nixpacks.</p>\n",
+              "properties": [
+                {
+                  "name": "sourceDirectoryPath",
+                  "required": true,
+                  "shortDescription": "<p> The path to the source code directory.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "buildImage",
+                  "required": false,
+                  "shortDescription": "<p> The base image to use for building the application.</p>\n",
+                  "longDescription": "<p>For more details, see the <a href=\"https://nixpacks.com/docs/configuration/file#build-image\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Nixpacks documentation</a>.</p>\n",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "providers",
+                  "required": false,
+                  "shortDescription": "<p> A list of providers to use for determining the build and runtime environments.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "startCmd",
+                  "required": false,
+                  "shortDescription": "<p> The command to execute when starting the application.</p>\n",
+                  "longDescription": "<p>This overrides the default start command inferred by Nixpacks.</p>\n",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "startRunImage",
+                  "required": false,
+                  "shortDescription": "<p> The base image to use for running the application.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "startOnlyIncludeFiles",
+                  "required": false,
+                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "phases",
+                  "required": false,
+                  "shortDescription": "<p> The build phases for the application.</p>\n",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "reference",
+                      "typeName": "NixpacksPhase"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "authorizer",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "AgentCoreJwtAuthorizerConfig"
+        }
+      },
+      {
+        "name": "connectTo",
+        "required": false,
+        "shortDescription": "<p> Give this resource access to other resources in your stack.</p>\n",
+        "longDescription": "<p>List the names of resources this workload needs to communicate with. Stacktape automatically:</p>\n<ul>\n<li><strong>Grants IAM permissions</strong> (e.g., S3 read/write, SQS send/receive)</li>\n<li><strong>Opens network access</strong> (security group rules for databases, Redis)</li>\n<li><strong>Injects environment variables</strong> with connection details: <code>STP_[RESOURCE_NAME]_[PARAM]</code></li>\n</ul>\n<p>Example: <code>connectTo: [\"myDatabase\", \"myBucket\"]</code> gives this workload full access to both\nresources and injects <code>STP_MY_DATABASE_CONNECTION_STRING</code>, <code>STP_MY_BUCKET_NAME</code>, etc.</p>\n",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      },
+      {
+        "name": "description",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "endpoints",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "union",
+            "discriminator": null,
+            "branches": [
+              {
+                "label": "AgentCoreRuntimeEndpoint",
+                "typeName": "AgentCoreRuntimeEndpointConfig",
+                "properties": [
+                  {
+                    "name": "name",
+                    "required": true,
+                    "shortDescription": "",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "description",
+                    "required": false,
+                    "shortDescription": "",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "runtimeVersion",
+                    "required": false,
+                    "shortDescription": "",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "option-2",
+                "properties": []
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "environment",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "EnvironmentVar"
+          }
+        }
+      },
+      {
+        "name": "iamRoleStatements",
+        "required": false,
+        "shortDescription": "<p> Raw IAM policy statements for permissions not covered by <code>connectTo</code>.</p>\n",
+        "longDescription": "<p>Added as a separate policy alongside auto-generated permissions. Use this for\naccessing AWS services directly (e.g., Rekognition, Textract, Bedrock).</p>\n",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "StpIamRoleStatement"
+          }
+        }
+      },
+      {
+        "name": "lifecycle",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "AgentCoreRuntimeLifecycleConfig"
+        }
+      },
+      {
+        "name": "protocol",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "A2A",
+            "AGUI",
+            "HTTP",
+            "MCP"
+          ]
+        }
+      },
+      {
+        "name": "requestHeaders",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      },
+      {
+        "name": "tags",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "CloudformationTag"
+          }
+        }
+      },
+      {
+        "name": "useBrowser",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "useCodeInterpreter",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "useGateway",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "useMemory",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 14
+    },
+    "typeDeclaration": "import type { AgentCoreJwtAuthorizerConfig, AgentCoreRuntimeEndpointConfig, AgentCoreRuntimeLifecycleConfig, CloudformationTag, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreRuntimeProps = {\n  packaging: AgentCoreRuntimePackaging;\n  authorizer?: AgentCoreJwtAuthorizerConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  description?: string;\n  endpoints?: Array<AgentCoreRuntimeEndpoints>;\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by connectTo. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  lifecycle?: AgentCoreRuntimeLifecycleConfig;\n  protocol?: \"A2A\" | \"AGUI\" | \"HTTP\" | \"MCP\";\n  requestHeaders?: Array<string>;\n  tags?: Array<CloudformationTag>;\n  useBrowser?: string;\n  useCodeInterpreter?: string;\n  useGateway?: string;\n  useMemory?: string;\n};\n\n/** Union choices used by the properties above. */\ntype AgentCoreRuntimePackaging =\n  | StpBuildpackCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | NixpacksCwImagePackaging;\n\ntype AgentCoreRuntimeEndpoints =\n  | AgentCoreRuntimeEndpointConfig\n  | \"option-2\";\n// [!code focus-end]"
+  },
+  "AgentCoreToolDefinition": {
+    "definitionName": "AgentCoreToolDefinition",
+    "properties": [
+      {
+        "name": "inputSchema",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "name",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "description",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "outputSchema",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 2,
+      "optionalCount": 2
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype AgentCoreToolDefinition = {\n  inputSchema: unknown;\n  name: string;\n  description?: string;\n  outputSchema?: unknown;\n};\n// [!code focus-end]"
+  },
   "AlarmEvaluation": {
     "definitionName": "AlarmEvaluation",
     "properties": [
@@ -2903,6 +4642,66 @@ export const apiReferenceData = {
                                 "string"
                               ],
                               "constValue": "uv"
+                            }
+                          },
+                          {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
                             }
                           },
                           {
@@ -7398,6 +9197,66 @@ export const apiReferenceData = {
                             }
                           },
                           {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
                             "name": "pythonVersion",
                             "required": false,
                             "shortDescription": "<p> The version of Python to use.</p>\n",
@@ -11568,34 +13427,6 @@ export const apiReferenceData = {
     },
     "typeDeclaration": "import type { AbortIncompleteMultipartUpload, ClassTransition, Expiration, NonCurrentVersionClassTransition, NonCurrentVersionExpiration } from 'stacktape';\n\n// [!code focus-start]\ntype ConvexStorageConfig = {\n  /** Encrypt stored objects at rest (AES-256). */\n  encryption?: boolean;\n  /** Auto-delete or move objects to cheaper storage classes over time. */\n  lifecycleRules?: Array<ConvexStorageConfigLifecycleRules>;\n  /** Keep previous versions of overwritten/deleted objects. Useful for recovery; increases storage cost. */\n  versioning?: boolean;\n};\n\n/** Union choices used by the properties above. */\ntype ConvexStorageConfigLifecycleRules =\n  | Expiration\n  | NonCurrentVersionExpiration\n  | ClassTransition\n  | NonCurrentVersionClassTransition\n  | AbortIncompleteMultipartUpload;\n// [!code focus-end]"
   },
-  "CreationPolicy": {
-    "definitionName": "CreationPolicy",
-    "properties": [
-      {
-        "name": "AutoScalingCreationPolicy",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "unknown"
-        }
-      },
-      {
-        "name": "ResourceSignal",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "unknown"
-        }
-      }
-    ],
-    "stats": {
-      "requiredCount": 0,
-      "optionalCount": 2
-    },
-    "typeDeclaration": "// [!code focus-start]\ntype CreationPolicy = {\n  AutoScalingCreationPolicy?: unknown;\n  ResourceSignal?: unknown;\n};\n// [!code focus-end]"
-  },
   "CustomArtifactLambdaPackaging": {
     "definitionName": "CustomArtifactLambdaPackaging",
     "shortDescription": "<p> Uses a pre-built artifact for Lambda deployment.</p>\n",
@@ -12207,6 +14038,66 @@ export const apiReferenceData = {
                                 "string"
                               ],
                               "constValue": "uv"
+                            }
+                          },
+                          {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
                             }
                           },
                           {
@@ -13219,6 +15110,66 @@ export const apiReferenceData = {
                                 "string"
                               ],
                               "constValue": "uv"
+                            }
+                          },
+                          {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
                             }
                           },
                           {
@@ -14855,6 +16806,66 @@ export const apiReferenceData = {
                                 "string"
                               ],
                               "constValue": "uv"
+                            }
+                          },
+                          {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
                             }
                           },
                           {
@@ -19950,6 +21961,66 @@ export const apiReferenceData = {
                             }
                           },
                           {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
                             "name": "pythonVersion",
                             "required": false,
                             "shortDescription": "<p> The version of Python to use.</p>\n",
@@ -21262,7 +23333,7 @@ export const apiReferenceData = {
         "name": "joinDefaultVpc",
         "required": false,
         "shortDescription": "<p> Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources.</p>\n",
-        "longDescription": "<p><strong>You usually don&#39;t need to set this manually.</strong> Stacktape will tell you if a resource in your <code>connectTo</code>\nrequires it (e.g., a database with <code>accessibilityMode: 'vpc'</code>, or any Redis cluster).</p>\n<p><strong>Tradeoff:</strong> The function loses direct internet access. It can still reach S3 and DynamoDB\n(Stacktape auto-creates VPC endpoints), but calls to external APIs (Stripe, OpenAI, etc.) will fail.\nIf you need both VPC access and internet, use a <code>web-service</code> or <code>worker-service</code> instead.</p>\n<p>Required when using <code>volumeMounts</code> (EFS).</p>\n",
+        "longDescription": "<p>Set this to <code>true</code> when the function must reach VPC-only resources such as a database with\n<code>accessibilityMode: 'vpc'</code>/<code>'scoping-workloads-in-vpc'</code>, a Redis cluster, or EFS.</p>\n<p><strong>Tradeoff:</strong> The function loses direct internet access. It can still reach S3 and DynamoDB\n(Stacktape auto-creates VPC endpoints), but calls to external APIs (Stripe, OpenAI, etc.) will fail.\nIf you need both VPC access and internet, use a <code>web-service</code> or <code>worker-service</code> instead.</p>\n<p>Required when using <code>volumeMounts</code> (EFS or S3 Files).</p>\n",
         "defaultValue": "false",
         "typeInfo": {
           "kind": "primitive",
@@ -21418,13 +23489,119 @@ export const apiReferenceData = {
       {
         "name": "volumeMounts",
         "required": false,
-        "shortDescription": "<p> Persistent EFS storage shared across invocations and functions.</p>\n",
-        "longDescription": "<p>Unlike <code>/tmp</code>, EFS data persists indefinitely and can be shared across multiple functions.\nRequires <code>joinDefaultVpc: true</code> (Stacktape will remind you if you forget).</p>\n",
+        "shortDescription": "<p> Persistent file-system mounts shared across invocations and functions.</p>\n",
+        "longDescription": "<p>Unlike <code>/tmp</code>, mounted file systems persist independently from the function runtime and can be\nshared across multiple functions.\nRequires <code>joinDefaultVpc: true</code> (Stacktape will remind you if you forget).</p>\n",
         "typeInfo": {
           "kind": "array",
           "itemType": {
-            "kind": "reference",
-            "typeName": "LambdaEfsMount"
+            "kind": "union",
+            "discriminator": "type",
+            "branches": [
+              {
+                "label": "efs",
+                "typeName": "LambdaEfsMount",
+                "properties": [
+                  {
+                    "name": "efsFilesystemName",
+                    "required": true,
+                    "shortDescription": "<p> Name of the <code>efs-filesystem</code> resource defined in your config.</p>\n",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "rootDirectory",
+                    "required": false,
+                    "shortDescription": "<p> Subdirectory within the EFS filesystem to mount. Omit for full access.</p>\n",
+                    "longDescription": "",
+                    "defaultValue": "/",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "mountPath",
+                    "required": true,
+                    "shortDescription": "<p> Path inside the function where the volume appears. Must start with <code>/mnt/</code> (e.g., <code>/mnt/data</code>).</p>\n",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "s3files",
+                "typeName": "LambdaS3FilesMount",
+                "properties": [
+                  {
+                    "name": "accessPointArn",
+                    "required": true,
+                    "shortDescription": "<p> ARN of an existing S3 Files access point.</p>\n",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "union",
+                      "discriminator": null,
+                      "branches": [
+                        {
+                          "label": "IntrinsicFunction",
+                          "typeName": "IntrinsicFunction",
+                          "properties": [
+                            {
+                              "name": "name",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            },
+                            {
+                              "name": "payload",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "label": "option-2",
+                          "properties": []
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "mountPath",
+                    "required": true,
+                    "shortDescription": "<p> Path inside the function where the volume appears. Must start with <code>/mnt/</code> (e.g., <code>/mnt/s3data</code>).</p>\n",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
           }
         }
       }
@@ -21433,7 +23610,92 @@ export const apiReferenceData = {
       "requiredCount": 1,
       "optionalCount": 22
     },
-    "typeDeclaration": "import type { AlarmIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaFunctionProps = {\n  /** How your code is built and packaged for deployment. */\n  packaging: LambdaFunctionPackaging;\n  /** Alarms for this function (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<LambdaAlarm>;\n  /** Processor architecture: x86_64 (default) or arm64 (Graviton, ~20% cheaper). */\n  architecture?: \"arm64\" | \"x86_64\";\n  /** Put a CDN (CloudFront) in front of this function for caching and lower latency. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting for safe deployments. */\n  deployment?: LambdaDeploymentConfig;\n  /** Route async invocation results to another service (SQS, SNS, EventBus, or another function). */\n  destinations?: LambdaFunctionDestinations;\n  /** Global alarm names to exclude from this function. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Environment variables available to the function at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** What triggers this function: HTTP requests, file uploads, queues, schedules, etc. */\n  events?: Array<LambdaFunctionEvents>;\n  /** Raw IAM policy statements for permissions not covered by connectTo. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. */\n  joinDefaultVpc?: boolean;\n  /** Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.). */\n  layers?: Array<string>;\n  /** Logging configuration (retention, forwarding). */\n  logging?: LambdaFunctionLogging;\n  /** Memory in MB (128 - 10,240). Also determines CPU power. */\n  memory?: number;\n  /** Eliminates cold starts by keeping function instances warm and ready. */\n  provisionedConcurrency?: number;\n  /** Cap the maximum number of concurrent instances for this function. */\n  reservedConcurrency?: number;\n  /** The language runtime (e.g., nodejs22.x, python3.13). */\n  runtime?: \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\";\n  /** Size of the /tmp directory in MB (512 - 10,240). Ephemeral per invocation. */\n  storage?: number;\n  /** Additional tags for this function (on top of stack-level tags). Max 50. */\n  tags?: Array<CloudformationTag>;\n  /** Max execution time in seconds. Function is killed if it exceeds this. */\n  timeout?: number;\n  /** Give this function its own HTTPS URL (no API Gateway needed). */\n  url?: LambdaUrlConfig;\n  /** Persistent EFS storage shared across invocations and functions. */\n  volumeMounts?: Array<LambdaEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaFunctionPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n\ntype LambdaFunctionEvents =\n  | ApplicationLoadBalancerIntegration\n  | KafkaTopicIntegration\n  | SnsIntegration\n  | SqsIntegration\n  | KinesisIntegration\n  | DynamoDbIntegration\n  | S3Integration\n  | ScheduleIntegration\n  | AlarmIntegration\n  | CloudwatchLogIntegration\n  | HttpApiIntegration\n  | EventBusIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaFunctionProps = {\n  /** How your code is built and packaged for deployment. */\n  packaging: LambdaFunctionPackaging;\n  /** Alarms for this function (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<LambdaAlarm>;\n  /** Processor architecture: x86_64 (default) or arm64 (Graviton, ~20% cheaper). */\n  architecture?: \"arm64\" | \"x86_64\";\n  /** Put a CDN (CloudFront) in front of this function for caching and lower latency. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting for safe deployments. */\n  deployment?: LambdaDeploymentConfig;\n  /** Route async invocation results to another service (SQS, SNS, EventBus, or another function). */\n  destinations?: LambdaFunctionDestinations;\n  /** Global alarm names to exclude from this function. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Environment variables available to the function at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** What triggers this function: HTTP requests, file uploads, queues, schedules, etc. */\n  events?: Array<LambdaFunctionEvents>;\n  /** Raw IAM policy statements for permissions not covered by connectTo. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. */\n  joinDefaultVpc?: boolean;\n  /** Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.). */\n  layers?: Array<string>;\n  /** Logging configuration (retention, forwarding). */\n  logging?: LambdaFunctionLogging;\n  /** Memory in MB (128 - 10,240). Also determines CPU power. */\n  memory?: number;\n  /** Eliminates cold starts by keeping function instances warm and ready. */\n  provisionedConcurrency?: number;\n  /** Cap the maximum number of concurrent instances for this function. */\n  reservedConcurrency?: number;\n  /** The language runtime (e.g., nodejs22.x, python3.13). */\n  runtime?: \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\";\n  /** Size of the /tmp directory in MB (512 - 10,240). Ephemeral per invocation. */\n  storage?: number;\n  /** Additional tags for this function (on top of stack-level tags). Max 50. */\n  tags?: Array<CloudformationTag>;\n  /** Max execution time in seconds. Function is killed if it exceeds this. */\n  timeout?: number;\n  /** Give this function its own HTTPS URL (no API Gateway needed). */\n  url?: LambdaUrlConfig;\n  /** Persistent file-system mounts shared across invocations and functions. */\n  volumeMounts?: Array<LambdaFunctionVolumeMounts>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaFunctionPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n\ntype LambdaFunctionEvents =\n  | ApplicationLoadBalancerIntegration\n  | KafkaTopicIntegration\n  | SnsIntegration\n  | SqsIntegration\n  | KinesisIntegration\n  | DynamoDbIntegration\n  | S3Integration\n  | ScheduleIntegration\n  | AlarmIntegration\n  | CloudwatchLogIntegration\n  | HttpApiIntegration\n  | EventBusIntegration;\n\ntype LambdaFunctionVolumeMounts =\n  | LambdaEfsMount\n  | LambdaS3FilesMount;\n// [!code focus-end]"
+  },
+  "LambdaS3FilesMount": {
+    "definitionName": "LambdaS3FilesMount",
+    "properties": [
+      {
+        "name": "properties",
+        "required": true,
+        "shortDescription": "<p> Properties for the S3 Files volume mount.</p>\n",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "LambdaS3FilesMountProps"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "import type { LambdaS3FilesMountProps } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaS3FilesMount = {\n  /** Properties for the S3 Files volume mount. */\n  properties: LambdaS3FilesMountProps;\n};\n// [!code focus-end]"
+  },
+  "LambdaS3FilesMountProps": {
+    "definitionName": "LambdaS3FilesMountProps",
+    "properties": [
+      {
+        "name": "accessPointArn",
+        "required": true,
+        "shortDescription": "<p> ARN of an existing S3 Files access point.</p>\n",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "IntrinsicFunction",
+              "typeName": "IntrinsicFunction",
+              "properties": [
+                {
+                  "name": "name",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "payload",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        }
+      },
+      {
+        "name": "mountPath",
+        "required": true,
+        "shortDescription": "<p> Path inside the function where the volume appears. Must start with <code>/mnt/</code> (e.g., <code>/mnt/s3data</code>).</p>\n",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 2,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "import type { IntrinsicFunction } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaS3FilesMountProps = {\n  /** ARN of an existing S3 Files access point. */\n  accessPointArn: LambdaS3FilesMountAccessPointArn;\n  /** Path inside the function where the volume appears. Must start with /mnt/ (e.g., /mnt/s3data). */\n  mountPath: string;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaS3FilesMountAccessPointArn =\n  | IntrinsicFunction\n  | \"option-2\";\n// [!code focus-end]"
   },
   "LambdaUrlConfig": {
     "definitionName": "LambdaUrlConfig",
@@ -25652,6 +27914,66 @@ export const apiReferenceData = {
                             }
                           },
                           {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
                             "name": "pythonVersion",
                             "required": false,
                             "shortDescription": "<p> The version of Python to use.</p>\n",
@@ -26502,13 +28824,73 @@ export const apiReferenceData = {
             "WSGI"
           ]
         }
+      },
+      {
+        "name": "uvOnlyGroups",
+        "required": false,
+        "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+        "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      },
+      {
+        "name": "uvOptionalDependencies",
+        "required": false,
+        "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+        "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      },
+      {
+        "name": "uvWithGroups",
+        "required": false,
+        "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+        "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      },
+      {
+        "name": "uvWithoutGroups",
+        "required": false,
+        "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+        "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
       }
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 5
+      "optionalCount": 9
     },
-    "typeDeclaration": "// [!code focus-start]\ntype PyLanguageSpecificConfig = {\n  /** Minify Python code to reduce package size. Makes production stack traces harder to read. */\n  minify?: boolean;\n  /** The Python package manager to use. */\n  packageManager?: \"uv\";\n  /** The path to your project&#39;s dependency file. */\n  packageManagerFile?: string;\n  /** The version of Python to use. */\n  pythonVersion?: 2.7 | 3.11 | 3.12 | 3.13 | 3.14 | 3.6 | 3.7 | 3.8 | 3.9;\n  /** Python server type: WSGI (Flask, Django) or ASGI (FastAPI, Starlette). */\n  runAppAs?: \"ASGI\" | \"WSGI\";\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype PyLanguageSpecificConfig = {\n  /** Minify Python code to reduce package size. Makes production stack traces harder to read. */\n  minify?: boolean;\n  /** The Python package manager to use. */\n  packageManager?: \"uv\";\n  /** The path to your project&#39;s dependency file. */\n  packageManagerFile?: string;\n  /** The version of Python to use. */\n  pythonVersion?: 2.7 | 3.11 | 3.12 | 3.13 | 3.14 | 3.6 | 3.7 | 3.8 | 3.9;\n  /** Python server type: WSGI (Flask, Django) or ASGI (FastAPI, Starlette). */\n  runAppAs?: \"ASGI\" | \"WSGI\";\n  /** Only include these dependency groups from pyproject.toml. */\n  uvOnlyGroups?: Array<string>;\n  /** Optional dependency extras to include from pyproject.toml. */\n  uvOptionalDependencies?: Array<string>;\n  /** Dependency groups to include from pyproject.toml. */\n  uvWithGroups?: Array<string>;\n  /** Dependency groups to exclude from pyproject.toml. */\n  uvWithoutGroups?: Array<string>;\n};\n// [!code focus-end]"
   },
   "RateBasedStatement": {
     "definitionName": "RateBasedStatement",
@@ -29899,6 +32281,66 @@ export const apiReferenceData = {
                             }
                           },
                           {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
                             "name": "pythonVersion",
                             "required": false,
                             "shortDescription": "<p> The version of Python to use.</p>\n",
@@ -32694,6 +35136,66 @@ export const apiReferenceData = {
                   }
                 },
                 {
+                  "name": "uvOptionalDependencies",
+                  "required": false,
+                  "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "uvWithGroups",
+                  "required": false,
+                  "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "uvWithoutGroups",
+                  "required": false,
+                  "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "uvOnlyGroups",
+                  "required": false,
+                  "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
                   "name": "pythonVersion",
                   "required": false,
                   "shortDescription": "<p> The version of Python to use.</p>\n",
@@ -33166,6 +35668,66 @@ export const apiReferenceData = {
                   }
                 },
                 {
+                  "name": "uvOptionalDependencies",
+                  "required": false,
+                  "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "uvWithGroups",
+                  "required": false,
+                  "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "uvWithoutGroups",
+                  "required": false,
+                  "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "uvOnlyGroups",
+                  "required": false,
+                  "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
                   "name": "pythonVersion",
                   "required": false,
                   "shortDescription": "<p> The version of Python to use.</p>\n",
@@ -33631,6 +36193,66 @@ export const apiReferenceData = {
                       "string"
                     ],
                     "constValue": "uv"
+                  }
+                },
+                {
+                  "name": "uvOptionalDependencies",
+                  "required": false,
+                  "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "uvWithGroups",
+                  "required": false,
+                  "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "uvWithoutGroups",
+                  "required": false,
+                  "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "uvOnlyGroups",
+                  "required": false,
+                  "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                  "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
                   }
                 },
                 {
@@ -34509,52 +37131,6 @@ export const apiReferenceData = {
       "optionalCount": 11
     },
     "typeDeclaration": "// [!code focus-start]\ntype Task = {\n  Resource: TaskResource;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: boolean;\n  HeartbeatSeconds?: number;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n  TimeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype TaskResource =\n  | \"option-1\"\n  | \"option-2\";\n// [!code focus-end]"
-  },
-  "UpdatePolicy": {
-    "definitionName": "UpdatePolicy",
-    "properties": [
-      {
-        "name": "AutoScalingReplacingUpdate",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "unknown"
-        }
-      },
-      {
-        "name": "AutoScalingRollingUpdate",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "unknown"
-        }
-      },
-      {
-        "name": "AutoScalingScheduledAction",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "unknown"
-        }
-      },
-      {
-        "name": "CodeDeployLambdaAliasUpdate",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "unknown"
-        }
-      }
-    ],
-    "stats": {
-      "requiredCount": 0,
-      "optionalCount": 4
-    },
-    "typeDeclaration": "// [!code focus-start]\ntype UpdatePolicy = {\n  AutoScalingReplacingUpdate?: unknown;\n  AutoScalingRollingUpdate?: unknown;\n  AutoScalingScheduledAction?: unknown;\n  CodeDeployLambdaAliasUpdate?: unknown;\n};\n// [!code focus-end]"
   },
   "UpstashProvider": {
     "definitionName": "UpstashProvider",
@@ -36403,6 +38979,66 @@ export const apiReferenceData = {
                                 "string"
                               ],
                               "constValue": "uv"
+                            }
+                          },
+                          {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
                             }
                           },
                           {
@@ -38361,6 +40997,66 @@ export const apiReferenceData = {
                             }
                           },
                           {
+                            "name": "uvOptionalDependencies",
+                            "required": false,
+                            "shortDescription": "<p> Optional dependency extras to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--extra <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to include from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvWithoutGroups",
+                            "required": false,
+                            "shortDescription": "<p> Dependency groups to exclude from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--no-group <name></code>.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "name": "uvOnlyGroups",
+                            "required": false,
+                            "shortDescription": "<p> Only include these dependency groups from <code>pyproject.toml</code>.</p>\n",
+                            "longDescription": "<p>Each value is passed to <code>uv pip compile</code> as <code>--only-group <name></code>.\nThis omits the project dependencies and default groups, matching <code>uv</code> behavior.</p>\n",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          },
+                          {
                             "name": "pythonVersion",
                             "required": false,
                             "shortDescription": "<p> The version of Python to use.</p>\n",
@@ -39089,172 +41785,5 @@ export const apiReferenceData = {
       "optionalCount": 11
     },
     "typeDeclaration": "import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype WorkerServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WorkerServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by connectTo. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WorkerServicePackaging =\n  | StpBuildpackCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | NixpacksCwImagePackaging;\n// [!code focus-end]"
-  },
-  "default": {
-    "definitionName": "default",
-    "properties": [
-      {
-        "name": "Type",
-        "required": true,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "primitive",
-          "types": [
-            "string"
-          ]
-        }
-      },
-      {
-        "name": "Condition",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "union",
-          "discriminator": null,
-          "branches": [
-            {
-              "label": "IntrinsicFunction",
-              "typeName": "IntrinsicFunction",
-              "properties": [
-                {
-                  "name": "name",
-                  "required": true,
-                  "shortDescription": "",
-                  "longDescription": "",
-                  "typeInfo": {
-                    "kind": "primitive",
-                    "types": [
-                      "string"
-                    ]
-                  }
-                },
-                {
-                  "name": "payload",
-                  "required": true,
-                  "shortDescription": "",
-                  "longDescription": "",
-                  "typeInfo": {
-                    "kind": "unknown"
-                  }
-                }
-              ]
-            },
-            {
-              "label": "option-2",
-              "properties": []
-            }
-          ]
-        }
-      },
-      {
-        "name": "CreationPolicy",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "reference",
-          "typeName": "CreationPolicy"
-        }
-      },
-      {
-        "name": "DeletionPolicy",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "primitive",
-          "types": [
-            "string"
-          ],
-          "enumValues": [
-            "Delete",
-            "Retain",
-            "Snapshot"
-          ]
-        }
-      },
-      {
-        "name": "DependsOn",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "union",
-          "discriminator": null,
-          "branches": [
-            {
-              "label": "option-1",
-              "properties": []
-            },
-            {
-              "label": "IntrinsicFunction",
-              "typeName": "IntrinsicFunction",
-              "properties": [
-                {
-                  "name": "name",
-                  "required": true,
-                  "shortDescription": "",
-                  "longDescription": "",
-                  "typeInfo": {
-                    "kind": "primitive",
-                    "types": [
-                      "string"
-                    ]
-                  }
-                },
-                {
-                  "name": "payload",
-                  "required": true,
-                  "shortDescription": "",
-                  "longDescription": "",
-                  "typeInfo": {
-                    "kind": "unknown"
-                  }
-                }
-              ]
-            },
-            {
-              "label": "option-3",
-              "properties": []
-            }
-          ]
-        }
-      },
-      {
-        "name": "Metadata",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "unknown"
-        }
-      },
-      {
-        "name": "Properties",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "unknown"
-        }
-      },
-      {
-        "name": "UpdatePolicy",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "reference",
-          "typeName": "UpdatePolicy"
-        }
-      }
-    ],
-    "stats": {
-      "requiredCount": 1,
-      "optionalCount": 7
-    },
-    "typeDeclaration": "import type { CreationPolicy, IntrinsicFunction, UpdatePolicy } from 'stacktape';\n\n// [!code focus-start]\ntype default = {\n  Type: string;\n  Condition?: defaultCondition;\n  CreationPolicy?: CreationPolicy;\n  DeletionPolicy?: \"Delete\" | \"Retain\" | \"Snapshot\";\n  DependsOn?: defaultDependsOn;\n  Metadata?: unknown;\n  Properties?: unknown;\n  UpdatePolicy?: UpdatePolicy;\n};\n\n/** Union choices used by the properties above. */\ntype defaultCondition =\n  | IntrinsicFunction\n  | \"option-2\";\n\ntype defaultDependsOn =\n  | \"option-1\"\n  | IntrinsicFunction\n  | \"option-3\";\n// [!code focus-end]"
   }
 } satisfies Record<string, ApiReferenceGeneratedDefinition>;

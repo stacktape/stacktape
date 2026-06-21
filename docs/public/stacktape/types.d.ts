@@ -19,6 +19,11 @@ import type {
   AwsBatchComputeenvironment,
   AwsBatchJobdefinition,
   AwsBatchJobqueue,
+  AwsBedrockagentcoreBrowsercustom,
+  AwsBedrockagentcoreCodeinterpretercustom,
+  AwsBedrockagentcoreGateway,
+  AwsBedrockagentcoreMemory,
+  AwsBedrockagentcoreRuntime,
   AwsCloudformationCustomresource,
   AwsCloudfrontCachepolicy,
   AwsCloudfrontCloudfrontoriginaccessidentity,
@@ -90,6 +95,8 @@ import type {
   BatchJobProps as SdkBatchJobProps,
   StateMachineProps as SdkStateMachineProps,
   NextjsWebProps as SdkNextjsWebProps,
+  NuxtWebProps as SdkNuxtWebProps,
+  AgentCoreRuntimeProps as SdkAgentCoreRuntimeProps,
   LocalScriptProps as SdkLocalScriptProps,
   BastionScriptProps as SdkBastionScriptProps,
   LocalScriptWithBastionTunnelingProps as SdkLocalScriptWithBastionTunnelingProps
@@ -108,6 +115,8 @@ export type {
   BatchJobProps as PlainBatchJobProps,
   StateMachineProps as PlainStateMachineProps,
   NextjsWebProps as PlainNextjsWebProps,
+  NuxtWebProps as PlainNuxtWebProps,
+  AgentCoreRuntimeProps as PlainAgentCoreRuntimeProps,
   LocalScriptProps as PlainLocalScriptProps,
   BastionScriptProps as PlainBastionScriptProps,
   LocalScriptWithBastionTunnelingProps as PlainLocalScriptWithBastionTunnelingProps,
@@ -130,12 +139,15 @@ export type {
   OpenSearchDomainProps,
   EfsFilesystemProps,
   AstroWebProps,
-  NuxtWebProps,
   SvelteKitWebProps,
   SolidStartWebProps,
   TanStackWebProps,
   RemixWebProps,
   BastionProps,
+  AgentCoreMemoryProps,
+  AgentCoreGatewayProps,
+  AgentCoreBrowserProps,
+  AgentCoreCodeInterpreterProps,
   RdsEngineProperties,
   AuroraEngineProperties,
   AuroraServerlessEngineProperties,
@@ -212,6 +224,7 @@ export type ContainerWorkloadServiceConnectIntegrationProps = import('./plain').
 // Direct type aliases
 export type ContainerEfsMountProps = import('./plain').ContainerEfsMount;
 export type LambdaEfsMountProps = import('./plain').LambdaEfsMount;
+export type LambdaS3FilesMountProps = import('./plain').LambdaS3FilesMount;
 
 // Placeholder types for missing types
 export type IotIntegrationProps = Record<string, unknown>;
@@ -379,10 +392,12 @@ type WebServiceConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoD
 type PrivateServiceConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoDbTable | EventBus | RedisCluster | MongoDbAtlasCluster | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | OpenSearchDomain | EfsFilesystem | GlobalAwsServiceConstant;
 type WorkerServiceConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoDbTable | EventBus | RedisCluster | MongoDbAtlasCluster | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | OpenSearchDomain | EfsFilesystem | GlobalAwsServiceConstant;
 type MultiContainerWorkloadConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoDbTable | EventBus | RedisCluster | MongoDbAtlasCluster | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | OpenSearchDomain | EfsFilesystem | LambdaFunction | BatchJob | UserAuthPool | GlobalAwsServiceConstant;
-type LambdaFunctionConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoDbTable | EventBus | RedisCluster | MongoDbAtlasCluster | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | OpenSearchDomain | EfsFilesystem | PrivateService | WebService | LambdaFunction | BatchJob | UserAuthPool | GlobalAwsServiceConstant;
+type LambdaFunctionConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoDbTable | EventBus | RedisCluster | MongoDbAtlasCluster | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | OpenSearchDomain | PrivateService | WebService | LambdaFunction | BatchJob | UserAuthPool | GlobalAwsServiceConstant;
 type BatchJobConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoDbTable | EventBus | RedisCluster | MongoDbAtlasCluster | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | OpenSearchDomain | EfsFilesystem | GlobalAwsServiceConstant;
 type StateMachineConnectTo = Function | BatchJob | GlobalAwsServiceConstant;
 type NextjsWebConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoDbTable | EventBus | RedisCluster | MongoDbAtlasCluster | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | OpenSearchDomain | EfsFilesystem | PrivateService | WebService | LambdaFunction | BatchJob | UserAuthPool | GlobalAwsServiceConstant;
+type NuxtWebConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoDbTable | EventBus | RedisCluster | MongoDbAtlasCluster | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | OpenSearchDomain | EfsFilesystem | PrivateService | WebService | LambdaFunction | BatchJob | UserAuthPool | GlobalAwsServiceConstant;
+type AgentCoreRuntimeConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoDbTable | EventBus | RedisCluster | MongoDbAtlasCluster | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | OpenSearchDomain | EfsFilesystem | PrivateService | WebService | LambdaFunction | BatchJob | UserAuthPool | GlobalAwsServiceConstant;
 type ScriptConnectTo = RelationalDatabase | Bucket | HostingBucket | DynamoDbTable | EventBus | RedisCluster | MongoDbAtlasCluster | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | OpenSearchDomain | EfsFilesystem | PrivateService | WebService | LambdaFunction | BatchJob | UserAuthPool | GlobalAwsServiceConstant;
 
 // Augmented container types with object-style environment
@@ -611,6 +626,54 @@ export type NextjsWebProps = Omit<SdkNextjsWebProps, 'connectTo' | 'environment'
    * Unlike overrides, transforms allow dynamic modification based on existing values.
    */
   transforms?: NextjsWebTransforms;
+};
+
+export type NuxtWebProps = Omit<SdkNuxtWebProps, 'connectTo' | 'environment'> & {
+  /**
+   * List of resources or AWS services to which this resource receives permissions.
+   * Automatically grants necessary IAM permissions for accessing the connected resources.
+   */
+  connectTo?: NuxtWebConnectTo[];
+  /**
+   * Environment variables to set for this resource.
+   * You can reference resource parameters using directive syntax: $ResourceParam('resourceName', 'paramName')
+   */
+  environment?: { [envVarName: string]: string | number | boolean };
+  /**
+   * Override properties of underlying CloudFormation resources.
+   * Allows fine-grained control over the generated infrastructure.
+   */
+  overrides?: NuxtWebOverrides;
+  /**
+   * Transform functions for underlying CloudFormation resources.
+   * Each function receives the current properties and returns modified properties.
+   * Unlike overrides, transforms allow dynamic modification based on existing values.
+   */
+  transforms?: NuxtWebTransforms;
+};
+
+export type AgentCoreRuntimeProps = Omit<SdkAgentCoreRuntimeProps, 'connectTo' | 'environment'> & {
+  /**
+   * List of resources or AWS services to which this resource receives permissions.
+   * Automatically grants necessary IAM permissions for accessing the connected resources.
+   */
+  connectTo?: AgentCoreRuntimeConnectTo[];
+  /**
+   * Environment variables to set for this resource.
+   * You can reference resource parameters using directive syntax: $ResourceParam('resourceName', 'paramName')
+   */
+  environment?: { [envVarName: string]: string | number | boolean };
+  /**
+   * Override properties of underlying CloudFormation resources.
+   * Allows fine-grained control over the generated infrastructure.
+   */
+  overrides?: AgentCoreRuntimeOverrides;
+  /**
+   * Transform functions for underlying CloudFormation resources.
+   * Each function receives the current properties and returns modified properties.
+   * Unlike overrides, transforms allow dynamic modification based on existing values.
+   */
+  transforms?: AgentCoreRuntimeTransforms;
 };
 
 export type LocalScriptProps = Omit<SdkLocalScriptProps, 'connectTo' | 'environment'> & {
@@ -898,20 +961,6 @@ export type AstroWebPropsWithOverrides = import('./plain').AstroWebProps & {
   transforms?: AstroWebTransforms;
 };
 
-export type NuxtWebPropsWithOverrides = import('./plain').NuxtWebProps & {
-  /**
-   * Override properties of underlying CloudFormation resources.
-   * Allows fine-grained control over the generated infrastructure.
-   */
-  overrides?: NuxtWebOverrides;
-  /**
-   * Transform functions for underlying CloudFormation resources.
-   * Each function receives the current properties and returns modified properties.
-   * Unlike overrides, transforms allow dynamic modification based on existing values.
-   */
-  transforms?: NuxtWebTransforms;
-};
-
 export type SvelteKitWebPropsWithOverrides = import('./plain').SvelteKitWebProps & {
   /**
    * Override properties of underlying CloudFormation resources.
@@ -980,6 +1029,62 @@ export type BastionPropsWithOverrides = import('./plain').BastionProps & {
    * Unlike overrides, transforms allow dynamic modification based on existing values.
    */
   transforms?: BastionTransforms;
+};
+
+export type AgentCoreMemoryPropsWithOverrides = import('./plain').AgentCoreMemoryProps & {
+  /**
+   * Override properties of underlying CloudFormation resources.
+   * Allows fine-grained control over the generated infrastructure.
+   */
+  overrides?: AgentCoreMemoryOverrides;
+  /**
+   * Transform functions for underlying CloudFormation resources.
+   * Each function receives the current properties and returns modified properties.
+   * Unlike overrides, transforms allow dynamic modification based on existing values.
+   */
+  transforms?: AgentCoreMemoryTransforms;
+};
+
+export type AgentCoreGatewayPropsWithOverrides = import('./plain').AgentCoreGatewayProps & {
+  /**
+   * Override properties of underlying CloudFormation resources.
+   * Allows fine-grained control over the generated infrastructure.
+   */
+  overrides?: AgentCoreGatewayOverrides;
+  /**
+   * Transform functions for underlying CloudFormation resources.
+   * Each function receives the current properties and returns modified properties.
+   * Unlike overrides, transforms allow dynamic modification based on existing values.
+   */
+  transforms?: AgentCoreGatewayTransforms;
+};
+
+export type AgentCoreBrowserPropsWithOverrides = import('./plain').AgentCoreBrowserProps & {
+  /**
+   * Override properties of underlying CloudFormation resources.
+   * Allows fine-grained control over the generated infrastructure.
+   */
+  overrides?: AgentCoreBrowserOverrides;
+  /**
+   * Transform functions for underlying CloudFormation resources.
+   * Each function receives the current properties and returns modified properties.
+   * Unlike overrides, transforms allow dynamic modification based on existing values.
+   */
+  transforms?: AgentCoreBrowserTransforms;
+};
+
+export type AgentCoreCodeInterpreterPropsWithOverrides = import('./plain').AgentCoreCodeInterpreterProps & {
+  /**
+   * Override properties of underlying CloudFormation resources.
+   * Allows fine-grained control over the generated infrastructure.
+   */
+  overrides?: AgentCoreCodeInterpreterOverrides;
+  /**
+   * Transform functions for underlying CloudFormation resources.
+   * Each function receives the current properties and returns modified properties.
+   * Unlike overrides, transforms allow dynamic modification based on existing values.
+   */
+  transforms?: AgentCoreCodeInterpreterTransforms;
 };
 
 
@@ -1485,6 +1590,41 @@ export type BastionOverrides = {
   bastionEc2InstanceProfile?: Partial<AwsIamInstanceprofile>;
   bastionCwAgentSsmAssociation?: Partial<AwsSsmAssociation>;
   bastionSsmAgentSsmAssociation?: Partial<AwsSsmAssociation>;
+  /** Index signature for dynamic CloudFormation resource names */
+  [key: string]: Record<string, unknown> | undefined;
+};
+
+export type AgentCoreRuntimeOverrides = {
+  agentCoreRuntimeRole?: Partial<AwsIamRole>;
+  workloadSecurityGroup?: Partial<AwsEc2Securitygroup>;
+  agentCoreRuntime?: Partial<AwsBedrockagentcoreRuntime>;
+  /** Index signature for dynamic CloudFormation resource names */
+  [key: string]: Record<string, unknown> | undefined;
+};
+
+export type AgentCoreMemoryOverrides = {
+  agentCoreMemory?: Partial<AwsBedrockagentcoreMemory>;
+  /** Index signature for dynamic CloudFormation resource names */
+  [key: string]: Record<string, unknown> | undefined;
+};
+
+export type AgentCoreGatewayOverrides = {
+  agentCoreGatewayRole?: Partial<AwsIamRole>;
+  agentCoreGateway?: Partial<AwsBedrockagentcoreGateway>;
+  /** Index signature for dynamic CloudFormation resource names */
+  [key: string]: Record<string, unknown> | undefined;
+};
+
+export type AgentCoreBrowserOverrides = {
+  agentCoreBrowserRole?: Partial<AwsIamRole>;
+  agentCoreBrowser?: Partial<AwsBedrockagentcoreBrowsercustom>;
+  /** Index signature for dynamic CloudFormation resource names */
+  [key: string]: Record<string, unknown> | undefined;
+};
+
+export type AgentCoreCodeInterpreterOverrides = {
+  agentCoreCodeInterpreterRole?: Partial<AwsIamRole>;
+  agentCoreCodeInterpreter?: Partial<AwsBedrockagentcoreCodeinterpretercustom>;
   /** Index signature for dynamic CloudFormation resource names */
   [key: string]: Record<string, unknown> | undefined;
 };
@@ -1996,6 +2136,41 @@ export type BastionTransforms = {
   [key: string]: ((props: Record<string, unknown>) => Record<string, unknown>) | undefined;
 };
 
+export type AgentCoreRuntimeTransforms = {
+  agentCoreRuntimeRole?: (props: Partial<AwsIamRole>) => Partial<AwsIamRole>;
+  workloadSecurityGroup?: (props: Partial<AwsEc2Securitygroup>) => Partial<AwsEc2Securitygroup>;
+  agentCoreRuntime?: (props: Partial<AwsBedrockagentcoreRuntime>) => Partial<AwsBedrockagentcoreRuntime>;
+  /** Index signature for dynamic CloudFormation resource names */
+  [key: string]: ((props: Record<string, unknown>) => Record<string, unknown>) | undefined;
+};
+
+export type AgentCoreMemoryTransforms = {
+  agentCoreMemory?: (props: Partial<AwsBedrockagentcoreMemory>) => Partial<AwsBedrockagentcoreMemory>;
+  /** Index signature for dynamic CloudFormation resource names */
+  [key: string]: ((props: Record<string, unknown>) => Record<string, unknown>) | undefined;
+};
+
+export type AgentCoreGatewayTransforms = {
+  agentCoreGatewayRole?: (props: Partial<AwsIamRole>) => Partial<AwsIamRole>;
+  agentCoreGateway?: (props: Partial<AwsBedrockagentcoreGateway>) => Partial<AwsBedrockagentcoreGateway>;
+  /** Index signature for dynamic CloudFormation resource names */
+  [key: string]: ((props: Record<string, unknown>) => Record<string, unknown>) | undefined;
+};
+
+export type AgentCoreBrowserTransforms = {
+  agentCoreBrowserRole?: (props: Partial<AwsIamRole>) => Partial<AwsIamRole>;
+  agentCoreBrowser?: (props: Partial<AwsBedrockagentcoreBrowsercustom>) => Partial<AwsBedrockagentcoreBrowsercustom>;
+  /** Index signature for dynamic CloudFormation resource names */
+  [key: string]: ((props: Record<string, unknown>) => Record<string, unknown>) | undefined;
+};
+
+export type AgentCoreCodeInterpreterTransforms = {
+  agentCoreCodeInterpreterRole?: (props: Partial<AwsIamRole>) => Partial<AwsIamRole>;
+  agentCoreCodeInterpreter?: (props: Partial<AwsBedrockagentcoreCodeinterpretercustom>) => Partial<AwsBedrockagentcoreCodeinterpretercustom>;
+  /** Index signature for dynamic CloudFormation resource names */
+  [key: string]: ((props: Record<string, unknown>) => Record<string, unknown>) | undefined;
+};
+
 
 // ==========================================
 // RESOURCE CLASS DECLARATIONS
@@ -2453,8 +2628,8 @@ export declare class NuxtWeb extends BaseResource {
    * 
    * For static-only Nuxt sites, use `hosting-bucket` with `hostingContentType: 'nuxt-static-website'` instead.
    */
-  constructor(properties: NuxtWebPropsWithOverrides);
-  constructor(name: string, properties: NuxtWebPropsWithOverrides);
+  constructor(properties: NuxtWebProps);
+  constructor(name: string, properties: NuxtWebProps);
   /** Website URL */
   readonly url: string;
 }
@@ -2509,6 +2684,67 @@ export declare class Bastion extends BaseResource {
    */
   constructor(properties: BastionPropsWithOverrides);
   constructor(name: string, properties: BastionPropsWithOverrides);
+}
+export declare class AgentCoreRuntime extends BaseResource {
+  /**
+   * Create a AgentCoreRuntime resource
+   */
+  constructor(properties: AgentCoreRuntimeProps);
+  constructor(name: string, properties: AgentCoreRuntimeProps);
+  /** AgentCore runtime ID */
+  readonly id: string;
+  /** AgentCore runtime ARN */
+  readonly arn: string;
+  /** Default runtime endpoint name */
+  readonly endpointName: string;
+  /** Default runtime endpoint ARN */
+  readonly endpointArn: string;
+}
+export declare class AgentCoreMemory extends BaseResource {
+  /**
+   * Create a AgentCoreMemory resource
+   */
+  constructor(properties: AgentCoreMemoryPropsWithOverrides);
+  constructor(name: string, properties: AgentCoreMemoryPropsWithOverrides);
+  /** AgentCore memory ID */
+  readonly id: string;
+  /** AgentCore memory ARN */
+  readonly arn: string;
+}
+export declare class AgentCoreGateway extends BaseResource {
+  /**
+   * Create a AgentCoreGateway resource
+   */
+  constructor(properties: AgentCoreGatewayPropsWithOverrides);
+  constructor(name: string, properties: AgentCoreGatewayPropsWithOverrides);
+  /** AgentCore gateway ID */
+  readonly id: string;
+  /** AgentCore gateway ARN */
+  readonly arn: string;
+  /** AgentCore gateway URL */
+  readonly url: string;
+}
+export declare class AgentCoreBrowser extends BaseResource {
+  /**
+   * Create a AgentCoreBrowser resource
+   */
+  constructor(properties: AgentCoreBrowserPropsWithOverrides);
+  constructor(name: string, properties: AgentCoreBrowserPropsWithOverrides);
+  /** AgentCore browser ID */
+  readonly id: string;
+  /** AgentCore browser ARN */
+  readonly arn: string;
+}
+export declare class AgentCoreCodeInterpreter extends BaseResource {
+  /**
+   * Create a AgentCoreCodeInterpreter resource
+   */
+  constructor(properties: AgentCoreCodeInterpreterPropsWithOverrides);
+  constructor(name: string, properties: AgentCoreCodeInterpreterPropsWithOverrides);
+  /** AgentCore code interpreter ID */
+  readonly id: string;
+  /** AgentCore code interpreter ARN */
+  readonly arn: string;
 }
 
 // ==========================================
@@ -2896,7 +3132,7 @@ export declare class KinesisIntegration extends BaseTypeProperties {
    * - **Stream Consumer** (`autoCreateConsumer`): Dedicated connection per shard — higher throughput, lower latency.
    */
   constructor(properties: import('./plain').KinesisIntegration['properties']);
-  readonly type: 'kinesis';
+  readonly type: 'kinesis-stream';
 }
 
 export declare class DynamoDbIntegration extends BaseTypeProperties {
@@ -2909,7 +3145,7 @@ export declare class DynamoDbIntegration extends BaseTypeProperties {
    * (set `streaming` in your `dynamoDbTables` config).
    */
   constructor(properties: import('./plain').DynamoDbIntegration['properties']);
-  readonly type: 'dynamodb';
+  readonly type: 'dynamo-db-stream';
 }
 
 export declare class CloudwatchLogIntegration extends BaseTypeProperties {
@@ -2921,7 +3157,7 @@ export declare class CloudwatchLogIntegration extends BaseTypeProperties {
    * **Note:** The event payload is base64-encoded and gzipped — you must decode and decompress it in your handler.
    */
   constructor(properties: import('./plain').CloudwatchLogIntegration['properties']);
-  readonly type: 'cloudwatch-logs';
+  readonly type: 'cloudwatch-log';
 }
 
 export declare class ApplicationLoadBalancerIntegration extends BaseTypeProperties {
@@ -2961,7 +3197,7 @@ export declare class AlarmIntegration extends BaseTypeProperties {
    * Create a AlarmIntegration
    */
   constructor(properties: import('./plain').AlarmIntegration['properties']);
-  readonly type: 'alarm';
+  readonly type: 'cloudwatch-alarm';
 }
 
 export declare class IotIntegration extends BaseTypeProperties {
@@ -3187,6 +3423,14 @@ export declare class LambdaEfsMount extends BaseTypeProperties {
   readonly type: 'efs';
 }
 
+export declare class LambdaS3FilesMount extends BaseTypeProperties {
+  /**
+   * Create a LambdaS3FilesMount
+   */
+  constructor(properties: import('./plain').LambdaS3FilesMount);
+  readonly type: 's3files';
+}
+
 export declare class CognitoAuthorizer extends BaseTypeProperties {
   /**
    * Create a CognitoAuthorizer
@@ -3395,7 +3639,7 @@ export type CloudFormationTemplate = {
 };
 
 export type StacktapeConfig = Omit<import('./plain').StacktapeConfig, 'resources' | 'cloudformationResources' | 'scripts'> & {
-  resources: { [resourceName: string]: RelationalDatabase | WebService | PrivateService | WorkerService | MultiContainerWorkload | LambdaFunction | BatchJob | Bucket | HostingBucket | DynamoDbTable | EventBus | HttpApiGateway | ApplicationLoadBalancer | NetworkLoadBalancer | RedisCluster | MongoDbAtlasCluster | StateMachine | UserAuthPool | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | WebAppFirewall | OpenSearchDomain | EfsFilesystem | NextjsWeb | AstroWeb | NuxtWeb | SvelteKitWeb | SolidStartWeb | TanStackWeb | RemixWeb | Bastion | StacktapeResourceDefinition };
+  resources: { [resourceName: string]: RelationalDatabase | WebService | PrivateService | WorkerService | MultiContainerWorkload | LambdaFunction | BatchJob | Bucket | HostingBucket | DynamoDbTable | EventBus | HttpApiGateway | ApplicationLoadBalancer | NetworkLoadBalancer | RedisCluster | MongoDbAtlasCluster | StateMachine | UserAuthPool | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | WebAppFirewall | OpenSearchDomain | EfsFilesystem | NextjsWeb | AstroWeb | NuxtWeb | SvelteKitWeb | SolidStartWeb | TanStackWeb | RemixWeb | Bastion | AgentCoreRuntime | AgentCoreMemory | AgentCoreGateway | AgentCoreBrowser | AgentCoreCodeInterpreter | StacktapeResourceDefinition };
   /**
    * #### Scripts that can be executed using the `stacktape script:run` command.
    *
