@@ -986,7 +986,7 @@ export const runInteractiveLauncher = async (): Promise<InteractiveLauncherResul
       />
     ),
     {
-      useAlternateScreen: true,
+      screenMode: 'alternate-screen',
       releaseStdinOnDestroy: false
     }
   );

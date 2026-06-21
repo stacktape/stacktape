@@ -1,5 +1,6 @@
 import type { ExpectedError } from '@utils/errors';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { getCanonicalCommand } from '../../config/cli/commands';
 import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
 import { IS_DEV, IS_TELEMETRY_DISABLED } from '@config';
 import { propertyFromObjectOrNull } from '@shared/utils/misc';
@@ -64,6 +65,9 @@ export class ApplicationManager {
   gracefullyHandleError = async (err: any) => {
     tuiDebug('APP', 'gracefullyHandleError()', { message: err?.message?.slice?.(0, 200) });
     const stacktapeError = getStacktapeError(err);
+    // Capture the error before teardown so it streams into scrollback as a styled
+    // block while the renderer is still alive.
+    tuiManager.setFatalError(stacktapeError);
     await tuiManager.stop();
     this.cancelPendingPromises(stacktapeError);
     tuiManager.error(stacktapeError);
@@ -82,8 +86,9 @@ export class ApplicationManager {
       return this.handleExitSignal('SIGINT');
     }
     const stacktapeError = getStacktapeError(err);
-    // Await stop() so the alternate screen is fully exited before displaying the error.
-    // Previously this was fire-and-forget, causing errors to render on the alt screen.
+    // Capture the error first so stop() can stream it into scrollback as a styled
+    // block while the renderer is still mounted; stop() then flushes and tears down.
+    tuiManager.setFatalError(stacktapeError);
     await tuiManager.stop();
     this.cancelPendingPromises(stacktapeError);
     await this.reportTelemetryEvent({ outcome: stacktapeError.details.code });
@@ -133,17 +138,12 @@ export class ApplicationManager {
     // (exits alternate screen, restores cursor) and then prints cleanup progress.
     await this.cleanUp({ success: false, interrupted: true });
 
-    // Only write terminal restore sequences if the dev TUI was NOT active.
-    // When the dev TUI is active, devTuiManager.stop() (called from the cleanup hook)
-    // already handled alternate screen exit, mouse mode disable, and cursor restoration.
-    // Writing them again would produce garbage escape output on the normal screen.
+    // Only restore terminal state if the dev TUI was NOT active. When the dev TUI
+    // is active, devTuiManager.stop() (called from the cleanup hook) already
+    // handled mouse mode disable and cursor restoration — doing it again would
+    // produce garbage escape output.
     if (!wasDevTuiActive) {
-      try {
-        process.stdout.write('\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l\x1B[?1049l\x1B[?25h');
-      } catch {}
-      try {
-        if (process.stdin.isTTY && process.stdin.isRaw) process.stdin.setRawMode(false);
-      } catch {}
+      tuiManager.forceRestoreTerminal();
     }
 
     this.removeOwnProcessListeners();
@@ -188,7 +188,7 @@ export class ApplicationManager {
   }) => {
     const { command, args } = globalStateManager;
     const shouldCleanTemp =
-      !args.preserveTempFiles && command !== 'package-workloads' && !(this.usesStdinWatch && success);
+      !args.preserveTempFiles && getCanonicalCommand(command) !== 'package' && !(this.usesStdinWatch && success);
     const promiseResults = await Promise.allSettled([
       ...this.cleanUpHooks.map((hook) => hook({ success, interrupted, err })),
       shouldCleanTemp && deleteTempFolder()
@@ -234,24 +234,15 @@ export class ApplicationManager {
     this.isErrored = true;
     this.cancelPendingPromises(err);
 
-    // Destroy the TUI so the alternate screen is exited and the error is visible.
-    // stopSync is fire-and-forget (can't await in sync context), so the async
-    // handle.destroy() won't complete before we write the error below. We must
-    // write escape sequences synchronously to force-exit the alternate screen.
+    // Stop the TUI and stream the final outcome into scrollback. stopSync's
+    // renderer destroy is fire-and-forget (this is a sync context), so restore
+    // the terminal synchronously as a fallback. With the split-footer renderer
+    // the error below lands in scrollback, where a late footer frame can no
+    // longer paint over it.
     tuiManager.stopSync();
 
     if (tuiManager.wasEverStarted || tuiManager.devTuiActive) {
-      try {
-        process.stdout.write(
-          '\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l' + // disable mouse modes
-            '\x1B[?1049l' + // exit alternate screen
-            '\x1B[?25h' + // show cursor
-            '\x1B[0 q' // reset cursor shape
-        );
-      } catch {}
-      try {
-        if (process.stdin.isTTY && process.stdin.isRaw) process.stdin.setRawMode(false);
-      } catch {}
+      tuiManager.forceRestoreTerminal();
     }
 
     try {

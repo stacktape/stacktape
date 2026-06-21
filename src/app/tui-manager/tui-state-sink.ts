@@ -1,5 +1,6 @@
+import { scrollbackFeed } from './scrollback-feed';
 import { tuiState } from './state';
-import type { TuiDeploymentHeader, TuiEventStatus, TuiMessageType } from './types';
+import type { TuiDeploymentHeader, TuiEvent, TuiEventStatus, TuiMessageType } from './types';
 
 type StartEventParams = {
   eventType: LoggableEventType;
@@ -28,9 +29,15 @@ type FinishEventParams = {
 };
 
 export class TuiStateSink {
+  /** Top-level event ids currently producing streamed output (for prefix-on-concurrency). */
+  private activeOutputSources = new Set<string>();
+
   getState = () => tuiState.getState();
 
-  reset = () => tuiState.reset();
+  reset = () => {
+    this.activeOutputSources.clear();
+    tuiState.reset();
+  };
 
   setHeader = (header: TuiDeploymentHeader) => {
     const currentHeader = tuiState.getState().header;
@@ -42,6 +49,7 @@ export class TuiStateSink {
       currentHeader?.subtitle === header.subtitle;
     if (isDuplicateHeader) return false;
     tuiState.setHeader(header);
+    scrollbackFeed.push({ kind: 'header', header });
     return true;
   };
 
@@ -77,15 +85,60 @@ export class TuiStateSink {
     const message =
       params.finalMessage || this.buildFallbackFinishedMessage(params.eventType, params.status, existingDescription);
     tuiState.finishEvent(params);
+    this.emitFinishedEventToScrollback(params);
     return { phase, message };
   };
 
+  /**
+   * Finished top-level events stream into terminal scrollback (split-footer mode)
+   * and become the permanent record. Child events are included in their parent's
+   * block when the parent finishes.
+   */
+  private emitFinishedEventToScrollback = (params: FinishEventParams) => {
+    if (!scrollbackFeed.enabled || params.parentEventType) return;
+    const eventId = params.instanceId ? `${params.eventType}-${params.instanceId}` : params.eventType;
+    this.activeOutputSources.delete(eventId);
+    const state = tuiState.getState();
+    for (const phase of state.phases) {
+      const event = phase.events.find((candidate): candidate is TuiEvent => candidate.id === eventId);
+      if (!event) continue;
+      if (state.showPhaseHeaders !== false) {
+        scrollbackFeed.pushPhaseHeaderIfNeeded(phase.id, phase.name);
+      }
+      scrollbackFeed.push({ kind: 'event', event });
+      return;
+    }
+  };
+
+  /**
+   * Streams event output line-by-line into scrollback as it is produced (Option A).
+   * A `[source]` prefix is added only while more than one event is producing
+   * output at once, so a lone script/hook stays clean. Falls back to buffering
+   * on state (for non-TTY snapshots) when the scrollback feed is inactive.
+   */
   appendEventOutput = (params: { eventType: LoggableEventType; lines: string[]; instanceId?: string }) => {
-    tuiState.appendEventOutput(params);
+    if (!scrollbackFeed.enabled) {
+      tuiState.appendEventOutput(params);
+      return;
+    }
+    const sourceKey = params.instanceId ? `${params.eventType}-${params.instanceId}` : params.eventType;
+    this.activeOutputSources.add(sourceKey);
+    this.ensureCurrentPhaseHeader();
+    const source = this.activeOutputSources.size > 1 ? sourceKey.replace(/^manual-/, '') : undefined;
+    for (const line of params.lines) {
+      scrollbackFeed.push({ kind: 'output-line', source, line });
+    }
+  };
+
+  private ensureCurrentPhaseHeader = () => {
+    const state = tuiState.getState();
+    if (state.showPhaseHeaders === false || !state.currentPhase) return;
+    const phase = state.phases.find((p) => p.id === state.currentPhase);
+    if (phase) scrollbackFeed.pushPhaseHeaderIfNeeded(phase.id, phase.name);
   };
 
   addMessage = (type: TuiMessageType, message: string) => {
-    tuiState.addMessage(type, type, message);
+    scrollbackFeed.push({ kind: 'message', type, text: message });
   };
 
   markAllRunningAsErrored = () => {

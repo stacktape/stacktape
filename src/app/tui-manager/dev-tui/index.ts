@@ -13,18 +13,20 @@ import type {
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { formatSectionHeaderLine } from '@application-services/tui-manager/command-header';
-import type { CliRenderer } from '@opentui/core';
+import type { OpenTuiHandle } from '../opentui-renderer';
 import { setSpinnerDevTuiActive } from '../spinners';
-import { formatDuration, resetWorkloadColors } from './utils';
+import { devScrollbackFeed } from './dev-scrollback-feed';
+import { formatDuration, normalizeLogLines, resetWorkloadColors } from './utils';
 import { devTuiState } from './state';
 import { agentLog } from 'src/commands/dev/agent-logger';
 
 export type { Hook, HookStatus, LocalResource, LogEntry, RebuildStep, ResourceStatus, Workload, WorkloadType };
 
-type CommandHandler = (command: string) => void;
 type RebuildHandler = (workloadName: string | null) => Promise<void>;
 type ReadyHandler = () => void;
 type DevPhase = 'startup' | 'running' | 'rebuilding';
+
+const DEV_FOOTER_HEIGHT = 10;
 
 interface DevTuiRendererInterface {
   start: () => void;
@@ -32,7 +34,8 @@ interface DevTuiRendererInterface {
 }
 
 class DevTuiRenderer {
-  private renderer: CliRenderer | null = null;
+  private handle: OpenTuiHandle | null = null;
+  private detachScrollbackConsumer: (() => void) | null = null;
   private rebuildHandler: RebuildHandler | null = null;
   private quitHandler: (() => void) | null = null;
   private errorHandler: ((error: Error) => void) | null = null;
@@ -44,58 +47,32 @@ class DevTuiRenderer {
   }
 
   async startAsync() {
-    if (this.renderer) return;
+    if (this.handle) return;
 
-    const { render, useRenderer } = await import('@opentui/solid');
+    const { createOpenTuiApp } = await import('../opentui-renderer');
+    const { attachDevScrollbackConsumer } = await import('../scrollback-consumer');
     const { DevDashboard } = await import('../routes/dev/dev-dashboard');
 
     const rebuildHandler = this.rebuildHandler;
     const quitHandler = this.quitHandler;
     const errorHandler = this.errorHandler;
-    const setRenderer = (r: CliRenderer) => {
-      this.renderer = r;
-      // Force full renders (no cell diffing) so OSC 8 hyperlink sequences
-      // are always re-emitted. Without this, the native Zig diff engine
-      // skips unchanged cells, dropping OSC 8 start/end sequences for links
-      // that haven't visually changed, making them non-clickable.
-      const lib = (r as any).lib;
-      const ptr = (r as any).rendererPtr;
-      if (lib?.render && ptr) {
-        (r as any).renderNative = function () {
-          if ((this as any).renderingNative) throw new Error('Rendering called concurrently');
-          (this as any).renderingNative = true;
-          lib.render(ptr, true);
-          (this as any).renderingNative = false;
-        };
-      }
-    };
 
-    const RendererCapture = () => {
-      setRenderer(useRenderer() as unknown as CliRenderer);
-      return DevDashboard({
-        onRebuild: (name: string | null) => {
-          void rebuildHandler?.(name);
-        },
-        onQuit: () => {
-          quitHandler?.();
-        },
-        onRenderError: (error: Error) => {
-          errorHandler?.(error);
-        }
-      });
-    };
-
-    await render(RendererCapture, {
-      exitOnCtrlC: false,
-      useAlternateScreen: true,
-      useMouse: true,
-      targetFps: 60,
-      exitSignals: []
-    });
-
-    try {
-      process.stdout.write('\x1B[5 q');
-    } catch {}
+    this.handle = await createOpenTuiApp(
+      () =>
+        DevDashboard({
+          onRebuild: (name: string | null) => {
+            void rebuildHandler?.(name);
+          },
+          onQuit: () => {
+            quitHandler?.();
+          },
+          onRenderError: (error: Error) => {
+            errorHandler?.(error);
+          }
+        }),
+      { screenMode: 'split-footer', footerHeight: DEV_FOOTER_HEIGHT, useMouse: true, forceFullRenders: true }
+    );
+    this.detachScrollbackConsumer = attachDevScrollbackConsumer(this.handle.renderer);
   }
 
   start() {
@@ -106,39 +83,22 @@ class DevTuiRenderer {
   }
 
   async stop() {
-    const renderer = this.renderer;
-    this.renderer = null;
+    const handle = this.handle;
+    this.handle = null;
 
-    if (!renderer) return;
+    if (!handle) return;
 
-    try {
-      renderer.destroy();
-    } catch {}
-    try {
-      await Promise.race([renderer.idle(), new Promise<void>((resolve) => setTimeout(resolve, 700))]);
-    } catch {}
-    try {
-      process.stdout.write('\x1B[0 q');
-    } catch {}
-    try {
-      if (process.stdin.isTTY) {
-        if (process.stdin.isRaw) process.stdin.setRawMode(false);
-        process.stdin.pause();
-        process.stdin.unref();
-      }
-    } catch {}
+    await handle.destroy();
+    this.detachScrollbackConsumer?.();
+    this.detachScrollbackConsumer = null;
   }
 
   suspend() {
-    try {
-      this.renderer?.suspend();
-    } catch {}
+    this.handle?.suspend();
   }
 
   resume() {
-    try {
-      this.renderer?.resume();
-    } catch {}
+    this.handle?.resume();
   }
 }
 
@@ -253,7 +213,6 @@ class DevTuiNonTtyRenderer implements DevTuiRendererInterface {
 
 class DevTuiManager {
   private renderer: DevTuiRenderer | DevTuiNonTtyRenderer | null = null;
-  private commandHandler: CommandHandler | null = null;
   private rebuildHandler: RebuildHandler | null = null;
   private readyHandler: ReadyHandler | null = null;
   private isRunning = false;
@@ -268,7 +227,6 @@ class DevTuiManager {
   start(config: {
     projectName: string;
     stageName: string;
-    onCommand?: CommandHandler;
     onReady?: ReadyHandler;
     devMode?: 'normal' | 'legacy';
     agentMode?: boolean;
@@ -277,7 +235,6 @@ class DevTuiManager {
 
     this.isRunning = true;
     this.phase = 'startup';
-    this.commandHandler = config.onCommand || null;
     this.readyHandler = config.onReady || null;
     this._agentMode = config.agentMode ?? false;
     this.localResourceStatusSignatures.clear();
@@ -289,6 +246,10 @@ class DevTuiManager {
     setSpinnerDevTuiActive(true);
 
     resetWorkloadColors();
+    devScrollbackFeed.reset();
+    if (!this._agentMode) {
+      devScrollbackFeed.enable();
+    }
     devTuiState.init({
       projectName: config.projectName,
       stageName: config.stageName,
@@ -331,11 +292,11 @@ class DevTuiManager {
     }
     this.isRunning = false;
     this.phase = 'startup';
-    this.commandHandler = null;
     this.localResourceStatusSignatures.clear();
     this.setupStepStatusSignatures.clear();
     this.workloadStatusSignatures.clear();
     this.hookStatusSignatures.clear();
+    devScrollbackFeed.reset();
     devTuiState.reset();
     tuiManager.setDevTuiActive(false);
     setSpinnerDevTuiActive(false);
@@ -354,6 +315,9 @@ class DevTuiManager {
 
     this.phase = 'running';
     devTuiState.setPhase('running');
+
+    const runningCount = devTuiState.getState().workloads.filter((w) => w.status === 'running').length;
+    this.pushStatus('success', `Dev mode ready — ${runningCount} workload${runningCount === 1 ? '' : 's'} running`);
 
     if (this.readyHandler) {
       this.readyHandler();
@@ -392,6 +356,7 @@ class DevTuiManager {
       return;
     }
 
+    this.pushStatus('info', `Rebuilding ${workloadNames.join(', ')}...`);
     devTuiState.startRebuild(workloadNames, this.workloadTypes);
   }
 
@@ -422,6 +387,10 @@ class DevTuiManager {
       return;
     }
 
+    const rebuilding = devTuiState.getState().rebuildingWorkloads.find((w) => w.name === name);
+    const duration = rebuilding ? ` (${formatDuration(Date.now() - rebuilding.startTime)})` : '';
+    const sizeStr = size ? ` [${size}]` : '';
+    this.pushStatus('success', `${name} rebuilt${sizeStr}${duration}`);
     devTuiState.setRebuildWorkloadDone(name, size);
   }
 
@@ -433,12 +402,13 @@ class DevTuiManager {
       return;
     }
 
+    this.pushStatus('error', `${name} rebuild failed — ${error}`);
     devTuiState.setRebuildWorkloadError(name, error);
   }
 
   bufferRebuildLog(source: string, message: string, level: 'info' | 'warn' | 'error' = 'info') {
     if (this.phase !== 'rebuilding') return;
-    devTuiState.addLogLine(source, message, level);
+    this.pushLogLines(source, 'workload', message, level);
   }
 
   async finishRebuild() {
@@ -469,6 +439,15 @@ class DevTuiManager {
     if (this.localResourceStatusSignatures.get(name) === signature) return;
     this.localResourceStatusSignatures.set(name, signature);
     devTuiState.setLocalResourceStatus(name, status, extras);
+
+    const resource = devTuiState.getState().localResources.find((r) => r.name === name);
+    const type = resource?.type || 'resource';
+    if (status === 'running') {
+      const port = extras?.port ? ` on localhost:${extras.port}` : '';
+      this.pushStatus('success', `Local ${type} "${name}" running${port}`);
+    } else if (status === 'error') {
+      this.pushStatus('error', `Local ${type} "${name}" failed — ${extras?.error || 'unknown error'}`);
+    }
   }
 
   addSetupStep(id: string, label: string) {
@@ -480,6 +459,14 @@ class DevTuiManager {
     if (this.setupStepStatusSignatures.get(id) === signature) return;
     this.setupStepStatusSignatures.set(id, signature);
     devTuiState.setSetupStepStatus(id, status, detail);
+
+    const step = devTuiState.getState().setupSteps.find((s) => s.id === id);
+    const label = step?.label || id;
+    if (status === 'done') {
+      this.pushStatus('success', `${label}${detail ? ` — ${detail}` : ''}`);
+    } else if (status === 'skipped') {
+      this.pushStatus('info', `${label} — skipped`);
+    }
   }
 
   addWorkload(workload: { name: string; type: WorkloadType; hostingContentType?: string }) {
@@ -496,6 +483,14 @@ class DevTuiManager {
     if (this.workloadStatusSignatures.get(name) === signature) return;
     this.workloadStatusSignatures.set(name, signature);
     devTuiState.setWorkloadStatus(name, status, extras);
+
+    if (status === 'running') {
+      const url = extras?.url ? ` at ${extras.url}` : '';
+      const size = extras?.size ? ` [${extras.size}]` : '';
+      this.pushStatus('success', `${name} running${url}${size}`);
+    } else if (status === 'error') {
+      this.pushStatus('error', `${name} failed — ${extras?.error || 'unknown error'}`);
+    }
   }
 
   addHook(hook: { name: string }) {
@@ -507,6 +502,13 @@ class DevTuiManager {
     if (this.hookStatusSignatures.get(name) === signature) return;
     this.hookStatusSignatures.set(name, signature);
     devTuiState.setHookStatus(name, status, extras);
+
+    if (status === 'success') {
+      const duration = extras?.duration ? ` (${formatDuration(extras.duration)})` : '';
+      this.pushStatus('success', `Hook "${name}" completed${duration}`);
+    } else if (status === 'error') {
+      this.pushStatus('error', `Hook "${name}" failed — ${extras?.error || 'unknown error'}`);
+    }
   }
 
   log(source: string, message: string, level: LogEntry['level'] = 'info') {
@@ -518,7 +520,7 @@ class DevTuiManager {
       return;
     }
 
-    devTuiState.addLogLine(source, message, level);
+    this.pushLogLines(source, 'workload', message, level);
   }
 
   systemLog(message: string, level: LogEntry['level'] = 'info') {
@@ -529,7 +531,7 @@ class DevTuiManager {
       return;
     }
 
-    devTuiState.addSystemLog(message, level);
+    this.pushLogLines('system', 'system', message, level);
   }
 
   logLines(source: string, lines: string[], level: LogEntry['level'] = 'info') {
@@ -540,12 +542,16 @@ class DevTuiManager {
     }
   }
 
-  clearLogs() {
-    devTuiState.clearLogs();
+  private pushLogLines(source: string, sourceType: 'workload' | 'system', message: string, level: LogEntry['level']) {
+    for (const line of normalizeLogLines(message)) {
+      devScrollbackFeed.push({ kind: 'log', source, sourceType, level, message: line, timestamp: Date.now() });
+      // Mirror to the agent JSONL log file (no-op when the agent logger is not initialized)
+      agentLog(source, line, level === 'debug' ? 'info' : level);
+    }
   }
 
-  setLogFilter(workloadName: string | null) {
-    devTuiState.setLogFilter(workloadName);
+  private pushStatus(level: 'info' | 'success' | 'error' | 'warn', text: string) {
+    devScrollbackFeed.push({ kind: 'status', level, text, timestamp: Date.now() });
   }
 }
 

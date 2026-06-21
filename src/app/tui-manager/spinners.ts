@@ -26,6 +26,18 @@ let _devTuiActive = false;
 let _agentMode = false;
 let _guidedMode = false;
 
+type TuiSpinnerMessageSink = (type: 'success' | 'error', text: string) => void;
+
+// While the split-footer TUI owns the terminal, inline \r-animated spinners would
+// be captured as raw stdout and replayed into scrollback frame-by-frame. Instead,
+// spinners stay silent while running and stream only their final line through the
+// TUI message sink (→ scrollback).
+let _tuiMessageSink: TuiSpinnerMessageSink | null = null;
+
+export const setSpinnerTuiMessageSink = (sink: TuiSpinnerMessageSink | null) => {
+  _tuiMessageSink = sink;
+};
+
 export const setSpinnerDevTuiActive = (active: boolean) => {
   _devTuiActive = active;
 };
@@ -44,9 +56,33 @@ export const setSpinnerGuidedMode = (active: boolean) => {
 
 export const isSpinnerGuidedMode = () => _guidedMode;
 
+const createTuiSinkSpinner = (text: string, sink: TuiSpinnerMessageSink): Spinner => {
+  const startTime = Date.now();
+  let stopped = false;
+  return {
+    update: () => {},
+    success: (options?: { text?: string; details?: string }) => {
+      if (stopped) return;
+      stopped = true;
+      const finalText = options?.text || text;
+      const details = options?.details ? ` ${options.details}` : '';
+      sink('success', `${finalText}${details} (${formatDuration(Date.now() - startTime)})`);
+    },
+    error: (errorText?: string) => {
+      if (stopped) return;
+      stopped = true;
+      sink('error', `${errorText || `${text} failed`} (${formatDuration(Date.now() - startTime)})`);
+    }
+  };
+};
+
 export const createSpinner = (text: string, colorize: (color: string, text: string) => string): Spinner => {
   if (_devTuiActive) {
     return { update: () => {}, success: () => {}, error: () => {} };
+  }
+
+  if (_tuiMessageSink) {
+    return createTuiSinkSpinner(text, _tuiMessageSink);
   }
 
   if (_agentMode) {
@@ -194,6 +230,10 @@ export class MultiSpinner {
         success: () => {},
         error: () => {}
       };
+    }
+
+    if (_tuiMessageSink) {
+      return createTuiSinkSpinner(text, _tuiMessageSink);
     }
 
     if (this.agentMode) {

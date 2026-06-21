@@ -8,25 +8,37 @@ import type {
   TuiSelectOption
 } from './types';
 import { eventManager } from '@application-services/event-manager';
-import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
+import {
+  ARE_NOTIFICATIONS_DISABLED,
+  INVOKED_FROM_ENV_VAR_NAME,
+  IS_DEV,
+  linksMap,
+  NOTIFICATION_MIN_DURATION_MS
+} from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
 
 import kleur from 'kleur';
 import boxen from 'boxen';
 import stringWidth from 'string-width';
 import terminalLink from 'terminal-link';
-import { toast } from '@opentui-ui/toast';
 import { ConsoleInterceptor } from './console-interceptor';
 import type { OpenTuiHandle } from './opentui-renderer';
 import { tuiDebug } from './tui-debug-log';
 import type { JsonlEventDetail } from './jsonl-types';
-import { renderErrorToString, renderStackErrorsToString } from './non-tty-renderer';
+import { renderErrorToString, renderStackErrorsToString, type ErrorDisplayData } from './error-rendering';
 import { getOutputModeProfile, resolveOutputMode, type OutputMode } from './output-mode';
 import type { OutputRecord } from './output-record';
 import { OutputRouter } from './output-router';
 import { PromptSink } from './prompt-sink';
 import { UserCancelledError } from './prompts';
-import { createSpinner, createSpinnerProgressLogger, MultiSpinner, setSpinnerGuidedMode } from './spinners';
+import { scrollbackFeed } from './scrollback-feed';
+import {
+  createSpinner,
+  createSpinnerProgressLogger,
+  MultiSpinner,
+  setSpinnerGuidedMode,
+  setSpinnerTuiMessageSink
+} from './spinners';
 import { tuiState } from './state';
 import { TuiStateSink } from './tui-state-sink';
 import {
@@ -36,43 +48,29 @@ import {
 } from './command-header';
 import { formatDuration, stripAnsi } from './utils';
 
-const CLI_TOAST_MAX_WORD_WIDTH = 32;
-
 export { UserCancelledError };
+export type { ErrorDisplayData } from './error-rendering';
 export type { Spinner } from './spinners';
 export { MultiSpinner } from './spinners';
 export { tuiState } from './state';
-export type {
-  TuiDeploymentHeader,
-  TuiEvent,
-  TuiLink,
-  TuiMessage,
-  TuiPhase,
-  TuiSelectOption,
-  TuiState,
-  TuiSummary,
-  TuiWarning
-} from './types';
 
-export type ErrorDisplayData = {
-  errorType: string;
-  message: string;
-  hints?: string[];
-  stackTrace?: string;
-  userStackTrace?: string;
-  errorDetails?: { title: string; codeFrame?: string };
-  sentryEventId?: string;
-  isExpected?: boolean;
-};
+export type { TuiDeploymentHeader, TuiEvent, TuiLink, TuiPhase, TuiSelectOption, TuiState, TuiSummary } from './types';
+
+const DEPLOY_FOOTER_HEIGHT = 12;
 
 class TuiManager {
   private openTuiHandle: OpenTuiHandle | null = null;
   private _openTuiInitPromise: Promise<void> | null = null;
+  private detachScrollbackConsumer: (() => void) | null = null;
+  private finalScrollbackEmitted = false;
+  private _pendingErrorData?: ErrorDisplayData;
+  private _errorRenderedToScrollback = false;
+  private _windowFocused = true;
 
   private outputMode: OutputMode = resolveOutputMode({ forceTty: process.env.FORCE_TTY === '1' });
   private outputRouter: OutputRouter;
   private stateSink = new TuiStateSink();
-  private promptSink = new PromptSink(this.colorize.bind(this));
+  private promptSink = new PromptSink((message) => this.log('info', message));
   private consoleInterceptor = new ConsoleInterceptor();
   private originalStdoutWrite: typeof process.stdout.write | null = null;
   private originalStderrWrite: typeof process.stderr.write | null = null;
@@ -144,20 +142,17 @@ class TuiManager {
   start() {
     this._isEnabled = true;
     this._wasEverStarted = true;
-    toast.dismiss();
     this.stateSink.reset();
+    scrollbackFeed.reset();
+    this.finalScrollbackEmitted = false;
+    this._pendingErrorData = undefined;
+    this._errorRenderedToScrollback = false;
     const profile = getOutputModeProfile(this.outputMode);
     tuiDebug('TUI', 'start()', { mode: this.outputMode, useTtyUi: profile.useTtyUi });
 
-    if (profile.useJsonlStdout) {
-      return;
-    }
-
-    if (profile.usePlainStdout) {
-      return;
-    }
-
     if (profile.useTtyUi) {
+      scrollbackFeed.enable();
+      setSpinnerTuiMessageSink((type, text) => this.stateSink.addMessage(type, text));
       this.startOpenTui();
     }
   }
@@ -171,14 +166,12 @@ class TuiManager {
         const { DeployDashboard } = await import('./routes/deploy/deploy-dashboard');
         const onQuit = () => {
           tuiDebug('TUI', 'onQuit callback fired');
-          setTimeout(() => this.stopAndPrintSummary(), 0);
+          setTimeout(() => this.stopInternal(), 0);
         };
         const onCancel = () => {
           tuiDebug('TUI', 'onCancel callback fired');
           setTimeout(async () => {
-            const state = tuiState.getSnapshot();
-            await this.destroyOpenTui();
-            this.printExitSummary(state);
+            await this.stopInternal();
             process.emit('SIGINT', 'SIGINT');
           }, 0);
         };
@@ -201,10 +194,13 @@ class TuiManager {
           });
           return;
         }
-        const handle = await createOpenTuiApp(component);
+        const handle = await createOpenTuiApp(component, {
+          screenMode: 'split-footer',
+          footerHeight: DEPLOY_FOOTER_HEIGHT
+        });
         tuiDebug('TUI', 'startOpenTui() renderer created');
-        // Guard: if TUI was destroyed while renderer was being created (alternate screen
-        // already entered), immediately tear it down to avoid orphaned alternate screen
+        // Guard: if TUI was destroyed while renderer was being created, immediately
+        // tear it down to avoid an orphaned renderer-owned footer region
         if (this._openTuiDestroyed || !this._isEnabled) {
           tuiDebug('TUI', 'startOpenTui() post-create bail — destroying handle', {
             isEnabled: this._isEnabled,
@@ -216,14 +212,28 @@ class TuiManager {
           return;
         }
         this.openTuiHandle = handle;
+        const { attachScrollbackConsumer } = await import('./scrollback-consumer');
+        this.detachScrollbackConsumer = attachScrollbackConsumer(handle.renderer);
+        this._windowFocused = true;
+        try {
+          handle.renderer.on('focus', () => {
+            this._windowFocused = true;
+          });
+          handle.renderer.on('blur', () => {
+            this._windowFocused = false;
+          });
+        } catch {}
+        this.updateTerminalTitle();
         tuiDebug('TUI', 'startOpenTui() complete — handle assigned');
       })
       .catch((err) => {
         tuiDebug('TUI', 'startOpenTui() CATCH', { message: err?.message, stack: err?.stack });
-        // Dynamic import or renderer creation failed — mark TUI as disabled
+        // Dynamic import or renderer creation failed — mark TUI as disabled and
+        // unblock any prompt that was queued for the never-mounted footer
         this._isEnabled = false;
+        this.promptSink.rejectPending();
         try {
-          process.stderr.write('\x1B[?1049l\x1B[?25h');
+          process.stderr.write('\x1B[?25h');
           process.stderr.write(`\n[TUI init error] ${err?.message || err}\n`);
         } catch {}
       })
@@ -231,14 +241,6 @@ class TuiManager {
         tuiDebug('TUI', 'startOpenTui() finally — clearing init promise');
         this._openTuiInitPromise = null;
       });
-  }
-
-  private async stopAndPrintSummary() {
-    tuiDebug('TUI', 'stopAndPrintSummary()', { hasSummary: !!tuiState.getSnapshot().summary });
-    const state = tuiState.getSnapshot();
-    await this.destroyOpenTui();
-
-    this.printExitSummary(state);
   }
 
   private _openTuiDestroyed = false;
@@ -291,17 +293,22 @@ class TuiManager {
       }
     }
 
-    // Safety: exit alternate screen + restore cursor, but ONLY if the renderer handle
-    // was NOT successfully destroyed (handle.destroy() already exits the alternate screen
-    // and restores cursor). Writing \x1B[?1049l again after a successful destroy can move
-    // the cursor to the wrong position on Windows terminals, causing the first lines of
-    // subsequent output to be overwritten/invisible.
+    // Safety: restore cursor, but ONLY if the renderer handle was NOT successfully
+    // destroyed (handle.destroy() already restores terminal state). Re-emitting
+    // restore sequences after a successful destroy can move the cursor to the wrong
+    // position on Windows terminals.
     if (this._wasEverStarted && !handleDestroyed) {
       try {
-        process.stdout.write('\x1B[?1049l\x1B[?25h');
+        process.stdout.write('\x1B[?25h');
       } catch {}
     }
 
+    // A prompt awaiting an answer in the footer can never resolve once the
+    // renderer is gone — reject it so the awaiting command aborts cleanly.
+    this.promptSink.rejectPending();
+    this.detachScrollbackConsumer?.();
+    this.detachScrollbackConsumer = null;
+    setSpinnerTuiMessageSink(null);
     this._isEnabled = false;
     this.disableJsonlStdoutGuard();
     this.disableJsonlStderrGuard();
@@ -313,10 +320,8 @@ class TuiManager {
   }
 
   /**
-   * Prints a plain-text summary to stdout after the TUI is destroyed.
-   *
-   * Infers what happened from the state shape — no explicit `reason` parameter needed.
-   * All TUI exit paths (quit, cancel, error, stop) call this single method.
+   * Plain-text summary inferred from the state shape. Used by plain output mode
+   * and as the TTY fallback when the renderer never streamed to scrollback.
    *
    * Decision tree:
    *   state.summary exists        → full detailed summary (success or failure)
@@ -338,7 +343,12 @@ class TuiManager {
     const { summary, header, phases, startTime } = state;
     const elapsed = formatDuration(Date.now() - startTime);
     const headerText = header ? `${header.projectName} → ${header.stageName} (${header.region})` : '';
-    const action = header?.action === 'DELETING' ? 'Deletion' : 'Deployment';
+    const action =
+      header?.action === 'DELETING'
+        ? 'Deletion'
+        : header?.action === 'COMPILING TEMPLATE'
+          ? 'Template compilation'
+          : 'Deployment';
 
     // ── Full summary available (success or failure with details) ─────────
     if (summary) {
@@ -474,19 +484,131 @@ class TuiManager {
     tuiState.setFinalizing();
     this._isEnabled = false;
     const state = tuiState.getSnapshot();
-    // stopSync is inherently synchronous — we fire-and-forget the async destroy
-    // but still forcibly exit alternate screen (belt-and-suspenders in destroyOpenTui)
+    this.emitFinalScrollback(state);
+    this.maybeNotifyCompletion(state);
+    // stopSync is inherently synchronous — fire-and-forget the async destroy
     this.destroyOpenTui();
+    this.printFallbackSummary(state);
+  }
 
-    this.printExitSummary(state);
+  /**
+   * Synchronous terminal restore for crash/signal paths that cannot await the
+   * renderer teardown: disables mouse tracking, shows the cursor, and resets the
+   * cursor shape and raw mode. Safe to call when the renderer already cleaned up.
+   */
+  forceRestoreTerminal() {
+    try {
+      process.stdout.write('\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l\x1B[?25h\x1B[0 q');
+    } catch {}
+    try {
+      if (process.stdin.isTTY && process.stdin.isRaw) {
+        process.stdin.setRawMode(false);
+      }
+    } catch {}
   }
 
   private async stopInternal() {
     tuiDebug('TUI', 'stopInternal()');
     const state = tuiState.getSnapshot();
+    this.emitFinalScrollback(state);
+    this.maybeNotifyCompletion(state);
     await this.destroyOpenTui();
+    this.printFallbackSummary(state);
+  }
 
-    this.printExitSummary(state);
+  /** Updates the terminal tab title from the current header (TTY only). */
+  private updateTerminalTitle() {
+    const header = tuiState.getState().header;
+    if (!header || !this.openTuiHandle) return;
+    try {
+      this.openTuiHandle.renderer.setTerminalTitle(
+        `stacktape ${header.action.toLowerCase()}: ${header.projectName} → ${header.stageName}`
+      );
+    } catch {}
+  }
+
+  /**
+   * Fires a terminal-mediated desktop notification when a long-running command
+   * finishes while the terminal window is unfocused. Must run before teardown
+   * (needs the live renderer). Silently no-ops when disabled, focused, too quick,
+   * or unsupported by the terminal.
+   */
+  private maybeNotifyCompletion(state: ReturnType<typeof tuiState.getSnapshot>) {
+    if (ARE_NOTIFICATIONS_DISABLED || this._windowFocused || !this.openTuiHandle) return;
+    const elapsedMs = Date.now() - state.startTime;
+    if (elapsedMs < NOTIFICATION_MIN_DURATION_MS) return;
+
+    const success = state.summary ? state.summary.success : !state.phases.some((p) => p.status === 'error');
+    const header = state.header;
+    const target = header ? ` ${header.projectName} → ${header.stageName}` : '';
+    const action = header?.action ? header.action.toLowerCase() : 'command';
+    const title = success ? 'Stacktape — finished' : 'Stacktape — failed';
+    const body = `${action}${target} (${formatDuration(elapsedMs)})`;
+    try {
+      this.openTuiHandle.renderer.triggerNotification(body, title);
+    } catch {}
+  }
+
+  /**
+   * Streams the final outcome into terminal scrollback (split-footer mode).
+   * Finished work was already streamed as it happened, so this only appends
+   * the closing summary / cancellation / failure line.
+   */
+  private emitFinalScrollback(state: ReturnType<typeof tuiState.getSnapshot>) {
+    if (!scrollbackFeed.enabled || this.finalScrollbackEmitted) return;
+    this.finalScrollbackEmitted = true;
+
+    const { summary, phases, startTime, cancelDeployment, header } = state;
+    const elapsed = formatDuration(Date.now() - startTime);
+
+    if (summary) {
+      scrollbackFeed.push({ kind: 'summary', summary, phases, totalDurationMs: Date.now() - startTime });
+      return;
+    }
+
+    // A fatal error → stream the styled error block (covers the failure; the
+    // plain-text stderr fallback in displayError is then skipped).
+    if (this._pendingErrorData) {
+      scrollbackFeed.push({ kind: 'error', error: this._pendingErrorData });
+      this._errorRenderedToScrollback = true;
+      this._pendingErrorData = undefined;
+      return;
+    }
+
+    const action =
+      header?.action === 'DELETING'
+        ? 'Deletion'
+        : header?.action === 'COMPILING TEMPLATE'
+          ? 'Template compilation'
+          : 'Deployment';
+    const hasErroredPhase = phases.some((p) => p.status === 'error');
+    const hasRunningPhase = phases.some((p) => p.status === 'running');
+
+    if (hasErroredPhase || (hasRunningPhase && !cancelDeployment)) {
+      scrollbackFeed.push({ kind: 'message', type: 'error', text: `${action} failed (${elapsed})` });
+    } else if (cancelDeployment || hasRunningPhase) {
+      const text = cancelDeployment?.isCancelling
+        ? `${action} cancelled — rolling back (${elapsed})`
+        : `${action} cancelled (${elapsed})`;
+      scrollbackFeed.push({ kind: 'message', type: 'warn', text });
+    }
+  }
+
+  /**
+   * Plain-text exit summary for paths where nothing streamed to scrollback:
+   * plain output mode, or TTY mode where the renderer never mounted (early
+   * crash). In the normal TTY flow scrollback already holds the full record.
+   */
+  private printFallbackSummary(state: ReturnType<typeof tuiState.getSnapshot>) {
+    if (this.outputMode === 'jsonl') return;
+    if (this.outputMode === 'plain') {
+      this.printExitSummary(state);
+      return;
+    }
+    const pending = scrollbackFeed.drainPending();
+    if (pending.length > 0) {
+      this.printExitSummary(state);
+    }
   }
 
   private reconfigureConsoleForMode() {
@@ -724,63 +846,13 @@ class TuiManager {
 
     const hasActivePhase = this.stateSink.getState().currentPhase !== undefined;
     if (this._isEnabled && this.isTTY && hasActivePhase) {
-      this.showToast(type, message);
+      this.stateSink.addMessage(type, stripAnsi(message).trim());
       return;
     }
 
     if (!this._devTuiActive || !this._isEnabled) {
       this.printToConsole(type, message);
     }
-  }
-
-  private showToast(type: TuiMessageType, message: string) {
-    const text = this.formatToastText(stripAnsi(message).trim());
-    if (!text) return;
-
-    const lines = text.split(/\r?\n/);
-    const title = lines.shift() || text;
-    const description = lines.length ? lines.join('\n') : undefined;
-    const options = description ? { description } : undefined;
-
-    switch (type) {
-      case 'success':
-        toast.success(title, options);
-        return;
-      case 'error':
-        toast.error(title, options);
-        return;
-      case 'warn':
-        toast.warning(title, options);
-        return;
-      case 'hint':
-      case 'announcement':
-      case 'start':
-      case 'info':
-      case 'debug':
-        toast.info(title, options);
-        return;
-    }
-  }
-
-  private formatToastText(message: string) {
-    return message
-      .split(/\r?\n/)
-      .map((line) =>
-        line
-          .split(/(\s+)/)
-          .map((part) => this.wrapLongToastToken(part))
-          .join('')
-      )
-      .join('\n');
-  }
-
-  private wrapLongToastToken(token: string) {
-    if (/^\s+$/.test(token) || token.length <= CLI_TOAST_MAX_WORD_WIDTH) return token;
-    const chunks: string[] = [];
-    for (let i = 0; i < token.length; i += CLI_TOAST_MAX_WORD_WIDTH) {
-      chunks.push(token.slice(i, i + CLI_TOAST_MAX_WORD_WIDTH));
-    }
-    return chunks.join(' ');
   }
 
   private printToConsole(type: TuiMessageType, message: string) {
@@ -822,10 +894,6 @@ class TuiManager {
     tuiState.configureForCodebuildDeploy();
   }
 
-  setStreamingMode(enabled: boolean) {
-    tuiState.setStreamingMode(enabled);
-  }
-
   setShowPhaseHeaders(show: boolean) {
     tuiState.setShowPhaseHeaders(show);
   }
@@ -834,6 +902,7 @@ class TuiManager {
     const wasUpdated = this.stateSink.setHeader(header);
     if (!wasUpdated) return;
 
+    this.updateTerminalTitle();
     this.emitOutputRecord({
       type: 'progress',
       phase: 'INITIALIZE',
@@ -1114,7 +1183,10 @@ class TuiManager {
       return;
     }
 
-    const error = input;
+    this.displayError(this.toErrorDisplayData(input));
+  }
+
+  private toErrorDisplayData(error: UnexpectedError | ExpectedError): ErrorDisplayData {
     const { hint } = error as ExpectedError;
     const { prettyStackTrace, errorType, sentryEventId } = error.details;
 
@@ -1132,7 +1204,7 @@ class TuiManager {
     }
     hints.push(`To get help, reach out to our team at support@stacktape.com`);
 
-    const errorData: ErrorDisplayData = {
+    return {
       errorType: errorType.replace('_ERROR', ''),
       message: errorMessage,
       hints: this.logLevel !== 'error' ? hints : undefined,
@@ -1142,23 +1214,25 @@ class TuiManager {
       sentryEventId: sentryEventId || undefined,
       isExpected: error.isExpected
     };
+  }
 
-    this.displayError(errorData);
+  /**
+   * Captures a fatal error so it is streamed into scrollback as a styled block
+   * while the renderer is still mounted. Call BEFORE stop()/teardown. The later
+   * displayError() then knows the error is already shown and skips the plain
+   * stderr fallback. No-op in non-TTY modes (stderr/jsonl handles those).
+   */
+  setFatalError(error: UnexpectedError | ExpectedError) {
+    if (!scrollbackFeed.enabled) return;
+    this._pendingErrorData = this.toErrorDisplayData(error);
   }
 
   async displayError(errorData: ErrorDisplayData) {
     tuiDebug('TUI', 'displayError()', { errorType: errorData.errorType, message: errorData.message?.slice(0, 200) });
     this.stateSink.markAllRunningAsErrored();
-    // destroyOpenTui() handles alternate screen exit internally. If the handle was
-    // destroyed successfully, the alternate screen is already exited. No additional
-    // escape sequences needed — writing \x1B[?1049l again can move the cursor to
-    // the wrong position on Windows terminals.
     await this.destroyOpenTui();
 
     // Write error to JSONL log collector (file) and, in jsonl mode, to stdout.
-    // Use emitOutputRecord for jsonl (where it IS the display path) and
-    // emitCollectorLog for other modes (where displayError handles display
-    // itself via renderErrorToString / displayErrorWithClack).
     if (this.outputMode === 'jsonl') {
       this.emitOutputRecord({
         type: 'log',
@@ -1177,106 +1251,18 @@ class TuiManager {
       ...(errorData.hints ? { data: { hints: errorData.hints } } : {})
     });
 
-    if (this.isTTY) {
-      this.displayErrorWithClack(errorData);
-    } else {
-      const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
-      console.error(errorString);
-    }
-  }
-
-  private displayErrorWithClack(errorData: ErrorDisplayData) {
-    // Use process.stderr.write directly to bypass any console interception that
-    // might still be active (e.g. if destroyOpenTui was a no-op due to the
-    // idempotent guard). This ensures the error is always written to stderr.
-    const write = (msg: string) => {
-      try {
-        process.stderr.write(`${msg}\n`);
-      } catch {}
-    };
-
-    const typeLabel = errorData.isExpected === false ? 'Unexpected Error' : this.getErrorLabel(errorData.errorType);
-
-    write('');
-    write(this.colorize('red', `[x] ${typeLabel}`));
-    write('');
-    write(errorData.message);
-
-    if (errorData.errorDetails) {
-      write('');
-      write(this.makeBold(this.colorize('red', '▌ Error details')));
-      write(this.makeBold(`  ${errorData.errorDetails.title}`));
-      if (errorData.errorDetails.codeFrame) {
-        write('');
-        const indented = errorData.errorDetails.codeFrame
-          .split('\n')
-          .map((l) => `  ${this.colorize('gray', '│')} ${l}`)
-          .join('\n');
-        write(indented);
-      }
-    } else if (errorData.userStackTrace) {
-      write('');
-      write(this.makeBold('Stack trace in your code:'));
-      write(this.colorize('cyan', errorData.userStackTrace));
+    // In TTY mode the error was already streamed into scrollback as a styled
+    // block by emitFinalScrollback() (while the renderer was alive), so don't
+    // also dump it to stderr.
+    if (this._errorRenderedToScrollback) {
+      this._errorRenderedToScrollback = false;
+      return;
     }
 
-    const hints = errorData.hints || [];
-    if (hints.length > 0) {
-      write('');
-      write(this.makeBold('Hints:'));
-      for (const hint of hints) {
-        write(`  ${this.colorize('gray', '→')} ${hint}`);
-      }
-    }
-
-    if (errorData.stackTrace) {
-      write('');
-      write(this.makeBold('Stack trace:'));
-      write(this.colorize('gray', errorData.stackTrace));
-    }
-
-    if (errorData.sentryEventId) {
-      write('');
-      write(this.colorize('gray', `Error ID: ${errorData.sentryEventId}`));
-    }
-  }
-
-  private getErrorLabel(errorType: string): string {
-    const labels: Record<string, string> = {
-      API_KEY: 'API Key Error',
-      API_SERVER: 'API Server Error',
-      AWS_ACCOUNT: 'AWS Account Error',
-      BUDGET: 'Budget Error',
-      CLI: 'CLI Error',
-      CODEBUILD: 'CodeBuild Error',
-      CONFIG: 'Configuration Error',
-      CONFIG_GENERATION: 'Config Generation Error',
-      CONFIG_VALIDATION: 'Config Validation Error',
-      CONFIRMATION_REQUIRED: 'Confirmation Required',
-      CONTAINER: 'Container Error',
-      CREDENTIALS: 'Credentials Error',
-      DIRECTIVE: 'Directive Error',
-      DOCKER: 'Docker Error',
-      DOMAIN_MANAGEMENT: 'Domain Management Error',
-      EXISTING_STACK: 'Existing Stack Error',
-      INPUT: 'Input Error',
-      MISSING_OUTPUT: 'Missing Output Error',
-      MISSING_PREREQUISITE: 'Missing Prerequisite',
-      NON_EXISTING_RESOURCE: 'Resource Not Found',
-      NON_EXISTING_STACK: 'Stack Not Found',
-      NOT_YET_IMPLEMENTED: 'Not Yet Implemented',
-      PACKAGING_CONFIG: 'Packaging Config Error',
-      PARAMETER: 'Parameter Error',
-      RUNTIME: 'Runtime Error',
-      SCRIPT: 'Script Error',
-      SOURCE_CODE: 'Source Code Error',
-      STACK: 'Stack Error',
-      STACK_MONITORING: 'Stack Monitoring Error',
-      SUBSCRIPTION_REQUIRED: 'Subscription Required',
-      SYNC_BUCKET: 'Bucket Sync Error',
-      UNSUPPORTED_RESOURCE: 'Unsupported Resource'
-    };
-    return labels[errorType] || `${errorType.replace(/_/g, ' ')} Error`;
+    const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
+    try {
+      process.stderr.write(`${errorString}\n`);
+    } catch {}
   }
 
   printStacktapeLog(stacktapeLog: { type: string; data: Record<string, any> }) {

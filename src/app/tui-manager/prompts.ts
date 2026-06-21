@@ -9,16 +9,15 @@ export class UserCancelledError extends Error {
   }
 }
 
-type ColorFn = (color: string, text: string) => string;
-
+/**
+ * Inline terminal prompts for interactive (TTY) sessions where no TUI renderer
+ * is mounted. All prompt routing happens in PromptSink — this class is only the
+ * `prompts`-package presentation layer.
+ */
 export class PromptManager {
-  private colorize: ColorFn;
-  private isTTY: boolean;
   private static didApplyPromptTheme = false;
 
-  constructor(colorize: ColorFn, isTTY: boolean) {
-    this.colorize = colorize;
-    this.isTTY = isTTY;
+  constructor() {
     this.applyPromptTheme();
   }
 
@@ -39,13 +38,6 @@ export class PromptManager {
   }
 
   async select(config: { message: string; options: TuiSelectOption[]; defaultValue?: string }): Promise<string> {
-    if (!this.isTTY) {
-      return this.handleNonTTY(config.message, config.defaultValue, () => {
-        const option = config.options.find((item) => item.value === config.defaultValue);
-        return option?.label || config.defaultValue || '';
-      });
-    }
-
     const response = await prompts(
       {
         type: 'select',
@@ -81,19 +73,6 @@ export class PromptManager {
     options: TuiSelectOption[];
     defaultValues?: string[];
   }): Promise<string[]> {
-    if (!this.isTTY) {
-      if (config.defaultValues !== undefined) {
-        const labels = config.defaultValues
-          .map((value) => config.options.find((option) => option.value === value)?.label || value)
-          .join(', ');
-        console.info(`${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', labels)} (default)`);
-        return config.defaultValues;
-      }
-      throw new Error(
-        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
-      );
-    }
-
     const response = await prompts(
       {
         type: 'multiselect',
@@ -121,10 +100,6 @@ export class PromptManager {
   }
 
   async confirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
-    if (!this.isTTY) {
-      return this.handleNonTTYBoolean(config.message, config.defaultValue);
-    }
-
     const response = await prompts(
       {
         type: 'toggle',
@@ -153,15 +128,6 @@ export class PromptManager {
     description?: string;
     defaultValue?: string;
   }): Promise<string> {
-    if (!this.isTTY) {
-      return this.handleNonTTY(config.message, config.defaultValue, () => {
-        if (config.isPassword && config.defaultValue) {
-          return '*'.repeat(config.defaultValue.length);
-        }
-        return config.defaultValue || '';
-      });
-    }
-
     const response = await prompts(
       {
         type: config.isPassword ? 'password' : 'text',
@@ -180,28 +146,5 @@ export class PromptManager {
     this.printSpacer();
 
     return (response.value as string) || config.defaultValue || '';
-  }
-
-  private handleNonTTY<T>(message: string, defaultValue: T | undefined, formatDefault: () => string): T {
-    if (defaultValue !== undefined) {
-      console.info(`${this.colorize('cyan', 'ℹ')} ${message} ${this.colorize('cyan', formatDefault())} (default)`);
-      this.printSpacer();
-      return defaultValue;
-    }
-    throw new Error(
-      `Interactive prompt "${message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
-    );
-  }
-
-  private handleNonTTYBoolean(message: string, defaultValue: boolean | undefined): boolean {
-    if (defaultValue !== undefined) {
-      const answer = defaultValue ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
-      console.info(`${this.colorize('cyan', 'ℹ')} ${message} ${answer} (default)`);
-      this.printSpacer();
-      return defaultValue;
-    }
-    throw new Error(
-      `Interactive prompt "${message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
-    );
   }
 }

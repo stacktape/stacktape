@@ -23,7 +23,7 @@ import {
   spawnAgentDaemon,
   writeAgentLockFile
 } from './agent-daemon';
-import { agentLog, getAgentLogFilePath } from './agent-logger';
+import { getAgentLogFilePath } from './agent-logger';
 import {
   buildStartupMessage,
   getAgentPort,
@@ -601,7 +601,6 @@ export const commandDev = async () => {
   devTuiManager.start({
     projectName,
     stageName,
-    onCommand: handleCommand,
     onReady: agentEnabled
       ? () => {
           const port = getAgentPort();
@@ -670,16 +669,9 @@ export const commandDev = async () => {
     // Initialize dev agent credentials (scoped IAM role for agent API)
     initDevAgentCredentials();
 
-    let agentLogCursor = 0;
-    const mapLogLevel = (level: 'info' | 'warn' | 'error' | 'debug'): 'info' | 'warn' | 'error' => {
-      if (level === 'error') return 'error';
-      if (level === 'warn') return 'warn';
-      return 'info';
-    };
-
     const syncAgentState = (state: DevTuiState) => {
       updateAgentState({
-        phase: state.isQuitting ? 'stopping' : state.phase === 'running' ? 'ready' : 'starting',
+        phase: state.phase === 'running' ? 'ready' : 'starting',
         workloads: state.workloads.map((workload) => ({
           name: workload.name,
           type: workload.type,
@@ -697,14 +689,6 @@ export const commandDev = async () => {
           error: resource.error
         }))
       });
-
-      const newLogs = state.logs.filter((log) => log.timestamp > agentLogCursor);
-      for (const log of newLogs) {
-        agentLog(log.source, log.message, mapLogLevel(log.level));
-      }
-      if (newLogs.length > 0) {
-        agentLogCursor = newLogs[newLogs.length - 1].timestamp;
-      }
     };
 
     syncAgentState(devTuiState.getState());
@@ -857,37 +841,4 @@ const mapResourceType = (
   if (type === 'dynamo-db-table') return 'dynamodb';
   if (type === 'open-search-domain') return 'opensearch';
   return null;
-};
-
-const handleCommand = async (command: string) => {
-  // Clear input buffer after command
-  devTuiState.clearInputBuffer();
-
-  if (command === 'q' || command === 'quit') {
-    await devTuiManager.stop();
-    process.exit(0);
-  }
-
-  if (command === 'rs') {
-    devTuiManager.systemLog('Rebuilding all workloads...');
-    await rebuildAllWorkloads();
-    devTuiManager.systemLog('All workloads rebuilt');
-    return;
-  }
-
-  if (command.startsWith('rs ')) {
-    const workloadName = command.slice(3).trim();
-    devTuiManager.systemLog(`Rebuilding ${workloadName}...`);
-    const found = await rebuildWorkload(workloadName);
-    if (found) {
-      devTuiManager.systemLog(`${workloadName} rebuilt`);
-    } else {
-      devTuiManager.systemLog(`Workload "${workloadName}" not found`, 'warn');
-    }
-    return;
-  }
-
-  if (command === 'c' || command === 'clear') {
-    devTuiManager.clearLogs();
-  }
 };

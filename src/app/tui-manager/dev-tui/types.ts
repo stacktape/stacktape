@@ -1,7 +1,5 @@
 export type DevPhase = 'startup' | 'running' | 'rebuilding';
 
-export type SidebarMode = 'normal' | 'collapsed' | 'fullscreen';
-
 export type DevModeType = 'normal' | 'legacy';
 
 export type ResourceStatus = 'pending' | 'starting' | 'running' | 'error' | 'stopped';
@@ -49,13 +47,15 @@ export type SetupStep = {
   detail?: string;
 };
 
+export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+
 export type LogEntry = {
   id: string;
   timestamp: number;
   source: string;
   sourceType: 'workload' | 'hook' | 'system';
   message: string;
-  level: 'info' | 'warn' | 'error' | 'debug';
+  level: LogLevel;
 };
 
 export type RebuildStep = 'stopping' | 'packaging' | 'starting' | 'updating-code' | 'done' | 'error';
@@ -83,19 +83,7 @@ export type DevTuiState = {
   hooks: Hook[];
   workloads: Workload[];
 
-  logs: LogEntry[];
-  maxLogs: number;
-
-  selectedLogFilter: string | null;
-  textFilter: string;
-  filterInputActive: boolean;
-  filterMode: boolean;
   rebuildPickerActive: boolean;
-  sidebarMode: SidebarMode;
-  sidebarVisible: boolean;
-  isQuitting: boolean;
-  inputBuffer: string;
-
   rebuildingWorkloads: RebuildWorkloadState[];
   startTime: number;
 };

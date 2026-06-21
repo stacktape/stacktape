@@ -1,5 +1,5 @@
 import { Show, For } from 'solid-js';
-import type { TuiEvent, TuiPhase, CfProgressData } from '../../types';
+import type { TuiEvent, CfProgressData } from '../../types';
 import {
   parseEstimatePercent,
   getProgressPercent,
@@ -14,16 +14,15 @@ import { formatDuration } from '../../utils';
 import { StatusIcon } from '../../ui/status-icon';
 import { useTheme } from '../../context/theme';
 import { ProgressBar } from '../../ui/progress-bar';
-import { EventTree } from './event-tree';
 
-const CF_EVENT_TYPES: LoggableEventType[] = [
+export const CF_EVENT_TYPES: LoggableEventType[] = [
   'UPDATE_STACK',
   'DELETE_STACK',
   'ROLLBACK_STACK',
   'CREATE_RESOURCES_FOR_ARTIFACTS'
 ];
 
-const HOTSWAP_EVENT_TYPES: LoggableEventType[] = ['HOTSWAP_UPDATE'];
+export const HOTSWAP_EVENT_TYPES: LoggableEventType[] = ['HOTSWAP_UPDATE'];
 
 const extractCfProgress = (event: TuiEvent) => {
   const data = event.data as CfProgressData | undefined;
@@ -119,7 +118,7 @@ const PlannedChanges = (props: { counts: { created: number; updated: number; del
   );
 };
 
-const CfDeployView = (props: { event: TuiEvent; isDelete: boolean }) => {
+export const CfDeployView = (props: { event: TuiEvent; isDelete: boolean }) => {
   const { theme } = useTheme();
   const progress = () => extractCfProgress(props.event);
   const isFinished = () => props.event.status === 'success' || props.event.status === 'error';
@@ -321,7 +320,7 @@ const HotswapChildRow = (props: {
   );
 };
 
-const HotswapView = (props: { event: TuiEvent }) => {
+export const HotswapView = (props: { event: TuiEvent }) => {
   const { theme } = useTheme();
   const isFinished = () => props.event.status === 'success' || props.event.status === 'error';
   const durationText = () => (props.event.duration ? formatDuration(props.event.duration) : '');
@@ -443,44 +442,5 @@ const HotswapView = (props: { event: TuiEvent }) => {
         </Show>
       </box>
     </Show>
-  );
-};
-
-export const DeployPhaseDetail = (props: { phase: TuiPhase }) => {
-  const { theme } = useTheme();
-  const cfEvent = () => props.phase.events.find((e) => CF_EVENT_TYPES.includes(e.eventType));
-  const hotswapEvent = () => props.phase.events.find((e) => HOTSWAP_EVENT_TYPES.includes(e.eventType));
-  const isDelete = () => props.phase.events.some((e) => e.eventType === 'DELETE_STACK');
-  const otherEvents = () =>
-    props.phase.events.filter(
-      (e) => !CF_EVENT_TYPES.includes(e.eventType) && !HOTSWAP_EVENT_TYPES.includes(e.eventType)
-    );
-  const eventsBeforeDeploy = () => otherEvents().filter((e) => cfEvent() && e.startTime < cfEvent()!.startTime);
-  const eventsAfterDeploy = () => otherEvents().filter((e) => !cfEvent() || e.startTime >= cfEvent()!.startTime);
-
-  return (
-    <>
-      <box height={1}>
-        <text fg={theme.textBright}>
-          <b>{props.phase.name}</b>
-        </text>
-      </box>
-      <scrollbox flexGrow={1} stickyScroll={true} focused={true}>
-        <Show when={eventsBeforeDeploy().length > 0}>
-          <box flexDirection="column" paddingBottom={1}>
-            <EventTree events={eventsBeforeDeploy()} />
-          </box>
-        </Show>
-        <Show
-          when={hotswapEvent()}
-          fallback={<Show when={cfEvent()}>{(ev) => <CfDeployView event={ev()} isDelete={isDelete()} />}</Show>}
-        >
-          {(ev) => <HotswapView event={ev()} />}
-        </Show>
-        <Show when={eventsAfterDeploy().length > 0 && !cfEvent()}>
-          <EventTree events={eventsAfterDeploy()} />
-        </Show>
-      </scrollbox>
-    </>
   );
 };

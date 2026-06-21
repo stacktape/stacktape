@@ -1,20 +1,40 @@
-import { createSignal, onCleanup, Show, ErrorBoundary } from 'solid-js';
-import { useKeyboard, useTerminalDimensions } from '@opentui/solid';
+import { createSignal, createEffect, onCleanup, Show, For, ErrorBoundary } from 'solid-js';
+import { useKeyboard, useRenderer } from '@opentui/solid';
+import { actionSupportsCancel, type TuiPrompt } from '../../types';
 import { ThemeProvider, useTheme } from '../../context/theme';
-import { DialogProvider } from '../../context/dialog';
 import { createTuiSignal } from '../../context/deploy-state';
-import { Toaster } from '@opentui-ui/toast/solid';
-import { PhaseList } from './phase-list';
-import { DetailPanel } from './detail-panel';
+import { PhaseIcon } from '../../ui/status-icon';
+import { formatDuration } from '../../utils';
+import { CF_EVENT_TYPES, HOTSWAP_EVENT_TYPES, CfDeployView, HotswapView } from './deploy-progress';
+import { EventTree } from './event-tree';
 import { Footer } from './footer';
 import { PromptOverlay } from './prompt-overlay';
-import { formatDuration } from '../../utils';
 
 type DashboardProps = {
   onQuit?: () => void;
   onCancel?: () => void;
   onRenderError?: (error: Error) => void;
 };
+
+const FOOTER_BASE_HEIGHT = 12;
+const FOOTER_SIMPLE_HEIGHT = 8;
+const FOOTER_COMPLETE_HEIGHT = 5;
+
+const promptFooterHeight = (prompt: TuiPrompt): number => {
+  const chrome = 7; // header + phases + prompt border/padding + hints
+  switch (prompt.type) {
+    case 'select':
+      return chrome + Math.min(prompt.options.length, 15) + 5;
+    case 'multiSelect':
+      return chrome + Math.min(prompt.options.length, 15) + 4;
+    case 'confirm':
+      return chrome + 3;
+    case 'text':
+      return chrome + 6;
+  }
+};
+
+const clampFooterHeight = (height: number) => Math.max(FOOTER_COMPLETE_HEIGHT, Math.min(height, 26));
 
 const createIsDeleteSignal = () => {
   const action = createTuiSignal((s) => s.header?.action);
@@ -70,7 +90,95 @@ const Header = () => {
   );
 };
 
-const CancelConfirmOverlay = (props: { onConfirm: () => void; onDismiss: () => void }) => {
+const PhasesInline = () => {
+  const { theme } = useTheme();
+  const phases = createTuiSignal((s) => s.phases);
+  const currentPhase = createTuiSignal((s) => s.currentPhase);
+
+  return (
+    <box flexDirection="row" height={1} paddingX={1}>
+      <For each={phases()}>
+        {(phase) => {
+          const isActive = () => phase.id === currentPhase() && phase.status === 'running';
+          const nameColor = () => (isActive() ? theme.running : phase.status === 'success' ? theme.text : theme.dim);
+          return (
+            <box flexDirection="row" flexShrink={0}>
+              <PhaseIcon status={phase.status} />
+              <text flexShrink={0} wrapMode="none" fg={nameColor()}>
+                {' '}
+                {phase.name}
+                {'   '}
+              </text>
+            </box>
+          );
+        }}
+      </For>
+    </box>
+  );
+};
+
+/**
+ * Live view of the current phase: only running events. Finished events have
+ * already been streamed into terminal scrollback above the footer.
+ */
+const LiveEvents = () => {
+  const { theme } = useTheme();
+  const phases = createTuiSignal((s) => s.phases);
+  const currentPhaseId = createTuiSignal((s) => s.currentPhase);
+  const isComplete = createTuiSignal((s) => s.isComplete);
+  const isFinalizing = createTuiSignal((s) => s.isFinalizing);
+
+  const activePhase = () => phases().find((p) => p.id === currentPhaseId());
+  const runningEvents = () => activePhase()?.events.filter((e) => e.status === 'running') ?? [];
+  const cfEvent = () => runningEvents().find((e) => CF_EVENT_TYPES.includes(e.eventType));
+  const hotswapEvent = () => runningEvents().find((e) => HOTSWAP_EVENT_TYPES.includes(e.eventType));
+  const plainEvents = () =>
+    runningEvents().filter((e) => !CF_EVENT_TYPES.includes(e.eventType) && !HOTSWAP_EVENT_TYPES.includes(e.eventType));
+
+  const idleText = () => {
+    if (isComplete()) return '';
+    if (isFinalizing()) return 'Finalizing...';
+    if (!activePhase()) return 'Waiting to start...';
+    return 'Working...';
+  };
+
+  return (
+    <scrollbox flexGrow={1} paddingX={1} stickyScroll={true} viewportCulling={true} focused={true}>
+      <Show when={hotswapEvent()}>{(ev) => <HotswapView event={ev()} />}</Show>
+      <Show when={!hotswapEvent() && cfEvent()}>
+        {(ev) => <CfDeployView event={ev()} isDelete={ev().eventType === 'DELETE_STACK'} />}
+      </Show>
+      <Show when={plainEvents().length > 0}>
+        <EventTree events={plainEvents()} />
+      </Show>
+      <Show when={runningEvents().length === 0 && idleText()}>
+        <text fg={theme.dim}>{idleText()}</text>
+      </Show>
+    </scrollbox>
+  );
+};
+
+const CompleteBanner = () => {
+  const { theme } = useTheme();
+  const summary = createTuiSignal((s) => s.summary);
+
+  return (
+    <box flexGrow={1} paddingX={1} flexDirection="column" justifyContent="center">
+      <Show when={summary()}>
+        {(s) => (
+          <box flexDirection="row">
+            <text flexShrink={0} wrapMode="none" fg={s().success ? theme.success : theme.error}>
+              {s().success ? '✓' : '✗'}{' '}
+            </text>
+            <text fg={theme.textBright}>{s().message}</text>
+          </box>
+        )}
+      </Show>
+    </box>
+  );
+};
+
+const CancelConfirm = (props: { onConfirm: () => void; onDismiss: () => void }) => {
   const { theme } = useTheme();
   const isDelete = createIsDeleteSignal();
 
@@ -87,54 +195,29 @@ const CancelConfirmOverlay = (props: { onConfirm: () => void; onDismiss: () => v
     isDelete()
       ? 'The stack deletion will be cancelled. Already deleted resources may need to be recreated.'
       : 'Your stack will be rolled back to its previous working state.';
-  const subtitle = () =>
-    isDelete() ? 'Deletion will stop as soon as possible.' : 'No partial changes will be left behind.';
   const confirmLabel = () => (isDelete() ? ' yes, cancel ' : ' yes, rollback ');
   const dismissLabel = () => (isDelete() ? ' keep deleting' : ' keep deploying');
 
   return (
-    <box
-      position="absolute"
-      top={0}
-      left={0}
-      width="100%"
-      height="100%"
-      justifyContent="center"
-      alignItems="center"
-      zIndex={10}
-      backgroundColor={theme.bg}
-    >
-      <box
-        flexDirection="column"
-        borderStyle="single"
-        borderColor={theme.error}
-        paddingX={2}
-        paddingY={1}
-        width={64}
-        backgroundColor={theme.bg}
-      >
-        <text fg={theme.error}>
-          <b>{title()}</b>
+    <box flexGrow={1} flexDirection="column" borderStyle="single" borderColor={theme.error} paddingX={2}>
+      <text fg={theme.error}>
+        <b>{title()}</b>
+      </text>
+      <text fg={theme.text}>{description()}</text>
+      <box flexDirection="row">
+        <text fg={theme.textBright}>
+          <b>y</b>
         </text>
-        <box height={1} />
-        <text fg={theme.text}>{description()}</text>
-        <text fg={theme.dim}>{subtitle()}</text>
-        <box height={1} />
-        <box flexDirection="row">
-          <text fg={theme.textBright}>
-            <b>y</b>
-          </text>
-          <text fg={theme.dim}>{confirmLabel()}</text>
-          <text fg={theme.border}> │ </text>
-          <text fg={theme.textBright}>
-            <b>n</b>
-          </text>
-          <text fg={theme.dim}>/</text>
-          <text fg={theme.textBright}>
-            <b>esc</b>
-          </text>
-          <text fg={theme.dim}>{dismissLabel()}</text>
-        </box>
+        <text fg={theme.dim}>{confirmLabel()}</text>
+        <text fg={theme.border}> │ </text>
+        <text fg={theme.textBright}>
+          <b>n</b>
+        </text>
+        <text fg={theme.dim}>/</text>
+        <text fg={theme.textBright}>
+          <b>esc</b>
+        </text>
+        <text fg={theme.dim}>{dismissLabel()}</text>
       </box>
     </box>
   );
@@ -147,7 +230,7 @@ const FailureBanner = () => {
   return (
     <Show when={cancelDeployment()?.message}>
       {(message) => (
-        <box height={2} paddingX={1} flexShrink={0}>
+        <box height={1} paddingX={1} flexShrink={0}>
           <text flexShrink={0} wrapMode="none" fg={theme.warning}>
             {'▲ '}
           </text>
@@ -165,14 +248,34 @@ const FailureBanner = () => {
 
 const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
   const { theme } = useTheme();
-  const terminalDimensions = useTerminalDimensions();
+  const renderer = useRenderer();
   const [showCancelConfirm, setShowCancelConfirm] = createSignal(false);
   const isComplete = createTuiSignal((s) => s.isComplete);
   const cancelDeployment = createTuiSignal((s) => s.cancelDeployment);
   const activePrompt = createTuiSignal((s) => s.activePrompt);
   const showPhases = createTuiSignal((s) => s.showPhaseHeaders !== false);
+  const action = createTuiSignal((s) => s.header?.action);
   const isCancelling = () => cancelDeployment()?.isCancelling;
-  const toastMaxWidth = () => Math.max(32, Math.min(96, terminalDimensions().width - 6));
+  const canCancel = () => actionSupportsCancel(action());
+
+  // The footer is a fixed-height region pinned to the bottom of the terminal.
+  // Phase commands (deploy/delete) get the taller base; simple-mode commands
+  // (script:run, synth, validate) get a slimmer footer. Grows for prompts,
+  // shrinks once complete.
+  createEffect(() => {
+    const prompt = activePrompt();
+    const base = showPhases() ? FOOTER_BASE_HEIGHT : FOOTER_SIMPLE_HEIGHT;
+    const target = prompt
+      ? promptFooterHeight(prompt)
+      : showCancelConfirm()
+        ? FOOTER_BASE_HEIGHT
+        : isComplete()
+          ? FOOTER_COMPLETE_HEIGHT
+          : base;
+    try {
+      renderer.footerHeight = clampFooterHeight(target);
+    } catch {}
+  });
 
   const handleCancelConfirm = () => {
     setShowCancelConfirm(false);
@@ -182,10 +285,6 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
     } else {
       props.onCancel?.();
     }
-  };
-
-  const handleCancelDismiss = () => {
-    setShowCancelConfirm(false);
   };
 
   useKeyboard((key) => {
@@ -203,7 +302,7 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
       return;
     }
 
-    if (key.sequence === 'c' || key.sequence === 'C') {
+    if ((key.sequence === 'c' || key.sequence === 'C') && canCancel()) {
       if (!isCancelling()) {
         setShowCancelConfirm(true);
       }
@@ -211,44 +310,30 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
   });
 
   return (
-    <box flexDirection="column" width="100%" height="100%">
+    <box flexDirection="column" width="100%" height="100%" border={['top']} borderColor={theme.border}>
       <Header />
-      <box flexDirection="row" flexGrow={1}>
-        <Show when={showPhases()}>
-          <PhaseList />
+      <Show when={showPhases()}>
+        <PhasesInline />
+      </Show>
+      <Show
+        when={!activePrompt()}
+        fallback={
+          <box flexGrow={1} paddingX={1}>
+            <PromptOverlay />
+          </box>
+        }
+      >
+        <Show
+          when={!showCancelConfirm()}
+          fallback={<CancelConfirm onConfirm={handleCancelConfirm} onDismiss={() => setShowCancelConfirm(false)} />}
+        >
+          <Show when={!isComplete()} fallback={<CompleteBanner />}>
+            <LiveEvents />
+          </Show>
         </Show>
-        <DetailPanel />
-      </box>
-      <Toaster
-        position="bottom-right"
-        stackingMode="stack"
-        visibleToasts={3}
-        maxWidth={toastMaxWidth()}
-        offset={{ bottom: 2, right: 2 }}
-        toastOptions={{
-          duration: 6000,
-          style: {
-            maxWidth: toastMaxWidth(),
-            backgroundColor: theme.bg,
-            foregroundColor: theme.text,
-            mutedColor: theme.muted,
-            borderColor: theme.border,
-            borderStyle: 'single',
-            paddingX: 1,
-            paddingY: 0
-          },
-          success: { duration: 4000, style: { borderColor: theme.success } },
-          error: { duration: 10000, style: { borderColor: theme.error } },
-          warning: { duration: 10000, style: { borderColor: theme.warning } },
-          info: { duration: 6000, style: { borderColor: theme.blue } }
-        }}
-      />
-      <PromptOverlay />
+      </Show>
       <FailureBanner />
       <Footer isCancelling={!!isCancelling()} />
-      <Show when={showCancelConfirm()}>
-        <CancelConfirmOverlay onConfirm={handleCancelConfirm} onDismiss={handleCancelDismiss} />
-      </Show>
     </box>
   );
 };
@@ -262,9 +347,7 @@ export const DeployDashboard = (props: DashboardProps) => {
       }}
     >
       <ThemeProvider>
-        <DialogProvider>
-          <DashboardInner onQuit={props.onQuit} onCancel={props.onCancel} />
-        </DialogProvider>
+        <DashboardInner onQuit={props.onQuit} onCancel={props.onCancel} />
       </ThemeProvider>
     </ErrorBoundary>
   );

@@ -198,10 +198,11 @@ export const authenticateWithGoogle = async (): Promise<OAuthResult> => {
     }
   };
 
-  // Handle Ctrl+C gracefully
+  // Close the local callback server on Ctrl+C. Process exit itself is owned by
+  // applicationManager's signal handler (TUI teardown, cleanup hooks) — exiting
+  // here would preempt it.
   const exitHandler = () => {
     cleanup();
-    process.exit(1);
   };
   process.on('SIGINT', exitHandler);
   process.on('SIGTERM', exitHandler);

@@ -118,6 +118,10 @@ export const formatCommandLine = (command: StacktapeCommand, args: StacktapeArgs
       if (value) parts.push(`--${key}`);
       continue;
     }
+    if (SENSITIVE_RECENT_ARG_NAMES.has(key)) {
+      parts.push(`--${key}`, '<redacted>');
+      continue;
+    }
     if (Array.isArray(value)) {
       for (const item of value) {
         parts.push(`--${key}`, String(item));

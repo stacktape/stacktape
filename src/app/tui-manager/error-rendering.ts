@@ -11,13 +11,6 @@ export type ErrorDisplayData = {
   isExpected?: boolean;
 };
 
-export type NextStep = {
-  text: string;
-  command?: string;
-  details?: string[];
-  links?: string[];
-};
-
 export type StackError = {
   errorMessage: string;
   hints?: string[];
@@ -145,35 +138,6 @@ export const renderErrorToString = (
     lines.push('');
     lines.push(colorize('gray', `Error ID: ${error.sentryEventId}`));
   }
-
-  return lines.join('\n');
-};
-
-export const renderNextStepsToString = (
-  steps: NextStep[],
-  colorize: (color: string, text: string) => string,
-  makeBold: (text: string) => string
-): string => {
-  const lines: string[] = [];
-
-  lines.push('');
-  lines.push(colorize('cyan', makeBold('Next steps:')));
-
-  steps.forEach((step, index) => {
-    let stepLine = `  ${colorize('cyan', `${index + 1}.`)} ${step.text}`;
-    if (step.command) {
-      stepLine += ` ${step.command}`;
-    }
-    lines.push(stepLine);
-
-    step.details?.forEach((detail) => {
-      lines.push(`     ${colorize('gray', '→')} ${detail}`);
-    });
-
-    step.links?.forEach((link) => {
-      lines.push(`     ${colorize('gray', '→')} ${link}`);
-    });
-  });
 
   return lines.join('\n');
 };

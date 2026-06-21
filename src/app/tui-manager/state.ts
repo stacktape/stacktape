@@ -4,12 +4,9 @@ import type {
   TuiEvent,
   TuiEventStatus,
   TuiLink,
-  TuiMessage,
-  TuiMessageType,
   TuiPrompt,
   TuiState,
-  TuiSummary,
-  TuiWarning
+  TuiSummary
 } from './types';
 import {
   CODEBUILD_DEPLOY_PHASE_NAMES,
@@ -44,8 +41,6 @@ class TuiStateManager {
         status: 'pending' as TuiEventStatus,
         events: []
       })),
-      warnings: [],
-      messages: [],
       isComplete: false,
       startTime: Date.now(),
       showPhaseHeaders: true
@@ -101,11 +96,6 @@ class TuiStateManager {
 
   setShowPhaseHeaders(show: boolean) {
     this.state = { ...this.state, showPhaseHeaders: show };
-    this.notifyListeners();
-  }
-
-  setStreamingMode(enabled: boolean) {
-    this.state = { ...this.state, streamingMode: enabled };
     this.notifyListeners();
   }
 
@@ -385,31 +375,6 @@ class TuiStateManager {
     }));
 
     this.state = { ...this.state, phases: newPhases };
-    this.notifyListeners();
-  }
-
-  addWarning(message: string, phase?: DeploymentPhase) {
-    const warning: TuiWarning = {
-      id: `warning-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      message,
-      timestamp: Date.now(),
-      phase: phase || this.state.currentPhase
-    };
-    this.state = { ...this.state, warnings: [...this.state.warnings, warning] };
-    this.notifyListeners();
-  }
-
-  addMessage(name: string, type: TuiMessageType, message: string, data?: Record<string, any>) {
-    const tuiMessage: TuiMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      name,
-      type,
-      message,
-      timestamp: Date.now(),
-      phase: this.state.currentPhase, // Attach to current phase for inline rendering
-      data
-    };
-    this.state = { ...this.state, messages: [...this.state.messages, tuiMessage] };
     this.notifyListeners();
   }
 

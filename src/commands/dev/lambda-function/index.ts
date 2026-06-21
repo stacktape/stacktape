@@ -79,8 +79,7 @@ export const runDevLambdaFunction = async () => {
       }
       if (failedPrints > 3) {
         clearInterval(printingInterval);
-        applicationManager.handleError(err);
-        process.exit(1);
+        void applicationManager.handleError(err).finally(() => process.exit(1));
       } else {
         failedPrints++;
       }

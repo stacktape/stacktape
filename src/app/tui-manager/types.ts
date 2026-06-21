@@ -46,13 +46,6 @@ export type TuiPhase = {
   events: TuiEvent[];
 };
 
-export type TuiWarning = {
-  id: string;
-  message: string;
-  timestamp: number;
-  phase?: DeploymentPhase;
-};
-
 export type TuiLink = {
   label: string;
   url: string;
@@ -67,16 +60,6 @@ export type TuiSummary = {
 
 export type TuiMessageType = 'info' | 'warn' | 'error' | 'success' | 'debug' | 'hint' | 'start' | 'announcement';
 
-export type TuiMessage = {
-  id: string;
-  name: string;
-  type: TuiMessageType;
-  message: string;
-  timestamp: number;
-  phase?: DeploymentPhase;
-  data?: Record<string, any>;
-};
-
 export type TuiDeploymentHeader = {
   projectName: string;
   stageName: string;
@@ -84,15 +67,21 @@ export type TuiDeploymentHeader = {
   action:
     | 'DEPLOYING'
     | 'DEPLOYING DEV STACK'
+    | 'COMPILING TEMPLATE'
     | 'DELETING'
     | 'UPDATING'
     | 'PREVIEWING CHANGES'
+    | 'VALIDATING'
     | 'RUNNING DEV MODE'
     | 'RUNNING DEV MODE (legacy)'
     | 'RUNNING SCRIPT'
     | `RUNNING SCRIPT: ${string}`;
   subtitle?: string;
 };
+
+/** Actions that mutate a stack and therefore support interactive cancel + rollback. */
+export const actionSupportsCancel = (action?: TuiDeploymentHeader['action']): boolean =>
+  action === 'DEPLOYING' || action === 'DEPLOYING DEV STACK' || action === 'DELETING' || action === 'UPDATING';
 
 export type TuiSelectOption = {
   label: string;
@@ -149,13 +138,10 @@ export type TuiState = {
   header?: TuiDeploymentHeader;
   phases: TuiPhase[];
   currentPhase?: DeploymentPhase;
-  warnings: TuiWarning[];
-  messages: TuiMessage[];
   summary?: TuiSummary;
   isComplete: boolean;
   startTime: number;
   activePrompt?: TuiPrompt;
-  streamingMode?: boolean;
   showPhaseHeaders?: boolean;
   isFinalizing?: boolean;
   pendingCompletion?: { success: boolean; message: string; links: TuiLink[]; consoleUrl?: string };
@@ -183,40 +169,4 @@ export const CODEBUILD_DEPLOY_PHASE_NAMES: Partial<Record<DeploymentPhase, strin
   INITIALIZE: 'Initialize',
   UPLOAD: 'Prepare Pipeline',
   DEPLOY: 'Deploy'
-};
-
-export type CommandTui = {
-  isRunning: boolean;
-  start: () => void;
-  stop: () => Promise<void>;
-  forceStop?: () => void;
-  setPrompt?: (prompt: TuiPrompt | undefined) => void;
-  clearPrompt?: () => void;
-  setPhase: (phase: DeploymentPhase) => void;
-  finishPhase: () => void;
-  startEvent: (params: {
-    eventType: LoggableEventType;
-    description: string;
-    phase?: DeploymentPhase;
-    parentEventType?: LoggableEventType;
-    instanceId?: string;
-  }) => void;
-  updateEvent: (params: {
-    eventType: LoggableEventType;
-    additionalMessage?: string;
-    data?: Record<string, any>;
-    description?: string;
-    parentEventType?: LoggableEventType;
-    instanceId?: string;
-  }) => void;
-  finishEvent: (params: {
-    eventType: LoggableEventType;
-    finalMessage?: string;
-    data?: Record<string, any>;
-    parentEventType?: LoggableEventType;
-    instanceId?: string;
-    status?: TuiEventStatus;
-  }) => void;
-  appendEventOutput?: (params: { eventType: LoggableEventType; lines: string[]; instanceId?: string }) => void;
-  markAllAsErrored?: () => void;
 };
