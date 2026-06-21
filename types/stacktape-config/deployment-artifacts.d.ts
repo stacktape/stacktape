@@ -91,6 +91,39 @@ interface PyLanguageSpecificConfig {
    */
   packageManager?: SupportedPythonPackageManager;
   /**
+   * #### Optional dependency extras to include from `pyproject.toml`.
+   *
+   * ---
+   *
+   * Each value is passed to `uv pip compile` as `--extra <name>`.
+   */
+  uvOptionalDependencies?: string[];
+  /**
+   * #### Dependency groups to include from `pyproject.toml`.
+   *
+   * ---
+   *
+   * Each value is passed to `uv pip compile` as `--group <name>`.
+   */
+  uvWithGroups?: string[];
+  /**
+   * #### Dependency groups to exclude from `pyproject.toml`.
+   *
+   * ---
+   *
+   * Each value is passed to `uv pip compile` as `--no-group <name>`.
+   */
+  uvWithoutGroups?: string[];
+  /**
+   * #### Only include these dependency groups from `pyproject.toml`.
+   *
+   * ---
+   *
+   * Each value is passed to `uv pip compile` as `--only-group <name>`.
+   * This omits the project dependencies and default groups, matching `uv` behavior.
+   */
+  uvOnlyGroups?: string[];
+  /**
    * #### The version of Python to use.
    *
    * @default 3.9

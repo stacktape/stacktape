@@ -233,12 +233,18 @@ export const buildPythonArtifactDockerfile = ({
     ? 'RUN apk add --no-cache build-base'
     : 'RUN apt-get update && apt-get install -y build-essential';
   const installUvCommand = alpine ? 'RUN pip install uv' : 'RUN pip install uv';
-  const installDepsCommand = `RUN if [ -n "$STP_PY_DEP_FILE" ]; then \
+  const installDepsCommand = `RUN set -e; \
+compile_uv_args=""; \
+for extra in $STP_PY_UV_OPTIONAL_DEPENDENCIES; do compile_uv_args="$compile_uv_args --extra $extra"; done; \
+for group in $STP_PY_UV_WITH_GROUPS; do compile_uv_args="$compile_uv_args --group $group"; done; \
+for group in $STP_PY_UV_WITHOUT_GROUPS; do compile_uv_args="$compile_uv_args --no-group $group"; done; \
+for group in $STP_PY_UV_ONLY_GROUPS; do compile_uv_args="$compile_uv_args --only-group $group"; done; \
+if [ -n "$STP_PY_DEP_FILE" ]; then \
   if [ "$STP_PY_DEP_TYPE" = "pipfile" ]; then \
     uv pip compile --pipfile "$STP_PY_DEP_FILE" -o /tmp/requirements.txt; \
     uv pip install --system --target . -r /tmp/requirements.txt; \
   elif [ "$STP_PY_DEP_TYPE" = "pyproject" ]; then \
-    uv pip compile "$STP_PY_DEP_FILE" -o /tmp/requirements.txt; \
+    uv pip compile "$STP_PY_DEP_FILE" $compile_uv_args -o /tmp/requirements.txt; \
     uv pip install --system --target . -r /tmp/requirements.txt; \
   elif [ "$STP_PY_DEP_TYPE" = "uv-lock" ]; then \
     uv pip install --system --target . -r "$STP_PY_DEP_FILE"; \
@@ -253,6 +259,10 @@ RUN pyminify . --in-place`;
 
 ARG STP_PY_DEP_FILE
 ARG STP_PY_DEP_TYPE
+ARG STP_PY_UV_OPTIONAL_DEPENDENCIES
+ARG STP_PY_UV_WITH_GROUPS
+ARG STP_PY_UV_WITHOUT_GROUPS
+ARG STP_PY_UV_ONLY_GROUPS
 
 RUN mkdir /dist
 COPY ./ ./dist

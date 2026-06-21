@@ -9,6 +9,7 @@ import {
   getBundleDigest,
   getPythonDependencyFileType,
   getPythonDependencyRootPath,
+  getPythonUvDependencySelectorBuildArgs,
   getSourceFiles,
   resolvePythonDependencyFile
 } from './utils';
@@ -63,6 +64,14 @@ export const buildPythonArtifact = async ({
       message: 'uv.lock is not supported as a dependency input. Use pyproject.toml or requirements.txt instead.'
     });
   }
+  const uvDependencySelectorBuildArgs = getPythonUvDependencySelectorBuildArgs(languageSpecificConfig);
+  if (Object.values(uvDependencySelectorBuildArgs).some(Boolean) && dependencyFileType !== 'pyproject') {
+    raiseError({
+      type: 'PACKAGING',
+      message:
+        'Python uv dependency selectors (uvOptionalDependencies, uvWithGroups, uvWithoutGroups, uvOnlyGroups) require pyproject.toml as the packageManagerFile.'
+    });
+  }
   const dependencyFilePathRelative = dependencyFilePath
     ? transformToUnixPath(relative(dependencyRootPath, dependencyFilePath))
     : null;
@@ -113,6 +122,14 @@ export const buildPythonArtifact = async ({
       `STP_PY_DEP_FILE=${dependencyFilePathRelative || ''}`,
       '--build-arg',
       `STP_PY_DEP_TYPE=${dependencyFileType || ''}`,
+      '--build-arg',
+      `STP_PY_UV_OPTIONAL_DEPENDENCIES=${uvDependencySelectorBuildArgs.optionalDependencies}`,
+      '--build-arg',
+      `STP_PY_UV_WITH_GROUPS=${uvDependencySelectorBuildArgs.withGroups}`,
+      '--build-arg',
+      `STP_PY_UV_WITHOUT_GROUPS=${uvDependencySelectorBuildArgs.withoutGroups}`,
+      '--build-arg',
+      `STP_PY_UV_ONLY_GROUPS=${uvDependencySelectorBuildArgs.onlyGroups}`,
       '--target',
       'artifact',
       '--file',

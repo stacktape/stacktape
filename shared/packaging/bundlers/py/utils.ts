@@ -1,4 +1,5 @@
 import { basename, dirname, isAbsolute, join } from 'node:path';
+import { raiseError } from '@shared/utils/misc';
 import { exists } from 'fs-extra';
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../_shared';
 
@@ -92,3 +93,32 @@ export const getPythonDependencyFileType = (dependencyFilePath?: string | null) 
 
 export const getPythonDependencyRootPath = (dependencyFilePath: string | null, sourcePath: string) =>
   dependencyFilePath ? dirname(dependencyFilePath) : sourcePath;
+
+const UV_SELECTOR_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+export const getPythonUvDependencySelectorBuildArgs = (languageSpecificConfig?: PyLanguageSpecificConfig) => {
+  const selectors = {
+    uvOptionalDependencies: languageSpecificConfig?.uvOptionalDependencies || [],
+    uvWithGroups: languageSpecificConfig?.uvWithGroups || [],
+    uvWithoutGroups: languageSpecificConfig?.uvWithoutGroups || [],
+    uvOnlyGroups: languageSpecificConfig?.uvOnlyGroups || []
+  };
+
+  Object.entries(selectors).forEach(([propertyName, values]) => {
+    values.forEach((value) => {
+      if (!UV_SELECTOR_NAME_PATTERN.test(value)) {
+        raiseError({
+          type: 'PACKAGING',
+          message: `Invalid Python uv dependency selector "${value}" in languageSpecificConfig.${propertyName}. Use only letters, numbers, ".", "_" and "-".`
+        });
+      }
+    });
+  });
+
+  return {
+    optionalDependencies: selectors.uvOptionalDependencies.join(' '),
+    withGroups: selectors.uvWithGroups.join(' '),
+    withoutGroups: selectors.uvWithoutGroups.join(' '),
+    onlyGroups: selectors.uvOnlyGroups.join(' ')
+  };
+};
