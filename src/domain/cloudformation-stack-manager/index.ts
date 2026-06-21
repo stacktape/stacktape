@@ -7,6 +7,7 @@ import { OnFailure, ResourceStatus, StackStatus } from '@aws-sdk/client-cloudfor
 import { isAgentMode } from 'src/commands/_utils/agent-mode';
 import { DeploymentRolloutState } from '@aws-sdk/client-ecs';
 import { MONITORING_FREQUENCY_SECONDS } from '@config';
+import { getCanonicalCommand } from '../../config/cli/commands';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToAlarm } from '@domain-services/config-manager/utils/alarms';
@@ -198,22 +199,23 @@ export class StackManager {
   }
 
   get stackActionType(): StackActionType {
-    if (globalStateManager.command === 'delete') {
+    const command = getCanonicalCommand(globalStateManager.command);
+    if (command === 'delete') {
       return 'delete';
     }
-    if (globalStateManager.command === 'cf:rollback') {
+    if (command === 'cf:rollback') {
       return 'rollback';
     }
-    if (globalStateManager.command === 'rollback') {
+    if (command === 'rollback') {
       return 'update';
     }
-    if (globalStateManager.command === 'dev') {
+    if (command === 'dev') {
       return 'dev';
     }
-    if (globalStateManager.command === 'deploy' || globalStateManager.command === 'codebuild:deploy') {
+    if (command === 'deploy') {
       return this.existingStackDetails && this.existingStackResources.length ? 'update' : 'create';
     }
-    if (globalStateManager.command === 'preview-changes') {
+    if (command === 'diff') {
       return 'update';
     }
   }
@@ -380,7 +382,7 @@ export class StackManager {
     eventContext?: { parentEventType?: LoggableEventType; instanceId?: string };
   }) => {
     const stackName = this.#stackName;
-    const { command } = globalStateManager;
+    const command = getCanonicalCommand(globalStateManager.command);
 
     let stackDetails: StackDetails = currentStackDetails;
     if (!stackDetails) {

@@ -68,6 +68,8 @@ import {
   templateId,
   universalArgs,
   watch,
+  withPackage,
+  thorough,
   secretName,
   secretValue,
   secretFile,
@@ -90,16 +92,17 @@ import {
   redisKey,
   redisPattern,
   redisSection,
-  documentId
+  documentId,
+  deployRunner
 } from './options';
 
 // ============ Command Definitions ============
 
-export const commandDefinitions = {
+const baseCommandDefinitions = {
   deploy: {
     description: `Deploys your stack to AWS.
 
-If the stack doesn't exist, it creates a new one. If it already exists, it updates it. This command requires a valid Stacktape configuration file (\`stacktape.yml\`) in the current directory, or you can specify a path using the \`--configPath\` option.`,
+If the stack doesn't exist, it creates a new one. If it already exists, it updates it. This command requires a valid Stacktape configuration file (usually \`stacktape.ts\`, with \`stacktape.yml\` still supported) in the current directory, or you can specify a path using the \`--configPath\` option.`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -113,35 +116,7 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
       autoConfirmOperation: autoConfirmOperation.optional(),
       showSensitiveValues: showSensitiveValues.optional(),
       hotSwap: hotSwap.optional(),
-      disableLayerOptimization: disableLayerOptimization.optional()
-    },
-    requiredArgs: ['stage', 'region'] as const
-  },
-
-  'codebuild:deploy': {
-    description: `Deploys your stack to AWS using AWS CodeBuild.
-
-This command offloads the deployment process to a dedicated environment within your AWS account, which is useful for resource-intensive projects.
-
-Here's how it works:
-1. Your project is zipped and uploaded to an S3 bucket in your account.
-2. A CodeBuild environment (a dedicated VM) is provisioned.
-3. The deployment begins, and logs are streamed to your terminal in real-time.
-
-Like the \`deploy\` command, this requires a \`stacktape.yml\` file.`,
-    args: {
-      ...universalArgs,
-      ...stackArgs,
-      ...configDependentArgs,
-      disableDriftDetection: disableDriftDetection.optional(),
-      preserveTempFiles: preserveTempFiles.optional(),
-      dockerArgs: dockerArgs.optional(),
-      noCache: noCache.optional(),
-      disableDockerRemoteCache: disableDockerRemoteCache.optional(),
-      disableAutoRollback: disableAutoRollback.optional(),
-      autoConfirmOperation: autoConfirmOperation.optional(),
-      showSensitiveValues: showSensitiveValues.optional(),
-      hotSwap: hotSwap.optional(),
+      runner: deployRunner.optional(),
       disableLayerOptimization: disableLayerOptimization.optional()
     },
     requiredArgs: ['stage', 'region'] as const
@@ -250,7 +225,7 @@ This action is irreversible and will permanently remove all resources in the sta
     requiredArgs: [] as const
   },
 
-  'compile-template': {
+  synth: {
     description: `Compiles your Stacktape configuration into a CloudFormation template.
 
 By default, the template is saved to \`./compiled-template.yaml\`. Use the \`--outFile\` option to specify a different path.`,
@@ -260,6 +235,20 @@ By default, the template is saved to \`./compiled-template.yaml\`. Use the \`--o
       ...configDependentArgs,
       outFile: outFile.optional(),
       preserveTempFiles: preserveTempFiles.optional()
+    },
+    requiredArgs: ['stage', 'region'] as const
+  },
+
+  validate: {
+    description: `Validates your Stacktape project without writing deployment artifacts.
+
+By default, this command loads and validates the configuration, resolves resources, and synthesizes the CloudFormation template in memory. Use \`--withPackage\` to also validate workload packaging, and \`--thorough\` to validate workload packaging and ask AWS CloudFormation to validate the synthesized template.`,
+    args: {
+      ...universalArgs,
+      ...stackArgs,
+      ...configDependentArgs,
+      withPackage: withPackage.optional(),
+      thorough: thorough.optional()
     },
     requiredArgs: ['stage', 'region'] as const
   },
@@ -324,7 +313,7 @@ AWS CloudFormation infrastructure modules are used to integrate third-party serv
     requiredArgs: ['region'] as const
   },
 
-  'secret:create': {
+  'secret:set': {
     description: `Creates a secret that is securely stored in AWS Secrets Manager.
 
 This secret can then be referenced in your configuration using the \`$Secret('secret-name')\` directive. This is useful for storing sensitive data like passwords, API keys, or other credentials.
@@ -399,7 +388,7 @@ For rolling back to a specific previous deployment version, use \`rollback\` ins
     requiredArgs: ['region'] as const
   },
 
-  'package-workloads': {
+  package: {
     description: `Packages your compute resources and prepares them for deployment.
 
 This is useful for inspecting the packaged artifacts before deploying.`,
@@ -411,7 +400,7 @@ This is useful for inspecting the packaged artifacts before deploying.`,
     requiredArgs: ['stage', 'region'] as const
   },
 
-  'preview-changes': {
+  diff: {
     description: `Shows a preview of the changes that will be made to your stack if you deploy the current configuration.`,
     args: {
       ...universalArgs,
@@ -422,7 +411,7 @@ This is useful for inspecting the packaged artifacts before deploying.`,
     requiredArgs: ['stage', 'region'] as const
   },
 
-  'debug:logs': {
+  logs: {
     description: `Fetch and analyze logs from a deployed resource.
 
 Supports two modes:
@@ -430,13 +419,14 @@ Supports two modes:
 - **Insights**: Runs CloudWatch Logs Insights query with --query flag
 
 Examples:
-  stacktape debug:logs --stage prod --resourceName myLambda --startTime "1h"
-  stacktape debug:logs --stage prod --resourceName myLambda --query "fields @timestamp, @message | filter @message like /ERROR/"`,
+  stacktape logs --stage prod --resourceName myLambda --startTime "1h"
+  stacktape logs --stage prod --resourceName myLambda --query "fields @timestamp, @message | filter @message like /ERROR/"`,
     args: {
       ...universalArgs,
       ...stackArgs,
       ...configDependentArgs,
       resourceName: resourceName.optional(),
+      container: container.optional(),
       startTime: startTime.optional(),
       filter: filter.optional(),
       raw: raw.optional(),
@@ -446,7 +436,7 @@ Examples:
     requiredArgs: ['stage', 'region', 'resourceName'] as const
   },
 
-  'debug:alarms': {
+  alarms: {
     description: `View CloudWatch alarm states for stack resources.
 
 Shows all alarms configured for the stack with their current state (OK, ALARM, INSUFFICIENT_DATA).
@@ -460,7 +450,7 @@ Filter by resource name or alarm state.`,
     requiredArgs: ['stage', 'region'] as const
   },
 
-  'debug:metrics': {
+  metrics: {
     description: `Fetch CloudWatch metrics for a deployed resource.
 
 Supported metrics by resource type:
@@ -578,7 +568,7 @@ For more information, refer to the [container session documentation](https://doc
     requiredArgs: ['region', 'stage', 'resourceName'] as const
   },
 
-  'debug:container-exec': {
+  'container:exec': {
     description: `Execute a command in a running container and return the output.
 
 Runs a command inside a deployed container workload (web-service, private-service, worker-service, or multi-container-workload) using ECS Exec. The command output is captured and returned as JSON.
@@ -586,9 +576,9 @@ Runs a command inside a deployed container workload (web-service, private-servic
 Use --taskArn to specify which task to connect to when multiple instances are running (defaults to first available). Use --container to specify which container for multi-container workloads.
 
 Examples:
-  stacktape debug:container-exec --stage prod --resourceName myService --command "ls -la"
-  stacktape debug:container-exec --stage prod --resourceName myService --command "cat /app/config.json"
-  stacktape debug:container-exec --stage prod --resourceName myService --taskArn abc123 --command "env"`,
+  stacktape container:exec --stage prod --resourceName myService --command "ls -la"
+  stacktape container:exec --stage prod --resourceName myService --command "cat /app/config.json"
+  stacktape container:exec --stage prod --resourceName myService --taskArn abc123 --command "env"`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -601,16 +591,16 @@ Examples:
     requiredArgs: ['region', 'stage', 'resourceName', 'command'] as const
   },
 
-  'debug:sql': {
+  'query:sql': {
     description: `Execute read-only SQL queries against a deployed relational database.
 
-Supports PostgreSQL and MySQL databases. Only read-only queries (SELECT, SHOW, DESCRIBE, EXPLAIN) are allowed.
+Use this first when you need to check a row, run a SELECT, or inspect a production PostgreSQL/MySQL database from the command line. Only read-only queries (SELECT, SHOW, DESCRIBE, EXPLAIN) are allowed.
 
-If the database is VPC-only, use --bastionResource to tunnel through a bastion host.
+If the database is VPC-only, use --bastionResource to tunnel through a bastion host for the duration of the query. Use bastion:tunnel only when you need a persistent tunnel for a local database client.
 
 Examples:
-  stacktape debug:sql --stage prod --resourceName myDatabase --sql "SELECT * FROM users LIMIT 10"
-  stacktape debug:sql --stage prod --resourceName myDatabase --bastionResource myBastion --sql "SHOW TABLES"`,
+  stacktape query:sql --stage prod --resourceName myDatabase --sql "SELECT * FROM users LIMIT 10"
+  stacktape query:sql --stage prod --resourceName myDatabase --bastionResource myBastion --sql "SHOW TABLES"`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -624,15 +614,15 @@ Examples:
     requiredArgs: ['region', 'stage', 'resourceName', 'sql'] as const
   },
 
-  'debug:aws-sdk': {
+  'aws:call': {
     description: `Execute read-only AWS SDK commands against deployed resources.
 
 Provides direct access to AWS SDK v3 for inspecting deployed resources. Only read-only operations (List*, Get*, Describe*, Head*) are allowed.
 
 Examples:
-  stacktape debug:aws-sdk --stage prod --service lambda --command ListFunctions
-  stacktape debug:aws-sdk --stage prod --service dynamodb --command Scan --input '{"TableName": "my-table", "Limit": 10}'
-  stacktape debug:aws-sdk --stage prod --service logs --command FilterLogEvents --input '{"logGroupName": "/aws/lambda/my-func"}'`,
+  stacktape aws:call --stage prod --service lambda --command ListFunctions
+  stacktape aws:call --stage prod --service dynamodb --command Scan --input '{"TableName": "my-table", "Limit": 10}'
+  stacktape aws:call --stage prod --service logs --command FilterLogEvents --input '{"logGroupName": "/aws/lambda/my-func"}'`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -643,17 +633,17 @@ Examples:
     requiredArgs: ['region', 'service', 'command'] as const
   },
 
-  'debug:dynamodb': {
+  'query:dynamodb': {
     description: `Query a deployed DynamoDB table.
 
 Supports operations: scan, query, get, schema, sample. All operations are read-only.
 
 Examples:
-  stacktape debug:dynamodb --stage prod --resourceName myTable --operation sample
-  stacktape debug:dynamodb --stage prod --resourceName myTable --operation schema
-  stacktape debug:dynamodb --stage prod --resourceName myTable --operation scan --limit 50
-  stacktape debug:dynamodb --stage prod --resourceName myTable --operation query --pk '{"userId": "123"}'
-  stacktape debug:dynamodb --stage prod --resourceName myTable --operation get --pk '{"userId": "123"}' --sk '{"timestamp": 1234}'`,
+  stacktape query:dynamodb --stage prod --resourceName myTable --operation sample
+  stacktape query:dynamodb --stage prod --resourceName myTable --operation schema
+  stacktape query:dynamodb --stage prod --resourceName myTable --operation scan --limit 50
+  stacktape query:dynamodb --stage prod --resourceName myTable --operation query --pk '{"userId": "123"}'
+  stacktape query:dynamodb --stage prod --resourceName myTable --operation get --pk '{"userId": "123"}' --sk '{"timestamp": 1234}'`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -668,7 +658,7 @@ Examples:
     requiredArgs: ['region', 'stage', 'resourceName'] as const
   },
 
-  'debug:redis': {
+  'query:redis': {
     description: `Query a deployed Redis cluster.
 
 Supports operations: keys, get, ttl, info, type. All operations are read-only.
@@ -676,10 +666,10 @@ Supports operations: keys, get, ttl, info, type. All operations are read-only.
 If the Redis cluster is VPC-only, use --bastionResource to tunnel through a bastion host.
 
 Examples:
-  stacktape debug:redis --stage prod --resourceName myRedis --operation info
-  stacktape debug:redis --stage prod --resourceName myRedis --operation keys --pattern "user:*"
-  stacktape debug:redis --stage prod --resourceName myRedis --operation get --key "session:abc123"
-  stacktape debug:redis --stage prod --resourceName myRedis --bastionResource myBastion --operation info`,
+  stacktape query:redis --stage prod --resourceName myRedis --operation info
+  stacktape query:redis --stage prod --resourceName myRedis --operation keys --pattern "user:*"
+  stacktape query:redis --stage prod --resourceName myRedis --operation get --key "session:abc123"
+  stacktape query:redis --stage prod --resourceName myRedis --bastionResource myBastion --operation info`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -695,17 +685,17 @@ Examples:
     requiredArgs: ['region', 'stage', 'resourceName'] as const
   },
 
-  'debug:opensearch': {
+  'query:opensearch': {
     description: `Query a deployed OpenSearch domain.
 
 Supports operations: search, get, indices, mapping, count. All operations are read-only.
 
 Examples:
-  stacktape debug:opensearch --stage prod --resourceName mySearch --operation indices
-  stacktape debug:opensearch --stage prod --resourceName mySearch --operation mapping --index users
-  stacktape debug:opensearch --stage prod --resourceName mySearch --operation count --index users
-  stacktape debug:opensearch --stage prod --resourceName mySearch --operation get --index users --id doc123
-  stacktape debug:opensearch --stage prod --resourceName mySearch --operation search --query '{"match_all": {}}'`,
+  stacktape query:opensearch --stage prod --resourceName mySearch --operation indices
+  stacktape query:opensearch --stage prod --resourceName mySearch --operation mapping --index users
+  stacktape query:opensearch --stage prod --resourceName mySearch --operation count --index users
+  stacktape query:opensearch --stage prod --resourceName mySearch --operation get --index users --id doc123
+  stacktape query:opensearch --stage prod --resourceName mySearch --operation search --query '{"match_all": {}}'`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -764,6 +754,7 @@ To learn more, refer to the [scripts documentation](https://docs.stacktape.com/c
       ...universalArgs,
       ...stackArgs,
       configPath: configPath.optional(),
+      showSensitiveValues: showSensitiveValues.optional(),
       resourceName: resourceName.optional(),
       paramName: paramName.optional()
     },
@@ -792,9 +783,9 @@ You can also specify a version to install using the \`--version\` option.`,
   },
 
   login: {
-    description: `Configures your Stacktape API key for the current system.
+    description: `Authenticates this system with Stacktape.
 
-All subsequent operations will be associated with the user and organization linked to this API key. You can get your API key from the [Stacktape console](https://console.stacktape.com/api-keys). You can provide the key with the \`--apiKey\` option or enter it interactively.`,
+In a local terminal, this starts the Stacktape login flow and stores CLI authentication state for subsequent commands. In CI, configure a dedicated Stacktape API key as a masked secret such as \`STACKTAPE_API_KEY\`; do not paste API keys into chat transcripts or command logs. Manual API keys are bearer secrets and are shown only once when created.`,
     args: {
       ...universalArgs,
       apiKey: apiKey.optional()
@@ -803,7 +794,7 @@ All subsequent operations will be associated with the user and organization link
   },
 
   logout: {
-    description: `Removes the Stacktape API key from the current system.`,
+    description: `Removes Stacktape authentication state from the current system.`,
     args: {
       ...universalArgs,
       apiKey: apiKey.optional()
@@ -816,7 +807,7 @@ All subsequent operations will be associated with the user and organization link
 
 In interactive mode, you'll be prompted for the organization name. In agent mode, provide --organizationName.
 
-The command returns a new API key scoped to the newly created organization.`,
+The command returns new organization credentials scoped to the created organization. Treat any returned key material as sensitive and store it outside chat transcripts or logs.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -829,7 +820,7 @@ The command returns a new API key scoped to the newly created organization.`,
   'org:list': {
     description: `Lists organizations accessible with your current Stacktape user.
 
-Shows organization name, role, number of connected AWS accounts, and whether it's the current organization for your API key.`,
+Shows organization name, role, number of connected AWS accounts, and whether it's the current organization for your authenticated CLI context.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -867,7 +858,7 @@ If you omit --projectName in interactive mode, you'll be prompted for it. In age
     requiredArgs: [] as const
   },
 
-  'projects:list': {
+  'project:list': {
     description: `Lists all projects in your organization with their deployed stages, status, and costs.
 
 Shows each project with its stages, deployment status (in-progress, errored, etc.), and current/previous month costs. Useful for getting an overview of your deployments.`,
@@ -882,7 +873,7 @@ Shows each project with its stages, deployment status (in-progress, errored, etc
   'info:whoami': {
     description: `Displays information about the current user, organization, connected AWS accounts, and accessible projects.
 
-Use this command to verify your API key is configured correctly and to see what resources you have access to.`,
+Use this command to verify your local Stacktape CLI authentication state and see what resources you have access to.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -894,7 +885,7 @@ Use this command to verify your API key is configured correctly and to see what 
   'info:operations': {
     description: `Lists recent recorded Stacktape operations with their status.
 
-Shows operation history including success/failure status, timestamps, and error descriptions for failed operations. Filter by project, stage, or the current API-key user to narrow results.`,
+Shows operation history including success/failure status, timestamps, and error descriptions for failed operations. Filter by project, stage, or the current authenticated user to narrow results.`,
     args: {
       logLevel: logLevel.optional(),
       projectName: projectName.optional(),
@@ -931,7 +922,7 @@ You can identify the stack in two ways:
   mcp: {
     description: `Starts a local MCP (Model Context Protocol) server that provides Stacktape tools and documentation to AI coding agents.
 
-The server communicates over stdio using the MCP protocol. It is spawned by MCP-compatible clients (Claude Code, Cursor, etc.) and provides tools for searching Stacktape docs, managing deployments, and debugging infrastructure.`,
+The server communicates over stdio using the MCP protocol. It is spawned by MCP-compatible clients (Claude Code, Cursor, Codex, VS Code/Copilot, OpenCode, Windsurf, etc.) and exposes four tools: \`stacktape_docs\` for documentation search/fetch, \`stacktape_project\` for project scanning, \`stacktape_cli\` for CLI discovery/planning/execution, and \`stacktape_dev\` for dev-mode lifecycle operations.`,
     args: {
       logLevel: logLevel.optional()
     },
@@ -997,10 +988,16 @@ Shows error message, type, function name, project/stage, occurrence count, and s
   }
 } as const;
 
+export const commandDefinitions = baseCommandDefinitions;
+
 // ============ Derived Types ============
 
 export type CommandDefinitions = typeof commandDefinitions;
 export type StacktapeCommand = keyof CommandDefinitions;
+export type CanonicalStacktapeCommand = keyof typeof baseCommandDefinitions;
+
+export const getCanonicalCommand = (command: StacktapeCommand): CanonicalStacktapeCommand =>
+  command as CanonicalStacktapeCommand;
 
 // ============ Command Arrays ============
 

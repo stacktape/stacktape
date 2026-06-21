@@ -96,9 +96,16 @@ export const autoConfirmOperation = z.boolean().describe(`#### Auto-Confirm Oper
 ---
 If \`true\`, automatically confirms prompts during \`deploy\` or \`delete\` operations, skipping the manual confirmation step.`);
 
+export const deployRunner = z.enum(['local', 'codebuild', 'ec2']).describe(`#### Deploy Runner
+---
+Controls where deployment build and packaging work runs.
+- \`local\`: Run deployment locally.
+- \`codebuild\`: Run deployment in AWS CodeBuild.
+- \`ec2\`: Run deployment on a configured EC2 runner in your AWS account.`);
+
 export const showSensitiveValues = z.boolean().describe(`#### Show Sensitive Values
 ---
-If \`true\`, includes sensitive values in the output of the \`info:stack\` and \`deploy\` commands. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
+If \`true\`, includes sensitive values in the output of commands such as \`info:stack\`, \`deploy\`, and \`param:get\`. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
 
 export const hotSwap = z.boolean().describe(`#### Hotswap
 ---
@@ -267,7 +274,7 @@ The name of the deployed resource whose IAM role should be assumed during script
 
 export const apiKey = z.string().describe(`#### API Key
 ---
-Your Stacktape API key. You can get your key from the [Stacktape console](https://console.stacktape.com/api-keys).`);
+Your Stacktape API key. Use this only in your own terminal or CI secret store. Do not paste API keys into chat transcripts, shell history, or logs. For local interactive use, prefer \`stacktape login\`.`);
 
 export const starterId = z.string().describe(`#### Starter ID
 ---
@@ -417,6 +424,14 @@ export const onlyWorkloads = z.array(z.string()).describe(`#### Only Workloads
 Package only the specified workloads. Provide a comma-separated list of workload names to package.
 Other workloads will be skipped. Example: \`--onlyWorkloads myFunction,myContainer\`.`);
 
+export const withPackage = z.boolean().describe(`#### With Package
+---
+If \`true\`, validates workload packaging in addition to resolving the configuration and template.`);
+
+export const thorough = z.boolean().describe(`#### Thorough
+---
+If \`true\`, runs the most complete validation path: validates workload packaging and asks AWS CloudFormation to validate the synthesized template.`);
+
 export const rollbackVersion = z.string().describe(`#### Rollback Version
 ---
 The target deployment version to rollback to (e.g., \`v000003\`). Use \`--listVersions\` to see available versions.`);
@@ -485,7 +500,7 @@ export const argAliases = {
   password: 'pw',
   username: 'un',
   disableAutoRollback: 'dar',
-  autoConfirmOperation: 'aco',
+  autoConfirmOperation: ['aco', 'yes', 'y'],
   showSensitiveValues: 'ssv',
   fullHistory: 'fh',
   help: 'h',
@@ -594,6 +609,7 @@ export const allCliArgsSchema = z.object({
   projectDirectory: projectDirectory.optional(),
   initializeProjectTo: initializeProjectTo.optional(),
   hotSwap: hotSwap.optional(),
+  runner: deployRunner.optional(),
   disableLayerOptimization: disableLayerOptimization.optional(),
   apiKey: apiKey.optional(),
   awsAccount: awsAccount.optional(),
@@ -642,6 +658,8 @@ export const allCliArgsSchema = z.object({
 
   id: documentId.optional(),
   onlyWorkloads: onlyWorkloads.optional(),
+  withPackage: withPackage.optional(),
+  thorough: thorough.optional(),
   targetVersion: rollbackVersion.optional(),
   rollbackSteps: rollbackSteps.optional(),
   listVersions: listVersions.optional()

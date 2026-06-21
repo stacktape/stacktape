@@ -17,7 +17,12 @@ const finishProcess = async () => {
 };
 
 runUsingCli()
-  .catch(() => {
+  .catch((err) => {
+    if (process.env.STP_PRINT_UNHANDLED_ERROR === '1') {
+      process.stderr.write(
+        `[CLI UNHANDLED ERROR] ${err instanceof Error ? err.stack || err.message : JSON.stringify(err)}\n`
+      );
+    }
     process.exitCode = 1;
   })
   .finally(async () => {

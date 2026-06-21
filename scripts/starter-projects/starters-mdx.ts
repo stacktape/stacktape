@@ -168,7 +168,7 @@ const getCodebuildDeployMdx = () => {
 Deployment using AWS CodeBuild will build and deploy your application inside [AWS CodeBuild pipeline](https://aws.amazon.com/codebuild/). To perform the deployment, use
 
 \`\`\`bash
-stacktape codebuild:deploy --stage <<stage>> --region <<region>> --projectName <<project-name>>
+stacktape deploy --runner codebuild --stage <<stage>> --region <<region>> --projectName <<project-name>>
 \`\`\`
 
 \`stage\` is an arbitrary name of your environment (for example **staging**, **production** or **dev-john**)

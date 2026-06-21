@@ -9,7 +9,7 @@ import { ExpectedError } from '@utils/errors';
 import { runEcsExecCommand } from '@utils/ssm-session';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
-export const commandDebugContainerExec = async () => {
+export const commandContainerExec = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false

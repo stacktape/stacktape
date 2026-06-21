@@ -161,7 +161,7 @@ describe('assertCommandPermissions', () => {
   test('allows unrelated commands', () => {
     expect(() =>
       assertCommandPermissions({
-        command: 'projects:list',
+        command: 'project:list',
         role: 'VIEWER',
         permissions: [],
         projects: []
@@ -205,20 +205,6 @@ describe('assertCommandPermissions', () => {
         projects: [{ name: 'web-store' }]
       })
     ).not.toThrow();
-  });
-
-  test('codebuild:deploy follows same permission guard as deploy', () => {
-    expectGuardThrowHint({
-      fn: () =>
-        assertCommandPermissions({
-          command: 'codebuild:deploy',
-          role: 'VIEWER',
-          permissions: ['projects:view'],
-          projectName: 'web-store',
-          projects: [{ name: 'web-store' }]
-        }),
-      hintPattern: /Required permission: deployments:deploy/
-    });
   });
 
   test('delete on prod requires deployments:delete-production', () => {

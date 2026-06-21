@@ -101,10 +101,10 @@ npx stacktape deploy --stage prod --region us-east-1
 npx stacktape dev --stage dev --region us-east-1
 
 # See what would change before deploying
-npx stacktape preview-changes --stage prod --region us-east-1
+npx stacktape diff --stage prod --region us-east-1
 
 # View logs from deployed app
-npx stacktape debug:logs --stage prod --region us-east-1 --resourceName myApi
+npx stacktape logs --stage prod --region us-east-1 --resourceName myApi
 
 # Delete everything
 npx stacktape delete --stage prod --region us-east-1
@@ -2346,7 +2346,7 @@ Runs your app locally with hot reload. Emulates databases locally.
 
 ### Preview Changes
 \`\`\`bash
-npx stacktape preview-changes --stage <stage> --region <region>
+npx stacktape diff --stage <stage> --region <region>
 \`\`\`
 Shows what would change without deploying.
 
@@ -2360,34 +2360,34 @@ Removes all deployed resources.
 
 ### View Logs
 \`\`\`bash
-npx stacktape debug:logs --stage <stage> --region <region> --resourceName <name>
+npx stacktape logs --stage <stage> --region <region> --resourceName <name>
 \`\`\`
 
 ### View Metrics
 \`\`\`bash
-npx stacktape debug:metrics --stage <stage> --region <region> --resourceName <name>
+npx stacktape metrics --stage <stage> --region <region> --resourceName <name>
 \`\`\`
 
 ### Database Query (PostgreSQL)
 \`\`\`bash
-npx stacktape debug:sql --stage <stage> --region <region> --resourceName <dbName>
+npx stacktape query:sql --stage <stage> --region <region> --resourceName <dbName>
 \`\`\`
 
 ### DynamoDB Query
 \`\`\`bash
-npx stacktape debug:dynamodb --stage <stage> --region <region> --resourceName <tableName>
+npx stacktape query:dynamodb --stage <stage> --region <region> --resourceName <tableName>
 \`\`\`
 
 ### Container Shell
 \`\`\`bash
-npx stacktape debug:container-exec --stage <stage> --region <region> --resourceName <name>
+npx stacktape container:exec --stage <stage> --region <region> --resourceName <name>
 \`\`\`
 
 ## Secret Management
 
 ### Create Secret
 \`\`\`bash
-npx stacktape secret:create --secretName <name> --secretValue <value> --region <region>
+npx stacktape secret:set --secretName <name> --secretValue <value> --region <region>
 \`\`\`
 
 ### Get Secret

@@ -33,7 +33,7 @@ const METRIC_CONFIGS: Record<string, { namespace: string; dimensionName: string;
   }
 };
 
-export const commandDebugMetrics = async () => {
+export const commandMetrics = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false

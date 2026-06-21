@@ -13,7 +13,7 @@ import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/in
 const SUPPORTED_OPERATIONS = ['keys', 'get', 'ttl', 'info', 'type'] as const;
 type Operation = (typeof SUPPORTED_OPERATIONS)[number];
 
-export const commandDebugRedis = async () => {
+export const commandQueryRedis = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
@@ -55,7 +55,7 @@ export const commandDebugRedis = async () => {
     throw new ExpectedError(
       'CLI',
       `Resource "${resourceName}" is not a Redis cluster (type: ${resource.resourceType})`,
-      'debug:redis supports redis-cluster resources only'
+      'query:redis supports redis-cluster resources only'
     );
   }
 

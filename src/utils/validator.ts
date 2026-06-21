@@ -150,9 +150,8 @@ export const validateArgs = ({
   // Validate each provided arg
   for (const cliArg in rawArgs) {
     if (!allowedArgs.includes(cliArg)) {
-      const alias = cliArgsAliases[cliArg as keyof typeof cliArgsAliases]
-        ? `(--${cliArgsAliases[cliArg as keyof typeof cliArgsAliases]}) `
-        : '';
+      const rawAlias = cliArgsAliases[cliArg as keyof typeof cliArgsAliases];
+      const alias = rawAlias ? `(--${Array.isArray(rawAlias) ? rawAlias.join(', --') : rawAlias}) ` : '';
       throw getError({
         type: 'CLI',
         message: `Invalid argument --${cliArg} ${alias}for command ${command}.${

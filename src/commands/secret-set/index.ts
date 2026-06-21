@@ -10,7 +10,7 @@ import { loadUserCredentials } from '../_utils/initialization';
 
 const provideOptions = ['Interactively using CLI', 'From file'];
 
-export const commandSecretCreate = async () => {
+export const commandSecretSet = async () => {
   await loadUserCredentials();
   await notificationManager.init();
 

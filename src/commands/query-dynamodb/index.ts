@@ -17,7 +17,7 @@ import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/in
 const SUPPORTED_OPERATIONS = ['scan', 'query', 'get', 'schema', 'sample'] as const;
 type Operation = (typeof SUPPORTED_OPERATIONS)[number];
 
-export const commandDebugDynamodb = async () => {
+export const commandQueryDynamodb = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
@@ -57,7 +57,7 @@ export const commandDebugDynamodb = async () => {
     throw new ExpectedError(
       'CLI',
       `Resource "${resourceName}" is not a DynamoDB table (type: ${resource.resourceType})`,
-      'debug:dynamodb supports dynamo-db-table resources only'
+      'query:dynamodb supports dynamo-db-table resources only'
     );
   }
 

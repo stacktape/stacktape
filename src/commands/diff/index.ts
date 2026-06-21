@@ -109,7 +109,7 @@ const buildHumanPreviewOutput = ({
   return lines;
 };
 
-export const commandPreviewChanges = async () => {
+export const commandDiff = async () => {
   await initializeAllStackServices({
     commandModifiesStack: false,
     commandRequiresDeployedStack: true,

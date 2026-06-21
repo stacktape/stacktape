@@ -6,7 +6,7 @@ import { ConfigResolver } from '@domain-services/config-manager/config-resolver'
 const smokeConfigPath = join(process.cwd(), '_test-stacks', 'config-loading-smoke', 'stacktape.ts');
 
 const setSmokeState = () => {
-  (globalStateManager as any).rawCommands = ['compile-template'];
+  (globalStateManager as any).rawCommands = ['synth'];
   (globalStateManager as any).rawArgs = {
     projectName: 'smoke',
     stage: 'tst',

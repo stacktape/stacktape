@@ -29,13 +29,18 @@ export const commandParamGet = async () => {
       referenceableParams: Object.keys(resource.referencableParams)
     });
   }
-  const paramValue = param.value;
+  const isSensitive = Boolean(param.ssmParameterName);
+  const shouldShowSensitiveValue = Boolean(globalStateManager.args.showSensitiveValues);
+  const paramValue = isSensitive && !shouldShowSensitiveValue ? '<<OMITTED>>' : param.value;
   if (globalStateManager.invokedFrom === 'cli') {
     tuiManager.success(
       `Parameter retrieved: ${tuiManager.prettyResourceName(resourceName)}.${tuiManager.prettyConfigProperty(
         paramName
       )}`
     );
+    if (isSensitive && !shouldShowSensitiveValue) {
+      tuiManager.warn('This parameter is sensitive. Re-run with --showSensitiveValues to print the value.');
+    }
     tuiManager.printLines([`${tuiManager.makeBold(`${paramValue}`)}`, '']);
   }
   return `${paramValue}`;

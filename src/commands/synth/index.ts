@@ -1,11 +1,12 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { stringifyToYaml } from '@shared/utils/yaml';
 import fsExtra from 'fs-extra';
 import { initializeAllStackServices } from '../_utils/initialization';
 
-export const commandCompileTemplate = async () => {
+export const commandSynth = async () => {
   await initializeAllStackServices({
     commandModifiesStack: false,
     commandRequiresDeployedStack: false,
@@ -23,6 +24,11 @@ export const commandCompileTemplate = async () => {
 
   if (globalStateManager.invokedFrom === 'cli') {
     await fsExtra.writeFile(templatePath, stringifyToYaml(template));
+    tuiManager.setPendingCompletion({
+      success: true,
+      message: 'TEMPLATE COMPILED',
+      links: []
+    });
   }
 
   return template;

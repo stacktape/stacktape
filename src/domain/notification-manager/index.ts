@@ -108,7 +108,7 @@ export class NotificationManager {
   // Resolve the event type based on the current command and message type
   #resolveEventType = (message: ProgressMessage): string | null => {
     const command = globalStateManager.command;
-    if (command === 'deploy' || command === 'codebuild:deploy') {
+    if (command === 'deploy') {
       if (message.type === 'progress') return 'DEPLOY_STARTED';
       if (message.type === 'success') return 'DEPLOY_SUCCEEDED';
       if (message.type === 'error') return 'DEPLOY_FAILED';

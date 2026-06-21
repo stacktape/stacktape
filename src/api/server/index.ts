@@ -67,7 +67,7 @@ export const compileTemplate = ({
   return runCommand({
     opts: {
       config: parse(adjustedStackConfig),
-      commands: ['compile-template'],
+      commands: ['synth'],
       args: {
         stage: 'production',
         region

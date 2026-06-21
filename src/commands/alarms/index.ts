@@ -18,7 +18,7 @@ type AlarmInfo = {
   reason?: string;
 };
 
-export const commandDebugAlarms = async () => {
+export const commandAlarms = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false

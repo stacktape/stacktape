@@ -232,7 +232,7 @@ export const builtInDirectives: Directive[] = [
         throw new ExpectedError(
           'DIRECTIVE',
           `Error resolving directive \`$Secret('${secretName}')\`:\n${err}`,
-          `If you did not create the secret yet, create it using ${tuiManager.prettyCommand('secret:create')}`
+          `If you did not create the secret yet, create it using ${tuiManager.prettyCommand('secret:set')}`
         );
       }
       if (jsonKey) {

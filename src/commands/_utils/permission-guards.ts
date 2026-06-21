@@ -66,7 +66,7 @@ export const assertCommandPermissions = ({
   stage?: string;
   projectName?: string;
 } & GuardContext) => {
-  if (command === 'deploy' || command === 'codebuild:deploy') {
+  if (command === 'deploy') {
     assertPermission({
       permission: 'deployments:deploy',
       reason: 'deploy operation is not allowed for your role.',

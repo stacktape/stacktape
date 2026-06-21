@@ -12,7 +12,7 @@ const isReadOnlyCommand = (command: string): boolean => {
   return READ_ONLY_PREFIXES.some((prefix) => command.startsWith(prefix));
 };
 
-export const commandDebugAwsSdk = async () => {
+export const commandAwsCall = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
@@ -54,7 +54,7 @@ export const commandDebugAwsSdk = async () => {
     throw new ExpectedError(
       'CLI',
       `Command "${command}" is not a read-only operation`,
-      `debug:aws-sdk only supports read-only operations (${READ_ONLY_PREFIXES.join('*, ')}*)`
+      `aws:call only supports read-only operations (${READ_ONLY_PREFIXES.join('*, ')}*)`
     );
   }
 

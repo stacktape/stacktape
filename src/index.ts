@@ -4,7 +4,7 @@ import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { tuiDebug } from '@application-services/tui-manager/tui-debug-log';
-import { commandsWithDisabledAnnouncements } from './config/cli/commands';
+import { commandsWithDisabledAnnouncements, getCanonicalCommand } from './config/cli/commands';
 import { notificationManager } from '@domain-services/notification-manager';
 import { initializeSentry, setSentryTags } from '@utils/sentry';
 import { deleteTempFolder } from '@utils/temp-files';
@@ -16,8 +16,7 @@ import { commandBastionSession } from './commands/bastion-session';
 import { commandBastionTunnel } from './commands/bastion-tunnel';
 import { commandBucketSync } from './commands/bucket-sync';
 import { commandCfModuleUpdate } from './commands/cf-module-update';
-import { commandCodebuildDeploy } from './commands/codebuild-deploy';
-import { commandCompileTemplate } from './commands/compile-template';
+import { commandSynth } from './commands/synth';
 import { commandContainerSession } from './commands/container-session';
 import { commandDefaultsConfigure } from './commands/defaults-configure';
 import { commandDefaultsList } from './commands/defaults-list';
@@ -34,7 +33,7 @@ import { commandIssuesIgnore } from './commands/issues-ignore';
 import { commandIssuesList } from './commands/issues-list';
 import { commandIssuesReopen } from './commands/issues-reopen';
 import { commandIssuesResolve } from './commands/issues-resolve';
-import { commandInfoProjects } from './commands/info-projects';
+import { commandProjectList } from './commands/project-list';
 import { commandInfoStack } from './commands/info-stack';
 import { commandInfoWhoami } from './commands/info-whoami';
 import { commandLogin } from './commands/login';
@@ -43,22 +42,22 @@ import { commandOrgCreate } from './commands/org-create';
 import { commandOrgDelete } from './commands/org-delete';
 import { commandOrgList } from './commands/org-list';
 import { commandProjectCreate } from './commands/project-create';
-import { commandDebugLogs } from './commands/debug-logs';
-import { commandDebugAlarms } from './commands/debug-alarms';
-import { commandDebugMetrics } from './commands/debug-metrics';
-import { commandDebugContainerExec } from './commands/debug-container-exec';
-import { commandDebugSql } from './commands/debug-sql';
-import { commandDebugAwsSdk } from './commands/debug-aws-sdk';
-import { commandDebugDynamodb } from './commands/debug-dynamodb';
-import { commandDebugRedis } from './commands/debug-redis';
-import { commandDebugOpensearch } from './commands/debug-opensearch';
-import { commandPackageWorkloads } from './commands/package-workloads';
+import { commandLogs } from './commands/logs';
+import { commandAlarms } from './commands/alarms';
+import { commandMetrics } from './commands/metrics';
+import { commandContainerExec } from './commands/container-exec';
+import { commandQuerySql } from './commands/query-sql';
+import { commandAwsCall } from './commands/aws-call';
+import { commandQueryDynamodb } from './commands/query-dynamodb';
+import { commandQueryRedis } from './commands/query-redis';
+import { commandQueryOpensearch } from './commands/query-opensearch';
+import { commandPackage } from './commands/package';
 import { commandParamGet } from './commands/param-get';
-import { commandPreviewChanges } from './commands/preview-changes';
+import { commandDiff } from './commands/diff';
 import { commandCfRollback } from './commands/cf-rollback';
 import { commandRollback } from './commands/rollback';
 import { commandScriptRun } from './commands/script-run';
-import { commandSecretCreate } from './commands/secret-create';
+import { commandSecretSet } from './commands/secret-set';
 import { commandSecretDelete } from './commands/secret-delete';
 import { commandSecretGet } from './commands/secret-get';
 
@@ -66,6 +65,7 @@ import { commandInfoStacks } from './commands/info-stacks';
 import { commandMcp } from './commands/mcp';
 import { commandMcpAdd } from './commands/mcp-add';
 import { commandUpgrade } from './commands/upgrade';
+import { commandValidate } from './commands/validate';
 import { commandVersion } from './commands/version';
 import { initAgentMode } from './commands/_utils/agent-mode';
 
@@ -79,7 +79,7 @@ const commandsWithoutTui: StacktapeCommand[] = [
   'logout',
   'upgrade',
   'init',
-  'compile-template',
+  'synth',
   'defaults:configure',
   'defaults:list',
   'aws-profile:create',
@@ -90,29 +90,29 @@ const commandsWithoutTui: StacktapeCommand[] = [
   'org:list',
   'org:delete',
   'project:create',
-  'projects:list',
+  'project:list',
   'info:whoami',
   'info:operations',
   'info:stacks',
   'mcp',
   'mcp:add',
   'param:get',
-  'secret:create',
+  'secret:set',
   'secret:delete',
   'secret:get',
   'issues:list',
   'issues:resolve',
   'issues:ignore',
   'issues:reopen',
-  'debug:logs',
-  'debug:alarms',
-  'debug:metrics',
-  'debug:container-exec',
-  'debug:sql',
-  'debug:aws-sdk',
-  'debug:dynamodb',
-  'debug:redis',
-  'debug:opensearch',
+  'logs',
+  'alarms',
+  'metrics',
+  'container:exec',
+  'query:sql',
+  'aws:call',
+  'query:dynamodb',
+  'query:redis',
+  'query:opensearch',
   'bastion:session',
   'bastion:tunnel',
   'container:session',
@@ -125,26 +125,26 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
   try {
     initializeSentry();
     await applicationManager.init();
+    await deleteTempFolder();
     await globalStateManager.init(opts);
     await eventManager.init();
     await announcementsManager.init();
     setSentryTags({ invocationId: globalStateManager.invocationId, command: globalStateManager.command });
-    await deleteTempFolder();
 
     tuiManager.init({ logLevel: globalStateManager.logLevel });
     // Initialize agent mode (sets non-TTY output for spinners)
     initAgentMode();
     // Start TUI for all commands except purely interactive/informational ones
-    if (!commandsWithoutTui.includes(globalStateManager.command)) {
+    const canonicalCommand = getCanonicalCommand(globalStateManager.command);
+    if (!commandsWithoutTui.includes(canonicalCommand)) {
       tuiDebug('MAIN', 'starting TUI', { command: globalStateManager.command });
       tuiManager.start();
       // Commands with multi-phase flows get phase headers; everything else uses simple mode
-      const commandsWithPhaseFlow: StacktapeCommand[] = ['deploy', 'delete', 'codebuild:deploy', 'rollback'];
-      if (!commandsWithPhaseFlow.includes(globalStateManager.command)) {
+      const commandsWithPhaseFlow: StacktapeCommand[] = ['deploy', 'delete', 'rollback'];
+      if (!commandsWithPhaseFlow.includes(canonicalCommand)) {
         tuiManager.setSimpleMode(true);
       }
     }
-
     const executor = getCommandExecutor(globalStateManager.command);
     commandResult = await executor();
     eventManager.clearHookFailures();
@@ -171,7 +171,7 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     await tuiManager.stop();
 
     await applicationManager.cleanUpAfterSuccess();
-    if (!commandsWithDisabledAnnouncements.includes(globalStateManager.command) && tuiManager.mode !== 'jsonl') {
+    if (!commandsWithDisabledAnnouncements.includes(canonicalCommand) && tuiManager.mode !== 'jsonl') {
       await announcementsManager.checkForUpdates();
       await announcementsManager.printAnnouncements();
     }
@@ -216,7 +216,7 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
       });
       return;
     }
-    await notificationManager.reportError(returnableError.stack);
+    await notificationManager.reportError(returnableError.stack || returnableError.message || String(returnableError));
     // stop() already called (and awaited) inside handleError() — no need to call again
     const errorDetails = (returnableError as any).details || {};
     tuiManager.emitJsonlResult({
@@ -233,8 +233,9 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
 };
 
 const getCommandExecutor = (command: StacktapeCommand) => {
-  const commandMap: { [_ in StacktapeCommand]: () => any } = {
-    'compile-template': commandCompileTemplate,
+  const commandMap: { [_ in ReturnType<typeof getCanonicalCommand>]: () => any } = {
+    synth: commandSynth,
+    validate: commandValidate,
     'defaults:configure': commandDefaultsConfigure,
     'defaults:list': commandDefaultsList,
     'aws-profile:create': commandAwsProfileCreate,
@@ -243,27 +244,26 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     'aws-profile:list': commandAwsProfileList,
     delete: commandDelete,
     deploy: commandDeploy,
-    'codebuild:deploy': commandCodebuildDeploy,
     'deployment-script:run': commandDeploymentScriptRun,
     'domain:add': commandDomainAdd,
     help: commandHelp,
     init: commandInit,
     dev: commandDev,
     'dev:stop': commandDevStop,
-    'package-workloads': commandPackageWorkloads,
-    'preview-changes': commandPreviewChanges,
-    'debug:logs': commandDebugLogs,
-    'debug:alarms': commandDebugAlarms,
-    'debug:metrics': commandDebugMetrics,
-    'debug:container-exec': commandDebugContainerExec,
-    'debug:sql': commandDebugSql,
-    'debug:aws-sdk': commandDebugAwsSdk,
-    'debug:dynamodb': commandDebugDynamodb,
-    'debug:redis': commandDebugRedis,
-    'debug:opensearch': commandDebugOpensearch,
+    package: commandPackage,
+    diff: commandDiff,
+    logs: commandLogs,
+    alarms: commandAlarms,
+    metrics: commandMetrics,
+    'container:exec': commandContainerExec,
+    'query:sql': commandQuerySql,
+    'aws:call': commandAwsCall,
+    'query:dynamodb': commandQueryDynamodb,
+    'query:redis': commandQueryRedis,
+    'query:opensearch': commandQueryOpensearch,
     rollback: commandRollback,
     'cf:rollback': commandCfRollback,
-    'secret:create': commandSecretCreate,
+    'secret:set': commandSecretSet,
     'secret:delete': commandSecretDelete,
     'secret:get': commandSecretGet,
     'bucket:sync': commandBucketSync,
@@ -282,7 +282,7 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     'org:list': commandOrgList,
     'org:delete': commandOrgDelete,
     'project:create': commandProjectCreate,
-    'projects:list': commandInfoProjects,
+    'project:list': commandProjectList,
     upgrade: commandUpgrade,
     'info:whoami': commandInfoWhoami,
     'info:operations': commandInfoOperations,
@@ -294,5 +294,5 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     mcp: commandMcp,
     'mcp:add': commandMcpAdd
   };
-  return commandMap[command];
+  return commandMap[getCanonicalCommand(command)];
 };

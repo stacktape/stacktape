@@ -48,13 +48,13 @@ const validateReadOnlySql = ({ sql }: { sql: string }) => {
   if (!READ_ONLY_SQL_PREFIXES.some((prefix) => sqlLower.startsWith(prefix))) {
     throw new ExpectedError(
       'CLI',
-      'debug:sql only supports read-only queries',
+      'query:sql only supports read-only queries',
       'Use SELECT, SHOW, DESCRIBE, or EXPLAIN statements only'
     );
   }
 };
 
-export const commandDebugSql = async () => {
+export const commandQuerySql = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
@@ -86,7 +86,7 @@ export const commandDebugSql = async () => {
     throw new ExpectedError(
       'CLI',
       `Resource "${resourceName}" is not a SQL database (type: ${resource.resourceType})`,
-      'debug:sql supports relational-database resources only'
+      'query:sql supports relational-database resources only'
     );
   }
 

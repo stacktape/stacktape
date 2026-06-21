@@ -94,11 +94,12 @@ export const getArgInfo = (
 
   const typeInfo = getZodTypeInfo(argSchema as z.ZodType);
   const requiredArgs = commandDefinitions[cmd].requiredArgs as readonly string[];
+  const alias = argAliases[argName as keyof typeof argAliases] as string | readonly string[] | undefined;
 
   return {
     description: getSchemaDescription(argSchema as z.ZodType),
     required: requiredArgs.includes(argName),
-    alias: argAliases[argName as keyof typeof argAliases],
+    alias: typeof alias === 'string' ? alias : alias?.join(', '),
     ...typeInfo
   };
 };
@@ -120,7 +121,7 @@ export const validateCommandArgs = (cmd: StacktapeCommand, args: unknown) => {
   return schema.safeParse(args);
 };
 
-// For backward compatibility - generate schema-like structure
+// Generate serializable command metadata for docs and MCP tooling.
 export const generateCommandSchemaInfo = () => {
   const result: Record<
     string,

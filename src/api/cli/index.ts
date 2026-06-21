@@ -19,11 +19,13 @@ const main = async () => {
     if (!launcherResult) {
       return;
     }
+    const mergedArgs = { ...options, ...launcherResult.args };
+    // Echo the equivalent non-interactive command so it lands in shell history
+    // and teaches the flag form.
+    const { formatCommandLine } = await import('@application-services/tui-manager/interactive-launcher/data');
+    process.stdout.write(`\n→ ${formatCommandLine(launcherResult.command, mergedArgs)}\n\n`);
     return runCommand({
-      args: {
-        ...options,
-        ...launcherResult.args
-      },
+      args: mergedArgs,
       commands: [launcherResult.command],
       additionalArgs,
       invokedFrom: (process.env[INVOKED_FROM_ENV_VAR_NAME] as InvokedFrom) || 'cli'

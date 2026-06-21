@@ -87,7 +87,7 @@ const promptAndCreateUserInputSecrets = async (secrets: [string, Set<string>][])
  *   These are auto-generated with secure random values (with confirmation in interactive mode).
  * - **User-input**: used elsewhere (API tokens, third-party credentials, etc.).
  *   The user is prompted to enter the value interactively. In non-interactive mode,
- *   deployment is aborted with a hint to use `secret:create`.
+ *   deployment is aborted with a hint to use `secret:set`.
  */
 export const ensureMissingSecretsCreated = async () => {
   const secretRefs = configManager.allSecretReferencesUsedInConfig;
@@ -125,7 +125,7 @@ export const ensureMissingSecretsCreated = async () => {
       throw new ExpectedError(
         'CONFIG',
         `Missing ${userInput.length} secret(s): ${userInput.map(([n]) => n).join(', ')}`,
-        `Create the secrets using ${tuiManager.prettyCommand('secret:create')} and re-run the deployment.`
+        `Create the secrets using ${tuiManager.prettyCommand('secret:set')} and re-run the deployment.`
       );
     }
   }
@@ -149,12 +149,12 @@ export const ensureMissingSecretsCreated = async () => {
       });
       if (!shouldCreate) {
         tuiManager.info(
-          `Create the missing secrets manually using ${tuiManager.prettyCommand('secret:create')} before deploying.`
+          `Create the missing secrets manually using ${tuiManager.prettyCommand('secret:set')} before deploying.`
         );
         throw new ExpectedError(
           'CONFIG',
           'Deployment aborted: missing secrets.',
-          `Create the secrets using ${tuiManager.prettyCommand('secret:create')} and re-run the deployment.`
+          `Create the secrets using ${tuiManager.prettyCommand('secret:set')} and re-run the deployment.`
         );
       }
     }

@@ -17,7 +17,7 @@ import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/in
 const SUPPORTED_OPERATIONS = ['search', 'get', 'indices', 'mapping', 'count'] as const;
 type Operation = (typeof SUPPORTED_OPERATIONS)[number];
 
-export const commandDebugOpensearch = async () => {
+export const commandQueryOpensearch = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
@@ -61,7 +61,7 @@ export const commandDebugOpensearch = async () => {
     throw new ExpectedError(
       'CLI',
       `Resource "${resourceName}" is not an OpenSearch domain (type: ${resource.resourceType})`,
-      'debug:opensearch supports open-search-domain resources only'
+      'query:opensearch supports open-search-domain resources only'
     );
   }
 

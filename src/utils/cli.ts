@@ -87,8 +87,9 @@ export const getCliInput = (): {
     if (!cliArgsAliases[optName]) {
       for (const validArg in cliArgsAliases) {
         const alias = cliArgsAliases[validArg];
-        if (alias === optName) {
-          delete options[alias];
+        const aliases = Array.isArray(alias) ? alias : [alias];
+        if (aliases.includes(optName)) {
+          delete options[optName];
           options[validArg] = value;
         }
       }

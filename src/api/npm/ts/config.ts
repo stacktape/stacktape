@@ -449,7 +449,7 @@ export type GetConfigParams = {
    */
   cliArgs: StacktapeArgs;
   /**
-   * Stacktape command used to perform this operation (can be either deploy, codebuild:deploy, delete, etc.)
+   * Stacktape command used to perform this operation (for example deploy, delete, etc.)
    */
   command: string;
   /**

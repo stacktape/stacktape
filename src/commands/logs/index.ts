@@ -1,15 +1,18 @@
+import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { PRINT_LOGS_INTERVAL } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { ExpectedError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { printFormattedLogs } from '../_utils/debug-formatters';
 import { loadUserCredentials } from '../_utils/initialization';
 import { getLogGroupInfoForStacktapeResource } from '../_utils/logs';
 
-export const commandDebugLogs = async () => {
+export const commandLogs = async () => {
   await loadUserCredentials();
   await globalStateManager.loadTargetStackInfo();
   await configManager.init({ configRequired: true });
@@ -89,7 +92,40 @@ export const commandDebugLogs = async () => {
     return null;
   }
 
-  // Standard log fetching
+  // Live tail in an interactive terminal (the default). Falls back to a one-shot
+  // window fetch when piped, redirected, --raw, --outputFormat plain|jsonl, or in
+  // CI/agent mode — so `stacktape logs ... | grep` stays append-only and exits.
+  const shouldFollow = tuiManager.mode === 'tty' && !raw;
+  if (shouldFollow) {
+    const printer = new LambdaCloudwatchLogPrinter({
+      fetchSince: startTime.getTime(),
+      logGroupAwsResourceName: logGroupName
+    });
+    tuiManager.info(
+      `Following logs for ${tuiManager.makeBold(resourceName)}${container ? ` (container ${container})` : ''}. Press Ctrl+C to stop.`
+    );
+
+    let consecutiveFailures = 0;
+    const interval = setInterval(async () => {
+      try {
+        await printer.printLogs();
+        consecutiveFailures = 0;
+      } catch (err) {
+        if (++consecutiveFailures > 3) {
+          clearInterval(interval);
+          await applicationManager.handleError(err);
+        }
+      }
+    }, PRINT_LOGS_INTERVAL);
+    applicationManager.registerCleanUpHook(() => clearInterval(interval));
+
+    await printer.printLogs().catch(() => {});
+    // Follow until the user interrupts (Ctrl+C → applicationManager exit handler).
+    await new Promise<never>(() => {});
+    return null;
+  }
+
+  // Standard one-shot log fetching
   const logStreams = await awsSdkManager.getLogStreams({ logGroupName });
 
   if (!logStreams.length) {
