@@ -1,17 +1,7 @@
 import type {
   CliConfigGenSession,
-  CreateAwsConnectionPendingInput,
-  CreateAwsConnectionPendingResponse,
-  CreateGitDeploymentConfigFromCliInput,
-  CreateGitDeploymentConfigFromCliResponse,
   ExchangeTokenForApiKeyInput,
   ExchangeTokenForApiKeyResponse,
-  GetAwsConnectionStatusInput,
-  GetAwsConnectionStatusResponse,
-  GetGitProviderConnectionStatusInput,
-  GetGitProviderConnectionStatusResponse,
-  InitAwsConnectionForCliInput,
-  InitAwsConnectionForCliResponse,
   PublicTrpcClient,
   StackPriceEstimationInput,
   StackPriceEstimationResponse,
@@ -33,18 +23,8 @@ export type {
   CliConfigGenSessionData,
   CliConfigGenSessionState,
   CostBreakdownItem,
-  CreateAwsConnectionPendingInput,
-  CreateAwsConnectionPendingResponse,
-  CreateGitDeploymentConfigFromCliInput,
-  CreateGitDeploymentConfigFromCliResponse,
   ExchangeTokenForApiKeyInput,
   ExchangeTokenForApiKeyResponse,
-  GetAwsConnectionStatusInput,
-  GetAwsConnectionStatusResponse,
-  GetGitProviderConnectionStatusInput,
-  GetGitProviderConnectionStatusResponse,
-  InitAwsConnectionForCliInput,
-  InitAwsConnectionForCliResponse,
   ProductionReadiness,
   ResourcePricingInfo,
   StackPriceEstimationInput,
@@ -92,32 +72,6 @@ export class PublicApiClient {
 
   exchangeTokenForApiKey = async (input: ExchangeTokenForApiKeyInput): Promise<ExchangeTokenForApiKeyResponse> => {
     return this.#ensureInitialized().exchangeTokenForApiKey.mutate(input);
-  };
-
-  initAwsConnectionForCli = async (input: InitAwsConnectionForCliInput): Promise<InitAwsConnectionForCliResponse> => {
-    return this.#ensureInitialized().initAwsConnectionForCli.mutate(input);
-  };
-
-  createAwsConnectionPending = async (
-    input: CreateAwsConnectionPendingInput
-  ): Promise<CreateAwsConnectionPendingResponse> => {
-    return this.#ensureInitialized().createAwsConnectionPending.mutate(input);
-  };
-
-  getAwsConnectionStatus = async (input: GetAwsConnectionStatusInput): Promise<GetAwsConnectionStatusResponse> => {
-    return this.#ensureInitialized().getAwsConnectionStatus.query(input);
-  };
-
-  getGitProviderConnectionStatus = async (
-    input: GetGitProviderConnectionStatusInput
-  ): Promise<GetGitProviderConnectionStatusResponse> => {
-    return this.#ensureInitialized().getGitProviderConnectionStatus.query(input);
-  };
-
-  createGitDeploymentConfigFromCli = async (
-    input: CreateGitDeploymentConfigFromCliInput
-  ): Promise<CreateGitDeploymentConfigFromCliResponse> => {
-    return this.#ensureInitialized().createGitDeploymentConfigFromCli.mutate(input);
   };
 
   stackPriceEstimation = async (input: StackPriceEstimationInput): Promise<StackPriceEstimationResponse> => {

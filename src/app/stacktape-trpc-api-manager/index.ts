@@ -1,5 +1,6 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { ApiKeyProtectedClient } from '../../../shared/trpc/api-key-protected';
+import { withStacktapeOperationInvocationContext } from '@shared/utils/operation-invocation-context';
 import { stpErrors } from '../../config/error-messages';
 import { IS_DEV } from '../../config/random';
 import { gitInfoManager } from '../../utils/git-info-manager';
@@ -74,7 +75,7 @@ class StacktapeTrpcApiManager {
 
     return this.apiClient.recordStackOperation({
       invocationId: globalStateManager.invocationId,
-      commandArgs: globalStateManager.args,
+      commandArgs: withStacktapeOperationInvocationContext(globalStateManager.args),
       command: globalStateManager.command,
       region: globalStateManager.region,
       stackName,
@@ -112,6 +113,7 @@ class StacktapeTrpcApiManager {
       success,
       interrupted,
       description: error ? `${error}` : interrupted ? 'Operation was interrupted' : undefined,
+      commandArgs: withStacktapeOperationInvocationContext(globalStateManager.args),
       region: globalStateManager.region,
       stackName,
       codebuildBuildArn,
@@ -139,7 +141,7 @@ class StacktapeTrpcApiManager {
       awsAccountId: globalStateManager.targetAwsAccount.awsAccountId || undefined,
       accountConnectionId: globalStateManager.targetAwsAccount.id || undefined,
       region: globalStateManager.region,
-      commandArgs: globalStateManager.args,
+      commandArgs: withStacktapeOperationInvocationContext(globalStateManager.args),
       // git information
       gitBranch: gitInfo.branch,
       gitCommit: gitInfo.commit,

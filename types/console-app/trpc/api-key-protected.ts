@@ -116,6 +116,57 @@ export type CurrentUserAndOrgDataResponse = {
   }>;
 };
 
+export type Ec2DeployFromCliParams = {
+  invocationId?: string;
+  projectName: string;
+  accountConnectionId: string;
+  awsAccountId: string;
+  region: string;
+  stage: string;
+  gitUrl: string;
+  gitBranch: string;
+  gitCommit: string;
+  gitCommitMessage?: string | null;
+  gitUsername?: string | null;
+  configPath?: string | null;
+  templateId?: string | null;
+  hotSwap?: boolean;
+};
+
+export type Ec2DeployFromCliResponse = {
+  invocationId: string;
+  ssmCommandId?: string;
+};
+
+export type Ec2DeployStatusFromCliParams = {
+  invocationId: string;
+};
+
+export type Ec2DeployStatusFromCliResponse = {
+  id: string;
+  projectName?: string | null;
+  inProgress?: boolean | null;
+  success?: boolean | null;
+  description?: string | null;
+  ec2InstanceId?: string | null;
+  ssmCommandId?: string | null;
+  logGroupName?: string | null;
+  logStreamName?: string | null;
+};
+
+export type ConfigureEc2RunnerFromCliParams = {
+  projectName: string;
+  ec2RunnerInstanceType: string;
+};
+
+export type ConfigureEc2RunnerFromCliResponse = {
+  id: string;
+  name: string;
+  deploymentRunnerType?: string | null;
+  ec2RunnerInstanceType?: string | null;
+  [key: string]: any;
+};
+
 export type AwsAccountCredentialsParams = {
   awsAccountName: string;
 };
@@ -223,6 +274,75 @@ export type DeleteUndeployedStageResponse = {
   success?: boolean;
   message?: string;
   [key: string]: any;
+};
+
+export type InitAwsConnectionForCliInput = {
+  organizationId: string;
+  connectionName: string;
+  connectionMode: 'BASIC' | 'PRIVILEGED';
+};
+
+export type InitAwsConnectionForCliResponse = {
+  connectionId: string;
+  stackName: string;
+  templateUrl: string;
+  parameters: {
+    StacktapeConnectionId: string;
+    StacktapeConnectionMode: string;
+    StacktapeReportNotificationLambda: string;
+    StacktapeHandleConnectionLambda: string;
+  };
+};
+
+export type CreateAwsConnectionPendingInput = {
+  organizationId: string;
+  connectionName: string;
+  connectionMode: 'BASIC' | 'PRIVILEGED';
+};
+
+export type CreateAwsConnectionPendingResponse = {
+  connectionId: string;
+  quickCreateUrl: string;
+};
+
+export type GetAwsConnectionStatusInput = {
+  connectionId: string;
+};
+
+export type GetAwsConnectionStatusResponse = {
+  state: 'PENDING' | 'ACTIVE' | 'FAILED';
+  awsAccountId?: string;
+  name?: string;
+};
+
+export type GetGitProviderConnectionStatusInput = {
+  organizationId: string;
+  provider: 'GITHUB' | 'GITLAB' | 'BITBUCKET';
+};
+
+export type GetGitProviderConnectionStatusResponse = {
+  isConnected: boolean;
+  installationId?: string;
+};
+
+export type CreateGitDeploymentConfigFromCliInput = {
+  organizationId: string;
+  projectId: string;
+  awsAccountConnectionId: string;
+  branch: string;
+  owner: string;
+  repository: string;
+  targetRegion: string;
+  stage: string;
+  configSource: 'GIT_REPOSITORY' | 'STACKTAPE_DATABASE';
+  deployOnGitEvent: 'PUSHED_TO_BRANCH' | 'PULL_REQUEST_OPENED';
+  configPath: string | null;
+  templateId: string | null;
+};
+
+export type CreateGitDeploymentConfigFromCliResponse = {
+  success: boolean;
+  id?: string;
 };
 
 export type ProjectsWithStagesResponse = Array<{
@@ -333,6 +453,15 @@ export type ApiKeyTrpcClient = {
   currentUserAndOrgData: {
     query: () => Promise<CurrentUserAndOrgDataResponse>;
   };
+  ec2DeployFromCli: {
+    mutate: (args: Ec2DeployFromCliParams) => Promise<Ec2DeployFromCliResponse>;
+  };
+  ec2DeployStatusFromCli: {
+    query: (args: Ec2DeployStatusFromCliParams) => Promise<Ec2DeployStatusFromCliResponse>;
+  };
+  configureEc2RunnerFromCli: {
+    mutate: (args: ConfigureEc2RunnerFromCliParams) => Promise<ConfigureEc2RunnerFromCliResponse>;
+  };
   awsAccountCredentials: {
     query: (args: AwsAccountCredentialsParams) => Promise<AwsAccountCredentialsResponse>;
   };
@@ -359,6 +488,21 @@ export type ApiKeyTrpcClient = {
   };
   deleteUndeployedStageFromCli: {
     mutate: (args: DeleteUndeployedStageParams) => Promise<DeleteUndeployedStageResponse>;
+  };
+  initAwsConnectionForCli: {
+    mutate: (args: InitAwsConnectionForCliInput) => Promise<InitAwsConnectionForCliResponse>;
+  };
+  createAwsConnectionPending: {
+    mutate: (args: CreateAwsConnectionPendingInput) => Promise<CreateAwsConnectionPendingResponse>;
+  };
+  getAwsConnectionStatus: {
+    query: (args: GetAwsConnectionStatusInput) => Promise<GetAwsConnectionStatusResponse>;
+  };
+  getGitProviderConnectionStatus: {
+    query: (args: GetGitProviderConnectionStatusInput) => Promise<GetGitProviderConnectionStatusResponse>;
+  };
+  createGitDeploymentConfigFromCli: {
+    mutate: (args: CreateGitDeploymentConfigFromCliInput) => Promise<CreateGitDeploymentConfigFromCliResponse>;
   };
   projectsWithStages: {
     query: () => Promise<ProjectsWithStagesResponse>;

@@ -1,7 +1,7 @@
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { publicApiClient } from '../../../shared/trpc/public';
 import { openBrowser } from './browser';
 import { detectGitInfo, type GitProvider } from '../init/utils/git-detection';
 
@@ -13,7 +13,7 @@ type NonNullGitProvider = Exclude<GitProvider, null>;
  */
 const checkGitProviderConnection = async (provider: NonNullGitProvider): Promise<boolean> => {
   try {
-    const status = await publicApiClient.getGitProviderConnectionStatus({
+    const status = await stacktapeTrpcApiManager.apiClient.getGitProviderConnectionStatus({
       organizationId: globalStateManager.organizationData!.id,
       provider: provider.toUpperCase() as 'GITHUB' | 'GITLAB' | 'BITBUCKET'
     });
@@ -158,7 +158,7 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
     }
 
     // Create the git deployment configuration
-    await publicApiClient.createGitDeploymentConfigFromCli({
+    await stacktapeTrpcApiManager.apiClient.createGitDeploymentConfigFromCli({
       organizationId: globalStateManager.organizationData!.id,
       projectId: globalStateManager.targetStack.projectId,
       awsAccountConnectionId: awsAccount.id,

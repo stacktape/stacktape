@@ -3,6 +3,12 @@ import type {
   AwsAccountCredentialsParams,
   AwsAccountCredentialsResponse,
   CanDeployResponse,
+  ConfigureEc2RunnerFromCliParams,
+  ConfigureEc2RunnerFromCliResponse,
+  CreateAwsConnectionPendingInput,
+  CreateAwsConnectionPendingResponse,
+  CreateGitDeploymentConfigFromCliInput,
+  CreateGitDeploymentConfigFromCliResponse,
   CreateOrganizationParams,
   CreateOrganizationResponse,
   CreateProjectParams,
@@ -14,7 +20,17 @@ import type {
   DeleteOrganizationResponse,
   DeleteUndeployedStageParams,
   DeleteUndeployedStageResponse,
+  Ec2DeployFromCliParams,
+  Ec2DeployFromCliResponse,
+  Ec2DeployStatusFromCliParams,
+  Ec2DeployStatusFromCliResponse,
+  GetAwsConnectionStatusInput,
+  GetAwsConnectionStatusResponse,
+  GetGitProviderConnectionStatusInput,
+  GetGitProviderConnectionStatusResponse,
   GlobalConfigResponse,
+  InitAwsConnectionForCliInput,
+  InitAwsConnectionForCliResponse,
   IssueActionParams,
   IssueActionResponse,
   ListIssuesParams,
@@ -39,6 +55,12 @@ export type {
   AwsAccountCredentialsParams,
   AwsAccountCredentialsResponse,
   CanDeployResponse,
+  ConfigureEc2RunnerFromCliParams,
+  ConfigureEc2RunnerFromCliResponse,
+  CreateAwsConnectionPendingInput,
+  CreateAwsConnectionPendingResponse,
+  CreateGitDeploymentConfigFromCliInput,
+  CreateGitDeploymentConfigFromCliResponse,
   CreateOrganizationParams,
   CreateOrganizationResponse,
   CreateProjectParams,
@@ -50,7 +72,17 @@ export type {
   DeleteOrganizationResponse,
   DeleteUndeployedStageParams,
   DeleteUndeployedStageResponse,
+  Ec2DeployFromCliParams,
+  Ec2DeployFromCliResponse,
+  Ec2DeployStatusFromCliParams,
+  Ec2DeployStatusFromCliResponse,
+  GetAwsConnectionStatusInput,
+  GetAwsConnectionStatusResponse,
+  GetGitProviderConnectionStatusInput,
+  GetGitProviderConnectionStatusResponse,
   GlobalConfigResponse,
+  InitAwsConnectionForCliInput,
+  InitAwsConnectionForCliResponse,
   IssueActionParams,
   IssueActionResponse,
   ListIssuesParams,
@@ -108,6 +140,20 @@ export class ApiKeyProtectedClient {
     return this.#ensureInitialized().currentUserAndOrgData.query();
   };
 
+  ec2DeployFromCli = async (args: Ec2DeployFromCliParams): Promise<Ec2DeployFromCliResponse> => {
+    return this.#ensureInitialized().ec2DeployFromCli.mutate(args);
+  };
+
+  ec2DeployStatusFromCli = async (args: Ec2DeployStatusFromCliParams): Promise<Ec2DeployStatusFromCliResponse> => {
+    return this.#ensureInitialized().ec2DeployStatusFromCli.query(args);
+  };
+
+  configureEc2RunnerFromCli = async (
+    args: ConfigureEc2RunnerFromCliParams
+  ): Promise<ConfigureEc2RunnerFromCliResponse> => {
+    return this.#ensureInitialized().configureEc2RunnerFromCli.mutate(args);
+  };
+
   awsAccountCredentials = async (args: AwsAccountCredentialsParams): Promise<AwsAccountCredentialsResponse> => {
     return this.#ensureInitialized().awsAccountCredentials.query(args);
   };
@@ -142,6 +188,32 @@ export class ApiKeyProtectedClient {
 
   deleteUndeployedStage = async (args: DeleteUndeployedStageParams): Promise<DeleteUndeployedStageResponse> => {
     return this.#ensureInitialized().deleteUndeployedStageFromCli.mutate(args);
+  };
+
+  initAwsConnectionForCli = async (args: InitAwsConnectionForCliInput): Promise<InitAwsConnectionForCliResponse> => {
+    return this.#ensureInitialized().initAwsConnectionForCli.mutate(args);
+  };
+
+  createAwsConnectionPending = async (
+    args: CreateAwsConnectionPendingInput
+  ): Promise<CreateAwsConnectionPendingResponse> => {
+    return this.#ensureInitialized().createAwsConnectionPending.mutate(args);
+  };
+
+  getAwsConnectionStatus = async (args: GetAwsConnectionStatusInput): Promise<GetAwsConnectionStatusResponse> => {
+    return this.#ensureInitialized().getAwsConnectionStatus.query(args);
+  };
+
+  getGitProviderConnectionStatus = async (
+    args: GetGitProviderConnectionStatusInput
+  ): Promise<GetGitProviderConnectionStatusResponse> => {
+    return this.#ensureInitialized().getGitProviderConnectionStatus.query(args);
+  };
+
+  createGitDeploymentConfigFromCli = async (
+    args: CreateGitDeploymentConfigFromCliInput
+  ): Promise<CreateGitDeploymentConfigFromCliResponse> => {
+    return this.#ensureInitialized().createGitDeploymentConfigFromCli.mutate(args);
   };
 
   projectsWithStages = async (): Promise<ProjectsWithStagesResponse> => {

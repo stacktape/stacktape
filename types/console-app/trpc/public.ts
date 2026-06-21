@@ -118,75 +118,6 @@ export type ExchangeTokenForApiKeyResponse = {
   error?: string;
 };
 
-export type InitAwsConnectionForCliInput = {
-  organizationId: string;
-  connectionName: string;
-  connectionMode: 'BASIC' | 'PRIVILEGED';
-};
-
-export type InitAwsConnectionForCliResponse = {
-  connectionId: string;
-  stackName: string;
-  templateUrl: string;
-  parameters: {
-    StacktapeConnectionId: string;
-    StacktapeConnectionMode: string;
-    StacktapeReportNotificationLambda: string;
-    StacktapeHandleConnectionLambda: string;
-  };
-};
-
-export type CreateAwsConnectionPendingInput = {
-  organizationId: string;
-  connectionName: string;
-  connectionMode: 'BASIC' | 'PRIVILEGED';
-};
-
-export type CreateAwsConnectionPendingResponse = {
-  connectionId: string;
-  quickCreateUrl: string;
-};
-
-export type GetAwsConnectionStatusInput = {
-  connectionId: string;
-};
-
-export type GetAwsConnectionStatusResponse = {
-  state: 'PENDING' | 'ACTIVE' | 'FAILED';
-  awsAccountId?: string;
-  name?: string;
-};
-
-export type GetGitProviderConnectionStatusInput = {
-  organizationId: string;
-  provider: 'GITHUB' | 'GITLAB' | 'BITBUCKET';
-};
-
-export type GetGitProviderConnectionStatusResponse = {
-  isConnected: boolean;
-  installationId?: string;
-};
-
-export type CreateGitDeploymentConfigFromCliInput = {
-  organizationId: string;
-  projectId: string;
-  awsAccountConnectionId: string;
-  branch: string;
-  owner: string;
-  repository: string;
-  targetRegion: string;
-  stage: string;
-  configSource: 'GIT_REPOSITORY' | 'STACKTAPE_DATABASE';
-  deployOnGitEvent: 'PUSHED_TO_BRANCH' | 'PULL_REQUEST_OPENED';
-  configPath: string | null;
-  templateId: string | null;
-};
-
-export type CreateGitDeploymentConfigFromCliResponse = {
-  success: boolean;
-  id?: string;
-};
-
 export type StackPriceEstimationInput = {
   stackConfig: string;
   region?: string;
@@ -239,21 +170,6 @@ export type PublicTrpcClient = {
   };
   exchangeTokenForApiKey: {
     mutate: (input: ExchangeTokenForApiKeyInput) => Promise<ExchangeTokenForApiKeyResponse>;
-  };
-  initAwsConnectionForCli: {
-    mutate: (input: InitAwsConnectionForCliInput) => Promise<InitAwsConnectionForCliResponse>;
-  };
-  createAwsConnectionPending: {
-    mutate: (input: CreateAwsConnectionPendingInput) => Promise<CreateAwsConnectionPendingResponse>;
-  };
-  getAwsConnectionStatus: {
-    query: (input: GetAwsConnectionStatusInput) => Promise<GetAwsConnectionStatusResponse>;
-  };
-  getGitProviderConnectionStatus: {
-    query: (input: GetGitProviderConnectionStatusInput) => Promise<GetGitProviderConnectionStatusResponse>;
-  };
-  createGitDeploymentConfigFromCli: {
-    mutate: (input: CreateGitDeploymentConfigFromCliInput) => Promise<CreateGitDeploymentConfigFromCliResponse>;
   };
   stackPriceEstimation: {
     mutate: (input: StackPriceEstimationInput) => Promise<StackPriceEstimationResponse>;

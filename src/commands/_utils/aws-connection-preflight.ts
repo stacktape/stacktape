@@ -15,7 +15,6 @@ import { normalizeCurrentUserAndOrgData } from '@application-services/global-sta
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
-import { publicApiClient } from '../../../shared/trpc/public';
 import { openBrowser } from './browser';
 
 const detectLocalAwsCredentials = async (): Promise<{
@@ -65,11 +64,12 @@ const runAutoAwsConnection = async (
 ): Promise<{ success: boolean; awsAccountId?: string; connectionName?: string; error?: string }> => {
   try {
     // 1. Initialize connection on server, get CF stack parameters
-    const { connectionId, stackName, templateUrl, parameters } = await publicApiClient.initAwsConnectionForCli({
-      organizationId,
-      connectionName: 'aws-account',
-      connectionMode: 'PRIVILEGED'
-    });
+    const { connectionId, stackName, templateUrl, parameters } =
+      await stacktapeTrpcApiManager.apiClient.initAwsConnectionForCli({
+        organizationId,
+        connectionName: 'aws-account',
+        connectionMode: 'PRIVILEGED'
+      });
 
     await eventManager.updateEvent({
       eventType: 'CONNECT_AWS_ACCOUNT',
@@ -153,7 +153,7 @@ const runAutoAwsConnection = async (
     });
 
     for (let i = 0; i < 10; i++) {
-      const status = await publicApiClient.getAwsConnectionStatus({ connectionId });
+      const status = await stacktapeTrpcApiManager.apiClient.getAwsConnectionStatus({ connectionId });
       if (status.state === 'ACTIVE') {
         return {
           success: true,
@@ -184,7 +184,7 @@ const pollForAwsConnection = async (
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     try {
-      const status = await publicApiClient.getAwsConnectionStatus({ connectionId });
+      const status = await stacktapeTrpcApiManager.apiClient.getAwsConnectionStatus({ connectionId });
 
       if (status.state === 'ACTIVE') {
         return {
@@ -336,7 +336,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
     additionalMessage: 'Opening browser for AWS connection'
   });
 
-  const { connectionId, quickCreateUrl } = await publicApiClient.createAwsConnectionPending({
+  const { connectionId, quickCreateUrl } = await stacktapeTrpcApiManager.apiClient.createAwsConnectionPending({
     organizationId: currentUserAndOrgData.organizationData.id,
     connectionName: 'aws-account',
     connectionMode: 'PRIVILEGED'
