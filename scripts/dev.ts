@@ -1,3 +1,4 @@
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { CLI_SOURCE_PATH, DEV_TMP_FOLDER_PATH } from '@shared/naming/project-fs-paths';
 import { dynamicRequire } from '@shared/utils/fs-utils';
 import { logError, logInfo, logWarn } from '@shared/utils/logging';
@@ -6,6 +7,7 @@ import { createStacktapeOpenTuiBuildPlugin } from '@shared/utils/stacktape-opent
 import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
 import { config } from 'dotenv';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const skipPackagingHelperLambdas = Boolean(process.env.SPHL);
 const skipLoadingEnv = Boolean(process.env.SKIP_LOADING_ENV);
@@ -28,6 +30,8 @@ const isMachineMode =
   process.argv.includes('-ap') ||
   requestedJsonlOutput;
 const isMcpMode = process.argv.includes('mcp');
+const devBuildLockPath = `${DEV_TMP_FOLDER_PATH}.lock`;
+const devBuildLockStaleAfterMs = 10 * 60 * 1000;
 
 const drainStream = async (stream: NodeJS.WriteStream) => {
   if (stream.writableLength === 0) {
@@ -42,6 +46,75 @@ const drainStream = async (stream: NodeJS.WriteStream) => {
 const finishProcess = async () => {
   await Promise.all([drainStream(process.stdout), drainStream(process.stderr)]);
   process.exit(process.exitCode ?? 0);
+};
+
+const getErrorMessage = (err: unknown) => {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return 'Unhandled Stacktape dev wrapper error.';
+};
+
+const tryAcquireDevBuildLock = async () => {
+  try {
+    await mkdir(devBuildLockPath, { recursive: false });
+    await writeFile(
+      `${devBuildLockPath}/owner.json`,
+      JSON.stringify({
+        pid: process.pid,
+        createdAt: Date.now()
+      })
+    );
+    return true;
+  } catch (err: any) {
+    if (err?.code !== 'EEXIST') {
+      throw err;
+    }
+
+    try {
+      const lockInfo = JSON.parse(await readFile(`${devBuildLockPath}/owner.json`, 'utf8'));
+      if (Date.now() - Number(lockInfo.createdAt) > devBuildLockStaleAfterMs) {
+        await rm(devBuildLockPath, { recursive: true, force: true });
+      }
+    } catch {
+      await rm(devBuildLockPath, { recursive: true, force: true });
+    }
+    return false;
+  }
+};
+
+const withDevBuildLock = async <T>(fn: () => Promise<T>) => {
+  while (!(await tryAcquireDevBuildLock())) {
+    await sleep(250);
+  }
+
+  try {
+    return await fn();
+  } finally {
+    await rm(devBuildLockPath, { recursive: true, force: true });
+  }
+};
+
+const writeMachineError = (err: unknown) => {
+  const message = getErrorMessage(err);
+  process.stdout.write(
+    `${JSON.stringify({
+      type: 'log',
+      ts: new Date().toISOString(),
+      level: 'error',
+      source: 'dev-wrapper',
+      message
+    })}\n`
+  );
+  process.stdout.write(
+    `${JSON.stringify({
+      type: 'result',
+      ts: new Date().toISOString(),
+      ok: false,
+      code: 'DEV_WRAPPER_ERROR',
+      message,
+      data: {}
+    })}\n`
+  );
 };
 
 if (isMachineMode || isMcpMode) {
@@ -62,7 +135,10 @@ const buildSource = async () => {
     sourcemap: 'inline',
     bytecode: false,
     plugins: [openTuiBuildPlugin],
-    external: ['follow-redirects'],
+    // @opentui/core dynamically imports a native package per platform (@opentui/core-darwin-x64, etc.).
+    // Only the current platform's package is installed, so externalize them all — the matching one
+    // resolves from node_modules at runtime, the rest are never imported.
+    external: ['follow-redirects', '@opentui/core-*'],
     tsconfig: localBuildTsConfigPath,
     define: {
       STACKTAPE_VERSION: `"${packageJson.version}"`
@@ -79,10 +155,19 @@ export const runDev = async () => {
 
   try {
     process.env.STP_DEV_MODE = 'true';
-    const [cliDistPath] = await Promise.all([
-      buildSource(),
-      !skipPackagingHelperLambdas && packageHelperLambdas({ isDev: true, distFolderPath: DEV_TMP_FOLDER_PATH })
-    ]);
+    if (isMcpMode) {
+      const { commandMcp } = await import('../src/commands/mcp');
+      await commandMcp();
+      return;
+    }
+
+    const cliDistPath = await withDevBuildLock(async () => {
+      const [cliDistPath] = await Promise.all([
+        buildSource(),
+        !skipPackagingHelperLambdas && packageHelperLambdas({ isDev: true, distFolderPath: DEV_TMP_FOLDER_PATH })
+      ]);
+      return cliDistPath;
+    });
 
     if (!isSilentMode) {
       logInfo('----- RUN -----');
@@ -98,7 +183,11 @@ export const runDev = async () => {
   } catch (err) {
     // if for some reason, the error doesn't get properly handled, print
     if (err.details === undefined) {
-      logError(err, '- UNHANDLED ERROR -');
+      if (isSilentMode) {
+        writeMachineError(err);
+      } else {
+        logError(err, '- UNHANDLED ERROR -');
+      }
     }
     process.exitCode = 1;
     if (!isSilentMode) {
