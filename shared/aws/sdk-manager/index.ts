@@ -246,6 +246,7 @@ import {
   stringMatchesGlob,
   wait
 } from '@shared/utils/misc';
+import { getForwardableOperationInvocationEnv } from '@shared/utils/operation-invocation-context';
 import { parseYaml } from '@shared/utils/yaml';
 import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { kebabCase, pascalCase } from 'change-case';
@@ -272,6 +273,14 @@ type S3SyncInfo = {
   filesFound: number;
   deleteAmount: number;
   deleteTotal: number;
+};
+
+const getOperationInvocationCodebuildEnvVariables = () => {
+  return Object.entries(getForwardableOperationInvocationEnv()).map(([name, value]) => ({
+    name,
+    value,
+    type: EnvironmentVariableType.PLAINTEXT
+  }));
 };
 
 export class AwsSdkManager {
@@ -2753,6 +2762,7 @@ export class AwsSdkManager {
               value: systemId,
               type: EnvironmentVariableType.PLAINTEXT
             },
+            ...getOperationInvocationCodebuildEnvVariables(),
             {
               name: 'BASH_ENV',
               value: bashInitiationFile,
@@ -2773,7 +2783,7 @@ export class AwsSdkManager {
             cloudWatchLogs: {
               status: 'ENABLED',
               groupName: logGroupName,
-              streamName: `${stackName}/${kebabCase('codebuild:deploy' as StacktapeCommand)}/${invocationId}`
+              streamName: `${stackName}/${kebabCase('deploy' as StacktapeCommand)}/${invocationId}`
             }
           },
           imageOverride: codebuildBuildImage || 'aws/codebuild/amazonlinux2-x86_64-standard:5.0',
@@ -2787,7 +2797,7 @@ export class AwsSdkManager {
                 'on-failure': 'ABORT',
                 commands: [
                   // "export STACKTAPE_VERSION" line must be deleted prior to releasing 2.0 production version. This ensures that the newest version is installed
-                  // if you are testing codebuild:deploy prior to releasing 2.0 version uncomment this line and specify stacktape version you wish to use
+                  // If you are testing runner deploys before a production release, specify the Stacktape version here.
                   ...(useStacktapeVersion ? [`export STACKTAPE_VERSION="${useStacktapeVersion}"`] : []),
                   'curl -L https://installs.stacktape.com/linux.sh | sh',
                   `echo "export PATH="${stacktapeCodebuildInstallationPath}:${poetryCodebuildInstallationPath}:\\$PATH"" >> ${bashInitiationFile}`,
@@ -2887,6 +2897,7 @@ export class AwsSdkManager {
               value: systemId,
               type: EnvironmentVariableType.PLAINTEXT
             },
+            ...getOperationInvocationCodebuildEnvVariables(),
             {
               name: 'BASH_ENV',
               value: bashInitiationFile,
@@ -2907,7 +2918,7 @@ export class AwsSdkManager {
             cloudWatchLogs: {
               status: 'ENABLED',
               groupName: logGroupName,
-              streamName: `${stackName}/${kebabCase('codebuild:deploy' as StacktapeCommand)}/${invocationId}`
+              streamName: `${stackName}/${kebabCase('deploy' as StacktapeCommand)}/${invocationId}`
             }
           },
           ...(computeTypeOverride ? { computeTypeOverride } : {}),
