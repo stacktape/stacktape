@@ -295,7 +295,7 @@ The directive expects the full CloudFormation stack name. Stacktape's error hint
 
 For sensitive values, use CloudFormation-time directives that resolve during stack creation.
 
-**`$Secret()`** references a value stored in AWS Secrets Manager. Stacktape looks up the secret during deployment to validate the reference and pin the current version, then writes a Secrets Manager dynamic reference into the template rather than plaintext. For JSON secrets, reference a top-level key by appending it after the secret name: `$Secret('mySecret.apiKey')`. If a secret does not exist, the directive throws an error with a hint to create it using [`stacktape secret:create`](/cli/secret-create). See [Secrets](/configuration/secrets) for the full guide.
+**`$Secret()`** references a value stored in AWS Secrets Manager. Stacktape looks up the secret during deployment to validate the reference and pin the current version, then writes a Secrets Manager dynamic reference into the template rather than plaintext. For JSON secrets, reference a top-level key by appending it after the secret name: `$Secret('mySecret.apiKey')`. If a secret does not exist, the directive throws an error with a hint to create it using [`stacktape secret:set`](/cli/secret-set). See [Secrets](/configuration/secrets) for the full guide.
 
 **`$SsmParam()`** references a value stored in AWS Systems Manager Parameter Store. It uses a secure dynamic reference (`ssm-secure`) for `SecureString` parameters and a standard SSM dynamic reference for other parameter types. The parameter version is pinned at deploy time to produce a deterministic reference.
 
@@ -390,7 +390,7 @@ For string-valued properties, embed `$Stage()` directly or use `$Format()` to co
 
 ### How do I pass secrets to my application at deploy time?
 
-Use the `$Secret()` directive in environment variables. Stacktape validates the secret and pins the current version during deployment, then writes a Secrets Manager dynamic reference into the CloudFormation template — the plaintext value never appears in the template. For JSON secrets, append a top-level key: `$Secret('stripeConfig.apiKey')`. Create secrets with [`stacktape secret:create`](/cli/secret-create); referencing a secret that doesn't exist throws an error. See [Secrets](/configuration/secrets) for setup details.
+Use the `$Secret()` directive in environment variables. Stacktape validates the secret and pins the current version during deployment, then writes a Secrets Manager dynamic reference into the CloudFormation template — the plaintext value never appears in the template. For JSON secrets, append a top-level key: `$Secret('stripeConfig.apiKey')`. Create secrets with [`stacktape secret:set`](/cli/secret-set); referencing a secret that doesn't exist throws an error. See [Secrets](/configuration/secrets) for setup details.
 
 ### Can I reference outputs from a stack in a different AWS region?
 

@@ -731,7 +731,7 @@ Set `usePrivateSubnetsWithNAT: true` to deploy in private subnets where all outb
 
 ## Logging
 
-Stacktape multi-container-workload container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. Each container has independent logging configuration via its `logging` property — you can disable logging per container or set a different retention period. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the [Stacktape Console](/stacktape-console/console-overview).
+Stacktape multi-container-workload container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. Each container has independent logging configuration via its `logging` property — you can disable logging per container or set a different retention period. View logs with [`stacktape logs`](/cli/logs) or in the [Stacktape Console](/stacktape-console/console-overview).
 
 Set `logging.disabled: true` on a container to stop sending its output to CloudWatch. You can also configure [log forwarding](/observability/log-forwarding) to external services like Datadog on a per-container basis.
 

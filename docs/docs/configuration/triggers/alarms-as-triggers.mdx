@@ -126,7 +126,7 @@ Not currently. The `input`, `inputPath`, and `inputTransformer` options are not 
 
 ### What happens if my Lambda function fails when triggered by an alarm?
 
-`AlarmIntegrationProps` exposes no retry configuration, unlike stream and queue integrations — so design your handler to be idempotent when it has side effects (use upserts instead of inserts, or check-before-send for notifications). To investigate failures, view function invocation logs with [`stacktape debug:logs`](/cli/debug-logs).
+`AlarmIntegrationProps` exposes no retry configuration, unlike stream and queue integrations — so design your handler to be idempotent when it has side effects (use upserts instead of inserts, or check-before-send for notifications). To investigate failures, view function invocation logs with [`stacktape logs`](/cli/logs).
 
 ### Can I reference alarms from a different Stacktape stack or AWS account?
 

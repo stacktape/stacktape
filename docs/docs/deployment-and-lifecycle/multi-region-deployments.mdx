@@ -186,16 +186,16 @@ Other guardrail types (`stage-restriction`, `command-restriction`, `resource-typ
 
 ## Monitoring multi-region stacks
 
-Each region's stack is monitored independently. Use [`stacktape debug:logs`](/cli/debug-logs) with the appropriate `--region` flag to view logs for a specific region:
+Each region's stack is monitored independently. Use [`stacktape logs`](/cli/logs) with the appropriate `--region` flag to view logs for a specific region:
 
 ```bash
-stacktape debug:logs --stage production --region eu-west-1 --resourceName api
+stacktape logs --stage production --region eu-west-1 --resourceName api
 ```
 
 For the secondary region:
 
 ```bash
-stacktape debug:logs --stage production --region us-east-1 --resourceName api
+stacktape logs --stage production --region us-east-1 --resourceName api
 ```
 
 Since each region runs its own CloudFormation stack, logs, alarms, and metrics are scoped to that region. See [Observability](/observability/overview) for monitoring and alerting options.
@@ -236,7 +236,7 @@ Start with a single region and a [CDN](/resources/networking/cdn). CloudFront ca
 
 ### What happens if one region's deployment fails?
 
-Each region deploys independently, so a failure in one region does not affect others. When automatic rollback is enabled, CloudFormation rolls back the failed region's stack to its previous state while successful regions keep serving traffic. Check [`stacktape debug:logs`](/cli/debug-logs) with the failing region's `--region` flag to investigate.
+Each region deploys independently, so a failure in one region does not affect others. When automatic rollback is enabled, CloudFormation rolls back the failed region's stack to its previous state while successful regions keep serving traffic. Check [`stacktape logs`](/cli/logs) with the failing region's `--region` flag to investigate.
 
 ### How do custom domains and DNS routing work with multi-region?
 

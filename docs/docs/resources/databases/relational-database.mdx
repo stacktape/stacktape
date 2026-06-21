@@ -517,7 +517,7 @@ PostgreSQL supports fine-grained logging via `engineSpecificOptions`. The `log_m
 
 MySQL supports `server_audit_events` (default `['QUERY_DDL']`) to control what the audit log records. Supported values are `CONNECT`, `QUERY`, `QUERY_DDL`, `QUERY_DML`, `QUERY_DML_NO_SELECT`, and `QUERY_DCL`. Enabling `QUERY` or `QUERY_DML` logs every data operation and can generate significant log volume — use them for short-term audits rather than permanent monitoring. The `long_query_time` option (default 10 seconds) controls slow query detection.
 
-View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the Stacktape Console.
+View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
 <CodeBlock
   intellisense

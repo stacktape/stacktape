@@ -243,7 +243,7 @@ A Stacktape user authentication pool supports six types of external identity pro
 | `OIDC` | Any OpenID Connect provider (Okta, Azure AD, etc.) |
 | `SAML` | Enterprise SSO (Active Directory, Ping Identity, etc.) |
 
-Each identity provider requires a `clientId` and `clientSecret`. These are required fields in the Stacktape type for all provider types. For social and OIDC providers, obtain them from the provider's developer console. For SAML and OIDC providers, advanced provider-specific options can be passed through `providerDetails` as Cognito `ProviderDetails` values. Store secrets using the [`$Secret` directive](/configuration/directives) to avoid exposing them in your config. See [secrets](/configuration/secrets) or [`stacktape secret:create`](/cli/secret-create) for setup.
+Each identity provider requires a `clientId` and `clientSecret`. These are required fields in the Stacktape type for all provider types. For social and OIDC providers, obtain them from the provider's developer console. For SAML and OIDC providers, advanced provider-specific options can be passed through `providerDetails` as Cognito `ProviderDetails` values. Store secrets using the [`$Secret` directive](/configuration/directives) to avoid exposing them in your config. See [secrets](/configuration/secrets) or [`stacktape secret:set`](/cli/secret-set) for setup.
 
 <CodeBlock
   intellisense

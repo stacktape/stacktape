@@ -381,18 +381,18 @@ stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
 
 ### Preview changes before deploying
 
-Use [`preview-changes`](/cli/preview-changes) to see what a deploy would modify without actually applying changes:
+Use [`diff`](/cli/diff) to see what a deploy would modify without actually applying changes:
 
 ```bash
-stacktape preview-changes --stage production --region us-east-1
+stacktape diff --stage production --region us-east-1
 ```
 
 ### Deploy with a remote build environment
 
-For resource-intensive projects, use [`codebuild:deploy`](/cli/codebuild-deploy) to offload the deployment process to AWS CodeBuild in your AWS account:
+For resource-intensive projects, use [`deploy --runner codebuild`](/cli/deploy) to offload the deployment process to AWS CodeBuild in your AWS account:
 
 ```bash
-stacktape codebuild:deploy --stage production --region us-east-1
+stacktape deploy --runner codebuild --stage production --region us-east-1
 ```
 
 ## Dev stacks cannot be deployed
@@ -403,7 +403,7 @@ Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated wit
 
 | Command | Description |
 |---|---|
-| [`preview-changes`](/cli/preview-changes) | Shows what a deploy would change without applying anything. |
-| [`codebuild:deploy`](/cli/codebuild-deploy) | Deploys using AWS CodeBuild — offloads the deployment process to a dedicated environment in your AWS account. |
+| [`diff`](/cli/diff) | Shows what a deploy would change without applying anything. |
+| [`deploy --runner codebuild`](/cli/deploy) | Deploys using AWS CodeBuild — offloads the deployment process to a dedicated environment in your AWS account. |
 | [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
 | [`cf:rollback`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |

@@ -358,7 +358,7 @@ Prefer `connectTo` for Stacktape-managed resources because it handles IAM permis
 
 ## Logging
 
-The Next.js server Lambda supports Lambda logging configuration through `serverLambda.logging`, and logs are sent to CloudWatch. For Stacktape log viewing, use [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview); the lower-level Lambda logging options are documented in the API reference.
+The Next.js server Lambda supports Lambda logging configuration through `serverLambda.logging`, and logs are sent to CloudWatch. For Stacktape log viewing, use [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/console-overview); the lower-level Lambda logging options are documented in the API reference.
 
 Most teams should keep logging enabled for deployed Next.js apps because SSR errors, initialization failures, and runtime exceptions need CloudWatch logs for diagnosis. Tune logging only when retention, cost, or compliance requirements justify changing the default behavior exposed by the Lambda logging configuration.
 

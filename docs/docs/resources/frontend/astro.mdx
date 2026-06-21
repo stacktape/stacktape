@@ -245,7 +245,7 @@ Keep `dev.command` aligned with how the team runs Astro locally outside Stacktap
 
 ## Logging
 
-Astro SSR logs are sent to CloudWatch. Configure Lambda logging through the `serverLambda.logging` property. Use the [`stacktape debug:logs`](/cli/debug-logs) command to inspect SSR runtime output from the CLI, or view logs directly in the AWS console.
+Astro SSR logs are sent to CloudWatch. Configure Lambda logging through the `serverLambda.logging` property. Use the [`stacktape logs`](/cli/logs) command to inspect SSR runtime output from the CLI, or view logs directly in the AWS console.
 
 The source exposes logging under `serverLambda`, not as a top-level Astro property. Keep that distinction clear when configuring the app: static asset delivery and CDN behavior are separate from Lambda runtime logging for SSR requests.
 

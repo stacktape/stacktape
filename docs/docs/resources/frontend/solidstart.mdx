@@ -115,7 +115,7 @@ export default defineConfig(() => {
 
 The `2048` MB memory and `25` second timeout shown above are example overrides, not SolidStart-specific defaults. Leave `serverLambda` unset until SSR latency, initialization cost, or integration behavior gives you a reason to tune it. Increase `memory` when SSR is CPU-bound or the app initializes large dependencies. `timeout` configures the maximum seconds the SSR function runs before AWS terminates the invocation. Use `serverLambda` VPC configuration when the SSR Lambda must reach VPC-protected resources such as databases or Redis; see the [Lambda function](/resources/compute/lambda-function) page for inherited VPC options.
 
-Use [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview) to view SSR function logs. See the API reference at the bottom of this page for the full `serverLambda` property surface including logging configuration.
+Use [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/console-overview) to view SSR function logs. See the API reference at the bottom of this page for the full `serverLambda` property surface including logging configuration.
 
 ## Custom domains and firewall
 

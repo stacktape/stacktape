@@ -110,7 +110,7 @@ Valid Fargate CPU/memory combinations:
 | 8 | 16384–61440 MB |
 | 16 | 32768–122880 MB |
 
-Start with Fargate for most workers and adjust the task size after observing real CPU and memory utilization in the [Stacktape Console](/stacktape-console/console-overview) or through [`stacktape debug:metrics`](/cli/debug-metrics).
+Start with Fargate for most workers and adjust the task size after observing real CPU and memory utilization in the [Stacktape Console](/stacktape-console/console-overview) or through [`stacktape metrics`](/cli/metrics).
 
 ### EC2
 
@@ -461,7 +461,7 @@ export default defineConfig(() => {
 
 ## Logging
 
-Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the [Stacktape Console](/stacktape-console/console-overview). Adjust retention with `logging.retentionDays` — supported values range from 1 day to 3653 days (10 years). Set `logging.disabled: true` only when CloudWatch logging is intentionally not needed.
+Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with [`stacktape logs`](/cli/logs) or in the [Stacktape Console](/stacktape-console/console-overview). Adjust retention with `logging.retentionDays` — supported values range from 1 day to 3653 days (10 years). Set `logging.disabled: true` only when CloudWatch logging is intentionally not needed.
 
 For most worker services, keep logging enabled and make log output structured enough to identify the job ID, queue message, or resource the worker was processing. Forward logs to external services (Datadog, Splunk) using [log forwarding](/observability/log-forwarding).
 
@@ -516,7 +516,7 @@ Use a `run-on-init` side container. This container must exit with code 0 before 
 
 ### How do I debug a running worker service?
 
-Start with [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview) to inspect container output. For interactive debugging, enable `enableRemoteSessions` and use [`stacktape container:session`](/cli/container-session) to open a shell inside the running container. Use [`stacktape debug:metrics`](/cli/debug-metrics) to check CPU and memory utilization.
+Start with [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/console-overview) to inspect container output. For interactive debugging, enable `enableRemoteSessions` and use [`stacktape container:session`](/cli/container-session) to open a shell inside the running container. Use [`stacktape metrics`](/cli/metrics) to check CPU and memory utilization.
 
 ### What happens when a worker service container crashes?
 

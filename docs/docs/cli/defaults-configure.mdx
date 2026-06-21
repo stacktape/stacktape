@@ -7,7 +7,7 @@ seoDescription: 'Set system-wide default values for Stacktape CLI arguments like
 
 # defaults:configure
 
-The `defaults:configure` command sets system-wide default values for common Stacktape CLI arguments like region, stage, and AWS profile. Once configured, you can skip repetitive flags on commands like [`deploy`](/cli/deploy), [`delete`](/cli/delete), and [`debug:logs`](/cli/debug-logs). The command does not require an API key, so you can run it before [`login`](/cli/login).
+The `defaults:configure` command sets system-wide default values for common Stacktape CLI arguments like region, stage, and AWS profile. Once configured, you can skip repetitive flags on commands like [`deploy`](/cli/deploy), [`delete`](/cli/delete), and [`logs`](/cli/logs). The command does not require an API key, so you can run it before [`login`](/cli/login).
 
 ## Usage
 
@@ -41,7 +41,7 @@ These defaults apply automatically when the corresponding CLI flag is not explic
 | `projectName` | Project name |
 | `awsAccount` | AWS Account name |
 
-Setting a default `region` and `stage` is the most common use case. For example, [`deploy`](/cli/deploy) requires both `--region` and `--stage`, so defaults for both let you run `stacktape deploy` without extra flags. [`delete`](/cli/delete) requires `--region`, and [`debug:logs`](/cli/debug-logs) requires `--region`, `--stage`, and `--resourceName` (which is not a configurable default).
+Setting a default `region` and `stage` is the most common use case. For example, [`deploy`](/cli/deploy) requires both `--region` and `--stage`, so defaults for both let you run `stacktape deploy` without extra flags. [`delete`](/cli/delete) requires `--region`, and [`logs`](/cli/logs) requires `--region`, `--stage`, and `--resourceName` (which is not a configurable default).
 
 ### Other defaults
 

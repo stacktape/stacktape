@@ -192,6 +192,6 @@ The `handler` property uses `filepath:functionName` syntax and points at the fil
 
 ### Why does my custom artifact deploy but fail at runtime?
 
-The most common cause is a `handler` path that doesn't match the file structure inside your zip. Unzip the artifact locally and confirm the handler file exists at the path Lambda will see — a mismatch typically surfaces as a module-not-found or handler-not-found error at invocation time. Use [`stacktape debug:logs`](/cli/debug-logs) to view the error.
+The most common cause is a `handler` path that doesn't match the file structure inside your zip. Unzip the artifact locally and confirm the handler file exists at the path Lambda will see — a mismatch typically surfaces as a module-not-found or handler-not-found error at invocation time. Use [`stacktape logs`](/cli/logs) to view the error.
 
 <ApiReference definitionName="CustomArtifactLambdaPackagingProps" />

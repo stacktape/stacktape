@@ -263,7 +263,7 @@ Deleting a preview stage starts a Stacktape delete operation for that stage. Tre
 
 ### How do I debug a failing PR preview deployment?
 
-For preview deployments, the GitHub App creates a comment on the PR with pending deployment details. For preview deployments and deletions, if orchestration fails, the handler attempts to update the PR comment with failure details. You can also use [`stacktape debug:logs`](/cli/debug-logs) with `--stage pr-{number}` to tail logs from the deployed resources, or check [`stacktape info:operations`](/cli/info-operations) for the deployment history of the preview stage.
+For preview deployments, the GitHub App creates a comment on the PR with pending deployment details. For preview deployments and deletions, if orchestration fails, the handler attempts to update the PR comment with failure details. You can also use [`stacktape logs`](/cli/logs) with `--stage pr-{number}` to tail logs from the deployed resources, or check [`stacktape info:operations`](/cli/info-operations) for the deployment history of the preview stage.
 
 ### GitOps vs custom CI/CD for stacks-per-branch — which should I choose?
 

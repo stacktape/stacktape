@@ -95,7 +95,7 @@ You can switch between EC2 and CodeBuild runners from the project's runner confi
 
 ## Build runners and CI/CD
 
-Build runners execute deployments for Git-backed projects managed in the Stacktape Console — see [GitOps deployments](/ci-cd-and-gitops/gitops-with-console). Console runner settings apply to Git-backed projects managed in the Stacktape Console; [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) and CLI workflows like [`codebuild:deploy`](/cli/codebuild-deploy) are configured separately.
+Build runners execute deployments for Git-backed projects managed in the Stacktape Console — see [GitOps deployments](/ci-cd-and-gitops/gitops-with-console). Console runner settings apply to Git-backed projects managed in the Stacktape Console; [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) and CLI workflows like [`deploy --runner codebuild`](/cli/deploy) are configured separately.
 
 ## FAQ
 
@@ -117,7 +117,7 @@ Yes. Open the runner configuration modal for your project in the Stacktape Conso
 
 ### Do I need a build runner if I use custom CI/CD?
 
-No. Build runners are specific to Git-backed projects deployed through the Stacktape Console (see [GitOps](/ci-cd-and-gitops/gitops-with-console)). When you use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) — GitHub Actions, GitLab CI, or any other pipeline — your CI system's own runners execute the Stacktape CLI. The Console's runner configuration does not apply. The [`codebuild:deploy`](/cli/codebuild-deploy) CLI command is also separate from Console-managed runners — see its [CLI reference](/cli/codebuild-deploy) for details.
+No. Build runners are specific to Git-backed projects deployed through the Stacktape Console (see [GitOps](/ci-cd-and-gitops/gitops-with-console)). When you use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) — GitHub Actions, GitLab CI, or any other pipeline — your CI system's own runners execute the Stacktape CLI. The Console's runner configuration does not apply. The [`deploy --runner codebuild`](/cli/deploy) CLI command is also separate from Console-managed runners — see its [CLI reference](/cli/deploy) for details.
 
 ### What instance type should I choose for my EC2 runner?
 

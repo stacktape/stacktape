@@ -95,7 +95,7 @@ SASL (Simple Authentication and Security Layer) authenticates with a username an
 | `SASL_SCRAM_256_AUTH` | SCRAM-SHA-256 | Production clusters with SCRAM-256 enabled |
 | `SASL_SCRAM_512_AUTH` | SCRAM-SHA-512 | Production clusters with SCRAM-512 enabled |
 
-The referenced Secrets Manager secret must be a JSON object with `username` and `password` keys. You can create it using the [`stacktape secret:create`](/cli/secret-create) CLI command. Set `authenticationSecretArn` to the ARN of the Secrets Manager secret that contains the Kafka credentials.
+The referenced Secrets Manager secret must be a JSON object with `username` and `password` keys. You can create it using the [`stacktape secret:set`](/cli/secret-set) CLI command. Set `authenticationSecretArn` to the ARN of the Secrets Manager secret that contains the Kafka credentials.
 
 Stacktape exposes `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, and `SASL_SCRAM_512_AUTH`. Choose the variant that matches your Kafka cluster's configured SASL mechanism. Use `BASIC_AUTH` only when the broker requires SASL/PLAIN.
 
@@ -256,7 +256,7 @@ Unlike [Kinesis stream](/configuration/triggers/kinesis-events) or [DynamoDB str
 
 ### How do I create the Secrets Manager secret for authentication?
 
-Create a Secrets Manager secret with the [`stacktape secret:create`](/cli/secret-create) command. For SASL, the secret value must be a JSON object with `username` and `password` keys — set the resulting ARN as `authenticationSecretArn`. For MTLS, the `clientCertificate` property (required) references a secret containing the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password. The `serverRootCaCertificate` property (optional) references a separate secret containing the server's root CA certificate for clusters using a private or self-signed CA.
+Create a Secrets Manager secret with the [`stacktape secret:set`](/cli/secret-set) command. For SASL, the secret value must be a JSON object with `username` and `password` keys — set the resulting ARN as `authenticationSecretArn`. For MTLS, the `clientCertificate` property (required) references a secret containing the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password. The `serverRootCaCertificate` property (optional) references a separate secret containing the server's root CA certificate for clusters using a private or self-signed CA.
 
 ### Which authentication type should I use: SASL or MTLS?
 

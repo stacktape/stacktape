@@ -22,7 +22,7 @@ Common scenarios where log forwarding pays off:
 
 ## When NOT to use log forwarding
 
-If you only need to view and search logs, Stacktape's built-in [log viewing](/observability/logs) — via [`stacktape debug:logs`](/cli/debug-logs) or the Stacktape Console — is sufficient. Log forwarding adds Firehose ingestion cost and a backup S3 bucket for failed deliveries. Skip it unless you have a specific external destination in mind. For cost details, see [Managing Costs](/managing-costs/overview).
+If you only need to view and search logs, Stacktape's built-in [log viewing](/observability/logs) — via [`stacktape logs`](/cli/logs) or the Stacktape Console — is sufficient. Log forwarding adds Firehose ingestion cost and a backup S3 bucket for failed deliveries. Skip it unless you have a specific external destination in mind. For cost details, see [Managing Costs](/managing-costs/overview).
 
 ## Supported destinations
 
@@ -254,7 +254,7 @@ When Firehose cannot deliver logs to your endpoint (network errors, 4xx/5xx resp
 
 ### Built-in log viewing
 
-Log forwarding sends logs to the configured external destination through Kinesis Data Firehose. Use [`stacktape debug:logs`](/cli/debug-logs) or the Stacktape Console for Stacktape's built-in log viewing.
+Log forwarding sends logs to the configured external destination through Kinesis Data Firehose. Use [`stacktape logs`](/cli/logs) or the Stacktape Console for Stacktape's built-in log viewing.
 
 ## Choosing a destination
 

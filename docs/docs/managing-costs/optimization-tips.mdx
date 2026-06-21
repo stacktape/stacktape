@@ -123,7 +123,7 @@ Set `timeout` to the lowest value your function needs. Timeouts don't affect cos
 
 ## Right-size container resources
 
-For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape debug:metrics`](/cli/debug-metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
+For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape metrics`](/cli/metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
 
 Start at the smallest CPU/memory combination that keeps your application responsive and scale up only when metrics justify it. See the [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), and [worker service](/resources/compute/worker-service) pages for the supported CPU and memory values on each resource.
 
@@ -203,7 +203,7 @@ You can restrict the CDN price class to reduce per-request cost in premium regio
 
 ## Reduce log retention
 
-CloudWatch log storage accumulates cost over time. [Batch job](/resources/compute/batch-job) logs default to 90 days of retention. For other resources, check the logging section on that resource's page before changing retention. You can view logs with [`stacktape debug:logs`](/cli/debug-logs).
+CloudWatch log storage accumulates cost over time. [Batch job](/resources/compute/batch-job) logs default to 90 days of retention. For other resources, check the logging section on that resource's page before changing retention. You can view logs with [`stacktape logs`](/cli/logs).
 
 For development and staging stages, 7–14 days of log retention is usually enough. For production, 30–60 days covers most debugging scenarios. For batch jobs, set `retentionDays` in the `logging` block — other resources may expose their own logging settings, so check each resource's page for details:
 

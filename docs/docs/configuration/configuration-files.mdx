@@ -338,7 +338,7 @@ Use TypeScript for most projects. It catches configuration errors before deploym
 
 ### Can I switch from YAML to TypeScript?
 
-YAML and TypeScript represent the same logical config shape: named resources with resource-specific properties. Rename your `stacktape.yml` to `stacktape.ts` and rewrite the resources using the `defineConfig` pattern and resource classes, keeping resource names and property values stable. Then run [`stacktape compile-template`](/cli/compile-template) to verify the output before deploying.
+YAML and TypeScript represent the same logical config shape: named resources with resource-specific properties. Rename your `stacktape.yml` to `stacktape.ts` and rewrite the resources using the `defineConfig` pattern and resource classes, keeping resource names and property values stable. Then run [`stacktape synth`](/cli/synth) to verify the output before deploying.
 
 ### Can I use JavaScript instead of TypeScript?
 
@@ -354,7 +354,7 @@ Use the `$Secret()` directive to reference a Stacktape secret instead of hardcod
 
 ### How do I validate my configuration before deploying?
 
-In TypeScript, the type system catches most errors in your editor. For both formats, run [`stacktape compile-template`](/cli/compile-template) to compile your configuration before deploying.
+In TypeScript, the type system catches most errors in your editor. For both formats, run [`stacktape synth`](/cli/synth) to compile your configuration before deploying.
 
 ### Can I use raw CloudFormation alongside Stacktape resources?
 

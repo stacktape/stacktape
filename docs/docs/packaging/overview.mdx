@@ -112,7 +112,7 @@ The `resources` property belongs to the web service resource, not to packaging â
 The Stacktape Lambda buildpack caches packages based on a content checksum â€” if your code and dependencies haven't changed since the last deploy, the packaging step is skipped and the existing artifact is reused. Packaging outputs include a content digest and an outcome (`skipped` or `bundled`), but checksum-based skip behavior is documented only for the Stacktape Lambda buildpack. In prebuilt-image mode, you provide the name or URL of an existing container image instead of configuring Stacktape to build one from source. Custom artifact mode uses the `packagePath` you provide; if that path points to a directory or non-zip file, Stacktape zips it automatically.
 
 <Tip>
-You can run packaging without deploying using [`stacktape package-workloads`](/cli/package-workloads). This is useful for testing your build configuration or for CI pipelines that separate the build and deploy steps.
+You can run packaging without deploying using [`stacktape package`](/cli/package). This is useful for testing your build configuration or for CI pipelines that separate the build and deploy steps.
 </Tip>
 
 ## FAQ

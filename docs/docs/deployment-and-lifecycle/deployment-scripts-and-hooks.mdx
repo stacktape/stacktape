@@ -655,10 +655,10 @@ The script inherits the `api` function's IAM role, which has DynamoDB access thr
 
 ## Debugging
 
-View logs from deployment scripts using [`stacktape debug:logs`](/cli/debug-logs):
+View logs from deployment scripts using [`stacktape logs`](/cli/logs):
 
 ```bash
-stacktape debug:logs --resourceName migrate
+stacktape logs --resourceName migrate
 ```
 
 Local script and bastion script output is visible in your terminal when running the script. See [hooks and scripts configuration](/configuration/hooks-and-scripts) for any output-handling options exposed by each script type.

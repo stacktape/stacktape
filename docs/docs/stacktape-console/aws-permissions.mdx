@@ -22,7 +22,7 @@ Although the connection stack is created in eu-west-1, your projects and stacks 
 Stacktape uses the assumed role to interact with your AWS account. Based on the Console source, the role is used to:
 
 - **Perform deployments** — deploy and manage infrastructure in your AWS account, including resources such as [Lambda functions](/resources/compute/lambda-function), [containers](/resources/compute/web-service), [databases](/resources/databases/relational-database), and others
-- **List logs and metrics** — fetch CloudWatch data for display in the Stacktape Console and CLI ([`stacktape debug:logs`](/cli/debug-logs), [`stacktape debug:metrics`](/cli/debug-metrics))
+- **List logs and metrics** — fetch CloudWatch data for display in the Stacktape Console and CLI ([`stacktape logs`](/cli/logs), [`stacktape metrics`](/cli/metrics))
 
 The connection role is intended to let Stacktape perform deployments and list logs and metrics through the connected AWS account. The exact AWS actions used depend on the Stacktape features and resources you deploy.
 

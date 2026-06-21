@@ -149,7 +149,7 @@ Issues, [logs](/observability/logs), and [alarms](/observability/alarms) serve d
 |---|---|---|---|
 | **Purpose** | Track and triage runtime errors | View raw output from functions and workloads | Alert on metric thresholds |
 | **Grouping** | Errors grouped with occurrence counts | Individual log lines | One alarm per rule |
-| **Action model** | Resolve, ignore, or reopen | Search and filter via [`debug:logs`](/cli/debug-logs) | Triggers [notifications](/observability/notifications) |
+| **Action model** | Resolve, ignore, or reopen | Search and filter via [`logs`](/cli/logs) | Triggers [notifications](/observability/notifications) |
 | **Best for** | Error triage and regression tracking | Debugging specific requests | Proactive threshold monitoring |
 
 Issues complement [alarms](/observability/alarms): alarms tell you *something is wrong* (high error rate, elevated latency), while issues tell you *what specific errors are happening*. Configure [alert channels](/observability/alert-channels) for alarm notifications, then use the Issues page to diagnose which errors are driving the spike.

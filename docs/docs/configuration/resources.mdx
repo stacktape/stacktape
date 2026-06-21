@@ -187,7 +187,7 @@ See [Directives](/configuration/directives) for all built-in directives and [Ref
 
 Each Stacktape resource produces one or more CloudFormation resources. When you run [`stacktape deploy`](/cli/deploy), Stacktape resolves your configuration (variables, directives, secrets), translates each resource into CloudFormation definitions with the necessary IAM roles and security groups, and submits the resulting template to AWS for provisioning.
 
-You can inspect the generated template with [`stacktape compile-template`](/cli/compile-template) before deploying. After deploying, use [`stacktape info:stack`](/cli/info-stack) to see deployed resource details.
+You can inspect the generated template with [`stacktape synth`](/cli/synth) before deploying. After deploying, use [`stacktape info:stack`](/cli/info-stack) to see deployed resource details.
 
 <Info>
 Stacktape automatically adds `projectName`, `stage`, and `stackName` tags to every AWS resource in your stack. Custom tags defined in `stackConfig.tags` are merged on top — useful for cost tracking and access control in AWS Cost Explorer.

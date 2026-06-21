@@ -209,7 +209,7 @@ Use `scoping-workloads-in-vpc` when you want to restrict Redis access to specifi
 
 ### Local access via bastion
 
-Since Redis clusters have no public endpoint, you cannot connect from your local machine directly. To interact with the cluster for debugging or data inspection, use a [bastion host](/resources/security/bastion-host). Once a bastion is deployed, use [`stacktape bastion:tunnel`](/cli/bastion-tunnel) to create a secure tunnel, or use [`stacktape debug:redis`](/cli/debug-redis) to interact with the cluster through the bastion.
+Since Redis clusters have no public endpoint, you cannot connect from your local machine directly. To interact with the cluster for debugging or data inspection, use a [bastion host](/resources/security/bastion-host). Once a bastion is deployed, use [`stacktape bastion:tunnel`](/cli/bastion-tunnel) to create a secure tunnel, or use [`stacktape query:redis`](/cli/query-redis) to interact with the cluster through the bastion.
 
 ## Connecting from workloads
 
@@ -321,7 +321,7 @@ Backups are recommended for production clusters where the cache contains data th
 
 ## Logging
 
-Stacktape enables slow-query logging for Redis clusters by default. Slow query logs are sent to CloudWatch and retained for 90 days. View them with [`stacktape debug:logs`](/cli/debug-logs) or in the Stacktape Console.
+Stacktape enables slow-query logging for Redis clusters by default. Slow query logs are sent to CloudWatch and retained for 90 days. View them with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
 You can customize the log format (`json` or `text`), retention period, or disable logging entirely:
 
@@ -423,7 +423,7 @@ You pay per node-hour based on the instance size you choose. The cheapest option
 
 ### Can I connect to Redis from my local machine?
 
-Redis clusters run inside your VPC with no public endpoint. To connect from your local machine, deploy a [bastion host](/resources/security/bastion-host) in your stack and use [`stacktape bastion:tunnel`](/cli/bastion-tunnel) or [`stacktape debug:redis`](/cli/debug-redis). During [dev mode](/local-development/dev-mode-overview), Redis runs locally in Docker by default, so no tunnel is needed for local development.
+Redis clusters run inside your VPC with no public endpoint. To connect from your local machine, deploy a [bastion host](/resources/security/bastion-host) in your stack and use [`stacktape bastion:tunnel`](/cli/bastion-tunnel) or [`stacktape query:redis`](/cli/query-redis). During [dev mode](/local-development/dev-mode-overview), Redis runs locally in Docker by default, so no tunnel is needed for local development.
 
 ### Redis vs DynamoDB — which should I use for caching?
 

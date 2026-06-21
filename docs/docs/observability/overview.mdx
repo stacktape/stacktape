@@ -15,9 +15,9 @@ Stacktape provides multiple observability surfaces for supported workloads and A
 
 | Surface | CLI | Console | Config |
 |---------|-----|---------|--------|
-| [Logs](/observability/logs) | [`stacktape debug:logs`](/cli/debug-logs) | See [Logs](/observability/logs) | — |
-| [Metrics](/observability/metrics) | [`stacktape debug:metrics`](/cli/debug-metrics) | See [Metrics](/observability/metrics) | — |
-| [Alarms](/observability/alarms) | [`stacktape debug:alarms`](/cli/debug-alarms) | Alarm state overview, alarm rules editor | See [Alarms](/observability/alarms) |
+| [Logs](/observability/logs) | [`stacktape logs`](/cli/logs) | See [Logs](/observability/logs) | — |
+| [Metrics](/observability/metrics) | [`stacktape metrics`](/cli/metrics) | See [Metrics](/observability/metrics) | — |
+| [Alarms](/observability/alarms) | [`stacktape alarms`](/cli/alarms) | Alarm state overview, alarm rules editor | See [Alarms](/observability/alarms) |
 | [Issues](/observability/issues) | [`stacktape issues:list`](/cli/issues-list), [`issues:resolve`](/cli/issues-resolve), [`issues:ignore`](/cli/issues-ignore), [`issues:reopen`](/cli/issues-reopen) | Error inbox with grouping and occurrence counts | Enabled in Console for all projects, selected projects, or specific stage names |
 | [Alert channels](/observability/alert-channels) | — | Create and manage channels | See [Alert channels](/observability/alert-channels) |
 | [Notifications](/observability/notifications) | — | Notification rules for deployment events | — |
@@ -26,11 +26,11 @@ Stacktape provides multiple observability surfaces for supported workloads and A
 
 ## Logs
 
-Stacktape has a logs surface for inspecting CloudWatch Logs produced by your stack. Use [`stacktape debug:logs`](/cli/debug-logs) for ad-hoc log queries and live tailing from the terminal — filter by resource, time range, or keyword. The Console provides a persistent log viewer for browsing logs across resources and stages without leaving the browser. For full CLI options and details, see [Logs](/observability/logs).
+Stacktape has a logs surface for inspecting CloudWatch Logs produced by your stack. Use [`stacktape logs`](/cli/logs) for ad-hoc log queries and live tailing from the terminal — filter by resource, time range, or keyword. The Console provides a persistent log viewer for browsing logs across resources and stages without leaving the browser. For full CLI options and details, see [Logs](/observability/logs).
 
 ## Metrics
 
-Stacktape provides a metrics surface for viewing AWS CloudWatch metrics produced by your resources. Use [`stacktape debug:metrics`](/cli/debug-metrics) for quick terminal-based metric checks — useful during active debugging or in CI/CD scripts. The Console provides metric dashboards for ongoing monitoring across your stack. For full CLI options and details, see [Metrics](/observability/metrics).
+Stacktape provides a metrics surface for viewing AWS CloudWatch metrics produced by your resources. Use [`stacktape metrics`](/cli/metrics) for quick terminal-based metric checks — useful during active debugging or in CI/CD scripts. The Console provides metric dashboards for ongoing monitoring across your stack. For full CLI options and details, see [Metrics](/observability/metrics).
 
 ## Alarms
 
@@ -40,7 +40,7 @@ Alarms monitor CloudWatch metrics and fire when a threshold is breached. You can
 
 **Console-managed rules** — alarm rules created in the Console monitor AWS metrics for your resources, such as Lambda error rates, database CPU usage, or API latency. When a metric crosses the defined threshold, an alert is sent to the channel you specify. Creating or changing a rule saves it in the Console; Stacktape creates, updates, or removes the underlying CloudWatch Alarms and EventBridge notification routing the next time each matching project and stage is deployed.
 
-**From the CLI**, use [`stacktape debug:alarms`](/cli/debug-alarms) to inspect alarm state in a stack.
+**From the CLI**, use [`stacktape alarms`](/cli/alarms) to inspect alarm state in a stack.
 
 ## Issues
 
@@ -131,7 +131,7 @@ Per-resource alarms in your `stacktape.ts` are version-controlled and deploy wit
 
 ### How does issue detection differ from log monitoring?
 
-[Issues](/observability/issues) is an automated error inbox — it detects, groups, and tracks recurring runtime errors without manual setup beyond enabling it per-project in the Console. Log monitoring (via [`stacktape debug:logs`](/cli/debug-logs) or the Console) gives you raw access to all log output. Issues answer "what's broken across my stack?" while logs answer "what happened at this specific time?"
+[Issues](/observability/issues) is an automated error inbox — it detects, groups, and tracks recurring runtime errors without manual setup beyond enabling it per-project in the Console. Log monitoring (via [`stacktape logs`](/cli/logs) or the Console) gives you raw access to all log output. Issues answer "what's broken across my stack?" while logs answer "what happened at this specific time?"
 
 ### Why isn't issue detection picking up my errors?
 

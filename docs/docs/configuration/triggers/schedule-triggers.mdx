@@ -373,7 +373,7 @@ When using a fixed `input`, the `event` parameter contains exactly the JSON valu
 
 ## Monitoring scheduled functions
 
-View logs from schedule-triggered functions using [`stacktape debug:logs`](/cli/debug-logs) with the `--resourceName` flag pointing to your scheduled function.
+View logs from schedule-triggered functions using [`stacktape logs`](/cli/logs) with the `--resourceName` flag pointing to your scheduled function.
 
 <Tip>
 Set up [alarms](/observability/alarms) on your scheduled functions to catch failures early. A scheduled function that fails silently (no errors, but no useful work) is harder to notice than a broken API endpoint.

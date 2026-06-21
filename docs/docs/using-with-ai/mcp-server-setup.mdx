@@ -16,7 +16,7 @@ The Stacktape MCP server gives AI coding assistants structured access to Stackta
 Use the MCP server when your AI coding assistant supports the [Model Context Protocol](https://modelcontextprotocol.io). The structured tool interface is better than raw CLI output for several workflows:
 
 - **Deploying or deleting stacks** — the assistant plans the command, validates arguments against CLI metadata, and executes with safety gates, all through tool calls.
-- **Debugging** — query [logs](/cli/debug-logs), [metrics](/cli/debug-metrics), [alarms](/cli/debug-alarms), [database contents](/cli/debug-sql), or [DynamoDB items](/cli/debug-dynamodb) during a conversation. The assistant gets structured JSON instead of parsing terminal output.
+- **Debugging** — query [logs](/cli/logs), [metrics](/cli/metrics), [alarms](/cli/alarms), [database contents](/cli/query-sql), or [DynamoDB items](/cli/query-dynamodb) during a conversation. The assistant gets structured JSON instead of parsing terminal output.
 - **Configuration help** — the assistant searches Stacktape's bundled documentation index for resource types, config syntax, and deployment patterns without opening a browser.
 - **Dev mode** — start, monitor, rebuild, and stop [dev mode](/local-development/dev-mode-overview) sessions from within your AI conversation.
 
@@ -220,7 +220,7 @@ The `orient` action returns the same scan data with stronger next-action guidanc
 
 ### CLI tool
 
-`stacktape_cli` covers the non-interactive CLI surface: [deployments](/cli/deploy), [deletions](/cli/delete), [previewing changes](/cli/preview-changes), [rollbacks](/cli/rollback), diagnostics ([`debug:logs`](/cli/debug-logs), [`debug:metrics`](/cli/debug-metrics), [`debug:alarms`](/cli/debug-alarms), [`debug:sql`](/cli/debug-sql), [`debug:dynamodb`](/cli/debug-dynamodb), [`debug:redis`](/cli/debug-redis), [`debug:opensearch`](/cli/debug-opensearch)), [secrets](/configuration/secrets) (`secret:create`, `secret:get`, `secret:delete`), parameters (`param:get`), stack info (`info:stack`, `info:stacks`), and deployment scripts (`script:run`).
+`stacktape_cli` covers the non-interactive CLI surface: [deployments](/cli/deploy), [deletions](/cli/delete), [previewing changes](/cli/diff), [rollbacks](/cli/rollback), diagnostics ([`logs`](/cli/logs), [`metrics`](/cli/metrics), [`alarms`](/cli/alarms), [`query:sql`](/cli/query-sql), [`query:dynamodb`](/cli/query-dynamodb), [`query:redis`](/cli/query-redis), [`query:opensearch`](/cli/query-opensearch)), [secrets](/configuration/secrets) (`secret:set`, `secret:get`, `secret:delete`), parameters (`param:get`), stack info (`info:stack`, `info:stacks`), and deployment scripts (`script:run`).
 
 The typical workflow:
 
@@ -233,7 +233,7 @@ Common parameters accepted by `plan` and `run`:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `command` | string | CLI command name, e.g. `deploy`, `debug:logs`, `secret:get` |
+| `command` | string | CLI command name, e.g. `deploy`, `logs`, `secret:get` |
 | `cwd` | string | Absolute path to the Stacktape project root for project scanning |
 | `args` | object | CLI arguments as a camelCase key-value object |
 | `stage` | string | Target Stacktape stage |
@@ -245,7 +245,7 @@ Common parameters accepted by `plan` and `run`:
 | `resourceName` | string | Resource name for diagnostics commands |
 | `scriptName` | string | Deployment script name for `script:run` |
 | `secretName` | string | Secret name for secret commands |
-| `secretValue` | string | Secret value for `secret:create` (masked in tool output) |
+| `secretValue` | string | Secret value for `secret:set` (masked in tool output) |
 | `secretFile` | string | Path to a file containing the secret value |
 | `hotSwap` | boolean | Request hotswap deployment when supported |
 | `confirm` | boolean | Required for mutating/destructive commands in `run` |
@@ -274,10 +274,10 @@ The MCP server classifies every CLI command into a safety level and enforces per
 
 | Safety level | Behavior | Examples |
 |-------------|----------|---------|
-| `readOnly` | Executes without confirmation | `preview-changes`, `compile-template`, `info:stack`, `info:stacks`, `debug:logs`, `debug:metrics`, `debug:alarms` |
-| `diagnostic` | Executes without confirmation | `debug:sql`, `debug:dynamodb`, `debug:redis`, `debug:opensearch` |
-| `local` | Executes without confirmation | `package-workloads` |
-| `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret:create`](/cli/secret-create), [`rollback`](/cli/rollback) |
+| `readOnly` | Executes without confirmation | `diff`, `synth`, `info:stack`, `info:stacks`, `logs`, `metrics`, `alarms` |
+| `diagnostic` | Executes without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch` |
+| `local` | Executes without confirmation | `package` |
+| `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret:set`](/cli/secret-set), [`rollback`](/cli/rollback) |
 | `destructive` | Requires direct user confirmation through MCP form elicitation; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret:delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion:session` |
 
@@ -371,7 +371,7 @@ Docs search, project scanning, and CLI metadata operations (`list`, `describe`, 
 
 ### Is the MCP server safe for production workflows?
 
-The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation through MCP elicitation when supported, and interactive commands are rejected. Note that diagnostic commands like [`debug:sql`](/cli/debug-sql) run without confirmation but can modify state depending on the query passed — review those tool calls before approving. Treat MCP-initiated deployments with the same care as manual CLI deployments.
+The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation through MCP elicitation when supported, and interactive commands are rejected. Note that diagnostic commands like [`query:sql`](/cli/query-sql) run without confirmation but can modify state depending on the query passed — review those tool calls before approving. Treat MCP-initiated deployments with the same care as manual CLI deployments.
 
 ### What happens if a deployment times out through MCP?
 

@@ -354,7 +354,7 @@ The `handler` property specifies the entry point in `filepath:functionName` form
 
 ## Runtime
 
-The `runtime` property sets the Lambda runtime to a supported AWS Lambda runtime identifier. When using the [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack), the runtime is auto-detected from the entry file extension, so you rarely need to set this explicitly. Set `runtime` manually when using [custom artifact](/packaging/function/custom-artifact) packaging (since there is no entry file for Stacktape to detect from) or when you need to pin a specific runtime version. See the API reference below for the full list of supported runtime values, and the [function packaging docs](/packaging/function/language-specific-config) for runtime-specific configuration.
+The `runtime` property sets the Lambda runtime to a supported AWS Lambda runtime identifier. When using the [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack), the runtime is auto-detected from the entry file extension, so you rarely need to set this explicitly. Set `runtime` manually when using [custom artifact](/packaging/function/custom-artifact) packaging (since there is no entry file for Stacktape to detect from) or when you need to pin a specific runtime version. See the API reference below for the full list of supported runtime values, and the [function packaging docs](/packaging/function/stacktape-buildpack#language-specific-configuration) for runtime-specific configuration.
 
 ## Connecting to resources
 

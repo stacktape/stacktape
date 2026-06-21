@@ -285,16 +285,16 @@ instead), and only production gets a WAF. This pattern keeps preview stages fast
 ## Stage-specific secrets
 
 Store separate Stacktape secrets for each stage. Use
-[`stacktape secret:create`](/cli/secret-create) to create them, and the
+[`stacktape secret:set`](/cli/secret-set) to create them, and the
 [`$Secret` directive](/configuration/directives) to reference them in config.
 
-Create separate secrets for each stage — for example, `db-password-dev` and `db-password-production` — using [`stacktape secret:create`](/cli/secret-create):
+Create separate secrets for each stage — for example, `db-password-dev` and `db-password-production` — using [`stacktape secret:set`](/cli/secret-set):
 
 ```bash
-stacktape secret:create --region eu-west-1
+stacktape secret:set --region eu-west-1
 ```
 
-Run the command once per secret. See the [CLI reference](/cli/secret-create) for available options.
+Run the command once per secret. See the [CLI reference](/cli/secret-set) for available options.
 
 Then reference the stage-specific secret in your config using the `stage` parameter:
 

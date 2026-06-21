@@ -126,14 +126,14 @@ Hot-swap updates resources outside of CloudFormation, which creates drift betwee
 For large container builds, monorepos, or machines with limited resources, offload the entire build and deploy process to [AWS CodeBuild](/ci-cd-and-gitops/build-runners):
 
 ```bash
-stacktape codebuild:deploy --stage production --region eu-west-1
+stacktape deploy --runner codebuild --stage production --region eu-west-1
 ```
 
 CodeBuild deployment uploads your project to S3 and starts a CodeBuild build that runs the full deployment inside your AWS account. This is useful when local Docker builds are slow or your CI runner is underpowered.
 
 For simple Lambda-based stacks, local deploy is usually faster because it avoids the overhead of uploading your project and starting a CodeBuild environment. CodeBuild deployment shines for container-heavy stacks and monorepos with multiple images to build.
 
-See the [`codebuild:deploy` CLI reference](/cli/codebuild-deploy) for available options.
+See the [`deploy --runner codebuild` CLI reference](/cli/deploy) for available options.
 
 ## Automatic rollback
 
@@ -169,10 +169,10 @@ Always pass `--autoConfirmOperation` in CI/CD pipelines. Without it, the deploy 
 
 ## Previewing changes
 
-The [`stacktape preview-changes`](/cli/preview-changes) command generates the CloudFormation template and computes the diff against the currently deployed stack without modifying anything. Use it to verify that your config changes produce the expected infrastructure changes before committing to a deploy.
+The [`stacktape diff`](/cli/diff) command generates the CloudFormation template and computes the diff against the currently deployed stack without modifying anything. Use it to verify that your config changes produce the expected infrastructure changes before committing to a deploy.
 
 ```bash
-stacktape preview-changes --stage dev --region eu-west-1
+stacktape diff --stage dev --region eu-west-1
 ```
 
 See [Previewing changes](/deployment-and-lifecycle/previewing-changes) for details.
@@ -243,17 +243,17 @@ Common causes of slow Stacktape deployments:
 
 - **Large container images** — Use multi-stage Docker builds or [Stacktape buildpack packaging](/packaging/containers/stacktape-buildpack) to reduce image size.
 - **Many resources** — CloudFormation serializes dependent resources. This is expected for complex stacks.
-- **Slow local builds** — Consider [`codebuild:deploy`](/cli/codebuild-deploy) to offload builds to AWS.
+- **Slow local builds** — Consider [`deploy --runner codebuild`](/cli/deploy) to offload builds to AWS.
 - **First deploy to a new region** — Initial infrastructure setup (S3 deployment bucket, ECR repositories) adds one-time overhead.
 
 Run with `--logLevel debug` to see detailed timing for each phase.
 
 ### Secrets prompt blocking CI/CD
 
-If your config references `$Secret()` values that don't exist, the CLI prompts you to create them interactively. In CI/CD, this causes the deploy to hang. Create secrets before deploying using [`secret:create`](/cli/secret-create) or the [Stacktape Console](/configuration/secrets):
+If your config references `$Secret()` values that don't exist, the CLI prompts you to create them interactively. In CI/CD, this causes the deploy to hang. Create secrets before deploying using [`secret:set`](/cli/secret-set) or the [Stacktape Console](/configuration/secrets):
 
 ```bash
-stacktape secret:create --name mySecret --stage production --region eu-west-1
+stacktape secret:set --name mySecret --stage production --region eu-west-1
 ```
 
 ## FAQ
@@ -276,7 +276,7 @@ Use hot-swap (`--hotSwap`) when iterating on Lambda or container code during dev
 
 ### When should I use CodeBuild deployment?
 
-Use [`codebuild:deploy`](/cli/codebuild-deploy) when your local machine is slow for Docker builds, when building large container images, or when your CI runner has limited CPU/memory. CodeBuild runs the entire deployment in an AWS-hosted build environment, which can be useful when local or CI resources are constrained. For simple Lambda-based stacks, local deploy is usually faster because it avoids the overhead of uploading your project and starting a CodeBuild environment.
+Use [`deploy --runner codebuild`](/cli/deploy) when your local machine is slow for Docker builds, when building large container images, or when your CI runner has limited CPU/memory. CodeBuild runs the entire deployment in an AWS-hosted build environment, which can be useful when local or CI resources are constrained. For simple Lambda-based stacks, local deploy is usually faster because it avoids the overhead of uploading your project and starting a CodeBuild environment.
 
 ### Does hot-swap cause CloudFormation drift, and should I worry about it?
 

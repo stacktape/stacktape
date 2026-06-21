@@ -29,7 +29,7 @@ This command does not require a Stacktape configuration file. It connects direct
 
 The two most commonly used optional flags are `--command` and `--container`. Both affect which process and which container you connect to.
 
-**`--command`** specifies the command that starts the interactive session inside the container. Use it to select a specific shell (like `bash`). To run a one-shot command and capture its output non-interactively, use [`debug:container-exec`](/cli/debug-container-exec) instead.
+**`--command`** specifies the command that starts the interactive session inside the container. Use it to select a specific shell (like `bash`). To run a one-shot command and capture its output non-interactively, use [`container:exec`](/cli/container-exec) instead.
 
 Start a bash session:
 
@@ -264,6 +264,6 @@ stacktape container:session --stage staging --region us-west-2 --resourceName ba
 
 ## Related commands
 
-- [`debug:container-exec`](/cli/debug-container-exec) — run a single command inside a container and return the output (non-interactive). Use this when you need to capture command output programmatically rather than open a live shell.
+- [`container:exec`](/cli/container-exec) — run a single command inside a container and return the output (non-interactive). Use this when you need to capture command output programmatically rather than open a live shell.
 - [`bastion:session`](/cli/bastion-session) — start an interactive session on a [bastion host](/resources/security/bastion-host), useful for accessing private VPC resources.
-- [`debug:logs`](/cli/debug-logs) — fetch and filter logs from deployed resources without opening a shell session.
+- [`logs`](/cli/logs) — fetch and filter logs from deployed resources without opening a shell session.

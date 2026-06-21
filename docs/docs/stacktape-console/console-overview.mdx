@@ -24,7 +24,7 @@ From the Console you can:
 - Edit Stacktape configuration with the [visual config editor](/stacktape-console/visual-config-editor)
 - Manage [team members](/stacktape-console/team-and-access-control) with role-based access control
 
-The Console complements the [Stacktape CLI](/cli/deploy). The documented deploy path is [`stacktape deploy`](/cli/deploy), and [Git provider connections](/ci-cd-and-gitops/gitops-with-console) can enable automatic deployments from repositories. The Activity page tracks recorded CLI operations — deploys, deletes, scripts, bucket syncs, and other commands. To view logs from your workloads, use [`stacktape debug:logs`](/cli/debug-logs) from the CLI.
+The Console complements the [Stacktape CLI](/cli/deploy). The documented deploy path is [`stacktape deploy`](/cli/deploy), and [Git provider connections](/ci-cd-and-gitops/gitops-with-console) can enable automatic deployments from repositories. The Activity page tracks recorded CLI operations — deploys, deletes, scripts, bucket syncs, and other commands. To view logs from your workloads, use [`stacktape logs`](/cli/logs) from the CLI.
 
 ## Console navigation
 
@@ -53,7 +53,7 @@ This walkthrough covers the path from first login to viewing a deployed stage.
 2. **Connect an AWS account.** Navigate to **AWS Accounts** under the Configuration section. Stacktape uses a cross-account IAM role so you do not need to manage AWS credentials manually. See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details.
 3. **Create a project.** Navigate to **Projects** under the Organization section to work with projects. A project represents your application and typically maps 1:1 to a Git repository; each project can have multiple isolated stages.
 4. **Deploy a stage.** Use the CLI ([`stacktape deploy`](/cli/deploy)) or set up [GitOps](/ci-cd-and-gitops/gitops-with-console) for push-to-deploy. Use the Activity page to review recorded CLI operations.
-5. **View your stage.** Navigate to **Projects** under the Organization section. Projects can have multiple isolated stages — select your project to see its stages and deployment activity. To view logs, use [`stacktape debug:logs`](/cli/debug-logs) from the CLI.
+5. **View your stage.** Navigate to **Projects** under the Organization section. Projects can have multiple isolated stages — select your project to see its stages and deployment activity. To view logs, use [`stacktape logs`](/cli/logs) from the CLI.
 
 ## Common tasks
 

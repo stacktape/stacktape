@@ -191,7 +191,7 @@ resources:
 Create secrets using the CLI:
 
 ```bash
-stacktape secret:create --region us-east-1
+stacktape secret:set --region us-east-1
 # Enter name: db-password
 # Enter value: your-secure-password
 ```
@@ -202,7 +202,7 @@ If your secret contains JSON, access specific keys with dot notation:
 
 ```bash
 # Create a JSON secret
-stacktape secret:create --region us-east-1
+stacktape secret:set --region us-east-1
 # name: api-keys
 # value: {"stripe": "sk_...", "sendgrid": "SG..."}
 ```

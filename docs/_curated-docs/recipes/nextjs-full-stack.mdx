@@ -208,8 +208,8 @@ stacktape dev --stage dev --region us-east-1
 
 ```bash
 # Create secrets
-stacktape secret:create --region us-east-1  # db-password-dev
-stacktape secret:create --region us-east-1  # nextauth-secret
+stacktape secret:set --region us-east-1  # db-password-dev
+stacktape secret:set --region us-east-1  # nextauth-secret
 
 # Deploy
 stacktape deploy --stage dev --region us-east-1

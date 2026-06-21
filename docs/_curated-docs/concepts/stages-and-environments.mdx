@@ -189,12 +189,12 @@ Create separate secrets for each stage:
 
 ```bash
 # Development secrets
-stacktape secret:create --region us-east-1
+stacktape secret:set --region us-east-1
 # name: db-password-dev
 # value: dev-password
 
 # Production secrets
-stacktape secret:create --region us-east-1
+stacktape secret:set --region us-east-1
 # name: db-password-production
 # value: super-secure-production-password
 ```

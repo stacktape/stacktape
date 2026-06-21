@@ -7,18 +7,18 @@ seoDescription: 'Automate Stacktape deployments with GitOps push-to-deploy, cust
 
 # CI/CD and GitOps Overview
 
-Stacktape supports several approaches to automated deployments: push-to-deploy **GitOps through the Stacktape Console**, the [`codebuild:deploy`](/cli/codebuild-deploy) CLI command for offloading builds to AWS CodeBuild, integration with **any CI/CD system** via Stacktape CLI commands, and [**self-hosted GitHub Actions runners**](/ci-cd-and-gitops/self-hosted-github-actions-runners). The main practical difference between paths is where the build runs: `codebuild:deploy` runs the build remotely in AWS CodeBuild, while custom CI/CD runs Stacktape CLI commands wherever your pipeline runs them.
+Stacktape supports several approaches to automated deployments: push-to-deploy **GitOps through the Stacktape Console**, the [`deploy --runner codebuild`](/cli/deploy) CLI command for offloading builds to AWS CodeBuild, integration with **any CI/CD system** via Stacktape CLI commands, and [**self-hosted GitHub Actions runners**](/ci-cd-and-gitops/self-hosted-github-actions-runners). The main practical difference between paths is where the build runs: `deploy --runner codebuild` runs the build remotely in AWS CodeBuild, while custom CI/CD runs Stacktape CLI commands wherever your pipeline runs them.
 
 ## Automation options at a glance
 
 <FeatureComparisonTable
-  columns={["GitOps (Console)", "codebuild:deploy (CLI)", "Custom CI/CD", "Self-hosted GitHub Actions runners"]}
+  columns={["GitOps (Console)", "deploy --runner codebuild (CLI)", "Custom CI/CD", "Self-hosted GitHub Actions runners"]}
   features={[
-    { name: "Setup effort", values: { "GitOps (Console)": "Configure in Console — no pipeline files", "codebuild:deploy (CLI)": "Single CLI command — no pipeline files", "Custom CI/CD": "Write a workflow or pipeline file", "Self-hosted GitHub Actions runners": "Enable in Console + write a GitHub Actions workflow" } },
-    { name: "Where the build runs", values: { "GitOps (Console)": "AWS CodeBuild or EC2 runner (Console-managed)", "codebuild:deploy (CLI)": "AWS CodeBuild", "Custom CI/CD": "Your CI provider's runners", "Self-hosted GitHub Actions runners": "EC2 instances in your AWS account" } },
-    { name: "Pipeline customization", values: { "GitOps (Console)": "Maps git events directly to deployments", "codebuild:deploy (CLI)": "None — runs a single deployment", "Custom CI/CD": "Full control — tests, lint, approval gates, multi-step builds", "Self-hosted GitHub Actions runners": "Full GitHub Actions flexibility" } },
-    { name: "Maintenance", values: { "GitOps (Console)": "Managed by Stacktape", "codebuild:deploy (CLI)": "None — on-demand command", "Custom CI/CD": "You own the pipeline definition", "Self-hosted GitHub Actions runners": "You own the workflow" } },
-    { name: "PR previews", values: { "GitOps (Console)": "Configuration displays stage as pr-{#number}", "codebuild:deploy (CLI)": "Manual — pass stage name as argument", "Custom CI/CD": "Manual setup with dynamic stage names", "Self-hosted GitHub Actions runners": "Manual setup with dynamic stage names" } },
+    { name: "Setup effort", values: { "GitOps (Console)": "Configure in Console — no pipeline files", "deploy --runner codebuild (CLI)": "Single CLI command — no pipeline files", "Custom CI/CD": "Write a workflow or pipeline file", "Self-hosted GitHub Actions runners": "Enable in Console + write a GitHub Actions workflow" } },
+    { name: "Where the build runs", values: { "GitOps (Console)": "AWS CodeBuild or EC2 runner (Console-managed)", "deploy --runner codebuild (CLI)": "AWS CodeBuild", "Custom CI/CD": "Your CI provider's runners", "Self-hosted GitHub Actions runners": "EC2 instances in your AWS account" } },
+    { name: "Pipeline customization", values: { "GitOps (Console)": "Maps git events directly to deployments", "deploy --runner codebuild (CLI)": "None — runs a single deployment", "Custom CI/CD": "Full control — tests, lint, approval gates, multi-step builds", "Self-hosted GitHub Actions runners": "Full GitHub Actions flexibility" } },
+    { name: "Maintenance", values: { "GitOps (Console)": "Managed by Stacktape", "deploy --runner codebuild (CLI)": "None — on-demand command", "Custom CI/CD": "You own the pipeline definition", "Self-hosted GitHub Actions runners": "You own the workflow" } },
+    { name: "PR previews", values: { "GitOps (Console)": "Configuration displays stage as pr-{#number}", "deploy --runner codebuild (CLI)": "Manual — pass stage name as argument", "Custom CI/CD": "Manual setup with dynamic stage names", "Self-hosted GitHub Actions runners": "Manual setup with dynamic stage names" } },
   ]}
 />
 
@@ -46,7 +46,7 @@ GitOps configuration is centered on mapping a git event to a deployment: trigger
 
 ## Custom CI/CD
 
-[Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) means running Stacktape CLI commands — [`deploy`](/cli/deploy), [`codebuild:deploy`](/cli/codebuild-deploy), [`delete`](/cli/delete) — as steps inside your own pipeline. This works with GitHub Actions, GitLab CI, CircleCI, Jenkins, or any system that can run shell commands.
+[Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) means running Stacktape CLI commands — [`deploy`](/cli/deploy), [`deploy --runner codebuild`](/cli/deploy), [`delete`](/cli/delete) — as steps inside your own pipeline. This works with GitHub Actions, GitLab CI, CircleCI, Jenkins, or any system that can run shell commands.
 
 See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for authentication setup, full pipeline examples, multi-stage workflows, and provider-specific guidance. A minimal GitHub Actions workflow looks like this:
 
@@ -81,17 +81,17 @@ If you don't have an existing CI pipeline and just want push-to-deploy, [GitOps 
 
 ## CodeBuild deploy from CLI
 
-The [`codebuild:deploy`](/cli/codebuild-deploy) command offloads the entire build and deploy process to AWS CodeBuild. The CLI zips your project using git, uploads it to S3, starts a CodeBuild build, and streams the deployment logs back to your terminal.
+The [`deploy --runner codebuild`](/cli/deploy) command offloads the entire build and deploy process to AWS CodeBuild. The CLI zips your project using git, uploads it to S3, starts a CodeBuild build, and streams the deployment logs back to your terminal.
 
 ```bash
-npx stacktape codebuild:deploy --stage production --region us-east-1
+npx stacktape deploy --runner codebuild --stage production --region us-east-1
 ```
 
 This performs the same deployment as [`deploy`](/cli/deploy) but runs the resource-intensive build step on AWS infrastructure rather than your local machine. The command validates your configuration and resolves resources locally before uploading — configuration errors surface immediately without waiting for CodeBuild to provision.
 
-Use `codebuild:deploy` when your project has large dependencies that make local builds slow, when your machine is too constrained for the build, or when you want consistent build environments across your team. For most quick deploys from a developer machine, the standard [`deploy`](/cli/deploy) command is sufficient.
+Use `deploy --runner codebuild` when your project has large dependencies that make local builds slow, when your machine is too constrained for the build, or when you want consistent build environments across your team. For most quick deploys from a developer machine, the standard [`deploy`](/cli/deploy) command is sufficient.
 
-`codebuild:deploy` can also be used inside CI/CD pipelines. When the CLI starts the build, it passes Stacktape user information (including an API key) to the remote build, and the remote build automatically skips the interactive confirmation prompt.
+`deploy --runner codebuild` can also be used inside CI/CD pipelines. When the CLI starts the build, it passes Stacktape user information (including an API key) to the remote build, and the remote build automatically skips the interactive confirmation prompt.
 
 ## Self-hosted GitHub Actions runners
 
@@ -101,7 +101,7 @@ Self-hosted runners are useful when your workflows are slow on hosted runners du
 
 ## Build runners
 
-The [`codebuild:deploy`](/cli/codebuild-deploy) command and Stacktape's GitOps deployments execute on a build runner. Stacktape offers two runner types:
+The [`deploy --runner codebuild`](/cli/deploy) command and Stacktape's GitOps deployments execute on a build runner. Stacktape offers two runner types:
 
 - **EC2 runners** — dedicated instances that stay warm between deployments and cache dependencies on disk. The instance auto-hibernates after idle time to reduce costs.
 - **CodeBuild runners** — provision a fresh container for each deployment with no persistent infrastructure. Each build re-downloads all dependencies, but there are no idle charges.
@@ -160,11 +160,11 @@ If you are setting up CI/CD for the first time, the [Getting Started CI/CD guide
 
 ### Do I need AWS credentials in my CI pipeline?
 
-No. The CLI authenticates with a `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. The [`codebuild:deploy`](/cli/codebuild-deploy) command passes the API key to the remote CodeBuild build automatically. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
+No. The CLI authenticates with a `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. The [`deploy --runner codebuild`](/cli/deploy) command passes the API key to the remote CodeBuild build automatically. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
 
-### What is codebuild:deploy and when should I use it?
+### What is the CodeBuild deploy runner, and when should I use it?
 
-The [`codebuild:deploy`](/cli/codebuild-deploy) command offloads the build and deploy to AWS CodeBuild. The CLI zips your project, uploads it to S3, starts a CodeBuild build, and streams logs back. Use it when local builds are slow, your machine is resource-constrained, or you want consistent remote builds. For most quick deploys, the standard [`deploy`](/cli/deploy) command is sufficient.
+The [`deploy --runner codebuild`](/cli/deploy) command offloads the build and deploy to AWS CodeBuild. The CLI zips your project, uploads it to S3, starts a CodeBuild build, and streams logs back. Use it when local builds are slow, your machine is resource-constrained, or you want consistent remote builds. For most quick deploys, the standard [`deploy`](/cli/deploy) command is sufficient.
 
 ### How do GitOps PR preview environments show their stage name?
 

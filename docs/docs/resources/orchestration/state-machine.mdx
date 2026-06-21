@@ -110,7 +110,7 @@ export default defineConfig(() => {
 A state machine definition requires `StartAt` and `States`. `StartAt` names the first state to execute, and `States` maps state names to state objects — each with a `Type` field. Most non-terminal states transition with `Next` or finish with `End: true`; terminal `Succeed` and `Fail` states end execution without needing `Next` or `End`.
 
 <Tip>
-Task states reference Lambda functions by their CloudFormation logical names. Inspect the compiled template (via [`stacktape compile-template`](/cli/compile-template)) to verify logical names before hard-coding them. The logical names used in examples on this page are illustrative.
+Task states reference Lambda functions by their CloudFormation logical names. Inspect the compiled template (via [`stacktape synth`](/cli/synth)) to verify logical names before hard-coding them. The logical names used in examples on this page are illustrative.
 </Tip>
 
 ## Workflow definition
@@ -145,7 +145,7 @@ Task states use the `Resource` property to identify a Lambda function or another
 }
 ```
 
-Run [`stacktape compile-template`](/cli/compile-template) to find the CloudFormation logical name for each resource in your generated template. Do not hard-code logical names without verifying them against the compiled output.
+Run [`stacktape synth`](/cli/synth) to find the CloudFormation logical name for each resource in your generated template. Do not hard-code logical names without verifying them against the compiled output.
 
 You can also set `TimeoutSeconds` on a Task state to limit how long the state machine waits for the task to complete, and `HeartbeatSeconds` to require periodic heartbeat signals from long-running tasks. The `Parameters` property lets you reshape the input before passing it to the task.
 
@@ -333,7 +333,7 @@ This handler code starts a workflow execution and returns the execution ARN, wit
 
 The `StateMachine` resource supports [overrides](/configuration/overrides-and-escape-hatches) for modifying the generated CloudFormation resources. The `StateMachineProps` type exposes only the ASL `definition` property — CloudFormation-level settings not modeled by the type (such as logging configuration or the workflow type) must be set through `overrides`. Use overrides as an escape hatch only after inspecting the compiled template and confirming the logical resource path you need to modify.
 
-For example, to switch the state machine to an Express workflow (higher throughput, lower per-transition cost, 5-minute maximum duration), override the `StateMachineType` property on the generated `AWS::StepFunctions::StateMachine` resource. First run [`stacktape compile-template`](/cli/compile-template) to find the logical name. The example below assumes the logical name is `OrderWorkflowStateMachine` — verify yours against the compiled output.
+For example, to switch the state machine to an Express workflow (higher throughput, lower per-transition cost, 5-minute maximum duration), override the `StateMachineType` property on the generated `AWS::StepFunctions::StateMachine` resource. First run [`stacktape synth`](/cli/synth) to find the logical name. The example below assumes the logical name is `OrderWorkflowStateMachine` — verify yours against the compiled output.
 
 <CodeBlock
   intellisense
@@ -369,7 +369,7 @@ export default defineConfig(() => {
 The `overrides` object keys are CloudFormation logical names, and values use dot-notation paths into the resource properties. `StateMachineType` accepts `STANDARD` (default) or `EXPRESS`. See [overrides](/configuration/overrides-and-escape-hatches) for full syntax details.
 
 <Tip>
-Use [`stacktape compile-template`](/cli/compile-template) to inspect the CloudFormation resources generated for the state machine before applying overrides.
+Use [`stacktape synth`](/cli/synth) to inspect the CloudFormation resources generated for the state machine before applying overrides.
 </Tip>
 
 ## Referenceable parameters
@@ -386,7 +386,7 @@ State machines expose `arn` and `name` as referenceable parameters. Use these wi
 
 ### How do I reference Lambda functions in a state machine definition?
 
-Use CloudFormation intrinsic functions in the Task state's `Resource` field — for example, `{ 'Fn::GetAtt': ['MyFunctionLogicalName', 'Arn'] }`. The logical name depends on the compiled CloudFormation template. Run [`stacktape compile-template`](/cli/compile-template) to find the exact logical name for each resource in your generated template before referencing them.
+Use CloudFormation intrinsic functions in the Task state's `Resource` field — for example, `{ 'Fn::GetAtt': ['MyFunctionLogicalName', 'Arn'] }`. The logical name depends on the compiled CloudFormation template. Run [`stacktape synth`](/cli/synth) to find the exact logical name for each resource in your generated template before referencing them.
 
 ### How do I pass the state machine ARN to a Lambda function?
 
@@ -394,7 +394,7 @@ Use [`connectTo`](/configuration/connecting-resources) to grant IAM permissions,
 
 ### How do I switch to an Express workflow (or change other CloudFormation settings)?
 
-The `StateMachineProps` type exposes only the ASL `definition` — anything else, including the workflow type and logging, must be set through [overrides](/configuration/overrides-and-escape-hatches). To switch to Express (higher throughput, lower per-transition cost, 5-minute maximum duration), override `Properties.StateMachineType` to `EXPRESS` on the generated `AWS::StepFunctions::StateMachine` resource. Run [`stacktape compile-template`](/cli/compile-template) first to find its logical name, since overrides key off it.
+The `StateMachineProps` type exposes only the ASL `definition` — anything else, including the workflow type and logging, must be set through [overrides](/configuration/overrides-and-escape-hatches). To switch to Express (higher throughput, lower per-transition cost, 5-minute maximum duration), override `Properties.StateMachineType` to `EXPRESS` on the generated `AWS::StepFunctions::StateMachine` resource. Run [`stacktape synth`](/cli/synth) first to find its logical name, since overrides key off it.
 
 ### How much do AWS Step Functions cost?
 

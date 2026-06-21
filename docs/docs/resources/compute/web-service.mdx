@@ -516,7 +516,7 @@ export default defineConfig(() => {
 
 Container output (`stdout` and `stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. The `logging` property controls the logging configuration. Use [log forwarding](/observability/log-forwarding) when logs need to reach external observability tools.
 
-Logs are a core operating path for always-on containers. Keep application logs structured enough to debug request failures, startup errors, and health-check failures, then view them through the Stacktape Console or the [`stacktape debug:logs`](/cli/debug-logs) CLI command.
+Logs are a core operating path for always-on containers. Keep application logs structured enough to debug request failures, startup errors, and health-check failures, then view them through the Stacktape Console or the [`stacktape logs`](/cli/logs) CLI command.
 
 ## Remote sessions
 

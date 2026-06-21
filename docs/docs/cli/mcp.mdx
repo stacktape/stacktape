@@ -89,7 +89,7 @@ The `stacktape mcp` command itself does not require an API key, so docs search a
 
 ### Can the MCP server modify my infrastructure?
 
-Yes. The `stacktape_cli` tool can run non-interactive CLI commands with `action: "run"`, such as `deploy`, `delete`, `rollback`, `secret:create`, and `debug:logs`. Mutating commands require `confirm: true` before they run. Destructive commands also require direct user confirmation through MCP elicitation when the client supports it; otherwise they fail closed.
+Yes. The `stacktape_cli` tool can run non-interactive CLI commands with `action: "run"`, such as `deploy`, `delete`, `rollback`, `secret:set`, and `logs`. Mutating commands require `confirm: true` before they run. Destructive commands also require direct user confirmation through MCP elicitation when the client supports it; otherwise they fail closed.
 
 For deployment preparation, agents should use `stacktape_cli` with `action: "plan"` and `command: "deploy"` first. Planning is read-only and returns the recommended run arguments, matched package script, inferred config path, working directory, and confirmation requirement without starting a deployment.
 

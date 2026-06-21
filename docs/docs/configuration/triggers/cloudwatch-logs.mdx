@@ -20,7 +20,7 @@ CloudWatch Logs triggers fit when you need programmatic access to raw log data a
 
 ## When NOT to use
 
-- **Simple log viewing** — use [`stacktape debug:logs`](/cli/debug-logs) or the Stacktape Console instead of building a custom pipeline.
+- **Simple log viewing** — use [`stacktape logs`](/cli/logs) or the Stacktape Console instead of building a custom pipeline.
 - **Threshold-based alerting** — if you only need to trigger when a metric crosses a threshold, [alarms as triggers](/configuration/triggers/alarms-as-triggers) are simpler and don't require log parsing.
 - **High-volume batch analytics** — for batch processing of large log volumes, consider exporting logs to [S3](/resources/storage/s3-bucket) and processing them with a [batch job](/resources/compute/batch-job). CloudWatch Logs triggers process records as they arrive but are not designed for high-throughput ETL.
 - **Managed log forwarding** — if you just need to pipe logs to an external service with no custom logic, [log forwarding](/observability/log-forwarding) handles this without code.

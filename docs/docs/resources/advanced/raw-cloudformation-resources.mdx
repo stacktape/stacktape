@@ -244,7 +244,7 @@ To inspect the logical names Stacktape has assigned, run:
 stacktape info:stack --detailed
 ```
 
-Use descriptive, unique prefixes (like `Custom` or your team name) for your `cloudformationResources` keys to reduce collision risk. If your CLI build supports [`stacktape compile-template`](/cli/compile-template), it can also be used to preview the full generated CloudFormation template before deploying.
+Use descriptive, unique prefixes (like `Custom` or your team name) for your `cloudformationResources` keys to reduce collision risk. If your CLI build supports [`stacktape synth`](/cli/synth), it can also be used to preview the full generated CloudFormation template before deploying.
 
 <Warning>
 Stacktape's internal naming conventions are implementation details and may change between versions. Always verify logical names with `stacktape info:stack --detailed` rather than guessing or hardcoding references to Stacktape-managed names.

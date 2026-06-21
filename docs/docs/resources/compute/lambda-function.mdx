@@ -748,7 +748,7 @@ export default defineConfig(() => {
 
 ## Observability
 
-Lambda function logs from `stdout` and `stderr` are sent to CloudWatch Logs automatically. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the Stacktape Console.
+Lambda function logs from `stdout` and `stderr` are sent to CloudWatch Logs automatically. View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
 `logging.retentionDays` defaults to `180`. Set a shorter retention for high-volume functions when old logs are not needed; keep longer retention for audit-heavy production paths. Setting `logging.disabled: true` disables CloudWatch logging entirely — use this only when another observability path captures the same data.
 

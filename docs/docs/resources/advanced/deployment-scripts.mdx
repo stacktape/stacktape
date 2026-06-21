@@ -282,7 +282,7 @@ Stacktape treats the deployment as failed and triggers a rollback. Your stack st
 
 ### What happens if my before:delete script fails?
 
-Stack deletion continues. This is by design — a broken cleanup script should never prevent you from deleting a stack. If your cleanup script fails, inspect the logs via [`stacktape debug:logs`](/cli/debug-logs) to diagnose the issue, but the stack resources will still be removed.
+Stack deletion continues. This is by design — a broken cleanup script should never prevent you from deleting a stack. If your cleanup script fails, inspect the logs via [`stacktape logs`](/cli/logs) to diagnose the issue, but the stack resources will still be removed.
 
 ### Can I re-run a deployment script without a full deploy?
 

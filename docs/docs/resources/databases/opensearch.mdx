@@ -390,7 +390,7 @@ export default defineConfig(() => {
 Slow logs require additional configuration inside OpenSearch itself — you need to set slow-log thresholds on your index settings (e.g., `index.search.slowlog.threshold.query.warn: 2s`). Stacktape configures the selected OpenSearch log types to be sent to CloudWatch; slow-log thresholds are configured through OpenSearch index settings.
 </Info>
 
-Stacktape sends the configured OpenSearch log types to CloudWatch. See the [`debug:opensearch` CLI reference](/cli/debug-opensearch) for OpenSearch debugging commands.
+Stacktape sends the configured OpenSearch log types to CloudWatch. See the [`query:opensearch` CLI reference](/cli/query-opensearch) for OpenSearch debugging commands.
 
 ## OpenSearch Dashboards with Cognito
 

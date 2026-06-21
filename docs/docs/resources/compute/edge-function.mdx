@@ -209,7 +209,7 @@ The `assets` connection gives the edge function IAM access to the bucket. Edge L
 
 Edge function logs are sent to CloudWatch Logs in the AWS region where the function executed, not necessarily the AWS region where your Stacktape stack was deployed. That matters during incident response: a user request served from a different edge location can produce logs outside the stack region you normally inspect.
 
-Use [`stacktape debug:logs`](/cli/debug-logs) for CLI log inspection, and remember that CloudWatch log location follows execution region for edge functions. The `logging` property lets you configure logging for the edge function, while the API reference carries the full option shape.
+Use [`stacktape logs`](/cli/logs) for CLI log inspection, and remember that CloudWatch log location follows execution region for edge functions. The `logging` property lets you configure logging for the edge function, while the API reference carries the full option shape.
 
 ## FAQ
 
@@ -231,7 +231,7 @@ Limits depend on the CloudFront event the function is attached to, and the defau
 
 ### Why can't I find my edge function's logs in my stack's region?
 
-Edge function logs go to CloudWatch Logs in the AWS region where the request was served, not necessarily the region where your stack was deployed. A request handled at a different edge location produces logs outside the region you normally inspect. Use [`stacktape debug:logs`](/cli/debug-logs) and remember the log location follows the execution region.
+Edge function logs go to CloudWatch Logs in the AWS region where the request was served, not necessarily the region where your stack was deployed. A request handled at a different edge location produces logs outside the region you normally inspect. Use [`stacktape logs`](/cli/logs) and remember the log location follows the execution region.
 
 ### Edge function vs Lambda function vs CDN config: which should I use?
 
