@@ -1,90 +1,37 @@
 ---
-title: 'compile-template'
-order: 137
-seoTitle: 'compile-template CLI Command | Stacktape Docs'
-seoDescription: 'Compile your Stacktape configuration into a CloudFormation template without deploying. Inspect, audit, lint, and diff your infrastructure before it reaches AWS.'
+title: 'synth'
+order: 143
+seoTitle: 'synth — Compile Config to CloudFormation | Stacktape CLI'
+seoDescription: 'Use stacktape synth to compile your Stacktape configuration into a CloudFormation template without deploying. Inspect or process the generated template locally.'
 ---
 
-# compile-template
+# synth
 
-The `compile-template` command compiles your Stacktape configuration into a raw AWS CloudFormation template without deploying anything. Use it to inspect the infrastructure Stacktape will create, audit resources before a deploy, or feed the template into external tools that consume CloudFormation JSON/YAML.
+The `stacktape synth` command compiles your Stacktape configuration into a CloudFormation template and writes it to a local file. Use it when you need the generated CloudFormation template on disk for inspection or downstream tooling. No stack is created or modified.
 
 ## Usage
 
 ```bash
-stacktape compile-template --stage dev --region eu-west-1
+stacktape synth --stage dev --region eu-west-1
 ```
 
-This reads your Stacktape configuration, resolves all resources, and writes the compiled CloudFormation template to `compiled-template.yaml` in the current directory.
+This reads your Stacktape configuration, resolves all resources, finalizes the CloudFormation template, and writes it to `compiled-template.yaml`. Both `--stage` and `--region` are required so the command can resolve a concrete stack context.
 
-## When to use
-
-Compile-template is useful when you need to see the exact CloudFormation resources Stacktape generates from your configuration — before any deployment happens. The command does not require an existing deployed stack and does not modify any AWS resources.
-
-Common scenarios:
-
-- **Auditing infrastructure** — review what AWS resources a config will create before deploying to a shared or production stage.
-- **Debugging configuration issues** — if a deploy fails, compile the template locally to inspect the generated CloudFormation and spot misconfigurations.
-- **Feeding external tools** — pass the compiled template to CloudFormation linters (cfn-lint), policy-as-code tools (OPA, Checkov), or cost estimators.
-- **Comparing stages** — compile templates for two different stages and diff the output to understand what changes between them.
-
-## Important flags
-
-**`--outFile`** controls where the compiled template is written. It defaults to `compiled-template.yaml` in the current working directory. Override it when you want to write to a specific path or filename.
-
-To write the template to a custom path:
+To write the template to a custom path, use `--outFile`.
 
 ```bash
-stacktape compile-template --stage dev --region eu-west-1 --outFile ./infra/template-dev.yaml
+stacktape synth --stage dev --region eu-west-1 --outFile ./infra/template.yaml
 ```
 
-**`--preserveTempFiles`** keeps the intermediate files Stacktape generates during compilation (packaged resources, intermediate templates) in `.stacktape/[invocation-id]`. This is helpful for deep debugging of the compilation pipeline.
+<Info>
 
-```bash
-stacktape compile-template --stage dev --region eu-west-1 --preserveTempFiles
-```
+Unlike [`deploy`](/cli/deploy), `synth` does not create or modify any stack resources. It does not require a previously deployed stack, and it does not require a Stacktape subscription.
 
-**`--configPath`** points to a non-default config file location. By default Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory.
-
-```bash
-stacktape compile-template --stage dev --region eu-west-1 --configPath ./config/stacktape.ts
-```
-
-## Examples
-
-### Compare templates across stages
-
-Compile templates for two stages and diff them to see what changes between environments.
-
-```bash
-stacktape compile-template --stage dev --region eu-west-1 --outFile template-dev.yaml
-```
-
-```bash
-stacktape compile-template --stage production --region eu-west-1 --outFile template-prod.yaml
-```
-
-Then diff the two files with your preferred tool:
-
-```bash
-diff template-dev.yaml template-prod.yaml
-```
-
-### Lint before deploying
-
-Compile the template and run it through cfn-lint to catch CloudFormation issues before they surface during deployment.
-
-```bash
-stacktape compile-template --stage staging --region us-east-1 --outFile compiled.yaml
-```
-
-```bash
-cfn-lint compiled.yaml
-```
+</Info>
 
 ## Flags reference
 
-<CliCommandsApiReference command="compile-template" sortedArgs={[
+<CliCommandsApiReference command="synth" sortedArgs={[
   {
     "name": "region",
     "required": true,
@@ -260,34 +207,96 @@ cfn-lint compiled.yaml
   }
 ]} />
 
+## Important flags
+
+### --outFile
+
+Controls where the synthesized template is saved. Defaults to `compiled-template.yaml`. Use this when you want the template in a specific location for CI artifacts, version control, or external tooling.
+
+```bash
+stacktape synth --stage prod --region us-east-1 --outFile ./output/prod-template.yaml
+```
+
+### --configPath
+
+Points to your Stacktape configuration file when it is not in the default location. The path is relative to the current working directory.
+
+```bash
+stacktape synth --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+```
+
+### --preserveTempFiles
+
+When set, Stacktape preserves temporary files generated during synthesis under `.stacktape/[invocation-id]`. Useful for debugging the synthesis pipeline when the final template doesn't match your expectations.
+
+```bash
+stacktape synth --stage dev --region eu-west-1 --preserveTempFiles
+```
+
+### --projectName
+
+Specifies the Stacktape project name for the operation. Pass the same value you would use with [`deploy`](/cli/deploy).
+
+```bash
+stacktape synth --stage prod --region us-east-1 --projectName my-app
+```
+
+## Examples
+
+Synthesize a production template and save it to a specific directory:
+
+```bash
+stacktape synth --stage prod --region us-east-1 --outFile ./artifacts/prod.yaml
+```
+
+Synthesize with debug-level logging to troubleshoot configuration resolution:
+
+```bash
+stacktape synth --stage dev --region eu-west-1 --logLevel debug
+```
+
+Synthesize using a specific AWS profile:
+
+```bash
+stacktape synth --stage staging --region eu-west-1 --profile my-aws-profile
+```
+
+Synthesize and keep temporary files for inspection:
+
+```bash
+stacktape synth --stage dev --region eu-west-1 --preserveTempFiles --outFile ./debug-template.yaml
+```
+
+## synth vs validate vs diff
+
+| Command | What it does | Writes a file? | Modifies stack? | Requires deployed stack? |
+|---------|-------------|---------------|----------------|------------------------|
+| [`synth`](/cli/synth) | Compiles config into a CloudFormation template | Yes (`compiled-template.yaml`) | No | No |
+| [`validate`](/cli/validate) | Validates the Stacktape project without writing deployment artifacts | No | No | No |
+| [`diff`](/cli/diff) | Shows what would change if you deployed | No | No | Yes |
+
+Use `synth` when you need the template file on disk for inspection or downstream tooling. Use [`validate`](/cli/validate) for a quick pass/fail check without writing artifacts. Use [`diff`](/cli/diff) when you want to compare your current config against what is already deployed.
+
 ## Related commands
 
-- [`deploy`](/cli/deploy) — deploy the stack to AWS. Uses the same compilation step internally, then creates or updates the CloudFormation stack.
-- [`preview-changes`](/cli/preview-changes) — shows a diff of what would change in your stack without actually deploying. Useful as a next step after inspecting the compiled template.
-- [`package-workloads`](/cli/package-workloads) — packages compute resources (Lambda zips, container images) without deploying. Pairs well with `compile-template` when you want to inspect both the template and the build artifacts.
+- [`validate`](/cli/validate) — validates your Stacktape project without writing deployment artifacts. Use `--thorough` to validate workload packaging and ask AWS CloudFormation to validate the synthesized template.
+- [`diff`](/cli/diff) — previews what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with the current configuration.
+- [`deploy`](/cli/deploy) — deploys (or updates) your stack to AWS. Internally runs the same synthesis step that `synth` performs.
 
 ## FAQ
 
-### What format is the compiled template?
+### Why are --stage and --region required if nothing is deployed?
 
-The compiled template is written as YAML by default. It is a standard AWS CloudFormation template that can be read by any tool that understands CloudFormation — including the AWS Console, cfn-lint, Checkov, or cost estimation tools.
+Stacktape needs both values before synthesis so it can resolve a concrete stack context. Your configuration may use the stage and region in resource names, conditional logic, or directive expressions, so different stages can produce different templates. Pass the same values you would use for [`deploy`](/cli/deploy) or [`validate`](/cli/validate).
 
-### Does compile-template deploy anything?
+### Can I feed the synthesized template into CloudFormation linting or policy tools?
 
-No. The `compile-template` command is strictly local. It reads your Stacktape configuration, resolves all resources, and writes the resulting CloudFormation template to a file. It does not create, update, or delete any AWS resources, and it does not require an already-deployed stack.
+Yes — that is a primary use case. The output is a finalized CloudFormation YAML template, so you can pass it to any tool that accepts CloudFormation: linters, policy-as-code scanners, or your own scripts. A common CI pattern is to run `synth` and then run a scanner against the output. In non-TTY environments output is plain text automatically; pass `--outputFormat plain` to force it, or `--agent` for JSONL.
 
-### Why do I need to specify --stage and --region if nothing is deployed?
+### When should I use synth vs validate vs diff?
 
-Stacktape uses the stage and region to resolve stage-specific configuration values (like [`$Secret()`](/configuration/directives) references and conditional logic) and to determine region-specific resource settings. The compiled template reflects exactly what would be deployed to that stage and region combination.
+Use `synth` when you need the generated CloudFormation template on disk to inspect or feed to external tooling. Use [`validate`](/cli/validate) for a quick pass/fail check without writing any artifact. Use [`diff`](/cli/diff) when a stack is already deployed and you want to see what would change on the next deploy — unlike `synth`, `diff` compares against live stack state.
 
-### Can I use the compiled template with the AWS CLI or Console?
+### The synthesized template doesn't match what I expected — how do I debug it?
 
-The output is a valid CloudFormation template, but it may reference Stacktape-managed artifacts (Lambda zips in S3, container images in ECR) that only exist after a full [`deploy`](/cli/deploy). The template is most useful for auditing, linting, and diffing — not for standalone CloudFormation deployments outside of Stacktape.
-
-### How do I diff configuration changes between stages?
-
-Compile templates for each stage into separate files using `--outFile`, then use any diff tool (`diff`, VS Code, or a dedicated CloudFormation diff tool) to compare the outputs. This is the most reliable way to see exactly how two stages diverge at the infrastructure level.
-
-### Can I run compile-template in CI?
-
-Yes. The command works in non-interactive environments and exits with a zero status code on success. Use `--outputFormat plain` or `--agent` for CI-friendly output. This is useful for policy checks — compile the template, then run cfn-lint or OPA against the output as a gate before deploying.
+Run `synth` with `--preserveTempFiles` to keep the intermediate files generated during synthesis under `.stacktape/[invocation-id]`, and add `--logLevel debug` to trace how your configuration is resolved. This lets you inspect the synthesis pipeline rather than only the final template.

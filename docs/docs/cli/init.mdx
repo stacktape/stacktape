@@ -1,6 +1,6 @@
 ---
 title: 'init'
-order: 154
+order: 161
 seoTitle: 'stacktape init — Initialize a New Project | Stacktape CLI'
 seoDescription: 'Initialize a new Stacktape project with AI-powered config generation, starter templates, or Console templates. One command to go from code to a deployable AWS stack.'
 ---
@@ -33,7 +33,7 @@ You can skip the wizard entirely by using `--starterId` or `--templateId` to ini
 
 ### `--configFormat`
 
-Controls whether the generated configuration file is TypeScript (`stacktape.ts`) or YAML (`stacktape.yml`). Defaults to the wizard's interactive prompt if omitted.
+Sets the format of the generated configuration. Accepts `typescript` or `yaml`.
 
 ```bash
 stacktape init --configFormat typescript
@@ -53,7 +53,7 @@ stacktape init --infrastructureType production
 
 ### `--starterId`
 
-Initializes from a specific starter project template instead of running the AI-powered wizard. Each starter has a unique identifier.
+Initializes from a specific starter project template instead of running the AI-powered wizard. Pass the identifier of the starter project you want to initialize.
 
 ```bash
 stacktape init --starterId lambda-api-postgres
@@ -61,7 +61,7 @@ stacktape init --starterId lambda-api-postgres
 
 ### `--starterProject`
 
-When set to `true`, enters the starter project selection flow — an interactive picker where you choose from available templates.
+When set to `true`, initializes from a starter project template instead of running the default wizard flow.
 
 ```bash
 stacktape init --starterProject
@@ -69,7 +69,7 @@ stacktape init --starterProject
 
 ### `--templateId`
 
-Fetches a configuration template from the Stacktape Console and initializes the project from it. Useful when you've built a config in the Console's visual editor and want to pull it locally.
+Fetches a configuration template from the Stacktape Console's Config Builder page and initializes the project from it.
 
 ```bash
 stacktape init --templateId your-template-id
@@ -77,7 +77,7 @@ stacktape init --templateId your-template-id
 
 ### `--projectDirectory`
 
-Sets the root directory where the configuration file is generated. Defaults to the current working directory.
+Sets the root directory where the project configuration should be generated.
 
 ```bash
 stacktape init --projectDirectory ./my-app
@@ -109,7 +109,7 @@ Initialize from a starter project into a specific directory:
 stacktape init --starterId nextjs-saas --initializeProjectTo ./my-saas-app
 ```
 
-Run in agent mode for programmatic use (outputs JSONL, disables interactive prompts):
+Run in agent mode for programmatic use (JSONL output, no interactive terminal UI, auto-confirms operations):
 
 ```bash
 stacktape init --agent
@@ -247,26 +247,26 @@ stacktape init --agent
 
 ## FAQ
 
-### What's the fastest way to start a new Stacktape project?
-
-Run `stacktape init` with no flags. The wizard analyzes your existing code, generates a configuration, and can deploy in a single session. If you prefer a known-good starting point, use `--starterProject` to pick from pre-configured templates.
-
 ### Do I need an AWS account before running init?
 
-No. The wizard walks you through connecting an AWS account as one of its steps. You can also connect your account separately in the [Stacktape Console](/stacktape-console/connecting-your-aws-account) before running `init`.
+No. The wizard walks you through connecting an AWS account as one of its steps, and it doesn't require a Stacktape API key either — sign-up or login happens inside the flow. You can also connect your account separately in the [Stacktape Console](/stacktape-console/connecting-your-aws-account) before running `init`.
 
-### Can I use init in a CI pipeline or with an AI coding agent?
+### How do I run init non-interactively (CI or an AI coding agent)?
 
-Yes. Pass `--agent` to disable interactive prompts and get structured JSONL output. Combine it with `--configFormat`, `--infrastructureType`, and `--starterId` to fully automate initialization without any interactive input.
+Pass `--agent`. It switches output to JSONL, disables the interactive terminal UI, and auto-confirms operations. Since the AI wizard is interactive, combine `--agent` with explicit flags — typically `--starterId` plus `--configFormat` and `--infrastructureType` — so the run has no prompts to answer.
 
 ### What is the difference between --starterId and --templateId?
 
-`--starterId` initializes from a built-in starter project template bundled with Stacktape. `--templateId` fetches a configuration template you've saved in the Stacktape Console — useful when you've designed a config in the [visual editor](/stacktape-console/visual-config-editor) and want to pull it into a local project.
+`--starterId` initializes from a built-in starter project template bundled with Stacktape. `--templateId` fetches a configuration template from the Stacktape Console's [Config Builder page](/stacktape-console/visual-config-editor). Both skip the AI-powered wizard.
+
+### Which --infrastructureType should I choose?
+
+Use `low-cost` for development and experimentation (single instances, no WAF or VPC), `standard` for staging and small production workloads (serverless databases, moderate scaling), and `production` for high-availability workloads (Aurora, WAF, VPC, bastion hosts, backups, and deletion protection). The tier affects resource sizing, scaling, security posture, and cost.
 
 ### Does init deploy anything?
 
 Not automatically. At the end of the wizard, you're offered the option to deploy. You can decline and run [`stacktape deploy`](/cli/deploy) later when you're ready.
 
-### Can I re-run init on an existing project?
+### Will init overwrite files in my project directory?
 
-Yes. Running `init` in a directory that already has a Stacktape config will start the wizard again. Review the generated configuration before deploying to make sure it matches your intent.
+The AI wizard generates a config alongside your existing code, so review it before deploying. The destructive case is `--initializeProjectTo`: if you point it at a non-empty directory, its contents are deleted before the starter project is placed there, so use a new or empty directory.

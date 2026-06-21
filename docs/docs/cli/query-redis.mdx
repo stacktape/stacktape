@@ -1,100 +1,109 @@
 ---
-title: 'debug:opensearch'
-order: 164
-seoTitle: 'debug:opensearch CLI Command | Stacktape Docs'
-seoDescription: 'Query deployed OpenSearch domains from the CLI. Run read-only search, get, indices, mapping, and count operations without custom scripts or bastion tunnels.'
+title: 'query:redis'
+order: 170
+seoTitle: 'query:redis CLI Command | Stacktape Docs'
+seoDescription: 'Inspect deployed Redis clusters from the command line with stacktape query:redis. List keys, get values, check TTLs, and view server info — with automatic bastion tunneling for VPC clusters.'
 ---
 
-# debug:opensearch
+# query:redis
 
-The `debug:opensearch` command lets you run read-only queries against a deployed [OpenSearch domain](/resources/databases/opensearch) directly from the CLI. Use it to inspect indices, retrieve documents, check mappings, and run search queries without connecting through a bastion or writing custom scripts.
+The `query:redis` command lets you inspect a deployed [Redis cluster](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
 
 ## Usage
 
 ```bash
-stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation indices
+stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation info
 ```
 
-The `--resourceName` must reference an OpenSearch domain defined in your Stacktape configuration. The command authenticates using your configured AWS credentials and connects to the domain endpoint.
+The `--resourceName` must refer to a `redis-cluster` resource defined in your Stacktape configuration. The command resolves the cluster's connection details (host, port, password) from the deployed stack automatically.
 
 ## Operations
 
-The `--operation` flag controls what the command does. Defaults to `indices` when omitted. All operations are read-only.
+The `--operation` flag selects what to do. If omitted, it defaults to `info`.
 
-### indices
+| Operation | What it does | Required flags |
+|-----------|-------------|----------------|
+| `info` | Returns Redis server information (memory, clients, stats). Optionally filter with `--section`. | — |
+| `keys` | Lists keys matching a glob pattern. `--pattern` is optional and defaults to `*`. | — |
+| `get` | Returns the value stored at a specific key. | `--key` |
+| `ttl` | Returns the remaining time-to-live (in seconds) for a key. | `--key` |
+| `type` | Returns the data type of a key (string, list, set, hash, zset, etc.). | `--key` |
 
-Lists all indices in the OpenSearch domain. No additional flags required.
+All operations are read-only. You cannot write, delete, or modify data through this command.
 
-```bash
-stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation indices
-```
+## Accessing VPC-only clusters
 
-### mapping
-
-Returns the field mapping for a specific index. Requires `--index`.
-
-```bash
-stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation mapping --index users
-```
-
-### count
-
-Returns the document count for a specific index, or for all indices when `--index` is omitted.
+Redis clusters deployed inside a VPC are not publicly accessible. To reach them from your local machine, pass `--bastionResource` to tunnel through a [bastion host](/resources/security/bastion-host) in your stack. When `--bastionResource` resolves a tunnel target, the command starts an SSM port-forwarding session, uses localhost for the query, and closes the tunnel after the query.
 
 ```bash
-stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation count --index users
+stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --bastionResource myBastion --operation keys --pattern "session:*"
 ```
 
-### get
+If the Redis endpoint is reachable from your machine, omit `--bastionResource`. For VPC-only clusters, pass a bastion resource name.
 
-Retrieves a single document by ID. Requires both `--index` and `--id`.
+## Examples
+
+### View server info
+
+Returns the full Redis INFO output.
 
 ```bash
-stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation get --index users --id doc123
+stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation info
 ```
 
-### search
-
-Runs an OpenSearch query DSL search. Requires `--query` with valid JSON. Use `--index` to scope the search to a specific index. Use `--limit` to control how many results are returned (defaults to 10).
+Use `--section` to pass a Redis INFO section such as `server`, `memory`, or `stats`. The command passes the section string directly to Redis.
 
 ```bash
-stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation search --query "{\"match_all\": {}}"
+stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation info --section memory
 ```
 
-Search with a filter on a specific index, returning up to 50 results:
+### List keys by pattern
+
+Lists keys matching a glob pattern. The `--pattern` flag is optional and defaults to `*` (all keys). Use `--limit` to cap the number of returned keys.
 
 ```bash
-stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation search --index products --query "{\"match\": {\"category\": \"electronics\"}}" --limit 50
+stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation keys --pattern "user:*" --limit 20
 ```
 
-## Important flags
+### Get a key's value
 
-| Flag | Purpose |
-|------|---------|
-| `--resourceName` | Name of the OpenSearch domain resource in your config (required) |
-| `--operation` | One of `search`, `get`, `indices`, `mapping`, `count` (defaults to `indices`) |
-| `--index` | Target index name (required for `mapping` and `get`, optional for `count` and `search`) |
-| `--id` | Document ID to retrieve (required for `get`) |
-| `--query` | OpenSearch query DSL as JSON string (required for `search`) |
-| `--limit` | Maximum number of results to return (defaults to 10) |
+```bash
+stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation get --key "session:abc123"
+```
 
-<Info>
+### Check a key's TTL
 
-The `--query` flag accepts OpenSearch Query DSL in JSON format. Wrap the JSON in single quotes on Linux/macOS or escape double quotes on Windows.
+Returns the remaining time-to-live in seconds. A value of `-1` means the key has no expiration; `-2` means the key does not exist.
 
-</Info>
+```bash
+stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation ttl --key "session:abc123"
+```
+
+### Check a key's type
+
+```bash
+stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation type --key "user:42"
+```
+
+### Query through a bastion tunnel
+
+When your Redis cluster is VPC-only, pass `--bastionResource` to route the connection through a bastion host.
+
+```bash
+stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --bastionResource myBastion --operation get --key "config:feature-flags"
+```
 
 ## Agent mode
 
-When invoked with `--agent`, the command outputs structured JSON suitable for programmatic or LLM consumption. The output includes the operation performed, the resource name, and the query results in a single JSON object.
+When running inside an AI coding agent or CI pipeline, pass `--agent` to switch to agent-oriented output. In agent mode, `query:redis` prints the Redis result as a JSON object containing `ok`, `resource`, `operation`, and the operation-specific result fields. Agent mode also disables interactive terminal UI.
 
 ```bash
-stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySearch --operation indices --agent
+stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --operation get --key "session:abc123" --agent
 ```
 
 ## Flags reference
 
-<CliCommandsApiReference command="debug:opensearch" sortedArgs={[
+<CliCommandsApiReference command="query:redis" sortedArgs={[
   {
     "name": "region",
     "required": true,
@@ -169,6 +178,16 @@ stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySear
     "longDescription": "<p>The name of the AWS account to use for the operation. The account must first be connected in the <a href=\"https://console.stacktape.com/aws-accounts\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Stacktape console</a>.</p>\n"
   },
   {
+    "name": "bastionResource",
+    "required": false,
+    "alias": "br",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Bastion Resource Name</p>\n",
+    "longDescription": "<p>The name of the bastion resource as defined in your Stacktape configuration.</p>\n"
+  },
+  {
     "name": "configPath",
     "required": false,
     "alias": "cp",
@@ -199,22 +218,13 @@ stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySear
     "longDescription": "<p>If provided, the command will not execute and will instead print help information.</p>\n"
   },
   {
-    "name": "id",
+    "name": "key",
     "required": false,
     "allowedTypes": [
       "string"
     ],
-    "shortDescription": "<p> Document ID</p>\n",
-    "longDescription": "<p>ID of the document to retrieve (for OpenSearch get operation).</p>\n"
-  },
-  {
-    "name": "index",
-    "required": false,
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Database Index</p>\n",
-    "longDescription": "<p>Index name. For DynamoDB: secondary index to query. For OpenSearch: index to search.</p>\n"
+    "shortDescription": "<p> Redis Key</p>\n",
+    "longDescription": "<p>The key name to operate on.</p>\n"
   },
   {
     "name": "limit",
@@ -266,6 +276,15 @@ stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySear
     "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
   },
   {
+    "name": "pattern",
+    "required": false,
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Redis Key Pattern</p>\n",
+    "longDescription": "<p>Pattern for matching keys (default: *). Supports glob-style patterns.</p>\n"
+  },
+  {
     "name": "profile",
     "required": false,
     "alias": "p",
@@ -286,14 +305,13 @@ stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySear
     "longDescription": "<p>The name of the Stacktape project for this operation.</p>\n"
   },
   {
-    "name": "query",
+    "name": "section",
     "required": false,
-    "alias": "q",
     "allowedTypes": [
       "string"
     ],
-    "shortDescription": "<p> Logs Query</p>\n",
-    "longDescription": "<p>CloudWatch Logs Insights query string. Example: &quot;fields @timestamp, @message | filter @message like /ERROR/ | limit 50&quot;</p>\n"
+    "shortDescription": "<p> Redis Info Section</p>\n",
+    "longDescription": "<p>Specific section of Redis INFO output (e.g., server, memory, stats).</p>\n"
   },
   {
     "name": "templateId",
@@ -309,7 +327,6 @@ stacktape debug:opensearch --stage prod --region eu-west-1 --resourceName mySear
 
 ## Related commands
 
-- [`debug:logs`](/cli/debug-logs) — fetch and analyze logs from deployed resources
-- [`debug:dynamodb`](/cli/debug-dynamodb) — query deployed DynamoDB tables
-- [`debug:sql`](/cli/debug-sql) — execute read-only SQL queries against deployed relational databases
-- [`bastion:tunnel`](/cli/bastion-tunnel) — create a secure tunnel to access private VPC resources
+- [`query:dynamodb`](/cli/query-dynamodb) — query, scan, or inspect DynamoDB tables.
+- [`query:opensearch`](/cli/query-opensearch) — search, count, or inspect OpenSearch indices.
+- [`bastion:tunnel`](/cli/bastion-tunnel) — open a persistent tunnel through a bastion host for use with a local Redis client (e.g., `redis-cli`). Use `query:redis` for quick one-off lookups; use [`bastion:tunnel`](/cli/bastion-tunnel) when you need an ongoing local session.

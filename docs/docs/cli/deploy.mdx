@@ -1,10 +1,8 @@
 ---
 title: 'deploy'
-order: 140
+order: 136
 seoTitle: 'stacktape deploy — Deploy Stacks to AWS | Stacktape CLI'
-seoDescription: 'Deploy your stack to AWS with stacktape deploy. Creates new stacks or updates existing ones. Supports hot-swap for fast dev deploys, auto-rollback, drift detection, and CI/CD mode.'
-pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.5, hard blockers 1, advisory high 0, verifier medium 5'
+seoDescription: 'Deploy your stack to AWS with stacktape deploy. Creates new stacks or updates existing ones. Supports hot-swap for fast dev deploys, auto-rollback, drift detection, and non-interactive deploys via --autoConfirmOperation.'
 ---
 
 # deploy
@@ -17,7 +15,7 @@ The `stacktape deploy` command deploys your stack to AWS. If the stack does not 
 stacktape deploy --stage <stage> --region <region>
 ```
 
-Both `--stage` and `--region` are required. Stacktape looks for a configuration file (`stacktape.ts` or `stacktape.yml`) in the current directory. Use `--configPath` to point to a different file.
+Both `--stage` and `--region` are required. The command requires a valid Stacktape configuration file (usually `stacktape.ts`, with `stacktape.yml` still supported) in the current directory, or a path passed with `--configPath`.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --configPath ./infra/stacktape.ts
@@ -25,33 +23,31 @@ stacktape deploy --stage production --region eu-west-1 --configPath ./infra/stac
 
 ## What happens during deploy
 
-<FlowDiagram steps={[
-  { title: "Validate", description: "Reads your config, validates guardrails, and ensures referenced secrets exist." },
-  { title: "Build & package", description: "Packages Lambda functions and builds container images. Caches artifacts when possible." },
-  { title: "Upload", description: "Uploads packaged artifacts (zips, images) to S3 and ECR in your AWS account." },
-  { title: "Deploy", description: "Creates or updates a CloudFormation stack. Resources are provisioned, updated, or removed." },
-  { title: "Post-deploy", description: "Syncs hosting buckets, invalidates CDN caches, and prints resource URLs." }
-]} />
+1. **Validate** — Reads your config, validates guardrails, and ensures referenced secrets exist.
+2. **Build & package** — Packages workloads for deployment. Cached artifacts are reused when possible.
+3. **Upload** — Uploads deployment artifacts for the stack.
+4. **Deploy** — Creates or updates a CloudFormation stack. Resources are provisioned, updated, or removed.
+5. **Post-deploy** — Syncs hosting buckets, invalidates CDN caches, and prints resource URLs.
 
-After a successful deploy, Stacktape prints the URLs and endpoints of your resources. You can also view the deployed stack in the [Stacktape Console](/stacktape-console/console-overview).
+After a successful deploy, Stacktape prints short stack information and completion links, including a Stacktape Console URL for the deployed stack.
 
-## Important flags
+## Common flags
 
 ### `--hotSwap`
 
-Hot-swap skips CloudFormation and updates Lambda functions and container workloads directly. This makes code-only deploys significantly faster — seconds instead of minutes.
+Hot-swap attempts a faster code-only deploy by updating eligible Lambda functions and container workloads (web services, private services, and worker services) directly, without CloudFormation.
 
 ```bash
 stacktape deploy --stage dev --region eu-west-1 --hotSwap
 ```
 
-Hot-swap works only when every change in the stack is code-only (no infrastructure changes like new resources, permission changes, or environment variable updates). If any change is not hot-swappable, Stacktape falls back to a full CloudFormation deploy automatically.
+Hot-swap is attempted for code-only changes and is used only if Stacktape determines all stack changes are hot-swappable. If not, Stacktape runs a full CloudFormation deploy.
 
 <Warning>Use `--hotSwap` only on development stages. It bypasses CloudFormation's state tracking, so your stack's recorded state may drift from reality. For production, always use a full deploy.</Warning>
 
 ### `--autoConfirmOperation`
 
-Skips the interactive confirmation prompt before deploying. Required for CI/CD pipelines and non-interactive environments.
+Skips the interactive confirmation prompt before deploying. Use `--autoConfirmOperation` in CI/CD pipelines or other non-interactive environments to avoid blocking on confirmation. The `--agent` flag also confirms operations automatically (along with switching to JSONL output).
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
@@ -59,13 +55,13 @@ stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
 
 ### `--disableAutoRollback`
 
-By default, if a deployment fails, CloudFormation automatically rolls the stack back to its last known good state. Setting `--disableAutoRollback` leaves the stack in `UPDATE_FAILED` state instead, which is useful for debugging failed deploys — you can inspect the partial state, fix the issue, and redeploy without waiting for a rollback first.
+By default, if a deployment fails, CloudFormation automatically rolls the stack back to its last known good state. Without auto-rollback, a failed deployment can leave the stack in `UPDATE_FAILED` state. This is useful for debugging — you can inspect the partial state, fix the issue, and redeploy without waiting for a rollback first.
 
 ```bash
 stacktape deploy --stage dev --region eu-west-1 --disableAutoRollback
 ```
 
-After fixing the issue, redeploy normally. If you need to manually recover a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state, use [`cf:rollback`](/cli/cf-rollback).
+After fixing the issue, redeploy normally. To roll back to a previous deployment version after disabling auto-rollback, use [`rollback`](/cli/rollback). To recover a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state, use [`cf:rollback`](/cli/cf-rollback).
 
 ### `--noCache`
 
@@ -77,7 +73,7 @@ stacktape deploy --stage dev --region eu-west-1 --noCache
 
 ### `--disableDriftDetection`
 
-Stacktape detects when someone has manually changed AWS resources outside of CloudFormation (drift) and blocks the deploy to prevent overwriting those changes. Use `--disableDriftDetection` to skip this check and deploy anyway.
+By default, Stacktape blocks updates to a stack that has drifted because resources were changed outside CloudFormation. Use `--disableDriftDetection` to skip this check and deploy anyway.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --disableDriftDetection
@@ -97,53 +93,7 @@ By default, Stacktape extracts shared code into Lambda layers to reduce per-func
 
 ### `--showSensitiveValues`
 
-Includes secret values (database passwords, API keys) in the deploy output. Handle with care.
-
-## Examples
-
-### Deploy a new production stage
-
-```bash
-stacktape deploy --stage production --region us-east-1
-```
-
-### Deploy with a specific AWS profile and project
-
-```bash
-stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --projectName my-app
-```
-
-### Fast deploy for development
-
-```bash
-stacktape deploy --stage dev --region eu-west-1 --hotSwap
-```
-
-### Non-interactive deploy in CI/CD
-
-```bash
-stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
-```
-
-### Preview changes before deploying
-
-Use [`preview-changes`](/cli/preview-changes) to see what a deploy would modify without actually applying changes:
-
-```bash
-stacktape preview-changes --stage production --region us-east-1
-```
-
-### Deploy with a remote build environment
-
-If your local machine lacks the resources for building large container images, use [`codebuild:deploy`](/cli/codebuild-deploy) to offload the build and deploy to AWS CodeBuild:
-
-```bash
-stacktape codebuild:deploy --stage production --region us-east-1
-```
-
-## Dev stacks cannot be deployed
-
-Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated with `deploy`. If you attempt this, Stacktape returns an error recommending you use a different stage name for production deploys. To remove a dev stack, use [`stacktape delete`](/cli/delete).
+Includes sensitive values in deploy output. Handle with care.
 
 ## All flags
 
@@ -403,14 +353,57 @@ Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated wit
   }
 ]} />
 
+## Examples
+
+### Deploy a new production stage
+
+```bash
+stacktape deploy --stage production --region us-east-1
+```
+
+### Deploy with a specific AWS profile and project
+
+```bash
+stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --projectName my-app
+```
+
+### Fast deploy for development
+
+```bash
+stacktape deploy --stage dev --region eu-west-1 --hotSwap
+```
+
+### Non-interactive deploy in CI/CD
+
+```bash
+stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+```
+
+### Preview changes before deploying
+
+Use [`preview-changes`](/cli/preview-changes) to see what a deploy would modify without actually applying changes:
+
+```bash
+stacktape preview-changes --stage production --region us-east-1
+```
+
+### Deploy with a remote build environment
+
+For resource-intensive projects, use [`codebuild:deploy`](/cli/codebuild-deploy) to offload the deployment process to AWS CodeBuild in your AWS account:
+
+```bash
+stacktape codebuild:deploy --stage production --region us-east-1
+```
+
+## Dev stacks cannot be deployed
+
+Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated with `deploy`. If you attempt this, Stacktape rejects the deploy with an error. To deploy a production stack, use a different stage name (e.g., `--stage production`). To remove a dev stack, use [`stacktape delete`](/cli/delete).
+
 ## Related commands
 
 | Command | Description |
 |---|---|
-| [`codebuild:deploy`](/cli/codebuild-deploy) | Deploys using AWS CodeBuild — offloads the build to a remote VM in your AWS account. |
 | [`preview-changes`](/cli/preview-changes) | Shows what a deploy would change without applying anything. |
-| [`delete`](/cli/delete) | Deletes a deployed stack and all its resources. |
-| [`rollback`](/cli/rollback) | Rolls back to a previous deployment version. |
-| [`cf:rollback`](/cli/cf-rollback) | Recovers a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |
-| [`dev`](/cli/dev) | Runs your app locally in development mode. |
-| [`debug:logs`](/cli/debug-logs) | Fetches logs from a deployed resource. |
+| [`codebuild:deploy`](/cli/codebuild-deploy) | Deploys using AWS CodeBuild — offloads the deployment process to a dedicated environment in your AWS account. |
+| [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
+| [`cf:rollback`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |

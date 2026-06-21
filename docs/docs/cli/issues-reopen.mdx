@@ -1,37 +1,23 @@
 ---
 title: 'issues:reopen'
-order: 186
+order: 193
 seoTitle: 'issues:reopen CLI Command | Stacktape Docs'
-seoDescription: 'Reopen a resolved or ignored runtime issue in Stacktape, restoring it to OPEN status and resuming alerts. CLI reference with usage examples and flags.'
+seoDescription: 'Reopen a resolved or ignored runtime issue in Stacktape, restoring it to OPEN status. CLI reference with usage examples and flags.'
 ---
 
 # issues:reopen
 
-The `issues:reopen` command sets a previously resolved or ignored issue back to OPEN status. Use it when a fix didn't hold, when you want to resume alerting on an ignored issue, or when a resolved issue needs renewed attention from your team.
+The `issues:reopen` command sets a previously resolved or ignored issue back to OPEN status. It is most useful for ignored issues, which do not auto-reopen on new occurrences — manual reopening is required to restore them to active tracking. You can also reopen a resolved issue before waiting for the next automatic reopen on error recurrence, or when a teammate resolved an issue prematurely. Once reopened, the issue appears in [`issues:list`](/cli/issues-list) with OPEN status.
 
 ## Usage
+
+The `issues:reopen` command takes one required flag, `--issueId`, to identify the issue to reopen. It requires a valid Stacktape API key (configured via [`stacktape login`](/cli/login)).
 
 ```bash
 stacktape issues:reopen --issueId iss_abc123def456
 ```
 
-The command requires a valid Stacktape API key (configured via [`stacktape login`](/cli/login)). It calls the Stacktape API to update the issue status and prints a confirmation message on success.
-
-## When to use
-
-Reopen an issue when:
-
-- A previously resolved error reappears and you want to track it actively again.
-- You ignored an issue during a known incident, and now want to restore normal alerting.
-- A teammate resolved an issue prematurely and you need it visible in the open issues list.
-
-Once reopened, the issue appears in [`issues:list`](/cli/issues-list) with OPEN status and resumes generating alerts through your configured [alert channels](/observability/alert-channels).
-
-## Important flags
-
-The only required flag is `--issueId` (alias `-iid`), which identifies the issue to reopen. You can find issue IDs by running [`stacktape issues:list`](/cli/issues-list).
-
-For scripting and CI environments, use `--agent` to get structured JSONL output instead of the interactive terminal UI.
+On success, the command calls the Stacktape API and prints `Issue <issueId> reopened.`
 
 ## Examples
 
@@ -54,6 +40,8 @@ stacktape issues:reopen --issueId iss_abc123def456 --agent
 ```
 
 ## Arguments reference
+
+The table below lists all accepted flags for `issues:reopen`.
 
 <CliCommandsApiReference command="issues:reopen" sortedArgs={[
   {
@@ -110,6 +98,8 @@ stacktape issues:reopen --issueId iss_abc123def456 --agent
 
 ## Related commands
 
-- [`issues:list`](/cli/issues-list) — List all detected runtime issues with their status, occurrence count, and affected resources.
+The issue lifecycle commands — list, resolve, ignore, and reopen — let you triage runtime issues from the CLI.
+
+- [`issues:list`](/cli/issues-list) — List detected runtime issues with their error message, type, function name, project/stage, occurrence count, and status.
 - [`issues:resolve`](/cli/issues-resolve) — Mark an issue as resolved. It will reopen automatically if the same error occurs again.
-- [`issues:ignore`](/cli/issues-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences and do not generate alerts.
+- [`issues:ignore`](/cli/issues-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences.

@@ -1,10 +1,8 @@
 ---
 title: 'Raw CloudFormation Resources'
-order: 400
+order: 70
 seoTitle: 'Raw CloudFormation Resources in Stacktape | Stacktape Docs'
 seoDescription: 'Add raw AWS CloudFormation resources to your Stacktape stack as an escape hatch. Use any AWS service not covered by built-in resource types, with full intrinsic function support.'
-pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.5, hard blockers 1, advisory high 0, verifier medium 1'
 ---
 
 # Raw CloudFormation Resources
@@ -49,7 +47,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/send-email.ts'
     }),
-    environment: { SENDER_DOMAIN: 'notifications.example.com' },
+    environment: [{ name: 'SENDER_DOMAIN', value: 'notifications.example.com' }],
     iamRoleStatements: [
       {
         Effect: 'Allow',
@@ -76,13 +74,13 @@ export default defineConfig(() => {
   ]}
 />
 
-The map key (e.g. `sesEmailIdentity`) is the CloudFormation logical ID for that raw resource — reference it directly from other resources with `Ref` or `Fn::GetAtt`. To inspect logical names that Stacktape generates for its managed resources (so you can avoid collisions), run [`stacktape stack-info --detailed`](/cli/info-stack).
+The example uses `Resource: ['*']` for brevity, granting SES permissions across all identities. Scope the IAM resource to a specific ARN pattern according to your security requirements, especially when managing multiple SES identities. The map key (e.g. `sesEmailIdentity`) is the CloudFormation logical ID for that raw resource — reference it directly from other resources with `Ref` or `Fn::GetAtt`. To inspect logical names that Stacktape generates for its managed resources (so you can avoid collisions), run [`stacktape info:stack --detailed`](/cli/info-stack).
 
 ## Resource attributes
 
-Each raw resource is a CloudFormation resource object — at minimum a `Type` string, usually paired with `Properties` for that resource type. Other standard CloudFormation resource attributes (such as `DependsOn` for creation ordering and `DeletionPolicy` for preservation behavior) pass through to the generated template unchanged.
+Each raw resource follows the standard [AWS CloudFormation resource structure](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) — at minimum a `Type` string, usually paired with `Properties` for that resource type. Standard CloudFormation resource attributes like `DependsOn`, `DeletionPolicy`, `CreationPolicy`, `UpdatePolicy`, `Metadata`, and `Condition` are passed through to the generated template.
 
-For example, setting `DeletionPolicy: 'Retain'` tells AWS CloudFormation to preserve a resource when the stack is deleted — useful for data stores you want to keep even after tearing down infrastructure. The `DependsOn` attribute controls creation ordering when one resource must exist before another.
+For example, setting `DeletionPolicy: 'Retain'` tells AWS CloudFormation to preserve a resource when the stack is deleted — useful for data stores you want to keep even after tearing down infrastructure. The `DependsOn` attribute controls creation ordering when one resource must exist before another. In the example below, `RetentionInDays: 365` keeps log data for one year before AWS automatically expires it.
 
 <CodeBlock
   intellisense
@@ -90,12 +88,18 @@ For example, setting `DeletionPolicy: 'Retain'` tells AWS CloudFormation to pres
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig } from 'stacktape';
+      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    })
+  });
+
   return {
-    resources: {},
+    resources: { api },
     cloudformationResources: {
       appConfig: {
         Type: 'AWS::SSM::Parameter',
@@ -125,7 +129,7 @@ export default defineConfig(() => {
 
 Because raw CloudFormation resources are merged into the template as-is, you can use any CloudFormation intrinsic function — `Ref`, `Fn::Sub`, `Fn::GetAtt`, `Fn::Join`, `Fn::If`, and others. In the TypeScript config, represent intrinsic functions as objects.
 
-This example creates an SNS topic and an SNS subscription that uses `Ref` to reference the topic's logical ID, demonstrating cross-resource references within `cloudformationResources`:
+This example creates an SNS topic and an SNS subscription that uses `Ref` to reference the topic's ARN by logical ID, and `DependsOn` to control creation ordering:
 
 <CodeBlock
   intellisense
@@ -180,7 +184,7 @@ Common intrinsic function patterns in TypeScript config:
 | `!Join [",", [...]]` | `{ 'Fn::Join': [',', [...]] }` |
 
 <Warning>
-To reference Stacktape-managed resources by logical ID in intrinsic functions, run [`stacktape stack-info --detailed`](/cli/info-stack) to discover the logical names Stacktape generates. These are internal naming conventions and may change between Stacktape versions — always verify before hardcoding references.
+To reference Stacktape-managed resources by logical ID in intrinsic functions, run [`stacktape info:stack --detailed`](/cli/info-stack) to discover the logical names Stacktape generates. These are internal naming conventions and may change between Stacktape versions — always verify before hardcoding references.
 </Warning>
 
 ## Granting workload access to raw resources
@@ -228,7 +232,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `iamRoleStatements` property is available on all Stacktape compute resources ([Lambda functions](/resources/compute/lambda-function), [web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service), [batch jobs](/resources/compute/batch-job), and [multi-container workloads](/resources/compute/multi-container-workload)). When the raw resource uses a fixed name (as with `QueueName: 'custom-dlq'` above), an ARN pattern with wildcard region and account (`arn:aws:sqs:*:*:custom-dlq`) keeps the policy portable across stages and AWS accounts.
+The `iamRoleStatements` property is available on all Stacktape compute resources ([Lambda functions](/resources/compute/lambda-function), [web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service), [batch jobs](/resources/compute/batch-job), and [multi-container workloads](/resources/compute/multi-container-workload)). In the example, `MessageRetentionPeriod: 1209600` sets the SQS message retention to 14 days (the maximum), meaning unprocessed messages stay in the queue for two weeks before being discarded. When the raw resource uses a fixed name (as with `QueueName: 'custom-dlq'` above), an ARN pattern with wildcard region and account (`arn:aws:sqs:*:*:custom-dlq`) keeps the policy portable across stages and AWS accounts.
 
 ## Avoiding naming conflicts
 
@@ -237,13 +241,13 @@ Stacktape generates CloudFormation logical names for its managed resources inter
 To inspect the logical names Stacktape has assigned, run:
 
 ```bash
-stacktape stack-info --detailed
+stacktape info:stack --detailed
 ```
 
 Use descriptive, unique prefixes (like `Custom` or your team name) for your `cloudformationResources` keys to reduce collision risk. If your CLI build supports [`stacktape compile-template`](/cli/compile-template), it can also be used to preview the full generated CloudFormation template before deploying.
 
 <Warning>
-Stacktape's internal naming conventions are implementation details and may change between versions. Always verify logical names with `stacktape stack-info --detailed` rather than guessing or hardcoding references to Stacktape-generated names.
+Stacktape's internal naming conventions are implementation details and may change between versions. Always verify logical names with `stacktape info:stack --detailed` rather than guessing or hardcoding references to Stacktape-managed names.
 </Warning>
 
 ## Choosing an escape hatch
@@ -270,6 +274,10 @@ Stacktape offers three escape hatches for going beyond built-in resource types. 
 
 Most teams should try overrides first, then raw CloudFormation, then CDK constructs.
 
+## API reference
+
+Each raw CloudFormation resource follows standard [AWS CloudFormation resource syntax](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html). The required property is `Type` (the CloudFormation resource type string, e.g. `AWS::SES::EmailIdentity`). Optional standard attributes include `Properties`, `DependsOn`, `DeletionPolicy` (`Delete`, `Retain`, or `Snapshot`), `CreationPolicy`, `UpdatePolicy`, `Metadata`, and `Condition`. See the [AWS CloudFormation resource type reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for the full attribute list per resource type.
+
 ## FAQ
 
 ### Do raw CloudFormation resources count toward the Stacktape resource limit?
@@ -280,38 +288,18 @@ No. The `cloudformationResources` property is explicitly excluded from the Stack
 
 Yes. Raw CloudFormation resources are part of the stack's template. When you [delete the stack](/deployment-and-lifecycle/destroying-stacks), AWS CloudFormation deletes all resources in the template — both Stacktape-managed and raw. To preserve a resource after stack deletion, set `DeletionPolicy: 'Retain'` on that resource.
 
-### How do I find logical names of Stacktape-managed resources?
+### How do I reference a Stacktape-managed resource from a raw resource?
 
-Run [`stacktape stack-info --detailed`](/cli/info-stack) to check existing logical names for resources deployed by Stacktape. Use it to verify names before referencing Stacktape-managed resources from `Ref` or `Fn::GetAtt` in your raw CloudFormation resources.
-
-### Can I use CloudFormation intrinsic functions in raw resources?
-
-Yes. Raw CloudFormation resources are merged directly into the CloudFormation template, so all intrinsic functions work — `Ref`, `Fn::Sub`, `Fn::GetAtt`, `Fn::Join`, `Fn::Select`, `Fn::If`, and others. In the TypeScript config, represent them as objects (e.g., `{ Ref: 'LogicalId' }`). See the [intrinsic functions section](#using-intrinsic-functions) above for the syntax mapping.
-
-### What happens to raw CloudFormation resources during a rollback?
-
-Raw CloudFormation resources follow standard AWS CloudFormation rollback behavior. If a [deployment](/deployment-and-lifecycle/deploying-stacks) fails, CloudFormation reverts all resources — including raw ones — to their previous state. You can disable automatic rollback with the `disableAutoRollback` deployment config option to inspect failures before deciding how to proceed.
+Run [`stacktape info:stack --detailed`](/cli/info-stack) to discover the logical name Stacktape assigned, then reference it with `Ref`, `Fn::GetAtt`, or `DependsOn` (which all accept the logical name of any resource in the stack, including Stacktape-generated ones). Stacktape's internal naming is an implementation detail that can change between versions, so verify the name before each major Stacktape upgrade rather than hardcoding it.
 
 ### Can I use connectTo with raw CloudFormation resources?
 
 Raw CloudFormation resources are not Stacktape resource definitions, so they do not get the typed [`connectTo`](/configuration/connecting-resources) behavior documented for Stacktape resources. For workloads that need access to a raw resource, grant access explicitly with `iamRoleStatements` — supply the correct AWS actions and the resource's ARN. See [Granting workload access](#granting-workload-access-to-raw-resources) above for an example.
 
-### When should I use raw CloudFormation instead of CDK constructs?
+### Raw CloudFormation vs. overrides vs. CDK constructs — which escape hatch should I use?
 
-Use raw CloudFormation when you need one or two simple AWS resources and don't want to add CDK as a dependency. [CDK constructs](/resources/advanced/aws-cdk-constructs) are better when you need L2 or L3 abstractions that handle IAM policies, security groups, and cross-resource wiring automatically. Raw CloudFormation has zero additional dependencies — you write the same JSON structure you'd write in a standard CloudFormation template, inside your TypeScript config.
-
-### When should I use raw CloudFormation instead of overrides?
-
-[Overrides](/configuration/overrides-and-escape-hatches) modify properties on CloudFormation resources that Stacktape already manages — for example, changing a storage encryption setting on the RDS instance behind a Stacktape-managed [relational database](/resources/databases/relational-database). Raw CloudFormation resources add entirely new resources to the stack. If the resource already exists in your `resources` config, use overrides. If you need a resource that Stacktape doesn't manage at all, use raw CloudFormation.
+Use [overrides](/configuration/overrides-and-escape-hatches) when the resource already exists in your `resources` config and you just need to tweak one property (for example, a storage encryption setting on a Stacktape-managed [relational database](/resources/databases/relational-database)) — overrides modify existing resources rather than adding new ones. Use raw CloudFormation for one or two simple, self-contained AWS resources that Stacktape doesn't manage, when you don't want to add CDK as a dependency. Use [CDK constructs](/resources/advanced/aws-cdk-constructs) for complex multi-resource setups that benefit from L2/L3 abstractions handling IAM, networking, and cross-resource wiring automatically. See [Choosing an escape hatch](#choosing-an-escape-hatch) above for the full comparison.
 
 ### How much do raw CloudFormation resources cost?
 
 AWS CloudFormation itself is free — you pay only for the underlying AWS resources you provision. A raw SES email identity costs nothing; an ALB, RDS instance, or NAT Gateway has its own pricing. Check the [AWS CloudFormation pricing page](https://aws.amazon.com/cloudformation/pricing/) and the pricing for the specific AWS service you're adding.
-
-### Can I set DependsOn between raw resources and Stacktape-managed resources?
-
-Yes. The `DependsOn` attribute accepts logical names of any resource in the stack, including those generated by Stacktape. Use [`stacktape stack-info --detailed`](/cli/info-stack) to find the exact logical name of the Stacktape-managed resource. Keep in mind that Stacktape's internal naming may change between versions, so verify the name before each major Stacktape upgrade.
-
-## API Reference
-
-<ApiReference definitionName="default" />

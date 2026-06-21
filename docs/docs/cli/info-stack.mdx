@@ -1,6 +1,6 @@
 ---
 title: 'info:stack'
-order: 180
+order: 187
 seoTitle: 'info:stack CLI Command | Stacktape Docs'
 seoDescription: 'Use stacktape info:stack to view deployed stack details — outputs, endpoints, and AWS resources. Supports JSON output for CI pipelines and scripting.'
 ---
@@ -23,7 +23,7 @@ stacktape info:stack --region eu-west-1 --stackName my-project-prod
 
 The `--region` flag is the only required argument. You identify the target stack in one of two ways: provide `--stackName` directly (formatted as `projectName-stage`), or provide both `--projectName` and `--stage` together. If neither combination is supplied, the command exits with an error: *"Provide either --stackName OR both --projectName and --stage"*.
 
-In agent mode (`--agent`), the command disables the interactive table view and prints the resolved stack name, region, and stack details as a JSON object for programmatic consumption. This is useful in CI scripts or when piping output to tools like `jq`.
+With `--agent`, `info:stack` skips the interactive stack-details view and prints a JSON-formatted payload containing the resolved stack name, region, and returned details. This is useful in CI scripts or when piping output to tools like `jq`.
 
 The `--awsAccount` flag selects which connected AWS account to query. The account must first be connected in the [Stacktape Console](/stacktape-console/connecting-your-aws-account). Omit it when the default account selection is sufficient.
 
@@ -159,7 +159,7 @@ Use the combined stack name instead of separate project and stage flags.
 stacktape info:stack --region us-east-1 --stackName my-api-prod
 ```
 
-Get JSON output for a CI pipeline or script. The `--agent` flag disables the interactive view and prints a JSON object containing the stack name, region, and details.
+Get JSON output for a CI pipeline or script. With `--agent`, the command skips the interactive view and prints a JSON-formatted payload containing the stack name, region, and details.
 
 ```bash
 stacktape info:stack --region eu-west-1 --projectName my-api --stage staging --agent

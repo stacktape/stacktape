@@ -1,15 +1,17 @@
 ---
 title: 'cf:rollback'
-order: 148
+order: 155
 seoTitle: 'cf:rollback — Recover Failed CloudFormation Stacks | Stacktape CLI'
 seoDescription: 'Use stacktape cf:rollback to recover a CloudFormation stack stuck in UPDATE_FAILED or UPDATE_ROLLBACK_FAILED state. Skip problematic resources and restore your stack to a working state.'
 ---
 
 # cf:rollback
 
-The `cf:rollback` command recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state by triggering CloudFormation's native rollback mechanism. Use it when a failed deployment leaves your stack unable to accept new updates.
+The `cf:rollback` command recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state by triggering CloudFormation's native rollback mechanism. Only `--region` is required. Use it when a failed deployment leaves your stack unable to accept new updates — this is a recovery command, not a version rollback. To revert to a previous deployment version, use [`rollback`](/cli/rollback) instead.
 
 ## Usage
+
+Run `stacktape cf:rollback` with the `--region` flag to trigger a CloudFormation rollback on a stuck stack.
 
 ```bash
 stacktape cf:rollback --region eu-west-1
@@ -23,72 +25,9 @@ A typical invocation targeting a specific stack:
 stacktape cf:rollback --region eu-west-1 --stage production --projectName my-api
 ```
 
-## What it does
-
-When a Stacktape deployment fails, CloudFormation may leave the stack in one of two broken states that prevent further updates:
-
-- **`UPDATE_FAILED`** — a stack update failed partway through. `cf:rollback` uses CloudFormation's native rollback mechanism to return the stack to the last known good state.
-- **`UPDATE_ROLLBACK_FAILED`** — a previous rollback itself failed. `cf:rollback` retries CloudFormation's native rollback path and can pass logical resource IDs through `--resourcesToSkip` for resources that cannot be restored.
-
-After the rollback succeeds, Stacktape cleans up rolled-back deployment artifacts.
-
-<Info>
-This command does NOT roll back to a previous deployment version. It rolls back the CloudFormation stack to the last known good state. To revert to an earlier version of your configuration, use [`rollback`](/cli/rollback) instead.
-</Info>
-
-## When to use cf:rollback vs rollback
-
-| Scenario | Command |
-|----------|---------|
-| Stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` | `cf:rollback` |
-| Want to revert to a specific previous deployment version | [`rollback`](/cli/rollback) |
-| Stack is healthy but you want to undo the last deploy | [`rollback`](/cli/rollback) |
-
-Use `cf:rollback` as a recovery tool when your stack is broken. Use [`rollback`](/cli/rollback) as a deliberate version revert when your stack is healthy but you want to go back to an earlier configuration.
-
-## Important flags
-
-### --resourcesToSkip
-
-When a rollback itself fails (`UPDATE_ROLLBACK_FAILED`), specific resources may be preventing the rollback from completing — for example, a resource that was manually deleted outside of CloudFormation or depends on an external service that changed state. Pass their logical resource IDs to skip them during the retry:
-
-```bash
-stacktape cf:rollback --region eu-west-1 --stage production --resourcesToSkip MyCustomResource AnotherBrokenResource
-```
-
-<Warning>
-Use `--resourcesToSkip` only for logical resource IDs that prevent rollback from completing. After rollback, inspect the skipped resources before deploying again.
-</Warning>
-
-### --stage
-
-Identifies which stage's stack to roll back. Not technically required (can be resolved from defaults or config), but needed in practice to target a specific stack.
-
-### --profile
-
-Selects the AWS profile for authentication. Useful when managing stacks across multiple AWS accounts.
-
-## Examples
-
-Recover a stuck stack in eu-west-1:
-
-```bash
-stacktape cf:rollback --region eu-west-1 --stage production --projectName my-api
-```
-
-Retry a failed rollback, skipping a resource that cannot be restored:
-
-```bash
-stacktape cf:rollback --region us-east-1 --stage staging --resourcesToSkip BrokenLambdaPermission
-```
-
-Use debug logging to see detailed rollback progress:
-
-```bash
-stacktape cf:rollback --region eu-west-1 --stage production --logLevel debug
-```
-
 ## Arguments reference
+
+The `cf:rollback` command accepts the following arguments. Only `--region` is required; all other flags are optional.
 
 <CliCommandsApiReference command="cf:rollback" sortedArgs={[
   {
@@ -256,9 +195,76 @@ stacktape cf:rollback --region eu-west-1 --stage production --logLevel debug
   }
 ]} />
 
+## What it does
+
+When a Stacktape deployment fails, CloudFormation may leave the stack in one of two broken states that prevent further updates:
+
+- **`UPDATE_FAILED`** — a stack update failed partway through. `cf:rollback` uses CloudFormation's native rollback mechanism to return the stack to the last known good state.
+- **`UPDATE_ROLLBACK_FAILED`** — a previous rollback itself failed. `cf:rollback` retries CloudFormation's native rollback path and can pass logical resource IDs through `--resourcesToSkip` for resources that cannot be restored.
+
+After the rollback succeeds, Stacktape attempts to clean up rolled-back deployment artifacts.
+
+<Info>
+This command does NOT roll back to a previous deployment version. It rolls back the CloudFormation stack to the last known good state. To revert to an earlier version of your configuration, use [`rollback`](/cli/rollback) instead.
+</Info>
+
+## cf:rollback vs rollback
+
+The Stacktape CLI provides two distinct rollback commands for different scenarios.
+
+| Scenario | Command |
+|----------|---------|
+| Stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` | `cf:rollback` |
+| Want to revert to a specific previous deployment version | [`rollback`](/cli/rollback) |
+| Stack is healthy but you want to undo the last deploy | [`rollback`](/cli/rollback) |
+
+Use `cf:rollback` as a recovery tool when your stack is in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`. Use [`rollback`](/cli/rollback) when you want to deploy a previous deployment version.
+
+## Important flags
+
+### --resourcesToSkip
+
+When a rollback itself fails (`UPDATE_ROLLBACK_FAILED`), specific resources may be preventing the rollback from completing — for example, a resource that was manually deleted outside of CloudFormation or depends on an external service that changed state. Pass their logical resource IDs to skip them during the retry:
+
+```bash
+stacktape cf:rollback --region eu-west-1 --stage production --resourcesToSkip MyCustomResource AnotherBrokenResource
+```
+
+<Warning>
+Use `--resourcesToSkip` only for logical resource IDs that prevent rollback from completing. After rollback, inspect the skipped resources before deploying again.
+</Warning>
+
+### --stage
+
+Identifies which stage's stack to roll back when provided. Can also be resolved from configured defaults or a config file.
+
+### --profile
+
+Selects the AWS profile for authentication. Useful when managing stacks across multiple AWS accounts.
+
+## Examples
+
+Recover a stuck stack in eu-west-1:
+
+```bash
+stacktape cf:rollback --region eu-west-1 --stage production --projectName my-api
+```
+
+Retry a failed rollback, skipping a resource that cannot be restored:
+
+```bash
+stacktape cf:rollback --region us-east-1 --stage staging --resourcesToSkip BrokenLambdaPermission
+```
+
+Use debug logging to see detailed rollback progress:
+
+```bash
+stacktape cf:rollback --region eu-west-1 --stage production --logLevel debug
+```
+
 ## Related commands
 
-- [`rollback`](/cli/rollback) — revert to a specific previous deployment version (requires the stack to be in a healthy state).
+- [`rollback`](/cli/rollback) — revert to a specific previous deployment version.
 - [`deploy`](/cli/deploy) — deploy your stack. After a successful `cf:rollback`, redeploy to bring resources to your desired configuration.
 - [`preview-changes`](/cli/preview-changes) — preview what a deployment would change before running it.
 
@@ -266,32 +272,12 @@ stacktape cf:rollback --region eu-west-1 --stage production --logLevel debug
 
 ### When should I use cf:rollback instead of rollback?
 
-Use `cf:rollback` when your stack is stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` and cannot accept any new updates. The [`rollback`](/cli/rollback) command requires a healthy stack — it downloads a previous deployment's template and redeploys it. If your stack is broken, `cf:rollback` is the only option to unblock it.
+Use `cf:rollback` when your stack is stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` and cannot accept any new updates. The [`rollback`](/cli/rollback) command downloads a previous deployment's template and redeploys it, but it requires the stack to be in an updatable state. When a stack is in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`, `cf:rollback` unblocks it so you can deploy again.
 
-### What does UPDATE_FAILED mean?
+### What's the difference between UPDATE_FAILED and UPDATE_ROLLBACK_FAILED?
 
-`UPDATE_FAILED` means a CloudFormation stack update started but failed before completion. The stack is left in a state where it cannot accept further updates until the failed change is rolled back. Running `cf:rollback` triggers CloudFormation's native mechanism to return the stack to its last known good state.
+`UPDATE_FAILED` means a stack update failed partway through and the stack can't accept further updates until it's rolled back — `cf:rollback` returns it to the last known good state. `UPDATE_ROLLBACK_FAILED` means CloudFormation already attempted that rollback and the rollback itself failed; in this case, retry with `--resourcesToSkip` to bypass the resources blocking it.
 
-### What does UPDATE_ROLLBACK_FAILED mean?
+### My rollback keeps failing on a specific resource. What do I do?
 
-`UPDATE_ROLLBACK_FAILED` means that CloudFormation attempted to roll back a failed update, but the rollback itself failed. This typically happens when a resource was manually deleted, an external dependency changed, or a custom resource's delete handler failed. Use `cf:rollback` with `--resourcesToSkip` to bypass the problematic resources.
-
-### Can I use cf:rollback to undo a successful deployment?
-
-No. `cf:rollback` only works on stacks that are stuck in a failed state. If your last deployment succeeded but you want to revert the changes, use [`rollback`](/cli/rollback) to deploy a previous version's template instead.
-
-### What are logical resource IDs in --resourcesToSkip?
-
-Logical resource IDs are the names CloudFormation uses internally for each resource in your stack template. You can find them in the CloudFormation console's "Resources" tab or in the error messages that appear when a rollback fails. They look like `MyLambdaFunction`, `ApiGatewayRestApi`, or `VpcSubnet1`.
-
-### Does cf:rollback require a Stacktape config file?
-
-No. The command does not require a configuration file — it operates directly on the CloudFormation stack. You identify the target stack through `--stage` and `--projectName`, or through defaults configured via [`defaults:configure`](/cli/defaults-configure).
-
-### What happens to deployment artifacts after cf:rollback?
-
-After the rollback succeeds, Stacktape cleans up rolled-back deployment artifacts (Lambda zips, container images) that were uploaded for the failed deployment. Previous deployment artifacts remain intact.
-
-### How long does cf:rollback take?
-
-The duration depends on how many resources need to be rolled back and their types. Simple rollbacks (a Lambda function update that failed) complete in under a minute. Rollbacks involving database changes, VPC modifications, or many resources can take several minutes. Use `--logLevel debug` to monitor progress.
+Pass that resource's logical ID to `--resourcesToSkip` so CloudFormation skips it during the rollback retry. This is common when a resource was deleted outside of CloudFormation or depends on an external service whose state changed. After the rollback completes, inspect the skipped resources before deploying again, since they were left in their failed state.

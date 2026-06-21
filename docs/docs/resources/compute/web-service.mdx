@@ -27,7 +27,7 @@ Common use cases:
 - **Scale-to-zero request handling** — use a [Lambda function](/resources/compute/lambda-function) when the workload is event-driven, idle most of the time, or should bill only on invocation.
 - **Internal-only services** — use a [private-service](/resources/compute/private-service) when the container should be reachable only from your stack or VPC.
 - **Background workers** — use a [worker-service](/resources/compute/worker-service) when the container consumes queues or events without exposing a public endpoint.
-- **Multiple tightly-coupled containers** — use a [multi-container-workload](/resources/compute/multi-container-workload) when sidecars need peer-level traffic routing or more explicit container lifecycle control.
+- **Multiple tightly-coupled containers** — use a [multi-container-workload](/resources/compute/multi-container-workload) when you need a workload model centered on multiple containers with their own integrations.
 - **Jobs that finish and exit** — use a [batch job](/resources/compute/batch-job) for compute that runs to completion instead of serving traffic continuously.
 
 ## Basic example
@@ -63,7 +63,7 @@ export default defineConfig(() => {
   ]}
 />
 
-`entryfilePath` points to the application entry point used by the Stacktape image buildpack. The `resources` block sets the Fargate task size for the container; Fargate is the default compute engine for web services unless you choose EC2 instance types through the resource configuration.
+`entryfilePath` points to the application entry point used by the Stacktape image buildpack. The `resources` block sets the Fargate task size for the container — `cpu: 0.5` and `memory: 1024` are explicit task-size selections, not implied defaults. Fargate is the default compute engine for web services unless you choose EC2 instance types through the resource configuration. See the [API reference](#api-reference) for the full resources configuration shape.
 
 ## Traffic
 
@@ -75,7 +75,7 @@ A Stacktape web service can receive public traffic through three load balancing 
 | `application-load-balancer` | WebSockets, gradual deployments, top-level `useFirewall`, and high steady HTTP traffic | Adds a baseline monthly load balancer cost |
 | `network-load-balancer` | TCP/TLS protocols such as MQTT, game servers, or custom protocols | Requires explicit `ports`; does not support CDN, top-level firewall, or gradual deployments |
 
-Use `application-load-balancer` when the service needs WebSocket support, [gradual deployments](/deployment-and-lifecycle/gradual-deployments), or a regional [web application firewall](/resources/security/web-application-firewall) attached through top-level `useFirewall`. The ALB health check defaults are path `/`, interval `5`, and timeout `4`, and you can override those in `loadBalancing.properties`.
+Use `application-load-balancer` when the service needs WebSocket support, [gradual deployments](/deployment-and-lifecycle/gradual-deployments), or a regional [web application firewall](/resources/security/web-application-firewall) attached through top-level `useFirewall`. The ALB health check defaults are path `/`, interval `5` seconds, and timeout `4` seconds, and you can override those in `loadBalancing.properties`.
 
 <CodeBlock
   intellisense
@@ -148,7 +148,9 @@ export default defineConfig(() => {
 
 ## Domains and CORS
 
-A Stacktape web service can attach custom domains directly through `customDomains`. Stacktape creates DNS records and TLS certificates for domains that already have a Route53 hosted zone in your AWS account; set `disableDnsRecordCreation` when DNS records are managed outside Stacktape.
+<span id="custom-domain-names" />
+
+A Stacktape web service can attach custom domains directly through `customDomains`. Stacktape can auto-create DNS records and provision a free TLS certificate. The domain must first be added as a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing to that hosted zone. Set `disableDnsRecordCreation` when DNS records are managed outside Stacktape.
 
 <CodeBlock
   intellisense
@@ -177,11 +179,11 @@ export default defineConfig(() => {
   ]}
 />
 
-Use Stacktape-managed certificates for most services. `customCertificateArn` is only useful when you already manage an ACM certificate with specific certificate requirements. `cors` is available only with the default `http-api-gateway` load balancing mode and overrides CORS headers returned by your application, so prefer application-level CORS when the app needs route-specific behavior.
+This minimal form assumes Stacktape creates both the DNS record and TLS certificate automatically. Set `disableDnsRecordCreation: true` when you manage DNS records outside Stacktape. Use `customCertificateArn` when you want Stacktape to use an ACM certificate you already manage, such as one with specific certificate requirements. `cors` is available only with the default `http-api-gateway` load balancing mode and overrides CORS headers returned by your application, so prefer application-level CORS when the app needs route-specific behavior.
 
 ## CDN
 
-A Stacktape web service can put a CDN in front of the public endpoint with the `cdn` property. Enable CDN caching for globally accessed APIs with cacheable responses or services where edge routing reduces latency; skip CDN for highly dynamic APIs where every request must reach the container and cache invalidation would add operational work.
+The `cdn` property on a Stacktape web service places a CloudFront CDN in front of the public endpoint for caching and lower latency worldwide. Enable CDN when globally accessed APIs have cacheable responses or when edge routing reduces latency; skip CDN for highly dynamic APIs where every request must reach the container and cache invalidation would add operational work.
 
 The `cdn` path is separate from top-level load balancer configuration. A top-level `useFirewall` attaches a regional firewall to an Application Load Balancer and requires `loadBalancing.type: 'application-load-balancer'`; `cdn.useFirewall` protects the CloudFront distribution and uses a `web-app-firewall` resource with CDN scope.
 
@@ -191,7 +193,7 @@ For most API services, start without `cdn` and add it after measuring latency or
 
 A Stacktape web service uses the same container compute model as other Stacktape container workloads. Fargate is the default serverless compute engine: set `cpu` and `memory`, pay while tasks are running, and avoid managing EC2 instances. EC2 mode is available by specifying `instanceTypes` when you need instance-level control.
 
-Fargate is right for most web services because it keeps operations simple and bills by allocated vCPU and memory while the container is running. ARM tasks are supported through `architecture: 'arm64'` and are approximately 20% cheaper than x86 in the provided pricing source.
+Fargate is right for most web services because it keeps operations simple and bills by allocated vCPU and memory while the container is running. AWS Fargate ARM (Graviton) tasks are approximately 20% cheaper than x86 in us-east-1.
 
 <CodeBlock
   intellisense
@@ -207,8 +209,7 @@ export default defineConfig(() => {
     // [!code focus-start]
     resources: {
       cpu: 1,
-      memory: 2048,
-      architecture: 'arm64'
+      memory: 2048
     }
     // [!code focus-end]
   });
@@ -219,7 +220,7 @@ export default defineConfig(() => {
   ]}
 />
 
-Use EC2 mode for workloads that need specific instance families, GPU-capable instances, or cost optimization at high sustained utilization. EC2 mode gives more control, but the source describes weekly instance refreshes for OS patching and exposes `enableWarmPool` for single-instance-type configurations where faster EC2 scale-out is worth the extra idle capacity cost.
+Use EC2 mode for workloads that need specific instance families, GPU-capable instances, or cost optimization at high sustained utilization. EC2 mode gives more control over instance selection and capacity management.
 
 <CodeBlock
   intellisense
@@ -234,8 +235,7 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
     // [!code focus-start]
     resources: {
-      instanceTypes: ['c6g.large'],
-      enableWarmPool: true
+      instanceTypes: ['c6g.large']
     }
     // [!code focus-end]
   });
@@ -246,11 +246,11 @@ export default defineConfig(() => {
   ]}
 />
 
-`instanceTypes` selects EC2-based compute instead of Fargate. `enableWarmPool: true` keeps pre-initialized EC2 capacity available for faster scale-out, but it should be reserved for production services where the additional idle instance cost is justified.
+`instanceTypes` selects EC2-based compute instead of Fargate. `c6g.large` is an example ARM (Graviton) instance type; choose instance families that match your container image architecture and workload profile. You can specify multiple instance types for capacity flexibility.
 
 ## Scaling
 
-A Stacktape web service scales horizontally by running more container instances and distributing traffic across healthy instances. Use scaling when request volume changes enough that one fixed instance count is either too expensive during quiet periods or too small during peaks.
+A Stacktape web service scales horizontally by running more container instances and distributing traffic across healthy instances. The `scaling` property uses the `ContainerWorkloadScaling` configuration shared by all Stacktape container workloads. Use scaling when request volume changes enough that one fixed instance count is either too expensive during quiet periods or too small during peaks.
 
 <CodeBlock
   intellisense
@@ -302,7 +302,7 @@ The Stacktape image buildpack supports JavaScript, TypeScript, Python, Java, and
 
 ## Connecting to other resources
 
-A Stacktape web service can use `connectTo` to access other resources in the same stack. Stacktape grants IAM permissions where relevant, opens security group access for supported network resources, and injects environment variables such as connection strings, hostnames, ports, names, ARNs, or URLs into the container.
+A Stacktape web service can use `connectTo` to access other resources in the same stack. Stacktape grants IAM permissions where relevant, opens security group access for supported network resources, and injects environment variables with connection details following the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern.
 
 <CodeBlock
   intellisense
@@ -310,9 +310,23 @@ A Stacktape web service can use `connectTo` to access other resources in the sam
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+      code: `import {
+  defineConfig,
+  WebService,
+  StacktapeImageBuildpackPackaging,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  Bucket
+} from 'stacktape';
 
 export default defineConfig(() => {
+  const myDatabase = new RelationalDatabase({
+    credentials: { masterUserPassword: "$Secret('db.password')" },
+    engine: new RdsEnginePostgres({ primaryInstance: { instanceSize: 'db.t4g.micro' } })
+  });
+
+  const uploadsBucket = new Bucket({});
+
   const api = new WebService({
     // [!code focus-start]
     connectTo: ['myDatabase', 'uploadsBucket'],
@@ -321,54 +335,28 @@ export default defineConfig(() => {
     resources: { cpu: 0.5, memory: 1024 }
   });
 
-  return { resources: { api } };
-});`
+  return { resources: { myDatabase, uploadsBucket, api } };
+});
+`
     }
   ]}
 />
 
-When a web service connects to a relational database, Stacktape injects variables such as `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_DATABASE_HOST`, and `STP_MY_DATABASE_PORT`. For the full resource-by-resource list, use [connecting resources](/configuration/connecting-resources). For permissions outside `connectTo`, add narrowly scoped `iamRoleStatements`.
+The example uses the `RdsEnginePostgres` class to construct a Postgres database. The `stacktape` package also exports `RdsEngineMysql`, `RdsEngineMariadb`, and Aurora engine variants for other database types. For `connectTo` on this web service, Stacktape follows the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern: `myDatabase` provides `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_DATABASE_HOST`, and `STP_MY_DATABASE_PORT`; `uploadsBucket` provides `STP_UPLOADS_BUCKET_NAME` and `STP_UPLOADS_BUCKET_ARN`. Use `$ResourceParam()` for parameters not in the connectTo injection table. For the full resource-by-resource list, see [connecting resources](/configuration/connecting-resources). For permissions outside `connectTo`, add narrowly scoped `iamRoleStatements`.
+
+For user-defined runtime configuration, use the `environment` property to pass static values, [secrets](/configuration/secrets) via `$Secret()`, or [resource parameters](/configuration/directives) via `$ResourceParam()` directly into the container. Variables from `connectTo` are merged automatically alongside any `environment` entries you define.
 
 ## Health checks
 
-A Stacktape web service has two health-check layers. Load balancer health checks decide whether traffic should be sent to a container, while `internalHealthCheck` runs inside the container and lets ECS replace a container that is still running but no longer healthy.
+A Stacktape web service has two health-check layers. When using `application-load-balancer` or `network-load-balancer` load balancing, the load balancer health check determines whether traffic should be sent to a container. Separately, `internalHealthCheck` is a container-level health check that lets ECS auto-replace a container that is still running but no longer healthy.
 
 For Application Load Balancer mode, configure load balancer health checks under `loadBalancing.properties`. For Network Load Balancer mode, health checks can use `TCP` or `HTTP`; `healthcheckPath` only applies when `healthCheckProtocol` is `HTTP`, and the health check port defaults to the traffic port.
 
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
-
-export default defineConfig(() => {
-  const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
-    resources: { cpu: 0.5, memory: 1024 },
-    // [!code focus-start]
-    internalHealthCheck: {
-      healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/health || exit 1'],
-      intervalSeconds: 30,
-      timeoutSeconds: 5,
-      retries: 3,
-      startPeriodSeconds: 60
-    }
-    // [!code focus-end]
-  });
-
-  return { resources: { api } };
-});`
-    }
-  ]}
-/>
-
-Use an internal health check when the process can be alive while the application is broken, such as a server with a failed database pool or stuck event loop. Keep the command cheap and local to the container; health checks that depend on slow external services can cause unnecessary replacement during transient dependency issues.
+Use an internal health check when the process can be alive while the application is broken, such as a server with a failed database pool or stuck event loop. If a container fails the internal health check, ECS treats the container as unhealthy and replaces it. Keep the health check command cheap and local to the container; checks that depend on slow external services can cause unnecessary replacement during transient dependency issues. See the [API reference](#api-reference) for the full `internalHealthCheck` configuration shape.
 
 ## Side containers
 
-A Stacktape web service can run helper containers alongside the main container through `sideContainers`. Use `run-on-init` helpers for setup work such as database migrations that must complete before the main container starts, and `always-running` helpers for agents or companion processes that should share the task lifecycle.
+A Stacktape web service can run helper containers alongside the main container through `sideContainers`. Each side container has a `containerType` of either `run-on-init` or `always-running`. Use `run-on-init` for setup work such as database migrations — the helper must exit with code 0 before the main container starts. Use `always-running` for agents or companion processes that run for the entire task lifecycle; they can reach the main container via `localhost`, and if they crash, the whole task fails.
 
 <CodeBlock
   intellisense
@@ -406,7 +394,9 @@ export default defineConfig(() => {
   ]}
 />
 
-Use the built-in web service side-container model when one main public container owns the endpoint and helpers are secondary. Use a [multi-container-workload](/resources/compute/multi-container-workload) instead when multiple containers need independent traffic routing, per-container public integrations, or peer-level lifecycle configuration.
+The example above shows a `run-on-init` side container for migrations. For an `always-running` side container such as a log forwarder or monitoring agent, set `containerType: 'always-running'` instead — the container runs for the entire task lifetime and shares the network namespace (`localhost`) with the main container. Choose `run-on-init` when the helper is a one-time setup step; choose `always-running` when the helper must stay up alongside the main process.
+
+Use the built-in web service side-container model when one main public container owns the endpoint and helpers are secondary. Use a [multi-container-workload](/resources/compute/multi-container-workload) instead when you need a workload model centered on multiple containers with their own integrations and lifecycle configuration.
 
 ## EFS storage
 
@@ -452,11 +442,13 @@ export default defineConfig(() => {
   ]}
 />
 
-`mountPath` is the absolute path where the EFS volume appears inside the container. `rootDirectory` limits the mounted view to a subdirectory of the filesystem and defaults to `/` when omitted. EFS adds network storage cost and latency, so prefer object storage for files that do not need a mounted filesystem interface.
+`mountPath` is the absolute path where the EFS volume appears inside the container. `rootDirectory` limits the mounted view to a subdirectory of the filesystem. EFS adds network storage cost and latency, so prefer object storage for files that do not need a mounted filesystem interface.
 
 ## Gradual deployments
 
-A Stacktape web service can shift traffic gradually during deployment with `deployment`, but only when `loadBalancing.type` is `application-load-balancer`. Use gradual deployments for production services where a bad release should reach only a small portion of traffic before full rollout; skip them for low-risk stages where faster deployment matters more.
+A Stacktape web service can shift traffic gradually during deployment with the `deployment` property, but only when `loadBalancing.type` is `application-load-balancer`. Use gradual deployments for production services where a bad release should reach only a small portion of traffic before full rollout; skip them for low-risk stages where faster deployment matters more.
+
+The deployment configuration supports canary, linear, or all-at-once gradual traffic shifting strategies. Configure a strategy through the `deployment` property to control how traffic shifts between the old and new version during a deploy. See [gradual deployments](/deployment-and-lifecycle/gradual-deployments) for the full list of strategies and their behavior.
 
 <CodeBlock
   intellisense
@@ -470,11 +462,9 @@ export default defineConfig(() => {
   const api = new WebService({
     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
-    loadBalancing: { type: 'application-load-balancer' },
     // [!code focus-start]
-    deployment: {
-      strategy: 'Canary10Percent5Minutes'
-    }
+    loadBalancing: { type: 'application-load-balancer' },
+    deployment: {}
     // [!code focus-end]
   });
 
@@ -484,7 +474,7 @@ export default defineConfig(() => {
   ]}
 />
 
-`Canary10Percent5Minutes` sends a small slice of traffic to the new version before completing the shift. The available strategies are documented with the deployment feature; see [gradual deployments](/deployment-and-lifecycle/gradual-deployments) when you need canary, linear, all-at-once, or validation-hook behavior.
+The `deployment` property enables gradual traffic shifting when `loadBalancing.type` is `application-load-balancer`. Configure specific strategy fields (canary, linear, or all-at-once) as documented in [gradual deployments](/deployment-and-lifecycle/gradual-deployments).
 
 ## Private subnets
 
@@ -524,37 +514,56 @@ export default defineConfig(() => {
 
 ## Logging
 
-A Stacktape web service sends container `stdout` and `stderr` to CloudWatch Logs by default with 90-day retention. Use the `logging` property when you need to disable logging or change container log behavior, and use [log forwarding](/observability/log-forwarding) when logs need to reach external observability tools.
+Container output (`stdout` and `stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. The `logging` property controls the logging configuration. Use [log forwarding](/observability/log-forwarding) when logs need to reach external observability tools.
 
-Logs are a core operating path for always-on containers. Keep application logs structured enough to debug request failures, startup errors, and health-check failures, then view them through the Stacktape Console or the [`debug:logs`](/cli/debug-logs) CLI command.
+Logs are a core operating path for always-on containers. Keep application logs structured enough to debug request failures, startup errors, and health-check failures, then view them through the Stacktape Console or the [`stacktape debug:logs`](/cli/debug-logs) CLI command.
 
 ## Remote sessions
 
-A Stacktape web service can enable interactive container access with `enableRemoteSessions: true`. Remote sessions are useful for debugging a running container through [`stacktape container:session`](/cli/container-session), and the source states that enabling the feature adds an SSM agent with minimal CPU and memory use.
+A Stacktape web service can enable interactive container access by setting `enableRemoteSessions` to `true` (defaults to `false`). Remote sessions provide interactive shell access through the [`stacktape container:session`](/cli/container-session) CLI command. Enabling this feature adds a small SSM agent that uses minimal CPU and memory.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    resources: { cpu: 0.5, memory: 1024 },
+    // [!code focus-start]
+    enableRemoteSessions: true
+    // [!code focus-end]
+  });
+
+  return { resources: { api } };
+});`
+    }
+  ]}
+/>
 
 Keep remote sessions disabled by default for routine services and enable them deliberately when production debugging requires shell access. Prefer logs, metrics, and repeatable diagnostic scripts first; an interactive session is strongest for inspecting a live process, filesystem state, or network reachability that cannot be reproduced locally.
 
 ## FAQ
 
-### What is a Stacktape web service?
-
-A Stacktape web service is an always-on container with a public HTTPS URL. Stacktape manages the surrounding AWS resources for traffic, TLS, scaling, health checks, logs, and deployment behavior while your application runs as a container. Use [web-service](/resources/compute/web-service) for public APIs and containerized web backends.
-
 ### Does a Stacktape web service scale to zero?
 
-No. A Stacktape web service is always-on container compute, and Fargate bills while tasks are running. Use a [Lambda function](/resources/compute/lambda-function) when scale-to-zero billing is more important than keeping a container warm.
+No. A Stacktape web service is always-on container compute, and Fargate bills while tasks are running, so `minInstances` is your baseline cost even during idle periods. Use a [Lambda function](/resources/compute/lambda-function) when scale-to-zero billing is more important than keeping a container warm.
 
 ### Which load balancing mode should I choose?
 
 Use the default `http-api-gateway` mode for most HTTP APIs and web apps. Choose `application-load-balancer` for WebSockets, gradual deployments, top-level `useFirewall`, or high steady request volume. Choose `network-load-balancer` only for TCP/TLS protocols that are not ordinary HTTP; see [Application Load Balancer](/resources/networking/application-load-balancer) and [Network Load Balancer](/resources/networking/network-load-balancer).
 
-### Can I use a custom domain with a web service?
+### Why isn't my custom domain working?
 
-Yes. Add `customDomains` with a domain name such as `api.example.com`, and Stacktape can create DNS records and TLS certificates when the domain has a Route53 hosted zone in your AWS account. For broader domain behavior, see [custom domains](/resources/networking/custom-domains).
+The most common cause is missing DNS setup: `customDomains` only auto-creates the DNS record and TLS certificate when the domain is already a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing at that zone. If you manage DNS elsewhere, set `disableDnsRecordCreation: true` and point the record yourself, or supply your own ACM certificate via `customCertificateArn`. See [custom domains](/resources/networking/custom-domains).
 
-### Can I put CloudFront in front of a web service?
+### Why are my `cors` settings being ignored?
 
-Yes. Configure the web service `cdn` property when a CDN should sit in front of the public endpoint. Use it for cacheable responses or global latency reduction; skip it for purely dynamic APIs where every request needs fresh origin processing. For CloudFront-specific behavior, see [CDN](/resources/networking/cdn).
+The `cors` property only takes effect with the default `http-api-gateway` load balancing mode; it does nothing under `application-load-balancer` or `network-load-balancer`. It also overrides CORS headers your application returns, so for route-specific behavior prefer handling CORS in your application code instead.
 
 ### How much does an ECS Fargate web service cost?
 
@@ -562,11 +571,7 @@ Fargate bills by allocated vCPU and memory for each running task, so idle web se
 
 ### Web service vs Lambda function: which should I use?
 
-Use a web service when your application is already a long-running container, needs stable always-on latency, uses protocols or libraries better suited to servers, or needs container-level control. Use a [Lambda function](/resources/compute/lambda-function) for event-driven work, sporadic traffic, or workloads where scale-to-zero billing is the main goal.
-
-### Web service vs private service: which should I use?
-
-Use a web service when the container should be reachable from the internet through a public HTTPS endpoint. Use a [private-service](/resources/compute/private-service) when the container should be reachable only from resources inside the stack or VPC. The choice is mainly about public exposure, not whether the container runs continuously.
+Use a web service when your application is already a long-running container, needs stable always-on latency, uses protocols or libraries better suited to servers, or needs container-level control. Use a [Lambda function](/resources/compute/lambda-function) for event-driven work, sporadic traffic, or workloads where scale-to-zero billing is the main goal. If the container should not be reachable from the internet at all, use a [private-service](/resources/compute/private-service) instead.
 
 ### How do I run database migrations for a web service?
 

@@ -1,0 +1,51 @@
+---
+title: 'v4 · Build It Live'
+order: 104
+seoTitle: 'Stacktape — Build APIs, web apps and pipelines on AWS'
+seoDescription: 'Pick what you want to build — a serverless API, a fullstack web app, a container service or an event pipeline — and ship it to AWS from one TypeScript file.'
+---
+
+<LandingHero
+  eyebrow="Pick a use case · see the config"
+  title="Whatever you're building,"
+  accent="it's a few lines of config."
+  subtitle="Stacktape deploys serverless APIs, fullstack web apps, container services and event-driven pipelines to your own AWS account — with the same TypeScript config and the same single command."
+>
+  <ButtonRow>
+    <CTAButton href="/getting-started/configure-your-stack" variant="primary" icon="arrow">Get started</CTAButton>
+    <CTAButton href="/resources/compute/web-service" variant="secondary">Browse compute</CTAButton>
+  </ButtonRow>
+</LandingHero>
+
+## What do you want to ship?
+
+Switch between common stacks below — the config on the left is exactly what you write, and the diagram on the right is what Stacktape provisions for you.
+
+<UseCaseExplorer />
+
+## From a file to a running stack
+
+Every use case follows the same pattern: declare resources, link them with `connectTo`, and Stacktape handles the IAM, env vars and networking.
+
+<CodeToCloud caption="The same model scales from a single Lambda to a multi-service stack — Stacktape resolves dependencies and provisions them in the right order." />
+
+## Why it stays simple as you grow
+
+<FeatureGrid
+  items={[
+    { icon: 'plug', title: 'connectTo, not IAM JSON', text: 'Linking a function to a table, queue or database grants least-privilege access and injects the connection details automatically.' },
+    { icon: 'container', title: 'Any runtime, any packaging', text: 'Buildpacks, a Dockerfile, or prebuilt images — for Node, Python, Go, Rust, Java, .NET and more.' },
+    { icon: 'refresh', title: 'Local + cloud dev loop', text: 'stacktape dev runs your code locally against real cloud resources, with hot reload and no redeploys.' },
+    { icon: 'layers', title: 'Escape hatches everywhere', text: 'Override any AWS property, transform generated resources, or drop in raw CloudFormation and CDK constructs.' },
+    { icon: 'shield', title: 'Production defaults', text: 'HTTPS, encryption, autoscaling and private networking are configured to AWS best practices out of the box.' },
+    { icon: 'git', title: 'Preview per pull request', text: 'Each PR can get its own isolated copy of the stack, deployed and torn down automatically.' }
+  ]}
+/>
+
+<CTASection
+  title="Start with the stack you need today"
+  subtitle="Add the next resource when you need it — the config grows with you, not against you."
+>
+  <CTAButton href="/getting-started/configure-your-stack" variant="primary" icon="arrow">Build your stack</CTAButton>
+  <CTAButton href="/configuration/triggers/overview" variant="ghost">Event triggers</CTAButton>
+</CTASection>

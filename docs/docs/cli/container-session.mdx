@@ -1,39 +1,43 @@
 ---
 title: 'container:session'
-order: 158
+order: 165
 seoTitle: 'container:session - Interactive Container Shell | Stacktape CLI'
-seoDescription: 'Open an interactive shell session inside a running ECS container with stacktape container:session. Debug, inspect files, and troubleshoot live containers over a secure SSM connection.'
+seoDescription: 'Open an interactive session inside a running ECS container with stacktape container:session. Debug, inspect files, and troubleshoot live containers over an SSM connection.'
 ---
 
 # container:session
 
-The `container:session` command starts an interactive shell session inside a running container in your deployed stack. It uses AWS ECS Exec with a secure SSM (Systems Manager) connection, giving you direct terminal access to debug, inspect files, check environment variables, or troubleshoot issues in a live container.
+The `container:session` command starts an interactive session inside a running container in your deployed stack. The session is established using ECS Exec and an SSM (Systems Manager) connection, giving you direct terminal access to debug, inspect files, or troubleshoot issues in a running container.
 
 ## Usage
+
+Open a session by specifying the target stage, region, and resource name.
 
 ```bash
 stacktape container:session --stage production --region eu-west-1 --resourceName myService
 ```
 
-This opens an interactive shell (`/bin/sh` by default) inside the container running in the specified resource. The command works with any ECS-based container workload, including [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload).
+This opens an interactive session inside the container running in the specified resource. The target workload must be a deployed workload with an ECS task definition. Stacktape looks for running ECS tasks before opening the session. When multiple tasks are running, Stacktape prompts you to choose one.
 
 <Info>
 
-This command does not require a Stacktape configuration file. It connects directly to the deployed stack using the `--stage`, `--region`, and `--resourceName` flags.
+This command does not require a Stacktape configuration file. It connects directly to the deployed stack using the `--stage`, `--region`, and `--resourceName` flags. Use optional stack arguments such as `--projectName`, `--awsAccount`, or `--profile` when your local defaults are not enough to identify the target stack or AWS credentials.
 
 </Info>
 
 ## Important flags
 
-**`--command`** overrides the default shell. By default, the session starts `/bin/sh`. If your container image includes a different shell (like `bash`) or you want to run a specific command, pass it explicitly.
+The two most commonly used optional flags are `--command` and `--container`. Both affect which process and which container you connect to.
 
-Start a bash session instead of the default `/bin/sh`:
+**`--command`** specifies the command that starts the interactive session inside the container. Use it to select a specific shell (like `bash`). To run a one-shot command and capture its output non-interactively, use [`debug:container-exec`](/cli/debug-container-exec) instead.
+
+Start a bash session:
 
 ```bash
 stacktape container:session --stage production --region eu-west-1 --resourceName myService --command /bin/bash
 ```
 
-**`--container`** selects a specific container in multi-container workloads. If the target resource runs more than one container (main container, sidecars, init containers), you must specify which container to connect to. Omitting this flag when multiple containers exist produces an error listing the available container names.
+**`--container`** selects a specific container in multi-container workloads. If the target workload has more than one container definition, specify the container name with `--container`. Stacktape raises an error and includes the available container names when multiple containers exist and `--container` is omitted, or when the specified name does not match any container in the workload.
 
 ```bash
 stacktape container:session --stage production --region eu-west-1 --resourceName myWorkload --container nginx
@@ -42,11 +46,6 @@ stacktape container:session --stage production --region eu-west-1 --resourceName
 ## Multiple running instances
 
 When the target resource has multiple running tasks (for example, a scaled-out web service), the CLI prompts you to choose which instance to connect to. Each option shows the task ID and its start time so you can identify the right one.
-
-## Common errors
-
-- **Resource is not a valid container-based resource** — The `--resourceName` value does not match any deployed ECS-based resource in the stack. Verify the resource name matches your configuration and that the stack is deployed. Lambda functions and non-container resources are not supported.
-- **Multiple containers without `--container` flag** — The target workload has more than one container. The error message lists the available container names. Re-run the command with `--container` set to one of those names.
 
 ## Arguments reference
 
@@ -236,7 +235,14 @@ When the target resource has multiple running tasks (for example, a scaled-out w
   }
 ]} />
 
+## Common errors
+
+- **Resource cannot be resolved** — Stacktape throws an error when `--resourceName` does not match a deployed workload with an ECS task definition. Check that the resource name matches a deployed workload in the target stage and AWS region.
+- **Multiple containers without `--container` flag** — The target workload has more than one container. The error message lists the available container names. Re-run the command with `--container` set to one of those names.
+
 ## Examples
+
+The following examples show common `container:session` usage patterns across different workload types and configurations.
 
 Inspect the filesystem of a running web service:
 
@@ -250,7 +256,7 @@ Connect to a specific container in a multi-container workload:
 stacktape container:session --stage production --region eu-west-1 --resourceName myWorkload --container sidecar
 ```
 
-Open a bash session instead of the default shell:
+Open a bash session:
 
 ```bash
 stacktape container:session --stage staging --region us-west-2 --resourceName backend --command /bin/bash

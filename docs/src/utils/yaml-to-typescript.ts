@@ -39,13 +39,17 @@ const RESOURCE_TYPE_TO_CLASS: Record<string, string> = {
   'solidstart-web': 'SolidStartWeb',
   'tanstack-web': 'TanStackWeb',
   'remix-web': 'RemixWeb',
-  bastion: 'Bastion'
+  bastion: 'Bastion',
+  'deployment-script': 'DeploymentScript',
+  'custom-resource-definition': 'CustomResourceDefinition',
+  'custom-resource-instance': 'CustomResourceInstance'
 };
 
 /** Script type -> class name mapping */
 const SCRIPT_TYPE_TO_CLASS: Record<string, string> = {
   'local-script': 'LocalScript',
-  'local-script-with-bastion-tunneling': 'LocalScriptWithBastionTunneling'
+  'local-script-with-bastion-tunneling': 'LocalScriptWithBastionTunneling',
+  'bastion-script': 'BastionScript'
 };
 
 /** Packaging type -> class name mapping */
@@ -73,29 +77,49 @@ const ENGINE_TYPE_TO_CLASS: Record<string, string> = {
   'aurora-postgresql': 'AuroraEnginePostgresql',
   'aurora-mysql': 'AuroraEngineMysql',
   'aurora-postgresql-serverless': 'AuroraServerlessEnginePostgresql',
-  'aurora-mysql-serverless': 'AuroraServerlessEngineMysql'
+  'aurora-mysql-serverless': 'AuroraServerlessEngineMysql',
+  'aurora-postgresql-serverless-v2': 'AuroraServerlessV2EnginePostgresql',
+  'aurora-mysql-serverless-v2': 'AuroraServerlessV2EngineMysql'
 };
 
 /** Lambda event type -> class name mapping */
 const LAMBDA_EVENT_TYPE_TO_CLASS: Record<string, string> = {
   'http-api-integration': 'HttpApiIntegration',
+  'http-api-gateway': 'HttpApiIntegration',
   'rest-api-integration': 'RestApiIntegration',
   'load-balancer-integration': 'LoadBalancerIntegration',
+  'application-load-balancer': 'ApplicationLoadBalancerIntegration',
   'sqs-integration': 'SqsIntegration',
+  'sqs': 'SqsIntegration',
   'sns-integration': 'SnsIntegration',
+  'sns': 'SnsIntegration',
   'kinesis-integration': 'KinesisIntegration',
+  'kinesis-stream': 'KinesisIntegration',
   's3-integration': 'S3Integration',
+  's3': 'S3Integration',
   'dynamo-db-integration': 'DynamoDbIntegration',
-  'event-bridge-integration': 'EventBridgeIntegration',
+  'dynamo-db-stream': 'DynamoDbIntegration',
+  'event-bus-integration': 'EventBusIntegration',
+  'event-bus': 'EventBusIntegration',
   'cloudwatch-logs-integration': 'CloudwatchLogsIntegration',
-  'schedule-integration': 'ScheduleIntegration'
+  'cloudwatch-log': 'CloudwatchLogIntegration',
+  'schedule-integration': 'ScheduleIntegration',
+  'schedule': 'ScheduleIntegration',
+  'cloudwatch-alarm': 'AlarmIntegration',
+  'kafka-topic': 'KafkaTopicIntegration',
+  'iot': 'IotIntegration'
 };
 
 /** Container event type -> class name mapping */
 const CONTAINER_EVENT_TYPE_TO_CLASS: Record<string, string> = {
   'http-api-integration': 'ContainerHttpApiIntegration',
+  'http-api-gateway': 'MultiContainerWorkloadHttpApiIntegration',
   'load-balancer-integration': 'ContainerLoadBalancerIntegration',
-  'network-load-balancer-integration': 'ContainerNetworkLoadBalancerIntegration'
+  'application-load-balancer': 'MultiContainerWorkloadLoadBalancerIntegration',
+  'network-load-balancer-integration': 'ContainerNetworkLoadBalancerIntegration',
+  'network-load-balancer': 'MultiContainerWorkloadNetworkLoadBalancerIntegration',
+  'workload-internal': 'MultiContainerWorkloadInternalIntegration',
+  'service-connect': 'MultiContainerWorkloadServiceConnectIntegration'
 };
 
 /** Resource types that use container-style events */
@@ -220,6 +244,9 @@ const generateArrayCode = (arr: unknown[], imports: Set<string>, indent: number,
   return `[\n${indentStr}  ${items.join(`,\n${indentStr}  `)}\n${indentStr}]`;
 };
 
+/** Quote a property key if it is not a valid bare JS identifier (e.g. `detail-type`). */
+const safeKey = (key: string): string => (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key));
+
 const generatePropsCode = (
   props: Record<string, unknown> | undefined,
   imports: Set<string>,
@@ -232,6 +259,8 @@ const generatePropsCode = (
   const entries: string[] = [];
 
   for (const [key, value] of Object.entries(props)) {
+    const k = safeKey(key);
+
     // Handle packaging
     if (key === 'packaging' && isTypedProperty(value)) {
       const code = generateTypedPropertyCode(
@@ -241,7 +270,7 @@ const generatePropsCode = (
         indent,
         resourceType
       );
-      entries.push(`${key}: ${code}`);
+      entries.push(`${k}: ${code}`);
       continue;
     }
 
@@ -254,7 +283,7 @@ const generatePropsCode = (
         indent,
         resourceType
       );
-      entries.push(`${key}: ${code}`);
+      entries.push(`${k}: ${code}`);
       continue;
     }
 
@@ -271,46 +300,46 @@ const generatePropsCode = (
           }
         }
       }
-      entries.push(`${key}: { ${envEntries.join(', ')} }`);
+      entries.push(`${k}: { ${envEntries.join(', ')} }`);
       continue;
     }
 
     // Handle connectTo - variable references
     if (key === 'connectTo' && Array.isArray(value)) {
       const refs = (value as (string | unknown)[]).map((ref) => (typeof ref === 'string' ? ref : JSON.stringify(ref)));
-      entries.push(`${key}: [${refs.join(', ')}]`);
+      entries.push(`${k}: [${refs.join(', ')}]`);
       continue;
     }
 
     // Handle events array
     if (key === 'events' && Array.isArray(value)) {
       const arrayCode = generateArrayCode(value, imports, indent + 1, resourceType);
-      entries.push(`${key}: ${arrayCode}`);
+      entries.push(`${k}: ${arrayCode}`);
       continue;
     }
 
     // Handle nested objects
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       const nested = generatePropsCode(value as Record<string, unknown>, imports, indent + 1, resourceType);
-      entries.push(`${key}: ${nested}`);
+      entries.push(`${k}: ${nested}`);
       continue;
     }
 
     // Handle arrays
     if (Array.isArray(value)) {
       const arrayCode = generateArrayCode(value, imports, indent + 1, resourceType);
-      entries.push(`${key}: ${arrayCode}`);
+      entries.push(`${k}: ${arrayCode}`);
       continue;
     }
 
     // Handle directives
     if (isDirective(value)) {
-      entries.push(`${key}: ${generateDirectiveCode(value, imports)}`);
+      entries.push(`${k}: ${generateDirectiveCode(value, imports)}`);
       continue;
     }
 
     // Default
-    entries.push(`${key}: ${generateValueCode(value, imports)}`);
+    entries.push(`${k}: ${generateValueCode(value, imports)}`);
   }
 
   if (entries.length === 0) return '{}';

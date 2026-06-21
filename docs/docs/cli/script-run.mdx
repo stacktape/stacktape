@@ -1,13 +1,13 @@
 ---
 title: 'script:run'
-order: 167
+order: 174
 seoTitle: 'script:run CLI Command | Stacktape Docs'
 seoDescription: 'Run scripts defined in your Stacktape configuration with custom environment variables and optional IAM role assumption. Use for migrations, data seeding, and maintenance tasks.'
 ---
 
 # script:run
 
-The `script:run` command executes a script defined in the `scripts` section of your Stacktape configuration. It requires `--scriptName` and `--stage`, accepts additional environment variables via `--env`, and can optionally assume a deployed resource's IAM role with `--assumeRoleOfResource`. Use it for one-off operational tasks like database migrations, data seeding, or maintenance scripts.
+The `script:run` command executes a script defined in the `scripts` section of your Stacktape configuration. It requires `--scriptName` and `--stage`, accepts additional environment variables via `--env`, and can optionally assume a deployed resource's IAM role with `--assumeRoleOfResource`. Use `script:run` when you need to execute a named script from the `scripts` section without deploying the full stack.
 
 ## Usage
 
@@ -15,7 +15,7 @@ The `script:run` command executes a script defined in the `scripts` section of y
 stacktape script:run --scriptName myMigration --stage production
 ```
 
-`--scriptName` and `--stage` are the only required command-specific arguments. Pass `--region` when you do not rely on a configured default (set via [`defaults:configure`](/cli/defaults-configure)).
+`script:run` requires `--scriptName` and `--stage`. Pass `--region` when you do not rely on a configured default (set via [`defaults:configure`](/cli/defaults-configure)).
 
 <CliCommandsApiReference command="script:run" sortedArgs={[
   {
@@ -205,7 +205,7 @@ stacktape script:run --scriptName myMigration --stage production
 
 ## Examples
 
-Run a database migration script against the staging stack in a specific region:
+Add `--region` when you want to override or avoid relying on a configured default region:
 
 ```bash
 stacktape script:run --scriptName migrate --stage staging --region eu-west-1
@@ -237,11 +237,9 @@ If `assumeRoleOfResource` is also defined in the script's configuration properti
 
 ## Errors
 
-If the `--scriptName` value does not match any key in the `scripts` section of your configuration, the command throws `stpErrors.e20({ scriptName })`. Double-check the script name in your configuration file — the match is case-sensitive.
+If the `--scriptName` value does not match any key in the `scripts` section of your configuration, the command throws `stpErrors.e20({ scriptName })`. The command looks up the script by key in `scripts`, so the `--scriptName` value must exactly match a key defined in your configuration.
 
 ## Related commands
 
 - [`deployment-script:run`](/cli/deployment-script-run) — runs a [deployment script](/resources/advanced/deployment-scripts) resource (only updates the script's source code; use [`deploy`](/cli/deploy) to update environment variables or other configuration).
 - [`deploy`](/cli/deploy) — deploys the full stack, including any changes to script configuration.
-- [`container:session`](/cli/container-session) — starts an interactive shell session inside a deployed container for ad-hoc debugging.
-- [`bastion:tunnel`](/cli/bastion-tunnel) — creates a secure tunnel to a VPC-private resource through a bastion host.

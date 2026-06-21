@@ -1,6 +1,6 @@
 ---
 title: 'Custom Resources'
-order: 66
+order: 67
 seoTitle: 'Custom Resources - Lambda Provisioning Logic | Stacktape Docs'
 seoDescription: 'Define Lambda-backed custom resources in Stacktape to provision third-party APIs and external infrastructure during stack create, update, and delete operations.'
 ---
@@ -14,8 +14,8 @@ A Stacktape custom resource runs a Lambda function during stack create, update, 
 Custom resources are the right choice when you need to manage an external resource's lifecycle in sync with your Stacktape stack. Common scenarios:
 
 - **Third-party API setup** — creating webhooks, API keys, or accounts in external services (Stripe, PagerDuty, Cloudflare) that should be torn down when you delete the stack.
-- **Cross-account AWS resources** — provisioning resources in a different AWS account that CloudFormation can't reach directly.
-- **Custom validation or seed operations** — running checks or data seeding that must succeed before the stack is considered deployed.
+- **SaaS service provisioning** — managing resources in external SaaS platforms (Datadog monitors, LaunchDarkly flags, PlanetScale databases) tied to your stack lifecycle.
+- **Custom infrastructure** — provisioning infrastructure that CloudFormation doesn't support natively, such as DNS records in non-Route53 providers or certificates in external CAs.
 - **External database provisioning** — creating databases or schemas in services outside AWS that need lifecycle management.
 
 Custom resource handlers receive Create, Update, and Delete events as part of CloudFormation stack operations. Because custom resources participate in CloudFormation stack operations, design Create, Update, and Delete handlers to be idempotent and rollback-tolerant. This makes custom resources safer than one-off scripts for managing external state that should stay in sync with your stack.
@@ -45,12 +45,10 @@ Stacktape custom resources use a two-part model:
 
 You can create multiple instances from a single definition, each with different properties. For example, one definition that manages DNS records could have separate instances for `api.example.com` and `app.example.com`.
 
-<FlowDiagram steps={[
-  { title: "Deploy starts", description: "CloudFormation processes the stack and encounters a custom resource instance." },
-  { title: "Lambda invoked", description: "CloudFormation invokes the backing Lambda with RequestType and ResourceProperties from the instance." },
-  { title: "Handler runs", description: "Your code creates, updates, or deletes the external resource based on RequestType." },
-  { title: "Response sent", description: "The handler sends SUCCESS or FAILED back to CloudFormation via a pre-signed URL provided in the event. On failure, the stack operation fails." }
-]} />
+1. **Deploy starts** — CloudFormation processes the stack and encounters a custom resource instance.
+2. **Lambda invoked** — CloudFormation invokes the backing Lambda with RequestType and ResourceProperties from the instance.
+3. **Handler runs** — Your code creates, updates, or deletes the external resource based on RequestType.
+4. **Response sent** — The handler sends SUCCESS or FAILED back to CloudFormation via a pre-signed URL provided in the event. On failure, the stack operation fails.
 
 ## Basic example
 
@@ -127,6 +125,18 @@ export const handler = async (event: any) => {
         data = { webhookId: webhook.id };
         break;
       }
+      case 'Update': {
+        await fetch(`https://api.example.com/webhooks/${event.PhysicalResourceId}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${process.env.EXTERNAL_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ url: ResourceProperties.callbackUrl })
+        });
+        data = { webhookId: event.PhysicalResourceId };
+        break;
+      }
       case 'Delete': {
         await fetch(`https://api.example.com/webhooks/${event.PhysicalResourceId}`, {
           method: 'DELETE',
@@ -198,7 +208,7 @@ Your handler must PUT a JSON response to `ResponseURL`:
 - **Always respond.** As part of the AWS CloudFormation custom resource protocol, a missing response causes CloudFormation to wait until its internal timeout and then fail the stack operation.
 - **Return a stable `PhysicalResourceId`.** Per CloudFormation behavior, if you return a different physical ID on an Update, CloudFormation interprets this as a resource replacement and sends a separate Delete event for the old physical ID.
 - **Handle Delete gracefully.** The Delete handler may run during rollbacks. If the resource was never fully created, your Delete handler should succeed silently rather than throw.
-- **Keep the `Data` object small.** Per CloudFormation limits, the maximum response payload is 4,096 bytes.
+- **Keep the `Data` object small.** AWS CloudFormation imposes a 4,096-byte limit on the custom resource response body.
 
 ## Instances
 
@@ -273,7 +283,7 @@ The `packaging` property on `CustomResourceDefinition` configures how the backin
 
 ### Stacktape Lambda buildpack
 
-The [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) is zero-config packaging that bundles your source code automatically. It supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. This is the recommended choice for most custom resources — point it at your handler file and Stacktape handles bundling, dependency resolution, and upload. Use this unless you have a pre-existing build pipeline or need precise control over the deployment artifact.
+The [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) is zero-config packaging that bundles your source code automatically. It supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. This is the recommended choice for most custom resources — point it at your handler file and Stacktape handles bundling, dependency resolution, and upload. The buildpack automatically resolves dependencies and optimizes the bundle size, but you have less control over the exact contents of the deployment package. Use this unless you have a pre-existing build pipeline or need precise control over the deployment artifact.
 
 <CodeBlock
   intellisense
@@ -310,7 +320,7 @@ The `timeout` is set to 60 seconds here — the default is 10 seconds. Increase 
 
 ### Custom artifact
 
-The [custom artifact](/packaging/function/custom-artifact) mode lets you provide a pre-built zip or directory. Stacktape uploads it as-is (zipping directories automatically). Use this when you have a custom build pipeline, need dependencies that the buildpack doesn't handle well, or want precise control over the deployment package contents.
+The [custom artifact](/packaging/function/custom-artifact) mode lets you provide a pre-built zip or directory. Stacktape uploads it as-is (zipping directories automatically). This works with any Lambda runtime since you provide the complete deployment package — unlike the buildpack, which handles only the supported languages listed above. Use custom artifact when you have a custom build pipeline, need dependencies that the buildpack doesn't handle well, or want precise control over the deployment package contents. The tradeoff is that you are responsible for maintaining the build process, dependency resolution, and artifact structure yourself.
 
 <CodeBlock
   intellisense
@@ -344,7 +354,7 @@ The `handler` property specifies the entry point in `filepath:functionName` form
 
 ## Runtime
 
-The `runtime` property sets the Lambda runtime (e.g., `nodejs22.x`, `python3.12`, `java17`). When using the [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack), the runtime is auto-detected from the entry file extension, so you rarely need to set this explicitly. Set it manually when using [custom artifact](/packaging/function/custom-artifact) packaging or when you need a specific runtime version. See the [function packaging docs](/packaging/function/language-specific-config) for runtime-specific configuration.
+The `runtime` property sets the Lambda runtime to a supported AWS Lambda runtime identifier. When using the [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack), the runtime is auto-detected from the entry file extension, so you rarely need to set this explicitly. Set `runtime` manually when using [custom artifact](/packaging/function/custom-artifact) packaging (since there is no entry file for Stacktape to detect from) or when you need to pin a specific runtime version. See the API reference below for the full list of supported runtime values, and the [function packaging docs](/packaging/function/language-specific-config) for runtime-specific configuration.
 
 ## Connecting to resources
 
@@ -445,17 +455,13 @@ Custom resources are not listed among Stacktape [referenceable parameters](/conf
 
 ## FAQ
 
-### What is a CloudFormation custom resource?
-
-A CloudFormation custom resource is a stack resource backed by a Lambda function instead of a built-in AWS resource type. CloudFormation invokes the backing function during stack Create, Update, and Delete operations. The function manages the actual resource lifecycle and reports success or failure back to CloudFormation via a pre-signed S3 URL. Stacktape wraps this mechanism with the `CustomResourceDefinition` and `CustomResourceInstance` classes, adding automatic Lambda packaging, `connectTo` access, and environment variable injection.
-
 ### Can I use connectTo with custom resources?
 
-Yes. `CustomResourceDefinitionProps` extends `ResourceAccessProps`, so a custom resource definition can use `connectTo` to grant IAM permissions, open network access for VPC-bound resources like databases and Redis, and inject `STP_[RESOURCE_NAME]_[PARAM]` environment variables into the backing Lambda. Your custom resource handler can then interact with databases, buckets, queues, and other stack resources during provisioning. See [connecting resources](/configuration/connecting-resources) for the full list of injected variables per resource type.
+Yes. `CustomResourceDefinitionProps` extends `ResourceAccessProps`, so a custom resource definition can use `connectTo` to grant IAM permissions, security-group access where applicable, and inject `STP_[RESOURCE_NAME]_[PARAM]` environment variables into the backing Lambda. Your custom resource handler can then interact with databases, buckets, queues, and other stack resources during provisioning. See [connecting resources](/configuration/connecting-resources) for the full list of injected variables per resource type.
 
-### What happens if my custom resource Lambda fails during deployment?
+### What happens if my custom resource Lambda fails or the stack rolls back?
 
-If the Lambda sends a `FAILED` response or fails to respond before the timeout, CloudFormation marks the resource as failed and initiates rollback. Because custom resources participate in CloudFormation stack operations, design your Delete handler to be idempotent — it should tolerate being called for partially-created resources and succeed silently if the external resource doesn't exist.
+If the Lambda sends a `FAILED` response or fails to respond before the timeout, CloudFormation marks the resource as failed and initiates rollback. During rollback, your Delete handler may run against a resource that was never fully created — so write it defensively: check whether the external resource exists before deleting it, and succeed silently if it's already gone. A Delete handler that throws here can leave the resource in a `DELETE_FAILED` state that requires manual cleanup.
 
 ### How long can a custom resource Lambda run?
 
@@ -469,10 +475,6 @@ Use a **custom resource** when the external resource's lifecycle should be tied 
 
 Yes. The `CustomResourceDefinition` defines the Lambda code once. You can create multiple `CustomResourceInstance` resources that reference the same definition by name, each passing different `resourceProperties`. Each instance is an independent CloudFormation resource with its own Create/Update/Delete lifecycle. This avoids duplicating Lambda code when provisioning multiple similar external resources — like DNS records for different subdomains or webhook registrations for different endpoints.
 
-### What happens to custom resources during a stack rollback?
-
-Because custom resources participate in CloudFormation stack operations, design Create, Update, and Delete handlers to be idempotent and rollback-tolerant. Write your Delete handler defensively: check whether the external resource exists before attempting to delete it, and succeed silently if it's already gone. If a Delete handler fails during rollback, the resource may enter a `DELETE_FAILED` state requiring manual cleanup.
-
 ### Can custom resources return values for use elsewhere in the stack?
 
 Custom resources can return data in the `Data` field of their CloudFormation response. However, custom resources are not listed among Stacktape [referenceable parameters](/configuration/referenceable-parameters), so you cannot use `$ResourceParam()` to reference their outputs. For CloudFormation-level output wiring, use the [overrides escape hatch](/configuration/overrides-and-escape-hatches) if you are comfortable working at the CloudFormation layer.
@@ -480,7 +482,3 @@ Custom resources can return data in the `Data` field of their CloudFormation res
 ### Does AWS charge for custom resource Lambda invocations?
 
 Custom resource Lambda invocations follow standard AWS Lambda pricing: per-request fee plus duration-based charges proportional to memory allocation. Since the Lambda only runs during stack operations (deploy, update, delete), costs are negligible for most teams — typically a few invocations per deployment. The Lambda is not invoked between deployments, so there is no ongoing compute cost.
-
-### Can I use AWS CDK constructs instead of custom resources?
-
-They solve different problems. [CDK constructs](/resources/advanced/aws-cdk-constructs) generate CloudFormation templates at build time — they compose AWS resources declaratively without runtime Lambda code. Custom resources run Lambda code during stack operations to manage resources that don't exist in CloudFormation's resource catalog. If the resource you need is a standard AWS service, prefer a CDK construct or [raw CloudFormation](/resources/advanced/raw-cloudformation-resources). Use a custom resource only when you need to call external APIs or run imperative provisioning logic during deployment.

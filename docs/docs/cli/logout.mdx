@@ -1,13 +1,13 @@
 ---
 title: 'logout'
-order: 172
+order: 179
 seoTitle: 'stacktape logout — Remove API Key | Stacktape CLI Reference'
-seoDescription: 'Remove the stored Stacktape API key from your system with stacktape logout. Use when switching accounts, revoking local access, or resetting credentials.'
+seoDescription: 'Remove the stored Stacktape API key from your system with stacktape logout. Use when switching accounts, removing local credentials, or resetting keys.'
 ---
 
 # logout
 
-The `stacktape logout` command removes the stored Stacktape API key from your system. After logging out, commands that require authentication (deploy, delete, dev, and others) will fail until you run [`stacktape login`](/cli/login) again.
+The `stacktape logout` command removes the locally stored Stacktape API key from your system. The command takes no required flags — run `stacktape logout` and the stored key is cleared immediately. After logging out, commands that require a Stacktape API key will need credentials configured again via [`stacktape login`](/cli/login). Use `logout` when switching accounts, removing credentials from a shared machine, or before storing a different API key.
 
 ## Usage
 
@@ -15,19 +15,11 @@ The `stacktape logout` command removes the stored Stacktape API key from your sy
 stacktape logout
 ```
 
-The command clears the locally stored API key and confirms removal. No network request is made — it only affects local credential storage.
+`stacktape logout` clears the stored API key from Stacktape's global state and prints a confirmation.
 
 ## When to use
 
-Run `logout` when switching between Stacktape accounts or organizations, when revoking local access on a shared machine, or before storing a different API key with `login`. If you need to verify which account is currently configured, use [`stacktape info:whoami`](/cli/info-whoami) before logging out.
-
-## Examples
-
-Log out from the current Stacktape session:
-
-```bash
-stacktape logout
-```
+Run `logout` when switching between Stacktape accounts or organizations, when removing local credentials from a shared machine, or before storing a different API key with `login`. If you need to verify which account is currently configured, use [`stacktape info:whoami`](/cli/info-whoami) before logging out.
 
 ## Command reference
 

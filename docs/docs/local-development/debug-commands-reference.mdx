@@ -1,15 +1,13 @@
 ---
 title: 'Debug Commands Reference'
-order: 115
+order: 121
 seoTitle: 'Debug Commands Reference | Stacktape Docs'
 seoDescription: 'Reference for Stacktape debug CLI commands: view logs and metrics, query databases, execute container commands, and tunnel through bastions.'
-pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 6.8, hard blockers 0, advisory high 0, verifier medium 1'
 ---
 
 # Debug Commands Reference
 
-Stacktape provides a suite of CLI commands for inspecting deployed stacks without leaving your terminal. This page documents `debug:logs` and `debug:metrics` in depth and links to the dedicated CLI reference pages for the rest. The container execution command `debug:container-exec` runs a one-shot command inside a running container, while `container:session` opens an interactive shell inside a container and `bastion:session` opens an interactive SSM shell on a bastion EC2 instance — treat all three with appropriate care in production stages, since they let you run arbitrary commands against live infrastructure.
+Stacktape provides a suite of CLI commands for inspecting deployed stacks without leaving your terminal. This page documents `debug:logs` and `debug:metrics` in depth and covers the essentials of each remaining command with links to dedicated CLI reference pages. The `debug:container-exec` command runs a one-shot command inside a running container and returns its output, while `container:session` and `bastion:session` open interactive shell sessions — treat all three with appropriate care in production stages, since they let you run arbitrary commands against live infrastructure.
 
 ## Command overview
 
@@ -17,22 +15,22 @@ Stacktape provides a suite of CLI commands for inspecting deployed stacks withou
 |---------|---------|
 | [`debug:logs`](/cli/debug-logs) | Fetch CloudWatch log events |
 | [`debug:metrics`](/cli/debug-metrics) | Fetch CloudWatch metric data |
-| [`debug:alarms`](/cli/debug-alarms) | List CloudWatch alarm states |
-| [`debug:sql`](/cli/debug-sql) | Run read-only SQL queries |
+| [`debug:alarms`](/cli/debug-alarms) | Inspect CloudWatch alarms |
+| [`debug:sql`](/cli/debug-sql) | Query SQL databases |
 | [`debug:dynamodb`](/cli/debug-dynamodb) | Query DynamoDB tables |
-| [`debug:redis`](/cli/debug-redis) | Inspect Redis keys and server info |
-| [`debug:opensearch`](/cli/debug-opensearch) | Query OpenSearch indices |
-| [`debug:aws-sdk`](/cli/debug-aws-sdk) | Run read-only AWS SDK calls |
-| [`debug:container-exec`](/cli/debug-container-exec) | Execute a one-shot command in a container |
-| [`container:session`](/cli/container-session) | Open an interactive shell in a container |
-| [`bastion:tunnel`](/cli/bastion-tunnel) | Open a port-forwarding tunnel through a bastion |
-| [`bastion:session`](/cli/bastion-session) | Open an SSM shell on a bastion instance |
+| [`debug:redis`](/cli/debug-redis) | Inspect Redis clusters |
+| [`debug:opensearch`](/cli/debug-opensearch) | Query OpenSearch domains |
+| [`debug:aws-sdk`](/cli/debug-aws-sdk) | Run AWS SDK calls |
+| [`debug:container-exec`](/cli/debug-container-exec) | Execute a command in a container |
+| [`container:session`](/cli/container-session) | Interactive container shell |
+| [`bastion:tunnel`](/cli/bastion-tunnel) | Port-forwarding through a bastion |
+| [`bastion:session`](/cli/bastion-session) | SSM shell on a bastion instance |
 
-<Info>All commands require a deployed stack. They work on any deployed stage — not just dev mode stacks.</Info>
+<Info>This page covers `debug:logs` and `debug:metrics` in depth. For the other commands, use the linked CLI reference pages for their flags, operations, and requirements.</Info>
 
 ## Stack targeting
 
-Debug commands run against the currently targeted Stacktape stack. Many examples on this page include `--projectName`, `--stage`, and `--region` to identify the stack explicitly, and resource-specific commands typically also accept `--resourceName` to pick a specific resource. The exact targeting flags supported by each command — and any defaults applied when a flag is omitted — are documented on each command's [CLI reference page](/cli/debug-logs).
+Debug commands target a deployed stack through the usual Stacktape stack-selection flags (`--projectName`, `--stage`, `--region`). `debug:logs` and `debug:metrics` require `--resourceName` to pick a specific resource; other resource-specific commands document their own required targeting flags on their CLI reference pages. The exact targeting flags supported by each command — and any defaults applied when a flag is omitted — are documented on each command's [CLI reference page](/cli/debug-logs).
 
 ## Viewing logs
 
@@ -98,7 +96,7 @@ Without `--raw`, Stacktape passes the limited events to the formatted log printe
 
 ### Agent mode
 
-When invoked by an AI coding assistant (detected automatically), `debug:logs` returns structured JSON:
+When invoked by an AI coding assistant (detected automatically), `debug:logs` returns structured JSON. Standard log fetching returns `{ logGroup, events }`:
 
 ```json
 {
@@ -112,6 +110,8 @@ When invoked by an AI coding assistant (detected automatically), `debug:logs` re
   ]
 }
 ```
+
+Logs Insights queries (when using `--query`) return `{ logGroup, query, results }` instead.
 
 This makes debug commands work as data sources for [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations) and the [Stacktape MCP server](/using-with-ai/mcp-server-setup).
 
@@ -153,7 +153,7 @@ stacktape debug:metrics --resourceName mainDb --metric CPUUtilization --startTim
 
 ### Terminal output
 
-In interactive mode, Stacktape renders a chart of the returned datapoints with summary statistics. In agent mode, the command returns structured JSON with timestamps and values for programmatic consumption.
+In interactive mode, Stacktape renders the returned datapoints as a formatted metrics chart. In agent mode, the command returns structured JSON with timestamps and values for programmatic consumption.
 
 ## Viewing alarms
 
@@ -161,7 +161,7 @@ The [`stacktape debug:alarms`](/cli/debug-alarms) command inspects CloudWatch al
 
 ## Querying SQL databases
 
-The [`stacktape debug:sql`](/cli/debug-sql) command runs SQL queries against a deployed [relational database](/resources/databases/relational-database) from the CLI. See the [CLI reference](/cli/debug-sql) for flags, read-only enforcement, and bastion-tunneling behavior.
+The [`stacktape debug:sql`](/cli/debug-sql) command runs SQL queries against a deployed [relational database](/resources/databases/relational-database) from the CLI. See the [CLI reference](/cli/debug-sql) for supported query behavior and flags.
 
 ## Querying DynamoDB
 
@@ -191,7 +191,7 @@ The [`stacktape container:session`](/cli/container-session) command opens an int
 
 ## Bastion tunneling
 
-The [`stacktape bastion:tunnel`](/cli/bastion-tunnel) command opens a local port-forwarding tunnel through a [bastion host](/resources/security/bastion-host) to reach VPC-only resources. See the [CLI reference](/cli/bastion-tunnel) for the full flag list and supported target resource types.
+The [`stacktape bastion:tunnel`](/cli/bastion-tunnel) command opens a local port-forwarding tunnel through a [bastion host](/resources/security/bastion-host) to reach VPC-only resources. See the [CLI reference](/cli/bastion-tunnel) for the full flag list and target behavior.
 
 ## Bastion shell session
 
@@ -199,25 +199,21 @@ The [`stacktape bastion:session`](/cli/bastion-session) command opens an interac
 
 ## Credentials and permissions
 
-Debug commands use your configured AWS credentials to talk to AWS APIs and SSM. Each command's [CLI reference page](/cli/debug-logs) documents its specific credential and IAM behavior, including any stack-provisioned debug roles that may be assumed.
+`debug:logs` loads your configured AWS credentials to call CloudWatch Logs APIs. `debug:metrics` initializes stack services for a deployed stack and queries CloudWatch metrics. Other debug and session commands have their own credential and IAM requirements documented on their dedicated CLI reference pages.
 
 ## FAQ
 
 ### How do I view real-time logs as they arrive?
 
-The `debug:logs` command fetches historical log events. For real-time log streaming during development, use [dev mode](/local-development/dev-mode-overview) which shows live logs as requests come in. For deployed stacks, re-run `debug:logs` with a short `--startTime` window (e.g. `--startTime 1m`) to get the most recent events.
+The `debug:logs` command fetches historical log events from CloudWatch Logs. For near-real-time inspection of a deployed stack, re-run `debug:logs` with a short `--startTime` window (e.g. `--startTime 1m`). For local development behavior, see the [dev mode overview](/local-development/dev-mode-overview).
 
 ### Can I use debug commands with dev mode stacks?
 
-Yes. Debug commands work against any deployed stack, including stacks created via `stacktape dev`. Specify the same `--projectName`, `--stage`, and `--region` you used when starting dev mode. The stack must be fully deployed — these commands connect to live AWS resources.
-
-### Why does debug:sql only allow read-only queries?
-
-`debug:sql` is intentionally scoped to read-only access from the CLI so you can't accidentally mutate data while inspecting it. For write operations, use [deployment scripts](/deployment-and-lifecycle/deployment-scripts-and-hooks) or connect through [`bastion:tunnel`](/cli/bastion-tunnel) with your preferred database client. See the [CLI reference](/cli/debug-sql) for the exact behavior.
+`debug:logs` and `debug:metrics` require a deployed stack as their target. If you are running `stacktape dev`, these commands can target the deployed AWS stack that dev mode created — specify the same `--projectName`, `--stage`, and `--region`. Other debug commands have their own deployment requirements documented on their CLI reference pages.
 
 ### How do I debug a VPC-only database without a bastion?
 
-If your relational database or Redis cluster doesn't have public access and you haven't deployed a [bastion host](/resources/security/bastion-host), you can run queries from within a container that has VPC connectivity to the database — use [`container:session`](/cli/container-session) or [`debug:container-exec`](/cli/debug-container-exec) to open a shell and execute the client of your choice. The simpler path is to add a bastion to your stack and use [`bastion:tunnel`](/cli/bastion-tunnel).
+Options for debugging private resources depend on what you've deployed. The simplest path is to add a [bastion host](/resources/security/bastion-host) to your stack and use [`bastion:tunnel`](/cli/bastion-tunnel) to forward a local port to the database. If you use container shell access for private-resource debugging, see the [`container:session`](/cli/container-session) and [`debug:container-exec`](/cli/debug-container-exec) CLI reference pages for requirements.
 
 ### What's the difference between debug:container-exec and container:session?
 
@@ -227,14 +223,10 @@ If your relational database or Redis cluster doesn't have public access and you 
 
 The `debug:metrics` command supports a fixed set of metrics per resource type (listed in the metrics table above). If the metric name doesn't match the resource type's allowed list, the command returns an error with the valid options. For metrics not in that list, use [`debug:aws-sdk`](/cli/debug-aws-sdk) with the CloudWatch `GetMetricData` or `ListMetrics` commands.
 
-### Can bastion:tunnel forward to multiple resources simultaneously?
-
-A single [`bastion:tunnel`](/cli/bastion-tunnel) invocation targets one resource. To tunnel to multiple resources (e.g. both a database and a Redis cluster), run multiple `bastion:tunnel` commands in separate terminal windows pointing at the same bastion but different `--resourceName` targets.
-
 ### How much do debug commands cost?
 
-Debug commands themselves are CLI operations with no direct charge. The underlying AWS API calls (CloudWatch GetLogEvents, GetMetricData, DescribeAlarms) incur standard AWS API charges, which are negligible for debugging use. CloudWatch Logs Insights queries (`--query` flag on `debug:logs`) are billed per GB of data scanned at standard CloudWatch Logs Insights pricing (~$0.005/GB scanned).
+Debug commands themselves are CLI operations with no direct charge. The underlying AWS API calls (such as CloudWatch GetLogEvents and GetMetricData) may incur standard AWS charges according to your account and region. CloudWatch Logs Insights queries (`--query` flag on `debug:logs`) are charged by AWS based on the amount of data scanned.
 
 ### Can I pipe debug command output to other tools?
 
-Use `--raw` on `debug:logs` (or invoke debug commands in agent mode) to get JSON output suitable for piping to `jq`, saving to files, or consuming from scripts. In interactive mode, output is formatted for terminal viewing and isn't ideal for piping.
+Pass `--raw` to `debug:logs` to get structured JSON output instead of formatted terminal text — this is suitable for piping to `jq` or saving to a file. Both `debug:logs` and `debug:metrics` return structured JSON in agent mode. In interactive mode, output is formatted for terminal viewing and isn't designed for piping.

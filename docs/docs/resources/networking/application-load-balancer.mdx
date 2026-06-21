@@ -1,6 +1,6 @@
 ---
 title: 'Application Load Balancer'
-order: 54
+order: 55
 seoTitle: 'Application Load Balancer - HTTP/HTTPS Routing | Stacktape Docs'
 seoDescription: 'Create an HTTP/HTTPS load balancer with Stacktape using AWS ALB. Flat ~$18/month pricing, advanced routing by path/host/headers, WebSocket support, WAF, and gradual deployments.'
 ---
@@ -18,7 +18,7 @@ Common patterns that fit well:
 - **Container-based web services** — [web services](/resources/compute/web-service) and [private services](/resources/compute/private-service) that stay running and serve HTTP traffic
 - **Multiple services behind one endpoint** — route `/api/*` to one service, `/admin/*` to another, using priority-based rules
 - **WebSocket applications** — Stacktape's Application Load Balancer is the documented path for WebSocket connections; the [HTTP API Gateway](/resources/networking/http-api-gateway) integration source documents HTTP method/path routing, not WebSocket routes
-- **Firewall-protected APIs** — attach a [web application firewall](/resources/security/web-application-firewall) directly to the ALB for rate limiting, IP filtering, and bot protection
+- **Firewall-protected APIs** — attach a [web application firewall](/resources/security/web-application-firewall) directly to the ALB to protect against common web exploits
 - **Gradual deployments** — canary and linear deployment strategies require an ALB
 - **Sustained high traffic** — flat pricing is cheaper than pay-per-request above moderate volume
 
@@ -32,16 +32,18 @@ Common patterns that fit well:
 <FeatureComparisonTable
   columns={["Application Load Balancer", "HTTP API Gateway"]}
   features={[
-    { name: "Pricing model", values: { "Application Load Balancer": "Flat ~$18/month + LCU-based", "HTTP API Gateway": "~$1/million requests" } },
+    { name: "Pricing model", values: { "Application Load Balancer": "Flat ~$18/month + LCU-based", "HTTP API Gateway": "Pay-per-request" } },
     { name: "Best for", values: { "Application Load Balancer": "Container workloads", "HTTP API Gateway": "Lambda functions" } },
-    { name: "Scales to zero cost", values: { "Application Load Balancer": false, "HTTP API Gateway": true } },
+    { name: "Scales to zero cost", values: { "Application Load Balancer": "No", "HTTP API Gateway": "Yes" } },
     { name: "Routing options", values: { "Application Load Balancer": "Path, method, host, headers, query params, source IPs", "HTTP API Gateway": "Method + path" } },
-    { name: "WebSocket support", values: { "Application Load Balancer": true, "HTTP API Gateway": false } },
-    { name: "Direct WAF attachment", values: { "Application Load Balancer": true, "HTTP API Gateway": false } },
-    { name: "Gradual deployments", values: { "Application Load Balancer": true, "HTTP API Gateway": false } },
-    { name: "CDN attachable", values: { "Application Load Balancer": true, "HTTP API Gateway": true } }
+    { name: "WebSocket support", values: { "Application Load Balancer": "Yes", "HTTP API Gateway": "No" } },
+    { name: "Direct WAF attachment", values: { "Application Load Balancer": "Yes", "HTTP API Gateway": "No" } },
+    { name: "Gradual deployments", values: { "Application Load Balancer": "Yes", "HTTP API Gateway": "No" } },
+    { name: "CDN attachable", values: { "Application Load Balancer": "Yes", "HTTP API Gateway": "Yes" } }
   ]}
 />
+
+For full [HTTP API Gateway](/resources/networking/http-api-gateway) capabilities and feature details, see the dedicated HTTP API Gateway page.
 
 ## Basic example
 
@@ -151,13 +153,13 @@ export default defineConfig(() => {
   ]}
 />
 
-The `priority` values determine evaluation order. Requests to `/users/123` match `usersApi` (priority 10), and `/orders/456` match `ordersApi` (priority 20). Requests that don't match any rule get the listener's default action.
+The `priority` values determine evaluation order. Requests to `/users/123` match `usersApi` (priority 10), and `/orders/456` match `ordersApi` (priority 20). If a listener has a `defaultAction` configured, requests that don't match any rule receive that redirect.
 
 ## Listeners
 
-By default, an Application Load Balancer creates two listeners: HTTPS on port 443 and HTTP on port 80 (redirecting to HTTPS). Custom listeners let you change ports, add IP restrictions, or define redirect behavior for unmatched requests.
+When `listeners` is omitted, an Application Load Balancer creates two default listeners: HTTPS on port 443 and HTTP on port 80 (redirecting to HTTPS). Custom listeners let you change ports, add IP restrictions, or define redirect behavior for unmatched requests.
 
-Custom listeners default to the same shape — HTTPS on 443 and HTTP on 80 redirecting to HTTPS. Any HTTPS listener requires a TLS certificate: Stacktape provisions one automatically when you configure `customDomains`, or you supply your own ACM certificates via the listener's `customCertificateArns`. If neither is set, an HTTPS listener cannot be created.
+When you provide custom listener objects, each requires an explicit `protocol` (`HTTP` or `HTTPS`) and `port`. Any HTTPS listener requires a TLS certificate: Stacktape provisions one automatically when you configure `customDomains`, or you supply your own ACM certificates via the listener's `customCertificateArns`. If neither is set, an HTTPS listener cannot be created.
 
 **When to configure custom listeners:** You need a non-standard port, want to restrict access by IP address, or need a custom redirect for unmatched requests.
 
@@ -179,25 +181,11 @@ export default defineConfig(() => {
       {
         protocol: 'HTTPS',
         port: 443,
-        whitelistIps: ['10.0.0.0/8', '192.168.1.0/24'],
-        defaultAction: {
-          type: 'redirect',
-          properties: {
-            path: '/maintenance',
-            statusCode: 'HTTP_302'
-          }
-        }
+        whitelistIps: ['10.0.0.0/8', '192.168.1.0/24']
       },
       {
         protocol: 'HTTP',
-        port: 80,
-        defaultAction: {
-          type: 'redirect',
-          properties: {
-            protocol: 'HTTPS',
-            statusCode: 'HTTP_301'
-          }
-        }
+        port: 80
       }
     ]
   });
@@ -215,7 +203,7 @@ The `protocol` is either `HTTP` or `HTTPS`. HTTPS listeners require a TLS certif
 
 The `whitelistIps` property restricts access to specific IP addresses or CIDR ranges. When set, requests from other IPs are rejected at the load balancer level before reaching your application.
 
-In the provided `ApplicationLoadBalancerListener` type, `defaultAction` is `LbRedirect`, so the documented default action is a redirect. The `statusCode` is either `HTTP_301` (permanent) or `HTTP_302` (temporary). Redirect targets can reuse parts of the original URL with placeholders: `#{protocol}`, `#{host}`, `#{port}`, `#{path}`, and `#{query}`.
+The optional `defaultAction` property on a custom listener configures a redirect for requests that don't match any integration rule. The `statusCode` is either `HTTP_301` (permanent) or `HTTP_302` (temporary). Redirect targets can reuse parts of the original URL with placeholders: `#{protocol}`, `#{host}`, `#{port}`, `#{path}`, and `#{query}`.
 
 ## Custom domains
 
@@ -245,7 +233,7 @@ export default defineConfig(() => {
   ]}
 />
 
-You can list multiple domain configurations. By default, Stacktape creates DNS records and TLS certificates for the configured domains. If you manage DNS yourself, set `disableDnsRecordCreation: true`; in that case the source also instructs you to provide `customCertificateArn` with an ACM certificate ARN.
+You can list multiple domain configurations. By default, Stacktape creates DNS records and TLS certificates for the configured domains. These options can be configured independently: set `disableDnsRecordCreation: true` if you manage DNS records yourself (Stacktape still provisions the TLS certificate), or provide `customCertificateArn` to use your own ACM certificate instead of the auto-generated one.
 
 Prefer the object form (`{ domainName: 'api.example.com' }`) because it also supports certificate and DNS options; Stacktape still accepts the backward-compatible `string[]` form for domain names.
 
@@ -286,7 +274,7 @@ export default defineConfig(() => {
   ]}
 />
 
-Setting `enabled: true` activates the CDN. The `cloudfrontPriceClass` controls which edge regions are used — `PriceClass_100` (North America + Europe, cheapest), `PriceClass_200` (adds Asia, Middle East, Africa), or `PriceClass_All` (default, all regions worldwide).
+Setting `enabled: true` activates the CDN. The `cloudfrontPriceClass` controls which edge regions are used — `PriceClass_100` (North America + Europe, cheapest), `PriceClass_200` (adds Asia, Middle East, Africa), or `PriceClass_All` (all regions worldwide). See the [CDN page](/resources/networking/cdn) for default values and cache behavior details.
 
 When the ALB uses custom listeners, set `listenerPort` to tell CloudFront which listener to target. You can also attach a [web application firewall](/resources/security/web-application-firewall) to the CDN using the CDN's own `useFirewall` property.
 
@@ -296,9 +284,9 @@ See [CDN](/resources/networking/cdn) for the full CDN configuration surface.
 
 ## Firewall
 
-The `useFirewall` property attaches a [web application firewall](/resources/security/web-application-firewall) directly to the Application Load Balancer, protecting it from common web exploits, bots, and abuse.
+The `useFirewall` property attaches a [web application firewall](/resources/security/web-application-firewall) directly to the Application Load Balancer, protecting it from common web exploits.
 
-**When to enable firewall:** Your ALB is internet-facing and you need rate limiting, IP-based blocking, geo-restriction, or protection against SQL injection and XSS attacks. This is recommended for production APIs that handle user-generated input.
+**When to enable firewall:** Your ALB is internet-facing and you want to protect it from common web exploits. See [Web application firewall](/resources/security/web-application-firewall) for the full range of WAF capabilities including rate limiting, IP-based blocking, geo-restriction, and managed rule groups.
 
 **When to skip firewall:** Internal ALBs or development stages where the overhead and cost of WAF rules aren't justified. The ALB itself provides basic network-level security through security groups.
 
@@ -428,19 +416,15 @@ Use `$ResourceParam('myAlb', 'paramName')` in your config to reference ALB value
 
 ### How much does an Application Load Balancer cost?
 
-AWS ALB has a flat base charge of roughly $16–18/month (varies by region) plus a variable component based on Load Balancer Capacity Units (LCUs). LCUs measure active connections, new connections, bandwidth, and rule evaluations — most moderate-traffic apps use less than 1 LCU. AWS offers a Free Tier that includes 750 hours of ALB usage and 15 LCUs per month for the first 12 months.
+AWS ALB has a flat base charge of roughly $18/month plus a variable component based on Load Balancer Capacity Units (LCUs). LCUs measure active connections, new connections, bandwidth, and rule evaluations — most moderate-traffic apps stay near the base cost. ALB is AWS Free Tier eligible. Note the base cost runs even at zero traffic, so a pay-per-request [HTTP API Gateway](/resources/networking/http-api-gateway) is cheaper for low or spiky volume.
 
 ### How do I route traffic to multiple services through one ALB?
 
-Define multiple compute resources (Lambda functions, container workloads) each with their own `ApplicationLoadBalancerIntegration` event referencing the same ALB by name. Each integration specifies a `priority` (lower numbers are evaluated first) and matching conditions like `paths`, `methods`, or `hosts`. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API.
-
-### Can I use a custom domain with an Application Load Balancer?
-
-Yes. Add a `customDomains` array to your ALB configuration with your domain name. By default, Stacktape creates DNS records and TLS certificates for configured domains. Your domain must have a Route53 hosted zone — set one up with [`stacktape domain:add`](/cli/domain-add). See [Custom domains](/resources/networking/custom-domains) for details.
+Routes live on the compute resources, not on the ALB. Give each Lambda function or container workload its own `ApplicationLoadBalancerIntegration` event referencing the same ALB by name, with a `priority` (rules are evaluated lowest-first, first match wins) and matching conditions like `paths`, `methods`, or `hosts`. Leave gaps between priority values (10, 20, 30) so you can insert rules later without renumbering. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API.
 
 ### What's the difference between an Application Load Balancer and a Network Load Balancer?
 
-An [Application Load Balancer](/resources/networking/application-load-balancer) operates at the HTTP layer (Layer 7) and can route based on URL path, headers, query params, and host. A [Network Load Balancer](/resources/networking/network-load-balancer) operates at the TCP/TLS layer (Layer 4) and is designed for raw TCP traffic, extremely high throughput, and ultra-low latency. Use an ALB for web APIs and HTTP services; use an NLB for non-HTTP protocols, gRPC, or when you need static IP addresses.
+An [Application Load Balancer](/resources/networking/application-load-balancer) operates at the HTTP layer (Layer 7) and can route based on URL path, headers, query params, and host. A [Network Load Balancer](/resources/networking/network-load-balancer) operates at the TCP/TLS layer (Layer 4) and handles non-HTTP traffic. Use an ALB for web APIs and HTTP services; see the [Network Load Balancer](/resources/networking/network-load-balancer) page for NLB-specific capabilities and when to choose it.
 
 ### When should I use an ALB vs HTTP API Gateway?
 
@@ -450,18 +434,6 @@ Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-bas
 
 Yes. AWS ALB natively supports WebSocket connections over HTTP/HTTPS listeners. Once the initial HTTP upgrade handshake completes, the ALB maintains the persistent bidirectional connection between client and backend. This makes ALB the right networking choice for real-time applications using Socket.io, ws, or similar WebSocket libraries. Stacktape's Application Load Balancer is the documented path for WebSocket connections.
 
-### Can I restrict access to specific IP addresses?
+### Why isn't my health check configured on the Application Load Balancer resource?
 
-Yes. Use the `whitelistIps` property on a listener to restrict access to specific IP addresses or CIDR ranges. Requests from IPs not in the whitelist are rejected at the ALB level before reaching your application. For more granular IP-based rules (rate limiting, geo-blocking), attach a [web application firewall](/resources/security/web-application-firewall) using the `useFirewall` property.
-
-### How does ALB health checking work?
-
-AWS ALB continuously checks the health of registered targets (containers or Lambda functions) by sending periodic HTTP requests to a configured health check path. Unhealthy targets are automatically removed from the routing pool and re-added when they recover. Application Load Balancer alarming can monitor unhealthy targets. The provided ALB resource type does not define health-check settings directly; target-side health-check configuration is on the container workload or service resource. See [web service](/resources/compute/web-service) or [multi-container workload](/resources/compute/multi-container-workload) for health check settings.
-
-### Can I use an internal ALB for service-to-service communication?
-
-Yes. Set `interface: 'internal'` to create an ALB that's only reachable within your VPC. Internal ALBs support all the same routing, listener, and alarm features as internet-facing ALBs — they just aren't reachable from the internet. This is useful for backend APIs consumed by other services in the same stack, or for services accessed through a VPN.
-
-### How do I attach a firewall to my Application Load Balancer?
-
-Define a [web application firewall](/resources/security/web-application-firewall) resource with a regional scope, then reference it by name in the ALB's `useFirewall` property. The firewall filters traffic before it reaches your application. If you also use a CDN in front of the ALB, you can attach a separate firewall to the CDN distribution using the CDN's `useFirewall` property for edge-level protection.
+The ALB resource itself does not define health-check settings — they live on the target. AWS ALB continuously probes registered targets and removes unhealthy ones from the routing pool, but the health-check path and thresholds are configured on the container workload or service that receives the traffic. See [web service](/resources/compute/web-service) or [multi-container workload](/resources/compute/multi-container-workload) for health-check settings, and use the `application-load-balancer-unhealthy-targets` alarm to be notified when targets fail.

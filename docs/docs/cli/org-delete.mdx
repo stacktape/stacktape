@@ -1,21 +1,23 @@
 ---
 title: 'org:delete'
-order: 175
+order: 182
 seoTitle: 'org:delete CLI Command | Stacktape Docs'
-seoDescription: 'Delete a Stacktape organization with the org:delete CLI command. Requires owner role, no active users, and no connected AWS accounts. Supports interactive and agent modes.'
+seoDescription: 'Remove your access to a Stacktape organization with the org:delete CLI command. Requires OWNER role, no other non-service users, and no active connected AWS accounts.'
 ---
 
 # org:delete
 
-Removes your access to a Stacktape organization. This command is restricted to organization owners and only succeeds when no other non-service users remain and no AWS accounts are connected to the organization.
+The `stacktape org:delete` command removes your access to a Stacktape organization. Use it when you need to permanently leave an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. In interactive mode you select the target organization and confirm; in agent mode, pass `--organizationId` directly.
 
 ## Usage
+
+Run `org:delete` without flags for the interactive flow, or pass `--agent` and `--organizationId` for non-interactive use in CI and agent workflows.
 
 ```bash
 stacktape org:delete
 ```
 
-In interactive mode, you select from a list of your organizations and confirm the deletion. In agent mode, pass `--organizationId` directly.
+In interactive mode, you select from a list of your organizations and confirm removing your access. In agent mode, pass `--organizationId` directly.
 
 ```bash
 stacktape org:delete --agent --organizationId "org_abc123"
@@ -23,7 +25,7 @@ stacktape org:delete --agent --organizationId "org_abc123"
 
 ## Prerequisites
 
-Before you can delete an organization:
+Before you can remove your access to an organization:
 
 1. Remove all non-service users (other team members must be removed first).
 2. Disconnect all AWS accounts from the organization.
@@ -32,36 +34,12 @@ Before you can delete an organization:
 If any of these conditions are not met, the operation will fail.
 
 <Warning>
-This operation removes your access to the organization. Ensure you have backed up or migrated any projects and configurations you need before proceeding.
+This operation removes your access to the organization. Make sure you have another way to access anything you still need before continuing.
 </Warning>
 
-## Important flags
-
-| Flag | Purpose |
-|------|---------|
-| `--organizationId` | Required in agent mode. The ID of the organization to delete. Use [`org:list`](/cli/org-list) to find available IDs. |
-| `--agent` | Disables interactive prompts and outputs structured JSONL. Requires `--organizationId`. |
-| `--outputFormat` | Controls output format: `jsonl`, `plain`, or `tty`. Auto-detected when omitted. |
-
-## Examples
-
-List your organizations first, then delete one by ID:
-
-```bash
-stacktape org:list
-```
-
-```bash
-stacktape org:delete --organizationId "org_abc123"
-```
-
-Non-interactive deletion in CI or agent workflows:
-
-```bash
-stacktape org:delete --agent --organizationId "org_abc123"
-```
-
 ## Flags reference
+
+The `org:delete` command accepts the following flags. None are required in interactive mode; agent mode requires `--organizationId`.
 
 <CliCommandsApiReference command="org:delete" sortedArgs={[
   {
@@ -116,7 +94,27 @@ stacktape org:delete --agent --organizationId "org_abc123"
   }
 ]} />
 
+## Examples
+
+List your organizations first, then remove access to one by ID. Without `--agent`, passing `--organizationId` skips the organization picker but still asks for confirmation.
+
+```bash
+stacktape org:list
+```
+
+```bash
+stacktape org:delete --organizationId "org_abc123"
+```
+
+Non-interactive removal in CI or agent workflows:
+
+```bash
+stacktape org:delete --agent --organizationId "org_abc123"
+```
+
 ## Related commands
+
+Other organization management commands and the whoami command for verifying your current context.
 
 - [`org:create`](/cli/org-create) — create a new organization
 - [`org:list`](/cli/org-list) — list all organizations accessible to your user

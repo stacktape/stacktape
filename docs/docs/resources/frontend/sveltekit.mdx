@@ -1,6 +1,6 @@
 ---
 title: 'SvelteKit'
-order: 41
+order: 42
 seoTitle: 'Deploy SvelteKit with Stacktape | Stacktape Docs'
 seoDescription: 'Deploy SvelteKit SSR apps on AWS with Stacktape. Configure app directories, custom domains, CDN caching, environment variables, and Lambda settings.'
 ---
@@ -11,7 +11,7 @@ A Stacktape SvelteKit resource deploys a SvelteKit SSR app with a Lambda-based s
 
 ## When to use
 
-Use a Stacktape SvelteKitWeb resource when your SvelteKit app needs server-side rendering, endpoint routes, form actions, or other runtime behavior that cannot be exported as static files. The resource is shaped around the standard SvelteKit project layout: Stacktape builds the app, uploads static assets, and runs SSR requests through a Lambda server function.
+Use a Stacktape SvelteKitWeb resource when your SvelteKit app needs server-side rendering or other runtime behavior that cannot be exported as static files. The resource is shaped around the standard SvelteKit project layout: Stacktape builds the app, uploads static assets, and runs SSR requests through a Lambda server function.
 
 Common use cases:
 
@@ -25,7 +25,7 @@ Common use cases:
 
 A Stacktape SvelteKitWeb resource is not the best fit when the app does not need a SvelteKit SSR runtime. Static-only SvelteKit sites should use [static hosting](/resources/frontend/static-hosting) with `hostingContentType: 'sveltekit-static-website'`, because an SSR Lambda function adds runtime behavior you are not using.
 
-- **Static-only SvelteKit output** — use [static hosting](/resources/frontend/static-hosting) instead of deploying a server Lambda.
+- **Static-only SvelteKit output** — use a `HostingBucket` with `hostingContentType: 'sveltekit-static-website'` via [static hosting](/resources/frontend/static-hosting) instead of deploying a server Lambda.
 - **Non-Svelte frontend frameworks** — use the dedicated resource for [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), or [Remix](/resources/frontend/remix).
 - **Custom container servers** — use a [web-service](/resources/compute/web-service) when you want to run your own containerized HTTP server instead of the SvelteKit Lambda adapter path.
 - **Backend APIs without a frontend app** — use a [Lambda function](/resources/compute/lambda-function), [web-service](/resources/compute/web-service), or [HTTP API Gateway](/resources/networking/http-api-gateway) depending on the runtime shape.
@@ -57,7 +57,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `frontend` resource builds the SvelteKit app from `./apps/web`, stores static assets in S3, serves them through CloudFront, and runs SSR requests through the generated server Lambda function.
+The `frontend` resource builds the SvelteKit app from `./apps/web`, uses S3 for static assets, uses CloudFront as the CDN, and configures a Lambda-based SvelteKit server.
 
 ## Project directory
 
@@ -91,7 +91,7 @@ export default defineConfig(() => {
   ]}
 />
 
-Use `buildCommand` for commands that must run from the SvelteKit app directory. For dev mode, the `dev` property customizes how `stacktape dev` starts the local SvelteKit dev server; when omitted, Stacktape uses `vite dev`.
+Set `buildCommand` when the default `vite build` command is not the command your SvelteKit workspace should run. For dev mode, the `dev` property customizes how `stacktape dev` starts the local SvelteKit dev server; when omitted, Stacktape uses `vite dev`.
 
 ## Domains
 
@@ -144,78 +144,72 @@ SvelteKitWeb environment variables are passed to the SSR Lambda function. Use `e
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, SvelteKitWeb } from 'stacktape';
+      code: `import { defineConfig, SvelteKitWeb, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 
 export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgres({ primaryInstance: { instanceSize: 'db.t4g.micro' } })
+  });
+
   const frontend = new SvelteKitWeb({
     appDirectory: './apps/web',
     // [!code focus-start]
     environment: [
       { name: 'INTERNAL_API_BASE_URL', value: 'https://api.example.com' },
       { name: 'FEATURE_SEARCH_ENABLED', value: true }
-    ]
+    ],
+    connectTo: ['mainDatabase']
     // [!code focus-end]
   });
 
-  return { resources: { frontend } };
-});`
+  return { resources: { mainDatabase, frontend } };
+});
+`
     }
   ]}
 />
 
 When `connectTo` references another resource, Stacktape grants the needed IAM permissions, opens supported network access for databases and Redis, and injects connection variables using the `STP_[RESOURCE_NAME]_[PARAM]` pattern. For example, a connected relational database named `mainDatabase` injects `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`; see [connecting resources](/configuration/connecting-resources) for the full matrix.
 
+When `connectTo` does not cover the AWS service you need — for example, calling Amazon Rekognition, Textract, or Bedrock — use `iamRoleStatements` to attach raw IAM policy statements to the SSR Lambda function's execution role. These statements are added alongside any permissions generated by `connectTo`.
+
 ## Server Lambda
 
-The `serverLambda` property customizes the Lambda function that handles SvelteKit SSR requests. Use it when the server side of the app needs different memory, timeout, VPC, or logging configuration than the default generated function.
+The `serverLambda` property customizes the Lambda function that handles SvelteKit SSR requests. Use it when the server side of the app needs different memory, timeout, VPC, or logging configuration than the default generated function. The SSR function inherits memory, CPU, timeout, and VPC behavior from [Lambda functions](/resources/compute/lambda-function).
 
 Reach for `serverLambda` only when you have a concrete runtime reason: slow SSR routes, larger server-side dependencies, VPC-only dependencies, or logging requirements. Keep the default for small sites and early stages, because changing Lambda runtime settings adds operational surface without changing the SvelteKit programming model.
 
 ## Security
 
-SvelteKitWeb can attach a [web application firewall](/resources/security/web-application-firewall) at the CDN layer with `useFirewall`. The referenced firewall must be a `web-app-firewall` resource with `scope: 'cdn'`, because SvelteKitWeb traffic is protected through CloudFront rather than an Application Load Balancer.
+SvelteKitWeb can attach a [web application firewall](/resources/security/web-application-firewall) at the CDN layer with `useFirewall`. `useFirewall` is the name of a separately defined `web-app-firewall` resource, not an inline firewall configuration. The referenced firewall must have `scope: 'cdn'`, because SvelteKitWeb traffic is protected through CloudFront rather than an Application Load Balancer.
 
 Use a CDN-scoped firewall for public production apps that need request filtering before traffic reaches the SSR Lambda function. Skip it for internal previews, low-risk prototypes, or apps already protected by another access layer; firewall rules add configuration and can block legitimate requests if they are too broad.
 
-## How it works
+## Dev mode
 
-A Stacktape SvelteKitWeb deployment separates static assets from server-rendered traffic. Static assets are stored in S3 and served through CloudFront, while the SvelteKit SSR runtime runs as a Lambda function configured through the `serverLambda` subtree.
-
-That split explains the main configuration levers. Use `fileOptions` for static file headers, `cdn` for CDN cache behavior, `customDomains` for CloudFront-facing domains, and `serverLambda` for the Lambda runtime that handles SSR requests.
+The `dev` property configures how [`stacktape dev`](/cli/dev) starts the local SvelteKit dev server. When omitted, Stacktape defaults to `vite dev`. Override `dev` when your project uses a different dev command — for example, a workspace-scoped script or a custom Vite configuration path. Environment variables from `connectTo` and `environment` are injected into the dev server process, so server-side code can reach deployed databases and other resources during local development. See [dev mode](/local-development/dev-mode-overview) for the broader local development workflow.
 
 ## FAQ
 
-### Does SvelteKitWeb deploy SSR or static SvelteKit apps?
-
-SvelteKitWeb is for SvelteKit SSR apps. The source definition describes a Lambda-based SvelteKit server, S3 static assets, and a CloudFront CDN. For static-only SvelteKit output, use [static hosting](/resources/frontend/static-hosting) with `hostingContentType: 'sveltekit-static-website'`.
-
 ### When should I use static hosting instead of SvelteKitWeb?
 
-Use [static hosting](/resources/frontend/static-hosting) when your SvelteKit app can be exported as static files and does not need server-side rendering or runtime endpoint handling. Static hosting avoids deploying a server Lambda function for behavior the site does not use.
+Use SvelteKitWeb when your app needs server-side rendering or runtime endpoints; it deploys a Lambda-based SvelteKit server, S3 static assets, and a CloudFront CDN. If your app can be exported as static files, use [static hosting](/resources/frontend/static-hosting) with `hostingContentType: 'sveltekit-static-website'` instead, which avoids deploying a server Lambda for behavior the site does not use.
 
-### Can I use a custom domain with SvelteKitWeb?
+### Why does my custom domain fail to provision?
 
-Yes. Add `customDomains` with a `domainName`, and Stacktape can create the DNS record and provision a TLS certificate. The domain needs a Route 53 hosted zone in the AWS account; see [custom domains](/resources/networking/custom-domains) for the broader domain model.
+Custom domains for SvelteKitWeb require a Route 53 hosted zone in the AWS account. If your registrar is not Route 53, the registrar must still point the domain at the Route 53 hosted zone nameservers. Write `domainName` without the `https://` prefix; Stacktape then creates the DNS record and provisions a TLS certificate. See [custom domains](/resources/networking/custom-domains) for the broader model.
 
 ### How do SvelteKit environment variables and database access work?
 
 Use `environment` for explicit variables passed to the SSR Lambda function. Use `connectTo` when the SvelteKit server needs access to another Stacktape resource; a database named `mainDatabase` gets variables such as `STP_MAIN_DATABASE_CONNECTION_STRING`. See [connecting resources](/configuration/connecting-resources) for the injected variable pattern.
 
-### Can I protect a SvelteKit app with AWS WAF?
+### How do I protect a SvelteKit app with AWS WAF?
 
-Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource whose scope is `cdn`. That scopes protection to the CloudFront CDN path used by SvelteKitWeb.
+Set `useFirewall` to the name of a separately defined [web application firewall](/resources/security/web-application-firewall) resource. `useFirewall` takes a resource name, not an inline firewall config, and the referenced firewall must have `scope: 'cdn'` because SvelteKitWeb traffic is filtered through CloudFront rather than an Application Load Balancer.
 
 ### How much does SvelteKit hosting on AWS cost?
 
 A SvelteKitWeb app uses Lambda for SSR execution, S3 for static asset storage, and CloudFront for CDN delivery. AWS billing therefore depends on server invocation volume and duration, stored assets, request counts, and data transfer. Use [managing costs](/managing-costs/overview) to track deployed stack spend.
-
-### Does CloudFront cache SvelteKit responses?
-
-SvelteKitWeb includes a CloudFront CDN, and the `cdn` property configures cache controls for SSR routes and specific path patterns. Cache only responses that are safe to share across users; dynamic pages that depend on cookies or authorization usually need conservative caching. See [CDN](/resources/networking/cdn) for CloudFront-oriented decisions.
-
-### Should I use SvelteKitWeb or NextjsWeb?
-
-Use SvelteKitWeb for SvelteKit applications and [NextjsWeb](/resources/frontend/nextjs) for Next.js applications. The resources are framework-specific because each framework has its own build output and server runtime expectations. Pick the resource that matches the framework already used by your frontend.
 
 ### Should I use SvelteKitWeb or a web-service?
 
@@ -224,6 +218,10 @@ Use SvelteKitWeb when you want Stacktape to deploy the SvelteKit SSR app through
 ### How do I configure SvelteKitWeb in a monorepo?
 
 Set `appDirectory` to the directory containing the SvelteKit app's `svelte.config.js`, such as `./apps/web`. Keep framework-specific build scripts inside that workspace, then override `buildCommand` only when the default `vite build` command is not the right command for that workspace.
+
+## Referenceable parameters
+
+<ReferenceableParams resource="sveltekit-web" />
 
 ## API Reference
 

@@ -107,7 +107,7 @@ Full deployment:
 For resource-intensive builds (large Docker images, monorepos), offload to AWS CodeBuild:
 
 ```bash
-stacktape codebuild:deploy --stage production --region us-east-1
+stacktape deploy --runner codebuild --stage production --region us-east-1
 ```
 
 This:
@@ -280,7 +280,7 @@ stacktape stack:list --region us-east-1
 See what will change before deploying:
 
 ```bash
-stacktape preview-changes --stage dev --region us-east-1
+stacktape diff --stage dev --region us-east-1
 ```
 
 Output:
@@ -433,7 +433,7 @@ You've hit AWS service limits. Request a limit increase in AWS Console under Ser
 ### "Deployment is taking too long"
 
 - Check if you're deploying a large Docker image (use `--logLevel debug`)
-- Consider using `codebuild:deploy` for better build performance
+- Consider using `deploy --runner codebuild` to offload the build to AWS CodeBuild
 - Ensure your config doesn't create unnecessary resources
 
 ### "No changes to deploy"

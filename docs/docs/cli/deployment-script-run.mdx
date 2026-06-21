@@ -1,25 +1,16 @@
 ---
 title: 'deployment-script:run'
-order: 133
+order: 139
 seoTitle: 'deployment-script:run CLI Command | Stacktape Docs'
-seoDescription: 'Re-run a deployment script without a full deploy. Hot-swap the Lambda code, invoke it, and see the result in seconds. Requires stage, region, and resourceName.'
+seoDescription: 'Re-run a deployment script without a full deploy. Hot-swap the Lambda code and invoke it without a full stack update. Requires stage, region, and resourceName.'
 ---
 
 # deployment-script:run
 
-The `deployment-script:run` command re-packages and invokes a single [deployment script](/resources/advanced/deployment-scripts) without running a full [deploy](/cli/deploy). Use it to iterate on script logic — fix a migration, adjust a seed routine, or re-run a post-deploy step — without waiting for a complete stack update.
-
-## What it does
-
-When you run `deployment-script:run`, Stacktape performs a targeted update:
-
-1. Rebuilds the script's Lambda function code from your local source.
-2. Uploads and hot-swaps the new code onto the existing Lambda.
-3. Invokes the function with the `parameters` defined in your configuration (resolved locally).
-4. Prints the function's response payload — or the error — to your terminal.
+The `deployment-script:run` command re-packages and invokes a single [deployment script](/resources/advanced/deployment-scripts) without running a full [deploy](/cli/deploy). Use it to iterate on script logic — fix a migration, adjust a seed routine, or re-run a post-deploy step — without waiting for a complete stack update. The command rebuilds the script's Lambda function code from your local source, hot-swaps it onto the existing Lambda, resolves the script's `parameters` from your current local configuration, invokes the function, and prints the response payload or error to your terminal.
 
 <Warning>
-This command only updates the script's **source code**. Changes to environment variables, memory, timeout, VPC settings, or any other configuration require a full [`deploy`](/cli/deploy).
+This command updates the script's **source code** and resolves `parameters` from your local configuration. Changes to environment variables, memory, timeout, VPC settings, or other Lambda configuration require a full [`deploy`](/cli/deploy).
 </Warning>
 
 ## Usage
@@ -34,36 +25,7 @@ The three required flags identify which deployed script to target:
 - **`--region`** — the AWS region of the stack.
 - **`--resourceName`** — the name of the deployment script resource in your Stacktape configuration.
 
-## Prerequisites
-
-The deployment script must already exist in your configuration **and** be deployed to the target stack. If either condition is not met, the command fails:
-
-- **Not in config** — Stacktape returns a `NON_EXISTING_RESOURCE` error indicating the resource is not defined in your configuration file. Add the resource and run [`deploy`](/cli/deploy) first.
-- **Not deployed** — Stacktape returns a `NON_EXISTING_RESOURCE` error indicating the resource has not been deployed to the stack. Run [`deploy`](/cli/deploy) to provision it before using this command.
-
-## Examples
-
-Re-run a database migration script against a staging stack:
-
-```bash
-stacktape deployment-script:run --stage staging --region us-east-1 --resourceName runMigrations
-```
-
-Re-run a seed script with debug-level logging to inspect the full invocation flow:
-
-```bash
-stacktape deployment-script:run --stage dev --region eu-west-1 --resourceName seedData --logLevel debug
-```
-
-Point to a non-default config file location:
-
-```bash
-stacktape deployment-script:run --stage production --region us-west-2 --resourceName postDeployHook --configPath ./infra/stacktape.ts
-```
-
-## When to use this vs deploy
-
-Use `deployment-script:run` when you are iterating on the script's handler code and want fast feedback — the command skips CloudFormation entirely, so turnaround is seconds rather than minutes. Switch to a full [`deploy`](/cli/deploy) when you change anything besides the script's source code (environment variables, memory, timeout, packaging settings, parameters, or VPC configuration).
+The deployment script must already exist in your configuration **and** be deployed to the target stack. If the resource is not defined in your configuration file or not present in the deployed stack, the command fails. Add the resource and run [`deploy`](/cli/deploy) first.
 
 ## Arguments reference
 
@@ -232,6 +194,30 @@ Use `deployment-script:run` when you are iterating on the script's handler code 
     "longDescription": "<p>The ID of the template to download. You can find a list of available templates on the <a href=\"https://console.stacktape.com/templates\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Config Builder page</a>.</p>\n"
   }
 ]} />
+
+## Examples
+
+Re-run a database migration script against a staging stack:
+
+```bash
+stacktape deployment-script:run --stage staging --region us-east-1 --resourceName runMigrations
+```
+
+Re-run a seed script with debug-level logging for more detailed CLI logs:
+
+```bash
+stacktape deployment-script:run --stage dev --region eu-west-1 --resourceName seedData --logLevel debug
+```
+
+Point to a non-default config file location:
+
+```bash
+stacktape deployment-script:run --stage production --region us-west-2 --resourceName postDeployHook --configPath ./infra/stacktape.ts
+```
+
+## When to use this vs deploy
+
+Use `deployment-script:run` when you are iterating on the script's handler code and want fast feedback. The command rebuilds and hot-swaps only the script's function code, then invokes the Lambda — skipping a full stack update. The script's `parameters` are resolved from your current local configuration and sent as the invocation payload, so parameter changes take effect immediately without redeploying. Switch to a full [`deploy`](/cli/deploy) when you change Lambda configuration such as environment variables, memory, timeout, packaging settings, or VPC settings.
 
 ## Related commands
 

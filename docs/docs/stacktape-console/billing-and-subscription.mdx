@@ -1,19 +1,17 @@
 ---
 title: 'Billing and Subscription'
-order: 128
+order: 135
 seoTitle: 'Billing and Subscription Plans | Stacktape Console'
 seoDescription: 'Manage Stacktape subscriptions in the Console. Compare Free, Flexible, and Enterprise plans, view invoices, and complete Paddle checkout from the billing pages.'
-pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 7.5, hard blockers 2, advisory high 0, verifier medium 12'
 ---
 
 # Billing and Subscription
 
-Stacktape offers three subscription plans — Free, Flexible, and Enterprise — managed through the Stacktape Console. Billing uses Paddle as the payment processor. The Console lets you view invoices, change plans, and complete Paddle checkout from the billing pages.
+The Stacktape Console billing and subscription area is where you choose, compare, and switch between the Free, Flexible, and Enterprise plans. The Subscription Plans page handles plan selection using Paddle for checkout. The Billing page shows billing details, invoices, and a Paddle checkout container. Choose a plan based on team size, managed AWS spend, and support needs.
 
 ## What this part of the Console does
 
-The billing and subscription area covers two Console pages. The **Subscription Plans** page (at `/subscription-plans`) is where you choose or change your plan. The **Billing** page (at `/billing`) renders a billing details section, an invoices list, and a Paddle checkout container. Users with the VIEWER role are redirected to `/overview` when they attempt to access either page. On the subscription page, the **Upgrade now** and **Downgrade to FREE** buttons render only when the current user has the `org:manage-billing` permission. The `/billing` page passes that same `canManageBilling` flag to its billing details section.
+The billing and subscription area covers two Console pages. The **Subscription Plans** page is where you choose or change your plan. The **Billing** page shows billing details, an invoices list, and a Paddle checkout container. Users with the VIEWER role are redirected away from both pages. On the Subscription Plans page, the **Upgrade now** and **Downgrade to FREE** buttons appear only when the current user has the `org:manage-billing` permission. Payment management controls on the Billing page appear only when you have the `org:manage-billing` permission.
 
 ## Subscription plans
 
@@ -24,10 +22,10 @@ Stacktape bills based on the AWS infrastructure costs your stacks generate — n
   features={[
     { name: "Price", values: { "Free": "$0", "Flexible": "% of AWS costs", "Enterprise": "Custom" } },
     { name: "Team members", values: { "Free": "1", "Flexible": "Unlimited", "Enterprise": "Unlimited" } },
-    { name: "AWS cost limit", values: { "Free": "$100/mo", "Flexible": "No limit", "Enterprise": "Not listed" } },
-    { name: "Deployments", values: { "Free": "Unlimited", "Flexible": "Unlimited", "Enterprise": "Not listed" } },
-    { name: "Stacks", values: { "Free": "Unlimited", "Flexible": "Unlimited", "Enterprise": "Not listed" } },
-    { name: "Support", values: { "Free": "Community", "Flexible": "Hands-on", "Enterprise": "Up to 24x7 premium" } },
+    { name: "AWS cost limit", values: { "Free": "$100/mo", "Flexible": "—", "Enterprise": "—" } },
+    { name: "Deployments", values: { "Free": "Unlimited", "Flexible": "Unlimited", "Enterprise": "—" } },
+    { name: "Stacks", values: { "Free": "Unlimited", "Flexible": "Unlimited", "Enterprise": "—" } },
+    { name: "Support", values: { "Free": "—", "Flexible": "Hands-on", "Enterprise": "Up to 24x7 premium" } },
     { name: "SSO", values: { "Free": false, "Flexible": false, "Enterprise": true } },
     { name: "SOC 2 Compliance", values: { "Free": false, "Flexible": false, "Enterprise": true } }
   ]}
@@ -35,11 +33,11 @@ Stacktape bills based on the AWS infrastructure costs your stacks generate — n
 
 ### Free plan
 
-The Free plan requires no credit card. It supports one team member and covers managed AWS infrastructure costs up to $100 per month. This is a good fit for individual developers, hobby projects, or evaluating Stacktape before committing to a paid plan. You still need your own AWS account (billed separately by AWS), but Stacktape itself charges nothing on this tier.
+The Free plan requires no credit card. It supports one team member and covers managed AWS infrastructure costs up to $100 per month. The Free plan price is $0 — Stacktape itself charges nothing on this tier. This is a good fit for individual developers, hobby projects, or evaluating Stacktape before committing to a paid plan.
 
 ### Flexible plan
 
-The Flexible plan charges a tiered percentage of your Stacktape-managed AWS infrastructure costs. The percentage decreases as your managed AWS spend increases — see the `/subscription-plans` page in the Console for current rates. Stacktape does not charge for resources in your AWS account that exist outside Stacktape-managed stacks.
+The Flexible plan is priced as a percentage of AWS costs managed by Stacktape, with rate tiers shown on the Subscription Plans page. Stacktape does not charge for resources in your AWS account that exist outside Stacktape-managed stacks.
 
 The Flexible plan includes unlimited team members and hands-on support. Choose this when your team is growing or your AWS costs exceed the Free plan's $100/month cap.
 
@@ -49,56 +47,56 @@ The Enterprise plan shows custom pricing on the subscription page and includes a
 
 ## Walkthrough: upgrading to the Flexible plan
 
-1. **Open subscription plans** — In the Stacktape Console, navigate to `/subscription-plans`.
+1. **Open subscription plans** — In the Stacktape Console, navigate to the Subscription Plans page.
 2. **Review plan details** — Compare the three plans and their included features.
 3. **Click Upgrade now** — Under the Flexible plan card, click the **Upgrade now** button. This starts the Paddle checkout flow. The page includes a Paddle checkout container for payment processing.
 4. **Complete payment** — Enter your payment details in the Paddle checkout.
 5. **Confirm activation** — On success, the Console refetches your organization data and updates the displayed plan status.
 
-<Info>Only users with the `org:manage-billing` permission see the Upgrade and Downgrade buttons. If you don't see them, ask your organization owner to handle the billing change or adjust your role.</Info>
+<Info>Only users with the `org:manage-billing` permission see the Upgrade and Downgrade buttons. If you don't see them, ask someone with the `org:manage-billing` permission to handle the billing change or adjust your role. See [team and access control](/stacktape-console/team-and-access-control) for role management.</Info>
 
 ## Common tasks
 
 ### Viewing invoices
 
-In the Stacktape Console, navigate to `/billing`. The page renders a billing details section and an invoices list showing past payments.
+In the Stacktape Console, open the Billing page. It shows a billing details section, an invoices list, and a Paddle checkout container.
 
 ### Reviewing billing details
 
-On the `/billing` page, the billing details section receives a `canManageBilling` flag derived from the `org:manage-billing` permission. Users without that permission can still view the page (unless they have the VIEWER role, in which case they are redirected to `/overview`).
+Payment management controls appear only when you have the `org:manage-billing` permission; otherwise the Billing page is read-only. Users with the VIEWER role are redirected away before the page loads.
 
 ### Downgrading to the Free plan
 
-Navigate to `/subscription-plans`. Under the Free plan card, click **Downgrade to FREE**. This calls the Paddle subscription cancellation flow. On success, the Console refetches your organization data and updates the displayed plan. Free plan limits apply after downgrade (1 team member, $100/month managed AWS cost cap).
+Open the Subscription Plans page. Under the Free plan card, click **Downgrade to FREE**. The button calls the Console's cancellation flow and refreshes your organization data on success. The Free plan card lists 1 team member and up to $100/month AWS costs.
 
 ### Viewing current plan status
 
-The `/subscription-plans` page shows which plan is currently active. The active plan displays a "Currently active" indicator instead of an upgrade or downgrade button.
+The Subscription Plans page shows which plan is currently active. The Free and Flexible cards show a "Currently active" indicator instead of an upgrade or downgrade button when their plan is active.
 
 ## Permissions
 
 Billing access is gated in two ways:
 
-- **VIEWER redirect** — Users with the VIEWER role are redirected to `/overview` when they open `/billing` or `/subscription-plans`.
-- **`org:manage-billing`** — The **Upgrade now** and **Downgrade to FREE** buttons on `/subscription-plans` are rendered only when the current user has this permission. The same `canManageBilling` flag is passed into the billing details section on `/billing`.
+- **VIEWER redirect** — Users with the VIEWER role are redirected away from both the Billing and Subscription Plans pages.
+- **`org:manage-billing`** — The **Upgrade now** and **Downgrade to FREE** buttons on the Subscription Plans page appear only when the current user has this permission. Payment management controls on the Billing page appear only when you have this permission. Users without this permission can still view billing and subscription pages (except Viewers).
 
-For the full role-to-permission mapping and how to change a user's role, see [team and access control](/stacktape-console/team-and-access-control).
+For details on permissions and how to change a user's role, see [team and access control](/stacktape-console/team-and-access-control).
 
-<Warning>Users with the VIEWER role are automatically redirected to `/overview` when attempting to access billing or subscription pages.</Warning>
+<Warning>Users with the VIEWER role are automatically redirected away when attempting to access billing or subscription pages.</Warning>
 
 ## Troubleshooting
 
 ### Cannot see the Upgrade or Downgrade button
 
-You need the `org:manage-billing` permission. Ask your organization owner to adjust your role or handle the billing change. The buttons are conditionally rendered based on this permission.
+You need the `org:manage-billing` permission. Ask someone with this permission to handle the billing change or adjust your role. See [team and access control](/stacktape-console/team-and-access-control) for role management.
 
 ### Plan not updating after payment
 
-After a successful Paddle checkout, the Console refetches organization data and updates the selected organization from the response. If the plan still shows the old state, refresh the page manually. Paddle webhook delivery can occasionally take a few seconds.
+After completing the Paddle checkout, the Console updates your organization data. If the plan still shows the old state, refresh the page manually.
 
-### "No active subscription" on the billing page
+### Free plan shows as current but no subscription exists
 
-This means your organization is on the Free plan with no Paddle subscription attached. This is normal — navigate to `/subscription-plans` to upgrade if needed.
+On the Subscription Plans page, the Free plan displays a "Currently active" indicator when the plan type is `FREE`. This is normal — no Paddle subscription is needed for the Free tier. Open the Subscription Plans page and click **Upgrade now** under the Flexible plan card if you need a paid subscription.
 
 ## Related features
 
@@ -112,40 +110,28 @@ This means your organization is on the Free plan with no Paddle subscription att
 
 ### How does Stacktape pricing work?
 
-Stacktape charges based on the AWS infrastructure costs it manages for you. The Free plan covers up to $100/month with no fee. The Flexible plan charges a tiered percentage that decreases as your managed AWS spend increases. Enterprise pricing is custom. Stacktape does not charge for AWS resources outside its management.
-
-### Is there a per-deployment or per-request fee?
-
-No. The Free and Flexible plan cards list unlimited deployments and unlimited stacks. Pricing is based on AWS infrastructure costs managed by Stacktape, not on the number of deploys, API requests, or developer seats (on paid plans).
+Stacktape charges based on the AWS infrastructure costs it manages for you — not per seat, per deployment, or per request. The Free plan covers up to $100/month of managed AWS costs with no fee. The Flexible plan is priced as a percentage of managed AWS costs, with rate tiers shown on the Subscription Plans page, and includes unlimited deployments and stacks. Enterprise pricing is custom.
 
 ### What counts as "managed AWS costs"?
 
-Managed AWS costs are the infrastructure expenses for resources defined in your Stacktape configuration and deployed through Stacktape — Lambda functions, containers, databases, buckets, load balancers, and similar. Resources in your AWS account that exist outside Stacktape-managed stacks are not counted toward Stacktape billing.
-
-### Can I use Stacktape without a credit card?
-
-Yes. The Free plan requires no credit card and supports one team member with up to $100/month in managed AWS costs. You still need an AWS account (billed separately by AWS), but Stacktape itself charges nothing on the Free tier.
+Managed AWS costs are costs for AWS infrastructure that Stacktape manages through your stacks. Stacktape does not charge for other AWS resources in your account that exist outside Stacktape-managed stacks.
 
 ### Who can manage billing in my organization?
 
-Users with the `org:manage-billing` permission see the upgrade and downgrade controls on `/subscription-plans`, and the same flag is passed into the billing details section on `/billing`. Users without this permission can still view the billing and subscription pages (except Viewers, who are redirected). See [team and access control](/stacktape-console/team-and-access-control) for role management.
-
-### What payment methods does Stacktape accept?
-
-Stacktape uses Paddle as its payment processor. Paddle supports credit cards, debit cards, and PayPal in most regions. The specific payment options shown depend on your billing country and currency.
+Users with the `org:manage-billing` permission see the upgrade and downgrade controls on the Subscription Plans page. Payment management controls on the Billing page appear only when you have this permission. Users without this permission can still view both pages (except Viewers, who are redirected). See [team and access control](/stacktape-console/team-and-access-control) for role management.
 
 ### What happens if I exceed the Free plan's $100/month limit?
 
-If your Stacktape-managed AWS costs exceed $100/month on the Free plan, you need to upgrade to the Flexible plan to continue using Stacktape's full capabilities. Navigate to `/subscription-plans` to upgrade.
+The Free plan covers up to $100/month of managed AWS costs. For larger Stacktape-managed AWS spend, upgrade to the Flexible plan on the Subscription Plans page, which has no AWS cost limit.
 
 ### Can I downgrade from Flexible to Free?
 
-Yes. Navigate to `/subscription-plans` in the Console and click **Downgrade to FREE** under the Free plan card. This cancels your Paddle subscription. Free plan limits apply after downgrade (1 team member, $100/month AWS cost cap).
+Yes. Open the Subscription Plans page and click **Downgrade to FREE** under the Free plan card. This calls the Console's cancellation flow and refreshes your organization data on success. You need the `org:manage-billing` permission to see the button.
 
 ### How do I get Enterprise pricing?
 
-On the `/subscription-plans` page, click the schedule-meeting button under the Enterprise plan card. This connects you with the Stacktape team to discuss custom pricing, SSO, SOC 2 compliance, and premium support options.
+On the Subscription Plans page, click the schedule-meeting button under the Enterprise plan card. This connects you with the Stacktape team to discuss custom pricing, SSO, SOC 2 compliance, and premium support options.
 
 ### Where can I find my invoices?
 
-Navigate to `/billing` in the Stacktape Console. The page includes an invoices list showing past payments. Users with the VIEWER role cannot access this page.
+Open the Billing page in the Stacktape Console. It shows billing details, an invoices list, and a Paddle checkout container. Users with the VIEWER role cannot access this page.

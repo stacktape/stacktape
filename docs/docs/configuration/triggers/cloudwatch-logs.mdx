@@ -27,7 +27,7 @@ CloudWatch Logs triggers fit when you need programmatic access to raw log data a
 
 ## Basic example
 
-This configuration defines a CloudWatch Logs event integration for a Lambda function. The integration attaches the Lambda function to the specified CloudWatch log group.
+This configuration defines a Lambda function that triggers whenever new log records appear in a specified CloudWatch log group.
 
 <CodeBlock
   intellisense
@@ -67,7 +67,7 @@ export default defineConfig(() => {
 
 The `logGroupArn` property is the ARN of the CloudWatch log group to watch. It can point to any log group — one belonging to a Lambda function, an ECS service, VPC flow logs, or any other AWS resource that writes to CloudWatch Logs.
 
-To reference the log group of a resource within your own stack, use the [`$ResourceParam()`](/configuration/directives) directive. If the producing resource exposes a `logGroupArn` referenceable parameter, you can pass it to `logGroupArn` with `$ResourceParam()`. See [referenceable parameters](/configuration/referenceable-parameters) for the per-resource list.
+To reference the log group of a resource within your own stack, use the [`$ResourceParam()`](/configuration/directives) directive with the `logGroupArn` parameter name. Check the [referenceable parameters](/configuration/referenceable-parameters) page to confirm which resource types expose `logGroupArn`.
 
 ## Filtering logs
 
@@ -124,7 +124,7 @@ For the full pattern syntax reference including logical operators, numeric compa
 
 ## Referencing log groups within a stack
 
-If a Stacktape resource in your stack exposes `logGroupArn` as a referenceable parameter, use the [`$ResourceParam()`](/configuration/directives) directive to resolve the ARN at deploy time instead of hardcoding it.
+When the log group you want to monitor belongs to a resource in the same stack, use the [`$ResourceParam()`](/configuration/directives) directive to resolve the ARN at deploy time instead of hardcoding it. Check the [referenceable parameters](/configuration/referenceable-parameters) page to confirm the resource type exposes `logGroupArn`.
 
 <CodeBlock
   intellisense
@@ -233,14 +233,6 @@ The `CloudwatchLogIntegration` type exposes two configuration properties: `logGr
 
 Use an [alarm trigger](/configuration/triggers/alarms-as-triggers) when you want to react to a metric crossing a threshold (e.g., error rate above 5%). Use a CloudWatch Logs trigger when you need to inspect individual log records — extracting specific fields, forwarding raw data, or running custom parsing logic. Alarms are simpler for threshold-based alerting; log triggers give you access to the actual log content.
 
-### Can I trigger on logs from a resource in my own stack?
-
-Yes. Use the [`$ResourceParam()`](/configuration/directives) directive to reference the `logGroupArn` of a resource in your stack, provided that resource exposes `logGroupArn` as a [referenceable parameter](/configuration/referenceable-parameters).
-
-### Can I filter on JSON-structured logs?
-
-Yes. The `filter` property supports JSON filter pattern syntax. For example, `{ $.level = "error" }` matches log lines that are valid JSON with a `level` field equal to `"error"`. You can also use numeric comparisons like `{ $.statusCode >= 500 }`. See the [AWS filter pattern syntax docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html) for the full reference.
-
 ### How many subscription filters can a single log group have?
 
 AWS limits each CloudWatch log group to two subscription filters. This limit applies across all consumers (Stacktape stacks, external subscriptions, etc.). If you need more consumers, route logs through a single Lambda that fans out to [SQS](/resources/messaging/sqs-queue), [SNS](/resources/messaging/sns-topic), or [EventBridge](/resources/messaging/event-bus).
@@ -249,18 +241,14 @@ AWS limits each CloudWatch log group to two subscription filters. This limit app
 
 No. AWS batches multiple log events into a single invocation. The `logEvents` array in the decoded payload contains all records in the batch. Your handler should always iterate over the full array rather than assuming a single record per invocation.
 
+### Why is my handler receiving garbled or binary data?
+
+The `awslogs.data` field is always base64-encoded and gzip-compressed — AWS CloudWatch Logs sends the payload in this format and it is not configurable. Your handler must base64-decode and gunzip the data before parsing it (e.g., with `gunzipSync` from `node:zlib`). Skipping the decode/decompress step is the usual cause of garbled data.
+
 ### How does this differ from log forwarding in Stacktape?
 
 [Log forwarding](/observability/log-forwarding) is a managed Stacktape feature that streams logs to external destinations without custom code. A CloudWatch Logs trigger gives you a programmable hook — use it when you need custom parsing, transformation, conditional routing, or enrichment logic that goes beyond simple forwarding.
 
-### Which resources can use this trigger?
-
-The provided type describes `CloudwatchLogIntegration` as a function trigger — it appears in the `events` array of a [Lambda function](/resources/compute/lambda-function). The configuration is: provide a `logGroupArn` and an optional `filter`.
-
 ### What happens if my handler throws an error?
 
 AWS CloudWatch Logs may redeliver the same batch of log events. Your handler should be idempotent — use the `id` field on each log event to detect and skip duplicates. The integration type does not expose retry-count configuration at the Stacktape level.
-
-### How do I forward logs to an external service like Datadog or Splunk?
-
-Create a Lambda function with a CloudWatch Logs trigger, decode and decompress the event payload, then use the external service's HTTP API or SDK to forward the log data. Most external logging services publish Lambda forwarder templates you can adapt. If you don't need custom transformation, consider using Stacktape's [log forwarding](/observability/log-forwarding) feature instead.

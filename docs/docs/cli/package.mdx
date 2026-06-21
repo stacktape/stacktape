@@ -1,27 +1,63 @@
 ---
-title: 'package-workloads'
-order: 149
-seoTitle: 'package-workloads CLI Command | Stacktape Docs'
-seoDescription: 'Package compute resources locally without deploying. Inspect build artifacts, debug packaging issues, and validate your configuration before running a full Stacktape deploy.'
+title: 'package'
+order: 156
+seoTitle: 'package CLI Command | Stacktape Docs'
+seoDescription: 'Run stacktape package to build and bundle compute resources before deploying. Catch packaging failures early without committing to a full deployment.'
 ---
 
-# package-workloads
+# package
 
-The `package-workloads` command packages compute resources defined in your Stacktape configuration and prepares them for deployment — without running a deploy. Use it to inspect packaged artifacts before committing to a full [`deploy`](/cli/deploy), or to isolate packaging behavior when troubleshooting build failures.
+The `package` command packages your compute resources and prepares them for deployment without actually deploying. Use it to run the same packaging step that [`deploy`](/cli/deploy) uses — useful for catching packaging or build failures early, before committing to a full deployment.
 
 ## Usage
 
 ```bash
-stacktape package-workloads --stage dev --region eu-west-1
+stacktape package --stage dev --region eu-west-1
 ```
 
-The command loads credentials and target stack information, initializes the Stacktape configuration, and packages compute resources through Stacktape's packaging manager. No deploy operation is performed.
+The command loads your Stacktape configuration, initializes packaging, and packages all compute resources for the target stack. A valid Stacktape configuration file is required — by default Stacktape looks for one in the current directory.
 
-Both `--stage` and `--region` are required. Stacktape needs them to identify the target stack context before packaging.
+To use a configuration file in a different location, pass `--configPath`.
 
-## CLI reference
+```bash
+stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+```
 
-<CliCommandsApiReference command="package-workloads" sortedArgs={[
+<Info>
+
+The `package` command runs packaging with caching disabled, so every invocation produces a fresh build from the current state of your source code.
+
+</Info>
+
+## Examples
+
+Package all compute resources for a staging stage in `us-east-1`:
+
+```bash
+stacktape package --stage staging --region us-east-1
+```
+
+Package with debug logging to see detailed build output:
+
+```bash
+stacktape package --stage dev --region eu-west-1 --logLevel debug
+```
+
+Package using a specific AWS profile:
+
+```bash
+stacktape package --stage prod --region eu-west-1 --profile my-aws-profile
+```
+
+Package using a configuration file in a subdirectory:
+
+```bash
+stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
+```
+
+## Command reference
+
+<CliCommandsApiReference command="package" sortedArgs={[
   {
     "name": "region",
     "required": true,
@@ -177,80 +213,35 @@ Both `--stage` and `--region` are required. Stacktape needs them to identify the
   }
 ]} />
 
-## Examples
-
-Package compute resources for a staging stage.
-
-```bash
-stacktape package-workloads --stage staging --region eu-west-1
-```
-
-Point to a non-default config file with `--configPath`.
-
-```bash
-stacktape package-workloads --stage prod --region us-east-1 --configPath ./infra/stacktape.ts
-```
-
-Use `--profile` to authenticate with a specific AWS profile.
-
-```bash
-stacktape package-workloads --stage dev --region eu-west-1 --profile my-aws-profile
-```
-
-Use `--logLevel debug` for detailed CLI debugging output.
-
-```bash
-stacktape package-workloads --stage dev --region eu-west-1 --logLevel debug
-```
-
-Use machine-readable JSONL output for CI integration.
-
-```bash
-stacktape package-workloads --stage dev --region eu-west-1 --outputFormat jsonl
-```
-
-<Info>
-
-The `package-workloads` command passes `commandCanUseCache: false` to the packaging manager, so the command-level packaging cache is not used.
-
-</Info>
-
-## When to use
-
-Run `package-workloads` when you want to inspect packaged artifacts before deploying. Common scenarios:
-
-- **Debugging packaging issues.** If a [`deploy`](/cli/deploy) fails during the build phase, isolate the packaging step to troubleshoot without waiting for the rest of the deploy flow.
-- **CI artifact inspection.** Package first, run checks on the artifacts, then deploy in a separate step.
-- **Verifying packaging configuration.** Confirm that your packaging settings produce the expected output before triggering a full deployment.
-
 ## Related commands
 
-- [`deploy`](/cli/deploy) — package and deploy your stack to AWS in one step.
-- [`compile-template`](/cli/compile-template) — compile your Stacktape configuration into a CloudFormation template without deploying.
-- [`preview-changes`](/cli/preview-changes) — preview what a deployment would change in your stack.
+- [`deploy`](/cli/deploy) — creates or updates your stack on AWS. Use `deploy` when you want to deploy; `package` runs the packaging step independently.
+- [`synth`](/cli/synth) — compiles your configuration into a CloudFormation template without packaging compute resources. Use `synth` when you only need to inspect the infrastructure template.
+- [`validate`](/cli/validate) — validates your configuration and optionally includes workload packaging checks with `--withPackage`.
+- [`diff`](/cli/diff) — previews what would change in your stack if you deployed. Useful alongside `package` for a full pre-deploy review.
 
 ## FAQ
 
-### What does package-workloads actually do?
+### When should I use `package` instead of just running `deploy`?
 
-The command loads your AWS credentials and target stack information, initializes the Stacktape configuration, and runs the packaging manager against compute resources in your config. It does not perform a deploy operation — it stops after packaging is complete.
+Use `package` when you want to verify that your compute resources package correctly before committing to a deployment — for example, catching build errors, confirming dependencies resolve, or validating that container images build successfully. In normal workflows, [`deploy`](/cli/deploy) handles packaging as part of its pipeline, so `package` is primarily a pre-deploy verification tool.
 
-### When should I use package-workloads instead of just running deploy?
+### How is `package` different from `validate --withPackage`?
 
-Use `package-workloads` when you want to verify the packaging step in isolation. This is helpful when debugging build failures, when you want to inspect artifacts in a CI pipeline before deploying, or when you want faster iteration on packaging configuration without waiting for the full deploy cycle.
+[`validate`](/cli/validate) validates your configuration, resolves resources, and synthesizes the CloudFormation template in memory. Adding `--withPackage` also validates workload packaging. Use `validate --withPackage` when you want configuration validation combined with packaging checks. Use `package` when you specifically want to run the packaging step on its own.
 
-### Does package-workloads require a deployed stack?
+### Does `package` use caching?
 
-The command requires `--stage` and `--region` to identify the target stack context, but it does not create or update any deployed infrastructure. It only runs the packaging step.
+No. The `package` command runs packaging with caching disabled, so every invocation produces a fresh build from the current state of your source code. This ensures the output accurately reflects your code at the time of the run.
+
+### Does `package` require AWS credentials even though it doesn't deploy?
+
+Yes. Even though `package` never touches your stack, it loads user credentials and target stack information during initialization, so valid credentials are required. Use `--profile` to specify an AWS profile or `--awsAccount` to use a connected AWS account. Use [`aws-profile:create`](/cli/aws-profile-create) to set up a profile if you haven't already.
 
 ### Can I package only specific workloads?
 
-The documented `package-workloads` CLI does not expose a flag for selecting individual workloads. The command packages compute resources from the initialized Stacktape configuration.
+By default, the `package` command packages all compute resources in your configuration. To target a subset, pass `--onlyWorkloads` with a comma-separated list of workload names (for example, `--onlyWorkloads myFunction,myContainer`). Other workloads are skipped.
 
-### What's the difference between package-workloads and compile-template?
+### What is the difference between `package` and `synth`?
 
-[`package-workloads`](/cli/package-workloads) runs the packaging manager to build compute resource artifacts. [`compile-template`](/cli/compile-template) compiles your Stacktape configuration into a CloudFormation template. They serve different verification purposes — one checks your build output, the other checks your infrastructure template.
-
-### Can I use package-workloads in a CI pipeline?
-
-Yes. Use `--outputFormat jsonl` for machine-readable output and `--profile` or `--awsAccount` to control authentication. This lets you run packaging as a discrete CI step, inspect results, and then deploy separately.
+[`synth`](/cli/synth) compiles your Stacktape configuration into a CloudFormation template — it produces the infrastructure definition but does not build any application code. `package` is the inverse: it builds your compute resources (according to each resource's [packaging mode](/packaging/overview)) but does not produce the infrastructure template. Run both before a deploy when you want a complete pre-deploy review.

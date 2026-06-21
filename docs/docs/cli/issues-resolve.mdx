@@ -1,13 +1,13 @@
 ---
 title: 'issues:resolve'
-order: 184
+order: 191
 seoTitle: 'issues:resolve CLI Command | Stacktape Docs'
 seoDescription: 'Mark a runtime issue as resolved with stacktape issues:resolve. Resolved issues reopen automatically if the same error recurs, acting as a regression detector for deployed functions and containers.'
 ---
 
 # issues:resolve
 
-The `issues:resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically. Resolving an issue signals that you believe the underlying cause has been fixed.
+The `issues:resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`issues:ignore`](/cli/issues-ignore) instead.
 
 ## Usage
 
@@ -17,13 +17,9 @@ stacktape issues:resolve --issueId iss_abc123def456
 
 You need the issue ID. Use [`issues:list`](/cli/issues-list) to list detected runtime issues before resolving one.
 
-## When to use
-
-Resolve an issue after you have deployed a fix for the underlying error. This keeps your issues list focused on unresolved problems and lets Stacktape's automatic reopening act as a regression detector — if the same error resurfaces, the issue moves back to open status without manual intervention.
-
-If you want new occurrences to stay ignored and not generate alerts, use [`issues:ignore`](/cli/issues-ignore) instead.
-
 ## Flags reference
+
+The only required flag is `--issueId`. Use [`issues:list`](/cli/issues-list) to find the ID of the issue you want to resolve.
 
 <CliCommandsApiReference command="issues:resolve" sortedArgs={[
   {

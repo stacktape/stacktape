@@ -1,70 +1,18 @@
 ---
 title: 'info:stacks'
-order: 169
+order: 176
 seoTitle: 'info:stacks CLI Command | Stacktape Docs'
-seoDescription: 'List all deployed CloudFormation stacks in an AWS region with status, timestamps, and spend data. Use info:stacks to audit deployments and find forgotten infrastructure.'
+seoDescription: 'List all deployed CloudFormation stacks in an AWS region with status, timestamps, and available spend data. Audit deployments and find forgotten infrastructure.'
 ---
 
 # info:stacks
 
-The `info:stacks` command lists CloudFormation stacks deployed in a specified AWS region and identifies which ones are Stacktape-managed. It shows each stack's name, status, timestamps, and spend data — giving you a quick inventory of what's running in your account.
+The `info:stacks` command lists CloudFormation stacks deployed in a specified AWS region and identifies which ones are Stacktape-managed. It shows each stack's name, status, timestamps, and actual or forecasted spend when budget data is available — giving you a quick inventory of what's running in your account.
 
 ## Usage
 
 ```bash
 stacktape info:stacks --region eu-west-1
-```
-
-## What it does
-
-When you run `info:stacks`, Stacktape queries CloudFormation for all stacks in the specified region (excluding stacks in `DELETE_COMPLETE` state) and enriches the results with spend data when available. Each stack entry includes:
-
-- **Stack name** and stack ID
-- **Status** (e.g. `CREATE_COMPLETE`, `UPDATE_COMPLETE`, `UPDATE_ROLLBACK_COMPLETE`)
-- **Creation time** and **last update time**
-- **Whether it's a Stacktape-managed stack** (detected from the CloudFormation template description containing Stacktape metadata)
-- **Actual and forecasted spend** (when budget data is available)
-
-This is useful for auditing what's deployed, finding forgotten stacks that are still incurring cost, or verifying a deployment landed in the correct region.
-
-## Important flags
-
-The only required flag is `--region`, which determines which AWS region to query.
-
-Use `--profile` to specify which AWS credentials profile to use, or `--awsAccount` to target a specific AWS account connected in the Stacktape Console.
-
-Use `--agent` to get JSON output for programmatic consumption — the command prints the full result array as formatted JSON and disables the interactive terminal UI.
-
-<Info>
-
-The `--stage` and `--projectName` flags are accepted as shared stack arguments but do not filter the listed stacks. The command always returns all non-deleted stacks in the specified region regardless of these values.
-
-</Info>
-
-## Examples
-
-List all stacks in `us-east-1`:
-
-```bash
-stacktape info:stacks --region us-east-1
-```
-
-List stacks using a specific AWS profile:
-
-```bash
-stacktape info:stacks --region eu-west-1 --profile my-aws-profile
-```
-
-Get JSON output for scripting or AI agent consumption:
-
-```bash
-stacktape info:stacks --region eu-west-1 --agent
-```
-
-Use a specific AWS account connected in the Stacktape Console:
-
-```bash
-stacktape info:stacks --region eu-west-1 --awsAccount my-production-account
 ```
 
 ## API reference
@@ -194,6 +142,58 @@ stacktape info:stacks --region eu-west-1 --awsAccount my-production-account
     "longDescription": "<p>The stage for the operation (e.g., <code>production</code>, <code>staging</code>, <code>dev-john</code>). You can set a default stage using the <code>defaults:configure</code> command. The maximum length is 12 characters.</p>\n"
   }
 ]} />
+
+## What it does
+
+When you run `info:stacks`, Stacktape queries CloudFormation for all stacks in the specified region (excluding stacks in `DELETE_COMPLETE` state) and enriches the results with spend data when available. Each stack entry includes:
+
+- **Stack name** and stack ID
+- **Status** (e.g. `CREATE_COMPLETE`, `UPDATE_COMPLETE`, `UPDATE_ROLLBACK_COMPLETE`)
+- **Creation time** and **last update time**
+- **Whether it's a Stacktape-managed stack** — the `isStacktapeStack` field is derived from the CloudFormation `TemplateDescription` using Stacktape's `isStacktapeStackDescription` helper, which recognizes descriptions set by Stacktape during deployment
+- **Actual and forecasted spend** (when budget data is available)
+
+This is useful for auditing what's deployed, finding forgotten stacks that are still incurring cost, or verifying a deployment landed in the correct region.
+
+## Important flags
+
+The only required flag is `--region`, which determines which AWS region to query.
+
+Use `--profile` to specify which AWS credentials profile to use, or `--awsAccount` to target a specific AWS account connected in the Stacktape Console.
+
+Use `--agent` to get JSON output for programmatic consumption. For `info:stacks`, agent mode prints the full result as a single pretty-printed JSON array (via `JSON.stringify` with indentation) and disables the interactive terminal UI. This differs from the generic `--agent` flag description in the API reference above, which describes JSONL output — `info:stacks` uses a JSON array instead.
+
+<Info>
+
+The `--stage` and `--projectName` flags are accepted by the CLI parser but are not used in the stack-listing logic. The command lists all non-deleted stacks returned for the selected AWS region and account.
+
+</Info>
+
+## Examples
+
+List all stacks in `us-east-1`:
+
+```bash
+stacktape info:stacks --region us-east-1
+```
+
+List stacks using a specific AWS profile:
+
+```bash
+stacktape info:stacks --region eu-west-1 --profile my-aws-profile
+```
+
+Get JSON output for scripting or AI agent consumption:
+
+```bash
+stacktape info:stacks --region eu-west-1 --agent
+```
+
+Use a specific AWS account connected in the Stacktape Console:
+
+```bash
+stacktape info:stacks --region eu-west-1 --awsAccount my-production-account
+```
 
 ## Related commands
 

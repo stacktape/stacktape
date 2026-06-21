@@ -1,0 +1,106 @@
+---
+title: 'v5 · Editorial'
+order: 105
+seoTitle: 'Stacktape — TypeScript IaC + PaaS for AWS'
+seoDescription: 'Stacktape deploys Lambda functions, containers, databases and 30+ AWS resources from a single TypeScript file into your own AWS account, with zero DevOps overhead.'
+---
+
+<LandingHero
+  eyebrow="Your AWS, 97% easier"
+  title="The fastest way to ship"
+  accent="production AWS infrastructure."
+  subtitle="Define it in TypeScript, deploy it in one command, and own every byte — it runs in your AWS account. PaaS speed, AWS control, no DevOps team required."
+>
+  <ButtonRow>
+    <CTAButton href="/getting-started/configure-your-stack" variant="primary" icon="arrow">Get started</CTAButton>
+    <CTAButton href="https://github.com/stacktape/stacktape" variant="secondary">Star on GitHub</CTAButton>
+  </ButtonRow>
+</LandingHero>
+
+## A real Stacktape config
+
+A complete HTTP API backed by DynamoDB, with auto-generated IAM and environment variables — 22 lines:
+
+<CodeBlock
+  intellisense
+  tabs={[{
+    label: 'stacktape.ts',
+    lang: 'typescript',
+    code: `import {
+  defineConfig,
+  DynamoDbTable,
+  HttpApiGateway,
+  HttpApiIntegration,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new HttpApiGateway({});
+
+  const usersTable = new DynamoDbTable({
+    primaryKey: { partitionKey: { name: 'id', type: 'string' } }
+  });
+
+  const createUser = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/create-user.ts' }),
+    connectTo: [{ resource: usersTable, access: 'readWrite' }],
+    events: [new HttpApiIntegration({ httpApiGatewayName: 'api', method: 'POST', path: '/users' })]
+  });
+
+  return { resources: { api, usersTable, createUser } };
+});
+`
+  }]}
+/>
+
+Run `stacktape deploy --stage prod` and you get a live API Gateway endpoint, a DynamoDB table, and a Lambda with the table's name injected as `STP_USERS_TABLE_NAME` and IAM that lets it `GetItem` / `PutItem` — nothing else. No console clicking, no IAM JSON.
+
+## Why Stacktape
+
+<FeatureGrid
+  items={[
+    { icon: 'wallet', title: 'Your AWS account, your costs', text: 'Everything is provisioned inside the account you own. No middleman markup, no per-seat pricing on compute — pay AWS rates.' },
+    { icon: 'container', title: 'Containers AND serverless', text: 'Lambda for spiky workloads, Fargate for steady ones, EC2 when you need GPUs or raw control — all in the same stacktape.ts.' },
+    { icon: 'layers', title: 'Sensible defaults, full overrides', text: 'Production-ready settings by default; override any resource with raw CloudFormation, transforms or inline CDK when you need to.' },
+    { icon: 'refresh', title: 'No redeploy loop', text: 'Run stacktape dev once and your code runs locally against real cloud resources. Edit, save, hit your endpoint — that is it.' },
+    { icon: 'activity', title: 'CI/CD and observability', text: 'Push-to-deploy, PR previews, live logs, metrics, alarms and per-resource cost dashboards come with the Console.' },
+    { icon: 'code', title: 'Open-source core', text: 'The CLI, resource library and deploy engine are MIT-licensed. Paid Console plans add hosted CI/CD and observability.' }
+  ]}
+/>
+
+## Quick start
+
+<Steps>
+  <Step title="Install the CLI">
+    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `npm install -g stacktape` }]} />
+  </Step>
+  <Step title="Initialize a project">
+    Scaffold a starter, or drop a `stacktape.ts` into an existing repo.
+    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape init` }]} />
+  </Step>
+  <Step title="Deploy to AWS">
+    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape deploy --stage dev --region us-east-1` }]} />
+  </Step>
+</Steps>
+
+## PaaS convenience, AWS control
+
+<CompareCards />
+
+## What you can build with Stacktape
+
+<NavBoxGrid columns={2}>
+  <NavBox text="Fullstack web apps" url="/resources/frontend/nextjs" description="Next.js, Astro, Remix, SvelteKit, SolidStart, Nuxt, TanStack Start — deployed to AWS with a global CDN and zero config." />
+  <NavBox text="Serverless APIs" url="/resources/compute/lambda-function" description="Lambda + API Gateway, with DynamoDB, RDS, Redis or OpenSearch wired in via connectTo." />
+  <NavBox text="Long-running services" url="/resources/compute/web-service" description="Container workloads on Fargate or EC2 — web services, workers, multi-container stacks, batch jobs." />
+  <NavBox text="Event-driven pipelines" url="/configuration/triggers/overview" description="SQS, SNS, EventBridge, Kinesis, DynamoDB Streams, S3 events, schedules — declarative wiring, automatic IAM." />
+</NavBoxGrid>
+
+<CTASection
+  title="Ready to simplify your AWS deployments?"
+  subtitle="Bootstrap your first stacktape.ts in two minutes — the open-source core is completely free."
+>
+  <CTAButton href="/getting-started/configure-your-stack" variant="primary" icon="arrow">Get started</CTAButton>
+  <CTAButton href="/using-with-ai/overview" variant="ghost">Use with AI</CTAButton>
+</CTASection>

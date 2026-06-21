@@ -1,24 +1,24 @@
 ---
 title: 'Debugging Containers'
-order: 114
+order: 120
 seoTitle: 'Debugging Containers on AWS ECS | Stacktape Docs'
 seoDescription: 'Debug deployed container workloads with Stacktape. Use container:session for interactive shell access or debug:container-exec for scripted one-off commands via ECS Exec.'
 ---
 
 # Debugging Containers
 
-Stacktape provides two CLI commands for debugging deployed container workloads: [`container:session`](/cli/container-session) for interactive shell access and [`debug:container-exec`](/cli/debug-container-exec) for running one-off commands. Both connect to running ECS containers through Stacktape's ECS Exec and SSM session helpers.
+Stacktape provides two CLI commands for debugging deployed container workloads: [`container:session`](/cli/container-session) for interactive shell access and [`debug:container-exec`](/cli/debug-container-exec) for running one-off commands. `container:session` starts Stacktape's SSM shell-session helper for the selected ECS task, while `debug:container-exec` runs Stacktape's ECS Exec command helper and prints the captured result as JSON.
 
 ## Supported resources
 
-Container debugging commands target deployed resources that have an ECS task definition and a running ECS service. Both commands look up the resource by name against deployed workloads in the stack, then locate the corresponding `AWS::ECS::Service` (or `Stacktape::ECSBlueGreenV1::Service` for blue/green deployments). The supported resource types are:
+Container debugging commands target deployed resources that have an ECS task definition and a running ECS service. Both commands resolve the `--resourceName` against deployed workloads with an ECS task definition, then find the resource's `AWS::ECS::Service` (or `Stacktape::ECSBlueGreenV1::Service` for blue/green deployments) and list running tasks in the service's cluster before selecting a task to connect to. Common resource types that create ECS services include:
 
 - [Web service](/resources/compute/web-service)
 - [Private service](/resources/compute/private-service)
 - [Worker service](/resources/compute/worker-service)
 - [Multi-container workload](/resources/compute/multi-container-workload)
 
-These commands require a deployed ECS service to connect to. They are not the Lambda debugging commands — use [Debugging Lambda Functions](/local-development/debugging-lambda-functions) for Lambda-based resources like [Lambda functions](/resources/compute/lambda-function) and [edge functions](/resources/compute/edge-function). [Batch jobs](/resources/compute/batch-job) are not supported because they run tasks to completion rather than maintaining a persistent ECS service.
+These commands require a deployed ECS service to connect to. They are not the Lambda debugging commands — use [Debugging Lambda Functions](/local-development/debugging-lambda-functions) for Lambda-based resources like [Lambda functions](/resources/compute/lambda-function) and [edge functions](/resources/compute/edge-function). Resources without a matching `AWS::ECS::Service` or `Stacktape::ECSBlueGreenV1::Service` child resource are not supported by these commands.
 
 ## Choosing the right command
 
@@ -30,7 +30,7 @@ These commands require a deployed ECS service to connect to. They are not the La
     { name: "Scriptable / CI-friendly", values: { "container:session": false, "debug:container-exec": true } },
     { name: "Custom command", values: { "container:session": "Optional (--command)", "debug:container-exec": "Required (--command flag)" } },
     { name: "Task selection", values: { "container:session": "Prompted if multiple", "debug:container-exec": "Via --taskArn flag" } },
-    { name: "Process timeout", values: { "container:session": "None (interactive)", "debug:container-exec": "60 seconds" } }
+    { name: "Execution mode", values: { "container:session": "Persistent (stays open)", "debug:container-exec": "One-shot (exits after command)" } }
   ]}
 />
 
@@ -38,7 +38,7 @@ Use `container:session` when you need to poke around interactively — inspect f
 
 ## Interactive shell sessions
 
-The [`container:session`](/cli/container-session) command opens an interactive shell inside a running container. It calls Stacktape's ECS Exec SSM session helper, dropping you into a terminal session similar to SSH-ing into the container — but without SSH keys, open ports, or any additional setup in the container image.
+The [`container:session`](/cli/container-session) command opens an interactive shell inside a running container. It calls Stacktape's ECS Exec SSM session helper (`runEcsExecSsmShellSession`), dropping you into a terminal session on the running container. These commands connect through ECS Exec, not SSH.
 
 ```bash
 stacktape container:session --stage production --region eu-west-1 --resourceName apiServer
@@ -52,7 +52,7 @@ stacktape container:session --stage production --region eu-west-1 --resourceName
 
 ### Multiple running tasks
 
-When your service scales to multiple tasks (instances), Stacktape prompts you to choose which task to connect to. The prompt displays each task's ARN suffix and start time so you can identify the one you need.
+When your service scales to multiple tasks (instances), Stacktape prompts you to choose which task to connect to. The prompt options are labeled by the task ARN suffix and the task's `startedAt` value so you can identify the one you need.
 
 ### Common use cases
 
@@ -62,7 +62,7 @@ When your service scales to multiple tasks (instances), Stacktape prompts you to
 - **Run ad-hoc migrations** — execute one-off scripts that need access to the container's environment.
 
 <Warning>
-The container must have a shell available (`/bin/sh` or `/bin/bash`). Minimal images built `FROM scratch` or distroless images without a shell will not work with this command.
+The `--command` flag is optional for `container:session`. If omitting `--command` does not open the shell you need, pass an explicit command such as `--command "/bin/bash"` or `--command "/bin/sh"`.
 </Warning>
 
 ## Running one-off commands
@@ -73,7 +73,7 @@ The [`debug:container-exec`](/cli/debug-container-exec) command executes a singl
 stacktape debug:container-exec --stage production --region eu-west-1 --resourceName apiServer --command "ls -la /app"
 ```
 
-The JSON output includes the resource name, container name, task ARN, the command that was run, captured stdout/stderr output, and an `exitCode` field:
+The JSON output includes the resource name, container name, task ARN, the command that was run, captured command output, and an `exitCode` field:
 
 ```json
 {
@@ -86,11 +86,11 @@ The JSON output includes the resource name, container name, task ARN, the comman
 }
 ```
 
-The underlying process has a 60-second timeout. If your command needs more time (for example, a large database export), use `container:session` interactively instead, or break the work into smaller steps.
+`debug:container-exec` runs a single command through Stacktape's `runEcsExecCommand` helper and returns the captured JSON result. It is designed for quick, one-shot commands. For long-running or exploratory work, prefer `container:session`.
 
 ### Targeting a specific task
 
-When multiple tasks are running, `debug:container-exec` connects to the first available task by default. Use `--taskArn` to target a specific one:
+Without `--taskArn`, `debug:container-exec` uses the first running task returned for the ECS cluster. Use `--taskArn` when you need to guarantee which task is targeted:
 
 ```bash
 stacktape debug:container-exec --stage production --region eu-west-1 --resourceName apiServer --taskArn abc123def --command "env"
@@ -100,7 +100,7 @@ You can provide the full ARN or just the task ID suffix. If the specified task i
 
 ### Scripting and automation
 
-Because `debug:container-exec` runs a single command and prints structured JSON, it works well in scripts and CI pipelines. The `exitCode` field in the JSON result reflects the exit code of the executed command — non-zero exit codes are captured in the output rather than causing the Stacktape CLI process to throw, so you can inspect both output and exit code programmatically.
+Because `debug:container-exec` runs a single command and prints structured JSON, it works well in scripts and CI pipelines. The JSON output includes an `exitCode` field returned by the ECS Exec helper, so you can inspect both output and exit code programmatically.
 
 Check a version file in staging:
 
@@ -126,33 +126,33 @@ stacktape container:session --stage production --region eu-west-1 --resourceName
 stacktape debug:container-exec --stage production --region eu-west-1 --resourceName apiServer --container app --command "node -e 'console.log(process.env.PORT)'"
 ```
 
-If your resource has multiple containers and you omit `--container`, Stacktape returns an error listing the available container names as defined in your configuration. For resources with a single container, the `--container` flag is optional — Stacktape connects to the only available container automatically.
+If your resource has multiple containers and you omit `--container`, Stacktape returns an error listing the available container names from the deployed ECS task definition. If the task definition has only one container and you omit `--container`, Stacktape uses that container.
 
 ## Viewing container logs
 
-For log-based debugging, use [`stacktape debug:logs`](/cli/debug-logs) rather than exec-ing into a container to read log files. Container stdout/stderr is automatically captured by AWS CloudWatch:
+For log-based debugging, use [`stacktape debug:logs`](/cli/debug-logs) rather than exec-ing into a container to read log files:
 
 ```bash
 stacktape debug:logs --stage production --region eu-west-1 --resourceName apiServer
 ```
 
-Add `--follow` for live tailing. See [Logs](/observability/logs) for filtering, time ranges, and structured log queries.
+See [Logs](/observability/logs) and [`stacktape debug:logs`](/cli/debug-logs) for log viewing options including filtering, time ranges, and structured log queries.
 
 ## Deployed stacks only
 
-Both `container:session` and `debug:container-exec` initialize Stacktape services for working with a deployed stack and require a deployed ECS service to connect to. They work against any deployed stage — production, staging, or any other stage created with [`stacktape deploy`](/cli/deploy).
+Both commands initialize Stacktape services for a deployed stack, so use them against deployed stages — production, staging, or any other stage created with [`stacktape deploy`](/cli/deploy). The `debug:container-exec` error message for resources without running containers explicitly suggests deploying a full stack before using the command.
 
-These commands do not apply in [dev mode](/local-development/dev-mode-overview) (`stacktape dev`). Dev mode runs workloads locally, not on AWS ECS, so there is no deployed ECS service to connect to. For debugging workloads running locally in dev mode, use standard local debugging tools — your IDE's debugger, terminal output from the `stacktape dev` process, or any tooling appropriate for your local runtime.
+For debugging workloads running locally in [dev mode](/local-development/dev-mode-overview), use standard local debugging tools — your IDE's debugger, terminal output from the `stacktape dev` process, or any tooling appropriate for your local runtime.
 
 ## Prerequisites
 
 Both commands require:
 
-1. **A deployed stack** — The resource must be deployed and have at least one running ECS task. If no tasks are running (for example, the service scaled to zero or failed to start), the command returns an error.
-2. **AWS Session Manager connectivity** — Both commands use Stacktape's SSM session helpers to connect to ECS Exec, so the local end of the connection is handled by Stacktape rather than requiring separate manual setup.
+1. **A deployed stack** — The resource must be deployed and have at least one running ECS task. `debug:container-exec` explicitly reports "No running tasks found for this resource" when the task list is empty. `container:session` also needs a running task because the shell session is opened against a selected ECS task.
+2. **Stacktape SSM session helpers** — Both commands use Stacktape's SSM session helpers (`runEcsExecSsmShellSession` / `runEcsExecCommand`) to connect through ECS Exec. They do not use SSH.
 
 <Tip>
-If you get "No running tasks found" errors, check that your service has healthy tasks. Use [`stacktape debug:logs`](/cli/debug-logs) to investigate why containers may be crashing before becoming reachable.
+If `debug:container-exec` reports "No running tasks found for this resource", or `container:session` fails to connect, check that your service has healthy tasks. Use [`stacktape debug:logs`](/cli/debug-logs) to investigate why containers may be crashing before becoming reachable.
 </Tip>
 
 ## Troubleshooting
@@ -166,11 +166,11 @@ This error means the `--resourceName` you specified doesn't match any deployed c
 
 ### "Does not have a deployed ECS service"
 
-The resource exists and has an ECS task definition, but no ECS service was found. This can happen if you're targeting a resource type that doesn't create a persistent ECS service, or if the stack deployment is incomplete.
+`debug:container-exec` reports this error when the resource exists and has an ECS task definition, but no `AWS::ECS::Service` or `Stacktape::ECSBlueGreenV1::Service` was found among the resource's CloudFormation child resources. This can happen if you're targeting a resource type that doesn't create a persistent ECS service, or if the stack deployment is incomplete. Both commands expect the deployed workload to have an ECS service.
 
-### "No running tasks found"
+### "No running tasks found for this resource"
 
-The ECS service exists but has no healthy running tasks. Common causes:
+`debug:container-exec` reports this error when the ECS service exists but no running tasks are found in the cluster. `container:session` also needs at least one running task to connect to. Common causes:
 - The container is crash-looping — check [`stacktape debug:logs`](/cli/debug-logs) for error output.
 - A deployment is in progress and old tasks were stopped before new ones started.
 - The service scaled to zero (if using scaling rules with a minimum of 0).
@@ -178,51 +178,31 @@ The ECS service exists but has no healthy running tasks. Common causes:
 ### Session disconnects immediately
 
 If the shell session connects and immediately closes:
-- The container may lack a shell (`/bin/sh`). Try `--command "/bin/bash"` or use a different base image that includes a shell.
+- The container image may lack a shell. Try passing `--command "/bin/bash"` or `--command "/bin/sh"` explicitly, or use a different base image that includes a shell.
 - The container may be terminating due to health check failures or resource constraints.
 
 ### Specifying which container to connect to
 
-If you see an error listing container names, your resource has multiple containers and Stacktape needs you to specify which one. Add `--container <name>` where the name matches a container defined in your Stacktape config.
+If you see an error listing container names, your resource has multiple containers and Stacktape needs you to specify which one. Add `--container <name>` where the name matches a container in the deployed ECS task definition.
 
 ## FAQ
-
-### Which container resources support debugging?
-
-All ECS-based container resources support both `container:session` and `debug:container-exec`: [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload). Both commands look for a deployed ECS service in the stack — resource types that don't create an ECS service are not supported.
 
 ### Can I debug containers in dev mode?
 
 No. Dev mode runs workloads locally rather than on AWS ECS. The `container:session` and `debug:container-exec` commands require a deployed ECS service to connect to. Use your local debugging tools (IDE debugger, terminal output) for workloads running in dev mode.
 
-### How does ECS Exec work under the hood?
+### Do these commands use SSH, and do I need to open any ports?
 
-AWS ECS Exec uses the AWS Systems Manager (SSM) agent running inside your container to establish a secure WebSocket connection. Stacktape's CLI uses its SSM session helpers to handle the local end of the connection. No SSH keys or open inbound ports are required — the connection is outbound-only through SSM.
+No. Both commands connect through ECS Exec using Stacktape's SSM session helpers (`runEcsExecSsmShellSession` and `runEcsExecCommand`), which tunnel through AWS Systems Manager. There are no SSH keys to manage, SSH does not need to be installed in the container image, and no inbound ports are required in your security groups.
 
-### Which shell does container:session start?
+### My session opens and immediately closes — what's wrong?
 
-The `--command` flag on `container:session` is optional. If you need a specific shell (for example `bash`), pass it explicitly with `--command "/bin/bash"`. If the container doesn't have your preferred shell available, the session will fail to start — try a different shell or use a base image that includes one.
-
-### Can I use debug:container-exec in CI/CD pipelines?
-
-Yes. `debug:container-exec` runs a single command, captures the output as JSON with an `exitCode` field, and exits. The underlying process has a 60-second timeout. This makes it well suited for health checks, smoke tests, or post-deploy verification in CI pipelines. Use `container:session` for interactive debugging that requires a terminal.
-
-### What's the difference between container:session and SSH?
-
-`container:session` provides SSH-like access without requiring SSH to be installed in the container or any inbound ports to be open. It uses AWS SSM for the connection, which means no SSH keys to manage, no open ports in your security groups, and all sessions are logged by AWS CloudTrail.
-
-### How do I connect to a specific container in a multi-container workload?
-
-Use the `--container` flag with the container name as defined in your Stacktape config. If you omit it and the workload has multiple containers, Stacktape returns an error listing the available container names. For single-container workloads, the flag is optional.
+The most common cause is that the container image lacks the default shell. Pass an explicit command such as `--command "/bin/bash"` or `--command "/bin/sh"` (the `--command` flag is optional for `container:session`). If it still disconnects, the container may be terminating due to health check failures or resource constraints.
 
 ### Can I run destructive commands like rm or kill?
 
-Yes — both commands give you full access to the container's filesystem and processes with the same permissions as the container's running process. Exercise caution in production. There are no guardrails preventing destructive operations once you're connected.
+Both commands execute inside the selected running container through ECS Exec, so any command you run affects the live container. Treat production sessions as sensitive — avoid destructive commands unless you understand the container image, user, and workload state.
 
-### Is there a timeout on debug:container-exec?
+### Why do I get an error listing container names?
 
-The `debug:container-exec` command runs the Session Manager plugin subprocess with a 60-second process timeout. If your command needs more time, consider using `container:session` interactively or breaking the work into smaller commands.
-
-### How do I check if my container has running tasks?
-
-Use [`stacktape debug:logs`](/cli/debug-logs) to check for recent container output, or look at your service in the [Stacktape Console](/stacktape-console/console-overview). If the container is crash-looping, the logs will show the error output. You can also use [`stacktape info:stack`](/cli/info-stack) to get an overview of your deployed resources and their status.
+Your resource runs multiple containers (for example side containers or init containers) and Stacktape needs to know which one to target. Add `--container <name>` matching a container in the deployed ECS task definition. If the task definition has only one container, the flag is optional.

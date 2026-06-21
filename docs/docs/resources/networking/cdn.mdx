@@ -1,6 +1,6 @@
 ---
 title: 'CDN'
-order: 56
+order: 57
 seoTitle: 'CDN (CloudFront) - Edge Caching & Routing | Stacktape Docs'
 seoDescription: 'Add a CloudFront CDN to Stacktape resources for global edge caching, multi-origin routing, custom domains, and edge functions. Pay-per-request with no monthly base cost.'
 ---
@@ -24,7 +24,7 @@ Common patterns that fit well:
 ## When NOT to use
 
 - **Fully dynamic, user-specific APIs** — if every response is personalized and uncacheable, CDN adds CloudFront request charges and propagation complexity without caching benefit. The default direct endpoint is simpler.
-- **Development and staging stages** — CDN adds deploy-time overhead (certificate provisioning, cache invalidation, distribution propagation). For non-production stages, skip CDN and iterate faster.
+- **Development and staging stages** — CDN can add distribution propagation and cache invalidation time; custom domains also add certificate provisioning and DNS setup. For non-production stages, skip CDN and iterate faster.
 - **Low-traffic, single-region apps** — if your users are concentrated in one region and traffic is low, the latency improvement is negligible and CDN adds configuration complexity.
 - **Traffic that should not be cached or transformed at the edge** — for traffic patterns where CloudFront behavior adds no value, use the direct [Application Load Balancer](/resources/networking/application-load-balancer) or [API Gateway](/resources/networking/http-api-gateway) endpoint.
 
@@ -93,7 +93,95 @@ export default defineConfig(() => {
 
 Setting `cloudfrontPriceClass` to `PriceClass_100` restricts edge locations to North America and Europe — the cheapest option. See [Price class](#price-class) for all three options.
 
-To print the CDN URL after deploy and save it to stack info, add it to `stackConfig.outputs`. You can also retrieve parameters with [`stacktape param:get`](/cli/param-get). Reference the CDN URL in your config with `$ResourceParam('myApi', 'cdnUrl')` or `$ResourceParam('staticAssets', 'cdnUrl')`.
+CDN exposes `cdnUrl` as a referenceable parameter; reference it with `$ResourceParam('staticAssets', 'cdnUrl')` using the parent resource name. You can also retrieve parameters after deploy with [`stacktape param:get`](/cli/param-get). See [Referenceable parameters](#referenceable-parameters) for all available CDN parameters.
+
+## Examples
+
+These examples show common CDN patterns that combine multiple features. Each is a complete `defineConfig` you can copy as a starting point.
+
+### Static site with custom domain
+
+A bucket-backed CDN with a custom domain for a production static site. This is the typical setup for SPAs and marketing sites: all content cached at the edge, automatic invalidation on deploy, and a branded URL.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const frontend = new Bucket({
+    cdn: {
+      enabled: true,
+      cloudfrontPriceClass: 'PriceClass_100',
+      customDomains: [{ domainName: 'app.example.com' }]
+    }
+  });
+
+  return {
+    resources: { frontend },
+    stackConfig: {
+      outputs: [{ name: 'siteUrl', value: "$ResourceParam('frontend', 'cdnCanonicalUrl')" }]
+    }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The `PriceClass_100` restricts edge locations to North America and Europe — the cheapest option. The custom domain requires a Route53 hosted zone in your AWS account; set one up with [`stacktape domain:add`](/cli/domain-add). See [Price class](#price-class) for region coverage options and [Custom domains](#custom-domains) for DNS and certificate details.
+
+### Multi-origin API with WAF
+
+An API gateway CDN that routes `/assets/*` to a bucket and protects the entire distribution with a web application firewall. This pattern gives your frontend a single domain for both API calls and static assets, with edge-level security.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, HttpApiGateway, Bucket, WebAppFirewall } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const assets = new Bucket({});
+
+  const waf = new WebAppFirewall({
+    scope: 'cdn'
+  });
+
+  const api = new HttpApiGateway({
+    cdn: {
+      enabled: true,
+      useFirewall: 'waf',
+      routeRewrites: [
+        {
+          path: '/assets/*',
+          routeTo: {
+            type: 'bucket',
+            properties: { bucketName: 'assets' }
+          },
+          cachingOptions: { defaultTTL: 86400 }
+        }
+      ]
+    }
+  });
+
+  return {
+    resources: { assets, waf, api }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Requests to `/assets/*` are served from the bucket with a 24-hour cache TTL, while all other requests pass through to the API gateway uncached. The `useFirewall` property attaches the named `web-app-firewall` resource to protect the CDN distribution — see the [web application firewall](/resources/security/web-application-firewall) page for rule and inspection details. See [Route rewrites](#route-rewrites) for all origin types.
 
 ## Caching
 
@@ -139,7 +227,7 @@ The `defaultTTL` (in seconds) is used when the origin response has no `Cache-Con
 
 Automatic Gzip and Brotli compression is enabled by default, reducing transfer size and cost. Set `disableCompression: true` to turn it off — rarely needed unless your origin handles compression itself.
 
-If you have a specific AWS-managed cache policy, pass its ID via `cachePolicyId` instead of configuring TTL and cache key options manually.
+If you have a pre-existing CloudFront cache policy, pass its ID via `cachePolicyId` instead of configuring TTL and cache key options manually.
 
 ### Cache key
 
@@ -188,7 +276,7 @@ For cookies, the options are `none` (no cookies), `all` (all cookies), `whitelis
 
 Route rewrites let a single CDN distribution serve requests from multiple backends. Each rewrite matches a URL path pattern and routes matching requests to a different origin. Unmatched requests go to the default origin (the parent resource the CDN is attached to). Rewrites are evaluated in order — the first match wins.
 
-Path patterns support wildcards: `/api/*` matches any path starting with `/api/`, and `*.jpg` matches any path ending in `.jpg`.
+Path patterns support wildcards — for example, `/api/*`, `*.jpg`, and `/docs/v2/*`.
 
 <CodeBlock
   intellisense
@@ -257,7 +345,7 @@ The top-level `defaultRoutePrefix` prepends a path prefix to all requests forwar
 
 ## Forwarding
 
-Forwarding options control which headers, cookies, and query parameters the CDN passes through to your origin. By default, all headers, cookies, and query parameters are forwarded. Restricting forwarding strips unnecessary data from reaching your backend and can improve cache hit rates.
+Forwarding options control which headers, cookies, and query parameters the CDN passes through to your origin. By default, all headers, cookies, and query parameters are forwarded. Restricting forwarding strips unnecessary data from reaching your backend. Cache hit rate is primarily controlled by `cachingOptions.cacheKeyParameters`; forwarded values only affect cache variants when they are also included in the cache key.
 
 <CodeBlock
   intellisense
@@ -294,15 +382,17 @@ This configuration strips all cookies, forwards only the `Accept` and `Accept-La
 
 <Warning>The `Authorization` header requires special handling. To forward it, you must add it to `cachingOptions.cacheKeyParameters.headers` — forwarding options alone do not cover `Authorization`.</Warning>
 
-For cookie forwarding, the supported modes are `none` (strip all cookies), `whitelist` (forward specific cookies), and `all` (forward all cookies). For query string forwarding: `all`, `none`, and `whitelist`. For header forwarding, several strategies are available: `none` (strip all), `whitelist` (specific headers), `allViewer` (all viewer headers), `allViewerAndWhitelistCloudFront` (viewer headers plus specific CloudFront headers like `CloudFront-Viewer-Country`), and `allExcept` (all viewer headers except listed ones). The CloudFront-specific headers are useful for geo-based routing or content localization. Keep forwarded values narrow when caching is enabled — unnecessary cookies or query parameters reduce cache hit rates.
+For cookie forwarding, the supported modes are `none` (strip all cookies), `whitelist` (forward specific cookies), and `all` (forward all cookies). For query string forwarding: `all`, `none`, and `whitelist`. For header forwarding, several strategies are available: `none` (strip all), `whitelist` (specific headers), `allViewer` (all viewer headers), `allViewerAndWhitelistCloudFront` (viewer headers plus specific CloudFront headers like `CloudFront-Viewer-Country`), and `allExcept` (all viewer headers except listed ones). The CloudFront-specific headers are useful for geo-based routing or content localization. Keep forwarded values narrow — unnecessary cookies or query parameters add overhead, and if they are also part of the cache key, they reduce cache hit rates.
 
 By default, all HTTP methods are forwarded. Use `allowedMethods` to restrict which methods reach the origin — for example, `['GET', 'HEAD']` for read-only bucket content or `['GET', 'HEAD', 'OPTIONS', 'PUT', 'PATCH', 'POST', 'DELETE']` to explicitly allow all methods.
 
-If you have a specific AWS-managed origin request policy, pass its ID via `originRequestPolicyId` instead of configuring forwarding options manually.
+If you have a pre-existing CloudFront origin request policy, pass its ID via `originRequestPolicyId` instead of configuring forwarding options manually.
 
 ## Custom domains
 
 Stacktape can attach your own domain (e.g., `cdn.example.com`) to the CDN distribution. Stacktape can automatically create DNS records and provision a free TLS certificate. Set `disableDnsRecordCreation: true` if you manage DNS records yourself, or provide `customCertificateArn` to use your own ACM certificate. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain:add`](/cli/domain-add) to set one up.
+
+**When to use a custom domain:** Production and customer-facing stages where a branded, stable URL matters (e.g., `api.yourproduct.com` or `app.yourproduct.com`). Custom domains also make it easier to switch infrastructure behind the scenes without breaking client integrations. **When the default CloudFront URL is fine:** Development stages, internal tools, and early validation where a generated `d1234.cloudfront.net` URL is acceptable. Custom domains add DNS propagation and certificate provisioning overhead that slows down initial deploys. For full domain management details, see [Custom domains](/resources/networking/custom-domains).
 
 <CodeBlock
   intellisense
@@ -330,15 +420,17 @@ export default defineConfig(() => {
   ]}
 />
 
-You can attach multiple domains to a single CDN distribution. If you manage DNS records yourself, set `disableDnsRecordCreation: true` and Stacktape will provision the TLS certificate but skip creating the DNS record. For specific certificate requirements, provide `customCertificateArn` with an ACM certificate ARN.
+You can attach multiple domains to a single CDN distribution. Set `disableDnsRecordCreation: true` if you manage DNS records yourself — Stacktape will skip creating the DNS record. For specific certificate requirements, provide `customCertificateArn` with an ACM certificate ARN instead of relying on automatic certificate provisioning.
 
-<Warning>CloudFront requires viewer certificates to be in ACM `us-east-1` — regardless of where your origin resources are deployed.</Warning>
+<Warning>AWS CloudFront requires that viewer certificates are provisioned in ACM `us-east-1`, regardless of where your origin resources are deployed. If you provide a `customCertificateArn`, ensure the certificate is in `us-east-1`.</Warning>
 
 After deployment, custom domain URLs are available via `$ResourceParam('myApi', 'cdnCustomDomainUrls')`. For full details on domain management, see [Custom domains](/resources/networking/custom-domains).
 
 ## Edge functions
 
-Edge functions run custom code at CloudFront edge locations on each CDN request or response, without hitting your origin. They use [edge Lambda functions](/resources/compute/edge-function) defined as separate resources in your stack. The `edgeFunctions` property references these resources by name.
+Edge functions run custom code at CloudFront hook points on CDN requests and responses. `onRequest` can return early before the origin is contacted; origin hooks run around cache misses and origin responses. They use [edge Lambda functions](/resources/compute/edge-function) defined as separate resources in your stack. The `edgeFunctions` property references these resources by name.
+
+**When to use edge functions:** Lightweight auth checks (JWT verification, API key validation), URL rewrites, header injection, redirects, and A/B test routing that must happen before the request reaches your origin. **When to keep logic in the origin:** Normal business logic, database access, and code that changes frequently. Edge functions deploy to all CloudFront edge locations, which adds deployment time and makes debugging harder than origin-side code. Most CDN setups work well without edge functions — add them only when you need to act on the request before it reaches the origin or cache.
 
 Four hook points are available:
 
@@ -397,7 +489,7 @@ export default defineConfig(() => {
 
 The `onRequest` function runs before the cache lookup, so it can short-circuit requests (return 401 for unauthorized users) without ever reaching the origin or cache. The `onResponse` function runs before the response reaches the client — use it to modify response headers, add security headers, or set cookies.
 
-<Warning>Stacktape uses `onOriginRequest` internally for bucket, web service, and API Gateway CDN setups. Overriding it may break default behavior. Only use `onOriginRequest` if you understand the implications for your specific parent resource type.</Warning>
+<Warning>Stacktape uses `onOriginRequest` internally for some CDN setups, including bucket and API Gateway origins. Overriding it may break default behavior. Only use `onOriginRequest` if you understand the implications for your specific parent resource type.</Warning>
 
 Edge functions can also be configured per-route in `routeRewrites`, so different URL patterns can run different edge logic.
 
@@ -443,7 +535,7 @@ export default defineConfig(() => {
 
 ## Firewall
 
-The `useFirewall` property names a [web application firewall](/resources/security/web-application-firewall) resource that protects this CDN from common web exploits. Configure inspection and blocking behavior on the [firewall resource](/resources/security/web-application-firewall) itself.
+The `useFirewall` property references a [web application firewall](/resources/security/web-application-firewall) resource by name. When set, the named firewall is attached to the CDN distribution. See the [firewall page](/resources/security/web-application-firewall) for rule configuration and inspection behavior.
 
 <CodeBlock
   intellisense
@@ -523,12 +615,12 @@ Available CDN parameters:
 
 | Parameter | Description |
 |---|---|
-| `cdnDomain` | CloudFront distribution domain (e.g., `d111111abcdef8.cloudfront.net`) |
-| `cdnUrl` | Full HTTPS URL of the CloudFront distribution |
-| `cdnCustomDomains` | Comma-separated list of custom domains attached to the CDN |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain HTTPS URLs |
-| `cdnCanonicalDomain` | Custom domain if set, otherwise the CloudFront distribution domain |
-| `cdnCanonicalUrl` | Custom domain URL if set, otherwise the CloudFront distribution URL |
+| `cdnDomain` | The CloudFront distribution domain name |
+| `cdnUrl` | The CloudFront distribution URL |
+| `cdnCustomDomains` | Custom domain value(s) for the CDN |
+| `cdnCustomDomainUrls` | Custom domain URL value(s) for the CDN |
+| `cdnCanonicalDomain` | The primary domain for the CDN |
+| `cdnCanonicalUrl` | The primary URL for the CDN |
 
 ## API Reference
 
@@ -540,40 +632,24 @@ Because CDN is configured as a nested property on a parent resource, the API ref
 
 ### How much does a CloudFront CDN cost?
 
-CloudFront has no monthly base fee. You pay per request (~$0.01 per 10,000 requests) and per GB of data transferred out. The `cloudfrontPriceClass` setting controls which regions are used — `PriceClass_100` (North America + Europe) has the lowest per-request rates. CloudFront pricing varies by region, so your exact costs depend on where your users are located and how much data you transfer.
-
-### How do I attach a CDN to my Stacktape resource?
-
-Add a `cdn` property with `enabled: true` to any supported parent resource: `bucket`, `http-api-gateway`, `application-load-balancer`, or `function` (see [HTTP API Gateway](/resources/networking/http-api-gateway), [Application Load Balancer](/resources/networking/application-load-balancer), [bucket](/resources/storage/s3-bucket), and [Lambda function](/resources/compute/lambda-function)). The CDN is configured entirely through this sub-property — there is no separate CDN resource to define.
-
-### Can I use a custom domain with CDN?
-
-Yes. Add a `customDomains` array inside the `cdn` configuration with your domain name. Stacktape can automatically provision a free TLS certificate and create a DNS record in Route53. Your domain must have a Route53 hosted zone — set one up with [`stacktape domain:add`](/cli/domain-add). If you provide a `customCertificateArn`, the ACM certificate must be in `us-east-1` (an AWS CloudFront requirement). See [Custom domains](/resources/networking/custom-domains) for details.
-
-### What happens to the CDN cache when I deploy?
-
-By default, Stacktape invalidates all cached CDN content on every deploy so users immediately see the latest version. Set `disableInvalidationAfterDeploy: true` to skip this if you use content-hashed filenames or manage cache invalidation yourself. AWS CloudFront cache invalidations propagate asynchronously across all edge locations.
-
-### Can I route different URL paths to different backends?
-
-Yes, using `routeRewrites`. Each rewrite matches a URL path pattern (wildcards supported) and routes matching requests to a different origin — a bucket, API gateway, ALB, Lambda function, or external domain. Unmatched requests go to the default origin. Each rewrite can have its own caching, forwarding, and edge function settings.
+CloudFront has no monthly base fee. You pay per request (~$0.01 per 10,000 requests) and per GB of data transferred out, with rates that vary by region. The `cloudfrontPriceClass` setting controls which edge regions serve your content and therefore your per-request rates: `PriceClass_100` (North America + Europe) is cheapest, `PriceClass_200` adds Asia/Middle East/Africa, and `PriceClass_All` (the default) covers all regions worldwide. Most teams start with `PriceClass_100` and upgrade as their user base grows geographically.
 
 ### When should I add a CDN to my API?
 
-Add a CDN to APIs that serve cacheable public data (product listings, config endpoints, public content) or need lower global latency. Also consider CDN for multi-origin routing (single domain for frontend + API). Skip CDN for fully dynamic, user-specific APIs where every response is unique — the CDN adds request charges without caching benefit. For development stages, the direct endpoint is simpler and faster to iterate with.
+Add a CDN to APIs that serve cacheable public data (product listings, config endpoints, public content) or need lower global latency, and to consolidate a frontend and API behind one domain via multi-origin routing. Skip it for fully dynamic, user-specific APIs where every response is unique — the CDN adds request charges without caching benefit. For development stages, the direct endpoint is simpler and faster to iterate with.
 
-### How does CDN caching work with dynamic content?
+### Why isn't my API or ALB content being cached?
 
-For API Gateway and ALB origins, responses are not cached by default when no caching header is present. You can enable caching by having your origin send `Cache-Control` headers, or by setting `cachingOptions.defaultTTL` on the CDN configuration. Bucket origins have a 6-month default cache time when no `Cache-Control` header is present. Be careful caching personalized content: use cache key parameters to differentiate responses by user-specific headers or cookies.
+API Gateway and ALB origins are not cached by default — CloudFront only caches their responses if your origin sends `Cache-Control`/`Expires` headers or you set `cachingOptions.defaultTTL` on the CDN. (Bucket origins are different: they default to a 6-month cache time when no `Cache-Control` header is present.) When caching personalized content, narrow the cache key with `cacheKeyParameters` so user-specific headers or cookies produce distinct cached entries.
 
-### How fast does CloudFront propagate changes?
+### What happens to the CDN cache when I deploy?
 
-Cache invalidations and distribution changes are asynchronous and can take time to propagate across all edge locations globally. New distributions and configuration changes (custom domains, price class updates) also propagate asynchronously before becoming fully effective. Plan for this delay when deploying changes that users need to see immediately — automatic cache invalidation on deploy handles the most common case.
+By default, Stacktape invalidates all cached CDN content on every deploy so users immediately see the latest version. CloudFront invalidations propagate asynchronously across edge locations, so plan for a short delay. Set `disableInvalidationAfterDeploy: true` to skip automatic invalidation if you use content-hashed filenames or manage cache lifecycles yourself.
 
-### Can I protect my CDN with a web application firewall?
+### Can I route different URL paths to different backends?
 
-Yes. Define a [web application firewall](/resources/security/web-application-firewall) resource and reference it from the `useFirewall` property in your CDN configuration. The firewall inspects requests at the CloudFront edge layer. AWS WAF charges per web ACL, per rule, and per request inspected — see the [firewall page](/resources/security/web-application-firewall) for rule configuration details.
+Yes, using `routeRewrites`. Each rewrite matches a URL path pattern (wildcards supported) and routes matching requests to a different origin — a bucket, API gateway, ALB, Lambda function, or external `custom-origin` domain. Unmatched requests go to the default origin (the parent resource), and the first matching rewrite wins. Each rewrite can override its own caching, forwarding, and edge-function settings.
 
-### What is the difference between CDN price classes?
+### Why does my custom domain certificate fail to attach?
 
-The three price classes control which CloudFront edge locations serve your content. `PriceClass_100` covers North America and Europe with the lowest per-request rates. `PriceClass_200` adds Asia, Middle East, and Africa. `PriceClass_All` (the default) includes all regions worldwide including South America and Oceania. There is no monthly base fee for any class — only per-request and data transfer charges. Most teams start with `PriceClass_100` and upgrade as their user base grows geographically.
+AWS CloudFront requires the viewer TLS certificate to live in ACM `us-east-1`, regardless of where your origin resources are deployed. If you pass `customCertificateArn`, make sure that certificate is in `us-east-1`. When you let Stacktape provision the certificate automatically it handles this for you, but your domain must still have a [Route53 hosted zone](/resources/networking/custom-domains) — set one up with [`stacktape domain:add`](/cli/domain-add).

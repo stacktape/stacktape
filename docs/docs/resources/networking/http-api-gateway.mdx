@@ -1,6 +1,6 @@
 ---
 title: 'HTTP API Gateway'
-order: 53
+order: 54
 seoTitle: 'HTTP API Gateway - Serverless API Routing | Stacktape Docs'
 seoDescription: 'Create serverless HTTP APIs with Stacktape using AWS API Gateway V2. Pay-per-request pricing at ~$1/million requests, automatic TLS, CORS, custom domains, and CDN support.'
 ---
@@ -83,9 +83,9 @@ export default defineConfig(() => {
   ]}
 />
 
-The gateway `myApi` has no configuration because the defaults are sufficient — TLS is automatic, access logging is enabled, and the API is publicly accessible. The `getUsers` Lambda function registers a `GET /users` route on the gateway through its `HttpApiIntegration` event.
+The gateway `myApi` has no configuration because TLS is included and access logging is enabled by default. The `getUsers` Lambda function registers a `GET /users` route on the gateway through its `HttpApiIntegration` event.
 
-You can reference the deployed gateway URL with `$ResourceParam('myApi', 'url')` in your config or retrieve it via [`stacktape param:get`](/cli/param-get). To surface the URL in terminal output after every deploy, add it to `stackConfig.outputs`.
+You can reference the deployed gateway URL with `$ResourceParam('myApi', 'url')` in your config. To surface the URL in terminal output after every deploy, add it to `stackConfig.outputs`.
 
 ## Routing
 
@@ -254,9 +254,9 @@ export default defineConfig(() => {
   ]}
 />
 
-Setting `enabled: true` activates the CDN. The `cloudfrontPriceClass` controls which edge regions are used — `PriceClass_100` (North America + Europe, cheapest), `PriceClass_200` (adds Asia, Middle East, Africa), or `PriceClass_All` (default, all regions worldwide). By default, API Gateway origins are not cached unless your origin sends `Cache-Control` headers. You can also attach a [web application firewall](/resources/security/web-application-firewall) to the CDN using the `useFirewall` property.
+Setting `enabled: true` activates the CDN. The `cloudfrontPriceClass` controls which CloudFront edge regions serve traffic — `PriceClass_100` (North America + Europe, cheapest), `PriceClass_200` (adds Asia, Middle East, Africa), or `PriceClass_All` (all regions worldwide). WAF protection for CDN-backed APIs is configured on the CDN layer — see [CDN](/resources/networking/cdn) and [Web Application Firewall](/resources/security/web-application-firewall) for details.
 
-See [CDN](/resources/networking/cdn) for the full CDN configuration surface, including custom domains on the CDN itself, edge functions, and route rewrites.
+See [CDN](/resources/networking/cdn) for the full CDN configuration surface, including caching behavior, custom domains on the CDN itself, edge functions, and route rewrites.
 
 ## Access logging
 
@@ -290,7 +290,7 @@ export default defineConfig(() => {
 
 The `format` property controls the log output shape — `JSON` (default), `CLF` (Common Log Format), `XML`, or `CSV`. JSON is the most practical for programmatic analysis and integrates well with log forwarding. The `retentionDays` property defaults to `30`. Allowed values are: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, or 3653 days.
 
-The logging section supports log forwarding to external services like Datadog, Highlight.io, or any HTTP endpoint via the `logForwarding` property. See [Log forwarding](/observability/log-forwarding) for setup details.
+HTTP API access logs support the shared log-forwarding configuration surface for sending logs to external services. See [Log forwarding](/observability/log-forwarding) for setup details.
 
 To disable access logging entirely (not recommended for production), set `disabled: true`.
 
@@ -298,10 +298,10 @@ To disable access logging entirely (not recommended for production), set `disabl
 
 The payload format controls the shape of the event object your Lambda function receives from API Gateway. There are two versions:
 
-| Version | Shape | Best for |
-|---------|-------|----------|
-| `1.0` | Detailed, includes `multiValueHeaders` and `multiValueQueryStringParameters` | Legacy integrations, existing code expecting v1 |
-| `2.0` | Simplified, flat structure with `cookies` array and `rawPath` | New projects — less parsing code |
+| Version | Best for |
+|---------|----------|
+| `1.0` | Legacy integrations, existing code expecting the v1 event shape |
+| `2.0` | New projects — simpler, flatter event structure with less parsing code |
 
 When not set at the gateway level, the effective default is determined by each integration — integrations default to `1.0` unless overridden. You can set the format at the gateway level (applies to all routes unless an individual integration overrides it) or set it per-route on individual integrations.
 
@@ -399,14 +399,6 @@ AWS API Gateway V2 (HTTP API) costs ~$1 per million requests with no minimum fee
 
 Routes are not defined on the gateway resource. Instead, attach `HttpApiIntegration` events to your [Lambda functions](/resources/compute/lambda-function) or container workloads, referencing the gateway by its resource name. Each integration specifies an HTTP method and URL path. For container workloads, the integration also requires a `containerPort`. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API.
 
-### Can I use a custom domain with HTTP API Gateway?
-
-Yes. Add a `customDomains` array to your gateway configuration with your domain name. Stacktape provisions a free TLS certificate and creates a DNS record in Route53 automatically. Your domain must have a Route53 hosted zone in your AWS account — set one up with [`stacktape domain:add`](/cli/domain-add). See [Custom domains](/resources/networking/custom-domains) for details.
-
-### What's the difference between HTTP API and REST API on AWS?
-
-AWS offers two API Gateway products: HTTP API (V2) and REST API (V1). HTTP API is cheaper (~$1/M vs ~$3.50/M requests), has lower latency, and supports JWT authorizers natively. REST API offers more features (API keys, usage plans, request validation, WAF integration, private endpoints). Stacktape uses HTTP API because it covers the majority of use cases at lower cost.
-
 ### When should I use HTTP API Gateway vs an Application Load Balancer?
 
 Use HTTP API Gateway for Lambda-based APIs with variable traffic — you pay per request and scale to zero. Use an [Application Load Balancer](/resources/networking/application-load-balancer) for container-based [web services](/resources/compute/web-service) with sustained traffic — the flat hourly cost plus LCU-based pricing is cheaper above roughly 50–100 million requests per month. ALBs also support richer routing rules (headers, query params, source IPs).
@@ -415,18 +407,10 @@ Use HTTP API Gateway for Lambda-based APIs with variable traffic — you pay per
 
 No. HTTP API Gateway routes request-response HTTP traffic by method and path. It does not support WebSocket connections or other persistent bidirectional communication. If you need real-time bidirectional messaging, a container-based architecture running a WebSocket server (e.g., Socket.io, ws) behind an [Application Load Balancer](/resources/networking/application-load-balancer) is a common alternative.
 
-### How do I enable CORS on my API Gateway?
-
-Set `cors: { enabled: true }` on the gateway resource. With no other options, this uses permissive defaults (`*` origins, auto-detected methods). To restrict origins, provide `allowedOrigins` with specific domain URLs. CORS is handled at the gateway level and overrides any CORS headers your application code sets.
-
 ### What is the maximum payload size for HTTP API Gateway?
 
 AWS API Gateway V2 (HTTP API) has a maximum payload size of 10 MB for both requests and responses. For larger payloads, use S3 presigned URLs to upload/download files directly, or use an [Application Load Balancer](/resources/networking/application-load-balancer) which does not have this limit.
 
 ### Can I protect my API Gateway with a firewall?
 
-Not directly on the HTTP API Gateway resource — AWS WAF does not support API Gateway V2 HTTP APIs natively. However, you can place a [CDN](/resources/networking/cdn) in front of your gateway and attach a [web application firewall](/resources/security/web-application-firewall) to the CDN distribution using the `useFirewall` property. This provides rate limiting, IP filtering, geo-blocking, and bot protection at the edge layer.
-
-### How fast does API Gateway respond?
-
-API Gateway itself adds roughly 10–30ms of overhead per request for routing, authorization, and TLS termination — it is always ready to accept requests and does not cold-start. The latency your users observe comes primarily from your Lambda function's cold start (typically 100–500ms for Node.js/Python, longer for Java/.NET). To reduce end-to-end latency, optimize your Lambda's cold start time or use provisioned concurrency.
+The `HttpApiGateway` resource does not expose a top-level `useFirewall` property. To add WAF protection, enable `cdn` on the gateway and attach a [WebAppFirewall](/resources/security/web-application-firewall) resource to the CDN distribution. This provides rate limiting, IP filtering, geo-blocking, and bot protection at the edge layer in front of your API. See the [CDN](/resources/networking/cdn) and [Web Application Firewall](/resources/security/web-application-firewall) pages for configuration details.

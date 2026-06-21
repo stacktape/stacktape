@@ -1,6 +1,6 @@
 ---
 title: 'info:whoami'
-order: 178
+order: 185
 seoTitle: 'info:whoami CLI Command | Stacktape Docs'
 seoDescription: 'Check your current Stacktape user, organization, connected AWS accounts, and project access. Verify your API key configuration with stacktape info:whoami.'
 ---
@@ -20,10 +20,10 @@ This command requires a valid API key. If you haven't logged in yet, run [`stack
 The output includes:
 
 - **User** — your name, email, and user ID.
-- **Organization** — the organization tied to your API key, including your role (Owner, Admin, Developer, or Viewer).
+- **Organization** — the organization tied to your API key, including your displayed role, such as Owner, Admin, Developer, or Viewer.
 - **Connected AWS accounts** — each account's name, AWS account ID, and connection state.
 - **Projects** — all projects you can access in the current organization.
-- **Permissions** — when your API key is scoped to a specific project, the permissions granted to it.
+- **Permissions** — the result can include project-scoped API key metadata, including `isProjectScoped` and `permissions`, when the API returns those fields.
 
 ## Examples
 
@@ -93,6 +93,5 @@ stacktape info:whoami --logLevel debug
 ## Related commands
 
 - [`login`](/cli/login) — configure your Stacktape API key.
-- [`logout`](/cli/logout) — remove the API key from your system.
 - [`org:list`](/cli/org-list) — list all organizations you can access.
 - [`projects:list`](/cli/projects-list) — list all projects and their deployed stages in your organization.

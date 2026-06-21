@@ -1,13 +1,13 @@
 ---
 title: 'info:operations'
-order: 179
+order: 186
 seoTitle: 'info:operations CLI Command | Stacktape Docs'
-seoDescription: 'View recent Stacktape deployment operations with status, timestamps, and errors. Filter by project, stage, or user to audit deploy and delete history across your organization.'
+seoDescription: 'View recent recorded Stacktape operations with status, timestamps, and errors. Filter by project, stage, or user to audit operation history across your organization.'
 ---
 
 # info:operations
 
-The `info:operations` command lists recent Stacktape operations (deploys, deletes, rollbacks) across your organization. Each entry shows success or failure status, timestamps, and error descriptions for failed operations. Use filters to narrow results by project, stage, or the current API-key user.
+The `info:operations` command lists recent recorded Stacktape operations with their status. Each entry shows success or failure status, timestamps, and error descriptions for failed operations. Use filters to narrow results by project, stage, or the current API-key user.
 
 ## Usage
 
@@ -15,7 +15,7 @@ The `info:operations` command lists recent Stacktape operations (deploys, delete
 stacktape info:operations
 ```
 
-This returns the 25 most recent operations across all projects and stages in your organization. You must be logged in with a valid API key — run [`stacktape login`](/cli/login) first if you haven't already.
+`info:operations` returns the 25 most recent operations across all projects and stages in your organization. You must be logged in with a valid API key — run [`stacktape login`](/cli/login) first if you haven't already.
 
 ## Filtering results
 
@@ -25,7 +25,13 @@ Filter by project name to see operations for a single project.
 stacktape info:operations --projectName my-api
 ```
 
-Filter by stage to see operations for a specific stage.
+Filter by stage to see operations for a specific stage across all projects.
+
+```bash
+stacktape info:operations --stage production
+```
+
+Combine `--projectName` and `--stage` to narrow results to a single project and stage.
 
 ```bash
 stacktape info:operations --projectName my-api --stage production
@@ -47,7 +53,7 @@ stacktape info:operations --limit 50
 
 ## Machine-readable output
 
-Use `--agent` or `--outputFormat jsonl` to get NDJSON output suitable for scripts or AI coding agents. This disables interactive terminal formatting and outputs one JSON object per line.
+Use `--agent` or `--outputFormat jsonl` to get machine-readable output suitable for scripts or AI coding agents. See the flags reference below for details on each output format.
 
 ```bash
 stacktape info:operations --agent
@@ -142,5 +148,3 @@ stacktape info:operations --agent
 - [`info:stacks`](/cli/info-stacks) — list all deployed stacks in a region with their status and estimated spend.
 - [`info:stack`](/cli/info-stack) — show detailed outputs and resources for a specific deployed stack.
 - [`info:whoami`](/cli/info-whoami) — verify your API key and see which organization, AWS accounts, and projects you have access to.
-- [`deploy`](/cli/deploy) — deploy a stack to AWS.
-- [`delete`](/cli/delete) — delete a deployed stack.

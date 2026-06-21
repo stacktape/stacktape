@@ -1,6 +1,6 @@
 ---
 title: 'Kinesis Stream'
-order: 61
+order: 62
 seoTitle: 'Kinesis Stream - Real-Time Data Streaming | Stacktape Docs'
 seoDescription: 'Deploy real-time Kinesis data streams on AWS with Stacktape. On-demand and provisioned capacity, enhanced fan-out, Lambda triggers, and encryption at rest.'
 ---
@@ -29,7 +29,7 @@ Use a Kinesis stream when you need ordered, replayable, real-time data ingestion
 
 ## Basic example
 
-The simplest Kinesis stream requires no properties. Stacktape creates an on-demand stream that auto-scales, retains records for 24 hours, and charges per GB of data ingested and retrieved.
+All top-level `KinesisStreamProps` properties are optional. If you provide `encryption`, set `encryption.enabled` explicitly. When `capacityMode` is omitted, the stream defaults to `ON_DEMAND` — it auto-scales with no capacity planning. Records are retained for 24 hours by default.
 
 <CodeBlock
   intellisense
@@ -47,7 +47,129 @@ export default defineConfig(() => {
     resources: { eventStream }
   };
 });
-// [!code focus-end]`
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+## Examples
+
+### Analytics pipeline with Lambda consumer
+
+A provisioned Kinesis stream feeding a Lambda function that processes clickstream records in batches. The trigger uses `bisectBatchOnFunctionError` to isolate poison records, `maximumRetryAttempts` to cap retries, and `parallelizationFactor` to process multiple batches per shard concurrently.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  KinesisStream,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const clickStream = new KinesisStream({
+    capacityMode: 'PROVISIONED',
+    shardCount: 2,
+    retentionPeriodHours: 168
+  });
+
+  const analyticsProcessor = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/analytics-processor.ts'
+    }),
+    memory: 1024,
+    timeout: 60,
+    events: [
+      {
+        type: 'kinesis-stream',
+        properties: {
+          kinesisStreamName: 'clickStream',
+          batchSize: 500,
+          startingPosition: 'LATEST',
+          maxBatchWindowSeconds: 15,
+          bisectBatchOnFunctionError: true,
+          maximumRetryAttempts: 3,
+          parallelizationFactor: 2
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { clickStream, analyticsProcessor }
+  };
+});
+// [!code focus-end]
+`
+    }
+  ]}
+/>
+
+### Event ingestion API with producer Lambda
+
+A Lambda function behind an [HTTP API Gateway](/resources/networking/http-api-gateway) that writes records to an encrypted Kinesis stream. The stream name is passed via `$ResourceParam()` because the documented `connectTo` environment-variable table does not list KinesisStream.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  KinesisStream,
+  LambdaFunction,
+  HttpApiGateway,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const eventStream = new KinesisStream({
+    encryption: { enabled: true },
+    retentionPeriodHours: 48
+  });
+
+  const gateway = new HttpApiGateway({});
+
+  const ingestApi = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/ingest.ts'
+    }),
+    connectTo: ['eventStream'],
+    environment: [
+      {
+        name: 'STREAM_NAME',
+        value: "$ResourceParam('eventStream', 'name')"
+      }
+    ],
+    memory: 256,
+    timeout: 10,
+    events: [
+      {
+        type: 'http-api-gateway',
+        properties: {
+          httpApiGatewayName: 'gateway',
+          method: 'POST',
+          path: '/events'
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { eventStream, gateway, ingestApi }
+  };
+});
+// [!code focus-end]
+`
     }
   ]}
 />
@@ -89,7 +211,8 @@ export default defineConfig(() => {
     resources: { eventStream }
   };
 });
-// [!code focus-end]`
+// [!code focus-end]
+`
     }
   ]}
 />
@@ -116,7 +239,8 @@ export default defineConfig(() => {
     resources: { eventStream }
   };
 });
-// [!code focus-end]`
+// [!code focus-end]
+`
     }
   ]}
 />
@@ -205,14 +329,15 @@ export default defineConfig(() => {
     resources: { eventStream }
   };
 });
-// [!code focus-end]`
+// [!code focus-end]
+`
     }
   ]}
 />
 
 ## Triggering a Lambda function
 
-A Kinesis stream is a common event source for [Lambda functions](/resources/compute/lambda-function). A [Kinesis trigger](/configuration/triggers/kinesis-events) invokes the Lambda with batches of records from the stream. In direct mode, AWS polls each shard approximately once per second; when `autoCreateConsumer` is enabled, a dedicated stream consumer pushes records instead for lower latency. Configure this using a Kinesis trigger on the Lambda function — not on the stream itself. Use `kinesisStreamName` for a stream defined in the same Stacktape config, or `streamArn` to consume an existing Kinesis stream outside the stack.
+A Kinesis stream is a common event source for [Lambda functions](/resources/compute/lambda-function). A [Kinesis trigger](/configuration/triggers/kinesis-events) invokes the Lambda with batches of records from the stream. In direct mode, AWS polls each shard approximately once per second; when `autoCreateConsumer` is enabled, a dedicated stream consumer pushes records instead for lower latency. Configure this using a Kinesis trigger on the Lambda function — not on the stream itself. Use `kinesisStreamName` to reference a Kinesis stream defined in your stack's resources, or `streamArn` to consume a stream not managed by your stack.
 
 Key trigger settings:
 
@@ -288,7 +413,7 @@ export const handler = async (event: {
 
 ## Connecting to other resources
 
-`connectTo` can reference a Kinesis stream from any compute resource ([Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), [multi-container workload](/resources/compute/multi-container-workload), or [batch job](/resources/compute/batch-job)) because Kinesis streams are included in the resources that affect the workload's IAM role. Use the [`$ResourceParam()`](/configuration/directives) directive to pass the stream's `arn` or `name` to your application code through environment variables.
+Adding a Kinesis stream to a compute resource's `connectTo` list grants the IAM permissions needed to interact with the stream. Any compute resource that supports `connectTo` can reference a Kinesis stream. The documented `connectTo` environment-variable table does not list KinesisStream, so use the [`$ResourceParam()`](/configuration/directives) directive in your `environment` configuration to pass the stream's `arn` or `name` to your application code.
 
 A Kinesis stream exposes two referenceable parameters: `arn` (the stream's Amazon Resource Name) and `name` (the AWS Kinesis stream name). Reference them with `$ResourceParam('eventStream', 'arn')` or `$ResourceParam('eventStream', 'name')`.
 
@@ -354,6 +479,15 @@ export const handler = async (event: any) => {
 
 For more details on `connectTo`, see [Connecting resources](/configuration/connecting-resources).
 
+## Referenceable parameters
+
+A Kinesis stream exposes the following parameters via the [`$ResourceParam` directive](/configuration/directives). See [Referenceable parameters](/configuration/referenceable-parameters) for details.
+
+| Parameter | Description | Usage |
+|---|---|---|
+| `arn` | ARN of the Kinesis stream. | `$ResourceParam('<<resource-name>>', 'arn')` |
+| `name` | AWS (physical) name of the Kinesis stream. | `$ResourceParam('<<resource-name>>', 'name')` |
+
 ## API Reference
 
 <ApiReference definitionName="KinesisStreamProps" />
@@ -368,10 +502,6 @@ Use a Kinesis stream when you need ordered, replayable data with multiple indepe
 
 Amazon Kinesis uses two pricing models. On-demand mode charges per GB of data ingested and retrieved, with no minimum fee or capacity planning. Provisioned mode charges per shard-hour regardless of utilization. Additional charges apply for data retention beyond 24 hours and for enhanced fan-out consumers. On-demand is generally cheaper for bursty or unpredictable traffic; provisioned can be cheaper for steady, high-volume streams.
 
-### What is a Kinesis shard?
-
-A shard is the base throughput unit of an Amazon Kinesis stream. Each shard provides 1 MB/s (1,000 records/s) of write capacity and 2 MB/s of read capacity shared across all consumers. In provisioned mode, you specify the number of shards directly. In on-demand mode, AWS manages shards automatically. Records within a shard are delivered in order by partition key.
-
 ### Can I replay data from a Kinesis stream?
 
 Yes. Kinesis retains records for 24 hours by default, and you can extend retention up to 365 days using `retentionPeriodHours`. Consumers can start reading from any point within the retention window using `startingPosition: 'TRIM_HORIZON'` (start of retained data) or `'LATEST'` (new records only). This makes Kinesis suitable for reprocessing after bug fixes or adding new consumers to historical data.
@@ -382,20 +512,8 @@ Enhanced fan-out gives each consumer its own dedicated 2 MB/s read throughput pe
 
 ### How do I handle failed records in a Kinesis Lambda consumer?
 
-Configure `maximumRetryAttempts` on the [Kinesis trigger](/configuration/triggers/kinesis-events) to limit retries. Use `bisectBatchOnFunctionError: true` to split failed batches in half, isolating poison records faster. Set `onFailure` to route batches that exhaust all retries to an SQS queue or SNS topic for inspection. Always make your handler idempotent — Kinesis retries the entire batch, including already-processed records.
+Configure `maximumRetryAttempts` on the [Kinesis trigger](/configuration/triggers/kinesis-events) to limit retries. Use `bisectBatchOnFunctionError: true` to split failed batches in half, isolating poison records faster. Use `onFailure` to configure an SQS or SNS destination for batches that fail after all retry attempts. Always make your handler idempotent — AWS Lambda retries the entire batch on error, including already-processed records.
 
-### On-demand vs provisioned — which capacity mode should I choose?
+### Why do my consumers keep falling behind the stream?
 
-Use on-demand (the default) for most workloads, especially when traffic is unpredictable or you want zero capacity management. AWS scales shards automatically. Use provisioned when you have steady, predictable throughput and want lower per-unit cost — you control the exact shard count and pay a fixed rate per shard-hour. Provisioned requires you to monitor and adjust shard count manually as traffic changes.
-
-### Can I consume a Kinesis stream from a container workload?
-
-Yes. Add the Kinesis stream to a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [multi-container workload](/resources/compute/multi-container-workload) `connectTo` list to include it in the workload's IAM role. Pass the stream name or ARN to your application via `$ResourceParam()` in environment variables. Your application can then use the AWS SDK's Kinesis client to produce or consume records from the stream.
-
-### Does Stacktape support Kinesis Data Firehose?
-
-Stacktape does not include a dedicated Firehose delivery stream resource type. The `KinesisStream` resource creates a Kinesis Data Stream. If you need Firehose for loading data directly into S3, Redshift, or OpenSearch, add it using [raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) or [AWS CDK constructs](/resources/advanced/aws-cdk-constructs) alongside your Kinesis stream.
-
-### How do I monitor a Kinesis stream?
-
-Use [`stacktape debug:logs`](/cli/debug-logs) to view logs from Lambda functions that consume records from the stream. Stream-level metrics — incoming records, read/write throughput, iterator age — are available in Amazon CloudWatch. A growing iterator age metric indicates consumers are falling behind; consider adding more shards (provisioned mode) or increasing Lambda concurrency to catch up.
+Watch the `GetRecords.IteratorAgeMilliseconds` CloudWatch metric — a growing iterator age means consumers can't keep up with the incoming records. To catch up, add shards (provisioned mode) so reads parallelize, raise `parallelizationFactor` on the [Kinesis trigger](/configuration/triggers/kinesis-events) to process more batches per shard concurrently, or enable [enhanced fan-out](#enhanced-fan-out) so each consumer gets its own 2 MB/s pipe. Stacktape's provided alarm trigger types do not include a Kinesis-specific alarm, so set up lag alarms on this metric directly in CloudWatch via [overrides](/configuration/overrides-and-escape-hatches).

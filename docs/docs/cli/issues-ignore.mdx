@@ -1,13 +1,13 @@
 ---
 title: 'issues:ignore'
-order: 185
+order: 192
 seoTitle: 'issues:ignore CLI Command | Stacktape Docs'
-seoDescription: 'Permanently silence a runtime issue with stacktape issues:ignore. Ignored issues won''t reopen on new occurrences or generate alerts. CLI reference and usage examples.'
+seoDescription: 'Mark a runtime issue as ignored with stacktape issues:ignore. Ignored issues won''t reopen on new occurrences or generate alerts. CLI reference and usage examples.'
 ---
 
 # issues:ignore
 
-The `issues:ignore` command permanently silences a runtime issue detected in your deployed functions or containers. Unlike resolving, an ignored issue will not reopen if the same error occurs again, and it will not generate any further alerts. Use this for known, non-actionable errors you don't want cluttering your issue list.
+The `issues:ignore` command marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`issues:reopen`](/cli/issues-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`issues:resolve`](/cli/issues-resolve) which will automatically reopen if the same error recurs.
 
 ## Usage
 
@@ -15,7 +15,7 @@ The `issues:ignore` command permanently silences a runtime issue detected in you
 stacktape issues:ignore --issueId <issue-id>
 ```
 
-You can find issue IDs by running [`issues:list`](/cli/issues-list).
+You can find issue IDs by running [`issues:list`](/cli/issues-list). This command requires a Stacktape API key — run [`login`](/cli/login) first if this machine is not yet authenticated.
 
 ## Flags Reference
 
@@ -88,7 +88,7 @@ stacktape issues:ignore --issueId iss_abc123def456 --agent
 
 ## When to Ignore vs Resolve
 
-Use `issues:ignore` for errors you've reviewed and determined are not actionable — for example, expected client-side 4xx errors, known third-party SDK warnings, or edge-case timeouts that don't affect users. Ignored issues stay silent permanently until you explicitly reopen them.
+Use `issues:ignore` for errors you've reviewed and determined are not actionable — for example, recurring runtime errors that you've investigated and confirmed don't require a code fix. Ignored issues stay silent until you explicitly reopen them with [`issues:reopen`](/cli/issues-reopen).
 
 Use [`issues:resolve`](/cli/issues-resolve) when you've fixed the root cause. A resolved issue will automatically reopen if the same error recurs, keeping you informed of regressions.
 

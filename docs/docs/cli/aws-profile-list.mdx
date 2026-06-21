@@ -1,13 +1,13 @@
 ---
 title: 'aws-profile:list'
-order: 141
+order: 148
 seoTitle: 'aws-profile:list CLI Command | Stacktape Docs'
 seoDescription: 'List all AWS profiles configured on your machine with stacktape aws-profile:list. View profile names, access key IDs, and masked secret keys in a single table.'
 ---
 
 # aws-profile:list
 
-The `aws-profile:list` command prints every AWS profile configured on your machine. It reads credentials from the standard AWS credentials file (`~/.aws/credentials`) and displays each profile's name, access key ID, and a masked secret access key in a table. Use it to verify which profiles are available before deploying or to audit stored credentials.
+The `aws-profile:list` command prints every AWS profile configured on your machine. It displays each profile's name, access key ID, and a masked secret access key in a table. Use it to verify which profiles are available before deploying or to audit stored credentials.
 
 ## Usage
 
@@ -15,7 +15,7 @@ The `aws-profile:list` command prints every AWS profile configured on your machi
 stacktape aws-profile:list
 ```
 
-The command has no required flags. It outputs a table with three columns: **Profile**, **AWS_ACCESS_KEY_ID**, and **AWS_SECRET_ACCESS_KEY**. The secret access key is partially masked in the output for security.
+The command has no required flags. The CLI prints a table with three columns: **Profile**, **AWS_ACCESS_KEY_ID**, and **AWS_SECRET_ACCESS_KEY**. In the printed table, the secret access key is masked — the first 36 characters are replaced with asterisks, showing only the trailing characters.
 
 If no profiles are configured, the command prints a warning and suggests creating one with [`aws-profile:create`](/cli/aws-profile-create).
 

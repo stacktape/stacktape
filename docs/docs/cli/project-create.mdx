@@ -1,13 +1,13 @@
 ---
 title: 'project:create'
-order: 176
+order: 183
 seoTitle: 'project:create CLI Command | Stacktape Docs'
 seoDescription: 'Create a new Stacktape project in your organization using the project:create CLI command. Supports interactive and agent modes with project naming validation.'
 ---
 
 # project:create
 
-The `project:create` command registers a new project in your current Stacktape organization. Projects group related stages (deployments) and provide cost tracking, access control, and GitOps configuration in the Stacktape Console. You must be logged in with a valid API key before running this command.
+The `project:create` command creates a new project in the current Stacktape organization. Use it before deploying stages under a new project name, or in automation when you need to create the project non-interactively. You must be logged in with a valid API key before running this command.
 
 ## Usage
 
@@ -15,43 +15,13 @@ The `project:create` command registers a new project in your current Stacktape o
 stacktape project:create
 ```
 
-In interactive mode, you are prompted for the project name. To skip the prompt, pass the name directly.
+In interactive mode, you are prompted for the project name. Project names must use lowercase letters, numbers, and dashes only. To skip the prompt, pass the name directly.
 
 ```bash
 stacktape project:create --projectName my-api
 ```
 
-## Important flags
-
-**`--projectName`** — The name for the new project. Must use only lowercase letters, numbers, and dashes (e.g. `my-backend-api`). In agent mode (`--agent`), this flag is required.
-
-**`--region`** — An optional AWS region to associate with the project. This does not restrict where stages can be deployed, but sets a default region context for the project in the Console.
-
-**`--agent`** — Enables agent/programmatic mode. Disables interactive prompts and outputs strict JSONL. When using `--agent`, you must provide `--projectName` explicitly.
-
-## Naming rules
-
-Project names must be lowercase alphanumeric with dashes only (regex: `^[a-z0-9-]+$`). Names like `my-app`, `backend-v2`, or `analytics` are valid. Names containing uppercase letters, underscores, spaces, or special characters are rejected.
-
-## Examples
-
-Create a project interactively (you will be prompted for the name):
-
-```bash
-stacktape project:create
-```
-
-Create a project non-interactively:
-
-```bash
-stacktape project:create --projectName payments-service
-```
-
-Create a project with a default region and machine-readable output:
-
-```bash
-stacktape project:create --projectName payments-service --region eu-west-1 --agent
-```
+In agent mode (`--agent`), you must provide `--projectName` explicitly. You can also pass an optional `--region` when creating the project.
 
 ## CLI reference
 
@@ -141,9 +111,28 @@ stacktape project:create --projectName payments-service --region eu-west-1 --age
   }
 ]} />
 
+## Examples
+
+Create a project interactively (you will be prompted for the name):
+
+```bash
+stacktape project:create
+```
+
+Create a project non-interactively:
+
+```bash
+stacktape project:create --projectName payments-service
+```
+
+Create a project with a region and machine-readable output:
+
+```bash
+stacktape project:create --projectName payments-service --region eu-west-1 --agent
+```
+
 ## Related commands
 
 - [`projects:list`](/cli/projects-list) — List all projects in your organization with their stages and costs.
 - [`org:create`](/cli/org-create) — Create a new organization (projects live inside organizations).
 - [`deploy`](/cli/deploy) — Deploy a stage to a project.
-- [`info:whoami`](/cli/info-whoami) — Verify your current user, organization, and accessible projects.

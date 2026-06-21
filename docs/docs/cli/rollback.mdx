@@ -1,27 +1,27 @@
 ---
 title: 'rollback'
-order: 147
+order: 154
 seoTitle: 'stacktape rollback — Revert to a Previous Deployment | Stacktape Docs'
-seoDescription: 'Roll back a Stacktape deployment to a previous version without rebuilding. Reuses stored Lambda zips and container images, skipping the packaging step for fast recovery.'
+seoDescription: 'Roll back a Stacktape deployment to a previous version without rebuilding. Reuses stored deployment artifacts, skipping the packaging step for fast recovery.'
 ---
 
 # rollback
 
-The `stacktape rollback` command reverts a deployed stack to a previous deployment version. It downloads the CloudFormation template from an earlier version and deploys it, reusing stored artifacts (Lambda zips, container images) so no rebuild or packaging step is needed. Use it to recover from a bad deployment without redeploying from source.
+The `stacktape rollback` command reverts a deployed stack to a previous deployment version. It downloads the CloudFormation template from a previous version and deploys it. Artifacts, such as Lambda zips and container images, are reused — no rebuild or packaging step is needed. Use it to recover from a bad deployment without redeploying from source.
 
 ## When to use
 
-Use `rollback` when a recent deployment introduced a bug, performance regression, or broken configuration and you want to restore the previous working state. Because rollback reuses stored Lambda zips and container images, it skips the packaging step entirely — the command deploys the old CloudFormation template directly.
+Use `rollback` when a recent deployment introduced a bug, performance regression, or broken configuration and you want to restore the previous working state. No code rebuild or workload artifact packaging occurs. Stacktape downloads the stored CloudFormation template, prepares it as a new deployment version, uploads that rollback template, and asks CloudFormation to deploy it.
 
 <Warning>
-Rollback reverts your *infrastructure and code artifacts* to a previous deployment version. Stacktape sources do not show rollback undoing application-side data changes. Treat database migrations and application-written objects as separate recovery work — if your deployment included a schema migration, rolling back the code without rolling back the schema may cause errors.
+Rollback primarily restores the previous CloudFormation template and stored workload artifacts (Lambda zips, container images). For bucket-synced static content, Stacktape also attempts a manifest-based restore after the rollback. Application-side data changes are not undone — treat database migrations and application-written objects as separate recovery work. If your deployment included a schema migration, rolling back the code without rolling back the schema may cause errors.
 </Warning>
 
 If your stack is stuck in an `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state and cannot accept new updates, use [`cf:rollback`](/cli/cf-rollback) instead — it uses CloudFormation's native recovery mechanism to restore the stack to a working state.
 
 ## Usage
 
-The only required argument is `--region`. The stack is identified through `--stage`, `--projectName`, or configured defaults (set via [`defaults:configure`](/cli/defaults-configure)).
+The only required argument is `--region`. `--stage` and `--projectName` are optional arguments used to identify the target stack.
 
 Roll back one version (the default):
 
@@ -51,7 +51,7 @@ stacktape rollback --region eu-west-1 --stage production --listVersions
 
 ### `--targetVersion`
 
-Specifies the exact deployment version to roll back to, for example `v000003`. Versions use the format `v` followed by a six-digit zero-padded number. Use `--listVersions` to see which versions are available in your deployment bucket.
+Specifies the exact deployment version to roll back to, for example `v000003`. Versions commonly use values like `v000001`, `v000003`; when `--rollbackSteps` is used, Stacktape calculates a six-digit zero-padded target. Use `--listVersions` to see which versions are available in your deployment bucket.
 
 ### `--rollbackSteps`
 
@@ -59,22 +59,22 @@ Number of versions to step back from the current version. Defaults to `1` (the i
 
 ### `--listVersions`
 
-When set, the command prints all available previous deployment versions and the current version, then exits without performing any rollback. Use this to inspect what's available before committing to a rollback.
+When previous versions exist, the command prints the current version and the available rollback versions, then exits without rolling back. If no previous versions exist, it reports that none were found. Use this to inspect what's available before committing to a rollback.
 
 ### `--configPath`
 
-Rollback initializes stack services with `commandRequiresConfig: false`, so a local configuration file is not required. The command works from stored CloudFormation templates and deployment artifacts. `--configPath` is still accepted as an optional common Stacktape argument.
+Rollback initializes with `commandRequiresConfig: false`, so a local configuration file is not required. `--configPath` appears in the command's optional arguments because rollback includes common config-dependent CLI arguments.
 
 ## How rollback works
 
-Stacktape stores CloudFormation templates and build artifacts (Lambda zips, container images) for each deployment version in an S3 deployment bucket. When you run `rollback`:
+Stacktape stores CloudFormation templates and deployment artifacts for each deployment version in an S3 deployment bucket. When you run `rollback`:
 
 <FlowDiagram steps={[
   { title: "Version resolution", description: "The target version is determined from --targetVersion, or calculated by subtracting --rollbackSteps from the current version." },
   { title: "Artifact verification", description: "Stacktape verifies that artifacts for the target version are available in the deployment bucket before proceeding." },
   { title: "Safety check", description: "The command reads rollback safety metadata from the deployed stack, when present, and prints warnings for directives, TypeScript transforms, custom directives, or after:deploy hooks." },
   { title: "Template preparation", description: "The old CloudFormation template is downloaded, its version output is updated to a new version number, and re-uploaded." },
-  { title: "Deployment", description: "CloudFormation applies the old template. Since artifacts already exist, no packaging or uploading occurs." },
+  { title: "Deployment", description: "CloudFormation applies the uploaded rollback template. Artifacts such as Lambda zips and container images are reused, so workloads are not rebuilt. Stacktape still prepares and uploads a rollback CloudFormation template for the new deployment version." },
   { title: "Bucket content restoration", description: "If the stack includes static hosting with bucket-synced content, Stacktape attempts to restore the bucket contents from a version manifest." }
 ]} />
 
@@ -88,18 +88,14 @@ The rollback command reads rollback safety metadata from the deployed stack and 
 
 - **Directives that embed local or external state** — directives such as `$File` are reported by name. The rolled-back template contains values from the original deploy time, not from your current local files. This is expected behavior for a rollback.
 - **TypeScript transforms** — if rollback safety metadata reports that the config uses TypeScript transforms, Stacktape warns that those transforms are not captured in the CloudFormation template.
-- **`after:deploy` hooks** — lifecycle hooks configured with `after:deploy` are not re-executed during rollback. If the original deployment relied on post-deploy scripts (database seeding, cache warming), you may need to run them manually.
+- **`after:deploy` hooks** — when rollback safety metadata reports `after:deploy` hooks, Stacktape warns that they will not be re-executed during rollback. If the original deployment relied on post-deploy scripts (database seeding, cache warming), you may need to run them manually.
 - **Custom directives** — custom directive results were baked into the template at deploy time and are not re-evaluated during rollback.
 
 If the stack was deployed before rollback support was added, the safety metadata may be missing. The rollback still proceeds, but with a warning that results may be unpredictable if the config used `$File`, TypeScript transforms, custom directives, or `after:deploy` hooks.
 
 ## Version availability
 
-Old versions may have been cleaned up based on the `previousVersionsToKeep` setting. Use `--listVersions` to see which versions are still available. If `verifyArtifactsExist` cannot find the target version in the deployment bucket, Stacktape reports that the version is not available and lists the versions that are.
-
-<Tip>
-If you anticipate needing to roll back further than the default retention window, increase `previousVersionsToKeep` in your configuration before deploying.
-</Tip>
+Use `--listVersions` to see which versions are still available. If a target version is not found in the deployment bucket, Stacktape reports that it was not found, lists the versions that are available, and notes that old versions may have been cleaned up based on the `previousVersionsToKeep` setting.
 
 ## Bucket-synced content
 
@@ -313,7 +309,7 @@ Before rolling back, check which versions are available:
 stacktape rollback --region eu-west-1 --stage production --listVersions
 ```
 
-The output shows each stored version and marks which one is currently deployed. Pick a version and roll back to it:
+The output prints the current version and the available rollback versions. If the current version appears in the listed versions, Stacktape marks it as current. Pick a version and roll back to it:
 
 ```bash
 stacktape rollback --region eu-west-1 --stage production --targetVersion v000005
@@ -321,13 +317,13 @@ stacktape rollback --region eu-west-1 --stage production --targetVersion v000005
 
 ### Rollback in CI/CD
 
-Use `--agent` for machine-readable output in automated pipelines:
+Use `--agent` for output optimized for programmatic consumption:
 
 ```bash
 stacktape rollback --region eu-west-1 --stage production --rollbackSteps 1 --agent
 ```
 
-The `--agent` flag switches output to JSONL format, disables interactive prompts, and auto-confirms the operation.
+The `--agent` flag uses JSONL/NDJSON output and disables interactive terminal UI.
 
 ## FAQ
 
@@ -337,15 +333,15 @@ The `rollback` command deploys a previously stored CloudFormation template as a 
 
 ### Does rollback rebuild my code?
 
-No. Rollback reuses the Lambda zips and container images that were uploaded during the original deployment. Because it skips packaging entirely, rollback deploys the old CloudFormation template directly without building or uploading any artifacts.
+No. Rollback reuses stored deployment artifacts (Lambda zips, container images) from the original deployment. No code rebuild or packaging occurs. Stacktape still prepares and uploads a rollback CloudFormation template for the new deployment version.
 
 ### Does rollback affect my database?
 
-Rollback reverts infrastructure and code artifacts only. Stacktape sources do not show rollback undoing application-side data changes such as database migrations or records written by your application. If your deployment included a schema migration, you may need to manually reconcile the database state after rolling back.
+Rollback primarily restores the previous CloudFormation template and stored workload artifacts. For bucket-synced static content, Stacktape also attempts a manifest-based restore. Application-side data changes such as database migrations or records written by your application are not undone. If your deployment included a schema migration, you may need to manually reconcile the database state after rolling back.
 
-### How many versions can I roll back?
+### How far back can I roll back?
 
-This depends on the `previousVersionsToKeep` setting. Old versions may have been cleaned up after successful deployments. Use `--listVersions` to see which versions still have their artifacts available in the deployment bucket.
+It depends on the `previousVersionsToKeep` setting — older versions may have been cleaned up after successful deployments, and once a version's artifacts are gone you can no longer roll back to it. Use `--listVersions` to see which versions still have their artifacts available in the deployment bucket.
 
 ### Can I roll forward after a rollback?
 
@@ -353,23 +349,7 @@ Yes. Each rollback creates a new deployment version (e.g., rolling back from `v0
 
 ### Will my `after:deploy` hooks run during rollback?
 
-No. Lifecycle hooks configured with `after:deploy` are not re-executed during rollback. If your deployment relies on post-deploy scripts (database seeding, cache warming), you need to run them manually after the rollback completes. The command warns you about this when rollback safety metadata is present.
-
-### Does rollback restore static website content?
-
-Stacktape attempts to restore bucket-synced content from a version manifest stored during the original deployment. If Stacktape cannot restore bucket-synced content, it warns that stacks with static websites may need to be redeployed from the original commit.
-
-### Does rollback require a config file?
-
-No. The `rollback` command initializes with `commandRequiresConfig: false` and works from stored CloudFormation templates and deployment artifacts. `--region` is the only required argument in the command definition. Pass `--stage`, `--projectName`, or rely on configured defaults to identify the stack.
-
-### How does rollback differ from redeploying an older Git commit?
-
-Redeploying from an older commit runs the full [`deploy`](/cli/deploy) pipeline — packaging, uploading, and applying the template. Rollback skips packaging because it reuses stored Lambda zips and container images from the target version. Rollback also preserves the deployment version history: it creates a new version rather than overwriting.
-
-### What happens to CloudFormation drift during rollback?
-
-Rollback deploys the stored template from the target version as-is. If resources were manually modified in AWS after the original deployment (drift), the rollback template reflects the intended state from that version, not the drifted state. CloudFormation will attempt to reconcile resources back to the template's declared state during the update.
+No. When rollback safety metadata reports `after:deploy` hooks, Stacktape warns that they will not be re-executed during rollback. If your deployment relies on post-deploy scripts (database seeding, cache warming), you need to run them manually after the rollback completes.
 
 ## Related commands
 

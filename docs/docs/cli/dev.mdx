@@ -1,6 +1,6 @@
 ---
 title: 'dev'
-order: 131
+order: 137
 seoTitle: 'stacktape dev — Local Development CLI Command | Stacktape Docs'
 seoDescription: 'Run your Stacktape app locally with database emulation, hot-reload, and automatic environment injection. Supports containers, Lambda functions, and SSR frontends.'
 ---
@@ -322,7 +322,7 @@ The `dev` command supports two modes, selected via the `--devMode` flag.
 Normal mode deploys a minimal "dev stack" to AWS containing only essential infrastructure (IAM roles, secrets), then runs everything else locally. This is the recommended mode for day-to-day development.
 
 - Runs containers, Lambda functions, and frontend workloads locally on your machine
-- Emulates databases (PostgreSQL, MySQL, DynamoDB) and Redis locally using Docker
+- Emulates databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally using Docker
 - Sets up tunnels so Lambda functions can reach local databases when Lambda-to-local connectivity is needed
 - Creates the dev stack automatically on first run — no pre-deployment required
 - Injects environment variables, secrets, and AWS credentials into local workloads
@@ -348,7 +348,7 @@ The `dev` command can run the following resource types locally:
 | Containers | web-service, private-service, worker-service, multi-container-workload |
 | Functions | Lambda functions |
 | Frontends | nextjs-web, astro-web, nuxt-web, sveltekit-web, solidstart-web, tanstack-web, remix-web, hosting-bucket (with `dev` config) |
-| Databases (emulated in normal mode) | PostgreSQL, MySQL, DynamoDB, Redis |
+| Databases (emulated in normal mode) | PostgreSQL, MySQL, MariaDB, DynamoDB, Redis, OpenSearch |
 
 ## Important flags
 
@@ -376,7 +376,7 @@ stacktape dev --stage dev --region eu-west-1 --skipResources myHeavyDb
 
 ### --watch
 
-Enables automatic file watching. When source files change, the affected workload rebuilds automatically.
+Enables automatic file watching. When source files change, Stacktape automatically re-executes the affected compute resource.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --watch
@@ -432,7 +432,7 @@ Stop a running agent with [`dev:stop`](/cli/dev-stop).
 
 ## Interactive commands
 
-While running in interactive mode, you can control dev mode with keyboard commands. The command description supports typing a number + Enter to rebuild a specific workload, or `a` + Enter to rebuild all workloads. The command handler also accepts the following text commands:
+While running in interactive mode, you can control dev mode with the following text commands:
 
 | Command | Action |
 |---------|--------|
@@ -487,35 +487,19 @@ Normal mode (default) deploys a minimal dev stack to AWS and emulates databases 
 
 ### Does `stacktape dev` require Docker?
 
-Normal dev mode uses Docker to emulate databases (PostgreSQL, MySQL, DynamoDB) and Redis locally. You need Docker installed and running on your machine for local database emulation. If you use `--remoteResources` for all databases or run in legacy mode, Docker is not required for database emulation, though container workloads may still use it for local builds.
+Normal dev mode uses Docker to emulate databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally. You need Docker installed and running on your machine for local database emulation. If you use `--remoteResources` for all databases or run in legacy mode, Docker is not required for database emulation, though container workloads may still use it for local builds.
 
 ### When should I use `stacktape dev` vs `stacktape deploy`?
 
 Use [`stacktape dev`](/cli/dev) for iterating on code locally with fast feedback loops — it runs workloads on your machine and emulates databases without a full deployment cycle. Use [`stacktape deploy`](/cli/deploy) when you need to ship to AWS, test in a real cloud environment, or validate production behavior. Dev mode is for development; deploy is for staging, production, or integration testing.
 
-### How do I run only specific resources in dev mode?
+### How can I connect to a real deployed database instead of the local one?
 
-Pass `--resources` with a comma-separated list of resource names, or use `--resources all` to run everything without the interactive picker. To run most resources while excluding a few, use `--skipResources`. Without either flag, an interactive multi-select picker appears.
-
-### What does `--remoteResources` do?
-
-In normal dev mode, databases and Redis run locally by default. The `--remoteResources` flag connects specified resources to their deployed AWS counterparts instead of using local emulation. This is useful when local emulation is insufficient or when you need to test against real data. Pass resource names as a comma-separated list: `--remoteResources myPostgres,myRedis`.
+Use `--remoteResources` with a comma-separated list of resource names (for example `--remoteResources myPostgres,myRedis`). In normal dev mode, databases and Redis run locally by default; this flag points the selected ones at their deployed AWS counterparts, which is useful when local emulation is insufficient or you need to test against real data. To connect every workload to real AWS resources instead, use legacy mode (`--devMode legacy`), which requires an already-deployed stack.
 
 ### What is agent mode and when should I use it?
 
 Agent mode (`--agent`) runs dev mode as a detached daemon with an HTTP server for programmatic control. It uses JSONL output and disables the interactive terminal UI. Use agent mode when integrating with AI coding agents, automation tools, or any workflow that needs to control dev mode programmatically. Stop a running agent with [`dev:stop`](/cli/dev-stop).
-
-### Can I use `--disableEmulation` during initial setup?
-
-Yes. The `--disableEmulation` flag disables automatic injection of parameters and credentials during local emulation. This is useful when you want to run a compute resource locally before the corresponding deployed resource exists — for example, during initial development before your first [`stacktape deploy`](/cli/deploy).
-
-### How do I reset local database state?
-
-Use the `--freshDb` flag to delete existing local database data before starting dev mode. This gives you a clean database state each time you start, which is useful for testing migrations or resetting test data.
-
-### Can I rebuild workloads without restarting dev mode?
-
-Yes. While dev mode is running interactively, type a number + Enter to rebuild a specific workload, or `a` + Enter to rebuild all. You can also type `rs` to rebuild all workloads, or `rs <name>` to rebuild a specific one by name.
 
 ## Related commands
 

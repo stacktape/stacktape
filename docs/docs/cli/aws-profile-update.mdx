@@ -1,6 +1,6 @@
 ---
 title: 'aws-profile:update'
-order: 139
+order: 146
 seoTitle: 'aws-profile:update CLI Command | Stacktape Docs'
 seoDescription: 'Update AWS access key credentials for an existing profile on your machine using the Stacktape CLI. Interactive prompts guide you through key rotation.'
 ---
@@ -21,7 +21,7 @@ The command is fully interactive. It reads the profiles already configured in yo
 2. **AWS_ACCESS_KEY_ID** — the new access key ID from your IAM user's security credentials.
 3. **AWS_SECRET_ACCESS_KEY** — the corresponding secret key (input is masked).
 
-After confirmation, the selected profile's credentials are overwritten in place. Other profiles in the file are not affected.
+After the prompts complete, Stacktape updates the selected profile's credentials and prints `Updated credentials for AWS profile <profile>.`
 
 <Warning>
 If no AWS profiles exist on your system, the command exits with an error. Use [`aws-profile:create`](/cli/aws-profile-create) to set up your first profile.

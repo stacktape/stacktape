@@ -27,6 +27,21 @@ import { Table } from './Table';
 import { ConsoleScreenshot } from './ConsoleScreenshot';
 import { FeatureComparisonTable } from './FeatureComparisonTable';
 import { Tabs, Tab } from './Tabs';
+import {
+  AnimatedTerminal,
+  ButtonRow,
+  CTAButton,
+  CTASection,
+  CodeToCloud,
+  CompareCards,
+  FeatureGrid,
+  LandingHero,
+  ResourceGalaxy,
+  StatStrip,
+  Step,
+  Steps,
+  UseCaseExplorer
+} from './Landing';
 
 const getNameFromProps = (props) => {
   let name = props.children;
@@ -237,7 +252,20 @@ export const MdxComponents = {
   FeatureComparisonTable,
   Tabs,
   Tab,
-  Jargon
+  Jargon,
+  LandingHero,
+  CTAButton,
+  ButtonRow,
+  StatStrip,
+  FeatureGrid,
+  ResourceGalaxy,
+  CodeToCloud,
+  AnimatedTerminal,
+  Steps,
+  Step,
+  CompareCards,
+  UseCaseExplorer,
+  CTASection
 };
 
 // <hr

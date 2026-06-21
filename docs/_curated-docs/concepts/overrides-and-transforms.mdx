@@ -53,7 +53,7 @@ To override a property, you need to know the logical name of the child resource.
 
 1. **CLI**: `stacktape stack-info --detailed`
 2. **Console**: View resource details
-3. **Compile template**: `stacktape compile-template` and inspect the output
+3. **Synthesize template**: `stacktape synth` and inspect the output
 
 Common child resource names:
 
@@ -217,7 +217,7 @@ Use **transforms** when you need to compute values or modify existing properties
 To see the final CloudFormation template after overrides and transforms:
 
 ```bash
-stacktape compile-template --stage dev --region us-east-1
+stacktape synth --stage dev --region us-east-1
 ```
 
 This outputs `compiled-template.yaml` which you can inspect.

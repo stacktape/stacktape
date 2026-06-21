@@ -1,13 +1,13 @@
 ---
 title: 'bastion:session'
-order: 156
+order: 163
 seoTitle: 'bastion:session – Interactive Bastion Shell | Stacktape CLI'
-seoDescription: 'Start an interactive shell session on a deployed bastion host using AWS SSM. Inspect private VPC resources and troubleshoot networking with Stacktape CLI.'
+seoDescription: 'Start an interactive shell session on a deployed bastion host using AWS SSM. CLI reference for bastion:session with usage examples and flags.'
 ---
 
 # bastion:session
 
-The `bastion:session` command opens an interactive shell on a deployed [bastion host](/resources/security/bastion-host). Use it to inspect private resources, run ad-hoc commands, or troubleshoot networking inside your VPC. The session is established over a secure AWS SSM connection.
+The `bastion:session` command starts an interactive shell on a deployed [bastion host](/resources/security/bastion-host). The session is established over SSM, so no SSH keys or open inbound ports are required.
 
 ## Usage
 
@@ -21,14 +21,14 @@ Your stack must contain at least one `bastion` resource. The `--bastionResource`
 stacktape bastion:session --stage production --region eu-west-1 --bastionResource myBastion
 ```
 
-The command does not modify your stack and does not require a Stacktape configuration file — it reads the deployed stack state directly from AWS.
+The command does not modify your stack and does not require a Stacktape configuration file.
 
 ## How it works
 
-When you run `bastion:session`, Stacktape resolves the bastion's EC2 instance ID from the deployed stack metadata, then starts an SSM shell session for that instance in the selected region. Your terminal becomes an interactive shell on the bastion host.
+When you run `bastion:session`, Stacktape initializes stack services, resolves the bastion EC2 instance ID from the deployed stack overview, and starts an SSM shell session in the selected region. Your terminal becomes an interactive shell on the bastion host.
 
 <Info>
-The AWS Session Manager plugin must be installed on your local machine for the session to work. If the session fails to start, verify the plugin is installed — see the [AWS Session Manager plugin install guide](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+The `bastion:session` command resolves the bastion EC2 instance ID from the deployed stack overview and starts an SSM shell session in the target region. If Stacktape cannot resolve the instance ID, verify that the target stack includes the selected bastion resource.
 </Info>
 
 ## CLI reference

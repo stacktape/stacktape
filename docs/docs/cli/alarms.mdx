@@ -1,27 +1,65 @@
 ---
-title: 'debug:alarms'
-order: 152
-seoTitle: 'debug:alarms – Check CloudWatch Alarm States | Stacktape CLI'
-seoDescription: 'View CloudWatch alarm states for your deployed Stacktape stack. Filter by resource name or state (OK, ALARM, INSUFFICIENT_DATA) to quickly identify firing alarms.'
+title: 'alarms'
+order: 159
+seoTitle: 'View CloudWatch Alarm States | stacktape alarms CLI | Stacktape Docs'
+seoDescription: 'Check CloudWatch alarm states for your deployed Stacktape stack from the CLI. Filter by resource or state (OK, ALARM, INSUFFICIENT_DATA) and get JSON output for automation.'
 ---
 
-# debug:alarms
+# alarms
 
-The `debug:alarms` command displays the current state of all CloudWatch alarms associated with a deployed stack. Use it to quickly identify which alarms are firing, which are healthy, and which lack sufficient data — without opening the AWS Console. The command is read-only and does not modify any resources.
+The `stacktape alarms` command displays the current state of CloudWatch alarms for a deployed stack. Use it to check which alarms are firing, which are healthy, and when each alarm last changed state — without opening the AWS Console.
 
 ## Usage
 
 ```bash
-stacktape debug:alarms --stage production --region eu-west-1
+stacktape alarms --stage prod --region eu-west-1
 ```
 
-Stacktape queries CloudWatch for all alarms prefixed with the stack name and displays a table showing each alarm's state, associated resource, monitored metric, threshold, comparison operator, last state change, and reason (for alarms in `ALARM` state).
+This queries CloudWatch alarms whose names start with the stack name and prints the matching alarms. Each alarm is mapped to its name, matched Stacktape resource (when identified), current state, metric, threshold, comparison operator, and last state change time. Alarms in the `ALARM` state also include the reason they triggered.
 
-Use `--resourceName` to narrow results to a single resource. Use `--state` to filter by CloudWatch alarm state values such as `OK`, `ALARM`, or `INSUFFICIENT_DATA`.
+## Filtering
 
-In agent mode (`--agent`), the command prints a JSON object containing an `alarms` array instead of the interactive table. This is useful for programmatic consumption by scripts or AI coding agents.
+### Filter by resource
 
-<CliCommandsApiReference command="debug:alarms" sortedArgs={[
+Use `--resourceName` to narrow results to alarms belonging to a single Stacktape resource. The resource name must match the key used in your Stacktape configuration.
+
+```bash
+stacktape alarms --stage prod --region eu-west-1 --resourceName myApi
+```
+
+### Filter by state
+
+Use `--state` to show only alarms in a specific state. Accepted values are `OK`, `ALARM`, and `INSUFFICIENT_DATA`.
+
+Show only alarms that are currently firing:
+
+```bash
+stacktape alarms --stage prod --region eu-west-1 --state ALARM
+```
+
+Show only healthy alarms:
+
+```bash
+stacktape alarms --stage prod --region eu-west-1 --state OK
+```
+
+You can combine both filters to check whether a specific resource has any firing alarms:
+
+```bash
+stacktape alarms --stage prod --region eu-west-1 --resourceName myApi --state ALARM
+```
+
+## Agent mode
+
+Pass `--agent` for machine-readable output. For the `alarms` command, agent mode emits a JSON object with an `alarms` array. Each entry contains the alarm's `name`, matched `resource` (if any), `state`, `metric`, `threshold`, `comparison`, `lastUpdated`, and (for alarms in the `ALARM` state) `reason`.
+
+```bash
+stacktape alarms --stage prod --region eu-west-1 --agent
+```
+
+## Flags reference
+
+<CliCommandsApiReference command="alarms" sortedArgs={[
   {
     "name": "region",
     "required": true,
@@ -167,40 +205,26 @@ In agent mode (`--agent`), the command prints a JSON object containing an `alarm
   }
 ]} />
 
-## Examples
-
-List all alarms for a staging stack:
-
-```bash
-stacktape debug:alarms --stage staging --region us-east-1
-```
-
-Show only alarms that are currently firing:
-
-```bash
-stacktape debug:alarms --stage production --region eu-west-1 --state ALARM
-```
-
-Check alarms for a specific Lambda function:
-
-```bash
-stacktape debug:alarms --stage production --region eu-west-1 --resourceName paymentHandler
-```
-
-Combine filters to check if a specific resource has active alarms:
-
-```bash
-stacktape debug:alarms --stage production --region eu-west-1 --resourceName paymentHandler --state ALARM
-```
-
-Get JSON output for use in scripts or AI agents:
-
-```bash
-stacktape debug:alarms --stage production --region eu-west-1 --agent
-```
-
 ## Related commands
 
-- [`debug:logs`](/cli/debug-logs) — fetch and filter log events from a deployed resource
-- [`debug:metrics`](/cli/debug-metrics) — fetch CloudWatch metric data points for a resource
-- [`info:stack`](/cli/info-stack) — display stack outputs, endpoints, and resource inventory
+- [`stacktape logs`](/cli/logs) — fetch and search logs from a deployed resource.
+- [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics for a deployed resource.
+- [`stacktape issues:list`](/cli/issues-list) — list detected runtime issues (errors) across your deployed functions and containers.
+
+## FAQ
+
+### What alarms does this command show?
+
+The `alarms` command queries all CloudWatch alarms whose name starts with the stack name. In practice, this targets alarms associated with the Stacktape stack. It does not show alarms created outside of Stacktape unless they happen to share the stack name prefix. For details on configuring alarm rules, see [Alarms](/observability/alarms).
+
+### What do the alarm states mean?
+
+CloudWatch alarms have three states. `OK` means the metric is within the configured threshold. `ALARM` means the metric has breached the threshold for the required number of evaluation periods. `INSUFFICIENT_DATA` means there is not enough data to evaluate the alarm — this is common for newly created alarms or resources with no recent traffic.
+
+### How do I check from a script whether any alarms are firing?
+
+Combine `--state ALARM` with `--agent`. The `--state` filter limits results to firing alarms, and `--agent` emits a JSON object with an `alarms` array instead of interactive output — so an empty array means nothing is firing. This makes it straightforward to gate a deployment in CI on whether a production stage has any active alarms.
+
+### How is this different from `stacktape metrics`?
+
+The [`metrics`](/cli/metrics) command fetches CloudWatch metrics for a deployed resource, with support for metrics like Lambda Invocations, ECS CPUUtilization, RDS DatabaseConnections, and API Gateway 5XXError. The `alarms` command shows the evaluated state of alarm rules — whether configured thresholds have been breached. Use `metrics` to investigate trends; use `alarms` to check whether anything is currently broken.

@@ -1,6 +1,6 @@
 ---
 title: 'help'
-order: 135
+order: 141
 seoTitle: 'stacktape help Command | Stacktape CLI Reference'
 seoDescription: 'Use stacktape help to list all CLI commands or get detailed option documentation for any specific command. No API key required.'
 ---
@@ -31,15 +31,17 @@ stp help --command dev
 
 ## The `--command` flag
 
-When you pass `--command` (alias `--cmd`), Stacktape prints the full option reference for that command — each flag's name, whether it's required, and a description. This is the fastest way to check which flags a command accepts without leaving the terminal.
+When you pass `--command`, Stacktape prints the command usage and available options, including each argument's name, whether it is required, and its description. This is the fastest way to check which flags a command accepts without leaving the terminal.
 
 ```bash
 stacktape help --command delete
 ```
 
-Without `--command`, the output lists every CLI command with a short description, followed by hints linking to the full [CLI documentation](/cli/deploy) and the Stacktape docs site.
+Without `--command`, the output lists every CLI command with its configured description, followed by hints linking to the CLI documentation and the Stacktape docs site.
 
 ## Options reference
+
+The `help` command accepts a single optional flag. The reference below lists its name, alias, type, and whether it is required.
 
 <CliCommandsApiReference command="help" sortedArgs={[
   {
@@ -79,4 +81,3 @@ stacktape help
 - [version](/cli/version) — print the installed Stacktape version.
 - [init](/cli/init) — scaffold a new Stacktape project with an interactive wizard.
 - [defaults:configure](/cli/defaults-configure) — set system-wide default values for common flags like `region` and `stage`.
-- [info:whoami](/cli/info-whoami) — verify your current API key, organization, and connected AWS accounts.

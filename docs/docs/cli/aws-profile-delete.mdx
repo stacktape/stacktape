@@ -1,13 +1,13 @@
 ---
 title: 'aws-profile:delete'
-order: 140
+order: 147
 seoTitle: 'aws-profile:delete CLI Command | Stacktape Docs'
 seoDescription: 'Delete an AWS profile from your system using the Stacktape CLI. Interactively select and remove unused profiles from your local AWS credentials and config files.'
 ---
 
 # aws-profile:delete
 
-The `aws-profile:delete` command removes an AWS profile from your system. It reads profiles from both the AWS credentials and config files, presents them in an interactive selector, and deletes the chosen profile. Use this when you need to clean up stale or unused AWS profiles from your local machine.
+The `aws-profile:delete` command removes an AWS profile from your system. It reads profiles from both the AWS credentials file (`~/.aws/credentials`) and the AWS config file (`~/.aws/config`), deduplicates them, presents them in an interactive selector, and deletes the chosen profile. Use this when you need to clean up stale or unused AWS profiles from your local machine. If no profiles exist, the command exits with an error.
 
 ## Usage
 
@@ -18,19 +18,8 @@ stacktape aws-profile:delete
 The command is fully interactive — it reads all profiles configured in your AWS credentials and config files, then prompts you to select which one to delete. No flags are required.
 
 <Warning>
-This command modifies your local AWS credentials and config files. The deleted profile will no longer be available to Stacktape or any other AWS tooling on your system.
+This command modifies your local AWS profile configuration by deleting the selected profile. The deleted profile will no longer be available to Stacktape or any other AWS tooling on your system.
 </Warning>
-
-## How it works
-
-When you run `aws-profile:delete`, Stacktape:
-
-1. Reads profiles from both the AWS credentials file (`~/.aws/credentials`) and the AWS config file (`~/.aws/config`).
-2. Merges them into a deduplicated list.
-3. Prompts you to select a profile from the list.
-4. Removes the selected profile from both files.
-
-If no profiles exist on your system, the command exits with an error: `No profile set in global AWS credentials file.`
 
 ## Arguments reference
 
@@ -53,12 +42,6 @@ If no profiles exist on your system, the command exits with an error: `No profil
 ]} />
 
 ## Examples
-
-Delete a profile with default log level:
-
-```bash
-stacktape aws-profile:delete
-```
 
 Delete a profile with debug logging enabled:
 

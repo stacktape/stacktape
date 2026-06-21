@@ -1,10 +1,8 @@
 ---
 title: 'Upstash Redis'
-order: 49
+order: 50
 seoTitle: 'Upstash Redis - Serverless Redis | Stacktape Docs'
 seoDescription: 'Deploy serverless Redis with Upstash on Stacktape. Pay-per-request pricing, REST API access, zero idle costs. Ideal for Lambda caching, sessions, and rate limiting.'
-pipelineStatus: 'needs-human-review'
-pipelineReviewSummary: 'reviewer-avg 8.3, hard blockers 1, advisory high 0, verifier medium 0'
 ---
 
 # Upstash Redis
@@ -15,14 +13,14 @@ Upstash Redis uses pay-per-request pricing with no idle costs. See the [Upstash 
 
 ## When to use
 
-Upstash Redis is the right choice when your workload is serverless and bursty. Use it for caching, session storage, rate limiting, or lightweight pub/sub in Lambda-based applications. Because pricing is per-request with no idle costs, it avoids the minimum monthly spend of a traditional [Redis cluster](/resources/databases/redis).
+Upstash Redis is the right choice when your workload is serverless and bursty. Use it for caching, session storage, or rate limiting in Lambda-based applications. Because pricing is per-request with no idle costs, it avoids the minimum monthly spend of a traditional [Redis cluster](/resources/databases/redis).
 
 Choose Upstash Redis when:
 
 - Your compute is primarily [Lambda functions](/resources/compute/lambda-function) — the HTTPS REST API avoids connection-pooling problems.
 - Traffic is unpredictable or low-volume — you pay only for commands you run, not for idle hours.
-- You want zero operational overhead — no instance sizing, patching, or replication configuration.
-- You need a Redis-compatible store accessible from outside a VPC without bastion tunneling.
+- You want a serverless resource with minimal configuration — `UpstashRedisProps` exposes only `enableEviction`; instance sizing, patching, and replication are not configured through Stacktape.
+- You need a Redis-compatible store that does not require VPC configuration.
 
 ## When NOT to use
 
@@ -30,23 +28,23 @@ Upstash Redis is not a drop-in replacement for every Redis workload. Prefer a ma
 
 - You need the lowest possible latency at high throughput — ElastiCache runs inside your VPC with direct network access, avoiding the overhead of HTTPS or public internet routing.
 - Your workload is container-based ([web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service)) with sustained high request rates — per-request pricing becomes expensive compared to per-hour pricing at scale.
-- Your application depends on specific Redis commands or Redis module behavior — verify Upstash compatibility before choosing this resource.
+- Your application depends on Redis features beyond what Upstash supports — check the Upstash documentation for supported commands before choosing this resource.
 
 | Criteria | Upstash Redis | Redis cluster (ElastiCache) |
 |---|---|---|
 | Pricing model | Per-request, no idle cost | Per-hour per-node |
 | Connection model | HTTPS REST API or standard Redis protocol | Standard Redis protocol (TCP) |
 | VPC required | No | Yes |
-| Operational overhead | None | Instance sizing, patching, failover config |
+| Stacktape configuration surface | Only `enableEviction` | Instance sizing, patching, failover config |
 | Best for | Serverless / bursty workloads | High-throughput container workloads |
 
-For most Lambda-based projects, Upstash Redis is the better starting point. Switch to ElastiCache if you find yourself running thousands of Redis commands per second sustained — at that volume, ElastiCache's per-hour pricing becomes more cost-effective.
+For most Lambda-based projects, Upstash Redis is the better starting point. Switch to ElastiCache when sustained high-throughput workloads make per-request pricing more expensive than ElastiCache's per-hour pricing.
 
 ## Provider configuration
 
-Upstash Redis requires `providerConfig.upstash` in your Stacktape config. Stacktape requires this provider configuration whenever the stack contains an `upstash-redis` resource.
+Upstash Redis requires `providerConfig.upstash` in your Stacktape config. This block supplies your Upstash account credentials so Stacktape can provision and manage the database on your behalf. See the [basic example](#basic-example) below for the shape of the block.
 
-Use the [`$Secret()` directive](/configuration/directives) to reference any sensitive credential values instead of hard-coding them in the config file. Create secrets with [`stacktape secret:create`](/cli/secret-create) before deploying.
+Use the [`$Secret()` directive](/configuration/directives) to reference sensitive credential values instead of hard-coding them in the config file. Create secrets with [`stacktape secret:create`](/cli/secret-create) before deploying.
 
 <Warning>
 
@@ -56,7 +54,7 @@ Every stack that uses an `upstash-redis` resource must include `providerConfig.u
 
 ## Basic example
 
-A minimal Upstash Redis resource requires no properties. The only configurable option is [`enableEviction`](#eviction). The example below creates an Upstash Redis database and connects it to a Lambda function using [`connectTo`](/configuration/connecting-resources).
+The `UpstashRedis` constructor can be called with an empty object — the only configurable property is [`enableEviction`](#eviction). However, the stack must still include `providerConfig.upstash` whenever it contains an Upstash Redis resource. The example below creates an Upstash Redis database and connects it to a Lambda function using [`connectTo`](/configuration/connecting-resources).
 
 <CodeBlock
   intellisense
@@ -79,7 +77,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['cache']
+    connectTo: [cache]
   });
 
   return {
@@ -120,6 +118,12 @@ export default defineConfig(() => {
   });
 
   return {
+    providerConfig: {
+      upstash: {
+        accountEmail: 'you@company.com',
+        apiKey: '$Secret(upstash-api-key)'
+      }
+    },
     resources: { cache }
   };
 });
@@ -173,7 +177,7 @@ export const handler = async () => {
 };
 ```
 
-The `@upstash/redis` npm package wraps the REST API with a Redis-like interface and adds features like automatic retries and pipelining:
+The `@upstash/redis` npm package wraps the REST API with a Redis-like TypeScript interface:
 
 ```typescript
 import { Redis } from '@upstash/redis';
@@ -226,7 +230,7 @@ Use [`$ResourceParam()`](/configuration/referenceable-parameters) to reference U
 
 ### When should I use Upstash Redis vs a Redis cluster (ElastiCache)?
 
-Use Upstash Redis for serverless and bursty workloads — primarily [Lambda functions](/resources/compute/lambda-function) — where you want pay-per-request pricing and zero operational overhead. Use a [Redis cluster](/resources/databases/redis) (ElastiCache) when your workload is container-based with sustained high throughput or when you need direct in-VPC network access. At low-to-moderate request volume, Upstash is significantly cheaper; at thousands of sustained commands per second, ElastiCache's per-hour pricing becomes more cost-effective.
+Use Upstash Redis for serverless and bursty workloads — primarily [Lambda functions](/resources/compute/lambda-function) — where you want pay-per-request pricing and minimal configuration (the resource exposes only `enableEviction`). Use a [Redis cluster](/resources/databases/redis) (ElastiCache) when your workload is container-based with sustained high throughput or when you need direct in-VPC network access. At low-to-moderate request volume, Upstash is significantly cheaper; at sustained high throughput, ElastiCache's per-hour pricing becomes more cost-effective.
 
 ### What does Upstash Redis cost?
 
@@ -236,26 +240,14 @@ Upstash uses a pay-per-request pricing model with no idle costs — you pay only
 
 Add the Upstash Redis resource name to your Lambda function's [`connectTo`](/configuration/connecting-resources) list. Stacktape injects environment variables (`STP_[RESOURCE_NAME]_REST_URL`, `STP_[RESOURCE_NAME]_REST_TOKEN`, etc.) into your function. Use the `@upstash/redis` npm package or raw `fetch()` calls against the REST URL — both avoid the connection-pooling issues that traditional Redis clients have in Lambda.
 
-### What environment variables does connectTo inject for Upstash Redis?
-
-When you add an Upstash Redis resource to a workload's `connectTo`, Stacktape injects six environment variables: `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, and `REDIS_URL`, each prefixed with `STP_[RESOURCE_NAME]_`. For example, a resource named `cache` produces `STP_CACHE_HOST`, `STP_CACHE_REST_URL`, and so on. Additional parameters like `readOnlyRestToken` are available via [`$ResourceParam()`](/configuration/referenceable-parameters).
-
-### Can I use Upstash Redis for caching and rate limiting?
-
-Yes. Upstash Redis supports standard Redis commands like `SET`, `GET`, `INCR`, `EXPIRE`, and `TTL`, which are the building blocks for caching and rate-limiting algorithms. The `@upstash/ratelimit` npm package provides ready-made implementations (fixed window, sliding window, token bucket) designed for serverless environments. Enable [`enableEviction`](#eviction) for caching workloads so old keys are automatically removed when the database reaches its memory limit.
-
 ### Does Upstash Redis run inside my VPC?
 
-No. Upstash Redis is a fully managed third-party service that runs outside your AWS VPC. This means Lambda functions do not need VPC access to reach Upstash Redis, which avoids the cold-start overhead associated with VPC-attached Lambdas. It also means any compute resource — including container workloads and resources outside AWS — can connect without VPC peering or [bastion tunneling](/resources/security/bastion-host).
-
-### How do I store Upstash provider credentials securely?
-
-Use the [`$Secret()` directive](/configuration/directives) to reference any sensitive credential values instead of hard-coding them in your Stacktape config. Create secrets with [`stacktape secret:create`](/cli/secret-create) and reference them inside `providerConfig.upstash`. This keeps credentials out of your config file and version control.
-
-### Can I use Upstash Redis with container workloads?
-
-Yes. Any compute resource that supports [`connectTo`](/configuration/connecting-resources) — including [web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload) — can connect to Upstash Redis. However, container workloads with sustained high throughput are usually better served by a [Redis cluster](/resources/databases/redis) (ElastiCache), which runs inside your VPC and uses per-hour pricing that becomes cheaper at scale.
+No. Upstash Redis is a third-party managed service that runs outside your AWS VPC. This means Lambda functions do not need VPC access to reach Upstash Redis. Any compute resource that supports [`connectTo`](/configuration/connecting-resources) can connect to it without VPC configuration.
 
 ### Should I use the REST API or the Redis protocol?
 
 For Lambda functions, use the REST API (via `@upstash/redis` or raw `fetch()`). It avoids persistent TCP connections that don't fit Lambda's ephemeral execution model and can exhaust connection limits under concurrency. For container workloads with long-lived processes, either approach works — the standard Redis protocol with a client like `ioredis` may be simpler if your codebase already uses Redis client libraries.
+
+### Why does my deploy fail without providerConfig.upstash?
+
+Every stack that contains an `upstash-redis` resource must include a [`providerConfig.upstash`](#provider-configuration) block with your Upstash account credentials — this is how Stacktape provisions the database on your behalf. You configure it once per stack even if you have multiple Upstash Redis resources, since they all share the same provider credentials. Use the [`$Secret()` directive](/configuration/directives) for the `apiKey` instead of hard-coding it.
