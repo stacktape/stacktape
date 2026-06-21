@@ -80,9 +80,10 @@ const PROPS_TYPE_PROPERTIES_ALIASES: Record<string, string> = {
  * Type aliases for Props types that map directly to different type names (no properties extraction)
  */
 const PROPS_TYPE_ALIASES: Record<string, string> = {
-  // EFS mount types - these don't have type/properties structure
+  // Volume mount types - these don't have type/properties structure
   ContainerEfsMountProps: 'ContainerEfsMount',
-  LambdaEfsMountProps: 'LambdaEfsMount'
+  LambdaEfsMountProps: 'LambdaEfsMount',
+  LambdaS3FilesMountProps: 'LambdaS3FilesMount'
 };
 
 /**
@@ -241,9 +242,10 @@ const _PLAIN_TYPES_TO_GENERATE = [
   // Lifecycle rules
   'ExpirationProps',
   'NonCurrentVersionExpirationProps',
-  // EFS mount types
+  // Volume mount types
   'ContainerEfsMountProps',
   'LambdaEfsMountProps',
+  'LambdaS3FilesMountProps',
   // Authorizer types
   'CognitoAuthorizerProperties',
   'LambdaAuthorizerProperties',

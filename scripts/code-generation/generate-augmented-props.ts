@@ -343,7 +343,7 @@ export function generateAugmentedPropsTypes(): string {
     const augmentedType = generateAugmentedPropsType(
       resource.propsType,
       `Sdk${resource.propsType}`,
-      resource.className as string,
+      resource.className,
       `${resource.className}ConnectTo`,
       true // includeOverridesAndTransforms
     );

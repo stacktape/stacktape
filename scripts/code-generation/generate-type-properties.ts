@@ -78,9 +78,10 @@ const PROPS_TO_PLAIN_PROPERTIES_MAP: Record<string, string> = {
  * Props type names that map directly to a different type name (no properties extraction)
  */
 const PROPS_TO_PLAIN_TYPE_MAP: Record<string, string> = {
-  // EFS mount types - these don't have type/properties structure
+  // Volume mount types - these don't have type/properties structure
   ContainerEfsMountProps: 'ContainerEfsMount',
-  LambdaEfsMountProps: 'LambdaEfsMount'
+  LambdaEfsMountProps: 'LambdaEfsMount',
+  LambdaS3FilesMountProps: 'LambdaS3FilesMount'
 };
 
 /**

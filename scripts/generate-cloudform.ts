@@ -116,7 +116,7 @@ function determineTypeScriptType(property: TypeProperties, propertyName: string,
   if (primitiveType === 'timestamp') {
     primitiveType = 'string';
   }
-  return `${primitiveType}`;
+  return `Value<${primitiveType}>`;
 }
 
 function propertiesEntries(properties: TypePropertiesMap, useNonNullAssertion = false): string[] {
@@ -212,6 +212,7 @@ function generateFile(
   const generatedClass = generateTopLevelClass(namespace, resourceName, properties, innerTypes);
 
   const template = `import {${resourceImports.join(', ')}} from '../resource'
+import { Value, List } from '../dataTypes'
 ${innerTypesTemplates.join('\n\n')}
 ${generatedClass}
 `;
