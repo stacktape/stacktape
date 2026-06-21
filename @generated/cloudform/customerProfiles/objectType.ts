@@ -35,16 +35,17 @@ export class ObjectTypeKey {
 export interface ObjectTypeProperties {
   MaxProfileObjectCount?: Value<number>;
   Description: Value<string>;
-  Fields?: List<FieldMap>;
   DomainName: Value<string>;
+  EncryptionKey?: Value<string>;
+  ExpirationDays?: Value<number>;
+  Fields?: List<FieldMap>;
   AllowProfileCreation?: Value<boolean>;
+  SourcePriority?: Value<number>;
   ObjectTypeName: Value<string>;
   Keys?: List<KeyMap>;
   SourceLastUpdatedTimestampFormat?: Value<string>;
-  EncryptionKey?: Value<string>;
   Tags?: List<ResourceTag>;
   TemplateId?: Value<string>;
-  ExpirationDays?: Value<number>;
 }
 export default class ObjectType extends ResourceBase<ObjectTypeProperties> {
   static FieldMap = FieldMap;

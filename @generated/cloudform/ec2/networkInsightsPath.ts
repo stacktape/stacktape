@@ -1,8 +1,8 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class FilterPortRange {
-  FromPort?: Value<number>;
   ToPort?: Value<number>;
+  FromPort?: Value<number>;
   constructor(properties: FilterPortRange) {
     Object.assign(this, properties);
   }

@@ -117,6 +117,7 @@ export class RedshiftSettings {
 export class Settings {
   MariaDbSettings?: MariaDbSettings;
   OracleSettings?: OracleSettings;
+  SybaseAseSettings?: SybaseAseSettings;
   MicrosoftSqlServerSettings?: MicrosoftSqlServerSettings;
   RedshiftSettings?: RedshiftSettings;
   IbmDb2zOsSettings?: IbmDb2zOsSettings;
@@ -126,6 +127,18 @@ export class Settings {
   PostgreSqlSettings?: PostgreSqlSettings;
   MongoDbSettings?: MongoDbSettings;
   constructor(properties: Settings) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SybaseAseSettings {
+  SslMode!: Value<string>;
+  ServerName!: Value<string>;
+  Port!: Value<number>;
+  EncryptPassword?: Value<boolean>;
+  DatabaseName?: Value<string>;
+  CertificateArn?: Value<string>;
+  constructor(properties: SybaseAseSettings) {
     Object.assign(this, properties);
   }
 }
@@ -150,6 +163,7 @@ export default class DataProvider extends ResourceBase<DataProviderProperties> {
   static PostgreSqlSettings = PostgreSqlSettings;
   static RedshiftSettings = RedshiftSettings;
   static Settings = Settings;
+  static SybaseAseSettings = SybaseAseSettings;
   constructor(properties: DataProviderProperties) {
     super('AWS::DMS::DataProvider', properties);
   }

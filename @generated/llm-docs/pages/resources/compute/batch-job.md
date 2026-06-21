@@ -15,10 +15,10 @@ A batch job is the right choice when the workload should start, do a defined uni
 
 ## When NOT to use
 
-- **Always-on HTTP services** — use [web-service](/resources/compute/web-service) when the container must serve public traffic continuously with managed HTTPS, domains, CDN, and load balancing.
-- **Internal always-on services** — use [private-service](/resources/compute/private-service) when other stack resources need to call a long-lived private container.
-- **Continuous background workers** — use [worker-service](/resources/compute/worker-service) for a process that keeps running rather than starting per job.
-- **Short event handlers** — use [Lambda function](/resources/compute/lambda-function) when the task is event-driven, short-lived, and benefits from scale-to-zero invocation billing.
+- **Always-on HTTP services** — use a [web-service](/resources/compute/web-service) for containers that must serve public HTTP traffic continuously.
+- **Internal always-on services** — use a [private-service](/resources/compute/private-service) for long-lived containers reachable only within your stack or VPC.
+- **Continuous background workers** — use a [worker-service](/resources/compute/worker-service) for containers that run continuously rather than starting per job.
+- **Short event handlers** — use a [Lambda function](/resources/compute/lambda-function) for short-lived, event-driven tasks where per-invocation billing is preferable.
 - **Non-idempotent side effects on Spot** — keep `useSpotInstances` disabled for jobs that charge payments, send emails, or perform work that cannot safely be repeated.
 
 ## Basic example
@@ -93,7 +93,7 @@ export default defineConfig(() => {
 
 ## Packaging
 
-A batch job supports five container image packaging modes: Stacktape image buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack. These are the batch-job packaging variants; some options differ from long-running container workloads. Most teams should start with the Stacktape image buildpack, then switch only when the image needs precise runtime control.
+A batch job supports five container image packaging modes: Stacktape image buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack. Most teams should start with the Stacktape image buildpack, then switch only when the image needs precise runtime control.
 
 | Mode | When to use |
 |------|-------------|
@@ -272,7 +272,7 @@ A Stacktape batch job is a containerized task that runs to completion instead of
 
 ### How is a batch job different from a worker-service?
 
-A [worker-service](/resources/compute/worker-service) is an always-on container for continuous background processing. A batch job starts for a specific unit of work, exits when finished, and can be retried when it fails or times out. Use worker-service for durable consumers; use batch-job for finite compute jobs.
+A batch job starts, does a defined unit of work, exits, and can be retried when it fails or times out. A [worker-service](/resources/compute/worker-service) runs continuously rather than starting per job. Use a worker-service when the container should stay running; use a batch job for finite compute jobs with a clear end state.
 
 ### Can a batch job run on a schedule?
 
@@ -304,7 +304,7 @@ Batch job cost depends on vCPU, memory, GPU needs, runtime, and whether on-deman
 
 ### When should I use batch-job vs Lambda function?
 
-Use a [Lambda function](/resources/compute/lambda-function) for short event handlers that benefit from scale-to-zero invocation billing. Use a batch job when the work is long-running, container-native, compute-heavy, needs GPU, or is easier to express as a job process that exits. Batch jobs are a better fit for workloads that look like command-line programs.
+Use a [Lambda function](/resources/compute/lambda-function) for short-lived, event-driven tasks. Use a batch job when the work is long-running, container-native, compute-heavy, needs GPU, or is easier to express as a job process that exits. Batch jobs are a better fit for workloads that look like command-line programs.
 
 ## API Reference
 

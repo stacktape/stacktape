@@ -28,6 +28,7 @@ export interface ApplicationProperties {
   DataSources?: List<DataSource>;
   AppConfigs?: List<AppConfig>;
   Endpoint?: Value<string>;
+  KmsKeyArn?: Value<string>;
   Tags?: List<ResourceTag>;
   IamIdentityCenterOptions?: IamIdentityCenterOptions;
   Name: Value<string>;

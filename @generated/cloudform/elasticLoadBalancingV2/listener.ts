@@ -7,6 +7,7 @@ export class Action {
   AuthenticateCognitoConfig?: AuthenticateCognitoConfig;
   Type!: Value<string>;
   RedirectConfig?: RedirectConfig;
+  JwtValidationConfig?: JwtValidationConfig;
   ForwardConfig?: ForwardConfig;
   AuthenticateOidcConfig?: AuthenticateOidcConfig;
   constructor(properties: Action) {
@@ -29,9 +30,9 @@ export class AuthenticateCognitoConfig {
 }
 
 export class AuthenticateOidcConfig {
-  UseExistingClientSecret?: Value<boolean>;
   OnUnauthenticatedRequest?: Value<string>;
   TokenEndpoint!: Value<string>;
+  UseExistingClientSecret?: Value<boolean>;
   SessionTimeout?: Value<string>;
   Scope?: Value<string>;
   Issuer!: Value<string>;
@@ -66,6 +67,24 @@ export class ForwardConfig {
   TargetGroupStickinessConfig?: TargetGroupStickinessConfig;
   TargetGroups?: List<TargetGroupTuple>;
   constructor(properties: ForwardConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class JwtValidationActionAdditionalClaim {
+  Format!: Value<string>;
+  Values!: List<Value<string>>;
+  Name!: Value<string>;
+  constructor(properties: JwtValidationActionAdditionalClaim) {
+    Object.assign(this, properties);
+  }
+}
+
+export class JwtValidationConfig {
+  JwksEndpoint!: Value<string>;
+  Issuer!: Value<string>;
+  AdditionalClaims?: List<JwtValidationActionAdditionalClaim>;
+  constructor(properties: JwtValidationConfig) {
     Object.assign(this, properties);
   }
 }
@@ -133,6 +152,8 @@ export default class Listener extends ResourceBase<ListenerProperties> {
   static Certificate = Certificate;
   static FixedResponseConfig = FixedResponseConfig;
   static ForwardConfig = ForwardConfig;
+  static JwtValidationActionAdditionalClaim = JwtValidationActionAdditionalClaim;
+  static JwtValidationConfig = JwtValidationConfig;
   static ListenerAttribute = ListenerAttribute;
   static MutualAuthentication = MutualAuthentication;
   static RedirectConfig = RedirectConfig;

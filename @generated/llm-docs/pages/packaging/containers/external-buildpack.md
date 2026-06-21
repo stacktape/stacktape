@@ -9,9 +9,9 @@ External buildpack packaging applies to container-based resources: [web services
 External buildpack packaging is a good fit when:
 
 - Your language or framework has a mature Cloud Native Buildpack ecosystem (Java/Spring, Go, Ruby, .NET, Python, Node.js, PHP).
-- You want the buildpack community's opinionated image structure — layered caching, OS-level security patches, and reproducible builds — without writing a Dockerfile.
+- You want the buildpack community's opinionated image structure — layered caching and dependency management — without writing a Dockerfile.
 - You're migrating from Heroku or another platform that uses buildpacks. The same builders (Paketo, Heroku) work with Stacktape.
-- You want the broadest language coverage among Stacktape's zero-Dockerfile options.
+- You need language or framework support beyond what the [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) and [Nixpacks](/packaging/containers/nixpacks) cover — external buildpacks exist for almost any language or framework.
 
 ## When NOT to use
 
@@ -22,7 +22,7 @@ External buildpack packaging is a good fit when:
 
 ## Basic example
 
-The smallest valid external buildpack configuration. Stacktape uses the default Paketo builder (`paketobuildpacks/builder-jammy-base`) to auto-detect the language and produce an image.
+The smallest valid external buildpack configuration. Stacktape uses the default Paketo builder (`paketobuildpacks/builder-jammy-base`) to auto-detect the language and produce an image. The `resources` block (`cpu`, `memory`) is required by the [WebService](/resources/compute/web-service) resource, not by the packaging itself.
 
 
 Example (TypeScript):
@@ -80,17 +80,17 @@ export default defineConfig(() => {
 
 The `builder` property controls which Cloud Native Buildpack builder image produces your container. A builder bundles a set of buildpacks and a base OS image. If omitted, Stacktape defaults to `paketobuildpacks/builder-jammy-base`.
 
-Specify a custom builder when the default doesn't support your language, you need extra system libraries, or you're migrating from a platform that provides its own builder (like Heroku). Verify your builder's current language support in the provider's documentation — builder capabilities change across versions.
+Specify a custom builder when the default doesn't support your language, you need extra system libraries, or you're migrating from a platform that provides its own builder (like Heroku). The `builder` property accepts any valid builder image reference — consult the builder provider's documentation for current language support and version compatibility.
 
 | Builder | Notes |
 |---------|-------|
-| `paketobuildpacks/builder-jammy-base` (default) | General-purpose Paketo builder on Ubuntu 22.04 |
-| `paketobuildpacks/builder-jammy-full` | Includes extra system libraries for native dependencies |
-| `heroku/builder:24` | Heroku's builder for teams migrating from Heroku |
-| `gcr.io/buildpacks/builder:google-22` | Google Cloud buildpacks builder |
+| `paketobuildpacks/builder-jammy-base` | **Default.** General-purpose Paketo builder on Ubuntu 22.04. Configured by Stacktape when `builder` is omitted. |
+| `paketobuildpacks/builder-jammy-full` | Paketo builder with extra system libraries for native dependencies. |
+| `heroku/builder:24` | Heroku's builder — useful for teams migrating from Heroku. |
+| `gcr.io/buildpacks/builder:google-22` | Google Cloud buildpacks builder. |
 
 
-> **Info:** The builder table above shows commonly used external builders as examples. Consult each builder's documentation for current language support, available buildpacks, and version compatibility.
+> **Info:** Only `paketobuildpacks/builder-jammy-base` is the Stacktape-configured default. The other builders listed above are commonly used external options — consult each builder's documentation for current language support and available buildpacks.
 
 
 Example (TypeScript):
@@ -178,15 +178,11 @@ export default defineConfig(() => {
 
 ## How it works
 
-When you deploy a resource using external buildpack packaging, Stacktape builds a container image from your `sourceDirectoryPath` using the configured (or default) builder and buildpacks. The builder inspects your source, detects the language and framework, installs dependencies, compiles the application, and produces a layered OCI image.
-
-Stacktape skips the build when source files have not changed since the last deploy, avoiding unnecessary rebuilds during iterative development.
-
-Cloud Native Buildpacks use layer caching by design — dependencies are cached in a separate image layer from application code. When only your source changes (but the lockfile stays the same), the dependency layer is reused and only the application layer is rebuilt. This makes incremental builds significantly faster than cold builds.
+Cloud Native Buildpacks store dependencies in a separate image layer from application code. When dependencies haven't changed between deploys, the builder can reuse the cached dependency layer and only rebuild the application layer — reducing build time on subsequent deploys. The `ExternalBuildpackPackaging` configuration surface does not expose explicit cache controls; whether a given build reuses prior layers depends on the builder and the build environment.
 
 ## Complete example
 
-A more realistic configuration showing all available properties — a Java Spring Boot service using the Heroku builder with an explicit buildpack and a custom start command.
+A more realistic configuration showing all available properties — a Java Spring Boot service using a Heroku builder with an explicit buildpack and a custom start command. The `resources` block (`cpu`, `memory`) belongs to the [WebService](/resources/compute/web-service) resource and is independent of the packaging mode — adjust these values based on your application's compute needs, not the buildpack choice.
 
 
 Example (TypeScript):
@@ -216,31 +212,7 @@ export default defineConfig(() => {
 
 ## Using with batch jobs
 
-External buildpack packaging works identically with [batch jobs](/resources/compute/batch-job). The configuration is the same — specify `sourceDirectoryPath` and optionally `builder`, `buildpacks`, and `command`.
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, BatchJob, ExternalBuildpackPackaging } from 'stacktape';
-export default defineConfig(() => {
-  const etl = new BatchJob({
-    packaging: new ExternalBuildpackPackaging({
-      sourceDirectoryPath: './etl-pipeline',
-      builder: 'paketobuildpacks/builder-jammy-full'
-    }),
-    resources: {
-      cpu: 2,
-      memory: 4096
-    }
-  });
-
-  return {
-    resources: { etl }
-  };
-});
-```
-
+External buildpack packaging works identically with [batch jobs](/resources/compute/batch-job). The packaging properties (`sourceDirectoryPath`, `builder`, `buildpacks`, `command`) are the same as for container services — see the [batch-job page](/resources/compute/batch-job) for the surrounding job configuration (resources, retries, timeouts).
 
 ## Choosing a container packaging mode
 
@@ -252,9 +224,9 @@ Stacktape supports five container packaging modes. Use external buildpack when y
 | [Custom Dockerfile](/packaging/containers/custom-dockerfile) | Yes | No | Complex or multi-stage builds, full image control |
 | [Prebuilt image](/packaging/containers/prebuilt-image) | No | No | Existing images in a registry |
 | [Nixpacks](/packaging/containers/nixpacks) | No | Yes | Nix-based reproducibility, broad language matrix |
-| **External buildpack** | No | Yes | CNB ecosystem, Heroku migration, widest language coverage |
+| **External buildpack** | No | Yes | CNB ecosystem, Heroku migration, broad language and framework coverage |
 
-Use the Stacktape image buildpack if your language is supported and you want the fastest path. Choose external buildpack when you need a specific builder ecosystem (Paketo, Heroku, Google), broader language support, or compatibility with an existing CNB workflow.
+Use the Stacktape image buildpack if your language is supported and you want the most integrated path. Choose external buildpack when you need a specific builder ecosystem (Paketo, Heroku, Google), broader language support, or compatibility with an existing CNB workflow.
 
 ## API reference
 
@@ -293,15 +265,11 @@ Yes. Set `builder` to a Heroku builder image like `heroku/builder:24`. If you're
 
 ### How does external buildpack differ from the Stacktape image buildpack?
 
-The [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) is Stacktape's own packaging system that bundles your code and dependencies into an optimized container image. It supports JavaScript/TypeScript, Python, Java, and Go. External buildpack delegates image creation entirely to the Cloud Native Buildpack ecosystem, which supports a wider range of languages and frameworks. Use the Stacktape buildpack when your language is supported and you want the integrated path; use external buildpack when you need a specific CNB builder or broader language coverage.
+The [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) is Stacktape's own packaging system that bundles your code and dependencies into an optimized container image. It supports JavaScript/TypeScript, Python, Java, and Go. External buildpack delegates image creation entirely to the Cloud Native Buildpack ecosystem — buildpacks exist for almost any language or framework. Use the Stacktape buildpack when your language is supported and you want the integrated path; use external buildpack when you need a specific CNB builder or broader language coverage.
 
 ### How does external buildpack differ from Nixpacks?
 
 Both auto-detect your language and build without a Dockerfile. [Nixpacks](/packaging/containers/nixpacks) uses Nix for reproducible builds and has its own detection engine. External buildpack uses the Cloud Native Buildpack standard with community builders. Choose external buildpack when you need Paketo or Heroku buildpack compatibility; choose Nixpacks if you want Nix-based reproducibility or if Nixpacks better supports your stack.
-
-### What happens if my source hasn't changed since the last deploy?
-
-Stacktape skips the image build when source files haven't changed since the last deployment. This avoids unnecessary rebuilds during iterative development and speeds up deploys that only change configuration (environment variables, scaling, networking) without touching application code.
 
 ### Can I combine multiple buildpacks?
 
@@ -309,7 +277,7 @@ Yes. The `buildpacks` array accepts multiple entries. The CNB spec processes the
 
 ### How do I debug a failed buildpack build?
 
-The build output from the CNB builder appears in your terminal during `stacktape deploy`. Common failure causes include: missing dependency files (no `package.json`, `requirements.txt`, etc. in the source directory), an incompatible builder version, or the builder not recognizing your language. Verify your `sourceDirectoryPath` contains the files the builder expects, and check the builder's documentation for supported language versions.
+Common failure causes include: missing dependency files (no `package.json`, `requirements.txt`, etc. in the source directory), an incompatible builder version, or the builder not recognizing your language. Verify your `sourceDirectoryPath` contains the files the builder expects, and check the builder's documentation for supported language versions.
 
 ### When should I use a custom Dockerfile instead?
 
@@ -317,8 +285,8 @@ Use a [custom Dockerfile](/packaging/containers/custom-dockerfile) when you need
 
 ### What's the cost difference between external buildpack and other modes?
 
-The packaging mode itself has no runtime cost difference — you pay for the same ECS Fargate or EC2 compute regardless of how the image was built. Build time differences affect deploy speed: external buildpack builds can be slower on the first run (pulling the builder image) but benefit from CNB layer caching on subsequent builds. If build time matters, compare against the Stacktape image buildpack for supported languages.
+The packaging mode itself has no runtime cost difference — you pay for the same ECS Fargate or EC2 compute regardless of how the image was built. Build time differences affect deploy speed: external buildpack builds can be slower on the first run because the builder image must be pulled. If build time matters, compare against the Stacktape image buildpack for supported languages.
 
-### Do I need to install anything locally to use external buildpack?
+### What is the default builder?
 
-External buildpack packaging uses the Cloud Native Buildpack build process, which requires Docker to be running on the build machine. If you're using [GitOps with the Console](/ci-cd-and-gitops/gitops-with-console), the build runner handles the build environment automatically. For local deploys, ensure Docker Desktop or Docker Engine is running.
+Stacktape defaults to `paketobuildpacks/builder-jammy-base` when you omit the `builder` property. This is a general-purpose Paketo builder based on Ubuntu 22.04. You can override it with any valid CNB builder image by setting `builder` to a different image reference.

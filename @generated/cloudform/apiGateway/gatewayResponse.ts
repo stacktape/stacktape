@@ -1,15 +1,16 @@
-import { ResourceBase } from '../resource';
-import { Value, List } from '../dataTypes';
+import {ResourceBase} from '../resource'
+import { Value, List } from '../dataTypes'
 
 export interface GatewayResponseProperties {
-  ResponseTemplates?: { [key: string]: Value<string> };
-  ResponseParameters?: { [key: string]: Value<string> };
-  RestApiId: Value<string>;
-  StatusCode?: Value<string>;
-  ResponseType: Value<string>;
+    ResponseTemplates?: {[key: string]: Value<string>}
+    ResponseParameters?: {[key: string]: Value<string>}
+    RestApiId: Value<string>
+    StatusCode?: Value<string>
+    ResponseType: Value<string>
 }
 export default class GatewayResponse extends ResourceBase<GatewayResponseProperties> {
-  constructor(properties: GatewayResponseProperties) {
-    super('AWS::ApiGateway::GatewayResponse', properties);
-  }
+
+    constructor(properties: GatewayResponseProperties) {
+        super('AWS::ApiGateway::GatewayResponse', properties)
+    }
 }

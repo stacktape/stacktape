@@ -32,9 +32,9 @@ export class ComputationModelConfiguration {
 }
 
 export class ComputationModelDataBindingValue {
-  AssetProperty?: AssetPropertyBindingValue;
   AssetModelProperty?: AssetModelPropertyBindingValue;
   List?: List<ComputationModelDataBindingValue>;
+  AssetProperty?: AssetPropertyBindingValue;
   constructor(properties: ComputationModelDataBindingValue) {
     Object.assign(this, properties);
   }

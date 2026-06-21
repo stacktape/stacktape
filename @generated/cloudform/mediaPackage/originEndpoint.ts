@@ -128,11 +128,11 @@ export class MssPackage {
 }
 
 export class SpekeKeyProvider {
-  ResourceId!: Value<string>;
-  SystemIds!: List<Value<string>>;
   EncryptionContractConfiguration?: EncryptionContractConfiguration;
+  ResourceId!: Value<string>;
   Url!: Value<string>;
   RoleArn!: Value<string>;
+  SystemIds!: List<Value<string>>;
   CertificateArn?: Value<string>;
   constructor(properties: SpekeKeyProvider) {
     Object.assign(this, properties);
@@ -140,9 +140,9 @@ export class SpekeKeyProvider {
 }
 
 export class StreamSelection {
+  MaxVideoBitsPerSecond?: Value<number>;
   MinVideoBitsPerSecond?: Value<number>;
   StreamOrder?: Value<string>;
-  MaxVideoBitsPerSecond?: Value<number>;
   constructor(properties: StreamSelection) {
     Object.assign(this, properties);
   }

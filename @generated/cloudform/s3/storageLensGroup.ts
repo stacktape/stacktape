@@ -33,8 +33,8 @@ export class MatchObjectAge {
 }
 
 export class MatchObjectSize {
-  BytesLessThan?: Value<number>;
   BytesGreaterThan?: Value<number>;
+  BytesLessThan?: Value<number>;
   constructor(properties: MatchObjectSize) {
     Object.assign(this, properties);
   }

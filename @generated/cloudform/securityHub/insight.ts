@@ -114,8 +114,8 @@ export class BooleanFilter {
 }
 
 export class DateFilter {
-  DateRange?: DateRange;
   Start?: Value<string>;
+  DateRange?: DateRange;
   End?: Value<string>;
   constructor(properties: DateFilter) {
     Object.assign(this, properties);
@@ -138,8 +138,8 @@ export class IpFilter {
 }
 
 export class MapFilter {
-  Comparison!: Value<string>;
   Value!: Value<string>;
+  Comparison!: Value<string>;
   Key!: Value<string>;
   constructor(properties: MapFilter) {
     Object.assign(this, properties);
@@ -147,17 +147,17 @@ export class MapFilter {
 }
 
 export class NumberFilter {
-  Gte?: Value<number>;
   Eq?: Value<number>;
   Lte?: Value<number>;
+  Gte?: Value<number>;
   constructor(properties: NumberFilter) {
     Object.assign(this, properties);
   }
 }
 
 export class StringFilter {
-  Comparison!: Value<string>;
   Value!: Value<string>;
+  Comparison!: Value<string>;
   constructor(properties: StringFilter) {
     Object.assign(this, properties);
   }

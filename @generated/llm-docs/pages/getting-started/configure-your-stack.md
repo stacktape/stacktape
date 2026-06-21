@@ -6,7 +6,7 @@ A `stacktape.ts` file defines your AWS infrastructure — APIs, functions, datab
 > **Info:** Already have a `stacktape.ts`? Skip to [using dev mode](/getting-started/use-the-dev-mode) or [deploying your first stage](/getting-started/deploy-your-first-stage).
 
 
-> **Tip:** **Recommended starting path:** Run `stacktape init` to scaffold a project from a starter template — you get a working `stacktape.ts` and application code in one step. If you already have a codebase, try [AI config generation](/using-with-ai/config-generation-from-repository) in the Console to get a draft config for your repo. Either way, understanding the config format below will help you customize what you get.
+> **Tip:** **Recommended starting path:** Run `stacktape init` to initialize a new project from a starter template. If you already have a codebase, try [AI config generation](/using-with-ai/config-generation-from-repository) in the Console. Either way, understanding the config format below will help you customize what you get.
 
 
 ## Install the package
@@ -15,7 +15,7 @@ A `stacktape.ts` file defines your AWS infrastructure — APIs, functions, datab
 npm install stacktape --save-dev
 ```
 
-The `stacktape` package provides typed resource classes and directive functions such as [`$Secret`](/configuration/directives) and [`$ResourceParam`](/configuration/directives). You get full IDE autocompletion and type checking as you write your config.
+Install the `stacktape` package for typed resource classes and directives such as [`$Secret`](/configuration/directives) and [`$ResourceParam`](/configuration/directives). You get full IDE autocompletion and type checking as you write your config.
 
 ## Your first stacktape.ts
 
@@ -60,10 +60,10 @@ export default defineConfig(() => {
 Here's what each piece does:
 
 - **`defineConfig`** wraps your config in a function Stacktape calls at command time. It provides a context object with deployment details — stage, region, project name — you can use for [dynamic configuration](#adapt-config-per-stage).
-- **Resource classes** like `LambdaFunction` and `HttpApiGateway` map to AWS resources. Each accepts a typed configuration object with autocompletion in VS Code, WebStorm, and other TypeScript-capable editors.
+- **Resource classes** like `LambdaFunction` and `HttpApiGateway` define Stacktape resources. Stacktape creates and manages the corresponding AWS infrastructure. Each class accepts a typed configuration object with autocompletion in VS Code, WebStorm, and other TypeScript-capable editors.
 - **`StacktapeLambdaBuildpackPackaging`** tells Stacktape to bundle the Lambda from a source entry file. See [function packaging](/packaging/function/stacktape-buildpack) for details.
-- **`HttpApiIntegration`** routes HTTP requests through the API Gateway to the function. The `httpApiGatewayName` value (`'api'`) must match the key used in the `resources` return object.
-- **The `resources` return** is a required object whose keys become Stacktape resource names. These names are used by [`connectTo`](/configuration/connecting-resources) to wire up access between resources and by [`$ResourceParam()`](/configuration/directives) to reference outputs from other resources.
+- **`HttpApiIntegration`** routes HTTP requests through the API Gateway to the function. The `httpApiGatewayName` value (`'api'`) points the function at the `api` gateway created above.
+- **The returned `resources` object** is required. The object keys name the resources that [`connectTo`](/configuration/connecting-resources) uses to wire up access between resources and that [`$ResourceParam()`](/configuration/directives) uses to reference outputs from other resources.
 
 The handler at `./src/handler.ts` is standard application code:
 
@@ -78,7 +78,7 @@ export default async () => {
 
 ## Adapt config per stage
 
-The `defineConfig` callback receives a context object you can use to vary infrastructure per [stage](/configuration/stages-and-environments). Since the config is TypeScript, conditionals, loops, shared modules, and any npm package work naturally. This example uses a larger database in production while keeping development costs low:
+The `defineConfig` callback receives a context object you can use to vary infrastructure per [stage](/configuration/stages-and-environments). Since the config is TypeScript, conditionals, loops, shared modules, and any npm package work naturally. This example adds a [relational database](/resources/databases/relational-database) and connects it to a Lambda function, using the `stage` parameter to vary the database instance size between production and development:
 
 
 Example (TypeScript):
@@ -91,8 +91,7 @@ import {
   RelationalDatabase,
   RdsEnginePostgres,
   StacktapeLambdaBuildpackPackaging,
-  HttpApiIntegration,
-  $Secret
+  HttpApiIntegration
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const isProduction = stage === 'production';
@@ -103,10 +102,7 @@ export default defineConfig(({ stage }) => {
       primaryInstance: {
         instanceSize: isProduction ? 'db.t4g.medium' : 'db.t4g.micro'
       }
-    }),
-    credentials: {
-      masterUserPassword: $Secret('db-password')
-    }
+    })
   });
 
   const api = new HttpApiGateway({});
@@ -134,13 +130,13 @@ export default defineConfig(({ stage }) => {
 ```
 
 
-In this example, `connectTo: ['database']` grants `apiHandler` network access to the database and injects connection details as environment variables — for a resource named `database`, Stacktape injects names like `STP_DATABASE_CONNECTION_STRING` and `STP_DATABASE_HOST`. See [connecting resources](/configuration/connecting-resources) for the variables injected per resource type.
+In this example, `connectTo: ['database']` grants `apiHandler` network access to the resource named `database` and injects connection details as environment variables — Stacktape injects names like `STP_DATABASE_CONNECTION_STRING` and `STP_DATABASE_HOST`. See [connecting resources](/configuration/connecting-resources) for the variables injected per resource type.
 
-The `$Secret('db-password')` directive references a secret stored in the [Stacktape Console](/configuration/secrets), keeping credentials out of your config file.
+The `stage` parameter lets you write standard TypeScript conditionals to vary any property per stage. Use the [`$Secret`](/configuration/directives) directive for credentials like `masterUserPassword` to keep secrets out of your config file.
 
 ### Context properties
 
-The full set of properties available in the `defineConfig` callback:
+The context object passed to the `defineConfig` callback includes:
 
 | Property      | Type                                             | Description                                                |
 | ------------- | ------------------------------------------------ | ---------------------------------------------------------- |
@@ -148,20 +144,19 @@ The full set of properties available in the `defineConfig` callback:
 | `region`      | `string`                                         | AWS region (e.g., `us-east-1`, `eu-west-1`)                |
 | `projectName` | `string`                                         | Project name                                               |
 | `command`     | `string`                                         | CLI command being run (`deploy`, `delete`, `dev`, etc.)     |
-| `cliArgs`     | `Record<string, string \| number \| boolean>`    | Arguments passed via the `--arg` flag                      |
-| `profile`     | `string \| undefined`                            | Locally-configured AWS profile, if set                     |
+| `cliArgs`     | `Record<string, string \| number \| boolean>`    | Key-value arguments passed via the `--arg` CLI flag        |
 
 See [configuration files](/configuration/configuration-files) for the complete config reference.
 
 ## Quick-start with stacktape init
 
-[`stacktape init`](/cli/init) scaffolds a project with a working `stacktape.ts` and application code from a starter template:
+[`stacktape init`](/cli/init) initializes a new project from a starter template:
 
 ```bash
 npx stacktape@latest init
 ```
 
-The command walks you through selecting a starter and generates a ready-to-deploy setup. This is the fastest path from zero to a working project.
+This is the fastest path from zero to a working project.
 
 ## Console alternatives
 
@@ -169,21 +164,21 @@ The [Stacktape Console](/stacktape-console/console-overview) offers two addition
 
 ### AI config generation
 
-Select a Git repository (public or private) and branch in the Console. Stacktape analyzes the codebase and generates a config draft for your review. This is the fastest path when you have an existing codebase and want Stacktape to determine the right infrastructure. See [AI config generation](/using-with-ai/config-generation-from-repository) for the full walkthrough.
+Choose a public or private Git repository and branch in the Console to start AI config generation for your project. This is the fastest path when you have an existing codebase and want Stacktape to determine the right infrastructure. See [AI config generation](/using-with-ai/config-generation-from-repository) for the full walkthrough.
 
 
-> Screenshot: AI config generation in the Stacktape Console — select a repository and branch, then review the generated config Caption: Select a repository and branch; Stacktape analyzes the codebase and produces a stacktape.ts draft for your review.
+> Screenshot: AI config generation in the Stacktape Console — select a repository and branch, then review the generated config Caption: Select a repository and branch to start AI config generation for your codebase.
 
 
 ### Config editor
 
-A browser-based editor with IntelliSense, live validation, and price estimation. Open a saved config template, edit it, and save changes. You can use the editor alongside AI config generation to review and refine generated configs before deploying. See the [visual config editor](/stacktape-console/visual-config-editor) for details.
+When a selected template is editable, the Console config editor lets you modify and save config changes. Templates created for a Console stage are opened read-only and link to the stage configuration page for edits. See the [visual config editor](/stacktape-console/visual-config-editor) for details.
 
 
-> Screenshot: The Stacktape Console config editor with IntelliSense and price estimation Caption: The config editor provides autocompletion, validation, and shows estimated monthly costs as you edit.
+> Screenshot: The Stacktape Console config editor Caption: Select a saved template and edit config content in the Console config editor.
 
 
-Both Console paths work well for exploration and getting started. For production workflows, keep your `stacktape.ts` in version control alongside your application code — it's the single source of truth for your infrastructure.
+Both Console paths work well for exploration and getting started. For production workflows, prefer keeping `stacktape.ts` in version control alongside your application code so infrastructure changes can be reviewed with code changes.
 
 ## Beyond resources
 

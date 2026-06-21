@@ -51,6 +51,21 @@ export class AndStatement {
   }
 }
 
+export class ApplicationAttribute {
+  Values!: List<Value<string>>;
+  Name!: Value<string>;
+  constructor(properties: ApplicationAttribute) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ApplicationConfig {
+  Attributes!: List<ApplicationAttribute>;
+  constructor(properties: ApplicationConfig) {
+    Object.assign(this, properties);
+  }
+}
+
 export class AsnMatchStatement {
   ForwardedIPConfig?: ForwardedIPConfiguration;
   AsnList?: List<Value<number>>;
@@ -243,6 +258,7 @@ export class FieldToMatch {
   UriPath?: { [key: string]: any };
   Cookies?: Cookies;
   JA4Fingerprint?: JA4Fingerprint;
+  HeaderOrder?: HeaderOrder;
   Body?: Body;
   SingleHeader?: SingleHeader;
   constructor(properties: FieldToMatch) {
@@ -279,6 +295,13 @@ export class HeaderMatchPattern {
   IncludedHeaders?: List<Value<string>>;
   ExcludedHeaders?: List<Value<string>>;
   constructor(properties: HeaderMatchPattern) {
+    Object.assign(this, properties);
+  }
+}
+
+export class HeaderOrder {
+  OversizeHandling!: Value<string>;
+  constructor(properties: HeaderOrder) {
     Object.assign(this, properties);
   }
 }
@@ -562,10 +585,10 @@ export class RequestInspectionACFP {
 }
 
 export class ResponseInspection {
-  Header?: ResponseInspectionHeader;
-  BodyContains?: ResponseInspectionBodyContains;
   Json?: ResponseInspectionJson;
+  Header?: ResponseInspectionHeader;
   StatusCode?: ResponseInspectionStatusCode;
+  BodyContains?: ResponseInspectionBodyContains;
   constructor(properties: ResponseInspection) {
     Object.assign(this, properties);
   }
@@ -621,8 +644,8 @@ export class Rule {
 }
 
 export class RuleAction {
-  Captcha?: CaptchaAction;
   Block?: BlockAction;
+  Captcha?: CaptchaAction;
   Count?: CountAction;
   Allow?: AllowAction;
   Challenge?: ChallengeAction;
@@ -719,8 +742,8 @@ export class UriFragment {
 }
 
 export class VisibilityConfig {
-  MetricName!: Value<string>;
   SampledRequestsEnabled!: Value<boolean>;
+  MetricName!: Value<string>;
   CloudWatchMetricsEnabled!: Value<boolean>;
   constructor(properties: VisibilityConfig) {
     Object.assign(this, properties);
@@ -746,6 +769,7 @@ export interface WebACLProperties {
   TokenDomains?: List<Value<string>>;
   DefaultAction: DefaultAction;
   Scope: Value<string>;
+  ApplicationConfig?: ApplicationConfig;
   CustomResponseBodies?: { [key: string]: CustomResponseBody };
   CaptchaConfig?: CaptchaConfig;
   Tags?: List<ResourceTag>;
@@ -757,6 +781,8 @@ export default class WebACL extends ResourceBase<WebACLProperties> {
   static AWSManagedRulesBotControlRuleSet = AWSManagedRulesBotControlRuleSet;
   static AllowAction = AllowAction;
   static AndStatement = AndStatement;
+  static ApplicationAttribute = ApplicationAttribute;
+  static ApplicationConfig = ApplicationConfig;
   static AsnMatchStatement = AsnMatchStatement;
   static AssociationConfig = AssociationConfig;
   static BlockAction = BlockAction;
@@ -785,6 +811,7 @@ export default class WebACL extends ResourceBase<WebACLProperties> {
   static ForwardedIPConfiguration = ForwardedIPConfiguration;
   static GeoMatchStatement = GeoMatchStatement;
   static HeaderMatchPattern = HeaderMatchPattern;
+  static HeaderOrder = HeaderOrder;
   static Headers = Headers;
   static IPSetForwardedIPConfiguration = IPSetForwardedIPConfiguration;
   static IPSetReferenceStatement = IPSetReferenceStatement;

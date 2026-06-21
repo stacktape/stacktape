@@ -130,6 +130,7 @@ export class Exclusions {
 
 export class FastRestoreRule {
   IntervalUnit?: Value<string>;
+  AvailabilityZoneIds?: List<Value<string>>;
   AvailabilityZones?: List<Value<string>>;
   Count?: Value<number>;
   Interval?: Value<number>;

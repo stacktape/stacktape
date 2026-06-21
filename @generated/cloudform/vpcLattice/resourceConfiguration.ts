@@ -17,16 +17,19 @@ export class ResourceConfigurationDefinition {
   }
 }
 export interface ResourceConfigurationProperties {
+  CustomDomainName?: Value<string>;
+  PortRanges?: List<Value<string>>;
+  ResourceConfigurationDefinition?: ResourceConfigurationDefinition;
+  GroupDomain?: Value<string>;
+  ResourceConfigurationAuthType?: Value<string>;
+  ResourceConfigurationGroupId?: Value<string>;
+  Name: Value<string>;
   AllowAssociationToSharableServiceNetwork?: Value<boolean>;
   ProtocolType?: Value<string>;
   ResourceConfigurationType: Value<string>;
-  PortRanges?: List<Value<string>>;
-  ResourceConfigurationDefinition?: ResourceConfigurationDefinition;
+  DomainVerificationId?: Value<string>;
   ResourceGatewayId?: Value<string>;
-  ResourceConfigurationAuthType?: Value<string>;
-  ResourceConfigurationGroupId?: Value<string>;
   Tags?: List<ResourceTag>;
-  Name: Value<string>;
 }
 export default class ResourceConfiguration extends ResourceBase<ResourceConfigurationProperties> {
   static DnsResource = DnsResource;

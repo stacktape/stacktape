@@ -27,8 +27,8 @@ export class CodeRepository {
 
 export class CustomFileSystemConfig {
   EFSFileSystemConfig?: EFSFileSystemConfig;
-  S3FileSystemConfig?: S3FileSystemConfig;
   FSxLustreFileSystemConfig?: FSxLustreFileSystemConfig;
+  S3FileSystemConfig?: S3FileSystemConfig;
   constructor(properties: CustomFileSystemConfig) {
     Object.assign(this, properties);
   }
@@ -135,12 +135,12 @@ export class IdleSettings {
 }
 
 export class JupyterLabAppSettings {
-  CustomImages?: List<CustomImage>;
-  DefaultResourceSpec?: ResourceSpec;
-  LifecycleConfigArns?: List<Value<string>>;
   BuiltInLifecycleConfigArn?: Value<string>;
   CodeRepositories?: List<CodeRepository>;
+  CustomImages?: List<CustomImage>;
   AppLifecycleManagement?: AppLifecycleManagement;
+  DefaultResourceSpec?: ResourceSpec;
+  LifecycleConfigArns?: List<Value<string>>;
   constructor(properties: JupyterLabAppSettings) {
     Object.assign(this, properties);
   }

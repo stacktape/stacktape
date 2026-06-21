@@ -1,6 +1,6 @@
-import { List, Value } from './dataTypes';
+import type { List, Value } from './dataTypes';
 
-export interface CreationPolicy {
+export type CreationPolicy = {
   AutoScalingCreationPolicy?: {
     MinSuccessfulInstancesPercent?: Value<number>;
   };
@@ -8,7 +8,7 @@ export interface CreationPolicy {
     Count?: Value<number>;
     Timeout?: Value<string>;
   };
-}
+};
 
 export enum DeletionPolicy {
   Delete = 'Delete',
@@ -16,7 +16,7 @@ export enum DeletionPolicy {
   Snapshot = 'Snapshot'
 }
 
-export interface UpdatePolicy {
+export type UpdatePolicy = {
   AutoScalingReplacingUpdate?: {
     WillReplace?: Value<boolean>;
   };
@@ -37,9 +37,9 @@ export interface UpdatePolicy {
     BeforeAllowTrafficHook: Value<string>;
     DeploymentGroupName: Value<string>;
   };
-}
+};
 
-export default interface Resource {
+type Resource = {
   Type: string;
   DependsOn?: Value<string> | List<string>;
   Properties?: { [key: string]: any };
@@ -48,7 +48,8 @@ export default interface Resource {
   DeletionPolicy?: DeletionPolicy;
   UpdatePolicy?: UpdatePolicy;
   Condition?: Value<string>;
-}
+};
+export default Resource;
 
 export abstract class ResourceBase<TProperties extends object = { [key: string]: any }> implements Resource {
   Type: string;

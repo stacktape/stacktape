@@ -1,6 +1,6 @@
 # aws-profile:delete
 
-The `aws-profile:delete` command removes an AWS profile from your system. It reads profiles from both the AWS credentials and config files, presents them in an interactive selector, and deletes the chosen profile. Use this when you need to clean up stale or unused AWS profiles from your local machine.
+The `aws-profile:delete` command removes an AWS profile from your system. It reads profiles from both the AWS credentials file (`~/.aws/credentials`) and the AWS config file (`~/.aws/config`), deduplicates them, presents them in an interactive selector, and deletes the chosen profile. Use this when you need to clean up stale or unused AWS profiles from your local machine. If no profiles exist, the command exits with an error.
 
 ## Usage
 
@@ -11,41 +11,30 @@ stacktape aws-profile:delete
 The command is fully interactive — it reads all profiles configured in your AWS credentials and config files, then prompts you to select which one to delete. No flags are required.
 
 
-> **Warning:** This command modifies your local AWS credentials and config files. The deleted profile will no longer be available to Stacktape or any other AWS tooling on your system.
+> **Warning:** This command modifies your local AWS profile configuration by deleting the selected profile. The deleted profile will no longer be available to Stacktape or any other AWS tooling on your system.
 
-
-## How it works
-
-When you run `aws-profile:delete`, Stacktape:
-
-1. Reads profiles from both the AWS credentials file (`~/.aws/credentials`) and the AWS config file (`~/.aws/config`).
-2. Merges them into a deduplicated list.
-3. Prompts you to select a profile from the list.
-4. Removes the selected profile from both files.
-
-If no profiles exist on your system, the command exits with an error: `No profile set in global AWS credentials file.`
 
 ## Arguments reference
 
-
-## CLI Options: `stacktape aws-profile:delete`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-
+<CliCommandsApiReference command="aws-profile:delete" sortedArgs={[
+  {
+    "name": "logLevel",
+    "required": false,
+    "alias": "ll",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "info",
+      "debug",
+      "error"
+    ],
+    "shortDescription": "<p> Log Level</p>\n",
+    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+  }
+]} />
 
 ## Examples
-
-Delete a profile with default log level:
-
-```bash
-stacktape aws-profile:delete
-```
 
 Delete a profile with debug logging enabled:
 

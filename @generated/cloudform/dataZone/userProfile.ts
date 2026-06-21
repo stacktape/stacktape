@@ -1,7 +1,9 @@
 import { ResourceBase } from '../resource';
 import { Value, List } from '../dataTypes';
 export class IamUserProfileDetails {
+  GroupProfileId?: Value<string>;
   Arn?: Value<string>;
+  SessionName?: Value<string>;
   constructor(properties: IamUserProfileDetails) {
     Object.assign(this, properties);
   }
@@ -27,6 +29,7 @@ export interface UserProfileProperties {
   Status?: Value<string>;
   UserIdentifier: Value<string>;
   UserType?: Value<string>;
+  SessionName?: Value<string>;
   DomainIdentifier: Value<string>;
 }
 export default class UserProfile extends ResourceBase<UserProfileProperties> {

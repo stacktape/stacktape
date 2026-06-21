@@ -7,6 +7,29 @@ export class FileSystemGID {
   }
 }
 
+export class OntapFileSystemIdentity {
+  Type!: Value<string>;
+  UnixUser?: OntapUnixFileSystemUser;
+  WindowsUser?: OntapWindowsFileSystemUser;
+  constructor(properties: OntapFileSystemIdentity) {
+    Object.assign(this, properties);
+  }
+}
+
+export class OntapUnixFileSystemUser {
+  Name!: Value<string>;
+  constructor(properties: OntapUnixFileSystemUser) {
+    Object.assign(this, properties);
+  }
+}
+
+export class OntapWindowsFileSystemUser {
+  Name!: Value<string>;
+  constructor(properties: OntapWindowsFileSystemUser) {
+    Object.assign(this, properties);
+  }
+}
+
 export class OpenZFSFileSystemIdentity {
   Type!: Value<string>;
   PosixUser!: OpenZFSPosixFileSystemUser;
@@ -34,6 +57,14 @@ export class S3AccessPoint {
   }
 }
 
+export class S3AccessPointOntapConfiguration {
+  VolumeId!: Value<string>;
+  FileSystemIdentity!: OntapFileSystemIdentity;
+  constructor(properties: S3AccessPointOntapConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class S3AccessPointOpenZFSConfiguration {
   VolumeId!: Value<string>;
   FileSystemIdentity!: OpenZFSFileSystemIdentity;
@@ -49,16 +80,21 @@ export class S3AccessPointVpcConfiguration {
   }
 }
 export interface S3AccessPointAttachmentProperties {
-  OpenZFSConfiguration: S3AccessPointOpenZFSConfiguration;
+  OpenZFSConfiguration?: S3AccessPointOpenZFSConfiguration;
   Type: Value<string>;
   S3AccessPoint?: S3AccessPoint;
+  OntapConfiguration?: S3AccessPointOntapConfiguration;
   Name: Value<string>;
 }
 export default class S3AccessPointAttachment extends ResourceBase<S3AccessPointAttachmentProperties> {
   static FileSystemGID = FileSystemGID;
+  static OntapFileSystemIdentity = OntapFileSystemIdentity;
+  static OntapUnixFileSystemUser = OntapUnixFileSystemUser;
+  static OntapWindowsFileSystemUser = OntapWindowsFileSystemUser;
   static OpenZFSFileSystemIdentity = OpenZFSFileSystemIdentity;
   static OpenZFSPosixFileSystemUser = OpenZFSPosixFileSystemUser;
   static S3AccessPoint = S3AccessPoint;
+  static S3AccessPointOntapConfiguration = S3AccessPointOntapConfiguration;
   static S3AccessPointOpenZFSConfiguration = S3AccessPointOpenZFSConfiguration;
   static S3AccessPointVpcConfiguration = S3AccessPointVpcConfiguration;
   constructor(properties: S3AccessPointAttachmentProperties) {

@@ -16,6 +16,14 @@ export class AuthKey {
   }
 }
 
+export class CgroupCustomSetting {
+  ParameterValue!: Value<string>;
+  ParameterName!: Value<string>;
+  constructor(properties: CgroupCustomSetting) {
+    Object.assign(this, properties);
+  }
+}
+
 export class Endpoint {
   PublicIpAddress?: Value<string>;
   Type!: Value<string>;
@@ -31,6 +39,21 @@ export class ErrorInfo {
   Message?: Value<string>;
   Code?: Value<string>;
   constructor(properties: ErrorInfo) {
+    Object.assign(this, properties);
+  }
+}
+
+export class JwtAuth {
+  JwtKey?: JwtKey;
+  constructor(properties: JwtAuth) {
+    Object.assign(this, properties);
+  }
+}
+
+export class JwtKey {
+  SecretArn!: Value<string>;
+  SecretVersion!: Value<string>;
+  constructor(properties: JwtKey) {
     Object.assign(this, properties);
   }
 }
@@ -53,10 +76,14 @@ export class Scheduler {
 }
 
 export class SlurmConfiguration {
+  JwtAuth?: JwtAuth;
+  SlurmdbdCustomSettings?: List<SlurmdbdCustomSetting>;
+  CgroupCustomSettings?: List<CgroupCustomSetting>;
   Accounting?: Accounting;
   AuthKey?: AuthKey;
   ScaleDownIdleTimeInSeconds?: Value<number>;
   SlurmCustomSettings?: List<SlurmCustomSetting>;
+  SlurmRest?: SlurmRest;
   constructor(properties: SlurmConfiguration) {
     Object.assign(this, properties);
   }
@@ -66,6 +93,21 @@ export class SlurmCustomSetting {
   ParameterValue!: Value<string>;
   ParameterName!: Value<string>;
   constructor(properties: SlurmCustomSetting) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SlurmRest {
+  Mode!: Value<string>;
+  constructor(properties: SlurmRest) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SlurmdbdCustomSetting {
+  ParameterValue!: Value<string>;
+  ParameterName!: Value<string>;
+  constructor(properties: SlurmdbdCustomSetting) {
     Object.assign(this, properties);
   }
 }
@@ -80,12 +122,17 @@ export interface ClusterProperties {
 export default class Cluster extends ResourceBase<ClusterProperties> {
   static Accounting = Accounting;
   static AuthKey = AuthKey;
+  static CgroupCustomSetting = CgroupCustomSetting;
   static Endpoint = Endpoint;
   static ErrorInfo = ErrorInfo;
+  static JwtAuth = JwtAuth;
+  static JwtKey = JwtKey;
   static Networking = Networking;
   static Scheduler = Scheduler;
   static SlurmConfiguration = SlurmConfiguration;
   static SlurmCustomSetting = SlurmCustomSetting;
+  static SlurmRest = SlurmRest;
+  static SlurmdbdCustomSetting = SlurmdbdCustomSetting;
   constructor(properties: ClusterProperties) {
     super('AWS::PCS::Cluster', properties);
   }

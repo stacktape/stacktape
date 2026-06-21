@@ -10,8 +10,10 @@ export class HoursOfOperationConfig {
 }
 
 export class HoursOfOperationOverride {
+  RecurrenceConfig?: RecurrenceConfig;
   HoursOfOperationOverrideId?: Value<string>;
   OverrideConfig!: List<HoursOfOperationOverrideConfig>;
+  OverrideType?: Value<string>;
   EffectiveFrom!: Value<string>;
   OverrideName!: Value<string>;
   OverrideDescription?: Value<string>;
@@ -38,10 +40,36 @@ export class HoursOfOperationTimeSlice {
   }
 }
 
+export class HoursOfOperationsIdentifier {
+  Id!: Value<string>;
+  Name?: Value<string>;
+  constructor(properties: HoursOfOperationsIdentifier) {
+    Object.assign(this, properties);
+  }
+}
+
 export class OverrideTimeSlice {
   Hours!: Value<number>;
   Minutes!: Value<number>;
   constructor(properties: OverrideTimeSlice) {
+    Object.assign(this, properties);
+  }
+}
+
+export class RecurrenceConfig {
+  RecurrencePattern!: RecurrencePattern;
+  constructor(properties: RecurrenceConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class RecurrencePattern {
+  Frequency?: Value<string>;
+  ByWeekdayOccurrence?: List<Value<number>>;
+  ByMonthDay?: List<Value<number>>;
+  Interval?: Value<number>;
+  ByMonth?: List<Value<number>>;
+  constructor(properties: RecurrencePattern) {
     Object.assign(this, properties);
   }
 }
@@ -50,6 +78,8 @@ export interface HoursOfOperationProperties {
   Description?: Value<string>;
   Config: List<HoursOfOperationConfig>;
   InstanceArn: Value<string>;
+  ChildHoursOfOperations?: List<HoursOfOperationsIdentifier>;
+  ParentHoursOfOperations?: List<HoursOfOperationsIdentifier>;
   Tags?: List<ResourceTag>;
   HoursOfOperationOverrides?: List<HoursOfOperationOverride>;
   Name: Value<string>;
@@ -59,7 +89,10 @@ export default class HoursOfOperation extends ResourceBase<HoursOfOperationPrope
   static HoursOfOperationOverride = HoursOfOperationOverride;
   static HoursOfOperationOverrideConfig = HoursOfOperationOverrideConfig;
   static HoursOfOperationTimeSlice = HoursOfOperationTimeSlice;
+  static HoursOfOperationsIdentifier = HoursOfOperationsIdentifier;
   static OverrideTimeSlice = OverrideTimeSlice;
+  static RecurrenceConfig = RecurrenceConfig;
+  static RecurrencePattern = RecurrencePattern;
   constructor(properties: HoursOfOperationProperties) {
     super('AWS::Connect::HoursOfOperation', properties);
   }

@@ -1,6 +1,6 @@
 # Event Bus
 
-A Stacktape event bus is a serverless event router built on Amazon EventBridge. Producers publish structured events and pattern-based rules route each event to one or more targets — [Lambda functions](/resources/compute/lambda-function), [SQS queues](/resources/messaging/sqs-queue), [batch jobs](/resources/compute/batch-job), and more. You pay per event with no capacity to manage.
+A Stacktape event bus is a serverless event router built on Amazon EventBridge. Producers publish structured events and pattern-based rules route each event to one or more targets — [Lambda functions](/resources/compute/lambda-function), [SQS queues](/resources/messaging/sqs-queue), and [batch jobs](/resources/compute/batch-job). You pay per event with no capacity to manage.
 
 ## When to use
 
@@ -13,14 +13,14 @@ Use an event bus when you need to route events to multiple independent consumers
 
 ## When NOT to use
 
-- **Point-to-point task queues** — if you have one producer and one consumer processing work items, use an [SQS queue](/resources/messaging/sqs-queue). SQS provides built-in retry, dead-letter queues, and visibility timeouts that EventBridge does not.
+- **Point-to-point task queues** — if you have one producer and one consumer processing work items, use an [SQS queue](/resources/messaging/sqs-queue). SQS is better for point-to-point work queues because it gives consumers queue semantics such as visibility timeouts and message polling. EventBridge is primarily an event router, not a task queue.
 - **Simple pub/sub without content filtering** — if every subscriber gets every message and you do not need pattern-based routing, an [SNS topic](/resources/messaging/sns-topic) is simpler and lower cost.
 - **High-throughput data streaming** — EventBridge is designed for event routing, not continuous data ingestion. For ordered, replayable data streams, use a [Kinesis stream](/resources/messaging/kinesis-stream).
 - **Synchronous request-response** — EventBridge is fully asynchronous. If your caller needs an immediate response, invoke the downstream service directly or use an [HTTP API Gateway](/resources/networking/http-api-gateway).
 
 ## Basic example
 
-The simplest event bus requires no properties at all. Stacktape creates a custom EventBridge event bus that other resources in your stack can publish to or subscribe from.
+The simplest event bus requires no properties at all. Stacktape creates an event bus resource for decoupling producers and consumers in your stack.
 
 
 Example (TypeScript):
@@ -39,9 +39,9 @@ export default defineConfig(() => {
 
 ## Event archiving
 
-EventBridge event archiving stores a copy of every event published to the bus so you can replay them later. Replayed events are re-delivered to the bus where current rules route them to targets — useful for debugging production issues, populating a new consumer with historical data, or recovering from processing failures.
+EventBridge event archiving stores events published to the bus so you can replay them later. Replayed events are re-delivered to the bus where current rules route them to targets — useful for debugging production issues, populating a new consumer with historical data, or recovering from processing failures.
 
-Enable archiving with `archivation.enabled`. By default, archiving is disabled. When enabled, archived events are retained indefinitely unless you set `retentionDays` — for example, 30 days keeps costs predictable while still giving you a full month of replay capability. Disabling archiving deletes the archive and all stored events permanently.
+Enable archiving with `archivation.enabled`. By default, archiving is disabled. When enabled, archived events are retained indefinitely unless you set `retentionDays` — for example, 30 days keeps costs predictable while still giving you a full month of replay capability. Setting `archivation.enabled` back to `false` deletes the archive.
 
 
 Example (TypeScript):
@@ -63,14 +63,14 @@ export default defineConfig(() => {
 ```
 
 
-> **Tip:** Enable archiving for production event buses. The storage cost is low and the ability to replay events during an incident or when onboarding a new consumer is worth it.
+> **Tip:** Enable archiving for production event buses. The storage cost is low and the ability to replay events during an incident or when onboarding a new consumer is worth it. When archiving is enabled, the archive ARN is available via `$ResourceParam('orderBus', 'archiveArn')`.
 
 
 ## Partner event sources
 
-Amazon EventBridge supports partner event sources — pre-built integrations with third-party SaaS providers (Zendesk, Auth0, Datadog, PagerDuty, and others). When you configure a partner integration in the SaaS provider's dashboard, it creates a partner event source in your AWS account. Set `eventSourceName` to associate the bus with that partner source and start receiving their events.
+Amazon EventBridge supports partner event sources — pre-built integrations with third-party SaaS providers (Zendesk, Auth0, Datadog, PagerDuty, and others). Use `eventSourceName` when you already have a partner event source name for a third-party SaaS integration.
 
-Most teams do not need this. Use `eventSourceName` only when receiving events from a specific SaaS integration. For custom application events between your own services, a standard event bus (no `eventSourceName`) is the right choice.
+Most teams do not need this. Set `eventSourceName` only when your integration provides a partner event source name; Stacktape exposes that name on the EventBus resource. For custom application events between your own services, a standard event bus (no `eventSourceName`) is the right choice.
 
 
 Example (TypeScript):
@@ -91,13 +91,15 @@ export default defineConfig(() => {
 
 ## Subscribing to events
 
-Resources in your stack subscribe to an event bus by adding an [event bus trigger](/configuration/triggers/event-bus-events) to their `events` configuration. The trigger specifies an `eventPattern` that filters which events reach the target — only matching events invoke the consumer. You configure the subscription on the consumer resource, not on the bus itself.
+[Lambda functions](/resources/compute/lambda-function), [batch jobs](/resources/compute/batch-job), and [SQS queues](/resources/messaging/sqs-queue) subscribe to an event bus by adding an [event bus trigger](/configuration/triggers/event-bus-events) to their `events` configuration. The trigger specifies an `eventPattern` that filters which events reach the target — only matching events invoke the consumer. You configure the subscription on the consumer resource, not on the bus itself.
 
 Three resource types can subscribe to event bus events:
 
 - [Lambda functions](/resources/compute/lambda-function) — invoked per matching event
 - [Batch jobs](/resources/compute/batch-job) — started per matching event
 - [SQS queues](/resources/messaging/sqs-queue) — matching events are delivered as messages
+
+The `EventBusIntegrationProps` shape includes `eventPattern`, `onDeliveryFailure`, `input`, `inputPath`, and `inputTransformer`. See the [event bus trigger reference](/configuration/triggers/event-bus-events) for full details on each subscriber type.
 
 Specify the bus using exactly one of three options: `eventBusName` for a Stacktape-managed bus in the same stack, `eventBusArn` for an external bus, or `useDefaultBus` for the default AWS event bus. The `eventPattern` property filters events by `source`, `detail-type`, `detail`, and other fields — see the [event bus trigger reference](/configuration/triggers/event-bus-events) for the full pattern syntax.
 
@@ -141,7 +143,7 @@ export default defineConfig(() => {
 ```
 
 
-The Lambda handler receives the full EventBridge event object. The business payload is in `event.detail`:
+For Lambda targets, EventBridge delivers the event object to the handler. The business payload is conventionally in `event.detail`:
 
 ```typescript
 export const handler = async (event: {
@@ -161,13 +163,13 @@ export const handler = async (event: {
 
 ### Delivery failures
 
-The event bus trigger supports `onDeliveryFailure` to route events that fail delivery to an [SQS queue](/resources/messaging/sqs-queue). Use either `sqsQueueName` for a queue in the same stack or `sqsQueueArn` for an external queue. For critical workflows, always configure a dead-letter queue on the trigger to capture undeliverable events.
+In rare delivery-failure cases, `onDeliveryFailure` can route failed events to an [SQS queue](/resources/messaging/sqs-queue). Use either `sqsQueueName` for a queue in the same stack or `sqsQueueArn` for an external queue. For critical workflows, configure `onDeliveryFailure` with an SQS queue so failed deliveries have a destination you can inspect and retry from.
 
-The trigger also supports payload shaping with `input`, `inputPath`, and `inputTransformer` to customize the event before it reaches the target. See the [event bus trigger reference](/configuration/triggers/event-bus-events) and the [API Reference](#api-reference) for those options.
+The trigger also supports payload shaping with `input`, `inputPath`, and `inputTransformer` to customize the event before it reaches the target. See the [event bus trigger reference](/configuration/triggers/event-bus-events) and the API reference below for those options.
 
 ## Connecting to other resources
 
-Use `connectTo` on any compute resource ([Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), etc.) to grant it permission to publish events to the bus. Stacktape grants `events:PutEvents` IAM permission and injects the bus ARN as an environment variable.
+Use `connectTo` on a workload that supports resource access — such as a [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [batch job](/resources/compute/batch-job) — to grant it permission to publish events to the bus. Stacktape adds the required IAM permissions and injects the bus ARN as an environment variable.
 
 For a bus named `orderBus`, the injected environment variable is:
 
@@ -296,7 +298,7 @@ EventBridge retries failed deliveries for up to 24 hours with exponential backof
 
 ### Can container services subscribe to event bus events?
 
-Container services ([web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service)) cannot directly subscribe to event bus events as triggers. Instead, route events from the bus to an [SQS queue](/resources/messaging/sqs-queue) using an event bus trigger on the queue, then have the container poll the queue using the AWS SDK with `connectTo`. This gives the container backpressure control and retry semantics.
+Container services ([web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service)) cannot directly subscribe to event bus events as triggers. Instead, route events from the bus to an [SQS queue](/resources/messaging/sqs-queue) using an event bus trigger on the queue, then have the container poll the queue using the AWS SDK. Use `connectTo` to grant the container access to the SQS queue. This gives the container backpressure control and retry semantics.
 
 ### Event bus vs Kinesis stream — which should I use?
 

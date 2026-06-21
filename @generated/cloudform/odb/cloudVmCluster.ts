@@ -30,10 +30,20 @@ export class DbNode {
     Object.assign(this, properties);
   }
 }
+
+export class IamRole {
+  Status?: Value<string>;
+  IamRoleArn?: Value<string>;
+  AwsIntegration?: Value<string>;
+  constructor(properties: IamRole) {
+    Object.assign(this, properties);
+  }
+}
 export interface CloudVmClusterProperties {
   CloudExadataInfrastructureId?: Value<string>;
   DataCollectionOptions?: DataCollectionOptions;
   LicenseModel?: Value<string>;
+  IamRoles?: List<IamRole>;
   MemorySizeInGBs?: Value<number>;
   CpuCoreCount?: Value<number>;
   SshPublicKeys?: List<Value<string>>;
@@ -56,6 +66,7 @@ export interface CloudVmClusterProperties {
 export default class CloudVmCluster extends ResourceBase<CloudVmClusterProperties> {
   static DataCollectionOptions = DataCollectionOptions;
   static DbNode = DbNode;
+  static IamRole = IamRole;
   constructor(properties?: CloudVmClusterProperties) {
     super('AWS::ODB::CloudVmCluster', properties || {});
   }

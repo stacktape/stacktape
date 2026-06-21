@@ -5,6 +5,7 @@ export interface QueueProperties {
   Status?: Value<string>;
   Description?: Value<string>;
   PricingPlan?: Value<string>;
+  MaximumConcurrentFeeds?: Value<number>;
   Tags?: { [key: string]: any };
   ConcurrentJobs?: Value<number>;
   Name?: Value<string>;

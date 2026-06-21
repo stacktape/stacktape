@@ -1,6 +1,6 @@
 # Debug Commands Reference
 
-Stacktape provides a suite of CLI commands for inspecting deployed stacks without leaving your terminal. The observability commands (`debug:logs`, `debug:metrics`, `debug:alarms`, `debug:sql`, `debug:dynamodb`, `debug:redis`, `debug:opensearch`, `debug:aws-sdk`) are read-only — they do not modify resources. The container execution commands (`debug:container-exec`, `container:session`) and bastion commands (`bastion:session`) open interactive sessions where you can run arbitrary commands inside live infrastructure, so treat them with appropriate care in production stages.
+Stacktape provides a suite of CLI commands for inspecting deployed stacks without leaving your terminal. This page documents `debug:logs` and `debug:metrics` in depth and covers the essentials of each remaining command with links to dedicated CLI reference pages. The `debug:container-exec` command runs a one-shot command inside a running container and returns its output, while `container:session` and `bastion:session` open interactive shell sessions — treat all three with appropriate care in production stages, since they let you run arbitrary commands against live infrastructure.
 
 ## Command overview
 
@@ -8,30 +8,28 @@ Stacktape provides a suite of CLI commands for inspecting deployed stacks withou
 |---------|---------|
 | [`debug:logs`](/cli/debug-logs) | Fetch CloudWatch log events |
 | [`debug:metrics`](/cli/debug-metrics) | Fetch CloudWatch metric data |
-| [`debug:alarms`](/cli/debug-alarms) | List CloudWatch alarm states |
-| [`debug:sql`](/cli/debug-sql) | Run read-only SQL queries |
+| [`debug:alarms`](/cli/debug-alarms) | Inspect CloudWatch alarms |
+| [`debug:sql`](/cli/debug-sql) | Query SQL databases |
 | [`debug:dynamodb`](/cli/debug-dynamodb) | Query DynamoDB tables |
-| [`debug:redis`](/cli/debug-redis) | Inspect Redis keys and server info |
-| [`debug:opensearch`](/cli/debug-opensearch) | Query OpenSearch indices |
-| [`debug:aws-sdk`](/cli/debug-aws-sdk) | Run read-only AWS SDK calls |
-| [`debug:container-exec`](/cli/debug-container-exec) | Execute a one-shot command in a container |
-| [`container:session`](/cli/container-session) | Open an interactive shell in a container |
-| [`bastion:tunnel`](/cli/bastion-tunnel) | Open a port-forwarding tunnel through a bastion |
-| [`bastion:session`](/cli/bastion-session) | Open an SSM shell on a bastion instance |
+| [`debug:redis`](/cli/debug-redis) | Inspect Redis clusters |
+| [`debug:opensearch`](/cli/debug-opensearch) | Query OpenSearch domains |
+| [`debug:aws-sdk`](/cli/debug-aws-sdk) | Run AWS SDK calls |
+| [`debug:container-exec`](/cli/debug-container-exec) | Execute a command in a container |
+| [`container:session`](/cli/container-session) | Interactive container shell |
+| [`bastion:tunnel`](/cli/bastion-tunnel) | Port-forwarding through a bastion |
+| [`bastion:session`](/cli/bastion-session) | SSM shell on a bastion instance |
 
 
-> **Info:** All commands require a deployed stack. They work on any deployed stage — not just dev mode stacks.
+> **Info:** This page covers `debug:logs` and `debug:metrics` in depth. For the other commands, use the linked CLI reference pages for their flags, operations, and requirements.
 
 
 ## Stack targeting
 
-Every command identifies the target stack using `--projectName`, `--stage`, and `--region`. Most resource-specific commands also require `--resourceName` to identify which resource (as declared in your config) to target. See each command's [CLI reference page](/cli/debug-logs) for exact flags.
+Debug commands target a deployed stack through the usual Stacktape stack-selection flags (`--projectName`, `--stage`, `--region`). `debug:logs` and `debug:metrics` require `--resourceName` to pick a specific resource; other resource-specific commands document their own required targeting flags on their CLI reference pages. The exact targeting flags supported by each command — and any defaults applied when a flag is omitted — are documented on each command's [CLI reference page](/cli/debug-logs).
 
 ## Viewing logs
 
-The [`stacktape debug:logs`](/cli/debug-logs) command fetches CloudWatch log events for a specific resource. It resolves the target resource's log group from the deployed stack and retrieves events from CloudWatch.
-
-The command supports Lambda functions, container workloads (web services, private services, worker services, multi-container workloads), and batch jobs — any resource that produces a CloudWatch log group.
+The [`stacktape debug:logs`](/cli/debug-logs) command fetches CloudWatch log events for a deployed resource. It requires `--resourceName`, resolves that resource's log group through Stacktape's log-group helper, and retrieves events from CloudWatch Logs.
 
 ### Basic usage
 
@@ -51,7 +49,7 @@ Fetch the last 30 minutes:
 stacktape debug:logs --resourceName api --startTime 30m
 ```
 
-When you supply `--endTime`, it changes the reference point for relative `--startTime` calculations (instead of "now"). For standard log fetching, events are retrieved from `startTime` forward. For Logs Insights queries (using `--query`), both `--startTime` and `--endTime` bound the query window explicitly.
+For standard log fetching, Stacktape passes `startTime` to CloudWatch Logs. `--endTime` is used as the reference point when parsing relative `--startTime`; Logs Insights queries pass both `startTime` and `endTime`.
 
 ### Filtering
 
@@ -89,11 +87,11 @@ stacktape debug:logs --resourceName api --query "fields @timestamp, @message | s
 - `--limit` — maximum number of events to return (default: `100`)
 - `--container` — for multi-container workloads, specify which container's logs to fetch
 
-Without `--raw`, Stacktape prints formatted log output in the terminal with color-coding by severity: red for `ERROR`/`FATAL`/`CRITICAL`, yellow for `WARN`, and gray for `DEBUG`. A summary line shows counts by level.
+Without `--raw`, Stacktape passes the limited events to the formatted log printer.
 
 ### Agent mode
 
-When invoked by an AI coding assistant (detected automatically), `debug:logs` returns structured JSON:
+When invoked by an AI coding assistant (detected automatically), `debug:logs` returns structured JSON. Standard log fetching returns `{ logGroup, events }`:
 
 ```json
 {
@@ -107,6 +105,8 @@ When invoked by an AI coding assistant (detected automatically), `debug:logs` re
   ]
 }
 ```
+
+Logs Insights queries (when using `--query`) return `{ logGroup, query, results }` instead.
 
 This makes debug commands work as data sources for [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations) and the [Stacktape MCP server](/using-with-ai/mcp-server-setup).
 
@@ -148,356 +148,90 @@ stacktape debug:metrics --resourceName mainDb --metric CPUUtilization --startTim
 
 ### Terminal output
 
-In interactive mode, Stacktape renders a sparkline visualization of the returned datapoints along with min, max, average, and sum statistics. The chart header shows the metric name, resource name, stat type, and period.
-
-In agent mode, the command returns structured JSON with timestamps and values for programmatic consumption.
+In interactive mode, Stacktape renders the returned datapoints as a formatted metrics chart. In agent mode, the command returns structured JSON with timestamps and values for programmatic consumption.
 
 ## Viewing alarms
 
-The [`stacktape debug:alarms`](/cli/debug-alarms) command lists all CloudWatch alarms with a prefix matching your stack name and shows their current state. It does not require `--resourceName` — by default it shows all alarms in the stack.
-
-### Basic usage
-
-List all alarms in the stack:
-
-```bash
-stacktape debug:alarms --projectName myProject --stage prod --region eu-west-1
-```
-
-### Filtering
-
-Filter by resource name to see only alarms for a specific resource:
-
-```bash
-stacktape debug:alarms --resourceName api
-```
-
-Filter by alarm state (`ALARM`, `OK`, or `INSUFFICIENT_DATA`):
-
-```bash
-stacktape debug:alarms --state ALARM
-```
-
-The output shows alarm state, associated resource, metric, threshold condition, and last state change. For alarms in `ALARM` state, the state reason is included.
+The [`stacktape debug:alarms`](/cli/debug-alarms) command inspects CloudWatch alarm state for a deployed stack. See the [CLI reference](/cli/debug-alarms) for the full flag list and behavior.
 
 ## Querying SQL databases
 
-The [`stacktape debug:sql`](/cli/debug-sql) command executes read-only SQL queries against deployed [relational databases](/resources/databases/relational-database). It detects the database protocol (PostgreSQL or MySQL) from the connection string automatically.
-
-### Basic usage
-
-```bash
-stacktape debug:sql --resourceName mainDb --sql "SELECT * FROM users LIMIT 10"
-```
-
-### Read-only enforcement
-
-The command validates that the SQL statement starts with one of: `SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`, or `\d`. Any other prefix is rejected before the query reaches the database.
-
-### VPC-only databases
-
-If your database is in a private VPC without public access, use `--bastionResource` to route the connection through a [bastion host](/resources/security/bastion-host):
-
-```bash
-stacktape debug:sql --resourceName mainDb --bastionResource bastion --sql "SELECT count(*) FROM orders"
-```
-
-Stacktape establishes an SSM port-forwarding tunnel, connects through it, runs the query, and tears down the tunnel after completion.
-
-### Flags
-
-- `--sql` — the SQL query to execute (required)
-- `--resourceName` — the relational-database resource name (required)
-- `--bastionResource` — bastion host name for tunneling to VPC-only databases
-- `--limit` — maximum rows returned (default: `1000`)
-- `--timeout` — query timeout in milliseconds (default: `30000`)
+The [`stacktape debug:sql`](/cli/debug-sql) command runs SQL queries against a deployed [relational database](/resources/databases/relational-database) from the CLI. See the [CLI reference](/cli/debug-sql) for supported query behavior and flags.
 
 ## Querying DynamoDB
 
-The [`stacktape debug:dynamodb`](/cli/debug-dynamodb) command lets you inspect [DynamoDB table](/resources/databases/dynamodb) contents and schema from the CLI.
-
-### Operations
-
-| Operation | Description | Required flags |
-|-----------|-------------|---------------|
-| `sample` (default) | Fetch sample items | `--resourceName` |
-| `scan` | Scan the table | `--resourceName` |
-| `query` | Query by partition key | `--resourceName`, `--pk` |
-| `get` | Get a single item | `--resourceName`, `--pk` |
-| `schema` | Show table key schema and indices | `--resourceName` |
-
-### Examples
-
-Get sample items from a table:
-
-```bash
-stacktape debug:dynamodb --resourceName ordersTable --operation sample --limit 5
-```
-
-Query by partition key:
-
-```bash
-stacktape debug:dynamodb --resourceName ordersTable --operation query --pk '{"userId": "user-123"}'
-```
-
-Query a global secondary index:
-
-```bash
-stacktape debug:dynamodb --resourceName ordersTable --operation query --pk '{"status": "pending"}' --index statusIndex
-```
-
-Get a specific item by primary key (partition + sort key):
-
-```bash
-stacktape debug:dynamodb --resourceName ordersTable --operation get --pk '{"userId": "user-123"}' --sk '{"orderId": "order-456"}'
-```
-
-### Flags
-
-- `--operation` — one of `scan`, `query`, `get`, `schema`, `sample` (default: `sample`)
-- `--pk` — partition key as JSON (required for `query` and `get`)
-- `--sk` — sort key as JSON (optional, for composite keys)
-- `--index` — name of a global secondary index to query
-- `--limit` — maximum items returned (default: `100`)
+The [`stacktape debug:dynamodb`](/cli/debug-dynamodb) command inspects [DynamoDB table](/resources/databases/dynamodb) contents and schema from the CLI. See the [CLI reference](/cli/debug-dynamodb) for the full list of operations and flags.
 
 ## Querying Redis
 
-The [`stacktape debug:redis`](/cli/debug-redis) command inspects keys and server info on a deployed [Redis cluster](/resources/databases/redis). Since Redis clusters live in a VPC, you typically need `--bastionResource` to establish a tunnel.
-
-### Operations
-
-| Operation | Description | Required flags |
-|-----------|-------------|---------------|
-| `info` (default) | Redis server info | `--resourceName` |
-| `keys` | List keys matching a pattern | `--resourceName` |
-| `get` | Get a key's value | `--resourceName`, `--key` |
-| `ttl` | Get a key's TTL | `--resourceName`, `--key` |
-| `type` | Get a key's data type | `--resourceName`, `--key` |
-
-### Examples
-
-Get server info (memory, clients, replication):
-
-```bash
-stacktape debug:redis --resourceName cache --bastionResource bastion --operation info
-```
-
-List all keys matching a pattern:
-
-```bash
-stacktape debug:redis --resourceName cache --bastionResource bastion --operation keys --pattern "session:*"
-```
-
-Get a specific key's value:
-
-```bash
-stacktape debug:redis --resourceName cache --bastionResource bastion --operation get --key "session:abc123"
-```
-
-### Flags
-
-- `--operation` — one of `keys`, `get`, `ttl`, `info`, `type` (default: `info`)
-- `--key` — Redis key name (required for `get`, `ttl`, `type`)
-- `--pattern` — glob pattern for key listing (default: `*`)
-- `--section` — specific Redis INFO section (e.g. `memory`, `clients`, `replication`)
-- `--limit` — maximum keys returned for `keys` operation (default: `100`)
-- `--bastionResource` — bastion host to tunnel through (typically required for VPC-only clusters)
+The [`stacktape debug:redis`](/cli/debug-redis) command inspects keys and server info on a deployed [Redis cluster](/resources/databases/redis). See the [CLI reference](/cli/debug-redis) for the full list of operations and flags.
 
 ## Querying OpenSearch
 
-The [`stacktape debug:opensearch`](/cli/debug-opensearch) command queries deployed [OpenSearch domains](/resources/databases/opensearch) using the OpenSearch Query DSL.
-
-### Operations
-
-| Operation | Description | Required flags |
-|-----------|-------------|---------------|
-| `indices` (default) | List all indices | `--resourceName` |
-| `count` | Count documents in an index | `--resourceName`, `--index` |
-| `mapping` | Show index mapping | `--resourceName`, `--index` |
-| `get` | Get a document by ID | `--resourceName`, `--index`, `--id` |
-| `search` | Run a query DSL search | `--resourceName`, `--query` |
-
-### Examples
-
-List all indices:
-
-```bash
-stacktape debug:opensearch --resourceName search --operation indices
-```
-
-Search with query DSL:
-
-```bash
-stacktape debug:opensearch --resourceName search --operation search --query '{"match": {"title": "hello"}}' --index articles --limit 20
-```
-
-Get a specific document:
-
-```bash
-stacktape debug:opensearch --resourceName search --operation get --index articles --id "doc-123"
-```
-
-### Flags
-
-- `--operation` — one of `search`, `get`, `indices`, `mapping`, `count` (default: `indices`)
-- `--index` — index name (required for `mapping`, `count`, `get`)
-- `--id` — document ID (required for `get`)
-- `--query` — JSON query DSL string (required for `search`)
-- `--limit` — max results for search (default: `10`)
+The [`stacktape debug:opensearch`](/cli/debug-opensearch) command queries deployed [OpenSearch domains](/resources/databases/opensearch) from the CLI. See the [CLI reference](/cli/debug-opensearch) for the full list of operations and flags.
 
 ## Running AWS SDK commands
 
-The [`stacktape debug:aws-sdk`](/cli/debug-aws-sdk) command executes arbitrary read-only AWS SDK v3 commands. This is a power-user escape hatch for inspecting AWS resources that don't have a dedicated debug command.
-
-### Read-only enforcement
-
-Only commands starting with `List`, `Get`, `Describe`, `Head`, or `Batch` are allowed. Any other prefix is rejected before execution.
-
-### Basic usage
-
-List S3 objects in a bucket:
-
-```bash
-stacktape debug:aws-sdk --service s3 --command ListObjectsV2 --input '{"Bucket": "my-bucket-name"}'
-```
-
-Describe an EC2 instance:
-
-```bash
-stacktape debug:aws-sdk --service ec2 --command DescribeInstances --input '{"InstanceIds": ["i-123456"]}'
-```
-
-### Flags
-
-- `--service` — AWS service name (e.g. `s3`, `dynamodb`, `ec2`, `lambda`, `ecs`, `rds`)
-- `--command` — SDK command name (e.g. `ListBuckets`, `GetObject`, `DescribeInstances`)
-- `--input` — JSON input for the command (optional, depends on the command)
-- `--region` — override the AWS region (defaults to the stack's region)
+The [`stacktape debug:aws-sdk`](/cli/debug-aws-sdk) command runs AWS SDK v3 calls against your deployed stack as an escape hatch for resources without a dedicated debug command. See the [CLI reference](/cli/debug-aws-sdk) for the full flag list and restrictions.
 
 ## Executing commands in containers
 
-The [`stacktape debug:container-exec`](/cli/debug-container-exec) command runs a one-shot command inside a running ECS container and returns the output. It targets any deployed workload that has an ECS service (web services, private services, worker services, multi-container workloads).
+The [`stacktape debug:container-exec`](/cli/debug-container-exec) command runs a one-shot command inside a running container and returns the output. See the [CLI reference](/cli/debug-container-exec) for the full flag list.
 
 
 > **Warning:** `debug:container-exec` and `container:session` execute arbitrary commands inside live containers. These are NOT read-only operations — use caution in production stages.
 
 
-### Basic usage
-
-```bash
-stacktape debug:container-exec --resourceName backend --command "ls -la /app"
-```
-
-### Flags
-
-- `--command` — the shell command to execute inside the container (required)
-- `--resourceName` — the container workload resource name (required)
-- `--container` — specific container name when the task has multiple containers (prompted if ambiguous)
-- `--taskArn` — specific task ARN when multiple tasks are running (defaults to the first running task)
-
-The output includes the command result, exit code, container name, and task ARN.
-
 ## Interactive container shell
 
-The [`stacktape container:session`](/cli/container-session) command opens an interactive shell session inside a running ECS container. Unlike `debug:container-exec` which runs a single command, this gives you a live terminal.
-
-```bash
-stacktape container:session --resourceName backend
-```
-
-### Flags
-
-- `--resourceName` — the container workload resource name (required)
-- `--container` — specific container name when the task has multiple containers
-- `--command` — initial command to run in the session (optional)
-
-If multiple tasks are running for the service, Stacktape prompts you to select which one to connect to.
+The [`stacktape container:session`](/cli/container-session) command opens an interactive shell session inside a running container. See the [CLI reference](/cli/container-session) for the full flag list.
 
 ## Bastion tunneling
 
-The [`stacktape bastion:tunnel`](/cli/bastion-tunnel) command opens a local port-forwarding tunnel through a [bastion host](/resources/security/bastion-host) to reach VPC-only resources. The tunnel stays open until you press Ctrl+C.
-
-### Supported target resource types
-
-The command supports tunneling to these resource types (verified in the source):
-
-- `relational-database`
-- `redis-cluster`
-- `application-load-balancer`
-- `private-service`
-
-### Basic usage
-
-Connect to a database through a bastion:
-
-```bash
-stacktape bastion:tunnel --bastionResource bastion --resourceName mainDb
-```
-
-This opens a local port and prints the mapping (e.g. `127.0.0.1:54321 -> mainDb-host:5432`). Connect with any local database tool using the printed local port.
-
-### Flags
-
-- `--bastionResource` — the bastion host resource name (required)
-- `--resourceName` — the target resource to tunnel to (required)
-- `--localTunnelingPort` — override the local port (auto-assigned by default)
+The [`stacktape bastion:tunnel`](/cli/bastion-tunnel) command opens a local port-forwarding tunnel through a [bastion host](/resources/security/bastion-host) to reach VPC-only resources. See the [CLI reference](/cli/bastion-tunnel) for the full flag list and target behavior.
 
 ## Bastion shell session
 
-The [`stacktape bastion:session`](/cli/bastion-session) command opens an interactive SSM shell session directly on the bastion EC2 instance.
-
-```bash
-stacktape bastion:session --bastionResource bastion
-```
-
-This is useful for manual network debugging, running `curl` against private endpoints, or verifying VPC connectivity from within the VPC.
+The [`stacktape bastion:session`](/cli/bastion-session) command opens an interactive SSM shell session on a [bastion host](/resources/security/bastion-host) EC2 instance. See the [CLI reference](/cli/bastion-session) for the full flag list.
 
 ## Credentials and permissions
 
-Debug commands that query AWS services (`debug:dynamodb`, `debug:opensearch`, `debug:aws-sdk`) attempt to assume a dedicated debug agent IAM role provisioned with your stack. This role is stored as `DebugAgentRoleArn` in the stack's custom outputs and scoped to the stack's resources. If the role isn't available or assumption fails (e.g., the stack was deployed before debug roles were introduced), commands fall back to your configured AWS credentials.
-
-Commands that access VPC resources directly (`debug:sql`, `debug:redis`) use your configured AWS credentials to establish SSM tunnels and then connect to the database using credentials fetched from SSM Parameter Store.
-
-Commands that interact with ECS (`debug:container-exec`, `container:session`) use your AWS credentials to call the ECS Exec API via SSM.
+`debug:logs` loads your configured AWS credentials to call CloudWatch Logs APIs. `debug:metrics` initializes stack services for a deployed stack and queries CloudWatch metrics. Other debug and session commands have their own credential and IAM requirements documented on their dedicated CLI reference pages.
 
 ## FAQ
 
 ### How do I view real-time logs as they arrive?
 
-The `debug:logs` command fetches historical log events. For real-time log streaming during development, use [dev mode](/local-development/dev-mode-overview) which shows live logs as requests come in. For deployed stacks, re-run `debug:logs` with a short `--startTime` window (e.g. `--startTime 1m`) to get the most recent events.
+The `debug:logs` command fetches historical log events from CloudWatch Logs. For near-real-time inspection of a deployed stack, re-run `debug:logs` with a short `--startTime` window (e.g. `--startTime 1m`). For local development behavior, see the [dev mode overview](/local-development/dev-mode-overview).
 
 ### Can I use debug commands with dev mode stacks?
 
-Yes. Debug commands work against any deployed stack, including stacks created via `stacktape dev`. Specify the same `--projectName`, `--stage`, and `--region` you used when starting dev mode. The stack must be fully deployed — these commands connect to live AWS resources.
+`debug:logs` and `debug:metrics` require a deployed stack as their target. If you are running `stacktape dev`, these commands can target the deployed AWS stack that dev mode created — specify the same `--projectName`, `--stage`, and `--region`. Other debug commands have their own deployment requirements documented on their CLI reference pages.
 
-### Why does debug:sql only allow read-only queries?
+### What query types does debug:sql support?
 
-The `debug:sql` command enforces read-only access (`SELECT`, `SHOW`, `DESCRIBE`, `EXPLAIN`, `\d`) to prevent accidental data mutations from the CLI. For write operations, use [deployment scripts](/deployment-and-lifecycle/deployment-scripts-and-hooks) or connect directly via [`bastion:tunnel`](/cli/bastion-tunnel) with your preferred database client.
+The `debug:sql` command is designed for inspecting database state from the CLI. See the [`debug:sql` CLI reference](/cli/debug-sql) for the exact behavior and supported flags. For broader database access, use [deployment scripts](/deployment-and-lifecycle/deployment-scripts-and-hooks) or connect through [`bastion:tunnel`](/cli/bastion-tunnel) with your preferred database client.
 
 ### How do I debug a VPC-only database without a bastion?
 
-If your relational database or Redis cluster doesn't have public access and you haven't deployed a [bastion host](/resources/security/bastion-host), `debug:sql` and `debug:redis` cannot reach them. Either add a bastion to your stack config, or use `debug:container-exec` to run queries from within a container that has VPC connectivity to the database.
+Options for debugging private resources depend on what you've deployed. The simplest path is to add a [bastion host](/resources/security/bastion-host) to your stack and use [`bastion:tunnel`](/cli/bastion-tunnel) to forward a local port to the database. If you use container shell access for private-resource debugging, see the [`container:session`](/cli/container-session) and [`debug:container-exec`](/cli/debug-container-exec) CLI reference pages for requirements.
 
 ### What's the difference between debug:container-exec and container:session?
 
-`debug:container-exec` runs a single command and returns the output — it's non-interactive and suitable for scripting or AI agent use. `container:session` opens a persistent interactive shell where you can run multiple commands. Use `container:session` for exploratory debugging; use `debug:container-exec` for automated checks.
+[`debug:container-exec`](/cli/debug-container-exec) runs a single command and returns its output — it's non-interactive and suitable for scripting or AI agent use. [`container:session`](/cli/container-session) opens a persistent interactive shell. Use `container:session` for exploratory debugging; use `debug:container-exec` for automated checks.
 
 ### How do I know which metrics are available for my resource?
 
-The `debug:metrics` command supports a fixed set of metrics per resource type (listed in the metrics table above). If the metric name doesn't match the resource type's allowed list, the command returns an error with the valid options. For metrics not in that list, use `debug:aws-sdk` with the CloudWatch `GetMetricData` or `ListMetrics` commands.
+The `debug:metrics` command supports a fixed set of metrics per resource type (listed in the metrics table above). If the metric name doesn't match the resource type's allowed list, the command returns an error with the valid options. For metrics not in that list, use [`debug:aws-sdk`](/cli/debug-aws-sdk) with the CloudWatch `GetMetricData` or `ListMetrics` commands.
 
 ### Can bastion:tunnel forward to multiple resources simultaneously?
 
-A single `bastion:tunnel` invocation targets one resource. To tunnel to multiple resources (e.g. both a database and a Redis cluster), run multiple `bastion:tunnel` commands in separate terminal windows pointing at the same bastion but different `--resourceName` targets.
+See the [`bastion:tunnel` CLI reference](/cli/bastion-tunnel) for the full list of supported flags and whether multiple tunnel sessions are needed.
 
 ### How much do debug commands cost?
 
-Debug commands themselves are CLI operations with no direct charge. The underlying AWS API calls (CloudWatch GetLogEvents, GetMetricData, DescribeAlarms) incur standard AWS API charges, which are negligible for debugging use. CloudWatch Logs Insights queries (`--query` flag) are billed per GB of data scanned at standard CloudWatch Logs Insights pricing (~$0.005/GB scanned).
+Debug commands themselves are CLI operations with no direct charge. The underlying AWS API calls (such as CloudWatch GetLogEvents and GetMetricData) may incur standard AWS charges according to your account and region. CloudWatch Logs Insights queries (`--query` flag on `debug:logs`) are charged by AWS based on the amount of data scanned.
 
 ### Can I pipe debug command output to other tools?
 
-Use `--raw` (for `debug:logs`) or agent mode to get JSON output suitable for piping to `jq`, saving to files, or consuming from scripts. In interactive mode, output includes ANSI color codes and box-drawing characters that aren't suitable for piping.
-
-### What happens if the debug agent role is missing from my stack?
-
-If your stack was deployed before the debug agent role feature was added, commands that use it (`debug:dynamodb`, `debug:opensearch`, `debug:aws-sdk`) fall back to your configured AWS credentials and print a warning. Redeploy the stack to provision the debug agent role for scoped, least-privilege access.
+Pass `--raw` to `debug:logs` to get structured JSON output instead of formatted terminal text — this is suitable for piping to `jq` or saving to a file. Both `debug:logs` and `debug:metrics` return structured JSON in agent mode. In interactive mode, output is formatted for terminal viewing and isn't designed for piping.

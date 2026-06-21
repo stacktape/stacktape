@@ -1,5 +1,14 @@
 import { ResourceBase } from '../resource';
 import { Value, List } from '../dataTypes';
+export class AmazonQPropertiesInput {
+  IsEnabled?: Value<boolean>;
+  ProfileArn?: Value<string>;
+  AuthMode?: Value<string>;
+  constructor(properties: AmazonQPropertiesInput) {
+    Object.assign(this, properties);
+  }
+}
+
 export class AthenaPropertiesInput {
   WorkgroupName!: Value<string>;
   constructor(properties: AthenaPropertiesInput) {
@@ -45,15 +54,28 @@ export class BasicAuthenticationCredentials {
   }
 }
 
+export class ConnectionConfiguration {
+  Classification?: Value<string>;
+  Properties?: { [key: string]: Value<string> };
+  constructor(properties: ConnectionConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class ConnectionPropertiesInput {
+  WorkflowsServerlessProperties?: { [key: string]: any };
   IamProperties?: IamPropertiesInput;
-  S3Properties?: S3PropertiesInput;
-  SparkEmrProperties?: SparkEmrPropertiesInput;
   HyperPodProperties?: HyperPodPropertiesInput;
   SparkGlueProperties?: SparkGluePropertiesInput;
+  MlflowProperties?: MlflowPropertiesInput;
   AthenaProperties?: AthenaPropertiesInput;
-  GlueProperties?: GluePropertiesInput;
   RedshiftProperties?: RedshiftPropertiesInput;
+  WorkflowsMwaaProperties?: WorkflowsMwaaPropertiesInput;
+  AmazonQProperties?: AmazonQPropertiesInput;
+  S3Properties?: S3PropertiesInput;
+  SparkEmrProperties?: SparkEmrPropertiesInput;
+  LakehouseProperties?: LakehousePropertiesInput;
+  GlueProperties?: GluePropertiesInput;
   constructor(properties: ConnectionPropertiesInput) {
     Object.assign(this, properties);
   }
@@ -108,9 +130,23 @@ export class IamPropertiesInput {
   }
 }
 
+export class LakehousePropertiesInput {
+  GlueLineageSyncEnabled?: Value<boolean>;
+  constructor(properties: LakehousePropertiesInput) {
+    Object.assign(this, properties);
+  }
+}
+
 export class LineageSyncSchedule {
   Schedule?: Value<string>;
   constructor(properties: LineageSyncSchedule) {
+    Object.assign(this, properties);
+  }
+}
+
+export class MlflowPropertiesInput {
+  TrackingServerArn?: Value<string>;
+  constructor(properties: MlflowPropertiesInput) {
     Object.assign(this, properties);
   }
 }
@@ -184,6 +220,7 @@ export class RedshiftStorageProperties {
 export class S3PropertiesInput {
   S3Uri!: Value<string>;
   S3AccessGrantLocationId?: Value<string>;
+  RegisterS3AccessGrantLocation?: Value<boolean>;
   constructor(properties: S3PropertiesInput) {
     Object.assign(this, properties);
   }
@@ -197,6 +234,7 @@ export class SparkEmrPropertiesInput {
   PythonVirtualEnv?: Value<string>;
   RuntimeRole?: Value<string>;
   InstanceProfileArn?: Value<string>;
+  ManagedEndpointArn?: Value<string>;
   constructor(properties: SparkEmrPropertiesInput) {
     Object.assign(this, properties);
   }
@@ -230,29 +268,42 @@ export class UsernamePassword {
     Object.assign(this, properties);
   }
 }
+
+export class WorkflowsMwaaPropertiesInput {
+  MwaaEnvironmentName?: Value<string>;
+  constructor(properties: WorkflowsMwaaPropertiesInput) {
+    Object.assign(this, properties);
+  }
+}
 export interface ConnectionProperties {
   ProjectIdentifier?: Value<string>;
   Description?: Value<string>;
   EnvironmentIdentifier?: Value<string>;
+  Scope?: Value<string>;
   Props?: ConnectionPropertiesInput;
+  Configurations?: List<ConnectionConfiguration>;
   AwsLocation?: AwsLocation;
   EnableTrustedIdentityPropagation?: Value<boolean>;
   Name: Value<string>;
   DomainIdentifier: Value<string>;
 }
 export default class Connection extends ResourceBase<ConnectionProperties> {
+  static AmazonQPropertiesInput = AmazonQPropertiesInput;
   static AthenaPropertiesInput = AthenaPropertiesInput;
   static AuthenticationConfigurationInput = AuthenticationConfigurationInput;
   static AuthorizationCodeProperties = AuthorizationCodeProperties;
   static AwsLocation = AwsLocation;
   static BasicAuthenticationCredentials = BasicAuthenticationCredentials;
+  static ConnectionConfiguration = ConnectionConfiguration;
   static ConnectionPropertiesInput = ConnectionPropertiesInput;
   static GlueConnectionInput = GlueConnectionInput;
   static GlueOAuth2Credentials = GlueOAuth2Credentials;
   static GluePropertiesInput = GluePropertiesInput;
   static HyperPodPropertiesInput = HyperPodPropertiesInput;
   static IamPropertiesInput = IamPropertiesInput;
+  static LakehousePropertiesInput = LakehousePropertiesInput;
   static LineageSyncSchedule = LineageSyncSchedule;
+  static MlflowPropertiesInput = MlflowPropertiesInput;
   static OAuth2ClientApplication = OAuth2ClientApplication;
   static OAuth2Properties = OAuth2Properties;
   static PhysicalConnectionRequirements = PhysicalConnectionRequirements;
@@ -265,6 +316,7 @@ export default class Connection extends ResourceBase<ConnectionProperties> {
   static SparkGlueArgs = SparkGlueArgs;
   static SparkGluePropertiesInput = SparkGluePropertiesInput;
   static UsernamePassword = UsernamePassword;
+  static WorkflowsMwaaPropertiesInput = WorkflowsMwaaPropertiesInput;
   constructor(properties: ConnectionProperties) {
     super('AWS::DataZone::Connection', properties);
   }

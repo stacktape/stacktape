@@ -1,4 +1,4 @@
-import { ResourceBase } from '../resource';
+import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AudioMonitoringSetting {
   SilentAudio?: SilentAudio;
@@ -15,16 +15,19 @@ export class BlackFrames {
   }
 }
 
+export class EncodingConfig {
+  EncodingProfile?: Value<string>;
+  VideoMaxBitrate?: Value<number>;
+  constructor(properties: EncodingConfig) {
+    Object.assign(this, properties);
+  }
+}
+
 export class Encryption {
   SecretArn?: Value<string>;
   KeyType?: Value<string>;
-  ResourceId?: Value<string>;
-  DeviceId?: Value<string>;
-  Region?: Value<string>;
-  ConstantInitializationVector?: Value<string>;
   Algorithm?: Value<string>;
   RoleArn!: Value<string>;
-  Url?: Value<string>;
   constructor(properties: Encryption) {
     Object.assign(this, properties);
   }
@@ -36,6 +39,22 @@ export class FailoverConfig {
   FailoverMode?: Value<string>;
   RecoveryWindow?: Value<number>;
   constructor(properties: FailoverConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class FlowTransitEncryption {
+  EncryptionKeyType?: Value<string>;
+  EncryptionKeyConfiguration!: FlowTransitEncryptionKeyConfiguration;
+  constructor(properties: FlowTransitEncryption) {
+    Object.assign(this, properties);
+  }
+}
+
+export class FlowTransitEncryptionKeyConfiguration {
+  SecretsManager?: SecretsManagerEncryptionKeyConfiguration;
+  Automatic?: { [key: string]: any };
+  constructor(properties: FlowTransitEncryptionKeyConfiguration) {
     Object.assign(this, properties);
   }
 }
@@ -101,6 +120,7 @@ export class MediaStream {
   ClockRate?: Value<number>;
   VideoFormat?: Value<string>;
   Fmt?: Value<number>;
+  Tags?: List<ResourceTag>;
   constructor(properties: MediaStream) {
     Object.assign(this, properties);
   }
@@ -141,6 +161,21 @@ export class NdiDiscoveryServerConfig {
   }
 }
 
+export class NdiSourceSettings {
+  SourceName?: Value<string>;
+  constructor(properties: NdiSourceSettings) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SecretsManagerEncryptionKeyConfiguration {
+  SecretArn!: Value<string>;
+  RoleArn!: Value<string>;
+  constructor(properties: SecretsManagerEncryptionKeyConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class SilentAudio {
   State?: Value<string>;
   ThresholdSeconds?: Value<number>;
@@ -150,20 +185,21 @@ export class SilentAudio {
 }
 
 export class Source {
-  IngestIp?: Value<string>;
   MaxSyncBuffer?: Value<number>;
+  IngestIp?: Value<string>;
   StreamId?: Value<string>;
   Description?: Value<string>;
-  SenderIpAddress?: Value<string>;
+  RouterIntegrationTransitDecryption?: FlowTransitEncryption;
   MediaStreamSourceConfigurations?: List<MediaStreamSourceConfiguration>;
   IngestPort?: Value<number>;
-  SenderControlPort?: Value<number>;
   Decryption?: Encryption;
+  RouterIntegrationState?: Value<string>;
   GatewayBridgeSource?: GatewayBridgeSource;
   SourceListenerAddress?: Value<string>;
   SourceListenerPort?: Value<number>;
   Name?: Value<string>;
   WhitelistCidr?: Value<string>;
+  NdiSourceSettings?: NdiSourceSettings;
   EntitlementArn?: Value<string>;
   SourceArn?: Value<string>;
   MinLatency?: Value<number>;
@@ -171,6 +207,7 @@ export class Source {
   MaxBitrate?: Value<number>;
   Protocol?: Value<string>;
   MaxLatency?: Value<number>;
+  Tags?: List<ResourceTag>;
   SourceIngestPort?: Value<string>;
   constructor(properties: Source) {
     Object.assign(this, properties);
@@ -208,6 +245,7 @@ export class VpcInterface {
   SubnetId!: Value<string>;
   SecurityGroupIds!: List<Value<string>>;
   RoleArn!: Value<string>;
+  Tags?: List<ResourceTag>;
   Name!: Value<string>;
   constructor(properties: VpcInterface) {
     Object.assign(this, properties);
@@ -228,15 +266,20 @@ export interface FlowProperties {
   NdiConfig?: NdiConfig;
   AvailabilityZone?: Value<string>;
   Maintenance?: Maintenance;
+  EncodingConfig?: EncodingConfig;
   Source: Source;
   FlowSize?: Value<string>;
+  Tags?: List<ResourceTag>;
   Name: Value<string>;
 }
 export default class Flow extends ResourceBase<FlowProperties> {
   static AudioMonitoringSetting = AudioMonitoringSetting;
   static BlackFrames = BlackFrames;
+  static EncodingConfig = EncodingConfig;
   static Encryption = Encryption;
   static FailoverConfig = FailoverConfig;
+  static FlowTransitEncryption = FlowTransitEncryption;
+  static FlowTransitEncryptionKeyConfiguration = FlowTransitEncryptionKeyConfiguration;
   static Fmtp = Fmtp;
   static FrozenFrames = FrozenFrames;
   static GatewayBridgeSource = GatewayBridgeSource;
@@ -248,6 +291,8 @@ export default class Flow extends ResourceBase<FlowProperties> {
   static MediaStreamSourceConfiguration = MediaStreamSourceConfiguration;
   static NdiConfig = NdiConfig;
   static NdiDiscoveryServerConfig = NdiDiscoveryServerConfig;
+  static NdiSourceSettings = NdiSourceSettings;
+  static SecretsManagerEncryptionKeyConfiguration = SecretsManagerEncryptionKeyConfiguration;
   static SilentAudio = SilentAudio;
   static Source = Source;
   static SourceMonitoringConfig = SourceMonitoringConfig;

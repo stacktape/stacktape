@@ -21,6 +21,14 @@ export class AdvancedFieldSelector {
   }
 }
 
+export class AggregationConfiguration {
+  EventCategory!: Value<string>;
+  Templates!: List<Value<string>>;
+  constructor(properties: AggregationConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class DataResource {
   Type!: Value<string>;
   Values?: List<Value<string>>;
@@ -41,6 +49,7 @@ export class EventSelector {
 
 export class InsightSelector {
   InsightType?: Value<string>;
+  EventCategories?: List<Value<string>>;
   constructor(properties: InsightSelector) {
     Object.assign(this, properties);
   }
@@ -49,6 +58,7 @@ export interface TrailProperties {
   IncludeGlobalServiceEvents?: Value<boolean>;
   EventSelectors?: List<EventSelector>;
   KMSKeyId?: Value<string>;
+  AggregationConfigurations?: List<AggregationConfiguration>;
   CloudWatchLogsRoleArn?: Value<string>;
   S3KeyPrefix?: Value<string>;
   AdvancedEventSelectors?: List<AdvancedEventSelector>;
@@ -66,6 +76,7 @@ export interface TrailProperties {
 export default class Trail extends ResourceBase<TrailProperties> {
   static AdvancedEventSelector = AdvancedEventSelector;
   static AdvancedFieldSelector = AdvancedFieldSelector;
+  static AggregationConfiguration = AggregationConfiguration;
   static DataResource = DataResource;
   static EventSelector = EventSelector;
   static InsightSelector = InsightSelector;

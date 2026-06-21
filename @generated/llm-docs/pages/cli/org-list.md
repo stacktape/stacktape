@@ -8,12 +8,12 @@ The `org:list` command displays all organizations accessible with your current S
 stacktape org:list
 ```
 
-The command prints a table with the following columns:
+When organizations are found, the command prints a table with the following columns. If you have no organizations, it prints "No organizations found for this user."
 
 | Column | Description |
 |--------|-------------|
 | Organization | The organization name |
-| Role | Your role — Owner, Admin, Developer, or Viewer |
+| Role | Your organization role, such as Owner, Admin, Developer, or Viewer. Unrecognized roles are displayed as returned by Stacktape |
 | Connected AWS | Number of AWS accounts connected to the organization |
 | Current | Whether this organization is the active one for your API key |
 | ID | The organization's unique identifier |
@@ -22,7 +22,7 @@ No flags are required. The command uses the API key configured via [`stacktape l
 
 ## Output formats
 
-By default, `org:list` renders an interactive table in your terminal. For scripting or AI agent consumption, use `--outputFormat` or `--agent` to switch formats.
+When Stacktape detects an interactive terminal (TTY), `org:list` renders a table. In CI or other non-TTY contexts, the output format is auto-detected. Use `--outputFormat jsonl` or `--agent` for machine-readable output.
 
 Machine-readable JSONL output:
 
@@ -38,29 +38,48 @@ stacktape org:list --agent
 
 ## Flags reference
 
-
-## CLI Options: `stacktape org:list`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption:
-
-Uses strict JSONL/NDJSON output (one JSON object per line)
-Disables interactive terminal UI
-Automatically confirms operations (equivalent to --autoConfirmOperation)
-For dev command: also enables HTTP server for programmatic control. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format:
-
-`jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.
-`plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.
-`tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
-If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-
+<CliCommandsApiReference command="org:list" sortedArgs={[
+  {
+    "name": "agent",
+    "required": false,
+    "alias": "ag",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Agent Mode</p>\n",
+    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
+  },
+  {
+    "name": "logLevel",
+    "required": false,
+    "alias": "ll",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "info",
+      "debug",
+      "error"
+    ],
+    "shortDescription": "<p> Log Level</p>\n",
+    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+  },
+  {
+    "name": "outputFormat",
+    "required": false,
+    "alias": "ofmt",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "jsonl",
+      "plain",
+      "tty"
+    ],
+    "shortDescription": "<p> Output Format</p>\n",
+    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
+  }
+]} />
 
 ## Examples
 
@@ -79,6 +98,6 @@ stacktape org:list --outputFormat jsonl
 ## Related commands
 
 - [`org:create`](/cli/org-create) — create a new organization
-- [`org:delete`](/cli/org-delete) — delete an organization you own
+- [`org:delete`](/cli/org-delete) — delete organization access (owner-only, requires no other users or connected AWS accounts)
 - [`info:whoami`](/cli/info-whoami) — verify your current user, organization, and connected accounts
 - [`login`](/cli/login) — configure your Stacktape API key

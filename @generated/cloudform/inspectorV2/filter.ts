@@ -96,8 +96,8 @@ export class PortRangeFilter {
 }
 
 export class StringFilter {
-  Comparison!: Value<string>;
   Value!: Value<string>;
+  Comparison!: Value<string>;
   constructor(properties: StringFilter) {
     Object.assign(this, properties);
   }

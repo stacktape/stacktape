@@ -1,6 +1,6 @@
 # State Machine
 
-A Stacktape state machine uses AWS Step Functions to orchestrate multi-step workflows with branching, retries, parallel execution, and error handling — without writing orchestration code. Define your workflow in [Amazon States Language (ASL)](https://states-language.net/spec.html), and Stacktape handles the underlying AWS infrastructure. Pay ~$0.025 per 1,000 state transitions (Standard workflows).
+A Stacktape state machine uses AWS Step Functions to orchestrate multi-step workflows with branching, retries, parallel execution, and error handling — without writing orchestration code. Define your workflow in [Amazon States Language (ASL)](https://states-language.net/spec.html), and Stacktape handles the underlying AWS infrastructure. Pay per state transition (~$0.025/1,000 transitions).
 
 ## When to use
 
@@ -97,7 +97,7 @@ export default defineConfig(() => {
 A state machine definition requires `StartAt` and `States`. `StartAt` names the first state to execute, and `States` maps state names to state objects — each with a `Type` field. Most non-terminal states transition with `Next` or finish with `End: true`; terminal `Succeed` and `Fail` states end execution without needing `Next` or `End`.
 
 
-> **Tip:** Task states reference Lambda functions by their CloudFormation logical names. Run [`stacktape compile-template`](/cli/compile-template) to find the exact logical name for each resource in your generated template. The logical names used in examples on this page are illustrative — always verify against the compiled template before hard-coding them.
+> **Tip:** Task states reference Lambda functions by their CloudFormation logical names. Inspect the compiled template (via [`stacktape compile-template`](/cli/compile-template)) to verify logical names before hard-coding them. The logical names used in examples on this page are illustrative.
 
 
 ## Workflow definition
@@ -123,7 +123,7 @@ The Stacktape `StateMachine` definition models eight ASL state types: Choice, Fa
 
 ### Referencing Lambda functions
 
-Task states use the `Resource` property to identify a Lambda function or another supported ASL task target. The `Resource` value can be a string or an object. Use an object for CloudFormation intrinsic functions like `Fn::GetAtt` to reference Lambda ARNs that resolve at deploy time. Use a string when you have a concrete ARN or a Step Functions service integration identifier (e.g., `arn:aws:states:::dynamodb:putItem`).
+Task states use the `Resource` property to identify a Lambda function or another supported ASL task target. The `Resource` value can be a string or an object. Use an object for CloudFormation intrinsic functions like `Fn::GetAtt` to reference Lambda ARNs that resolve at deploy time. Use a string when you already have a concrete Task `Resource` value, such as a Lambda ARN or an [ASL service integration](https://states-language.net/spec.html) URI.
 
 ```json
 {
@@ -217,11 +217,11 @@ export default defineConfig(() => {
 
 In this example, `ChargePayment` retries up to 3 times on failure with exponential backoff (5s, 10s, 20s). If all retries fail, `Catch` redirects to `NotifySupport`, which alerts the support team before the workflow terminates with a `Fail` state. Without the retry block, any transient error would immediately fail the workflow.
 
-ASL defines several reserved error names: `States.ALL` (matches any error), `States.TaskFailed` (Lambda errors and task failures), `States.Timeout` (task exceeded `TimeoutSeconds`), and `States.HeartbeatTimeout` (missed heartbeat signal). You can also match on custom error strings thrown by your Lambda functions.
+Retry and Catch match error strings in `ErrorEquals`. Common ASL error names include `States.ALL`, `States.TaskFailed`, `States.Timeout`, and `States.HeartbeatTimeout`. You can also match custom error strings thrown by your Lambda functions. See the [ASL specification](https://states-language.net/spec.html) for the complete list and matching rules.
 
 ## Starting executions
 
-A Stacktape state machine does not start automatically — you start executions programmatically using the AWS SDK from another resource. Use [`connectTo`](/configuration/connecting-resources) to grant a Lambda function the IAM permissions it needs to interact with the state machine, and the [`$ResourceParam` directive](/configuration/directives) to inject the state machine ARN as an environment variable.
+The `StateMachine` resource configures only the workflow definition. To start executions from application code, pass the state machine ARN to a workload and call Step Functions with the AWS SDK. Use [`connectTo`](/configuration/connecting-resources) to scope the consuming workload's IAM role for the state machine, and the [`$ResourceParam` directive](/configuration/directives) to inject the state machine ARN as an environment variable.
 
 
 Example (TypeScript):
@@ -231,9 +231,7 @@ import {
   defineConfig,
   LambdaFunction,
   StateMachine,
-  StacktapeLambdaBuildpackPackaging,
-  HttpApiGateway,
-  HttpApiIntegration
+  StacktapeLambdaBuildpackPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -253,32 +251,23 @@ export default defineConfig(() => {
       }
     }
   });
-
-  const apiGateway = new HttpApiGateway({});
   const startOrder = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/start-order.ts' }),
     connectTo: ['orderWorkflow'],
-    environment: [{ name: 'ORDER_WORKFLOW_ARN', value: "$ResourceParam('orderWorkflow', 'arn')" }],
-    events: [
-      new HttpApiIntegration({
-        httpApiGatewayName: 'apiGateway',
-        path: '/orders',
-        method: 'POST'
-      })
-    ]
+    environment: [{ name: 'ORDER_WORKFLOW_ARN', value: "$ResourceParam('orderWorkflow', 'arn')" }]
   });
 
   return {
-    resources: { processOrder, orderWorkflow, apiGateway, startOrder }
+    resources: { processOrder, orderWorkflow, startOrder }
   };
 });
 ```
 
 
-Listing `'orderWorkflow'` in `connectTo` adds the IAM permissions required to interact with the state machine to the consuming workload's role. The `environment` entry uses `$ResourceParam('orderWorkflow', 'arn')` to inject the state machine ARN at deploy time. Run [`stacktape compile-template`](/cli/compile-template) to inspect the exact IAM actions granted. State machines expose `arn` and `name` as [referenceable parameters](/configuration/referenceable-parameters).
+State machines are accepted by `connectTo` for workload IAM role scoping — listing `'orderWorkflow'` grants the consuming workload permissions for the state machine. The `environment` entry uses `$ResourceParam('orderWorkflow', 'arn')` to inject the state machine ARN at deploy time. State machines expose `arn` and `name` as [referenceable parameters](/configuration/referenceable-parameters).
 
 
-> **Info:** State machines are not listed in the `connectTo` environment variable injection table — `connectTo` grants IAM permissions but does not automatically inject environment variables for state machines. Use the `$ResourceParam` directive to pass the state machine ARN explicitly.
+> **Info:** Listing a state machine in `connectTo` grants the consuming workload the IAM permissions required to interact with the state machine (e.g., starting and describing executions). Use `$ResourceParam('orderWorkflow', 'arn')` to pass the state machine ARN as an environment variable. State machines expose `arn` and `name` as [referenceable parameters](/configuration/referenceable-parameters).
 
 
 Use the ARN in your handler to start executions:
@@ -313,16 +302,44 @@ app.get('/orders/status/:executionArn{.+}', async (c) => {
 export default handle(app);
 ```
 
-This pattern exposes an HTTP endpoint that starts a workflow execution and returns the execution ARN. A second endpoint lets clients poll for the execution status. The `@aws-sdk/client-sfn` package provides the `StartExecutionCommand`, `DescribeExecutionCommand`, `StopExecutionCommand`, and other Step Functions operations.
+This handler code starts a workflow execution and returns the execution ARN, with a second route for polling execution status. To expose these routes as HTTP endpoints, attach the `startOrder` Lambda function to an [HTTP API Gateway](/resources/networking/http-api-gateway) or [Application Load Balancer](/resources/networking/application-load-balancer) using an event integration. The `@aws-sdk/client-sfn` package provides `StartExecutionCommand`, `DescribeExecutionCommand`, `StopExecutionCommand`, and other Step Functions operations.
 
 ## Overrides
 
-The `StateMachine` resource supports [overrides](/configuration/overrides-and-escape-hatches) for modifying the generated CloudFormation resources. The `StateMachineProps` type exposes only the ASL `definition` property — CloudFormation-level settings that are not modeled by Stacktape (such as workflow type, logging configuration, or tracing) can be set through `overrides` on the generated CloudFormation state machine resource.
+The `StateMachine` resource supports [overrides](/configuration/overrides-and-escape-hatches) for modifying the generated CloudFormation resources. The `StateMachineProps` type exposes only the ASL `definition` property — CloudFormation-level settings not modeled by the type (such as logging configuration or the workflow type) must be set through `overrides`. Use overrides as an escape hatch only after inspecting the compiled template and confirming the logical resource path you need to modify.
 
-Use [`stacktape compile-template`](/cli/compile-template) to find the logical names of the generated CloudFormation resources, then apply dot-notation overrides. See [overrides](/configuration/overrides-and-escape-hatches) for details on the syntax.
+For example, to switch the state machine to an Express workflow (higher throughput, lower per-transition cost, 5-minute maximum duration), override the `StateMachineType` property on the generated `AWS::StepFunctions::StateMachine` resource. First run [`stacktape compile-template`](/cli/compile-template) to find the logical name. The example below assumes the logical name is `OrderWorkflowStateMachine` — verify yours against the compiled output.
 
 
-> **Tip:** Stacktape automatically creates an execution role for state machines in your stack. Run [`stacktape compile-template`](/cli/compile-template) to inspect the exact IAM policy attached to the role. Use `overrides` if you need to restrict or extend the permissions.
+Example (TypeScript):
+
+```typescript
+import { defineConfig, StateMachine } from 'stacktape';
+
+export default defineConfig(() => {
+  const orderWorkflow = new StateMachine({
+    definition: {
+      StartAt: 'Process',
+      States: {
+        Process: { Type: 'Pass', End: true }
+      }
+    },
+    overrides: {
+      OrderWorkflowStateMachine: {
+        'Properties.StateMachineType': 'EXPRESS'
+      }
+    }
+  });
+
+  return { resources: { orderWorkflow } };
+});
+```
+
+
+The `overrides` object keys are CloudFormation logical names, and values use dot-notation paths into the resource properties. `StateMachineType` accepts `STANDARD` (default) or `EXPRESS`. See [overrides](/configuration/overrides-and-escape-hatches) for full syntax details.
+
+
+> **Tip:** Use [`stacktape compile-template`](/cli/compile-template) to inspect the CloudFormation resources generated for the state machine before applying overrides.
 
 
 ## Referenceable parameters
@@ -369,15 +386,15 @@ Use [`connectTo`](/configuration/connecting-resources) to grant IAM permissions,
 
 ### Can I customize the underlying CloudFormation resources?
 
-Yes. The `StateMachine` resource supports [overrides](/configuration/overrides-and-escape-hatches) for modifying the generated CloudFormation resources. The `StateMachineProps` type exposes only the ASL `definition`, so CloudFormation-level settings must be applied through `overrides`. Run [`stacktape compile-template`](/cli/compile-template) to find logical names.
+Yes. The `StateMachine` resource supports [overrides](/configuration/overrides-and-escape-hatches) for modifying the generated CloudFormation resources. The `StateMachineProps` type exposes only the ASL `definition`, so any CloudFormation-level settings not modeled by the type must be applied through `overrides`. Use [`stacktape compile-template`](/cli/compile-template) to inspect the generated resources and find logical names before applying overrides.
 
-### What permissions does the state machine execution role have?
+### How do I inspect or modify the IAM permissions for a state machine?
 
-Stacktape automatically creates an execution role for state machines in your stack. Run [`stacktape compile-template`](/cli/compile-template) to inspect the exact IAM policy attached to the role. Use [overrides](/configuration/overrides-and-escape-hatches) if you need to restrict or extend the permissions granted.
+Use [`stacktape compile-template`](/cli/compile-template) to inspect the CloudFormation resources and IAM policies generated for the state machine. Use [overrides](/configuration/overrides-and-escape-hatches) if you need to modify the generated resources or permissions.
 
 ### How much do AWS Step Functions cost?
 
-AWS Step Functions Standard workflows cost ~$0.025 per 1,000 state transitions. The AWS Free Tier includes 4,000 transitions per month. Each state in your workflow counts as one transition, so a 5-state workflow costs 5 transitions per execution. Express workflows offer higher throughput at lower per-transition cost but are limited to 5-minute maximum duration. See the [AWS Step Functions pricing page](https://aws.amazon.com/step-functions/pricing/) for current rates.
+AWS Step Functions charges per state transition (~$0.025/1,000 transitions). The AWS Free Tier includes 4,000 transitions per month. Each state in your workflow counts as one transition, so a 5-state workflow costs 5 transitions per execution. AWS also offers Express workflows with different pricing and a 5-minute duration limit — the Stacktape `StateMachineProps` type does not expose a workflow-type selector, but you can switch to Express via [overrides](/configuration/overrides-and-escape-hatches). See the [AWS Step Functions pricing page](https://aws.amazon.com/step-functions/pricing/) for current rates.
 
 ### What is Amazon States Language?
 

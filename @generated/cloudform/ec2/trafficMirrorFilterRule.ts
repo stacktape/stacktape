@@ -1,8 +1,8 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class TrafficMirrorPortRange {
-  FromPort!: Value<number>;
   ToPort!: Value<number>;
+  FromPort!: Value<number>;
   constructor(properties: TrafficMirrorPortRange) {
     Object.assign(this, properties);
   }

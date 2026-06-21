@@ -34,10 +34,10 @@ export class DocumentAttributeTarget {
 }
 
 export class DocumentAttributeValue {
-  DateValue?: Value<string>;
   LongValue?: Value<number>;
   StringValue?: Value<string>;
   StringListValue?: List<Value<string>>;
+  DateValue?: Value<string>;
   constructor(properties: DocumentAttributeValue) {
     Object.assign(this, properties);
   }
@@ -53,9 +53,9 @@ export class DocumentEnrichmentConfiguration {
 }
 
 export class HookConfiguration {
-  LambdaArn?: Value<string>;
   InvocationCondition?: DocumentAttributeCondition;
   S3BucketName?: Value<string>;
+  LambdaArn?: Value<string>;
   RoleArn?: Value<string>;
   constructor(properties: HookConfiguration) {
     Object.assign(this, properties);

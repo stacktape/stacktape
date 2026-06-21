@@ -362,7 +362,7 @@ Stacktape supports two alarm triggers for SQS queues:
 - **`sqs-queue-not-empty`** — fires when the queue has activity (any of: visible messages, in-flight messages, messages received, or messages sent are non-zero). Use this to detect a consumer that has stopped processing.
 - **`sqs-queue-received-messages-count`** — fires when the number of received messages crosses a `thresholdCount`. Use this to detect unexpected traffic spikes. Defaults to comparing the **average** messages received per period against the threshold; customize with `statistic` and `comparisonOperator`.
 
-Alarms configured on the queue are merged with any alarms configured globally in the [Stacktape Console](https://console.stacktape.com/alarms). You can disable specific global alarms per queue using `disabledGlobalAlarms`. For more on alarms, see [Alarms](/observability/alarms) and [Alert channels](/observability/alert-channels).
+Alarms configured on the queue are merged with any alarms configured globally. You can disable specific global alarms per queue using `disabledGlobalAlarms`. For more on alarms, see [Alarms](/observability/alarms) and [Alert channels](/observability/alert-channels).
 
 
 Example (TypeScript):

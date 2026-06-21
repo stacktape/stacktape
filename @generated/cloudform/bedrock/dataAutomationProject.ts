@@ -16,7 +16,18 @@ export class AudioExtractionCategoryTypeConfiguration {
   }
 }
 
+export class AudioLanguageConfiguration {
+  IdentifyMultipleLanguages?: Value<boolean>;
+  GenerativeOutputLanguage?: Value<string>;
+  InputLanguages?: List<Value<string>>;
+  constructor(properties: AudioLanguageConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class AudioOverrideConfiguration {
+  SensitiveDataConfiguration?: SensitiveDataConfiguration;
+  LanguageConfiguration?: AudioLanguageConfiguration;
   ModalityProcessing?: ModalityProcessingConfiguration;
   constructor(properties: AudioOverrideConfiguration) {
     Object.assign(this, properties);
@@ -106,6 +117,7 @@ export class DocumentOutputTextFormat {
 }
 
 export class DocumentOverrideConfiguration {
+  SensitiveDataConfiguration?: SensitiveDataConfiguration;
   Splitter?: SplitterConfiguration;
   ModalityProcessing?: ModalityProcessingConfiguration;
   constructor(properties: DocumentOverrideConfiguration) {
@@ -153,6 +165,7 @@ export class ImageExtractionCategory {
 }
 
 export class ImageOverrideConfiguration {
+  SensitiveDataConfiguration?: SensitiveDataConfiguration;
   ModalityProcessing?: ModalityProcessingConfiguration;
   constructor(properties: ImageOverrideConfiguration) {
     Object.assign(this, properties);
@@ -211,6 +224,23 @@ export class OverrideConfiguration {
   }
 }
 
+export class PIIEntitiesConfiguration {
+  PiiEntityTypes?: List<Value<string>>;
+  RedactionMaskMode?: Value<string>;
+  constructor(properties: PIIEntitiesConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SensitiveDataConfiguration {
+  DetectionMode?: Value<string>;
+  DetectionScope?: List<Value<string>>;
+  PiiEntitiesConfiguration?: PIIEntitiesConfiguration;
+  constructor(properties: SensitiveDataConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class SpeakerLabelingConfiguration {
   State!: Value<string>;
   constructor(properties: SpeakerLabelingConfiguration) {
@@ -259,6 +289,7 @@ export class VideoExtractionCategory {
 }
 
 export class VideoOverrideConfiguration {
+  SensitiveDataConfiguration?: SensitiveDataConfiguration;
   ModalityProcessing?: ModalityProcessingConfiguration;
   constructor(properties: VideoOverrideConfiguration) {
     Object.assign(this, properties);
@@ -293,6 +324,7 @@ export interface DataAutomationProjectProperties {
   ProjectName: Value<string>;
   StandardOutputConfiguration?: StandardOutputConfiguration;
   OverrideConfiguration?: OverrideConfiguration;
+  ProjectType?: Value<string>;
   KmsEncryptionContext?: { [key: string]: Value<string> };
   CustomOutputConfiguration?: CustomOutputConfiguration;
   ProjectDescription?: Value<string>;
@@ -301,6 +333,7 @@ export interface DataAutomationProjectProperties {
 export default class DataAutomationProject extends ResourceBase<DataAutomationProjectProperties> {
   static AudioExtractionCategory = AudioExtractionCategory;
   static AudioExtractionCategoryTypeConfiguration = AudioExtractionCategoryTypeConfiguration;
+  static AudioLanguageConfiguration = AudioLanguageConfiguration;
   static AudioOverrideConfiguration = AudioOverrideConfiguration;
   static AudioStandardExtraction = AudioStandardExtraction;
   static AudioStandardGenerativeField = AudioStandardGenerativeField;
@@ -326,6 +359,8 @@ export default class DataAutomationProject extends ResourceBase<DataAutomationPr
   static ModalityProcessingConfiguration = ModalityProcessingConfiguration;
   static ModalityRoutingConfiguration = ModalityRoutingConfiguration;
   static OverrideConfiguration = OverrideConfiguration;
+  static PIIEntitiesConfiguration = PIIEntitiesConfiguration;
+  static SensitiveDataConfiguration = SensitiveDataConfiguration;
   static SpeakerLabelingConfiguration = SpeakerLabelingConfiguration;
   static SplitterConfiguration = SplitterConfiguration;
   static StandardOutputConfiguration = StandardOutputConfiguration;

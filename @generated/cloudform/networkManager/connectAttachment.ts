@@ -30,6 +30,7 @@ export interface ConnectAttachmentProperties {
   TransportAttachmentId: Value<string>;
   CoreNetworkId: Value<string>;
   ProposedNetworkFunctionGroupChange?: ProposedNetworkFunctionGroupChange;
+  RoutingPolicyLabel?: Value<string>;
   NetworkFunctionGroupName?: Value<string>;
   Tags?: List<ResourceTag>;
   EdgeLocation: Value<string>;

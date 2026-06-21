@@ -7,6 +7,7 @@ export interface PortalProperties {
   BrowserSettingsArn?: Value<string>;
   IpAccessSettingsArn?: Value<string>;
   NetworkSettingsArn?: Value<string>;
+  PortalCustomDomain?: Value<string>;
   CustomerManagedKey?: Value<string>;
   AdditionalEncryptionContext?: { [key: string]: Value<string> };
   DisplayName?: Value<string>;

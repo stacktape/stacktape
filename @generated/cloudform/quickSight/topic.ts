@@ -54,8 +54,8 @@ export class DatasetMetadata {
 }
 
 export class DefaultFormatting {
-  DisplayFormatOptions?: DisplayFormatOptions;
   DisplayFormat?: Value<string>;
+  DisplayFormatOptions?: DisplayFormatOptions;
   constructor(properties: DefaultFormatting) {
     Object.assign(this, properties);
   }

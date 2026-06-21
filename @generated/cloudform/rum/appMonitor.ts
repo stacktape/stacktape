@@ -69,6 +69,7 @@ export class ResourcePolicy {
 }
 export interface AppMonitorProperties {
   CustomEvents?: CustomEvents;
+  Platform?: Value<string>;
   CwLogEnabled?: Value<boolean>;
   ResourcePolicy?: ResourcePolicy;
   DomainList?: List<Value<string>>;

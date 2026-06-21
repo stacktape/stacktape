@@ -71,6 +71,15 @@ export class TagSpecification {
     Object.assign(this, properties);
   }
 }
+
+export class TransitGatewayConfiguration {
+  TransitGatewayId!: Value<string>;
+  AvailabilityZoneIds?: List<Value<string>>;
+  AvailabilityZones?: List<Value<string>>;
+  constructor(properties: TransitGatewayConfiguration) {
+    Object.assign(this, properties);
+  }
+}
 export interface ClientVpnEndpointProperties {
   ClientCidrBlock?: Value<string>;
   ClientConnectOptions?: ClientConnectOptions;
@@ -85,10 +94,13 @@ export interface ClientVpnEndpointProperties {
   DisconnectOnSessionTimeout?: Value<boolean>;
   ConnectionLogOptions: ConnectionLogOptions;
   SplitTunnel?: Value<boolean>;
+  TrafficIpAddressType?: Value<string>;
   ClientLoginBannerOptions?: ClientLoginBannerOptions;
   VpcId?: Value<string>;
   SelfServicePortal?: Value<string>;
+  TransitGatewayConfiguration?: TransitGatewayConfiguration;
   TransportProtocol?: Value<string>;
+  EndpointIpAddressType?: Value<string>;
   VpnPort?: Value<number>;
 }
 export default class ClientVpnEndpoint extends ResourceBase<ClientVpnEndpointProperties> {
@@ -101,6 +113,7 @@ export default class ClientVpnEndpoint extends ResourceBase<ClientVpnEndpointPro
   static DirectoryServiceAuthenticationRequest = DirectoryServiceAuthenticationRequest;
   static FederatedAuthenticationRequest = FederatedAuthenticationRequest;
   static TagSpecification = TagSpecification;
+  static TransitGatewayConfiguration = TransitGatewayConfiguration;
   constructor(properties: ClientVpnEndpointProperties) {
     super('AWS::EC2::ClientVpnEndpoint', properties);
   }

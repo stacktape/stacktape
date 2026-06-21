@@ -10,6 +10,7 @@ export class AdvancedBackupSettingResourceType {
 
 export class BackupPlanResourceType {
   BackupPlanName!: Value<string>;
+  ScanSettings?: List<ScanSettingResourceType>;
   AdvancedBackupSettings?: List<AdvancedBackupSettingResourceType>;
   BackupPlanRule!: List<BackupRuleResourceType>;
   constructor(properties: BackupPlanResourceType) {
@@ -25,9 +26,11 @@ export class BackupRuleResourceType {
   EnableContinuousBackup?: Value<boolean>;
   Lifecycle?: LifecycleResourceType;
   IndexActions?: List<IndexActionsResourceType>;
-  TargetBackupVault!: Value<string>;
   StartWindowMinutes?: Value<number>;
   ScheduleExpressionTimezone?: Value<string>;
+  TargetLogicallyAirGappedBackupVaultArn?: Value<string>;
+  ScanActions?: List<ScanActionResourceType>;
+  TargetBackupVault!: Value<string>;
   RuleName!: Value<string>;
   constructor(properties: BackupRuleResourceType) {
     Object.assign(this, properties);
@@ -51,9 +54,26 @@ export class IndexActionsResourceType {
 
 export class LifecycleResourceType {
   OptInToArchiveForSupportedResources?: Value<boolean>;
-  DeleteAfterDays?: Value<number>;
   MoveToColdStorageAfterDays?: Value<number>;
+  DeleteAfterDays?: Value<number>;
   constructor(properties: LifecycleResourceType) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ScanActionResourceType {
+  ScanMode?: Value<string>;
+  MalwareScanner?: Value<string>;
+  constructor(properties: ScanActionResourceType) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ScanSettingResourceType {
+  ResourceTypes?: List<Value<string>>;
+  MalwareScanner?: Value<string>;
+  ScannerRoleArn?: Value<string>;
+  constructor(properties: ScanSettingResourceType) {
     Object.assign(this, properties);
   }
 }
@@ -68,6 +88,8 @@ export default class BackupPlan extends ResourceBase<BackupPlanProperties> {
   static CopyActionResourceType = CopyActionResourceType;
   static IndexActionsResourceType = IndexActionsResourceType;
   static LifecycleResourceType = LifecycleResourceType;
+  static ScanActionResourceType = ScanActionResourceType;
+  static ScanSettingResourceType = ScanSettingResourceType;
   constructor(properties: BackupPlanProperties) {
     super('AWS::Backup::BackupPlan', properties);
   }

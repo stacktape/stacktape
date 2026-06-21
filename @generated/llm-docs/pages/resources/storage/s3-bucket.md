@@ -46,7 +46,7 @@ export default defineConfig(() => {
 ```
 
 
-This creates a private bucket that only your stack's compute resources (Lambda functions, containers) can access when granted permission through [`connectTo`](/configuration/connecting-resources).
+This creates a private bucket. Only compute resources and entities with sufficient IAM permissions can access it. Use [`connectTo`](/configuration/connecting-resources) to grant your compute resources access.
 
 ## Uploading files on deploy
 
@@ -84,7 +84,7 @@ The `headersPreset` property sets optimized HTTP caching headers for your framew
 | `astro-static-website` | Hashed build assets cached forever, HTML always fresh | Astro static builds |
 | `sveltekit-static-website` | Hashed build assets cached forever, HTML always fresh | SvelteKit static builds |
 | `nuxt-static-website` | Hashed build assets cached forever, HTML always fresh | Nuxt static builds |
-| `gatsby-static-website` | Framework-specific caching | Gatsby builds |
+| `gatsby-static-website` | Supported Gatsby preset | Gatsby builds |
 
 For more control, use `fileOptions` to set custom HTTP headers and tags on files matching specific glob patterns. For example, set a long `Cache-Control` header on image files while keeping HTML files uncached. Use `excludeFilesPatterns` to skip specific files during upload.
 
@@ -121,13 +121,13 @@ export default defineConfig(() => {
 ```
 
 
-For fine-grained control beyond the three modes, use `accessibility.accessPolicyStatements` to add custom IAM policy statements to the bucket policy.
+For fine-grained access control, use `accessibility.accessPolicyStatements` for advanced access configuration with bucket policy IAM role statements.
 
 ## CORS
 
 CORS (Cross-Origin Resource Sharing) configuration is needed when browsers make requests directly to your S3 bucket — for example, uploading files via presigned URLs from a frontend app. If your application only accesses the bucket from server-side code (Lambda functions, containers), you don't need CORS.
 
-Set `cors.enabled: true` for permissive defaults that allow all origins (`*`) and all HTTP methods. This is convenient for development but should be tightened for production by specifying custom `corsRules`.
+Set `cors.enabled: true` without `corsRules` to use permissive defaults (`*` origins, all methods). Add `corsRules` to replace those defaults with explicit browser access rules for production.
 
 
 Example (TypeScript):
@@ -156,7 +156,7 @@ export default defineConfig(() => {
 ```
 
 
-Custom `corsRules` override the permissive defaults. Each rule specifies `allowedOrigins`, `allowedMethods`, `allowedHeaders`, optional `exposedResponseHeaders` (headers accessible to browser JavaScript), and `maxAge` (how long in seconds browsers can cache preflight responses). For custom CORS rules, the first matching rule wins. Allowed methods can be `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `*` for any.
+When `corsRules` are provided, they define the explicit browser access rules for your bucket. Each rule specifies `allowedOrigins`, `allowedMethods`, `allowedHeaders`, optional `exposedResponseHeaders` (headers accessible to browser JavaScript), and `maxAge` (how long in seconds browsers can cache preflight responses). Rules are evaluated in order; the first matching rule wins for each preflight request. Allowed methods can be `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `*` for any.
 
 ## CDN
 
@@ -185,13 +185,13 @@ export default defineConfig(() => {
 ```
 
 
-The `rewriteRoutesForSinglePageApp` option routes requests without a file extension (e.g., `/about`, `/dashboard`) to `index.html`, letting your SPA handle client-side routing. Requests with extensions (`.js`, `.css`, `.png`) serve the actual file.
+The `rewriteRoutesForSinglePageApp` option routes requests without a file extension (e.g., `/about`, `/dashboard`) to `index.html`, letting your SPA handle client-side routing. Requests with extensions (`.js`, `.css`, `.png`) serve the actual file. Enable `rewriteRoutesForSinglePageApp` only for browser-routed SPAs where URLs like `/dashboard` should load `index.html`. Leave it disabled for ordinary file buckets or assets where extensionless keys should be looked up as stored objects.
 
-URL normalization is enabled by default and is useful for serving HTML files from the bucket with clean URLs. Disable it with `disableUrlNormalization: true` if your bucket paths don't follow directory-style conventions.
+Bucket CDN URL normalization is enabled by default for clean HTML URLs. Disable it with `disableUrlNormalization: true` only when your bucket object keys intentionally rely on exact URL paths.
 
 **When to enable:** Enable a CDN when you serve assets directly to end-user browsers, especially if your users are geographically distributed or you expect high download volume. **When the default is fine:** For most buckets that only serve files to your own backend (Lambda functions, containers), adding a CDN introduces unnecessary complexity. **Tradeoff:** CDN adds a small per-request and data-transfer cost but typically pays for itself by reducing S3 bandwidth charges on high-traffic buckets.
 
-The bucket CDN configuration also supports custom domains (via `customDomains`), edge functions, caching options, price class selection, and a [web application firewall](/resources/security/web-application-firewall). For full CDN configuration options, see the [CDN resource page](/resources/networking/cdn).
+The bucket `cdn` property adds bucket-specific options `rewriteRoutesForSinglePageApp` and `disableUrlNormalization` on top of the shared CDN configuration. See the [CDN resource page](/resources/networking/cdn) for shared CDN options.
 
 
 > **Tip:** If you're building a static website or SPA with CDN, client-side routing, and custom domains, a [HostingBucket](/resources/frontend/static-hosting) bundles all of this in a single resource type.
@@ -208,7 +208,7 @@ Stacktape supports five lifecycle rule types:
 | `expiration` | Delete objects after a set number of days since upload |
 | `non-current-version-expiration` | Delete old object versions after a set number of days (requires `versioning: true`) |
 | `class-transition` | Move objects to a cheaper storage class after a set number of days |
-| `non-current-version-class-transition` | Move old versions to a cheaper storage class after a set number of days |
+| `non-current-version-class-transition` | Move old versions to a cheaper storage class after they become non-current; use with `versioning: true` |
 | `abort-incomplete-multipart-upload` | Clean up incomplete multipart uploads after a set number of days |
 
 
@@ -272,7 +272,7 @@ The `storageClass` property in transition rules determines where objects move. C
 
 **Versioning** keeps previous versions of overwritten or deleted objects, letting you recover from accidental changes. Enable it with `versioning: true`. Versioning is a prerequisite for `non-current-version-expiration` and `non-current-version-class-transition` lifecycle rules. Enable versioning for buckets where accidental overwrites would be costly — user uploads, application data, configuration files. Skip it for ephemeral data like logs or build caches where old versions have no value. Note that versioning increases storage costs since all object versions are retained until explicitly expired by a lifecycle rule.
 
-**Encryption** encrypts stored objects at rest using AES-256. Enable it with `encryption: true` to enforce and make the encryption policy visible in your infrastructure config.
+**Encryption** sets `encryption: true` to configure AES-256 server-side encryption at rest on the bucket. The source JSDoc describes this as "Encrypt stored objects at rest (AES-256)." If you need different encryption (e.g., AWS KMS customer-managed keys), use [overrides](/configuration/overrides-and-escape-hatches) on the underlying CloudFormation resource.
 
 
 Example (TypeScript):
@@ -308,7 +308,7 @@ Stacktape buckets support two approaches for reacting to object changes:
 
 **S3 event triggers** invoke a [Lambda function](/resources/compute/lambda-function) directly for configured S3 event types — commonly object-created, object-removed, and object-restore events. The trigger type also supports replication-related and reduced-redundancy lost-object events through the [S3 trigger configuration](/configuration/triggers/s3-events). This is the simplest approach for processing uploads — for example, resizing images or parsing CSV files. Configure S3 triggers on the Lambda function side.
 
-**EventBridge notifications** send bucket events to [EventBridge](/resources/messaging/event-bus), where multiple consumers can react to the same event independently. Enable with `enableEventBusNotifications: true` (defaults to `false`). Use this when multiple services need to respond to the same upload, or when you need EventBridge's filtering and routing capabilities.
+**EventBridge notifications** send bucket events to [EventBridge](/resources/messaging/event-bus), where multiple consumers can react to the same event independently. Enable with `enableEventBusNotifications: true` (defaults to `false`). Use EventBridge notifications when bucket events should be available on EventBridge for other parts of your architecture. For direct upload processing, an S3 trigger on a Lambda function is usually simpler.
 
 
 Example (TypeScript):
@@ -453,7 +453,7 @@ or clean up incomplete uploads. | - |
 
 ### How do I upload files to an S3 bucket from my application code?
 
-Use the AWS S3 SDK (available for every major language) with the bucket name from the `STP_[BUCKET_NAME]_NAME` environment variable injected by [`connectTo`](/configuration/connecting-resources). For browser-based uploads, generate a presigned URL on your server and have the client upload directly to S3 — this avoids routing large files through your API. Enable [CORS](#cors) on the bucket when using presigned URLs from a browser.
+Use the AWS S3 SDK (available for every major language) with the bucket name from the `STP_[RESOURCE_NAME]_NAME` environment variable injected by [`connectTo`](/configuration/connecting-resources). For example, a bucket resource named `uploads` injects `STP_UPLOADS_NAME`. For browser-based uploads, generate a presigned URL on your server and have the client upload directly to S3 — this avoids routing large files through your API. Enable [CORS](#cors) on the bucket when using presigned URLs from a browser.
 
 ### How much does S3 storage cost?
 
@@ -465,7 +465,7 @@ Use a [HostingBucket](/resources/frontend/static-hosting) when you're deploying 
 
 ### Can I attach a custom domain to a bucket?
 
-A bucket can be placed behind a CDN with the `cdn` property. Custom domain support is configured through the CDN's `customDomains` option; see the [CDN](/resources/networking/cdn) and [custom domains](/resources/networking/custom-domains) pages for full details. If you need a custom domain for a static site, [HostingBucket](/resources/frontend/static-hosting) is the simpler path.
+`BucketProps` does not expose a top-level custom-domain setting. If you place the bucket behind a CDN with the `cdn` property, domain configuration belongs to the CDN layer — see the [CDN](/resources/networking/cdn) and [custom domains](/resources/networking/custom-domains) pages for details. For static sites that need a custom domain, [HostingBucket](/resources/frontend/static-hosting) is usually the simpler path.
 
 ### How do I trigger a Lambda function when a file is uploaded?
 
@@ -477,7 +477,7 @@ A single S3 object can be up to 5 TB. For objects larger than 5 GB, S3 requires 
 
 ### Can I make bucket files publicly downloadable?
 
-Yes. Set `accessibility.accessibilityMode` to `public-read` to allow anyone to download files via their S3 URL. For production use, consider placing a [CDN](#cdn) in front of the bucket instead — it reduces latency, lowers bandwidth costs, and lets you add a custom domain. Alternatively, generate presigned URLs from your API to grant temporary access to specific files without making the entire bucket public.
+Yes. Set `accessibility.accessibilityMode` to `public-read` to allow anyone to download files via their S3 URL. For production use, consider placing a [CDN](#cdn) in front of the bucket instead — it reduces latency and lowers bandwidth costs. Alternatively, generate presigned URLs from your API to grant temporary access to specific files without making the entire bucket public.
 
 ### S3 vs EFS — when should I use each?
 
@@ -489,4 +489,4 @@ Use [lifecycle rules](#lifecycle-rules) to automate cost reduction. Transition i
 
 ### Is data in S3 encrypted?
 
-S3 encrypts all new objects by default using server-side encryption with S3-managed keys. Setting `encryption: true` in your Stacktape bucket config explicitly enforces AES-256 encryption and makes the policy visible in your infrastructure-as-code. Data in transit to and from S3 is encrypted via HTTPS. `BucketProps` exposes only AES-256 encryption as a boolean. If you need different encryption behavior (e.g., AWS KMS customer-managed keys), use [overrides](/configuration/overrides-and-escape-hatches) to modify the underlying CloudFormation resource — verify the generated template before deploying.
+Setting `encryption: true` in your Stacktape bucket config configures AES-256 server-side encryption at rest on the bucket, as described by the `BucketProps.encryption` JSDoc: "Encrypt stored objects at rest (AES-256)." Data in transit to and from S3 is encrypted via HTTPS. `BucketProps` exposes only this AES-256 toggle. If you need different encryption (e.g., AWS KMS customer-managed keys), use [overrides](/configuration/overrides-and-escape-hatches) to modify the underlying CloudFormation resource — verify the generated template before deploying.

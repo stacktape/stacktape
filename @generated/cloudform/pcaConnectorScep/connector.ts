@@ -26,6 +26,7 @@ export class OpenIdConfiguration {
 export interface ConnectorProperties {
   CertificateAuthorityArn: Value<string>;
   MobileDeviceManagement?: MobileDeviceManagement;
+  VpcEndpointId?: Value<string>;
   Tags?: { [key: string]: Value<string> };
 }
 export default class Connector extends ResourceBase<ConnectorProperties> {

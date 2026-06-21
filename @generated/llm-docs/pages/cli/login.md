@@ -1,6 +1,6 @@
 # login
 
-The `stacktape login` command configures your Stacktape API key on the current system. After logging in, all subsequent Stacktape operations are associated with the user and organization linked to that API key. You can provide the key directly via `--apiKey` or enter it through an interactive authentication flow.
+The `stacktape login` command authenticates the Stacktape CLI on the current system. For local development, run it interactively and let the CLI handle browser/email sign-in and local auth state. For CI/CD, use a dedicated Stacktape API key stored in your CI provider's secret store.
 
 ## Usage
 
@@ -10,22 +10,22 @@ stacktape login
 
 In interactive mode (the default), the command launches an auth flow that supports Google sign-in, email signup, email login, or manual API key entry. After successful authentication, Stacktape displays your user name and organization.
 
-To skip the interactive flow, pass the API key directly.
+For CI/CD, prefer setting `STACKTAPE_API_KEY` as a masked secret in the runner environment. If you need an explicit login step, pass the key from the CI secret variable. Never paste an API key into an AI chat, issue tracker, shell transcript, or log.
 
 ```bash
-stacktape login --apiKey sk-your-api-key
+stacktape login --apiKey "$STACKTAPE_API_KEY" --agent
 ```
 
-This is useful in CI/CD environments or when scripting. You can get your API key from the [Stacktape Console's API keys page](/stacktape-console/api-keys).
+You can create CI keys from the [Stacktape Console's API keys page](/stacktape-console/api-keys). Manual API keys are bearer secrets and should be treated as shown-once credentials.
 
 ## What happens during login
 
 Stacktape performs these steps when you run `login`:
 
-1. **Collects your API key** — either from the `--apiKey` flag or through the interactive auth flow.
-2. **Saves the key locally** — stores the API key on your system so subsequent commands use it automatically.
-3. **Verifies the key** — calls the Stacktape API to confirm the key is valid and retrieves your user and organization data.
-4. **Displays your identity** — prints your user name and the organization the key belongs to.
+1. **Authenticates you** — through the interactive Cognito-backed auth flow, or by verifying the API key supplied by a CI secret.
+2. **Stores local auth state** — saves the authentication state needed by subsequent CLI commands on this system.
+3. **Verifies access** — calls the Stacktape API to confirm your user, organization, and permissions.
+4. **Displays your identity** — prints your user name and the organization the current auth state belongs to.
 
 If the API key is invalid, Stacktape clears the key it attempted to save and reports an authentication error.
 
@@ -35,13 +35,13 @@ If the API key is invalid, Stacktape clears the key it attempted to save and rep
 
 ## Non-interactive login
 
-For CI/CD pipelines, automated scripts, or AI agent workflows, use the `--apiKey` flag to skip the interactive prompt. Combine with `--agent` to optimize output for programmatic consumption, as described in the flags reference below.
+For CI/CD pipelines and automated scripts, set `STACKTAPE_API_KEY` as a masked CI secret. The CLI can read this environment variable directly, so an explicit `login` step is often unnecessary. If your workflow does use `login`, pass the key from the secret variable and combine with `--agent` for programmatic output.
 
 ```bash
-stacktape login --apiKey sk-your-api-key --agent
+stacktape login --apiKey "$STACKTAPE_API_KEY" --agent
 ```
 
-Store the API key as a CI secret and reference it as an environment variable.
+Do not hardcode the key in workflow YAML. Reference the CI secret.
 
 ```bash
 stacktape login --apiKey "$STACKTAPE_API_KEY" --agent
@@ -49,33 +49,88 @@ stacktape login --apiKey "$STACKTAPE_API_KEY" --agent
 
 ## Flags reference
 
-
-## CLI Options: `stacktape login`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption:
-
-Uses strict JSONL/NDJSON output (one JSON object per line)
-Disables interactive terminal UI
-Automatically confirms operations (equivalent to --autoConfirmOperation)
-For dev command: also enables HTTP server for programmatic control. | - |
-| `--apiKey (-ak)` | no | `string` | API Key Your Stacktape API key. You can get your key from the [Stacktape console](https://console.stacktape.com/api-keys). | - |
-| `--awsAccount (-aa)` | no | `string` | AWS Account The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts). | - |
-| `--help (-h)` | no | `string` | Show Help If provided, the command will not execute and will instead print help information. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format:
-
-`jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.
-`plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.
-`tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
-If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
-
+<CliCommandsApiReference command="login" sortedArgs={[
+  {
+    "name": "agent",
+    "required": false,
+    "alias": "ag",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Agent Mode</p>\n",
+    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
+  },
+  {
+    "name": "apiKey",
+    "required": false,
+    "alias": "ak",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> API Key</p>\n",
+    "longDescription": "<p>Your Stacktape API key. Use this only in your own terminal or CI secret store. Do not paste API keys into chat transcripts, shell history, or logs. For local interactive use, prefer <code>stacktape login</code>.</p>\n"
+  },
+  {
+    "name": "awsAccount",
+    "required": false,
+    "alias": "aa",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> AWS Account</p>\n",
+    "longDescription": "<p>The name of the AWS account to use for the operation. The account must first be connected in the <a href=\"https://console.stacktape.com/aws-accounts\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Stacktape console</a>.</p>\n"
+  },
+  {
+    "name": "help",
+    "required": false,
+    "alias": "h",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Show Help</p>\n",
+    "longDescription": "<p>If provided, the command will not execute and will instead print help information.</p>\n"
+  },
+  {
+    "name": "logLevel",
+    "required": false,
+    "alias": "ll",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "info",
+      "debug",
+      "error"
+    ],
+    "shortDescription": "<p> Log Level</p>\n",
+    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+  },
+  {
+    "name": "outputFormat",
+    "required": false,
+    "alias": "ofmt",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "jsonl",
+      "plain",
+      "tty"
+    ],
+    "shortDescription": "<p> Output Format</p>\n",
+    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
+  },
+  {
+    "name": "profile",
+    "required": false,
+    "alias": "p",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> AWS Profile</p>\n",
+    "longDescription": "<p>The AWS profile to use for the command. You can manage profiles using the <code>aws-profile:*</code> commands and set a default profile with <code>defaults:configure</code>.</p>\n"
+  }
+]} />
 
 ## Examples
 
@@ -97,7 +152,7 @@ stacktape login --apiKey "$STACKTAPE_API_KEY"
 
 ### Verify your identity after login
 
-After logging in, confirm which user and organization are active with [`info:whoami`](/cli/info-whoami).
+After logging in, use [`info:whoami`](/cli/info-whoami) to verify your local Stacktape CLI authentication state and display the current user, organization, connected AWS accounts, and accessible projects.
 
 ```bash
 stacktape info:whoami
@@ -105,28 +160,28 @@ stacktape info:whoami
 
 ### Switch to a different user or organization
 
-Logging in with a different API key changes the user and organization used by subsequent commands. Generate a new key in the target organization from the [Stacktape Console's API keys page](/stacktape-console/api-keys), then run `login` again.
+For local development, run `stacktape login` again and choose the user or organization you want to use. In CI, update the `STACKTAPE_API_KEY` secret to a key from the target organization.
 
 ```bash
-stacktape login --apiKey sk-different-key
+stacktape login
 ```
 
 ## Related commands
 
-- [`logout`](/cli/logout) — removes the stored API key from the current system.
+- [`logout`](/cli/logout) — removes Stacktape authentication state from the current system.
 - [`info:whoami`](/cli/info-whoami) — displays the current user, organization, and connected AWS accounts.
-- [`org:create`](/cli/org-create) — creates a new organization and returns a new API key for it.
+- [`org:create`](/cli/org-create) — creates a new organization and returns organization credentials.
 - [`org:list`](/cli/org-list) — lists all organizations accessible with your current user.
 
 ## FAQ
 
 ### Where do I find my Stacktape API key?
 
-You can get your API key from the [Stacktape Console's API keys page](https://console.stacktape.com/api-keys). The API key is linked to your user and organization. See [API keys](/stacktape-console/api-keys) for details on managing keys.
+Create CI/API keys from the [Stacktape Console's API keys page](https://console.stacktape.com/api-keys). Manual keys are scoped to an organization, expire by default, and are shown only once. See [API keys](/stacktape-console/api-keys) for details on managing keys.
 
 ### Can I use `login` in a CI/CD pipeline?
 
-Yes. Pass the API key via `--apiKey` so no interactive prompt is needed. Combine with `--agent` for output optimized for programmatic consumption. Store the key as a CI secret and reference it as an environment variable. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full pipeline setup.
+Yes. Store a dedicated API key as a CI secret and expose it as `STACKTAPE_API_KEY`. The CLI can read that environment variable directly. If your workflow uses `login`, pass the key from the secret variable and combine with `--agent` for output optimized for programmatic consumption. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full pipeline setup.
 
 ### What happens if I log in with an invalid API key?
 
@@ -134,24 +189,24 @@ If verification fails during `login`, Stacktape clears the API key it attempted 
 
 ### How do I switch between organizations?
 
-Logging in with a different API key changes the user and organization used by all subsequent Stacktape CLI commands. Generate a new API key in the target organization from the [Stacktape Console](/stacktape-console/api-keys) and run `stacktape login --apiKey <new-key>`. Use [`org:list`](/cli/org-list) to see which organizations you have access to.
+For local development, run `stacktape login` again and choose the desired account or organization. For CI, create a key in the target organization and update the `STACKTAPE_API_KEY` secret. Use [`org:list`](/cli/org-list) to list organizations accessible with the current Stacktape user.
 
 ### Does login expire?
 
-The CLI stores the API key locally until you run [`logout`](/cli/logout) or log in with another key. A successfully saved API key remains the local Stacktape credential until one of those actions replaces or removes it.
+Interactive local auth state remains available until you replace or remove it. Manual API keys used in CI expire according to the key's expiration setting. Use [`logout`](/cli/logout) to remove local auth state.
 
 ### Does `login` connect my AWS account?
 
-No. The `login` command only authenticates you with Stacktape. Connecting an AWS account to your organization is a separate step handled through the [Stacktape Console](/stacktape-console/connecting-your-aws-account). Deploying is handled by [`deploy`](/cli/deploy), which requires `--stage` and `--region`.
+No. The `login` command only authenticates the Stacktape CLI with Stacktape. AWS account connection is separate from login; see [connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details. Deploying is handled by [`deploy`](/cli/deploy).
 
 ### What authentication methods does the interactive flow support?
 
-The interactive auth flow supports Google sign-in, email signup, email login, and manual API key entry. If you already have an API key, you can skip the interactive flow entirely by passing `--apiKey`.
+The interactive auth flow supports Google sign-in, email signup, email login, and manual API key entry. Prefer the interactive flow for local development. Use API keys for CI or other headless environments.
 
 ### Can multiple team members use the same API key?
 
-Each API key is linked to a specific user and organization. For team workflows, each member should use their own API key so that operations are attributed to the correct user. Manage team access through the [Stacktape Console](/stacktape-console/team-and-access-control).
+No. Use separate keys per integration point and prefer individual interactive login for developer machines. Sharing keys makes attribution, rotation, and revocation harder.
 
 ### How is the API key stored locally?
 
-Stacktape saves the API key to local storage on your system during the `login` flow. The key is used automatically by all subsequent CLI commands. Remove it with [`logout`](/cli/logout) when you no longer need it on that machine.
+Stacktape stores local authentication state for subsequent CLI commands. Treat those local files as credential material: do not read them into chat, copy them into scripts, or use them to manually construct `STACKTAPE_API_KEY` values. Remove local auth state with [`logout`](/cli/logout) when you no longer need it on that machine.

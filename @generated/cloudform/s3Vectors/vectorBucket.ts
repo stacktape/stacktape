@@ -1,4 +1,4 @@
-import { ResourceBase } from '../resource';
+import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class EncryptionConfiguration {
   KmsKeyArn?: Value<string>;
@@ -10,6 +10,7 @@ export class EncryptionConfiguration {
 export interface VectorBucketProperties {
   VectorBucketName?: Value<string>;
   EncryptionConfiguration?: EncryptionConfiguration;
+  Tags?: List<ResourceTag>;
 }
 export default class VectorBucket extends ResourceBase<VectorBucketProperties> {
   static EncryptionConfiguration = EncryptionConfiguration;

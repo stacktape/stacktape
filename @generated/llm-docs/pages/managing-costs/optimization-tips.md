@@ -1,6 +1,6 @@
 # Cost Optimization Tips
 
-AWS bills go directly to your AWS account — Stacktape's subscription fee is separate. Every resource you deploy has a running cost, and small configuration choices compound over time. This page covers the highest-impact levers for reducing what you pay without sacrificing reliability.
+AWS bills go directly to your AWS account — Stacktape's subscription fee is separate. Many deployed AWS resources can incur cost, and always-on resources compound over time. This page covers the highest-impact levers for reducing what you pay without sacrificing reliability.
 
 
 > **Info:** Use the [cost dashboards](/managing-costs/dashboards) and [per-resource breakdown](/managing-costs/per-resource-breakdown) in the Stacktape Console to identify where your spend is concentrated before optimizing. Set up [budget alerts](/managing-costs/budgets) so you catch cost spikes early.
@@ -14,87 +14,42 @@ The biggest cost lever is choosing the right compute model for your workload. [L
 
 [Lambda functions](/resources/compute/lambda-function) cost nothing when idle — you pay only for the compute time consumed during each invocation. This makes them the cheapest option for low-traffic or bursty workloads. Beyond sustained high traffic, a container service running 24/7 is usually cheaper per-request because you avoid per-invocation overhead.
 
-Avoid `provisionedConcurrency` unless latency requirements demand it — each provisioned instance bills continuously even when idle. For most internal or background endpoints, occasional cold starts are an acceptable tradeoff for zero idle cost.
+Provisioned concurrency can reduce cold starts, but it adds idle compute cost — each provisioned instance bills continuously. Use it only when latency requirements justify the tradeoff. For most internal or background endpoints, occasional cold starts are an acceptable tradeoff for zero idle cost.
 
 ### Container services: always-on cost
 
-[Web services](/resources/compute/web-service), [private services](/resources/compute/private-service), and [worker services](/resources/compute/worker-service) run 24/7 and bill continuously. AWS Fargate requires a minimum of 1 running instance — it cannot scale to zero. Before deploying a container service, confirm your workload genuinely needs an always-on process. If traffic is sporadic, a Lambda function with an [HTTP trigger](/configuration/triggers/http-triggers) is usually cheaper.
+A Stacktape [web service](/resources/compute/web-service) is a container running 24/7 with a public HTTPS URL, so treat it as always-on compute that bills continuously. [Private services](/resources/compute/private-service) and [worker services](/resources/compute/worker-service) are also container-based resources — see their resource pages for runtime and scaling behavior. Before deploying a container service, confirm your workload genuinely needs an always-on process. If traffic is sporadic, a Lambda function with an [HTTP trigger](/configuration/triggers/http-triggers) is usually cheaper.
 
-Right-size the `resources` block. Fargate bills for the CPU/memory combination you request, not what you actually use. Start small (`cpu: 0.25`, `memory: 512`) and increase only when metrics show resource pressure.
+Right-size the `resources` block. For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory, so right-sizing is the first optimization. Start at the smallest combination that keeps your application responsive and scale up only when metrics show resource pressure.
 
 ### Batch jobs: pay only for runtime
 
-[Batch jobs](/resources/compute/batch-job) provision compute only while the job runs and release it when done. Use batch jobs for data processing, ML training, image encoding, or any task that runs to completion rather than serving ongoing traffic. Set `timeout` on jobs with a known upper bound so a stuck job is killed and retried instead of continuing to bill.
+[Batch jobs](/resources/compute/batch-job) run containerized tasks to completion — you pay only for the compute time used. Use batch jobs for data processing, ML training, image encoding, or any task that runs to completion rather than serving ongoing traffic. Set `timeout` on jobs with a known upper bound so an overrun attempt is killed; if `retryConfig` is set, Stacktape retries the job after failure, timeout, or Spot interruption.
 
 
 ## Feature Comparison
 
-| Feature | Lambda function | Container service | Batch job |
+| Feature | Lambda function | Web service | Batch job |
 | --- | --- | --- | --- |
 | Pricing model | Per-invocation | Per-hour (24/7) | Per-job runtime |
-| Scale to zero | yes | no | yes |
-| Max run time | 15 minutes | Unlimited | Configurable with timeout |
 | Best for traffic pattern | Bursty / low | Steady / high | Periodic tasks |
 
 
 ## Use ARM/Graviton architecture
 
-Switching from `x86_64` (the default) to `arm64` (AWS Graviton) saves ~20% on compute costs. Graviton processors often deliver better performance at the lower price point — a double benefit of lower cost and faster execution.
+AWS Graviton (`arm64`) instances are typically priced below comparable x86 (`x86_64`) instances across Lambda and Fargate. Where your application code supports it, choosing ARM reduces compute cost without changing behavior.
 
-ARM works with most application code without changes — Node.js, Python, Go, Java, and .NET all run natively on `arm64`. The main exception is native compiled binaries or Lambda layers built specifically for x86. If you use `stacktape-lambda-buildpack` packaging, Stacktape builds for the selected architecture automatically. With `custom-artifact` packaging, you must pre-compile for the target architecture yourself.
+ARM works with most application code without changes — Node.js, Python, Go, Java, and .NET all run natively on `arm64`. The main exception is native compiled binaries or Lambda layers built specifically for x86. Native binaries and prebuilt artifacts need to match the target architecture.
 
-Set `architecture: 'arm64'` on [Lambda functions](/resources/compute/lambda-function):
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
-export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    architecture: 'arm64',
-    memory: 1024,
-    timeout: 30
-  });
-
-  return { resources: { api } };
-});
-```
+Prefer ARM unless you have native binary compatibility constraints. See the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), and [batch job](/resources/compute/batch-job) pages for how to configure architecture on each resource type.
 
 
-For container-based resources ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service)), set `architecture: 'arm64'` in the `resources` block. This applies to Fargate workloads — when using EC2 `instanceTypes`, the `architecture` setting is ignored, so choose Graviton instance families (`c7g`, `m7g`, `r7g`) directly instead.
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
-export default defineConfig(() => {
-  const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
-      entryfilePath: './src/server.ts'
-    }),
-    resources: {
-      cpu: 0.5,
-      memory: 1024,
-      architecture: 'arm64'
-    }
-  });
-
-  return { resources: { api } };
-});
-```
-
-
-> **Tip:** Start every new project with `arm64`. Only switch to `x86_64` if you hit a specific compatibility issue — that's rare for modern application stacks.
+> **Tip:** Start every new project on ARM where supported. Only fall back to x86 if you hit a specific compatibility issue — that's rare for modern application stacks.
 
 
 ## Use spot instances for batch jobs
 
-Batch jobs support `useSpotInstances`, which uses discounted spare AWS capacity and can save up to 90%, but jobs can be interrupted. If interrupted, your container receives a `SIGTERM` signal and has 120 seconds to shut down gracefully.
+Batch jobs support `useSpotInstances`, which uses discounted spare AWS capacity and can save up to 90%, but jobs can be interrupted. If a Spot interruption happens, your container gets a `SIGTERM` and 120 seconds to shut down gracefully.
 
 Spot instances are a good fit for jobs that can safely restart — data imports, image processing, ML training with checkpoints. Combine with `retryConfig` so interrupted jobs automatically retry, and set `timeout` so a stuck job doesn't bill indefinitely:
 
@@ -107,6 +62,7 @@ export default defineConfig(() => {
   const processor = new BatchJob({
     container: {
       packaging: new CustomDockerfilePackaging({
+        buildContextPath: '.',
         dockerfilePath: './Dockerfile'
       })
     },
@@ -125,7 +81,9 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `attempts: 3` means the job retries up to 3 times on failure or interruption (default is 1 — no retries). `retryIntervalSeconds: 30` sets the initial wait between retries (default is 0 — immediate retry). `retryIntervalMultiplier: 2` creates exponential backoff — waits are 30s, 60s, 120s (default is 1 — constant interval). The `timeout: 3600` kills the job after 1 hour if it hasn't completed, preventing runaway costs.
+`resources.cpu` sets the vCPU count and `resources.memory` sets memory in MB. The value `7680` MB is intentionally below 8 GB because AWS reserves memory for system processes — requesting exactly 8,192 MB may provision a larger instance than needed.
+
+In this example, `attempts: 3` sets the maximum retry attempts before the job is marked failed; the default is `1`. `retryIntervalSeconds: 30` sets the initial wait between retries (default is `0`). `retryIntervalMultiplier: 2` creates exponential backoff — waits of 30s, 60s, 120s (default is `1` — constant interval). The `timeout: 3600` kills the job after 1 hour if it hasn't completed, preventing runaway costs.
 
 Do not use spot instances for jobs with non-idempotent side effects (sending emails, charging payments) or strict completion deadlines.
 
@@ -153,11 +111,11 @@ Set `timeout` to the lowest value your function needs. Timeouts don't affect cos
 
 ## Right-size container resources
 
-Fargate bills for the exact CPU/memory combination you request. Over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape debug:metrics`](/cli/debug-metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
+For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape debug:metrics`](/cli/debug-metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
 
-Stacktape supports these Fargate vCPU values: `0.25`, `0.5`, `1`, `2`, `4`, `8`, and `16`. Each CPU tier has an allowed memory range. Start at the smallest combination that keeps your application responsive and scale up only when metrics justify it.
+Start at the smallest CPU/memory combination that keeps your application responsive and scale up only when metrics justify it. See the [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), and [worker service](/resources/compute/worker-service) pages for the supported CPU and memory values on each resource.
 
-For services with variable load, configure auto-scaling to add instances under pressure rather than over-provisioning a single large instance:
+For services with variable load, auto-scaling adds instances under pressure rather than over-provisioning a single large instance. See the [web service](/resources/compute/web-service) page for all scaling options — here's a typical setup:
 
 
 Example (TypeScript):
@@ -171,8 +129,7 @@ export default defineConfig(() => {
     }),
     resources: {
       cpu: 0.5,
-      memory: 1024,
-      architecture: 'arm64'
+      memory: 1024
     },
     scaling: {
       minInstances: 1,
@@ -188,7 +145,7 @@ export default defineConfig(() => {
 ```
 
 
-The `scaling.maxInstances` value caps how many instances Fargate can run simultaneously — this is your cost ceiling. Set it based on what your budget allows, not just what traffic might demand.
+In this example, `cpu: 0.5` requests half a vCPU and `memory: 1024` requests 1,024 MB — the smallest values that keep this service responsive. `minInstances: 1` is the always-on floor (you always pay for at least one instance), while `maxInstances: 4` caps horizontal scale-out and acts as your cost ceiling. `keepAvgCpuUtilizationUnder: 70` tells the auto-scaler to add instances when average CPU exceeds 70% — adjust this threshold based on observed metrics. See the [web service](/resources/compute/web-service) page for all available scaling options and supported CPU/memory values.
 
 ## Choose the right database engine
 
@@ -220,43 +177,38 @@ For Redis use cases that don't require sub-millisecond latency from a dedicated 
 
 ## Add a CDN for cacheable traffic
 
-A [CDN](/resources/networking/cdn) (CloudFront) caches responses at edge locations so repeat requests never reach your origin. This reduces Lambda invocations, container load, and data transfer costs. CloudFront has no monthly base fee — you pay per-request plus per-GB data transfer.
+A [CDN](/resources/networking/cdn) (CloudFront) caches responses at edge locations for cacheable content and can reduce origin traffic. CloudFront pricing is per request and data transfer rather than a monthly base fee.
 
-Enable a CDN on your [web service](/resources/compute/web-service) when it returns cacheable content (static assets, public API responses, server-rendered pages). Skip it for APIs where every response is unique and user-specific — caching won't help, and the extra hop adds slight latency.
+Enable a CDN on your [web service](/resources/compute/web-service) when it returns cacheable content (static assets, public API responses, server-rendered pages). The `network-load-balancer` load balancing option is designed for non-HTTP TCP/TLS traffic and does not support CDN, top-level firewall, or gradual deployments — use `http-api-gateway` or `application-load-balancer` for HTTP workloads where CDN caching is part of the design. Skip the CDN for APIs where every response is unique and user-specific — caching won't help, and the extra hop adds slight latency.
 
 You can restrict the CDN price class to reduce per-request cost in premium regions. Lower price classes limit which edge regions serve your content, which reduces cost but increases latency for users outside the covered regions.
 
 ## Reduce log retention
 
-CloudWatch log storage accumulates cost over time. Each resource type in Stacktape has a default log retention period:
+CloudWatch log storage accumulates cost over time. [Batch job](/resources/compute/batch-job) logs default to 90 days of retention. For other resources, check the logging section on that resource's page before changing retention. You can view logs with [`stacktape debug:logs`](/cli/debug-logs).
 
-| Resource type | Default retention |
-|--------------|------------------|
-| Lambda function | 180 days |
-| Container workloads | 90 days |
-| Batch jobs | 90 days |
-| Relational databases | 90 days |
-
-For development and staging stages, 7–14 days of log retention is usually enough. For production, 30–60 days covers most debugging scenarios. Set `retentionDays` in the `logging` block of each resource:
+For development and staging stages, 7–14 days of log retention is usually enough. For production, 30–60 days covers most debugging scenarios. For batch jobs, set `retentionDays` in the `logging` block — other resources may expose their own logging settings, so check each resource's page for details:
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, BatchJob, CustomDockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
+  const processor = new BatchJob({
+    container: {
+      packaging: new CustomDockerfilePackaging({
+        buildContextPath: '.',
+        dockerfilePath: './Dockerfile'
+      })
+    },
+    resources: { cpu: 1, memory: 1920 },
     logging: {
       retentionDays: 14
-    },
-    memory: 512,
-    timeout: 10
+    }
   });
 
-  return { resources: { api } };
+  return { resources: { processor } };
 });
 ```
 
@@ -273,31 +225,31 @@ Review your stacks regularly in the Stacktape Console or with [`stacktape info:s
 stacktape delete --stage old-feature
 ```
 
-For PR-preview workflows, use the [stacks-per-git-branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) with automatic cleanup so stages are deleted when branches are merged.
+For PR-preview workflows, see the [stacks-per-git-branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) and make cleanup part of the workflow so old stages are deleted after branches are merged.
 
 ## Avoid unnecessary NAT Gateways
 
-A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Container workloads in Stacktape can enable a NAT Gateway via `usePrivateSubnetsWithNAT: true`. This is necessary when you need a static outbound IP for third-party API whitelisting, but for most workloads you don't need it.
+A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting or private subnet egress for a workload that needs it. Most workloads don't need one.
 
-Only enable `usePrivateSubnetsWithNAT` when you have a concrete requirement for static outbound IPs. For details on VPC networking behavior and Lambda internet access, see the [Lambda function](/resources/compute/lambda-function) and [web service](/resources/compute/web-service) resource pages.
+For details on VPC networking and private subnet configuration, see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [multi-container workload](/resources/compute/multi-container-workload) resource pages.
 
 ## Use dev mode during development
 
-Running [`stacktape dev`](/local-development/dev-mode-overview) lets you iterate locally without deploying real AWS resources for every code change. Dev mode runs your functions and containers locally while connecting to deployed cloud resources (databases, queues, buckets). This avoids the cost of repeated full deployments and keeps your feedback loop fast.
+Running [`stacktape dev`](/local-development/dev-mode-overview) lets you iterate locally without redeploying for every code change. Use it to shorten the feedback loop during development — see the [dev mode overview](/local-development/dev-mode-overview) for exact local/cloud runtime behavior.
 
-For [relational databases](/resources/databases/relational-database) and [DynamoDB](/resources/databases/dynamodb), dev mode can run a local Docker container. Set `dev.remote: true` only when you need to test against the actual deployed database — the local container is free while the deployed one bills continuously.
+For databases that support running locally during development, see [local databases in dev mode](/local-development/local-databases) — running a local instance avoids the cost of a deployed database while you iterate.
 
 ## Set up budget alerts
 
 AWS costs can spike unexpectedly — a misconfigured auto-scaling policy, a traffic surge, or a forgotten stack. [Budget alerts](/managing-costs/budgets) notify you when spending exceeds a threshold, giving you time to react before the bill grows.
 
-Start with two thresholds: 80% (early warning) and 100% (immediate action). Budgets can be scoped to your whole organization or to individual stacks.
+Start with two thresholds: 80% (early warning) and 100% (immediate action). Set up budget alerts for the spend you want to monitor.
 
 ## Cost optimization checklist
 
 Use this checklist when reviewing a stack's cost profile:
 
-- [ ] Lambda functions and Fargate tasks use `arm64` architecture
+- [ ] Use ARM/Graviton architecture where supported
 - [ ] Lambda memory is profiled and right-sized (not left at default)
 - [ ] Container CPU/memory matches actual utilization (check metrics)
 - [ ] Auto-scaling is configured for container services with variable traffic
@@ -310,7 +262,7 @@ Use this checklist when reviewing a stack's cost profile:
 - [ ] CDN is enabled for services with cacheable responses
 - [ ] Batch jobs use spot instances where safe
 - [ ] Batch jobs have `timeout` set to prevent runaway costs
-- [ ] No unnecessary NAT Gateways (`usePrivateSubnetsWithNAT` disabled unless needed)
+- [ ] No unnecessary NAT Gateways (private subnet with NAT disabled unless needed)
 
 ## FAQ
 
@@ -320,15 +272,15 @@ The Stacktape Console provides [per-resource cost breakdowns](/managing-costs/pe
 
 ### Does Stacktape add cost on top of AWS?
 
-Stacktape charges a subscription fee that is separate from your AWS bill. AWS resources are billed directly by AWS to your connected AWS account. The Stacktape subscription covers the Console, GitOps, observability integrations, and the CLI tooling. See [billing and subscription](/stacktape-console/billing-and-subscription) for plan details.
+Stacktape's subscription fee is separate from your AWS bill. AWS resources are billed directly by AWS to your connected AWS account. See [billing and subscription](/stacktape-console/billing-and-subscription) for plan details.
 
-### Can Fargate containers scale to zero?
+### Can a Stacktape web service scale to zero?
 
-No. AWS Fargate requires a minimum of 1 running instance. Container-based resources ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service)) always have at least one instance running and billing. If your workload has periods of zero traffic, a [Lambda function](/resources/compute/lambda-function) is cheaper — it costs nothing when idle.
+No. A [web service](/resources/compute/web-service) is a container running 24/7 with a public HTTPS URL, so treat it as always-on compute rather than a scale-to-zero endpoint. If your workload has periods of zero traffic, a [Lambda function](/resources/compute/lambda-function) is cheaper — it costs nothing when idle.
 
 ### How much cheaper is ARM/Graviton?
 
-ARM-based (Graviton) compute is ~20% cheaper per unit than x86 across Lambda functions and Fargate containers. For Lambda, billing is per GB-second — the same function at the same memory costs ~20% less on `arm64`. For Fargate, the per-vCPU and per-GB-hour rates are ~20% lower. Most modern application runtimes (Node.js, Python, Go, Java, .NET) run on ARM without changes. The `architecture` property is ignored when using EC2 `instanceTypes` — choose Graviton instance families directly in that case.
+AWS prices Graviton (`arm64`) instances below comparable x86 instances across Lambda and Fargate, so switching architectures usually lowers compute cost without changing behavior. Most modern application runtimes (Node.js, Python, Go, Java, .NET) run on ARM without changes. See the [Lambda function](/resources/compute/lambda-function) and [web service](/resources/compute/web-service) pages for how to configure architecture on each resource.
 
 ### When should I use Aurora Serverless v2 vs standard RDS?
 

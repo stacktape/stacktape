@@ -14,8 +14,8 @@
  * exports, snapshot imports), an ALB for HTTPS + WebSocket traffic, and an optional admin dashboard.
  *
  * On every `stacktape deploy`, after the infrastructure is healthy, Stacktape runs `npx convex deploy`
- * from your `appDirectory` to push the latest function code to the freshly-deployed backend, with the
- * admin key auto-injected from AWS Secrets Manager.
+ * from the parent project directory to push the latest function code to the freshly-deployed backend, with
+ * the admin key injected automatically.
  *
  * ---
  *
@@ -23,9 +23,7 @@
  *
  * The open-source convex-backend distribution is **single-process**: it cannot be horizontally scaled.
  * Running two backends against the same Postgres would corrupt MVCC transaction validation and break
- * reactive query invalidation. Stacktape therefore enforces a single active task. For higher
- * availability, set `backend.highAvailability: true` to run a warm standby that fails over in ~5–10s
- * instead of the ~60–90s cold-start window.
+ * reactive query invalidation. Stacktape therefore enforces one active backend task.
  *
  * Scale **vertically** by bumping `backend.resources.cpu`/`memory` (or by switching to `instanceTypes`
  * with EC2). A single 4 vCPU / 8 GB backend comfortably handles thousands of concurrent reactive
@@ -37,7 +35,7 @@
  *
  * The smallest viable configuration (single-AZ `db.t4g.micro` Postgres, 0.5 vCPU / 1 GB Fargate
  * backend, 0.25 vCPU / 512 MB dashboard, ALB, S3) lands around **$45–65/month idle**. Production
- * configurations with HA and larger backends scale up from there.
+ * configurations with larger backends scale up from there.
  */
 interface Convex {
   type: 'convex';
@@ -47,17 +45,29 @@ interface Convex {
 
 interface ConvexProps {
   /**
-   * #### Path to the `convex/` directory in your project (where `schema.ts` and function files live).
+   * #### Path to the `convex/` directory in your project.
    *
    * ---
    *
-   * After each `stacktape deploy`, Stacktape runs `npx convex deploy` from this directory against the
-   * freshly-deployed backend. Type generation (`convex/_generated/`) should be wired in via a
-   * `hooks.beforeDeploy` script running `npx convex codegen` — see the `convex-nextjs` starter project.
+   * After each `stacktape deploy`, Stacktape runs `npx convex deploy` from the parent project directory
+   * against the freshly-deployed backend.
    *
    * Example: `appDirectory: './convex'`
    */
   appDirectory: string;
+  /**
+   * #### How Stacktape deploys Convex functions after infrastructure is ready.
+   *
+   * ---
+   *
+   * By default, Stacktape runs `npx convex deploy --codegen disable --typecheck try` from the
+   * project directory containing `appDirectory`, with `CONVEX_SELF_HOSTED_URL` and
+   * `CONVEX_SELF_HOSTED_ADMIN_KEY` injected automatically.
+   *
+   * Set `enabled: false` if your CI/CD pipeline deploys functions separately, or set `command`
+   * when your project uses a custom package-manager command.
+   */
+  functionsDeployment?: ConvexFunctionsDeploymentConfig;
   /**
    * #### Custom domains for the Convex backend.
    *
@@ -71,8 +81,7 @@ interface ConvexProps {
    * - **`site`** — the HTTP-actions endpoint (`CONVEX_SITE_ORIGIN`). User-defined `httpAction()`
    *   routes (webhooks, OAuth callbacks, etc.) live here. Kept separate from `cloud` so webhook
    *   URLs don't collide with internal API paths. Required.
-   * - **`dashboard`** — optional. If provided and `dashboard.enabled` is `true`, the dashboard
-   *   serves at this domain. Otherwise the dashboard is reachable via the ALB DNS on port 6791.
+   * - **`dashboard`** — required when `dashboard.enabled` is `true`. The dashboard serves at this domain.
    *
    * Each domain must have a Route53 hosted zone in your AWS account. Stacktape provisions free
    * TLS certificates and DNS records automatically.
@@ -85,7 +94,7 @@ interface ConvexProps {
   /**
    * #### Configuration for the Convex backend container (the Rust server process).
    */
-  backend: ConvexBackendConfig;
+  backend?: ConvexBackendConfig;
   /**
    * #### Configuration for the Convex admin dashboard.
    *
@@ -155,6 +164,37 @@ interface ConvexProps {
   disabledGlobalAlarms?: string[];
 }
 
+interface ConvexFunctionsDeploymentConfig {
+  /**
+   * #### Whether Stacktape should deploy Convex functions after infrastructure deploy.
+   *
+   * @default true
+   */
+  enabled?: boolean;
+  /**
+   * #### Custom command to deploy Convex functions.
+   *
+   * ---
+   *
+   * Stacktape injects `CONVEX_SELF_HOSTED_URL` and `CONVEX_SELF_HOSTED_ADMIN_KEY` into the command
+   * environment. If omitted, Stacktape runs:
+   *
+   * `npx convex deploy --codegen disable --typecheck try`
+   *
+   * Examples: `pnpm convex deploy --codegen disable`, `bunx convex deploy --typecheck disable`.
+   */
+  command?: string;
+  /**
+   * #### Working directory for the deploy command.
+   *
+   * ---
+   *
+   * Defaults to the project directory containing `appDirectory` when `appDirectory` points at a
+   * `convex/` folder.
+   */
+  workingDirectory?: string;
+}
+
 interface ConvexCustomDomains {
   /**
    * #### API + WebSocket origin. Set as `CONVEX_CLOUD_ORIGIN` on the backend.
@@ -174,11 +214,10 @@ interface ConvexCustomDomains {
    */
   site: DomainConfiguration;
   /**
-   * #### Optional dashboard domain. Only used if `dashboard.enabled` is `true`.
+   * #### Dashboard domain. Required if `dashboard.enabled` is `true`.
    *
    * ---
    *
-   * If omitted, the dashboard is served on the ALB's default DNS at port 6791.
    * Example: `convex-admin.myapp.com`.
    */
   dashboard?: DomainConfiguration;
@@ -190,7 +229,7 @@ interface ConvexBackendConfig {
    *
    * ---
    *
-   * Required — there is no default. Pick a sizing appropriate to your workload:
+   * Defaults to `{ cpu: 0.5, memory: 1024 }`. Override this for production traffic:
    *
    * - **Hobby / small dev**: `{ cpu: 0.5, memory: 1024 }` — fine for a few dozen concurrent users
    * - **Production baseline**: `{ cpu: 1, memory: 2048 }` — handles hundreds of concurrent reactive subscribers
@@ -201,67 +240,18 @@ interface ConvexBackendConfig {
    *
    * Convex backend is single-process — scale **vertically** (bigger box), not horizontally.
    */
-  resources: ContainerWorkloadResourcesConfig;
+  resources?: ContainerWorkloadResourcesConfig;
   /**
    * #### Pinned Convex backend Docker image.
    *
    * ---
    *
    * Defaults to a known-good version pinned by Stacktape (currently from `ghcr.io/get-convex/convex-backend`).
-   * Override to test newer/older versions. Image upgrades trigger Convex's in-place migration path
-   * (see `deploymentMode`).
+   * Override to test newer/older versions. Image upgrades trigger Convex's in-place migration path.
    *
    * Example: `image: 'ghcr.io/get-convex/convex-backend:0a8d9ae0f0e5c6c9c0c0c0c0'`
    */
   image?: string;
-  /**
-   * #### Run a warm standby task for ~5–10s failover instead of ~60–90s cold start.
-   *
-   * ---
-   *
-   * When `true`, Stacktape runs an additional backend task in the same ECS service, kept
-   * deregistered from the ALB target group. On primary task failure, an event-driven Lambda
-   * swaps the targets: deregister the dead primary, register the standby, then launch a new
-   * standby in the background.
-   *
-   * Both tasks share the same Postgres + S3, but only one ever serves traffic — preserving
-   * Convex's single-writer correctness invariant.
-   *
-   * **Cost:** 2× backend compute (roughly an extra $20–50/month at small sizes).
-   *
-   * @default false
-   */
-  highAvailability?: boolean;
-  /**
-   * #### How `stacktape deploy` handles backend version upgrades.
-   *
-   * ---
-   *
-   * - **`auto`** *(default)*: Non-image changes (env vars, sizing) use warm-standby blue/green
-   *   for ~3–8s downtime. Image-version changes follow Convex's official Option 1 in-place
-   *   migration: stop active → start new version → wait for `MigrationComplete(N)` log line →
-   *   bring up traffic. ~30s to a few minutes depending on migration size.
-   * - **`fast`**: Forces warm-standby blue/green even on image changes. **Unsafe** unless you've
-   *   verified the upgrade has no schema migrations.
-   * - **`safe`**: Always uses Convex's Option 2 export/import path — full data export before
-   *   the upgrade, then import after. Most downtime, lowest risk. Use for major version jumps
-   *   or when in-place migration has previously failed.
-   *
-   * @default 'auto'
-   */
-  deploymentMode?: 'auto' | 'fast' | 'safe';
-  /**
-   * #### Run `npx convex export` to the `exports` bucket before any backend image upgrade.
-   *
-   * ---
-   *
-   * Provides a one-command restore path if a migration goes wrong. Recommended by Convex's
-   * official self-hosted upgrade guide. Disable only if you have a separate backup strategy
-   * and want faster image upgrades.
-   *
-   * @default true
-   */
-  preUpgradeExport?: boolean;
   /**
    * #### Logging configuration for the backend container.
    *
@@ -276,10 +266,9 @@ interface ConvexBackendConfig {
    *
    * ---
    *
-   * Enables `stacktape container:session` to open an interactive shell. Adds a small SSM agent
-   * (negligible CPU/memory).
-   *
-   * @default false
+   * Stacktape enables ECS Exec for Convex internally because it is required to generate the managed
+   * admin key after the backend starts. This property is kept for compatibility with generic workload
+   * controls and may be removed in a future Convex resource revision.
    */
   enableRemoteSessions?: boolean;
 }
@@ -315,7 +304,7 @@ interface ConvexDashboardConfig {
    *
    * ---
    *
-   * Required when the dashboard is enabled. The dashboard is a Next.js app and is very light —
+   * Defaults to `{ cpu: 0.25, memory: 512 }`. The dashboard is a Next.js app and is very light —
    * `{ cpu: 0.25, memory: 512 }` is plenty for most teams.
    */
   resources?: ContainerWorkloadResourcesConfig;

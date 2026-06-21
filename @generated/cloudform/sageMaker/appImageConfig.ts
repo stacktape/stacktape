@@ -8,8 +8,8 @@ export class CodeEditorAppImageConfig {
 }
 
 export class ContainerConfig {
-  ContainerEntrypoint?: List<Value<string>>;
   ContainerEnvironmentVariables?: List<CustomImageContainerEnvironmentVariable>;
+  ContainerEntrypoint?: List<Value<string>>;
   ContainerArguments?: List<Value<string>>;
   constructor(properties: ContainerConfig) {
     Object.assign(this, properties);

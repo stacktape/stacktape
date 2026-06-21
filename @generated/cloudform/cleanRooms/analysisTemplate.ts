@@ -55,6 +55,13 @@ export class AnalysisTemplateArtifacts {
   }
 }
 
+export class ColumnClassificationDetails {
+  ColumnMapping!: List<SyntheticDataColumnProperties>;
+  constructor(properties: ColumnClassificationDetails) {
+    Object.assign(this, properties);
+  }
+}
+
 export class ErrorMessageConfiguration {
   Type!: Value<string>;
   constructor(properties: ErrorMessageConfiguration) {
@@ -69,10 +76,35 @@ export class Hash {
   }
 }
 
+export class MLSyntheticDataParameters {
+  ColumnClassification!: ColumnClassificationDetails;
+  Epsilon!: Value<number>;
+  MaxMembershipInferenceAttackScore!: Value<number>;
+  constructor(properties: MLSyntheticDataParameters) {
+    Object.assign(this, properties);
+  }
+}
+
 export class S3Location {
   Bucket!: Value<string>;
   Key!: Value<string>;
   constructor(properties: S3Location) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SyntheticDataColumnProperties {
+  ColumnName!: Value<string>;
+  ColumnType!: Value<string>;
+  IsPredictiveValue!: Value<boolean>;
+  constructor(properties: SyntheticDataColumnProperties) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SyntheticDataParameters {
+  MlSyntheticDataParameters!: MLSyntheticDataParameters;
+  constructor(properties: SyntheticDataParameters) {
     Object.assign(this, properties);
   }
 }
@@ -84,6 +116,7 @@ export interface AnalysisTemplateProperties {
   ErrorMessageConfiguration?: ErrorMessageConfiguration;
   AnalysisParameters?: List<AnalysisParameter>;
   Schema?: AnalysisSchema;
+  SyntheticDataParameters?: SyntheticDataParameters;
   Source: AnalysisSource;
   Tags?: List<ResourceTag>;
   Name: Value<string>;
@@ -96,9 +129,13 @@ export default class AnalysisTemplate extends ResourceBase<AnalysisTemplatePrope
   static AnalysisTemplateArtifact = AnalysisTemplateArtifact;
   static AnalysisTemplateArtifactMetadata = AnalysisTemplateArtifactMetadata;
   static AnalysisTemplateArtifacts = AnalysisTemplateArtifacts;
+  static ColumnClassificationDetails = ColumnClassificationDetails;
   static ErrorMessageConfiguration = ErrorMessageConfiguration;
   static Hash = Hash;
+  static MLSyntheticDataParameters = MLSyntheticDataParameters;
   static S3Location = S3Location;
+  static SyntheticDataColumnProperties = SyntheticDataColumnProperties;
+  static SyntheticDataParameters = SyntheticDataParameters;
   constructor(properties: AnalysisTemplateProperties) {
     super('AWS::CleanRooms::AnalysisTemplate', properties);
   }

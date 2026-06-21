@@ -1,6 +1,6 @@
 # cf-module:update
 
-The `cf-module:update` command updates CloudFormation infrastructure module private types in your AWS account to the latest compatible version. Stacktape uses these modules to integrate third-party services — MongoDB Atlas, Upstash Redis, and ECS Blue/Green deployments — into your stack. Run this command when a third-party API changes and your modules need a newer version.
+The `cf-module:update` command updates CloudFormation infrastructure module private types in your AWS account to the latest compatible version. Stacktape currently offers updates for `atlasMongo`, `upstashRedis`, and `ecsBlueGreen` CloudFormation private types. Run this command when an upstream API change for one of these modules requires the registration in your account to be updated, or when an error message or Stacktape support explicitly tells you to update a module.
 
 ## Usage
 
@@ -8,27 +8,125 @@ The `cf-module:update` command updates CloudFormation infrastructure module priv
 stacktape cf-module:update --region eu-west-1
 ```
 
-The command is interactive. After running it, you select which module to update from a prompt. The three available modules are:
+The command is interactive — after running it, you select which module to update from a prompt. There is no CLI flag to specify the module directly, so the command requires interactive terminal input. The three available modules are:
 
-- **atlasMongo** — the CloudFormation type backing [MongoDB Atlas clusters](/resources/databases/mongodb-atlas)
-- **upstashRedis** — the CloudFormation type backing [Upstash Redis](/resources/databases/upstash-redis) resources
-- **ecsBlueGreen** — the CloudFormation type supporting ECS Blue/Green deployments
+- `atlasMongo`
+- `upstashRedis`
+- `ecsBlueGreen`
 
-Once you select a module, Stacktape initializes the CloudFormation registry, loads the current private types, and registers the newest available version.
-
-## When to use
-
-Run `cf-module:update` when:
-
-- A [deploy](/cli/deploy) fails because a third-party module type is outdated or incompatible with an upstream API change.
-- You receive errors related to CloudFormation private type registration during deployment of MongoDB Atlas, Upstash Redis, or ECS Blue/Green resources.
-- You want to proactively update module types before deploying, for example after Stacktape announces a new module version.
-
-You do not need to run this command regularly. Module types only need updating when the upstream provider's API changes in a way that requires a new CloudFormation type version.
+Once you select a module, Stacktape initializes the CloudFormation registry, loads private types and packages for the selected module, and registers the newest available private type version.
 
 
 > **Info:** This command updates the CloudFormation private type registration in your AWS account for a specific region. If you use the same module in multiple regions, run the command once per region.
 
+
+## Arguments reference
+
+<CliCommandsApiReference command="cf-module:update" sortedArgs={[
+  {
+    "name": "region",
+    "required": true,
+    "alias": "r",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "us-east-2",
+      "us-east-1",
+      "us-west-1",
+      "us-west-2",
+      "ap-east-1",
+      "ap-south-1",
+      "ap-northeast-3",
+      "ap-northeast-2",
+      "ap-southeast-1",
+      "ap-southeast-2",
+      "ap-northeast-1",
+      "ca-central-1",
+      "eu-central-1",
+      "eu-west-1",
+      "eu-west-2",
+      "eu-west-3",
+      "eu-north-1",
+      "me-south-1",
+      "sa-east-1",
+      "af-south-1",
+      "eu-south-1"
+    ],
+    "shortDescription": "<p> AWS Region</p>\n",
+    "longDescription": "<p>The AWS region for the operation. For a list of available regions, see the <a href=\"https://docs.aws.amazon.com/general/latest/gr/rande.html\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">AWS documentation</a>.</p>\n"
+  },
+  {
+    "name": "agent",
+    "required": false,
+    "alias": "ag",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Agent Mode</p>\n",
+    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
+  },
+  {
+    "name": "awsAccount",
+    "required": false,
+    "alias": "aa",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> AWS Account</p>\n",
+    "longDescription": "<p>The name of the AWS account to use for the operation. The account must first be connected in the <a href=\"https://console.stacktape.com/aws-accounts\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Stacktape console</a>.</p>\n"
+  },
+  {
+    "name": "help",
+    "required": false,
+    "alias": "h",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Show Help</p>\n",
+    "longDescription": "<p>If provided, the command will not execute and will instead print help information.</p>\n"
+  },
+  {
+    "name": "logLevel",
+    "required": false,
+    "alias": "ll",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "info",
+      "debug",
+      "error"
+    ],
+    "shortDescription": "<p> Log Level</p>\n",
+    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+  },
+  {
+    "name": "outputFormat",
+    "required": false,
+    "alias": "ofmt",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "jsonl",
+      "plain",
+      "tty"
+    ],
+    "shortDescription": "<p> Output Format</p>\n",
+    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
+  },
+  {
+    "name": "profile",
+    "required": false,
+    "alias": "p",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> AWS Profile</p>\n",
+    "longDescription": "<p>The AWS profile to use for the command. You can manage profiles using the <code>aws-profile:*</code> commands and set a default profile with <code>defaults:configure</code>.</p>\n"
+  }
+]} />
 
 ## Examples
 
@@ -38,7 +136,7 @@ Update modules in `us-east-1`.
 stacktape cf-module:update --region us-east-1
 ```
 
-Use a specific AWS profile for credentials.
+Specify an AWS profile with the `--profile` argument.
 
 ```bash
 stacktape cf-module:update --region eu-west-1 --profile my-aws-profile
@@ -50,38 +148,8 @@ Enable debug logging to troubleshoot registration failures.
 stacktape cf-module:update --region eu-west-1 --logLevel debug
 ```
 
-## Arguments reference
-
-
-## CLI Options: `stacktape cf-module:update`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--region (-r)` | yes | `string` | AWS Region The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption:
-
-Uses strict JSONL/NDJSON output (one JSON object per line)
-Disables interactive terminal UI
-Automatically confirms operations (equivalent to --autoConfirmOperation)
-For dev command: also enables HTTP server for programmatic control. | - |
-| `--awsAccount (-aa)` | no | `string` | AWS Account The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts). | - |
-| `--help (-h)` | no | `string` | Show Help If provided, the command will not execute and will instead print help information. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format:
-
-`jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.
-`plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.
-`tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
-If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
-
-
 ## Related commands
 
 - [`deploy`](/cli/deploy) — deploy your stack, which uses the module types registered in your account
 - [`cf:rollback`](/cli/cf-rollback) — roll back a CloudFormation stack to the last known good state if an update fails
-- [`compile-template`](/cli/compile-template) — compile your Stacktape config into a CloudFormation template to inspect which module types are referenced
+- [`compile-template`](/cli/compile-template) — compile your Stacktape config into a CloudFormation template before deployment

@@ -6,7 +6,7 @@ A Stacktape CDK construct resource (`AwsCdkConstruct`) lets you embed an AWS CDK
 
 Use a CDK construct when you need an AWS resource that Stacktape does not have a built-in resource type for. Common scenarios:
 
-- **AWS services without a native Stacktape resource** — Cognito identity pools, AppSync GraphQL APIs, IoT Core rules, MediaConvert pipelines, or any of the 200+ AWS services that CDK covers.
+- **AWS services without a native Stacktape resource** — Cognito identity pools, AppSync GraphQL APIs, IoT Core rules, MediaConvert pipelines, and other AWS services that CDK supports.
 - **Complex multi-resource patterns** — CDK L2 and L3 constructs wire up multiple underlying CloudFormation resources with sensible defaults (e.g., an S3 bucket with a CloudFront distribution and origin access identity in one construct).
 - **Reusing existing CDK constructs** — your team already has CDK constructs for internal infrastructure patterns, and you want to embed them in a Stacktape-managed stack instead of maintaining a separate CDK app.
 
@@ -16,7 +16,7 @@ CDK constructs are the right choice when the resource you need involves multiple
 
 Skip CDK constructs when a simpler alternative fits:
 
-- **Stacktape has a native resource type.** Native resources come with `connectTo` integration, [referenceable parameters](/configuration/referenceable-parameters), [alarms](/observability/alarms), and [dev mode](/local-development/dev-mode-overview) support. A CDK construct gets none of these.
+- **Stacktape has a native resource type.** Many native Stacktape resources integrate with features such as [`connectTo`](/configuration/connecting-resources), [referenceable parameters](/configuration/referenceable-parameters), or resource-specific [alarms](/observability/alarms). `AwsCdkConstructProps` only exposes `entryfilePath`, `exportName`, and `constructProperties`. Prefer the native resource when one exists.
 - **You need a single CloudFormation resource.** Use [`cloudformationResources`](/resources/advanced/raw-cloudformation-resources) instead — it requires no extra dependencies and is simpler for one-off resources like a CloudWatch dashboard or an IAM role.
 - **You only need to tweak a Stacktape-managed resource.** Use [overrides](/configuration/overrides-and-escape-hatches) to modify the underlying CloudFormation properties of an existing resource directly.
 
@@ -29,7 +29,7 @@ Skip CDK constructs when a simpler alternative fits:
 
 ## Prerequisites
 
-CDK construct code requires `aws-cdk-lib` and `constructs` as project dependencies. Install them before deploying a stack that includes a CDK construct.
+The Stacktape config type requires the entry file to export a class that extends `Construct` from `aws-cdk-lib`. In CDK v2, the `Construct` base class is provided by the `constructs` package. Both are standard CDK v2 dependencies — install them before deploying.
 
 ```bash
 npm install aws-cdk-lib constructs
@@ -39,7 +39,7 @@ If you use a different package manager, replace `npm install` with `pnpm add`, `
 
 ## Basic example
 
-The minimal setup points `entryfilePath` to a file that exports a class extending `Construct` from `aws-cdk-lib`. Stacktape uses the default export by default.
+The minimal setup points `entryfilePath` to a file that exports a class extending `Construct`. Stacktape uses the default export by default.
 
 
 Example (TypeScript):
@@ -58,7 +58,7 @@ export default defineConfig(() => {
 ```
 
 
-The construct file is a standard CDK construct class. According to the `entryfilePath` source definition, the file must export a class that extends `Construct` from `aws-cdk-lib`.
+The construct file is a standard CDK construct class. The Stacktape config type requires the file to export a class that extends `Construct` from `aws-cdk-lib`. In CDK v2, `Construct` is typically imported from the `constructs` package, as shown below.
 
 ```typescript
 import { Construct } from 'constructs';
@@ -80,13 +80,13 @@ export default class NotificationTopic extends Construct {
 }
 ```
 
-The `Construct` base class is part of the `constructs` package, which `aws-cdk-lib` depends on. Importing from either `constructs` or `aws-cdk-lib` works — the `constructs` import is the standard CDK pattern used in most CDK documentation and examples.
+The example uses the `constructs` package import, which is the standard CDK v2 convention for the `Construct` base class.
 
 ## Construct entry file
 
 The `entryfilePath` property points to a `.ts` or `.js` file containing your construct class. Two rules apply:
 
-1. The file must export a class that extends `Construct` from `aws-cdk-lib`.
+1. The file must export a class that extends `Construct` from `aws-cdk-lib`. In practice, CDK v2 projects import `Construct` from the `constructs` package.
 2. If the entry file uses a named export instead of a default export, set `exportName` to the exact class name.
 
 By default, Stacktape uses the default export (`exportName` defaults to `"default"`). If your file has multiple exports or only uses named exports, specify which class to use.
@@ -142,7 +142,7 @@ Use `constructProperties` to pass configuration to your construct's constructor.
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, AwsCdkConstruct, Bucket } from 'stacktape';
+import { defineConfig, Bucket, AwsCdkConstruct } from 'stacktape';
 export default defineConfig(() => {
   const dataBucket = new Bucket({});
 
@@ -199,34 +199,26 @@ export default class DataPipeline extends Construct {
 }
 ```
 
-
-> **Warning:** Stacktape [directives](/configuration/directives) like `$ResourceParam()` and `$Secret()` resolve to CloudFormation intrinsic function expressions (e.g., `Fn::GetAtt`) rather than plain string values. In CDK, these arrive as token strings in your constructor. This works when your construct passes the value through to a CloudFormation resource property without parsing or manipulating it — for example, setting it as a Lambda environment variable or using CDK's `fromXxxArn()` import methods. If your construct validates, parses, or transforms the value at synthesis time, synthesis may fail or produce incorrect output.
-
-
 ## Limitations
 
-CDK constructs operate outside Stacktape's managed resource model. They are a useful escape hatch, but they do not integrate with several Stacktape features that native resources support:
+`AwsCdkConstructProps` only exposes `entryfilePath`, `exportName`, and `constructProperties`, so CDK constructs do not get the same Stacktape-specific integration features as native resources:
 
-- **No `connectTo` support.** CDK-created resources cannot be used in [`connectTo`](/configuration/connecting-resources) arrays. To connect a Stacktape workload to a CDK-created resource, set environment variables manually or use `iamRoleStatements` for IAM permissions.
-- **No referenceable parameters.** CDK constructs do not appear in the [`$ResourceParam()`](/configuration/directives) referenceable parameter system. To pass values *out* of a CDK construct to other parts of your stack, use [`stackConfig.outputs`](/configuration/configuration-files) if the value can be expressed through documented directives.
-- **No overrides.** The `overrides` property is not available for CDK constructs. Modify the CDK construct code directly instead.
-- **No dev mode.** CDK constructs are not emulated during [`stacktape dev`](/cli/dev). They exist only in deployed stacks.
+- **No `connectTo` support.** `AwsCdkConstructProps` does not define a `connectTo` field. Use `constructProperties` to pass Stacktape-managed values into the CDK construct. For workloads that expose `environment` and `iamRoleStatements` (such as [Lambda functions](/resources/compute/lambda-function) and [container workloads](/resources/compute/multi-container-workload)), configure those fields manually to grant access to CDK-created resources.
+- **No referenceable parameters.** The referenceable-parameter types do not define parameters for `aws-cdk-construct`, so [`$ResourceParam()`](/configuration/directives) cannot reference outputs from an `AwsCdkConstruct`. To wire values between resources, keep the consuming resources inside the same CDK construct where CDK can handle references natively.
+- **No overrides.** `AwsCdkConstruct` does not expose an `overrides` property in the current config type. Modify the CDK construct code directly instead.
+- **No dev mode.** `AwsCdkConstructProps` does not expose a `devMode` setting, and `aws-cdk-construct` is not listed among `DevModeCapableResourceType` values (which include `batch-job`, `multi-container-workload`, and `function`).
 
 ## Comparison with raw CloudFormation
 
 Stacktape offers two escape hatches for deploying resources it does not natively support. Choose based on complexity.
 
-
-## Feature Comparison
-
 | Feature | CDK construct | cloudformationResources |
-| --- | --- | --- |
+|---------|--------------|------------------------|
 | Best for | Multi-resource patterns, L2/L3 constructs | Single AWS resources |
-| Dependencies | aws-cdk-lib + constructs | None |
+| Dependencies | `aws-cdk-lib` + `constructs` | None |
 | Abstraction level | High (CDK L2/L3 with defaults) | Low (raw CF properties) |
 | Code reuse | Full CDK construct ecosystem | Copy-paste CF JSON |
-| Setup effort | Separate file + npm install | Inline in config |
-
+| Setup effort | Separate file + dependency install | Inline in config |
 
 For a CloudWatch dashboard or a single IAM role, [`cloudformationResources`](/resources/advanced/raw-cloudformation-resources) is simpler — no extra dependencies, no separate file. For an AppSync API with resolvers, DynamoDB tables, and IAM roles wired together, a CDK construct saves significant effort because CDK L2/L3 constructs handle the cross-resource wiring and sensible defaults.
 
@@ -238,7 +230,7 @@ AWS CDK (Cloud Development Kit) is an open-source framework for defining cloud i
 
 ### Can I use existing CDK constructs from npm?
 
-Yes. Install any published CDK construct library (e.g., `@aws-solutions-constructs/*`, community constructs, or your own internal packages) alongside `aws-cdk-lib`. Import and use them in your construct file the same way you would in a standalone CDK app. Stacktape synthesizes whatever CloudFormation resources the construct produces.
+Yes. Install any published CDK construct library (e.g., `@aws-solutions-constructs/*`, community constructs, or your own internal packages) alongside `aws-cdk-lib`. Import and use them in your construct file the same way you would in a standalone CDK app. Stacktape synthesizes and deploys the CDK construct as part of your stack.
 
 ### Can my CDK construct reference Stacktape-managed resources?
 
@@ -246,7 +238,7 @@ Yes, through `constructProperties`. Pass ARNs, names, or connection strings from
 
 ### Do CDK constructs support connectTo?
 
-No. CDK constructs are not part of the [`connectTo`](/configuration/connecting-resources) system. To give a Stacktape workload access to a CDK-created resource, set environment variables manually in the workload's configuration and add the necessary IAM permissions via `iamRoleStatements`. Conversely, to give a CDK-created resource access to a Stacktape resource, pass the Stacktape resource's ARN or connection details through `constructProperties`.
+No. `AwsCdkConstructProps` does not define a `connectTo` field. For workloads that expose `environment` and `iamRoleStatements`, configure those fields manually to grant access to CDK-created resources. Conversely, to give a CDK-created resource access to a Stacktape resource, pass the Stacktape resource's ARN or connection details through `constructProperties`.
 
 ### When should I use a CDK construct instead of raw CloudFormation?
 
@@ -258,11 +250,11 @@ Yes. The `entryfilePath` property accepts both `.ts` and `.js` files. TypeScript
 
 ### Can I use multiple CDK constructs in one stack?
 
-Yes. Define multiple `AwsCdkConstruct` resources in your Stacktape config, each pointing to a different entry file (or the same file with different `exportName` values and `constructProperties`). Each construct is synthesized and deployed as part of the same stack.
+Yes. Define multiple `AwsCdkConstruct` resources in the same `resources` map, each with its own `entryfilePath`, `exportName`, and `constructProperties`. You can point them to different entry files or to the same file with different `exportName` values.
 
 ### How do I pass values from a CDK construct to other Stacktape resources?
 
-CDK constructs do not expose [referenceable parameters](/configuration/referenceable-parameters) via `$ResourceParam()`. If you need a value produced by a CDK construct (such as an ARN or URL) available elsewhere in your stack, you can define it as a [`stackConfig.outputs`](/configuration/configuration-files) entry. For complex inter-resource wiring, consider keeping both resources inside the same CDK construct where CDK can handle the references natively.
+The referenceable-parameter types do not define parameters for `aws-cdk-construct`, so `$ResourceParam()` cannot reference outputs from an `AwsCdkConstruct`. If you need a value produced by a CDK construct available elsewhere in your stack, keep the consuming resources inside the same CDK construct where CDK can handle the cross-resource references natively.
 
 ### What is the difference between CDK constructs and custom resources?
 
@@ -270,17 +262,7 @@ CDK constructs provision standard AWS resources through CloudFormation — they 
 
 ### When should I use a CDK construct vs a native Stacktape resource?
 
-Always prefer a native Stacktape resource when one exists. Native resources integrate with `connectTo` (automatic IAM permissions and environment variables), `$ResourceParam()` (cross-resource references), [alarms](/observability/alarms), [dev mode](/local-development/dev-mode-overview), and the Stacktape Console. A CDK construct gets none of these integrations. Reserve CDK constructs for AWS services that Stacktape does not have a built-in resource type for.
-
-## Referenceable parameters
-
-
-## Referenceable Parameters: `aws-cdk-construct`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-
+Always prefer a native Stacktape resource when one exists. Many native resources integrate with features such as [`connectTo`](/configuration/connecting-resources) (automatic IAM permissions and environment variables), [`$ResourceParam()`](/configuration/referenceable-parameters) (cross-resource references), and resource-specific [alarms](/observability/alarms). `AwsCdkConstructProps` only exposes `entryfilePath`, `exportName`, and `constructProperties`. Reserve CDK constructs for AWS services that Stacktape does not have a built-in resource type for.
 
 ## API Reference
 

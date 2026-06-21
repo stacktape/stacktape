@@ -1,8 +1,8 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class DataProviderDescriptor {
-  DataProviderName?: Value<string>;
   DataProviderArn?: Value<string>;
+  DataProviderName?: Value<string>;
   SecretsManagerSecretId?: Value<string>;
   SecretsManagerAccessRoleArn?: Value<string>;
   DataProviderIdentifier?: Value<string>;

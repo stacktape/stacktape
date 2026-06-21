@@ -29,8 +29,18 @@ export class CapabilityReportEndpoint {
     Object.assign(this, properties);
   }
 }
+
+export class WiFiSimpleSetupConfiguration {
+  EnableAsProvisioner?: Value<boolean>;
+  EnableAsProvisionee?: Value<boolean>;
+  TimeoutInMinutes?: Value<number>;
+  constructor(properties: WiFiSimpleSetupConfiguration) {
+    Object.assign(this, properties);
+  }
+}
 export interface ManagedThingProperties {
   Owner?: Value<string>;
+  WiFiSimpleSetupConfiguration?: WiFiSimpleSetupConfiguration;
   CapabilityReport?: CapabilityReport;
   AuthenticationMaterialType?: Value<string>;
   Name?: Value<string>;
@@ -48,6 +58,7 @@ export default class ManagedThing extends ResourceBase<ManagedThingProperties> {
   static CapabilityReport = CapabilityReport;
   static CapabilityReportCapability = CapabilityReportCapability;
   static CapabilityReportEndpoint = CapabilityReportEndpoint;
+  static WiFiSimpleSetupConfiguration = WiFiSimpleSetupConfiguration;
   constructor(properties: ManagedThingProperties) {
     super('AWS::IoTManagedIntegrations::ManagedThing', properties);
   }

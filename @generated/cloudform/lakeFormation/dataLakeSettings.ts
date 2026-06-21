@@ -22,12 +22,15 @@ export class PrincipalPermissions {
     Object.assign(this, properties);
   }
 }
+
+export type ReadOnlyAdmins = List<DataLakePrincipal>;
 export interface DataLakeSettingsProperties {
   AllowExternalDataFiltering?: Value<boolean>;
   ExternalDataFilteringAllowList?: ExternalDataFilteringAllowList;
   CreateTableDefaultPermissions?: CreateTableDefaultPermissions;
   MutationType?: Value<string>;
   Parameters?: { [key: string]: any };
+  ReadOnlyAdmins?: ReadOnlyAdmins;
   AllowFullTableExternalDataAccess?: Value<boolean>;
   Admins?: Admins;
   CreateDatabaseDefaultPermissions?: CreateDatabaseDefaultPermissions;

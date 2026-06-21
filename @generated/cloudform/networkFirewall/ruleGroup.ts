@@ -68,8 +68,8 @@ export class MatchAttributes {
 }
 
 export class PortRange {
-  FromPort!: Value<number>;
   ToPort!: Value<number>;
+  FromPort!: Value<number>;
   constructor(properties: PortRange) {
     Object.assign(this, properties);
   }

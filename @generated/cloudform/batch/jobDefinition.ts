@@ -284,10 +284,10 @@ export class JobTimeout {
 }
 
 export class LinuxParameters {
-  Swappiness?: Value<number>;
-  Tmpfs?: List<Tmpfs>;
   SharedMemorySize?: Value<number>;
   Devices?: List<Device>;
+  Swappiness?: Value<number>;
+  Tmpfs?: List<Tmpfs>;
   InitProcessEnabled?: Value<boolean>;
   MaxSwap?: Value<number>;
   constructor(properties: LinuxParameters) {
@@ -397,8 +397,8 @@ export class RepositoryCredentials {
 }
 
 export class ResourceRequirement {
-  Type?: Value<string>;
   Value?: Value<string>;
+  Type?: Value<string>;
   constructor(properties: ResourceRequirement) {
     Object.assign(this, properties);
   }
@@ -427,6 +427,16 @@ export class RuntimePlatform {
   }
 }
 
+export class S3FilesVolumeConfiguration {
+  FileSystemArn!: Value<string>;
+  AccessPointArn?: Value<string>;
+  RootDirectory?: Value<string>;
+  TransitEncryptionPort?: Value<number>;
+  constructor(properties: S3FilesVolumeConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class Secret {
   ValueFrom!: Value<string>;
   Name!: Value<string>;
@@ -449,6 +459,7 @@ export class TaskContainerProperties {
   Secrets?: List<Secret>;
   Privileged?: Value<boolean>;
   LinuxParameters?: LinuxParameters;
+  StartTimeout?: Value<number>;
   ReadonlyRootFilesystem?: Value<boolean>;
   Image!: Value<string>;
   LogConfiguration?: LogConfiguration;
@@ -461,6 +472,7 @@ export class TaskContainerProperties {
   Command?: List<Value<string>>;
   Environment?: List<Environment>;
   Ulimits?: List<Ulimit>;
+  StopTimeout?: Value<number>;
   constructor(properties: TaskContainerProperties) {
     Object.assign(this, properties);
   }
@@ -476,8 +488,8 @@ export class Tmpfs {
 }
 
 export class Ulimit {
-  SoftLimit!: Value<number>;
   HardLimit!: Value<number>;
+  SoftLimit!: Value<number>;
   Name!: Value<string>;
   constructor(properties: Ulimit) {
     Object.assign(this, properties);
@@ -487,6 +499,7 @@ export class Ulimit {
 export class Volume {
   Host?: Host;
   EfsVolumeConfiguration?: EFSVolumeConfiguration;
+  S3FilesVolumeConfiguration?: S3FilesVolumeConfiguration;
   Name?: Value<string>;
   constructor(properties: Volume) {
     Object.assign(this, properties);
@@ -553,6 +566,7 @@ export default class JobDefinition extends ResourceBase<JobDefinitionProperties>
   static ResourceRetentionPolicy = ResourceRetentionPolicy;
   static RetryStrategy = RetryStrategy;
   static RuntimePlatform = RuntimePlatform;
+  static S3FilesVolumeConfiguration = S3FilesVolumeConfiguration;
   static Secret = Secret;
   static TaskContainerDependency = TaskContainerDependency;
   static TaskContainerProperties = TaskContainerProperties;

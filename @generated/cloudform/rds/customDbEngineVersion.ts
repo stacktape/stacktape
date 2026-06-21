@@ -3,14 +3,15 @@ import { Value, List } from '../dataTypes';
 
 export interface CustomDBEngineVersionProperties {
   Status?: Value<string>;
-  DatabaseInstallationFilesS3BucketName?: Value<string>;
   Description?: Value<string>;
   EngineVersion: Value<string>;
   KMSKeyId?: Value<string>;
-  UseAwsProvidedLatestImage?: Value<boolean>;
-  ImageId?: Value<string>;
   DatabaseInstallationFilesS3Prefix?: Value<string>;
   Manifest?: Value<string>;
+  DatabaseInstallationFiles?: List<Value<string>>;
+  DatabaseInstallationFilesS3BucketName?: Value<string>;
+  UseAwsProvidedLatestImage?: Value<boolean>;
+  ImageId?: Value<string>;
   SourceCustomDbEngineVersionIdentifier?: Value<string>;
   Engine: Value<string>;
   Tags?: List<ResourceTag>;

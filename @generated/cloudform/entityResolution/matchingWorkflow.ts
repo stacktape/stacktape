@@ -1,5 +1,13 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
+export class CustomerProfilesIntegrationConfig {
+  DomainArn!: Value<string>;
+  ObjectTypeArn!: Value<string>;
+  constructor(properties: CustomerProfilesIntegrationConfig) {
+    Object.assign(this, properties);
+  }
+}
+
 export class IncrementalRunConfig {
   IncrementalRunType!: Value<string>;
   constructor(properties: IncrementalRunConfig) {
@@ -23,6 +31,13 @@ export class IntermediateSourceConfiguration {
   }
 }
 
+export class MatchingConfig {
+  EnableTransitiveMatching?: Value<boolean>;
+  constructor(properties: MatchingConfig) {
+    Object.assign(this, properties);
+  }
+}
+
 export class OutputAttribute {
   Hashed?: Value<boolean>;
   Name!: Value<string>;
@@ -33,9 +48,10 @@ export class OutputAttribute {
 
 export class OutputSource {
   KMSArn?: Value<string>;
-  OutputS3Path!: Value<string>;
+  OutputS3Path?: Value<string>;
   Output!: List<OutputAttribute>;
   ApplyNormalization?: Value<boolean>;
+  CustomerProfilesIntegrationConfig?: CustomerProfilesIntegrationConfig;
   constructor(properties: OutputSource) {
     Object.assign(this, properties);
   }
@@ -86,6 +102,7 @@ export class RuleCondition {
 }
 
 export class RuleConditionProperties {
+  MatchingConfig?: MatchingConfig;
   Rules!: List<RuleCondition>;
   constructor(properties: RuleConditionProperties) {
     Object.assign(this, properties);
@@ -102,9 +119,11 @@ export interface MatchingWorkflowProperties {
   Tags?: List<ResourceTag>;
 }
 export default class MatchingWorkflow extends ResourceBase<MatchingWorkflowProperties> {
+  static CustomerProfilesIntegrationConfig = CustomerProfilesIntegrationConfig;
   static IncrementalRunConfig = IncrementalRunConfig;
   static InputSource = InputSource;
   static IntermediateSourceConfiguration = IntermediateSourceConfiguration;
+  static MatchingConfig = MatchingConfig;
   static OutputAttribute = OutputAttribute;
   static OutputSource = OutputSource;
   static ProviderProperties = ProviderProperties;

@@ -17,6 +17,7 @@ export class MultiRegionProperties {
   }
 }
 export interface ClusterProperties {
+  PolicyDocument?: Value<string>;
   KmsEncryptionKey?: Value<string>;
   DeletionProtectionEnabled?: Value<boolean>;
   Tags?: List<ResourceTag>;

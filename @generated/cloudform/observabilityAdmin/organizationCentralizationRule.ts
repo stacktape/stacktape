@@ -27,9 +27,17 @@ export class CentralizationRuleSource {
 }
 
 export class DestinationLogsConfiguration {
+  LogGroupNameConfiguration?: LogGroupNameConfiguration;
   LogsEncryptionConfiguration?: LogsEncryptionConfiguration;
   BackupConfiguration?: LogsBackupConfiguration;
   constructor(properties: DestinationLogsConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class LogGroupNameConfiguration {
+  LogGroupNamePattern!: Value<string>;
+  constructor(properties: LogGroupNameConfiguration) {
     Object.assign(this, properties);
   }
 }
@@ -53,7 +61,8 @@ export class LogsEncryptionConfiguration {
 
 export class SourceLogsConfiguration {
   EncryptedLogGroupStrategy!: Value<string>;
-  LogGroupSelectionCriteria!: Value<string>;
+  DataSourceSelectionCriteria?: Value<string>;
+  LogGroupSelectionCriteria?: Value<string>;
   constructor(properties: SourceLogsConfiguration) {
     Object.assign(this, properties);
   }
@@ -68,6 +77,7 @@ export default class OrganizationCentralizationRule extends ResourceBase<Organiz
   static CentralizationRuleDestination = CentralizationRuleDestination;
   static CentralizationRuleSource = CentralizationRuleSource;
   static DestinationLogsConfiguration = DestinationLogsConfiguration;
+  static LogGroupNameConfiguration = LogGroupNameConfiguration;
   static LogsBackupConfiguration = LogsBackupConfiguration;
   static LogsEncryptionConfiguration = LogsEncryptionConfiguration;
   static SourceLogsConfiguration = SourceLogsConfiguration;

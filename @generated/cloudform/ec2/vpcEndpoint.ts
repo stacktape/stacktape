@@ -2,7 +2,9 @@ import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class DnsOptionsSpecification {
   PrivateDnsOnlyForInboundResolverEndpoint?: Value<string>;
+  PrivateDnsSpecifiedDomains?: List<Value<string>>;
   DnsRecordIpType?: Value<string>;
+  PrivateDnsPreference?: Value<string>;
   constructor(properties: DnsOptionsSpecification) {
     Object.assign(this, properties);
   }

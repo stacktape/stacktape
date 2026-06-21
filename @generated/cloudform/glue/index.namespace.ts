@@ -1,3 +1,4 @@
+import Catalog_ from './catalog';
 import Classifier_ from './classifier';
 import Connection_ from './connection';
 import Crawler_ from './crawler';
@@ -6,6 +7,9 @@ import DataCatalogEncryptionSettings_ from './dataCatalogEncryptionSettings';
 import DataQualityRuleset_ from './dataQualityRuleset';
 import Database_ from './database';
 import DevEndpoint_ from './devEndpoint';
+import IdentityCenterConfiguration_ from './identityCenterConfiguration';
+import Integration_ from './integration';
+import IntegrationResourceProperty_ from './integrationResourceProperty';
 import Job_ from './job';
 import MLTransform_ from './mlTransform';
 import Partition_ from './partition';
@@ -20,6 +24,7 @@ import Trigger_ from './trigger';
 import UsageProfile_ from './usageProfile';
 import Workflow_ from './workflow';
 export namespace Glue {
+  export const Catalog = Catalog_;
   export const Classifier = Classifier_;
   export const Connection = Connection_;
   export const Crawler = Crawler_;
@@ -28,6 +33,9 @@ export namespace Glue {
   export const DataQualityRuleset = DataQualityRuleset_;
   export const Database = Database_;
   export const DevEndpoint = DevEndpoint_;
+  export const IdentityCenterConfiguration = IdentityCenterConfiguration_;
+  export const Integration = Integration_;
+  export const IntegrationResourceProperty = IntegrationResourceProperty_;
   export const Job = Job_;
   export const MLTransform = MLTransform_;
   export const Partition = Partition_;
@@ -41,6 +49,7 @@ export namespace Glue {
   export const Trigger = Trigger_;
   export const UsageProfile = UsageProfile_;
   export const Workflow = Workflow_;
+  export type Catalog = Catalog_;
   export type Classifier = Classifier_;
   export type Connection = Connection_;
   export type Crawler = Crawler_;
@@ -49,6 +58,9 @@ export namespace Glue {
   export type DataQualityRuleset = DataQualityRuleset_;
   export type Database = Database_;
   export type DevEndpoint = DevEndpoint_;
+  export type IdentityCenterConfiguration = IdentityCenterConfiguration_;
+  export type Integration = Integration_;
+  export type IntegrationResourceProperty = IntegrationResourceProperty_;
   export type Job = Job_;
   export type MLTransform = MLTransform_;
   export type Partition = Partition_;

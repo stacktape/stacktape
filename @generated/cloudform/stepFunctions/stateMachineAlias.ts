@@ -21,6 +21,7 @@ export class RoutingConfigurationVersion {
 export interface StateMachineAliasProperties {
   Description?: Value<string>;
   RoutingConfiguration?: List<RoutingConfigurationVersion>;
+  StateMachineArn?: Value<string>;
   DeploymentPreference?: DeploymentPreference;
   Name?: Value<string>;
 }

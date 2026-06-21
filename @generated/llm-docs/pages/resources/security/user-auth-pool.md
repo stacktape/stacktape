@@ -33,9 +33,7 @@ Example (TypeScript):
 import { defineConfig, UserAuthPool } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code'
-    }
+    userVerificationType: 'email-code'
   });
 
   return {
@@ -58,11 +56,9 @@ Example (TypeScript):
 import { defineConfig, UserAuthPool } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code',
-      allowOnlyAdminsToCreateAccount: true,
-      unusedAccountValidityDays: 7
-    }
+    userVerificationType: 'email-code',
+    allowOnlyAdminsToCreateAccount: true,
+    unusedAccountValidityDays: 7
   });
 
   return {
@@ -76,7 +72,7 @@ Use `unusedAccountValidityDays` to control how long an unused admin-created acco
 
 ## Connecting to resources
 
-To use the user pool from a [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), or any other compute resource, add it to the resource's [`connectTo`](/configuration/connecting-resources) list. Stacktape injects environment variables with the pool's connection details and grants full control over the user pool to the connecting resource.
+To use the user pool from a [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), or any other compute resource, add it to the resource's [`connectTo`](/configuration/connecting-resources) list. For a `UserAuthPool`, `connectTo` grants full-control permissions and injects `ID`, `CLIENT_ID`, and `ARN` environment variables.
 
 
 Example (TypeScript):
@@ -92,9 +88,7 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code'
-    }
+    userVerificationType: 'email-code'
   });
 
   const gateway = new HttpApiGateway({});
@@ -104,7 +98,7 @@ export default defineConfig(() => {
       entryfilePath: './src/handler.ts'
     }),
     connectTo: ['auth'],
-    triggers: [
+    events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'gateway',
         method: '*',
@@ -128,9 +122,9 @@ For a resource named `auth`, the following environment variables are injected by
 | `STP_AUTH_CLIENT_ID` | User Pool Client ID |
 | `STP_AUTH_ARN` | User Pool ARN |
 
-Additional values — `domain`, `providerUrl`, and `clientSecret` (when `generateClientSecret: true`) — are available as [referenceable parameters](#referenceable-parameters) via [`$ResourceParam`](/configuration/referenceable-parameters) for use in config directives, hooks, and scripts. For example, use `$ResourceParam('auth', 'providerUrl')` to reference the OAuth/OIDC provider URL or `$ResourceParam('auth', 'domain')` for the Hosted UI domain.
+The `domain` parameter is also available as a [referenceable parameter](#referenceable-parameters) via [`$ResourceParam`](/configuration/referenceable-parameters) — for example, `$ResourceParam('auth', 'domain')` for the Hosted UI domain.
 
-Your application code uses the injected environment variables to interact with the Cognito API — for example, calling `AdminCreateUser`, `InitiateAuth`, or validating tokens. Most AWS SDKs and libraries (like `amazon-cognito-identity-js` or `@aws-sdk/client-cognito-identity-provider`) accept the pool ID and client ID directly.
+Your application code can pass the injected pool ID, client ID, and ARN to AWS SDKs or Cognito-compatible libraries. For example, backend code commonly uses Cognito APIs for admin user creation or authentication flows. Libraries like `amazon-cognito-identity-js` or `@aws-sdk/client-cognito-identity-provider` accept the pool ID and client ID directly.
 
 ## Protecting API routes
 
@@ -150,9 +144,7 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code'
-    }
+    userVerificationType: 'email-code'
   });
 
   const gateway = new HttpApiGateway({});
@@ -162,7 +154,7 @@ export default defineConfig(() => {
       entryfilePath: './src/handler.ts'
     }),
     connectTo: ['auth'],
-    triggers: [
+    events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'gateway',
         method: 'GET',
@@ -184,7 +176,7 @@ export default defineConfig(() => {
 ```
 
 
-The `cognito` authorizer type validates JWTs issued by the referenced user pool. Stacktape configures the API Gateway authorizer with the correct issuer URL and audience (client ID) automatically. By default, the token is read from the `Authorization` header. You can customize this with the `identitySources` property on the authorizer to read from a different header, query parameter, or stage variable using the `$request.*` syntax.
+The `cognito` authorizer type validates JWTs issued by the referenced user pool. Stacktape uses `userPoolName` to set the expected audience to the user pool client ID and build the issuer URL from the user pool and AWS region. By default, the token is read from the `Authorization` header. You can customize this with the `identitySources` property on the authorizer to read from a different header, query parameter, or stage variable using the `$request.*` syntax.
 
 Stacktape also supports a `lambda` authorizer type, where a [Lambda function](/resources/compute/lambda-function) runs custom authorization logic for each request. Use this when your auth needs go beyond simple JWT validation — for example, checking API keys, looking up permissions in a database, or integrating with a non-Cognito identity system. See [HTTP triggers](/configuration/triggers/http-triggers) for details on both authorizer types.
 
@@ -197,7 +189,7 @@ Stacktape user authentication pools support four verification strategies that co
 | `email-code` | Cognito emails a short numeric code the user enters during sign-up |
 | `email-link` | Cognito emails a clickable verification link |
 | `sms` | Cognito sends a verification code via SMS to the user's phone number |
-| `none` | No verification required — users are confirmed immediately |
+| `none` | No email or phone verification is required during sign-up |
 
 For most web applications, `email-code` is the best default — it works without extra infrastructure and is familiar to users. Use `email-link` for a smoother UX where users just click a link instead of copying a code. Use `sms` when phone numbers are the primary identifier (ride-sharing, delivery apps). Use `none` only for internal tools where you trust all users.
 
@@ -220,7 +212,7 @@ A Stacktape user authentication pool supports six types of external identity pro
 | `OIDC` | Any OpenID Connect provider (Okta, Azure AD, etc.) |
 | `SAML` | Enterprise SSO (Active Directory, Ping Identity, etc.) |
 
-Each identity provider requires a `clientId` and `clientSecret`. These are required fields in the Stacktape type for all provider types. For social and OIDC providers, obtain them from the provider's developer console. For SAML providers, advanced provider-specific options can be passed through `providerDetails` (for example, your IdP metadata URL or XML). Store secrets using the [`$Secret` directive](/configuration/directives) to avoid exposing them in your config. The syntax is `$Secret('secretName')`, where the secret is created via the [`stacktape secret:create`](/cli/secret-create) command or through the [Stacktape Console](/configuration/secrets).
+Each identity provider requires a `clientId` and `clientSecret`. These are required fields in the Stacktape type for all provider types. For social and OIDC providers, obtain them from the provider's developer console. For SAML and OIDC providers, advanced provider-specific options can be passed through `providerDetails` as Cognito `ProviderDetails` values. Store secrets using the [`$Secret` directive](/configuration/directives) to avoid exposing them in your config. See [secrets](/configuration/secrets) or [`stacktape secret:create`](/cli/secret-create) for setup.
 
 
 Example (TypeScript):
@@ -229,20 +221,18 @@ Example (TypeScript):
 import { defineConfig, UserAuthPool } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code',
-      enableHostedUi: true,
-      hostedUiDomainPrefix: 'myapp-login',
-      identityProviders: [
-        {
-          type: 'Google',
-          clientId: "$Secret('google-credentials.clientId')",
-          clientSecret: "$Secret('google-credentials.clientSecret')"
-        }
-      ],
-      callbackURLs: ['https://myapp.com/auth/callback'],
-      logoutURLs: ['https://myapp.com/logged-out']
-    }
+    userVerificationType: 'email-code',
+    enableHostedUi: true,
+    hostedUiDomainPrefix: 'myapp-login',
+    identityProviders: [
+      {
+        type: 'Google',
+        clientId: "$Secret('google-credentials.clientId')",
+        clientSecret: "$Secret('google-credentials.clientSecret')"
+      }
+    ],
+    callbackURLs: ['https://myapp.com/auth/callback'],
+    logoutURLs: ['https://myapp.com/logged-out']
   });
 
   return {
@@ -254,9 +244,9 @@ export default defineConfig(() => {
 
 When you add an identity provider, Stacktape creates separate `AWS::Cognito::UserPoolIdentityProvider` resources and registers them in the user pool client's `SupportedIdentityProviders`. If you do not specify `attributeMapping`, Stacktape defaults to mapping `email` from the provider to the Cognito `email` attribute. You can override this with the `attributeMapping` property to map additional attributes like `given_name` or `picture`.
 
-If you omit `authorizeScopes`, Cognito/AWS default behavior applies. Set `authorizeScopes` explicitly when your app needs specific provider scopes — for example, requesting access to a user's Google Calendar or Facebook friend list.
+If you omit `authorizeScopes`, Stacktape uses a reasonable default per provider. Set `authorizeScopes` explicitly when your app needs specific provider scopes — for example, requesting access to a user's Google Calendar or Facebook friend list.
 
-To force users to sign in exclusively through external providers (disabling username/password sign-in), set `allowOnlyExternalIdentityProviders: true`. Internally, Stacktape removes `COGNITO` from the user pool client's `SupportedIdentityProviders`.
+Set `allowOnlyExternalIdentityProviders: true` only after configuring at least one `identityProviders` entry. Stacktape then removes `COGNITO` from the user pool client's `SupportedIdentityProviders`, so users must sign in through the configured external providers.
 
 ## Lambda hooks
 
@@ -275,7 +265,7 @@ Cognito triggers let you run custom logic at key points in the authentication li
 | `defineAuthChallenge` | During custom auth flow | Decide whether a challenge is needed |
 | `verifyAuthChallengeResponse` | During custom auth flow | Validate the user's challenge response |
 
-Each hook value must be a Lambda function ARN. Stacktape handles the necessary permissions so Cognito can invoke the function.
+Each hook value must be a Lambda function ARN. Stacktape maps the configured hooks to the Cognito user pool `LambdaConfig`.
 
 
 Example (TypeScript):
@@ -295,11 +285,9 @@ export default defineConfig(() => {
   });
 
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code',
-      hooks: {
-        postConfirmation: "$ResourceParam('createProfile', 'arn')"
-      }
+    userVerificationType: 'email-code',
+    hooks: {
+      postConfirmation: "$ResourceParam('createProfile', 'arn')"
     }
   });
 
@@ -331,12 +319,10 @@ Example (TypeScript):
 import { defineConfig, UserAuthPool } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code',
-      mfaConfiguration: {
-        status: 'OPTIONAL',
-        enabledTypes: ['SOFTWARE_TOKEN']
-      }
+    userVerificationType: 'email-code',
+    mfaConfiguration: {
+      status: 'OPTIONAL',
+      enabledTypes: ['SOFTWARE_TOKEN']
     }
   });
 
@@ -351,7 +337,7 @@ export default defineConfig(() => {
 
 ## Hosted UI
 
-Cognito provides a pre-built, hosted login and registration page so you do not have to build your own auth screens. Enable it with `enableHostedUi: true`. The Hosted UI is useful when you want authentication screens outside your main app, especially when paired with OAuth callback/logout URLs and external identity providers.
+Cognito provides a pre-built, hosted login and registration page so you do not have to build your own auth screens. Enable it with `enableHostedUi: true`. The Hosted UI is useful when you want authentication screens outside your main app. If you use OAuth redirects, configure `callbackURLs` and `logoutURLs` explicitly.
 
 
 Example (TypeScript):
@@ -360,15 +346,13 @@ Example (TypeScript):
 import { defineConfig, UserAuthPool } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      enableHostedUi: true,
-      hostedUiDomainPrefix: 'myapp-auth',
-      userVerificationType: 'email-code',
-      callbackURLs: ['https://myapp.com/auth/callback'],
-      logoutURLs: ['https://myapp.com/logged-out'],
-      allowedOAuthFlows: ['code'],
-      allowedOAuthScopes: ['email', 'openid', 'profile']
-    }
+    enableHostedUi: true,
+    hostedUiDomainPrefix: 'myapp-auth',
+    userVerificationType: 'email-code',
+    callbackURLs: ['https://myapp.com/auth/callback'],
+    logoutURLs: ['https://myapp.com/logged-out'],
+    allowedOAuthFlows: ['code'],
+    allowedOAuthScopes: ['email', 'openid', 'profile']
   });
 
   return {
@@ -378,7 +362,7 @@ export default defineConfig(() => {
 ```
 
 
-The `hostedUiDomainPrefix` sets the first part of the Hosted UI URL: `https://<prefix>.auth.<region>.amazoncognito.com`. Choose a prefix that matches your project name. Use `hostedUiCSS` to override Hosted UI styling such as colors, fonts, and layouts.
+The `hostedUiDomainPrefix` sets the first part of the Hosted UI URL: `https://<prefix>.auth.<region>.amazoncognito.com`. Choose a prefix that matches your project name. Use `hostedUiCSS` to provide custom CSS for the Hosted UI, applied via Cognito's `AWS::Cognito::UserPoolUICustomizationAttachment` resource.
 
 **When to enable the Hosted UI:** Use it when you want to ship authentication quickly without building custom UI. It is especially useful with social login providers, since the Hosted UI handles the OAuth redirect flow for you. **When to skip it:** If you need full control over the login experience (custom animations, complex form validation, branded flows), build your own UI and use the Cognito SDK directly — you still get the same underlying user pool.
 
@@ -393,15 +377,13 @@ Example (TypeScript):
 import { defineConfig, UserAuthPool } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      enableHostedUi: true,
-      userVerificationType: 'email-code',
-      customDomain: {
-        domainName: 'auth.example.com'
-      },
-      callbackURLs: ['https://example.com/auth/callback'],
-      logoutURLs: ['https://example.com/logged-out']
-    }
+    enableHostedUi: true,
+    userVerificationType: 'email-code',
+    customDomain: {
+      domainName: 'auth.example.com'
+    },
+    callbackURLs: ['https://example.com/auth/callback'],
+    logoutURLs: ['https://example.com/logged-out']
   });
 
   return {
@@ -411,19 +393,21 @@ export default defineConfig(() => {
 ```
 
 
-The domain must be registered and verified with a valid ACM certificate in **us-east-1** (Cognito uses CloudFront for custom domains, which requires certificates in that region). By default, Stacktape creates a DNS record pointing to the CloudFront distribution. Set `disableDnsRecordCreation: true` if you manage DNS records outside of Stacktape — for example, through Cloudflare or another DNS provider. You can also provide a specific certificate ARN with `customCertificateArn` if you need a particular certificate.
+**When to use a custom domain:** Use one when your auth URLs are user-visible and brand matters — for example, showing `auth.yourcompany.com` instead of a Cognito subdomain in login redirects. Custom domains are also useful when sharing OAuth client configurations across environments, since the domain stays consistent. **When the default is fine:** For prototypes, internal tools, and apps where users never see the auth URL directly, the Cognito-managed `hostedUiDomainPrefix` subdomain is simpler — no DNS setup, no certificate management, and no propagation delays. Expect DNS ownership verification and possible propagation debugging overhead when using a custom domain.
+
+The domain must be registered and verified in your Stacktape account with a valid ACM certificate in **us-east-1** (Cognito uses CloudFront for custom domains, which requires certificates in that region). Stacktape creates a DNS record for `customDomain` by default. Set `customDomain.disableDnsRecordCreation: true` to prevent Stacktape from creating that record. Use that flag if you manage DNS records outside of Stacktape — for example, through Cloudflare or another DNS provider. You can also provide a specific certificate ARN with `customCertificateArn` if you need a particular certificate.
 
 ## OAuth
 
 The user pool client's OAuth configuration controls which flows, scopes, and redirect URLs are allowed. Configure these explicitly when using the Hosted UI or integrating with external identity providers:
 
 - **`allowedOAuthFlows`** — which OAuth 2.0 flows the client can use: `code` (Authorization Code, recommended for web apps), `implicit` (legacy browser-only flow), or `client_credentials` (server-to-server with no end user). For most web applications, use `['code']`.
-- **`allowedOAuthScopes`** — which scopes clients can request. Common values include `email`, `openid`, and `profile`. Set these based on what user information your application needs.
+- **`allowedOAuthScopes`** — a string list of scopes the user pool client can request. Common values are `email`, `openid`, and `profile`. These are passed to the Cognito user pool client as `AllowedOAuthScopes`. For scopes requested from an external provider (e.g., Google Calendar access or Facebook friend list), set `authorizeScopes` on that provider's `identityProviders` entry instead.
 - **`callbackURLs`** — URLs where Cognito redirects users after authentication. Must exactly match the URLs configured in your application. Include `http://localhost:3000/...` during development and your production URL for deployed environments.
 - **`logoutURLs`** — URLs where Cognito redirects after sign-out. Must also be explicitly configured.
 - **`generateClientSecret`** — set to `true` when your backend can safely store a client secret (server-side apps, not SPAs). Defaults to `false`.
 
-For most web applications, use the `code` flow with `generateClientSecret: true` on the backend. For single-page applications that call Cognito directly from the browser, use the `code` flow without a client secret (PKCE is handled automatically by the Cognito SDK).
+For server-rendered web apps or backend-mediated OAuth flows, use the `code` flow with `generateClientSecret: true`. For single-page applications that call Cognito directly from the browser, use the `code` flow without a client secret (PKCE is handled automatically by the Cognito SDK).
 
 ## Password policy
 
@@ -436,15 +420,13 @@ Example (TypeScript):
 import { defineConfig, UserAuthPool } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code',
-      passwordPolicy: {
-        minimumLength: 12,
-        requireNumbers: true,
-        requireUppercase: true,
-        requireLowercase: true,
-        temporaryPasswordValidityDays: 3
-      }
+    userVerificationType: 'email-code',
+    passwordPolicy: {
+      minimumLength: 12,
+      requireNumbers: true,
+      requireUppercase: true,
+      requireLowercase: true,
+      temporaryPasswordValidityDays: 3
     }
   });
 
@@ -457,7 +439,7 @@ export default defineConfig(() => {
 
 The `temporaryPasswordValidityDays` inside `passwordPolicy` controls how long a temporary password issued to a new user is valid before it must be changed on first sign-in. This is distinct from the top-level `unusedAccountValidityDays`, which controls when the entire unused admin-created account expires if the user never signs in at all.
 
-When `passwordPolicy` is omitted, Stacktape does not set a Stacktape-specific default; Cognito applies its own user pool password behavior. For production applications, set at least `minimumLength: 12` and enable `requireNumbers` and `requireUppercase` — this provides meaningful security without frustrating users.
+The `UserAuthPoolProps` type does not document Stacktape-specific defaults for `passwordPolicy`; set these values explicitly when they matter for your application. For production applications, set at least `minimumLength: 12` and enable `requireNumbers` and `requireUppercase` — this provides meaningful security without frustrating users.
 
 ## Token lifetimes
 
@@ -476,12 +458,10 @@ Example (TypeScript):
 import { defineConfig, UserAuthPool } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code',
-      accessTokenValiditySeconds: 3600,
-      idTokenValiditySeconds: 3600,
-      refreshTokenValidityDays: 30
-    }
+    userVerificationType: 'email-code',
+    accessTokenValiditySeconds: 3600,
+    idTokenValiditySeconds: 3600,
+    refreshTokenValidityDays: 30
   });
 
   return {
@@ -491,7 +471,7 @@ export default defineConfig(() => {
 ```
 
 
-Shorter access token lifetimes reduce the window for token theft at the cost of more frequent refresh calls. Longer refresh token lifetimes keep users signed in longer but extend the window for session hijacking. A common starting point is 3600 seconds (1 hour) for access and ID tokens and 30 days for refresh tokens. When these properties are omitted, Stacktape does not document a Stacktape-specific default; Cognito applies its own user pool client behavior.
+Shorter access token lifetimes reduce the window for token theft at the cost of more frequent refresh calls. Longer refresh token lifetimes keep users signed in longer but extend the window for session hijacking. A common starting point is 3600 seconds (1 hour) for access and ID tokens and 30 days for refresh tokens. The `UserAuthPoolProps` type does not document Stacktape-specific defaults for token lifetimes; set these values explicitly when they matter for your application.
 
 ## Custom attributes
 
@@ -504,31 +484,29 @@ Example (TypeScript):
 import { defineConfig, UserAuthPool } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code',
-      schema: [
-        {
-          name: 'role',
-          attributeDataType: 'String',
-          mutable: true,
-          stringMinLength: 1,
-          stringMaxLength: 50
-        },
-        {
-          name: 'tenantId',
-          attributeDataType: 'String',
-          required: true,
-          mutable: false,
-          stringMinLength: 1,
-          stringMaxLength: 128
-        },
-        {
-          name: 'loginCount',
-          attributeDataType: 'Number',
-          mutable: true
-        }
-      ]
-    }
+    userVerificationType: 'email-code',
+    schema: [
+      {
+        name: 'role',
+        attributeDataType: 'String',
+        mutable: true,
+        stringMinLength: 1,
+        stringMaxLength: 50
+      },
+      {
+        name: 'tenantId',
+        attributeDataType: 'String',
+        required: true,
+        mutable: false,
+        stringMinLength: 1,
+        stringMaxLength: 128
+      },
+      {
+        name: 'loginCount',
+        attributeDataType: 'Number',
+        mutable: true
+      }
+    ]
   });
 
   return {
@@ -541,14 +519,14 @@ export default defineConfig(() => {
 Each attribute specifies a `name`, `attributeDataType` (e.g., `String`, `Number`), and optional constraints like `required`, `mutable`, `stringMinLength`, and `stringMaxLength`. Attributes marked `developerOnlyAttribute: true` are only accessible from backend code — they are not exposed to end users.
 
 
-> **Warning:** Custom attributes cannot be removed or renamed after the user pool is created. Plan your schema carefully before deploying to production.
+> **Warning:** Cognito user pool custom attribute schemas are difficult to change after creation. Plan the schema carefully before deploying to production.
 
 
 ## Firewall
 
-Stacktape user authentication pools can be protected by a [web application firewall](/resources/security/web-application-firewall) that inspects requests to the Hosted UI and Cognito token endpoints. Set `useFirewall` to the name of a `WebAppFirewall` resource in your stack.
+Stacktape user authentication pools can be protected by a [web application firewall](/resources/security/web-application-firewall) that inspects requests to the Hosted UI and Cognito token endpoints. `useFirewall` is the Stacktape resource name of a `web-app-firewall` resource; it is not an inline WAF rule definition. Set it to the name of a `WebAppFirewall` resource in your stack.
 
-The firewall must use `scope: 'regional'` — Cognito user pools require a regional WAF web ACL. Using a CDN-scoped firewall will cause a deployment error.
+`useFirewall` creates a `WebACLAssociation` between the user pool and the referenced firewall. AWS requires a regional WAF web ACL for Cognito user pool associations, so the referenced `WebAppFirewall` resource must use `scope: 'regional'`. A CDN-scoped firewall targets CloudFront and cannot be associated with a Cognito user pool. See the [web application firewall](/resources/security/web-application-firewall) page for firewall scope configuration.
 
 
 Example (TypeScript):
@@ -557,16 +535,12 @@ Example (TypeScript):
 import { defineConfig, UserAuthPool, WebAppFirewall } from 'stacktape';
 export default defineConfig(() => {
   const firewall = new WebAppFirewall({
-    properties: {
-      scope: 'regional'
-    }
+    scope: 'regional'
   });
 
   const auth = new UserAuthPool({
-    properties: {
-      userVerificationType: 'email-code',
-      useFirewall: 'firewall'
-    }
+    userVerificationType: 'email-code',
+    useFirewall: 'firewall'
   });
 
   return {
@@ -803,18 +777,7 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `domain` | Domain of the userpool | `$ResourceParam("<<resource-name>>", "domain")` |
 
 
-User authentication pools expose the following parameters, accessible via [`$ResourceParam`](/configuration/referenceable-parameters):
-
-| Parameter | Description |
-|---|---|
-| `id` | Cognito User Pool ID |
-| `clientId` | User Pool Client ID |
-| `arn` | User Pool ARN |
-| `providerUrl` | OAuth/OIDC provider URL |
-| `domain` | Hosted UI domain (custom domain or Cognito-managed domain) |
-| `clientSecret` | Client secret (only available when `generateClientSecret: true`) |
-
-Of these, `connectTo` automatically injects `id`, `clientId`, and `arn` as environment variables. The remaining parameters (`providerUrl`, `domain`, `clientSecret`) are available through `$ResourceParam()` for use in config directives, hooks, and scripts.
+`connectTo` auto-injects `STP_[RESOURCE_NAME]_ID`, `STP_[RESOURCE_NAME]_CLIENT_ID`, and `STP_[RESOURCE_NAME]_ARN` as environment variables. The remaining parameters (`providerUrl`, `domain`, `clientSecret`) are accessible via [`$ResourceParam`](/configuration/referenceable-parameters).
 
 ## FAQ
 
@@ -828,7 +791,7 @@ Add a `cognito` authorizer to your [HTTP API Gateway](/resources/networking/http
 
 ### What environment variables does connectTo inject for a user auth pool?
 
-When you add a user auth pool to a resource's [`connectTo`](/configuration/connecting-resources) list, Stacktape injects three environment variables: `STP_[RESOURCE_NAME]_ID` (pool ID), `STP_[RESOURCE_NAME]_CLIENT_ID` (client ID), and `STP_[RESOURCE_NAME]_ARN` (pool ARN). The connecting resource also receives full IAM control over the user pool. Additional parameters (`providerUrl`, `domain`, `clientSecret`) are available via [`$ResourceParam`](/configuration/referenceable-parameters) but are not automatically injected as environment variables.
+When you add a user auth pool to a resource's [`connectTo`](/configuration/connecting-resources) list, Stacktape injects three environment variables: `STP_[RESOURCE_NAME]_ID` (pool ID), `STP_[RESOURCE_NAME]_CLIENT_ID` (client ID), and `STP_[RESOURCE_NAME]_ARN` (pool ARN). The connecting resource also receives full-control IAM permissions for the user pool. Additional parameters like `domain` and `providerUrl` are available via [`$ResourceParam`](/configuration/referenceable-parameters).
 
 ### How much does Amazon Cognito cost?
 
@@ -848,7 +811,7 @@ Use a Stacktape user auth pool when you want authentication integrated with your
 
 ### Does the user pool support SAML for enterprise SSO?
 
-Yes. Add an identity provider with `type: 'SAML'` and configure the `providerDetails` with your SAML metadata (IdP metadata URL or XML). This lets enterprise customers sign in with their existing Active Directory, Okta, or Ping Identity accounts. Combine with `allowOnlyExternalIdentityProviders: true` to disable password-based login entirely for a fully federated experience.
+Yes. Add an identity provider with `type: 'SAML'` and configure `providerDetails` with the appropriate Cognito `ProviderDetails` values for your SAML identity provider. This lets enterprise customers sign in with their existing Active Directory, Okta, or Ping Identity accounts. Combine with `allowOnlyExternalIdentityProviders: true` to disable password-based login entirely for a fully federated experience.
 
 ### How do I add custom claims to JWT tokens?
 

@@ -1,9 +1,12 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class CloudwatchLogOptionsSpecification {
+  BgpLogEnabled?: Value<boolean>;
   LogEnabled?: Value<boolean>;
   LogOutputFormat?: Value<string>;
+  BgpLogGroupArn?: Value<string>;
   LogGroupArn?: Value<string>;
+  BgpLogOutputFormat?: Value<string>;
   constructor(properties: CloudwatchLogOptionsSpecification) {
     Object.assign(this, properties);
   }
@@ -100,8 +103,10 @@ export interface VPNConnectionProperties {
   EnableAcceleration?: Value<boolean>;
   TransitGatewayId?: Value<string>;
   Type: Value<string>;
+  TunnelBandwidth?: Value<string>;
   LocalIpv4NetworkCidr?: Value<string>;
   VpnGatewayId?: Value<string>;
+  VpnConcentratorId?: Value<string>;
   PreSharedKeyStorage?: Value<string>;
   TransportTransitGatewayAttachmentId?: Value<string>;
   LocalIpv6NetworkCidr?: Value<string>;

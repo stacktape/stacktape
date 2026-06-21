@@ -36,7 +36,8 @@ export class CustomLineItemPercentageChargeDetails {
 export class LineItemFilter {
   MatchOption!: Value<string>;
   Attribute!: Value<string>;
-  Values!: List<Value<string>>;
+  AttributeValues?: List<Value<string>>;
+  Values?: List<Value<string>>;
   constructor(properties: LineItemFilter) {
     Object.assign(this, properties);
   }

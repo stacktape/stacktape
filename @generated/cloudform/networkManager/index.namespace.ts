@@ -1,6 +1,7 @@
 import ConnectAttachment_ from './connectAttachment';
 import ConnectPeer_ from './connectPeer';
 import CoreNetwork_ from './coreNetwork';
+import CoreNetworkPrefixListAssociation_ from './coreNetworkPrefixListAssociation';
 import CustomerGatewayAssociation_ from './customerGatewayAssociation';
 import Device_ from './device';
 import DirectConnectGatewayAttachment_ from './directConnectGatewayAttachment';
@@ -17,6 +18,7 @@ export namespace NetworkManager {
   export const ConnectAttachment = ConnectAttachment_;
   export const ConnectPeer = ConnectPeer_;
   export const CoreNetwork = CoreNetwork_;
+  export const CoreNetworkPrefixListAssociation = CoreNetworkPrefixListAssociation_;
   export const CustomerGatewayAssociation = CustomerGatewayAssociation_;
   export const Device = Device_;
   export const DirectConnectGatewayAttachment = DirectConnectGatewayAttachment_;
@@ -32,6 +34,7 @@ export namespace NetworkManager {
   export type ConnectAttachment = ConnectAttachment_;
   export type ConnectPeer = ConnectPeer_;
   export type CoreNetwork = CoreNetwork_;
+  export type CoreNetworkPrefixListAssociation = CoreNetworkPrefixListAssociation_;
   export type CustomerGatewayAssociation = CustomerGatewayAssociation_;
   export type Device = Device_;
   export type DirectConnectGatewayAttachment = DirectConnectGatewayAttachment_;

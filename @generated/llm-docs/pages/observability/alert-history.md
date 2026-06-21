@@ -1,17 +1,17 @@
 # Alert History
 
-The Stacktape Console's alert history page provides a single, chronological view of every alert event your organization has received — across [alarms](/observability/alarms), [notifications](/observability/notifications), [budget alerts](/managing-costs/budgets), and [issues](/observability/issues). Instead of checking separate history views for each system, use alert history to see what fired, when, and whether the alert reached its intended channel.
+The Stacktape Console's alert history page displays alert events for the selected organization — across [alarms](/observability/alarms), [notifications](/observability/notifications), [budget alerts](/managing-costs/budgets), and [issues](/observability/issues). Instead of checking separate history views for each system, use alert history to see what fired, when, and whether the alert reached its intended channel.
 
 ## What alert history tracks
 
-Every time an alarm fires, a notification rule matches, a budget threshold is crossed, or an issue is detected, Stacktape records an **alert event**. The alert history table displays each event as a row with the following columns:
+Alert history displays **alert event** rows returned for the selected organization. These events can come from notifications, alarms, budgets, and issues. The table displays each event as a row with the following columns:
 
 | Column | Description |
 |---|---|
-| **Time** | When the event occurred. The table uses this as the default sort column. |
+| **Time** | When the event occurred. Passed as the table's default sort column. |
 | **Source** | Which system generated the event — Notification, Alarm, Budget, or Issue. Displayed as a color-coded badge. |
 | **Event** | The specific trigger type (e.g. "Deploy failed", "Alarm triggered"). See the full list below. |
-| **Severity** | One of four levels: INFO, WARNING, ERROR, or CRITICAL. |
+| **Severity** | The severity value for the event. WARNING, ERROR, and CRITICAL use distinct colors. INFO and unrecognized severity values render with the primary text color. |
 | **Project** | The project associated with the event, when applicable. Shows "-" if not project-specific. |
 | **Stage** | The stage associated with the event, when applicable. Shows "-" if not stage-specific. |
 | **Title** | A human-readable summary of what happened. |
@@ -21,7 +21,7 @@ Alert history queries events at the organization level, so you see alerts from a
 
 ## Event types
 
-Alert events span four source categories. The table below lists every event type the system records.
+Alert events span four source categories. The alert history page displays these known event types.
 
 | Source | Event types |
 |---|---|
@@ -34,16 +34,16 @@ Notification events cover the broadest range — deployments, rollbacks, preview
 
 ## Severity levels
 
-The Console displays each alert event's severity using color-coded styling. Four levels are supported:
+The Console displays each alert event's severity using color-coded styling. The Console defines distinct colors for WARNING, ERROR, and CRITICAL:
 
-| Severity | Color | Typical use |
-|---|---|---|
-| **INFO** | Default text | Informational events such as successful operations |
-| **WARNING** | Orange | Conditions worth monitoring |
-| **ERROR** | Red | Failures requiring attention |
-| **CRITICAL** | Dark red | Urgent conditions requiring immediate action |
+| Severity | Color |
+|---|---|
+| **INFO** | Default text |
+| **WARNING** | Orange |
+| **ERROR** | Red |
+| **CRITICAL** | Dark red |
 
-The severity is set by the source system when the event is created. The alert history page displays whatever severity the event carries — it does not compute or override severity.
+The alert history page renders the severity value returned with each event. WARNING, ERROR, and CRITICAL are styled with the distinct colors shown above. INFO and any unrecognized severity values render with the primary text color.
 
 ## Filtering events
 
@@ -52,46 +52,46 @@ The alert history page includes a **source filter** dropdown at the top of the t
 - **All sources** — the default view showing every event across all four categories.
 - **Issues** — only issue detection and resolution events.
 - **Alarms** — only alarm triggered and resolved events.
-- **Notifications** — only deployment, rollback, script, and secret events.
+- **Notifications** — deployment, delete, rollback, preview deploy, Git push deploy, script, and secret events.
 - **Budgets** — only budget threshold and forecasted overspend events.
 
 Changing the filter resets the table back to the first page. Use the source filter to narrow down a noisy timeline — for example, filtering to "Alarms" when investigating a spike in alarm activity, or to "Notifications" when checking whether the team was notified about a recent deploy failure.
 
 ## Delivery tracking
 
-Each alert event includes delivery information for every [alert channel](/observability/alert-channels) that received it. The Delivery column is the audit trail that answers "did the team actually get notified?"
+The Delivery column renders the delivery records returned with each event. It serves as the audit trail that answers "did the team actually get notified?" Each delivery shows a status and channel summary.
 
 Each delivery in the list shows two things:
 
-- **Status** — displayed as a color-coded label: `SENT` (green, delivered successfully), `FAILED` (red, delivery attempt failed), or `PENDING` (orange, still being processed).
-- **Channel** — the alert channel the delivery targeted, rendered with the channel name and type (Slack, Microsoft Teams, Discord, email, or webhook).
+- **Status** — displayed as a color-coded label: `SENT` (green), `FAILED` (red), or `PENDING` (orange).
+- **Channel** — the [alert channel](/observability/alert-channels) the delivery targeted, rendered with the channel name and type.
 
-A single alert event can have multiple deliveries if it matched multiple notification rules or alarm rules pointing to different channels. Each delivery is listed individually in the Delivery column.
+When an event has multiple delivery records, the Delivery column lists each one separately with its own status and channel summary.
 
-When an event has no deliveries, the table shows **"No rules matched"** in lighter text — meaning no notification rule, alarm rule, or budget alert was configured to route that particular event type to a channel. The event is still recorded in history; it just was not delivered anywhere.
+When an event has no delivery records, the table displays **"No rules matched"**. The event is still visible in the timeline.
 
 
-> **Tip:** If you see "No rules matched" for events you care about, set up routing rules in [notifications](/observability/notifications), [alarms](/observability/alarms), or [budgets](/managing-costs/budgets) to ensure future events of that type are delivered to the right [alert channels](/observability/alert-channels).
+> **Tip:** If you see "No rules matched" for events you care about, check that routing rules in [notifications](/observability/notifications), [alarms](/observability/alarms), or [budgets](/managing-costs/budgets) cover the event type and route to an [alert channel](/observability/alert-channels).
 
 
 ## Pagination
 
-Alert history is paginated and loads on demand. You can control the number of events displayed per page and navigate through pages using the table's built-in pagination controls. The total count of matching events (across all pages) is shown alongside the pagination.
+Alert history is paginated and loads on demand. You can control the number of events displayed per page and navigate through pages using the table's built-in pagination controls. The total count of matching events is passed to the table's pagination controls.
 
 ## When the table is empty
 
 If no alert events have been recorded yet, the table shows the message: *"No alert events yet. Events will appear here when alarms trigger, issues are detected, or notifications are sent."*
 
-Alert events are created automatically by the underlying systems — you do not need to do anything special to populate alert history. Configure [alarm rules](/observability/alarms) for metric-based monitoring, [notification rules](/observability/notifications) for deployment and lifecycle events, [budget alerts](/managing-costs/budgets) for cost thresholds, and enable [issues](/observability/issues) for runtime error detection. Each of these records events in alert history and routes them through [alert channels](/observability/alert-channels).
+Alert history displays alert events returned for the selected organization. Events appear after alarms trigger, issues are detected, or notifications are sent. Configure [alarm rules](/observability/alarms) for metric-based monitoring, [notification rules](/observability/notifications) for deployment and lifecycle events, [budget alerts](/managing-costs/budgets) for cost thresholds, and enable [issues](/observability/issues) for runtime error detection. Alert history can display Notification, Alarm, Budget, and Issue source kinds. Delivery information appears when delivery records exist for an event.
 
 ## Alert history vs. individual history views
 
-The Console also provides separate history concepts for notifications, alarms, and budgets — each focused on a single source kind. These per-category views show events from their respective system only.
+The Console includes separate notification history, alarm history, and budget history pages — each a narrower log focused on a single source. Alert history is the unified table that combines events from all sources — including issues — on a single page.
 
-Use **alert history** when you need a cross-cutting view — for example, correlating a failed deploy notification with the alarm that fired shortly after, or reviewing all alert activity over the last hour regardless of source. Use the individual history views when you are focused on one system and want less noise.
+Use **alert history** when you need a cross-cutting view — for example, correlating a failed deploy notification with the alarm that fired shortly after, or reviewing all alert activity over the last hour regardless of source. Use the source-specific history pages when investigating a single alert category in isolation.
 
 
-> **Info:** Alert history is a Console-only feature. There is no CLI equivalent for viewing the unified alert timeline. For CLI-based alarm inspection, use [`stacktape debug:alarms`](/cli/debug-alarms) to check current CloudWatch alarm states.
+> **Info:** Alert history is available in the Stacktape Console. For CLI-based alarm inspection, use [`stacktape debug:alarms`](/cli/debug-alarms) to check current CloudWatch alarm states.
 
 
 ## FAQ
@@ -102,28 +102,28 @@ Alert history is a unified view combining events from all four sources — alarm
 
 ### Can I filter alert history by project or stage?
 
-The source filter dropdown filters by event source (Alarm, Notification, Budget, Issue), not by project or stage. However, the table displays Project and Stage columns for every event, so you can visually scan for a specific project or use your browser's find-in-page feature to locate events for a particular project or stage.
+The source filter dropdown filters by event source (Alarm, Notification, Budget, Issue), not by project or stage. The table does display Project and Stage columns for every event, so you can identify which project and stage each event belongs to.
 
 ### What does "No rules matched" mean in the Delivery column?
 
-"No rules matched" means the event was recorded in alert history but no notification rule, alarm rule, or budget alert was configured to route it to an alert channel. The event is still visible in the timeline — it simply was not delivered anywhere. To fix this, create a rule in [notifications](/observability/notifications), [alarms](/observability/alarms), or [budgets](/managing-costs/budgets) that matches the event type and routes it to an [alert channel](/observability/alert-channels).
+The Console displays "No rules matched" when an event's delivery records are empty. The event is still visible in the timeline. If you expected a delivery, check your routing rules in [notifications](/observability/notifications), [alarms](/observability/alarms), or [budgets](/managing-costs/budgets) and verify they cover the event type and route to an [alert channel](/observability/alert-channels).
 
 ### What delivery statuses can an alert have?
 
-Each delivery shows one of three statuses: **SENT** (the alert was delivered to the channel), **FAILED** (the delivery attempt did not succeed), or **PENDING** (the delivery is still being processed). A single alert event can have multiple deliveries if it matched rules pointing to different channels, each with its own independent status.
+The Console styles three delivery statuses with distinct colors: **SENT** (green), **FAILED** (red), and **PENDING** (orange). When an event has multiple delivery records — for example, because it matched rules pointing to different channels — each delivery is listed separately with its own independent status.
 
 ### How do I set up alerts so events appear in alert history?
 
-Alert events are created automatically when the underlying systems fire — you do not manually create events. Configure [alarm rules](/observability/alarms) for CloudWatch metric monitoring, [notification rules](/observability/notifications) for deployment and lifecycle events, [budget alerts](/managing-costs/budgets) for AWS cost thresholds, and enable [issues](/observability/issues) for runtime error detection. Each of these systems records events in alert history and delivers them through your configured [alert channels](/observability/alert-channels).
+Configure [alarm rules](/observability/alarms) for metric-based monitoring, [notification rules](/observability/notifications) for deployment and lifecycle events, [budget alerts](/managing-costs/budgets) for cost thresholds, and enable [issues](/observability/issues) for runtime error detection. Events from these systems appear in the alert history table and are delivered through your configured [alert channels](/observability/alert-channels).
 
 ### Can I view alert history from the CLI?
 
-No. Alert history is available only in the Stacktape Console. For CLI-based observability, use [`stacktape debug:alarms`](/cli/debug-alarms) to check current CloudWatch alarm states, [`stacktape debug:logs`](/cli/debug-logs) to tail or search logs, and [`stacktape debug:metrics`](/cli/debug-metrics) to query CloudWatch metrics.
+Alert history is a Console page. For CLI-based observability, use [`stacktape debug:alarms`](/cli/debug-alarms) to check current CloudWatch alarm states, [`stacktape debug:logs`](/cli/debug-logs) to tail or search logs, and [`stacktape debug:metrics`](/cli/debug-metrics) to query CloudWatch metrics.
 
-### What severity levels does Stacktape use for alerts?
+### What severity levels are shown in alert history?
 
-Four severity levels are displayed: INFO, WARNING, ERROR, and CRITICAL. Each is styled with a distinct color in the Console (default, orange, red, and dark red respectively). Severity is set by the source system when the event is created — the alert history page displays the severity as-is.
+The alert history page renders the severity value returned with each event. WARNING (orange), ERROR (red), and CRITICAL (dark red) use distinct colors. INFO and any unrecognized severity values render with the primary text color.
 
 ### How does alert history relate to CloudWatch alarms?
 
-Alert history records alarm events (triggered and resolved) alongside notification, budget, and issue events — giving you a unified timeline. The actual CloudWatch alarms run in your AWS account and are managed through [alarm rules](/observability/alarms) configured in the Console. You can also inspect the current state of CloudWatch alarms using [`stacktape debug:alarms`](/cli/debug-alarms) from the CLI.
+Alert history records alarm events (triggered and resolved) alongside notification, budget, and issue events — giving you a unified timeline. Alarm rules are configured in the Console; the [alarm rules page](/observability/alarms) explains how Stacktape applies CloudWatch alarms and EventBridge routing on the next deployment of each matching project and stage. You can also inspect the current state of CloudWatch alarms using [`stacktape debug:alarms`](/cli/debug-alarms) from the CLI.

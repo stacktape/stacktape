@@ -3,6 +3,7 @@ import IdentityPoolPrincipalTag_ from './identityPoolPrincipalTag';
 import IdentityPoolRoleAttachment_ from './identityPoolRoleAttachment';
 import LogDeliveryConfiguration_ from './logDeliveryConfiguration';
 import ManagedLoginBranding_ from './managedLoginBranding';
+import Terms_ from './terms';
 import UserPool_ from './userPool';
 import UserPoolClient_ from './userPoolClient';
 import UserPoolDomain_ from './userPoolDomain';
@@ -19,6 +20,7 @@ export namespace Cognito {
   export const IdentityPoolRoleAttachment = IdentityPoolRoleAttachment_;
   export const LogDeliveryConfiguration = LogDeliveryConfiguration_;
   export const ManagedLoginBranding = ManagedLoginBranding_;
+  export const Terms = Terms_;
   export const UserPool = UserPool_;
   export const UserPoolClient = UserPoolClient_;
   export const UserPoolDomain = UserPoolDomain_;
@@ -34,6 +36,7 @@ export namespace Cognito {
   export type IdentityPoolRoleAttachment = IdentityPoolRoleAttachment_;
   export type LogDeliveryConfiguration = LogDeliveryConfiguration_;
   export type ManagedLoginBranding = ManagedLoginBranding_;
+  export type Terms = Terms_;
   export type UserPool = UserPool_;
   export type UserPoolClient = UserPoolClient_;
   export type UserPoolDomain = UserPoolDomain_;

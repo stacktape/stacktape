@@ -1,5 +1,6 @@
 import AccessPolicy_ from './accessPolicy';
 import Collection_ from './collection';
+import CollectionGroup_ from './collectionGroup';
 import Index_ from './index';
 import LifecyclePolicy_ from './lifecyclePolicy';
 import SecurityConfig_ from './securityConfig';
@@ -8,6 +9,7 @@ import VpcEndpoint_ from './vpcEndpoint';
 export namespace OpenSearchServerless {
   export const AccessPolicy = AccessPolicy_;
   export const Collection = Collection_;
+  export const CollectionGroup = CollectionGroup_;
   export const Index = Index_;
   export const LifecyclePolicy = LifecyclePolicy_;
   export const SecurityConfig = SecurityConfig_;
@@ -15,6 +17,7 @@ export namespace OpenSearchServerless {
   export const VpcEndpoint = VpcEndpoint_;
   export type AccessPolicy = AccessPolicy_;
   export type Collection = Collection_;
+  export type CollectionGroup = CollectionGroup_;
   export type Index = Index_;
   export type LifecyclePolicy = LifecyclePolicy_;
   export type SecurityConfig = SecurityConfig_;

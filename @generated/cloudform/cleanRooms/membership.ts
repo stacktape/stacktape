@@ -9,6 +9,7 @@ export class MembershipJobComputePaymentConfig {
 
 export class MembershipMLPaymentConfig {
   ModelInference?: MembershipModelInferencePaymentConfig;
+  SyntheticDataGeneration?: MembershipSyntheticDataGenerationPaymentConfig;
   ModelTraining?: MembershipModelTrainingPaymentConfig;
   constructor(properties: MembershipMLPaymentConfig) {
     Object.assign(this, properties);
@@ -75,6 +76,13 @@ export class MembershipQueryComputePaymentConfig {
   }
 }
 
+export class MembershipSyntheticDataGenerationPaymentConfig {
+  IsResponsible!: Value<boolean>;
+  constructor(properties: MembershipSyntheticDataGenerationPaymentConfig) {
+    Object.assign(this, properties);
+  }
+}
+
 export class ProtectedJobS3OutputConfigurationInput {
   Bucket!: Value<string>;
   KeyPrefix?: Value<string>;
@@ -96,6 +104,7 @@ export interface MembershipProperties {
   CollaborationIdentifier: Value<string>;
   JobLogStatus?: Value<string>;
   DefaultResultConfiguration?: MembershipProtectedQueryResultConfiguration;
+  IsMetricsEnabled?: Value<boolean>;
   QueryLogStatus: Value<string>;
   DefaultJobResultConfiguration?: MembershipProtectedJobResultConfiguration;
   Tags?: List<ResourceTag>;
@@ -112,6 +121,7 @@ export default class Membership extends ResourceBase<MembershipProperties> {
   static MembershipProtectedQueryOutputConfiguration = MembershipProtectedQueryOutputConfiguration;
   static MembershipProtectedQueryResultConfiguration = MembershipProtectedQueryResultConfiguration;
   static MembershipQueryComputePaymentConfig = MembershipQueryComputePaymentConfig;
+  static MembershipSyntheticDataGenerationPaymentConfig = MembershipSyntheticDataGenerationPaymentConfig;
   static ProtectedJobS3OutputConfigurationInput = ProtectedJobS3OutputConfigurationInput;
   static ProtectedQueryS3OutputConfiguration = ProtectedQueryS3OutputConfiguration;
   constructor(properties: MembershipProperties) {

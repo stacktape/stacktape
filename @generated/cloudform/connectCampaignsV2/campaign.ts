@@ -12,6 +12,7 @@ export class ChannelSubtypeConfig {
   Email?: EmailChannelSubtypeConfig;
   Telephony?: TelephonyChannelSubtypeConfig;
   Sms?: SmsChannelSubtypeConfig;
+  WhatsApp?: WhatsAppChannelSubtypeConfig;
   constructor(properties: ChannelSubtypeConfig) {
     Object.assign(this, properties);
   }
@@ -46,6 +47,7 @@ export class CommunicationTimeConfig {
   Email?: TimeWindow;
   Telephony?: TimeWindow;
   Sms?: TimeWindow;
+  WhatsApp?: TimeWindow;
   constructor(properties: CommunicationTimeConfig) {
     Object.assign(this, properties);
   }
@@ -80,6 +82,14 @@ export class EmailOutboundConfig {
 export class EmailOutboundMode {
   AgentlessConfig?: { [key: string]: any };
   constructor(properties: EmailOutboundMode) {
+    Object.assign(this, properties);
+  }
+}
+
+export class EntryLimitsConfig {
+  MaxEntryCount!: Value<number>;
+  MinEntryInterval!: Value<string>;
+  constructor(properties: EntryLimitsConfig) {
     Object.assign(this, properties);
   }
 }
@@ -198,6 +208,7 @@ export class TelephonyChannelSubtypeConfig {
 
 export class TelephonyOutboundConfig {
   ConnectContactFlowId!: Value<string>;
+  RingTimeout?: Value<number>;
   AnswerMachineDetectionConfig?: AnswerMachineDetectionConfig;
   ConnectSourcePhoneNumber?: Value<string>;
   constructor(properties: TelephonyOutboundConfig) {
@@ -237,9 +248,35 @@ export class TimeoutConfig {
     Object.assign(this, properties);
   }
 }
+
+export class WhatsAppChannelSubtypeConfig {
+  OutboundMode!: WhatsAppOutboundMode;
+  Capacity?: Value<number>;
+  DefaultOutboundConfig!: WhatsAppOutboundConfig;
+  constructor(properties: WhatsAppChannelSubtypeConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class WhatsAppOutboundConfig {
+  ConnectSourcePhoneNumberArn!: Value<string>;
+  WisdomTemplateArn!: Value<string>;
+  constructor(properties: WhatsAppOutboundConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class WhatsAppOutboundMode {
+  AgentlessConfig?: { [key: string]: any };
+  constructor(properties: WhatsAppOutboundMode) {
+    Object.assign(this, properties);
+  }
+}
 export interface CampaignProperties {
   CommunicationLimitsOverride?: CommunicationLimitsConfig;
-  ChannelSubtypeConfig: ChannelSubtypeConfig;
+  Type?: Value<string>;
+  ChannelSubtypeConfig?: ChannelSubtypeConfig;
+  EntryLimitsConfig?: EntryLimitsConfig;
   ConnectCampaignFlowArn?: Value<string>;
   Schedule?: Schedule;
   CommunicationTimeConfig?: CommunicationTimeConfig;
@@ -259,6 +296,7 @@ export default class Campaign extends ResourceBase<CampaignProperties> {
   static EmailChannelSubtypeConfig = EmailChannelSubtypeConfig;
   static EmailOutboundConfig = EmailOutboundConfig;
   static EmailOutboundMode = EmailOutboundMode;
+  static EntryLimitsConfig = EntryLimitsConfig;
   static EventTrigger = EventTrigger;
   static LocalTimeZoneConfig = LocalTimeZoneConfig;
   static OpenHours = OpenHours;
@@ -278,6 +316,9 @@ export default class Campaign extends ResourceBase<CampaignProperties> {
   static TimeRange = TimeRange;
   static TimeWindow = TimeWindow;
   static TimeoutConfig = TimeoutConfig;
+  static WhatsAppChannelSubtypeConfig = WhatsAppChannelSubtypeConfig;
+  static WhatsAppOutboundConfig = WhatsAppOutboundConfig;
+  static WhatsAppOutboundMode = WhatsAppOutboundMode;
   constructor(properties: CampaignProperties) {
     super('AWS::ConnectCampaignsV2::Campaign', properties);
   }

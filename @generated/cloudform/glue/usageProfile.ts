@@ -1,9 +1,9 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class ConfigurationObject {
+  MinValue?: Value<string>;
   DefaultValue?: Value<string>;
   AllowedValues?: List<Value<string>>;
-  MinValue?: Value<string>;
   MaxValue?: Value<string>;
   constructor(properties: ConfigurationObject) {
     Object.assign(this, properties);

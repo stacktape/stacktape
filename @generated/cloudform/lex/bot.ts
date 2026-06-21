@@ -24,6 +24,17 @@ export class AudioAndDTMFInputSpecification {
   }
 }
 
+export class AudioFillerSettings {
+  Enabled!: Value<boolean>;
+  AudioType?: Value<string>;
+  MinimumPlayDurationInMilliseconds?: Value<number>;
+  ResponseDeliveryDelayInMilliseconds?: Value<number>;
+  StartDelayInMilliseconds?: Value<number>;
+  constructor(properties: AudioFillerSettings) {
+    Object.assign(this, properties);
+  }
+}
+
 export class AudioLogDestination {
   S3Bucket!: S3BucketLogDestination;
   constructor(properties: AudioLogDestination) {
@@ -127,7 +138,11 @@ export class BotLocale {
   Description?: Value<string>;
   GenerativeAISettings?: GenerativeAISettings;
   CustomVocabulary?: CustomVocabulary;
+  SpeechRecognitionSettings?: SpeechRecognitionSettings;
   SlotTypes?: List<SlotType>;
+  UnifiedSpeechSettings?: UnifiedSpeechSettings;
+  AudioFillerSettings?: AudioFillerSettings;
+  SpeechDetectionSensitivity?: Value<string>;
   Intents?: List<Intent>;
   VoiceSettings?: VoiceSettings;
   constructor(properties: BotLocale) {
@@ -256,6 +271,14 @@ export class DataSourceConfiguration {
   }
 }
 
+export class DeepgramSpeechModelConfig {
+  ApiTokenSecretArn!: Value<string>;
+  ModelId?: Value<string>;
+  constructor(properties: DeepgramSpeechModelConfig) {
+    Object.assign(this, properties);
+  }
+}
+
 export class DefaultConditionalBranch {
   Response?: ResponseSpecification;
   NextStep?: DialogState;
@@ -282,10 +305,10 @@ export class DialogAction {
 }
 
 export class DialogCodeHookInvocationSetting {
+  PostCodeHookSpecification!: PostDialogCodeHookInvocationSpecification;
   EnableCodeHookInvocation!: Value<boolean>;
   InvocationLabel?: Value<string>;
   IsActive!: Value<boolean>;
-  PostCodeHookSpecification!: PostDialogCodeHookInvocationSpecification;
   constructor(properties: DialogCodeHookInvocationSetting) {
     Object.assign(this, properties);
   }
@@ -300,8 +323,8 @@ export class DialogCodeHookSetting {
 
 export class DialogState {
   DialogAction?: DialogAction;
-  SessionAttributes?: List<SessionAttribute>;
   Intent?: IntentOverride;
+  SessionAttributes?: List<SessionAttribute>;
   constructor(properties: DialogState) {
     Object.assign(this, properties);
   }
@@ -441,6 +464,7 @@ export class Intent {
   InputContexts?: List<InputContext>;
   KendraConfiguration?: KendraConfiguration;
   IntentClosingSetting?: IntentClosingSetting;
+  DisplayName?: Value<string>;
   OutputContexts?: List<OutputContext>;
   SlotPriorities?: List<SlotPriority>;
   SampleUtterances?: List<SampleUtterance>;
@@ -474,6 +498,15 @@ export class IntentConfirmationSetting {
   FailureNextStep?: DialogState;
   DeclinationResponse?: ResponseSpecification;
   constructor(properties: IntentConfirmationSetting) {
+    Object.assign(this, properties);
+  }
+}
+
+export class IntentDisambiguationSettings {
+  MaxDisambiguationIntents?: Value<number>;
+  Enabled!: Value<boolean>;
+  CustomDisambiguationMessage?: Value<string>;
+  constructor(properties: IntentDisambiguationSettings) {
     Object.assign(this, properties);
   }
 }
@@ -529,6 +562,8 @@ export class MultipleValuesSetting {
 }
 
 export class NluImprovementSpecification {
+  AssistedNluMode?: Value<string>;
+  IntentDisambiguationSettings?: IntentDisambiguationSettings;
   Enabled!: Value<boolean>;
   constructor(properties: NluImprovementSpecification) {
     Object.assign(this, properties);
@@ -611,10 +646,10 @@ export class PromptAttemptSpecification {
 
 export class PromptSpecification {
   MaxRetries!: Value<number>;
-  MessageGroupsList!: List<MessageGroup>;
-  PromptAttemptsSpecification?: { [key: string]: PromptAttemptSpecification };
   AllowInterrupt?: Value<boolean>;
   MessageSelectionStrategy?: Value<string>;
+  MessageGroupsList!: List<MessageGroup>;
+  PromptAttemptsSpecification?: { [key: string]: PromptAttemptSpecification };
   constructor(properties: PromptSpecification) {
     Object.assign(this, properties);
   }
@@ -660,8 +695,8 @@ export class Replication {
 }
 
 export class ResponseSpecification {
-  MessageGroupsList!: List<MessageGroup>;
   AllowInterrupt?: Value<boolean>;
+  MessageGroupsList!: List<MessageGroup>;
   constructor(properties: ResponseSpecification) {
     Object.assign(this, properties);
   }
@@ -835,9 +870,9 @@ export class SlotValueElicitationSetting {
 }
 
 export class SlotValueOverride {
-  Shape?: Value<string>;
   Value?: SlotValue;
   Values?: List<SlotValueOverride>;
+  Shape?: Value<string>;
   constructor(properties: SlotValueOverride) {
     Object.assign(this, properties);
   }
@@ -870,8 +905,31 @@ export class SlotValueSelectionSetting {
 export class Specifications {
   SlotTypeName?: Value<string>;
   ValueElicitationSetting!: SubSlotValueElicitationSetting;
-  SlotTypeId!: Value<string>;
+  SlotTypeId?: Value<string>;
   constructor(properties: Specifications) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SpeechFoundationModel {
+  ModelArn!: Value<string>;
+  VoiceId?: Value<string>;
+  constructor(properties: SpeechFoundationModel) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SpeechModelConfig {
+  DeepgramConfig?: DeepgramSpeechModelConfig;
+  constructor(properties: SpeechModelConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SpeechRecognitionSettings {
+  SpeechModelPreference?: Value<string>;
+  SpeechModelConfig?: SpeechModelConfig;
+  constructor(properties: SpeechRecognitionSettings) {
     Object.assign(this, properties);
   }
 }
@@ -896,7 +954,7 @@ export class SubSlotSetting {
 
 export class SubSlotTypeComposition {
   SlotTypeName?: Value<string>;
-  SlotTypeId!: Value<string>;
+  SlotTypeId?: Value<string>;
   Name!: Value<string>;
   constructor(properties: SubSlotTypeComposition) {
     Object.assign(this, properties);
@@ -945,6 +1003,13 @@ export class TextLogSetting {
   }
 }
 
+export class UnifiedSpeechSettings {
+  SpeechFoundationModel!: SpeechFoundationModel;
+  constructor(properties: UnifiedSpeechSettings) {
+    Object.assign(this, properties);
+  }
+}
+
 export class VoiceSettings {
   VoiceId!: Value<string>;
   Engine?: Value<string>;
@@ -981,6 +1046,7 @@ export default class Bot extends ResourceBase<BotProperties> {
   static AdvancedRecognitionSetting = AdvancedRecognitionSetting;
   static AllowedInputTypes = AllowedInputTypes;
   static AudioAndDTMFInputSpecification = AudioAndDTMFInputSpecification;
+  static AudioFillerSettings = AudioFillerSettings;
   static AudioLogDestination = AudioLogDestination;
   static AudioLogSetting = AudioLogSetting;
   static AudioSpecification = AudioSpecification;
@@ -1009,6 +1075,7 @@ export default class Bot extends ResourceBase<BotProperties> {
   static DTMFSpecification = DTMFSpecification;
   static DataPrivacy = DataPrivacy;
   static DataSourceConfiguration = DataSourceConfiguration;
+  static DeepgramSpeechModelConfig = DeepgramSpeechModelConfig;
   static DefaultConditionalBranch = DefaultConditionalBranch;
   static DescriptiveBotBuilderSpecification = DescriptiveBotBuilderSpecification;
   static DialogAction = DialogAction;
@@ -1032,6 +1099,7 @@ export default class Bot extends ResourceBase<BotProperties> {
   static Intent = Intent;
   static IntentClosingSetting = IntentClosingSetting;
   static IntentConfirmationSetting = IntentConfirmationSetting;
+  static IntentDisambiguationSettings = IntentDisambiguationSettings;
   static IntentOverride = IntentOverride;
   static KendraConfiguration = KendraConfiguration;
   static LambdaCodeHook = LambdaCodeHook;
@@ -1077,6 +1145,9 @@ export default class Bot extends ResourceBase<BotProperties> {
   static SlotValueRegexFilter = SlotValueRegexFilter;
   static SlotValueSelectionSetting = SlotValueSelectionSetting;
   static Specifications = Specifications;
+  static SpeechFoundationModel = SpeechFoundationModel;
+  static SpeechModelConfig = SpeechModelConfig;
+  static SpeechRecognitionSettings = SpeechRecognitionSettings;
   static StillWaitingResponseSpecification = StillWaitingResponseSpecification;
   static SubSlotSetting = SubSlotSetting;
   static SubSlotTypeComposition = SubSlotTypeComposition;
@@ -1085,6 +1156,7 @@ export default class Bot extends ResourceBase<BotProperties> {
   static TextInputSpecification = TextInputSpecification;
   static TextLogDestination = TextLogDestination;
   static TextLogSetting = TextLogSetting;
+  static UnifiedSpeechSettings = UnifiedSpeechSettings;
   static VoiceSettings = VoiceSettings;
   static WaitAndContinueSpecification = WaitAndContinueSpecification;
   constructor(properties: BotProperties) {

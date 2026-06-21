@@ -3,7 +3,7 @@ import { Value, List } from '../dataTypes';
 
 export interface ClientVpnRouteProperties {
   ClientVpnEndpointId: Value<string>;
-  TargetVpcSubnetId: Value<string>;
+  TargetVpcSubnetId?: Value<string>;
   Description?: Value<string>;
   DestinationCidrBlock: Value<string>;
 }

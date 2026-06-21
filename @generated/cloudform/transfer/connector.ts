@@ -3,6 +3,7 @@ import { Value, List } from '../dataTypes';
 export class As2Config {
   Compression?: Value<string>;
   MessageSubject?: Value<string>;
+  AsyncMdnConfig?: ConnectorAsyncMdnConfig;
   BasicAuthSecretId?: Value<string>;
   PartnerProfileId?: Value<string>;
   EncryptionAlgorithm?: Value<string>;
@@ -12,6 +13,14 @@ export class As2Config {
   MdnSigningAlgorithm?: Value<string>;
   PreserveContentType?: Value<string>;
   constructor(properties: As2Config) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ConnectorAsyncMdnConfig {
+  ServerIds!: List<Value<string>>;
+  Url!: Value<string>;
+  constructor(properties: ConnectorAsyncMdnConfig) {
     Object.assign(this, properties);
   }
 }
@@ -40,6 +49,7 @@ export class SftpConfig {
   }
 }
 export interface ConnectorProperties {
+  IpAddressType?: Value<string>;
   As2Config?: As2Config;
   LoggingRole?: Value<string>;
   AccessRole: Value<string>;
@@ -52,6 +62,7 @@ export interface ConnectorProperties {
 }
 export default class Connector extends ResourceBase<ConnectorProperties> {
   static As2Config = As2Config;
+  static ConnectorAsyncMdnConfig = ConnectorAsyncMdnConfig;
   static ConnectorEgressConfig = ConnectorEgressConfig;
   static ConnectorVpcLatticeEgressConfig = ConnectorVpcLatticeEgressConfig;
   static SftpConfig = SftpConfig;

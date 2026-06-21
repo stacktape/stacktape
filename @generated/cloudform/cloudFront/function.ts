@@ -1,4 +1,4 @@
-import { ResourceBase } from '../resource';
+import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class FunctionConfig {
   Comment!: Value<string>;
@@ -27,6 +27,7 @@ export interface FunctionProperties {
   FunctionMetadata?: FunctionMetadata;
   AutoPublish?: Value<boolean>;
   FunctionCode: Value<string>;
+  Tags?: List<ResourceTag>;
   Name: Value<string>;
 }
 export default class Function extends ResourceBase<FunctionProperties> {

@@ -9,6 +9,7 @@ export class Matcher {
 }
 
 export class TargetDescription {
+  QuicServerId?: Value<string>;
   Port?: Value<number>;
   AvailabilityZone?: Value<string>;
   Id!: Value<string>;
@@ -27,6 +28,7 @@ export class TargetGroupAttribute {
 export interface TargetGroupProperties {
   IpAddressType?: Value<string>;
   HealthCheckIntervalSeconds?: Value<number>;
+  TargetControlPort?: Value<number>;
   Matcher?: Matcher;
   HealthCheckPath?: Value<string>;
   Port?: Value<number>;

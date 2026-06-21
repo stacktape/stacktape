@@ -1,15 +1,16 @@
-import { ResourceBase } from '../resource';
-import { Value, List } from '../dataTypes';
+import {ResourceBase} from '../resource'
+import { Value, List } from '../dataTypes'
 
 export interface ModelProperties {
-  Description?: Value<string>;
-  ContentType?: Value<string>;
-  Schema?: { [key: string]: any };
-  RestApiId: Value<string>;
-  Name?: Value<string>;
+    Description?: Value<string>
+    ContentType?: Value<string>
+    Schema?: {[key: string]: any}
+    RestApiId: Value<string>
+    Name?: Value<string>
 }
 export default class Model extends ResourceBase<ModelProperties> {
-  constructor(properties: ModelProperties) {
-    super('AWS::ApiGateway::Model', properties);
-  }
+
+    constructor(properties: ModelProperties) {
+        super('AWS::ApiGateway::Model', properties)
+    }
 }

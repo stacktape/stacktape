@@ -10,18 +10,18 @@ Use SNS triggers when:
 
 - **Multiple consumers need the same message.** Each subscriber gets an independent copy. Unlike an [SQS queue](/resources/messaging/sqs-queue), consumers don't compete — they all receive every message.
 - **You want push-based delivery.** SNS pushes messages to your function on publish. There's no polling interval and no batching configuration to tune.
-- **You need to mix subscriber types.** A single SNS topic can deliver to Lambda functions, SQS queues, HTTP endpoints, and email simultaneously. The `SnsIntegration` trigger covers the Lambda and [batch job](/resources/compute/batch-job) subscriber path.
+- **You need to mix subscriber types.** A single SNS topic can deliver to Lambda functions, SQS queues, HTTP endpoints, and email simultaneously. The `SnsIntegration` trigger covers the Lambda subscriber path.
 
 ## When NOT to use
 
-- **You need message retention or exactly-once processing.** SNS does not retain messages after delivery. If your function fails and no dead-letter queue is configured, the message may be lost after retries. Use an [SQS trigger](/configuration/triggers/sqs-events) for reliable, at-least-once processing with built-in retention.
-- **You need to filter on message body content.** SNS filter policies match on message **attributes** (metadata set by the publisher). For content-based routing on the event payload itself, use [EventBridge](/configuration/triggers/event-bus-events).
+- **You need message retention or strict delivery guarantees.** SNS is a push-based service without built-in message retention. Configure `onDeliveryFailure` to capture failed deliveries in an SQS queue, but for reliable at-least-once processing with retention and replay, use an [SQS trigger](/configuration/triggers/sqs-events).
+- **You need to filter on message body content.** The `filterPolicy` property uses SNS subscription filter policy syntax, which matches on message **attributes** (metadata set by the publisher). For content-based filtering on the event payload itself, use [EventBridge](/configuration/triggers/event-bus-events).
 - **You have a single consumer.** With one subscriber, an SQS queue is simpler and gives you batching, retention, and visibility timeout. SNS adds value when you need fan-out.
 - **You need ordered delivery.** Standard SNS topics don't guarantee message order. FIFO SNS topics guarantee order but cannot deliver directly to Lambda functions — only to FIFO SQS queues. For ordered processing, use [Kinesis](/configuration/triggers/kinesis-events) or subscribe a FIFO SQS queue to the FIFO topic and use an [SQS trigger](/configuration/triggers/sqs-events).
 
 ## Basic example
 
-A Lambda function subscribes to an SNS topic defined in the same stack. Every message published to the topic triggers one invocation of the function.
+A Lambda function subscribes to an SNS topic defined in the same stack. Publishing a message to the topic triggers the subscribed function. Every `SnsIntegration` must specify either `snsTopicName` (for a topic in your stack) or `snsTopicArn` (for an external topic).
 
 
 Example (TypeScript):
@@ -42,7 +42,7 @@ export default defineConfig(() => {
       entryfilePath: './src/log-notification.ts'
     }),
     memory: 256,
-    triggers: [
+    events: [
       new SnsIntegration({
         snsTopicName: 'notificationTopic'
       })
@@ -56,9 +56,9 @@ export default defineConfig(() => {
 ```
 
 
-The `snsTopicName` property references an SNS topic by its resource key — here, `notificationTopic`. The `SnsIntegration` trigger connects the Lambda function to the referenced SNS topic, so every published message invokes the function. You can attach multiple functions to the same topic to build a fan-out pattern.
+The `snsTopicName` property references an SNS topic by its resource key — here, `notificationTopic`. The `SnsIntegration` trigger connects the Lambda function to the referenced SNS topic, so every published message invokes the function. You can attach multiple functions to the same topic to build a fan-out pattern. The `memory: 256` value is chosen for this small handler example — tune Lambda memory based on your handler's CPU and latency needs. See [Lambda functions](/resources/compute/lambda-function) for memory configuration details.
 
-The handler receives the standard AWS SNS event structure with a `Records` array. Each record contains the message body, subject, message ID, and timestamp:
+The handler receives an AWS SNS Lambda event — a `Records` array where each record wraps the published message. The type below shows the typical shape; see the [AWS Lambda with SNS documentation](https://docs.aws.amazon.com/lambda/latest/dg/with-sns.html) for the authoritative event reference:
 
 ```typescript
 type SNSRecord = {
@@ -97,7 +97,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/high-value-orders.ts'
     }),
-    triggers: [
+    events: [
       new SnsIntegration({
         snsTopicName: 'orderEvents',
         filterPolicy: {
@@ -115,7 +115,7 @@ export default defineConfig(() => {
 ```
 
 
-The `filterPolicy` property accepts SNS subscription filter policy syntax. Filters match against **message attributes** — key-value metadata that the publisher attaches to each message, separate from the message body. Supported matching includes exact string values, string prefix matching, numeric comparisons, and `exists` checks. See the [AWS SNS filter policy documentation](https://docs.aws.amazon.com/sns/latest/dg/sns-subscription-filter-policies.html) for the full syntax.
+The `filterPolicy` property accepts AWS SNS subscription filter policy syntax. Filters match against **message attributes** — key-value metadata that the publisher attaches to each message, separate from the message body. In the example above, `orderType` and `amount` must be message attributes set by the publisher when calling `Publish`; fields with the same names inside the JSON message body would not match this filter policy. See the [AWS SNS filter policy documentation](https://docs.aws.amazon.com/sns/latest/dg/sns-subscription-filter-policies.html) for the full list of supported operators and JSON shape.
 
 When a topic has many subscribers, filter policies let each subscriber receive only the messages it cares about. For example, one function handles premium orders while another handles standard ones — both subscribe to the same topic with different `filterPolicy` values. Without filters, every subscriber receives every message and must discard irrelevant ones in handler code.
 
@@ -142,7 +142,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handle-external.ts'
     }),
-    triggers: [
+    events: [
       new SnsIntegration({
         snsTopicArn: 'arn:aws:sns:us-east-1:123456789012:shared-events'
       })
@@ -156,9 +156,9 @@ export default defineConfig(() => {
 ```
 
 
-Specify either `snsTopicName` for a Stacktape-managed topic or `snsTopicArn` for an existing topic. When using an external topic, ensure the topic's access policy allows your stack's AWS account to create a subscription.
+Specify either `snsTopicName` for a Stacktape-managed topic or `snsTopicArn` for an existing topic — one of the two is required. For cross-account topics, AWS may require the topic owner to grant subscription permissions in the topic's access policy.
 
-The `snsTopicArn` approach is common in cross-account architectures where a central topic publishes events that multiple independent stacks consume. Each consumer stack manages its own subscription and filter policy independently of the topic owner.
+The `snsTopicArn` approach is common in cross-account architectures where a central topic publishes events that multiple independent stacks consume. With `snsTopicArn`, the consuming stack defines its own `SnsIntegration` and optional `filterPolicy` against the existing topic.
 
 ## Handling delivery failures
 
@@ -184,7 +184,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/process-alert.ts'
     }),
-    triggers: [
+    events: [
       new SnsIntegration({
         snsTopicName: 'alerts',
         onDeliveryFailure: {
@@ -201,32 +201,27 @@ export default defineConfig(() => {
 ```
 
 
-The `onDeliveryFailure` property specifies an SQS queue where failed messages are sent. It accepts either `sqsQueueName` (referencing an [SQS queue](/resources/messaging/sqs-queue) in your stack by its resource key) or `sqsQueueArn` (for an external queue).
+The `onDeliveryFailure` destination identifies the failed-message SQS queue with `sqsQueueName` for a queue defined in your Stacktape configuration, or `sqsQueueArn` for a queue ARN.
 
-For critical workflows, always configure a dead-letter queue. You can then monitor the queue's depth, set an [alarm](/observability/alarms) on it, and reprocess messages by consuming them from the queue — either manually or with a separate [SQS-triggered function](/configuration/triggers/sqs-events).
-
-
-> **Warning:** For critical workflows, configure `onDeliveryFailure` so failed deliveries have an SQS destination. Without it, messages that exhaust delivery attempts have no recovery path.
-
+Use `onDeliveryFailure` for business-critical notifications, audit events, or workflows where a lost delivery needs investigation — you can monitor the queue's depth, set an [alarm](/observability/alarms) on it, and reprocess messages by consuming them from the queue with a separate [SQS-triggered function](/configuration/triggers/sqs-events). For disposable notifications or metrics where occasional loss is acceptable, you can skip it. Note that adding a dead-letter queue means an additional SQS queue to monitor and drain.
 
 ## Throughput and invocation behavior
 
-The `SnsIntegrationProps` type does not expose `batchSize` or `maxBatchWindowSeconds`. Unlike [SQS](/configuration/triggers/sqs-events) or [Kinesis](/configuration/triggers/kinesis-events) triggers, SNS integration is not configurable as a batch trigger — AWS SNS delivers each message to the subscriber individually, producing one Lambda invocation per published message.
+The `SnsIntegrationProps` type does not expose `batchSize` or `maxBatchWindowSeconds`. Unlike [SQS](/configuration/triggers/sqs-events) or [Kinesis](/configuration/triggers/kinesis-events) triggers, SNS integration does not support batch configuration — design your handler to process one message per invocation.
 
-Because each message triggers a separate invocation, your function's concurrency scales with the publish rate on the topic. Publishing 100 messages per second can produce up to 100 concurrent Lambda invocations. Monitor your function's concurrency and consider configuring reserved concurrency on the [Lambda function](/resources/compute/lambda-function) if you need predictable scaling limits.
+Publishing messages to the topic drives your function's concurrency. Monitor your function's concurrency and consider configuring reserved concurrency on the [Lambda function](/resources/compute/lambda-function) if you need predictable scaling limits under publish spikes.
 
-AWS SNS retries Lambda delivery using a backoff policy if the initial invocation attempt fails. If all retries are exhausted, the message routes to the `onDeliveryFailure` destination (if configured).
+If a message fails to be delivered — for example, when the target function cannot scale fast enough — and `onDeliveryFailure` is configured, the message routes to the specified SQS queue. Make your handlers idempotent, since AWS SNS may deliver the same message more than once.
 
 | Property | SNS trigger | SQS trigger | Kinesis trigger |
 |---|---|---|---|
 | Batching | Not configurable | `batchSize` up to 10,000 | `batchSize` up to 10,000 |
 | Delivery model | Push (one message per invocation) | Poll-based batches | Poll-based batches |
-| Message retention | None (at the SNS level) | Up to 14 days | Up to 365 days |
 | Ordering | Best-effort (standard topics) | FIFO available | Per-shard ordering |
 
 ## FIFO topic restriction
 
-FIFO SNS topics (topics with ordered, exactly-once delivery) guarantee strict message ordering within a message group. However, AWS SNS FIFO topics cannot deliver to Lambda functions — they can only deliver to FIFO SQS queues. This is an AWS-level constraint, not a Stacktape limitation.
+FIFO SNS topics guarantee strict message ordering within a message group. However, AWS SNS FIFO topics cannot deliver to Lambda functions — they can only deliver to FIFO SQS queues. This is an AWS-level constraint, not a Stacktape limitation.
 
 If you need ordered message processing with fan-out, subscribe one or more FIFO SQS queues to the FIFO SNS topic, then use an [SQS trigger](/configuration/triggers/sqs-events) on your Lambda function to consume from each queue. This gives you both the fan-out benefit of SNS and the ordering guarantees of FIFO SQS.
 
@@ -275,7 +270,7 @@ Yes. Add an `SnsIntegration` trigger to each function, all referencing the same 
 
 ### Which resource types support SNS triggers?
 
-The `SnsIntegration` trigger is available for [Lambda functions](/resources/compute/lambda-function) and [batch jobs](/resources/compute/batch-job). Container-based workloads ([web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload)) use HTTP-based or polling-based triggers instead. To process SNS messages in a container, subscribe an SQS queue to the SNS topic and poll the queue from your container application.
+The `SnsIntegration` trigger is available for [Lambda functions](/resources/compute/lambda-function). Container-based workloads ([web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload)) do not use `SnsIntegration`. To process SNS messages from a container application, subscribe an SQS queue to the SNS topic and poll the queue from your application code.
 
 ### What is the maximum SNS message size?
 
@@ -283,11 +278,11 @@ AWS SNS supports messages up to 256 KB. For larger payloads, store the data in [
 
 ### How do I publish messages to an SNS topic from my function?
 
-Use [`connectTo`](/configuration/connecting-resources) to grant your function publish permissions and make the topic's referenceable parameters available as environment variables. For a topic resource named `notificationTopic`, connectTo injects `STP_NOTIFICATION_TOPIC_ARN` and `STP_NOTIFICATION_TOPIC_NAME`. Use the AWS SDK's `PublishCommand` with the injected ARN to send messages. See [connecting resources](/configuration/connecting-resources) for the full env-var naming pattern.
+Publishing to an SNS topic from a function is separate from configuring an SNS trigger. Grant the function access to the SNS topic using [`connectTo`](/configuration/connecting-resources), then use the AWS SDK's `PublishCommand` with the topic ARN (available via `$ResourceParam()`) to send messages. See [connecting resources](/configuration/connecting-resources) for details on granting permissions between resources.
 
 ### Can I use filter policies with external SNS topics?
 
-Yes. The `filterPolicy` property works identically whether you reference a topic via `snsTopicName` or `snsTopicArn`. Filter policies are configured at the subscription level, not the topic level, so your stack controls its own filtering regardless of who owns the topic.
+You can set `filterPolicy` on an `SnsIntegration` that uses either `snsTopicName` or `snsTopicArn`. For external or cross-account topics, the topic owner may also need to allow your stack to create the subscription via the topic's access policy.
 
 ### Does SNS guarantee message ordering?
 
@@ -295,7 +290,7 @@ Standard SNS topics do not guarantee message ordering — messages may arrive at
 
 ### What happens if my Lambda function throws an error?
 
-When the Lambda function returns an error, AWS SNS retries delivery using a backoff policy. This is separate from delivery failures (where SNS cannot invoke the function at all). If your handler consistently throws, SNS will retry and eventually exhaust its attempts. Make your handlers idempotent — the same message may be delivered more than once during retries. For messages that exhaust retries, configure `onDeliveryFailure` to capture them in an SQS queue.
+The `onDeliveryFailure` property captures messages that fail to be delivered to the target — for example, when the target function cannot scale fast enough. Handle application-level errors in your handler code deliberately — use try/catch and make handlers idempotent, since AWS SNS may deliver the same message more than once.
 
 ### How much does AWS SNS cost?
 

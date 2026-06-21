@@ -20,19 +20,19 @@ export class AlternatePathHint {
 
 export class AnalysisAclRule {
   PortRange?: PortRange;
-  Cidr?: Value<string>;
-  RuleAction?: Value<string>;
   Egress?: Value<boolean>;
   RuleNumber?: Value<number>;
+  Cidr?: Value<string>;
   Protocol?: Value<string>;
+  RuleAction?: Value<string>;
   constructor(properties: AnalysisAclRule) {
     Object.assign(this, properties);
   }
 }
 
 export class AnalysisComponent {
-  Id?: Value<string>;
   Arn?: Value<string>;
+  Id?: Value<string>;
   constructor(properties: AnalysisComponent) {
     Object.assign(this, properties);
   }
@@ -59,8 +59,8 @@ export class AnalysisLoadBalancerTarget {
 export class AnalysisPacketHeader {
   DestinationPortRanges?: List<PortRange>;
   SourcePortRanges?: List<PortRange>;
-  DestinationAddresses?: List<Value<string>>;
   Protocol?: Value<string>;
+  DestinationAddresses?: List<Value<string>>;
   SourceAddresses?: List<Value<string>>;
   constructor(properties: AnalysisPacketHeader) {
     Object.assign(this, properties);
@@ -87,10 +87,10 @@ export class AnalysisRouteTableRoute {
 export class AnalysisSecurityGroupRule {
   PortRange?: PortRange;
   Cidr?: Value<string>;
-  PrefixListId?: Value<string>;
-  SecurityGroupId?: Value<string>;
   Protocol?: Value<string>;
+  PrefixListId?: Value<string>;
   Direction?: Value<string>;
+  SecurityGroupId?: Value<string>;
   constructor(properties: AnalysisSecurityGroupRule) {
     Object.assign(this, properties);
   }

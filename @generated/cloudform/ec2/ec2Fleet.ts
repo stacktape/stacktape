@@ -85,12 +85,17 @@ export class FleetLaunchTemplateConfigRequest {
 }
 
 export class FleetLaunchTemplateOverridesRequest {
-  WeightedCapacity?: Value<number>;
-  Placement?: Placement;
+  MetadataOptions?: InstanceMetadataOptionsRequest;
   Priority?: Value<number>;
+  AvailabilityZoneId?: Value<string>;
   BlockDeviceMappings?: List<BlockDeviceMapping>;
   AvailabilityZone?: Value<string>;
+  IamInstanceProfile?: IamInstanceProfileSpecification;
   SubnetId?: Value<string>;
+  KeyName?: Value<string>;
+  WeightedCapacity?: Value<number>;
+  Placement?: Placement;
+  NetworkInterfaces?: List<NetworkInterfaceSpecificationRequest>;
   InstanceRequirements?: InstanceRequirementsRequest;
   InstanceType?: Value<string>;
   MaxPrice?: Value<string>;
@@ -103,13 +108,32 @@ export class FleetLaunchTemplateSpecificationRequest {
   LaunchTemplateName?: Value<string>;
   Version!: Value<string>;
   LaunchTemplateId?: Value<string>;
+  LaunchTemplateSpecificationUserData?: Value<string>;
   constructor(properties: FleetLaunchTemplateSpecificationRequest) {
+    Object.assign(this, properties);
+  }
+}
+
+export class IamInstanceProfileSpecification {
+  Arn?: Value<string>;
+  Name?: Value<string>;
+  constructor(properties: IamInstanceProfileSpecification) {
+    Object.assign(this, properties);
+  }
+}
+
+export class InstanceMetadataOptionsRequest {
+  HttpPutResponseHopLimit?: Value<number>;
+  HttpTokens?: Value<string>;
+  HttpEndpoint?: Value<string>;
+  constructor(properties: InstanceMetadataOptionsRequest) {
     Object.assign(this, properties);
   }
 }
 
 export class InstanceRequirementsRequest {
   InstanceGenerations?: List<Value<string>>;
+  RequireEncryptionInTransit?: Value<boolean>;
   MemoryGiBPerVCpu?: MemoryGiBPerVCpuRequest;
   AcceleratorTypes?: List<Value<string>>;
   VCpuCount?: VCpuCountRangeRequest;
@@ -135,6 +159,13 @@ export class InstanceRequirementsRequest {
   BurstablePerformance?: Value<string>;
   TotalLocalStorageGB?: TotalLocalStorageGBRequest;
   constructor(properties: InstanceRequirementsRequest) {
+    Object.assign(this, properties);
+  }
+}
+
+export class Ipv6AddressRequest {
+  Ipv6Address?: Value<string>;
+  constructor(properties: Ipv6AddressRequest) {
     Object.assign(this, properties);
   }
 }
@@ -178,6 +209,26 @@ export class NetworkInterfaceCountRequest {
   }
 }
 
+export class NetworkInterfaceSpecificationRequest {
+  Description?: Value<string>;
+  PrivateIpAddress?: Value<string>;
+  PrivateIpAddresses?: List<PrivateIpAddressSpecificationRequest>;
+  SecondaryPrivateIpAddressCount?: Value<number>;
+  DeviceIndex?: Value<number>;
+  Ipv6Addresses?: List<Ipv6AddressRequest>;
+  SubnetId?: Value<string>;
+  AssociatePublicIpAddress?: Value<boolean>;
+  NetworkCardIndex?: Value<number>;
+  NetworkInterfaceId?: Value<string>;
+  InterfaceType?: Value<string>;
+  Groups?: List<Value<string>>;
+  Ipv6AddressCount?: Value<number>;
+  DeleteOnTermination?: Value<boolean>;
+  constructor(properties: NetworkInterfaceSpecificationRequest) {
+    Object.assign(this, properties);
+  }
+}
+
 export class OnDemandOptionsRequest {
   SingleAvailabilityZone?: Value<boolean>;
   AllocationStrategy?: Value<string>;
@@ -207,6 +258,21 @@ export class Placement {
   HostId?: Value<string>;
   HostResourceGroupArn?: Value<string>;
   constructor(properties: Placement) {
+    Object.assign(this, properties);
+  }
+}
+
+export class PrivateIpAddressSpecificationRequest {
+  PrivateIpAddress?: Value<string>;
+  Primary?: Value<boolean>;
+  constructor(properties: PrivateIpAddressSpecificationRequest) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ReservedCapacityOptionsRequest {
+  ReservationTypes?: List<Value<string>>;
+  constructor(properties: ReservedCapacityOptionsRequest) {
     Object.assign(this, properties);
   }
 }
@@ -263,15 +329,16 @@ export interface EC2FleetProperties {
   Context?: Value<string>;
   TargetCapacitySpecification: TargetCapacitySpecificationRequest;
   OnDemandOptions?: OnDemandOptionsRequest;
-  Type?: Value<string>;
   ExcessCapacityTerminationPolicy?: Value<string>;
   TagSpecifications?: List<TagSpecification>;
   SpotOptions?: SpotOptionsRequest;
-  ValidFrom?: Value<string>;
-  ReplaceUnhealthyInstances?: Value<boolean>;
   LaunchTemplateConfigs: List<FleetLaunchTemplateConfigRequest>;
   TerminateInstancesWithExpiration?: Value<boolean>;
   ValidUntil?: Value<string>;
+  Type?: Value<string>;
+  ReservedCapacityOptions?: ReservedCapacityOptionsRequest;
+  ValidFrom?: Value<string>;
+  ReplaceUnhealthyInstances?: Value<boolean>;
 }
 export default class EC2Fleet extends ResourceBase<EC2FleetProperties> {
   static AcceleratorCountRequest = AcceleratorCountRequest;
@@ -286,15 +353,21 @@ export default class EC2Fleet extends ResourceBase<EC2FleetProperties> {
   static FleetLaunchTemplateConfigRequest = FleetLaunchTemplateConfigRequest;
   static FleetLaunchTemplateOverridesRequest = FleetLaunchTemplateOverridesRequest;
   static FleetLaunchTemplateSpecificationRequest = FleetLaunchTemplateSpecificationRequest;
+  static IamInstanceProfileSpecification = IamInstanceProfileSpecification;
+  static InstanceMetadataOptionsRequest = InstanceMetadataOptionsRequest;
   static InstanceRequirementsRequest = InstanceRequirementsRequest;
+  static Ipv6AddressRequest = Ipv6AddressRequest;
   static MaintenanceStrategies = MaintenanceStrategies;
   static MemoryGiBPerVCpuRequest = MemoryGiBPerVCpuRequest;
   static MemoryMiBRequest = MemoryMiBRequest;
   static NetworkBandwidthGbpsRequest = NetworkBandwidthGbpsRequest;
   static NetworkInterfaceCountRequest = NetworkInterfaceCountRequest;
+  static NetworkInterfaceSpecificationRequest = NetworkInterfaceSpecificationRequest;
   static OnDemandOptionsRequest = OnDemandOptionsRequest;
   static PerformanceFactorReferenceRequest = PerformanceFactorReferenceRequest;
   static Placement = Placement;
+  static PrivateIpAddressSpecificationRequest = PrivateIpAddressSpecificationRequest;
+  static ReservedCapacityOptionsRequest = ReservedCapacityOptionsRequest;
   static SpotOptionsRequest = SpotOptionsRequest;
   static TagSpecification = TagSpecification;
   static TargetCapacitySpecificationRequest = TargetCapacitySpecificationRequest;

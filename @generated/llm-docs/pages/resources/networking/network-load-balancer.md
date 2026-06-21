@@ -10,13 +10,13 @@ Common patterns that fit well:
 
 - **MQTT brokers** — IoT devices connecting over TCP or TLS on port 8883
 - **Game servers** — multiplayer backends using custom binary protocols over TCP
-- **gRPC services** — TLS pass-through to a gRPC server without HTTP/2 termination at the load balancer
+- **gRPC services** — use a TCP listener for application-side TLS termination, or a TLS listener when you want the load balancer to handle certificates via ACM
 - **Database proxies** — exposing a proxy like PgBouncer or ProxySQL behind a load balancer
 - **Custom TCP protocols** — any service that doesn't use HTTP (message brokers, streaming protocols, proprietary wire protocols)
 
 ## When NOT to use
 
-- **HTTP/HTTPS APIs or web apps** — use an [Application Load Balancer](/resources/networking/application-load-balancer) or [HTTP API Gateway](/resources/networking/http-api-gateway) instead. They offer HTTP-aware routing (paths, headers, host-based), application-level health checks, and automatic HTTPS redirect.
+- **HTTP/HTTPS APIs or web apps** — use an [Application Load Balancer](/resources/networking/application-load-balancer) for HTTP-aware routing by paths, hosts, headers, query params, and source IPs. For Lambda-backed HTTP APIs, use an [HTTP API Gateway](/resources/networking/http-api-gateway) with method and path routing.
 - **Serverless APIs** — use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-backed APIs with pay-per-request pricing.
 - **Content-based routing** — NLB routes by port and IP, not by HTTP path, headers, or query parameters. If you need path-based routing, use an [Application Load Balancer](/resources/networking/application-load-balancer).
 - **CDN, WAF, or gradual deployments** — NLB does not support attaching a [CDN](/resources/networking/cdn), [web application firewall](/resources/security/web-application-firewall), or gradual deployment strategies. Use an [Application Load Balancer](/resources/networking/application-load-balancer) for workloads that need any of these.
@@ -56,9 +56,7 @@ export default defineConfig(() => {
 ```
 
 
-This creates a public-facing NLB with a single TCP listener on port 5432. The `interface` defaults to `internet`, making the load balancer publicly accessible. Container workloads ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [multi-container workloads](/resources/compute/multi-container-workload)) connect to this NLB by adding a `network-load-balancer` integration to their events, referencing `tcpLb` by name and specifying the `listenerPort` and `containerPort`.
-
-You can reference the deployed NLB domain with `$ResourceParam('tcpLb', 'domain')` in your config or retrieve it via [`stacktape param:get`](/cli/param-get).
+This creates a public-facing NLB with a single TCP listener on port 5432. The `interface` defaults to `internet`, making the load balancer publicly accessible. Container workloads connect to this NLB by adding a `network-load-balancer` integration to their events with `loadBalancerName`, `listenerPort`, and `containerPort`.
 
 ## Listeners
 
@@ -67,6 +65,8 @@ Listeners define which ports and protocols the Network Load Balancer accepts tra
 **TCP listeners** forward raw TCP connections with no encryption at the load balancer level. Use TCP when your application handles its own encryption, or when the traffic is on a private network and TLS overhead is unnecessary.
 
 **TLS listeners** terminate TLS at the load balancer and forward decrypted traffic to the container. This offloads certificate management from your application. TLS requires a certificate — either auto-provisioned through `customDomains` on the NLB, or explicitly provided via `customCertificateArns` on the listener.
+
+**Choosing between TCP and TLS:** TCP is simpler and avoids double-encryption if your application already terminates TLS. TLS at the NLB offloads certificate management and works well when the backend doesn't need to inspect the TLS handshake. For mutual TLS (mTLS) or when the application needs access to client certificates, use TCP and terminate TLS inside the container.
 
 
 Example (TypeScript):
@@ -89,7 +89,7 @@ export default defineConfig(() => {
 ```
 
 
-This NLB exposes two listeners — unencrypted MQTT on port 1883 and TLS-encrypted MQTT on port 8883. The TLS listener uses the certificate auto-provisioned for `mqtt.example.com`. A single NLB can have multiple listeners, each on a different port with its own protocol, certificates, and IP restrictions.
+This NLB exposes two listeners — unencrypted MQTT on port 1883 and TLS-encrypted MQTT on port 8883. TLS listeners require a certificate; Stacktape can create one from `customDomains`, or you can provide `customCertificateArns` on the listener. A single NLB can have multiple listeners, each on a different port with its own protocol, certificates, and IP restrictions.
 
 If you don't use `customDomains` but still need TLS, provide `customCertificateArns` on the listener with the ARN of an ACM certificate from your AWS account:
 
@@ -116,7 +116,7 @@ export default defineConfig(() => {
 ```
 
 
-> **Tip:** When a TLS listener has both `customDomains` certificates and `customCertificateArns`, all certificates are attached. AWS NLB uses SNI (Server Name Indication) to select the right certificate for each connection.
+> **Tip:** Use `customDomains` for Stacktape-managed certificates, or `customCertificateArns` on the listener when you want to attach your own ACM certificate.
 
 
 ## Custom domains
@@ -141,9 +141,9 @@ export default defineConfig(() => {
 ```
 
 
-You can attach multiple domains to a single NLB. Each domain gets its own TLS certificate, managed and auto-renewed by AWS. Custom domains are particularly useful with TLS listeners — the auto-provisioned certificate is attached to TLS listeners automatically.
+You can attach multiple domains to a single NLB. Each domain gets its own TLS certificate, managed and auto-renewed by AWS. Custom domains are particularly useful with TLS listeners because TLS requires a certificate, and Stacktape can create that certificate from `customDomains`.
 
-If you manage DNS records yourself (e.g., through Cloudflare or another DNS provider), set `disableDnsRecordCreation: true` — Stacktape will provision the TLS certificate but skip creating the DNS record in Route53. If you have specific certificate requirements, provide `customCertificateArn` with an ACM certificate ARN; otherwise Stacktape provisions and renews free certificates automatically.
+By default, Stacktape creates DNS records and TLS certificates for each domain. If you manage DNS yourself (e.g., through Cloudflare or another DNS provider), set `disableDnsRecordCreation: true` and provide `customCertificateArn` with an ACM certificate ARN.
 
 For full details on domain management, see [Custom domains](/resources/networking/custom-domains).
 
@@ -175,11 +175,11 @@ export default defineConfig(() => {
 ```
 
 
-When set to `internal`, the security group rules scope ingress to the VPC CIDR rather than `0.0.0.0/0`, and the NLB gets an internal scheme that makes it unreachable from outside the VPC.
+Setting `interface: 'internal'` makes the Network Load Balancer VPC-only — it is unreachable from outside the VPC. The default `interface: 'internet'` makes it publicly accessible.
 
 ### IP whitelisting
 
-Each listener can restrict access to specific IP addresses or CIDR ranges using `whitelistIps`. When set, only traffic from the listed IPs is allowed — all other connections are dropped. By default (when `whitelistIps` is not set), all IPs are allowed.
+Each listener can restrict access to specific IP addresses or CIDR ranges using `whitelistIps`. When `whitelistIps` is set, access is restricted to the listed IP addresses or CIDR ranges. By default (when `whitelistIps` is not set), all IPs are allowed.
 
 
 Example (TypeScript):
@@ -211,8 +211,6 @@ IP whitelisting is configured per listener, so different ports can have differen
 
 
 ## Referenceable parameters
-
-Use `$ResourceParam('tcpLb', 'paramName')` in your config to reference NLB values after deployment.
 
 
 ## Referenceable Parameters: `network-load-balancer`
@@ -276,7 +274,7 @@ Yes. Add a `customDomains` array to the NLB configuration with your domain name.
 
 ### Does Network Load Balancer support health checks?
 
-AWS NLB performs TCP-level health checks on registered targets by default — it verifies that the target port accepts connections. Containers that fail health checks are automatically replaced. Health check behavior is managed at the AWS target group level, not configured directly on the Stacktape NLB resource.
+The Network Load Balancer resource does not expose health-check settings in its configuration type. For container-level replacement behavior, use the workload health-check settings on the target workload when that workload type exposes them.
 
 ### Can I attach a CDN or WAF to a Network Load Balancer?
 
@@ -284,11 +282,11 @@ No. Network Load Balancer does not support [CDN](/resources/networking/cdn) (Clo
 
 ### Can I expose multiple ports on a single Network Load Balancer?
 
-Yes. Define multiple entries in the `listeners` array, each with its own port, protocol, certificate configuration, and IP whitelist. For example, an MQTT broker might expose port 1883 (TCP, unencrypted) and port 8883 (TLS, encrypted) on the same NLB. Each listener independently routes to container workloads that reference its port.
+Yes. Define multiple entries in the `listeners` array, each with its own port, protocol, certificate configuration, and IP whitelist. For example, an MQTT broker might expose port 1883 (TCP, unencrypted) and port 8883 (TLS, encrypted) on the same NLB. A target integration chooses the listener by setting `listenerPort`.
 
 ### How do container workloads connect to a Network Load Balancer?
 
-Container workloads ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [multi-container workloads](/resources/compute/multi-container-workload)) add a `network-load-balancer` integration to their events array. The integration specifies `loadBalancerName` (the NLB resource name), `listenerPort` (which NLB listener to bind to), and `containerPort` (the port inside the container that receives traffic).
+Container workloads add a `network-load-balancer` integration (type `network-load-balancer`) to their events array. The integration specifies `loadBalancerName` (the NLB resource name), `listenerPort` (which NLB listener to bind to), and `containerPort` (the port inside the container that receives traffic).
 
 ### What is the difference between internet and internal interface?
 
@@ -296,4 +294,4 @@ Setting `interface: 'internet'` (default) makes the NLB publicly accessible from
 
 ### Does Network Load Balancer support gradual deployments?
 
-No. Network Load Balancer does not support gradual (canary or linear) deployment strategies. Targets are registered and deregistered atomically during deployments. For deployment strategies that shift traffic incrementally between old and new versions, use container workloads behind an [Application Load Balancer](/resources/networking/application-load-balancer), which integrates with CodeDeploy for gradual deployments.
+No. Network Load Balancer does not support gradual (canary or linear) deployment strategies. For deployment strategies that shift traffic incrementally between old and new versions, use container workloads behind an [Application Load Balancer](/resources/networking/application-load-balancer), which integrates with CodeDeploy for gradual deployments.

@@ -1,21 +1,22 @@
 # Destroying Stacks
 
-The [`stacktape delete`](/cli/delete) command permanently removes a deployed stack from AWS. Stacktape validates configured [guardrails](/guardrails/overview), checks termination protection, prompts for confirmation, then deletes deployment artifacts and the CloudFormation stack. Use this to tear down development stages, expired previews, or decommissioned environments.
+The [`stacktape delete`](/cli/delete) command deletes Stacktape deployment artifacts and asks AWS CloudFormation to delete the deployed stack. Stacktape initializes stack services, validates configured [guardrails](/guardrails/overview), prompts for confirmation, and checks termination protection before proceeding. CloudFormation then removes the stack's resources in dependency order, subject to each resource's AWS-level deletion policies and state. Use this to tear down development stages, expired previews, or decommissioned environments.
 
 ## How deletion works
 
 Stacktape deletion follows a fixed sequence. Understanding the order helps when debugging failures or designing [lifecycle hooks](/configuration/hooks-and-scripts).
 
-1. **Initialize** — Stacktape loads the target stack's details and validates any configured guardrails.
-2. **Prompt for confirmation** — In interactive terminals, Stacktape asks you to confirm before proceeding. Pass `--autoConfirmOperation` to skip the prompt. In non-interactive environments (CI/CD runners without a TTY), `--autoConfirmOperation` is required — the command throws an error without it.
-3. **Check termination protection** — If the stack has `terminationProtection` enabled, the command stops with an error. You must redeploy with termination protection disabled before deleting.
-4. **Run beforeDelete hooks** — When a configuration file is provided, Stacktape registers configured hooks and runs `beforeDelete` hooks before any resources are touched.
-5. **Delete deployment artifacts** — Stacktape removes deployment artifacts managed outside the CloudFormation stack.
-6. **Delete CloudFormation stack** — AWS CloudFormation removes all resources defined in the stack template in dependency order.
-7. **Run afterDelete hooks** — After deletion completes, any configured `afterDelete` hooks execute.
+1. **Initialize stack services** — Stacktape loads the target stack's details so it can operate on the deployed stack.
+2. **Load global config and validate guardrails** — Stacktape loads the organization-level global config and validates any configured guardrails against the requested operation.
+3. **Initialize notifications** — The notification manager is initialized so deployment notifications can be sent during the operation.
+4. **Prompt for confirmation** — Stacktape may prompt before proceeding. If the prompt is aborted, the command exits without deleting anything. See the [`stacktape delete` CLI page](/cli/delete) for flags that control this behavior.
+5. **Check termination protection** — If the stack has `terminationProtection` enabled, the command stops with an error. You must redeploy with termination protection disabled before deleting.
+6. **Run configured hooks** — If a configuration was loaded, Stacktape registers configured hooks and processes START hooks before any artifacts or resources are removed.
+7. **Delete deployment artifacts** — Stacktape removes deployment artifacts managed outside the CloudFormation stack.
+8. **Delete CloudFormation stack** — AWS CloudFormation removes all resources defined in the stack template in dependency order.
 
 
-> **Warning:** Stack deletion is irreversible. All data stored in databases, buckets, and other stateful resources within the stack is permanently lost. Export any data you need before deleting.
+> **Warning:** Stacktape does not provide an undo for `stacktape delete`. CloudFormation attempts to delete all stack resources, and stateful data (databases, buckets, caches) is lost unless the underlying AWS resource has retention, backups, snapshots, versioning, or another preservation mechanism configured. Export any data you need before deleting.
 
 
 ## Using the CLI
@@ -26,21 +27,15 @@ Run [`stacktape delete`](/cli/delete) with the project name, stage, and region o
 stacktape delete --projectName my-app --stage dev --region eu-west-1
 ```
 
-To skip the confirmation prompt (required in CI/CD pipelines without a TTY), pass `--autoConfirmOperation`.
-
-```bash
-stacktape delete --projectName my-app --stage dev --region eu-west-1 --autoConfirmOperation
-```
+See the [`stacktape delete` CLI reference](/cli/delete) for the full list of available flags and options.
 
 
-> **Info:** The delete command does **not** require a configuration file. Specify `--projectName`, `--stage`, and `--region` to delete any stack — even without the source code locally. Providing `--configPath` enables lifecycle hooks (`beforeDelete` and `afterDelete`) that are defined in your configuration. See the full flag reference on the [`stacktape delete` CLI page](/cli/delete).
+> **Info:** The delete command initializes with `commandRequiresConfig: false`, so deletion can run without loading the project config. Specify `--projectName`, `--stage`, and `--region` to target the stack. When a configuration is loaded, Stacktape additionally registers and processes the hooks defined in it. See the full flag reference on the [`stacktape delete` CLI page](/cli/delete).
 
-
-Stacks can also be deleted from the [Stacktape Console](/stacktape-console/console-overview).
 
 ## Termination protection
 
-Stacktape supports CloudFormation termination protection to prevent accidental deletion of critical stacks. When `terminationProtection` is enabled in your `deploymentConfig`, the delete command refuses to proceed and displays an error explaining that you must first deploy with `terminationProtection` set to `false`.
+Stacktape supports CloudFormation termination protection to prevent accidental deletion of critical stacks. When the deployed stack has termination protection enabled, the delete command refuses to proceed and displays an error explaining that you must first deploy with `terminationProtection` set to `false`.
 
 
 Example (TypeScript):
@@ -64,7 +59,7 @@ export default defineConfig(() => {
 ```
 
 
-Setting `terminationProtection: true` is recommended for production stages. It defaults to `false`. The protection applies at the AWS CloudFormation stack level — even direct AWS Console access cannot delete a protected stack without first disabling the flag. To delete a protected stack: deploy with `terminationProtection: false`, then run `stacktape delete`.
+Setting `terminationProtection: true` is recommended for production stages. The protection applies at the AWS CloudFormation stack level — even direct AWS Console access cannot delete a protected stack without first disabling the flag. To delete a protected stack: deploy with `terminationProtection: false`, then run `stacktape delete`.
 
 ## When to use termination protection
 
@@ -72,52 +67,13 @@ Enable termination protection on any stage that carries production data or serve
 
 ## Lifecycle hooks
 
-When a configuration file is provided via `--configPath`, Stacktape registers your configured [hooks](/configuration/hooks-and-scripts) and runs them around the deletion process. `beforeDelete` hooks run before any artifacts or resources are removed — use them to export data, create backups, or notify external systems. `afterDelete` hooks run after the stack has been fully deleted — use them for cleanup tasks like updating a service registry or sending Slack notifications.
+If Stacktape loads a configuration, the delete command registers configured [hooks](/configuration/hooks-and-scripts) and processes hooks with capture type `START` before artifact deletion and CloudFormation stack deletion. If no configuration is loaded, no hooks are registered — the stack is deleted directly.
 
-Without `--configPath`, no hooks run — the stack is deleted directly.
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
-export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    })
-  });
-
-  return {
-    resources: { api },
-    hooks: {
-      beforeDelete: [{ scriptName: 'exportData' }],
-      afterDelete: [{ scriptName: 'notifySlack' }]
-    },
-    scripts: {
-      exportData: {
-        type: 'local-script',
-        properties: {
-          executeCommand: 'node scripts/export-data.js'
-        }
-      },
-      notifySlack: {
-        type: 'local-script',
-        properties: {
-          executeCommand: 'node scripts/notify-slack.js'
-        }
-      }
-    }
-  };
-});
-```
-
-
-Each hook entry references a named script defined in the `scripts` section by its `scriptName`. Hooks also support `skipOnCI` (skip in CI/CD environments like CodeBuild or GitHub Actions) and `skipOnLocal` (skip when running locally). Both default to `false`. See the [hooks and scripts reference](/configuration/hooks-and-scripts) for the full configuration options.
+See the [hooks and scripts reference](/configuration/hooks-and-scripts) for the full hook configuration options.
 
 ## Guardrails
 
-Configured [guardrails](/guardrails/overview) are validated before the delete command proceeds. If a guardrail blocks the operation — for example, by restricting the `delete` command or limiting which stages or regions can be modified — the command fails immediately with an error. Guardrails are enforced regardless of whether a configuration file is provided, because they are loaded from the organization-level global config.
+Configured [guardrails](/guardrails/overview) are validated before the delete command proceeds. If validation fails, the delete command stops before artifact or stack deletion. Guardrails are enforced regardless of whether a configuration file is provided, because they are loaded from the organization-level global config.
 
 See [guardrails overview](/guardrails/overview) for the available guardrail types and how to configure them.
 
@@ -125,18 +81,16 @@ See [guardrails overview](/guardrails/overview) for the available guardrail type
 
 When `stacktape delete` runs, two categories of resources are removed:
 
-- **Deployment artifacts** — Stacktape-managed artifacts stored outside the CloudFormation stack (such as packaged code and build outputs) are deleted first.
-- **CloudFormation-managed resources** — AWS CloudFormation then removes every resource defined in the stack template: Lambda functions, container workloads, databases, buckets, API gateways, load balancers, VPC resources, IAM roles, and all supporting infrastructure.
+- **Deployment artifacts** — Stacktape calls its deployment artifact cleanup before requesting CloudFormation stack deletion.
+- **CloudFormation-managed resources** — AWS CloudFormation then removes all resources defined in the stack template. The exact set depends on what your configuration declares — any Stacktape resource type (compute, databases, networking, storage, etc.) maps to underlying CloudFormation resources that are deleted in dependency order.
 
-After deletion, the stack no longer exists in your AWS account. There is no Stacktape-level backup or undo mechanism.
+After Stacktape reports successful deletion, Stacktape has completed artifact cleanup and CloudFormation stack deletion. Resources retained by AWS-level deletion policies, snapshots, backups, or external configuration may still exist. There is no Stacktape-level backup or undo mechanism.
 
 ## Handling failed deletions
 
 If AWS CloudFormation cannot delete a resource — due to dependencies, non-empty S3 buckets populated outside of Stacktape, or permission issues — the stack enters a `DELETE_FAILED` state. CloudFormation reports the specific resource and error in the stack events.
 
-**Fix and retry.** Identify the failing resource from the CloudFormation events (visible in the AWS Console or via `aws cloudformation describe-stack-events`), resolve the dependency (for example, manually empty a bucket that was populated outside Stacktape), and run `stacktape delete` again.
-
-**Skip problematic resources.** The [`stacktape cf:rollback`](/cli/cf-rollback) command provides additional recovery options for stacks stuck in a failed state. See its CLI reference for details.
+**Fix and retry.** Inspect the CloudFormation events (visible in the AWS Console or via `aws cloudformation describe-stack-events`), identify the failing resource and underlying AWS error, resolve it (for example, manually empty a bucket that was populated outside Stacktape, or disable AWS-level deletion protection on the resource), and run `stacktape delete` again.
 
 Common causes of deletion failures:
 
@@ -166,19 +120,19 @@ For PR-based workflows, automate deletion when the branch is deleted or the PR i
 
 ### Can I delete a stack without the original config file?
 
-Yes. The `stacktape delete` command does not require a configuration file. Specify `--projectName`, `--stage`, and `--region` and Stacktape deletes the stack directly. The only limitation is that `beforeDelete` and `afterDelete` hooks will not run, because they are defined in the config file.
+Yes. The `stacktape delete` command does not require a configuration file. Specify `--projectName`, `--stage`, and `--region` and Stacktape deletes the stack directly. The only limitation is that pre-deletion lifecycle hooks defined in the config file will not run, because no configuration is loaded.
 
 ### How long does CloudFormation stack deletion take?
 
-Deletion time depends on the resources in the stack. A Lambda-based stack typically deletes in 1-3 minutes. Stacks with RDS databases, container workloads, or VPC resources take 5-15 minutes because AWS needs to drain connections, delete network interfaces, and clean up dependencies in order. NAT Gateways alone take 3-5 minutes to delete.
+Deletion time depends on the number and type of resources in the stack. AWS CloudFormation deletes resources in reverse dependency order, and some AWS resources take longer to deprovision than others (for example, VPC-related resources and databases require connection draining and network interface cleanup). Simple stacks delete faster than stacks with many networking or stateful resources. Monitor progress in the CloudFormation stack events.
 
 ### What happens to my data when I delete a stack?
 
-All data is permanently deleted. This includes database contents (RDS, DynamoDB), S3 bucket objects, Redis data, and any other stateful resources. AWS CloudFormation deletes resources in dependency order. If you need to preserve data, export it before running delete. A `beforeDelete` [hook](/configuration/hooks-and-scripts) is the recommended approach for automated pre-deletion exports.
+CloudFormation attempts to delete all resources in the stack, including databases, buckets, and caches. Stateful data is lost unless the underlying AWS resource has retention, backups, snapshots, or versioning configured independently. If you need to preserve data, export it before running delete. A pre-deletion [hook](/configuration/hooks-and-scripts) is the recommended approach for automated exports.
 
 ### Can I recover a deleted stack?
 
-No. Once CloudFormation finishes deleting a stack, the resources and data are gone. Stacktape does not maintain backups of deleted stacks. For recovery capability, configure protections on individual resources before deletion: AWS RDS automated backups (retained for up to 35 days), S3 versioning, or DynamoDB point-in-time recovery. These are AWS-level features configured outside of the stack deletion process.
+Stacktape does not provide an undo for deleted stacks. Once CloudFormation finishes deleting resources, they are removed. For recovery capability, configure AWS-level protections on individual resources before deletion: AWS RDS automated backups, S3 versioning, or DynamoDB point-in-time recovery. These are AWS service features configured outside of the Stacktape deletion process.
 
 ### How do I prevent team members from accidentally deleting production?
 
@@ -190,7 +144,7 @@ The delete operation itself is free — AWS CloudFormation does not charge for s
 
 ### What if my stack is stuck in DELETE_FAILED?
 
-CloudFormation reports the specific failing resource and error. Common causes include S3 buckets with externally-added objects, resources with AWS-level deletion protection, or cross-stack security group references. Fix the underlying issue and run `stacktape delete` again. For additional recovery options, see [`stacktape cf:rollback`](/cli/cf-rollback).
+CloudFormation reports the specific failing resource and error. Common causes include S3 buckets with externally-added objects, resources with AWS-level deletion protection, or cross-stack security group references. Inspect the stack events, fix the underlying AWS resource issue, and run `stacktape delete` again.
 
 ### Should I auto-delete stacks for each branch?
 
@@ -202,4 +156,4 @@ No. If a stack is in an `UPDATE_IN_PROGRESS` or `CREATE_IN_PROGRESS` CloudFormat
 
 ### What is the difference between deleting a stack and rolling back?
 
-Deleting removes the entire stack and all its resources permanently. [Rolling back](/deployment-and-lifecycle/rollbacks) reverts the stack to a previous deployment version while keeping all resources running — it redeploys an earlier CloudFormation template. Use rollback when a deployment introduced a bug and you want to restore the previous working state. Use delete when you want to tear down the stage entirely.
+Deleting removes the entire stack and its resources. [Rolling back](/deployment-and-lifecycle/rollbacks) returns a stack to an earlier deployed state while keeping resources running. Use rollback when a deployment introduced a bug and you want to restore the previous working state. Use delete when you want to tear down the stage entirely.

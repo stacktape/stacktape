@@ -8,15 +8,15 @@ export interface VolumeProperties {
   Size?: Value<number>;
   AutoEnableIO?: Value<boolean>;
   OutpostArn?: Value<string>;
+  AvailabilityZoneId?: Value<string>;
   AvailabilityZone?: Value<string>;
   Throughput?: Value<number>;
   Iops?: Value<number>;
   VolumeInitializationRate?: Value<number>;
   SnapshotId?: Value<string>;
   VolumeType?: Value<string>;
-  Tags?: List<ResourceTag>;
-  AvailabilityZoneId?: Value<string>;
   SourceVolumeId?: Value<string>;
+  Tags?: List<ResourceTag>;
 }
 export default class Volume extends ResourceBase<VolumeProperties> {
   constructor(properties?: VolumeProperties) {

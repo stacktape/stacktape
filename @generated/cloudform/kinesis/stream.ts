@@ -14,19 +14,29 @@ export class StreamModeDetails {
     Object.assign(this, properties);
   }
 }
+
+export class WarmThroughputObject {
+  CurrentMiBps?: Value<number>;
+  TargetMiBps?: Value<number>;
+  constructor(properties: WarmThroughputObject) {
+    Object.assign(this, properties);
+  }
+}
 export interface StreamProperties {
   StreamModeDetails?: StreamModeDetails;
   StreamEncryption?: StreamEncryption;
+  WarmThroughputMiBps?: Value<number>;
+  MaxRecordSizeInKiB?: Value<number>;
   RetentionPeriodHours?: Value<number>;
   DesiredShardLevelMetrics?: List<Value<string>>;
   Tags?: List<ResourceTag>;
   Name?: Value<string>;
   ShardCount?: Value<number>;
-  MaxRecordSizeInKiB?: Value<number>;
 }
 export default class Stream extends ResourceBase<StreamProperties> {
   static StreamEncryption = StreamEncryption;
   static StreamModeDetails = StreamModeDetails;
+  static WarmThroughputObject = WarmThroughputObject;
   constructor(properties?: StreamProperties) {
     super('AWS::Kinesis::Stream', properties || {});
   }

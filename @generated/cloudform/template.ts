@@ -1,9 +1,9 @@
-import Parameter from './parameter';
-import Resource from './resource';
-import { Condition } from './dataTypes';
-import Output from './output';
+import type { Condition } from './dataTypes';
+import type Output from './output';
+import type Parameter from './parameter';
+import type Resource from './resource';
 
-export default interface Template {
+type Template = {
   AWSTemplateFormatVersion?: string;
   Description?: string;
   Metadata?: { [key: string]: any };
@@ -14,4 +14,5 @@ export default interface Template {
   Hooks?: { [hookName: string]: any };
   Resources?: { [key: string]: Resource };
   Outputs?: { [key: string]: Output };
-}
+};
+export default Template;

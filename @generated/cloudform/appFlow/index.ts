@@ -1,2 +1,2 @@
-import { AppFlow } from './index.namespace';
-export default AppFlow;
+import {AppFlow} from './index.namespace'
+export default AppFlow

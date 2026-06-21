@@ -7,6 +7,13 @@ export class HostedZoneConfig {
   }
 }
 
+export class HostedZoneFeatures {
+  EnableAcceleratedRecovery?: Value<boolean>;
+  constructor(properties: HostedZoneFeatures) {
+    Object.assign(this, properties);
+  }
+}
+
 export class HostedZoneTag {
   Value!: Value<string>;
   Key!: Value<string>;
@@ -32,12 +39,14 @@ export class VPC {
 export interface HostedZoneProperties {
   HostedZoneTags?: List<HostedZoneTag>;
   VPCs?: List<VPC>;
+  HostedZoneFeatures?: HostedZoneFeatures;
   HostedZoneConfig?: HostedZoneConfig;
   QueryLoggingConfig?: QueryLoggingConfig;
   Name?: Value<string>;
 }
 export default class HostedZone extends ResourceBase<HostedZoneProperties> {
   static HostedZoneConfig = HostedZoneConfig;
+  static HostedZoneFeatures = HostedZoneFeatures;
   static HostedZoneTag = HostedZoneTag;
   static QueryLoggingConfig = QueryLoggingConfig;
   static VPC = VPC;

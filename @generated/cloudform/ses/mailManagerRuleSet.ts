@@ -24,6 +24,19 @@ export class ArchiveAction {
   }
 }
 
+export class BounceAction {
+  Sender!: Value<string>;
+  SmtpReplyCode!: Value<string>;
+  DiagnosticMessage!: Value<string>;
+  Message?: Value<string>;
+  ActionFailurePolicy?: Value<string>;
+  StatusCode!: Value<string>;
+  RoleArn!: Value<string>;
+  constructor(properties: BounceAction) {
+    Object.assign(this, properties);
+  }
+}
+
 export class DeliverToMailboxAction {
   MailboxArn!: Value<string>;
   ActionFailurePolicy?: Value<string>;
@@ -39,6 +52,17 @@ export class DeliverToQBusinessAction {
   ApplicationId!: Value<string>;
   RoleArn!: Value<string>;
   constructor(properties: DeliverToQBusinessAction) {
+    Object.assign(this, properties);
+  }
+}
+
+export class InvokeLambdaAction {
+  FunctionArn!: Value<string>;
+  RetryTimeMinutes?: Value<number>;
+  InvocationType!: Value<string>;
+  ActionFailurePolicy?: Value<string>;
+  RoleArn!: Value<string>;
+  constructor(properties: InvokeLambdaAction) {
     Object.assign(this, properties);
   }
 }
@@ -77,9 +101,11 @@ export class RuleAction {
   ReplaceRecipient?: ReplaceRecipientAction;
   WriteToS3?: S3Action;
   PublishToSns?: SnsAction;
+  Bounce?: BounceAction;
   DeliverToQBusiness?: DeliverToQBusinessAction;
   Drop?: { [key: string]: any };
   Send?: SendAction;
+  InvokeLambda?: InvokeLambdaAction;
   constructor(properties: RuleAction) {
     Object.assign(this, properties);
   }
@@ -104,11 +130,11 @@ export class RuleBooleanToEvaluate {
 
 export class RuleCondition {
   BooleanExpression?: RuleBooleanExpression;
+  NumberExpression?: RuleNumberExpression;
+  IpExpression?: RuleIpExpression;
   VerdictExpression?: RuleVerdictExpression;
   StringExpression?: RuleStringExpression;
   DmarcExpression?: RuleDmarcExpression;
-  NumberExpression?: RuleNumberExpression;
-  IpExpression?: RuleIpExpression;
   constructor(properties: RuleCondition) {
     Object.assign(this, properties);
   }
@@ -175,6 +201,7 @@ export class RuleStringToEvaluate {
   Attribute?: Value<string>;
   MimeHeaderAttribute?: Value<string>;
   Analysis?: Analysis;
+  ClientCertificateAttribute?: Value<string>;
   constructor(properties: RuleStringToEvaluate) {
     Object.assign(this, properties);
   }
@@ -235,8 +262,10 @@ export default class MailManagerRuleSet extends ResourceBase<MailManagerRuleSetP
   static AddHeaderAction = AddHeaderAction;
   static Analysis = Analysis;
   static ArchiveAction = ArchiveAction;
+  static BounceAction = BounceAction;
   static DeliverToMailboxAction = DeliverToMailboxAction;
   static DeliverToQBusinessAction = DeliverToQBusinessAction;
+  static InvokeLambdaAction = InvokeLambdaAction;
   static RelayAction = RelayAction;
   static ReplaceRecipientAction = ReplaceRecipientAction;
   static Rule = Rule;

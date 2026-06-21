@@ -1,5 +1,17 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
+export class AdditionalStorageVolume {
+  VolumeName?: Value<string>;
+  StorageType?: Value<string>;
+  MaxAllocatedStorage?: Value<number>;
+  StorageThroughput?: Value<number>;
+  Iops?: Value<number>;
+  AllocatedStorage?: Value<string>;
+  constructor(properties: AdditionalStorageVolume) {
+    Object.assign(this, properties);
+  }
+}
+
 export class CertificateDetails {
   ValidTill?: Value<string>;
   CAIdentifier?: Value<string>;
@@ -57,6 +69,7 @@ export interface DBInstanceProperties {
   DBSystemId?: Value<string>;
   Port?: Value<string>;
   DBClusterIdentifier?: Value<string>;
+  AdditionalStorageVolumes?: List<AdditionalStorageVolume>;
   StorageThroughput?: Value<number>;
   AutomaticBackupReplicationRetentionPeriod?: Value<number>;
   MasterUserAuthenticationType?: Value<string>;
@@ -133,6 +146,7 @@ export interface DBInstanceProperties {
   UseDefaultProcessorFeatures?: Value<boolean>;
 }
 export default class DBInstance extends ResourceBase<DBInstanceProperties> {
+  static AdditionalStorageVolume = AdditionalStorageVolume;
   static CertificateDetails = CertificateDetails;
   static DBInstanceRole = DBInstanceRole;
   static DBInstanceStatusInfo = DBInstanceStatusInfo;

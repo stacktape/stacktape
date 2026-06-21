@@ -92,9 +92,18 @@ export class TargetTrackingScalingPolicyConfiguration {
     Object.assign(this, properties);
   }
 }
+
+export class WarmThroughput {
+  ReadUnitsPerSecond?: Value<number>;
+  WriteUnitsPerSecond?: Value<number>;
+  constructor(properties: WarmThroughput) {
+    Object.assign(this, properties);
+  }
+}
 export interface TableProperties {
   ReplicaSpecifications?: List<ReplicaSpecification>;
   ClusteringKeyColumns?: List<ClusteringKeyColumn>;
+  WarmThroughput?: WarmThroughput;
   KeyspaceName: Value<string>;
   EncryptionSpecification?: EncryptionSpecification;
   TableName?: Value<string>;
@@ -120,6 +129,7 @@ export default class Table extends ResourceBase<TableProperties> {
   static ReplicaSpecification = ReplicaSpecification;
   static ScalingPolicy = ScalingPolicy;
   static TargetTrackingScalingPolicyConfiguration = TargetTrackingScalingPolicyConfiguration;
+  static WarmThroughput = WarmThroughput;
   constructor(properties: TableProperties) {
     super('AWS::Cassandra::Table', properties);
   }

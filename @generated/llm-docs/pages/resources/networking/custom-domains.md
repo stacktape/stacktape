@@ -1,13 +1,13 @@
 # Custom Domains
 
-Stacktape custom domains attach your own domain names (like `api.example.com`) to resources instead of auto-generated AWS endpoints. Stacktape provisions a free TLS certificate via AWS Certificate Manager, creates a DNS record in Route53, and renews the certificate automatically — no manual setup beyond initial domain registration.
+Stacktape custom domains attach your own domain names (like `api.example.com`) to resources instead of auto-generated AWS endpoints. Stacktape can create a DNS record and provision a free ACM certificate after the domain has a Route53 hosted zone in your AWS account and your registrar's nameservers point to that zone.
 
 ## When to use
 
 Custom domains are essential for any production-facing resource. Use them when you need:
 
 - **Branded URLs** — serve your API at `api.yourcompany.com` instead of a random AWS-generated hostname
-- **Stable endpoints** — your domain stays the same across redeployments, stage recreations, and infrastructure changes
+- **Stable endpoint names** — clients call your chosen DNS name instead of an AWS-generated hostname
 - **Multi-stage routing** — use subdomains to separate stages: `api.example.com` for production, `api-staging.example.com` for staging
 - **Shared root domain** — route `app.example.com` to your frontend and `api.example.com` to your API, both under one root domain
 
@@ -17,11 +17,9 @@ Custom domains are essential for any production-facing resource. Use them when y
 - **Internal-only services** — [private services](/resources/compute/private-service) reachable only within your stack or VPC don't need public custom domains. Use service discovery instead.
 - **Rapid prototyping** — if you haven't registered a domain yet, start without custom domains. Add them later without rebuilding your stack.
 
-Every Stacktape resource with a public URL already has TLS on its auto-generated endpoint — you don't need a custom domain just for HTTPS.
-
 ## Supported resources
 
-The `customDomains` property accepts an array of `DomainConfiguration` objects. The following resource types support custom domains:
+Custom domains attach directly to four networking resources Stacktape exposes:
 
 | Resource | Typical use case |
 |----------|-----------------|
@@ -29,11 +27,10 @@ The `customDomains` property accepts an array of `DomainConfiguration` objects. 
 | [Application Load Balancer](/resources/networking/application-load-balancer) | `app.example.com` for container workloads |
 | [Network Load Balancer](/resources/networking/network-load-balancer) | TCP/TLS services at a custom domain |
 | [CDN](/resources/networking/cdn) | `cdn.example.com` for cached content delivery |
-| [Web service](/resources/compute/web-service) | Container workloads with a public URL |
-| [Static hosting](/resources/frontend/static-hosting) | `www.example.com` for static sites |
-| SSR frontends ([Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)) | SSR apps at a custom domain |
 
-The `DomainConfiguration` structure is the same across all resource types that accept it. Each entry in the `customDomains` array uses three properties: `domainName` (required), `customCertificateArn` (optional), and `disableDnsRecordCreation` (optional, defaults to `false`). Application Load Balancers and Network Load Balancers also accept a `string[]` format where each string is a domain name — other resource types require the full `DomainConfiguration` object.
+A [CDN](/resources/networking/cdn) can target a [bucket](/resources/storage/s3-bucket), [Application Load Balancer](/resources/networking/application-load-balancer), [HTTP API Gateway](/resources/networking/http-api-gateway), or [Lambda function](/resources/compute/lambda-function), which is how you can put a custom domain in front of those origins. For [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), and SSR frontends, see each resource's page for how custom domains are configured through the underlying networking layer.
+
+Each entry in a resource's `customDomains` array is a `DomainConfiguration` object with three fields: `domainName` (required), `customCertificateArn` (optional), and `disableDnsRecordCreation` (optional, defaults to `false`). The structure is identical across every resource type that accepts custom domains.
 
 ## Prerequisites
 
@@ -95,17 +92,17 @@ export default defineConfig(() => {
 The `customCertificateArn` must reference a certificate already imported or issued in your AWS account's ACM. When you provide a custom certificate, Stacktape skips automatic certificate provisioning for that domain.
 
 
-> **Warning:** When you provide a custom certificate, you are responsible for renewing it before expiration. AWS does not auto-renew imported certificates.
+> **Warning:** When you provide an imported or externally issued certificate via `customCertificateArn`, plan its renewal yourself. Stacktape only handles automatic renewal for certificates it provisions by default.
 
 
-> **Tip:** AWS CloudFront requires TLS certificates to be in the `us-east-1` region regardless of your stack's region. If you provide a custom certificate for a CDN-attached domain, ensure it's provisioned in `us-east-1`.
+> **Tip:** For CDN custom domains, CloudFront has its own ACM certificate-region requirement — check [AWS CloudFront certificate rules](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cnames-and-https-requirements.html) before supplying `customCertificateArn`.
 
 
 **When to use a custom certificate:** Only when compliance or organizational policy requires EV/OV certificates, or when you need to use a certificate from an external CA imported into ACM. For all other cases, the auto-provisioned free certificate is the right choice — it costs nothing and renews itself.
 
 ## External DNS
 
-If you manage DNS through an external provider like Cloudflare or Google Cloud DNS, set `disableDnsRecordCreation` to `true`. When this flag is set, Stacktape does not create or modify DNS records, so you manage the DNS record yourself. Stacktape still provisions the TLS certificate using the Route53 hosted zone for DNS-based validation.
+If you manage DNS through an external provider like Cloudflare or Google Cloud DNS, set `disableDnsRecordCreation` to `true`. When this flag is set, Stacktape does not create or modify DNS records, so you manage the DNS record yourself. Stacktape still provisions the TLS certificate, but does not create or modify the DNS record for the domain.
 
 
 Example (TypeScript):
@@ -129,9 +126,9 @@ export default defineConfig(() => {
 ```
 
 
-A Route53 hosted zone is still required for the domain even when `disableDnsRecordCreation` is set — Stacktape uses the hosted zone for DNS-based TLS certificate validation. When combined with `customCertificateArn` (providing your own pre-existing certificate), the Route53 requirement for certificate validation may not apply since no new certificate needs provisioning.
+The `domainName` configuration requires that the domain has a Route53 hosted zone in your AWS account. Typically, a Route53 hosted zone is still needed even with `disableDnsRecordCreation: true`, because Stacktape uses it for DNS-based certificate validation. When `customCertificateArn` is also provided, Stacktape uses your pre-existing certificate instead of provisioning a new one, reducing the dependency on Route53 for certificate validation.
 
-**When to use external DNS:** When your domain's authoritative DNS is managed outside Route53 (Cloudflare, Google Cloud DNS, etc.) and you don't want Stacktape creating DNS records in Route53. This is common when Cloudflare handles CDN/WAF at the DNS layer, or when DNS is managed by a separate team.
+**When to use external DNS:** When your domain's authoritative DNS is managed outside Route53 (Cloudflare, Google Cloud DNS, etc.) and you don't want Stacktape creating DNS records in Route53. This is common when Cloudflare handles CDN/WAF at the DNS layer, or when DNS is managed by a separate team. After deployment, create the required DNS record in your external DNS provider pointing to the endpoint Stacktape exposes for the resource.
 
 ## Multiple domains
 
@@ -194,7 +191,7 @@ Stacktape will still provision the TLS certificate but won&#39;t touch your DNS.
 
 ### Which Stacktape resources support custom domains?
 
-Custom domains are supported on [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), [CDNs](/resources/networking/cdn), [web services](/resources/compute/web-service), [static hosting](/resources/frontend/static-hosting), and all SSR frontend resources ([Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)). All use the same `DomainConfiguration` structure. ALB and NLB additionally accept a shorthand `string[]` format.
+Custom domains attach to [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), and [CDNs](/resources/networking/cdn). A [CDN](/resources/networking/cdn) can target a [bucket](/resources/storage/s3-bucket), [Application Load Balancer](/resources/networking/application-load-balancer), [HTTP API Gateway](/resources/networking/http-api-gateway), or [Lambda function](/resources/compute/lambda-function), which is the typical way to put a custom domain in front of those origins. All four attachable resources use the same `DomainConfiguration` structure.
 
 ### How do I set up a Route53 hosted zone for my domain?
 
@@ -206,7 +203,7 @@ Yes. You don't need to transfer your domain registration to AWS. Register and ke
 
 ### Does Stacktape handle TLS certificate renewal?
 
-Auto-provisioned certificates are managed by AWS Certificate Manager and renewed automatically before expiration with no downtime. If you provide a custom certificate via `customCertificateArn`, you are responsible for renewing it yourself. For most teams, the auto-provisioned certificate is the right choice — it's free and fully managed.
+By default, Stacktape provisions and renews free certificates automatically via AWS Certificate Manager. If you provide a custom certificate via `customCertificateArn`, you handle renewal yourself. For most teams, the auto-provisioned certificate is the right choice — it's free and fully managed.
 
 ### How much do custom domains cost on AWS?
 
@@ -218,7 +215,7 @@ TLS certificate provisioning via DNS validation typically completes within minut
 
 ### Can I use Cloudflare with Stacktape custom domains?
 
-Yes. Set `disableDnsRecordCreation: true` so Stacktape does not create DNS records for the resource. A Route53 hosted zone is still needed for TLS certificate validation (unless you also provide `customCertificateArn`). After deployment, point a CNAME record in Cloudflare to the resource's endpoint.
+Yes. Set `disableDnsRecordCreation: true` so Stacktape does not create DNS records for the resource. The `domainName` property still requires a Route53 hosted zone in your AWS account. If you also provide `customCertificateArn`, Stacktape uses your existing ACM certificate instead of provisioning one. After deployment, create the required DNS record in your external DNS provider pointing to the endpoint Stacktape exposes for the resource.
 
 ### What's the difference between Route53 and my domain registrar?
 
@@ -230,4 +227,4 @@ For most teams, no. Auto-generated AWS URLs are sufficient for non-production st
 
 ### Can I route one domain to multiple backends?
 
-A single DNS name resolves to one target endpoint. To route different paths to different backends under the same domain, attach the custom domain to an [Application Load Balancer](/resources/networking/application-load-balancer) or [HTTP API Gateway](/resources/networking/http-api-gateway) and use their routing integrations. Application Load Balancer integrations can match paths, methods, hosts, headers, query parameters, and source IPs. HTTP API integrations match by method and path. See [HTTP triggers](/configuration/triggers/http-triggers) for details.
+For path-based routing under one domain, attach the custom domain to an [Application Load Balancer](/resources/networking/application-load-balancer) or [HTTP API Gateway](/resources/networking/http-api-gateway) and use their routing integrations. Application Load Balancer integrations can match paths, methods, hosts, headers, query parameters, and source IPs. HTTP API integrations match by method and path. See [HTTP triggers](/configuration/triggers/http-triggers) for details.

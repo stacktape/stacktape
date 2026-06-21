@@ -15,6 +15,7 @@ export interface TransitGatewayProperties {
   MulticastSupport?: Value<string>;
   AmazonSideAsn?: Value<number>;
   Tags?: List<ResourceTag>;
+  EncryptionSupport?: Value<string>;
 }
 export default class TransitGateway extends ResourceBase<TransitGatewayProperties> {
   constructor(properties?: TransitGatewayProperties) {

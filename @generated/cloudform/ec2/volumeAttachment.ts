@@ -5,6 +5,7 @@ export interface VolumeAttachmentProperties {
   VolumeId: Value<string>;
   InstanceId: Value<string>;
   Device?: Value<string>;
+  EbsCardIndex?: Value<number>;
 }
 export default class VolumeAttachment extends ResourceBase<VolumeAttachmentProperties> {
   constructor(properties: VolumeAttachmentProperties) {

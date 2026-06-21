@@ -7,6 +7,13 @@ export class AdConditioningConfiguration {
   }
 }
 
+export class AdDecisionServerConfiguration {
+  HttpRequest!: HttpRequest;
+  constructor(properties: AdDecisionServerConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class AdMarkerPassthrough {
   Enabled?: Value<boolean>;
   constructor(properties: AdMarkerPassthrough) {
@@ -63,6 +70,16 @@ export class HlsConfiguration {
   }
 }
 
+export class HttpRequest {
+  Headers?: { [key: string]: Value<string> };
+  CompressRequest?: Value<string>;
+  Body?: Value<string>;
+  HttpMethod?: Value<string>;
+  constructor(properties: HttpRequest) {
+    Object.assign(this, properties);
+  }
+}
+
 export class LivePreRollConfiguration {
   AdDecisionServerUrl?: Value<string>;
   MaxDurationSeconds?: Value<number>;
@@ -105,6 +122,7 @@ export interface PlaybackConfigurationProperties {
   HlsConfiguration?: HlsConfiguration;
   LogConfiguration?: LogConfiguration;
   VideoContentSourceUrl: Value<string>;
+  AdDecisionServerConfiguration?: AdDecisionServerConfiguration;
   Name: Value<string>;
   TranscodeProfileName?: Value<string>;
   ConfigurationAliases?: { [key: string]: { [key: string]: any } };
@@ -116,6 +134,7 @@ export interface PlaybackConfigurationProperties {
 }
 export default class PlaybackConfiguration extends ResourceBase<PlaybackConfigurationProperties> {
   static AdConditioningConfiguration = AdConditioningConfiguration;
+  static AdDecisionServerConfiguration = AdDecisionServerConfiguration;
   static AdMarkerPassthrough = AdMarkerPassthrough;
   static AdsInteractionLog = AdsInteractionLog;
   static AvailSuppression = AvailSuppression;
@@ -123,6 +142,7 @@ export default class PlaybackConfiguration extends ResourceBase<PlaybackConfigur
   static CdnConfiguration = CdnConfiguration;
   static DashConfiguration = DashConfiguration;
   static HlsConfiguration = HlsConfiguration;
+  static HttpRequest = HttpRequest;
   static LivePreRollConfiguration = LivePreRollConfiguration;
   static LogConfiguration = LogConfiguration;
   static ManifestProcessingRules = ManifestProcessingRules;

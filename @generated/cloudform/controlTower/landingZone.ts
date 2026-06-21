@@ -3,6 +3,7 @@ import { Value, List } from '../dataTypes';
 
 export interface LandingZoneProperties {
   Version: Value<string>;
+  RemediationTypes?: List<Value<string>>;
   Manifest: { [key: string]: any };
   Tags?: List<ResourceTag>;
 }

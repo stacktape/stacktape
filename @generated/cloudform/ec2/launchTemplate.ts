@@ -77,6 +77,7 @@ export class CpuOptions {
   ThreadsPerCore?: Value<number>;
   AmdSevSnp?: Value<string>;
   CoreCount?: Value<number>;
+  NestedVirtualization?: Value<string>;
   constructor(properties: CpuOptions) {
     Object.assign(this, properties);
   }
@@ -94,6 +95,7 @@ export class Ebs {
   VolumeType?: Value<string>;
   KmsKeyId?: Value<string>;
   Encrypted?: Value<boolean>;
+  EbsCardIndex?: Value<number>;
   Throughput?: Value<number>;
   Iops?: Value<number>;
   VolumeInitializationRate?: Value<number>;

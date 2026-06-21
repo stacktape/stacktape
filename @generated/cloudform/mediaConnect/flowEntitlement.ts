@@ -1,15 +1,10 @@
-import { ResourceBase } from '../resource';
+import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class Encryption {
   SecretArn?: Value<string>;
   KeyType?: Value<string>;
-  ResourceId?: Value<string>;
-  DeviceId?: Value<string>;
-  Region?: Value<string>;
-  ConstantInitializationVector?: Value<string>;
   Algorithm!: Value<string>;
   RoleArn!: Value<string>;
-  Url?: Value<string>;
   constructor(properties: Encryption) {
     Object.assign(this, properties);
   }
@@ -21,6 +16,7 @@ export interface FlowEntitlementProperties {
   Subscribers: List<Value<string>>;
   FlowArn: Value<string>;
   EntitlementStatus?: Value<string>;
+  Tags?: List<ResourceTag>;
   Name: Value<string>;
 }
 export default class FlowEntitlement extends ResourceBase<FlowEntitlementProperties> {

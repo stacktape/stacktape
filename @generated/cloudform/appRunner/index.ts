@@ -1,2 +1,2 @@
-import { AppRunner } from './index.namespace';
-export default AppRunner;
+import {AppRunner} from './index.namespace'
+export default AppRunner

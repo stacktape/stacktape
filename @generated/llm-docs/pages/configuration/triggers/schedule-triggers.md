@@ -1,6 +1,6 @@
 # Schedule Triggers
 
-A schedule trigger invokes a Stacktape [Lambda function](/resources/compute/lambda-function) on a recurring time-based schedule — cron jobs, periodic data processing, cache warming, report generation, or any task that runs at fixed intervals. Underneath, Stacktape creates an AWS EventBridge rule that fires on your defined schedule and invokes the target function.
+A schedule trigger invokes a Stacktape [Lambda function](/resources/compute/lambda-function) on a recurring time-based schedule — cron jobs, periodic data processing, cache warming, report generation, or any task that runs at fixed intervals. Schedule triggers use AWS rate and cron expressions to invoke the target function on a recurring schedule.
 
 ## When to use
 
@@ -13,7 +13,7 @@ A schedule trigger invokes a Stacktape [Lambda function](/resources/compute/lamb
 
 - **Real-time event processing** — if the trigger is an incoming message, file upload, or database change, use [SQS](/configuration/triggers/sqs-events), [S3](/configuration/triggers/s3-events), or [DynamoDB Streams](/configuration/triggers/dynamodb-streams) triggers instead.
 - **Sub-minute granularity** — the minimum interval is one minute. For higher-frequency processing, use a stream-based trigger like [Kinesis](/configuration/triggers/kinesis-events) or a long-running container with an internal timer.
-- **Complex multi-step orchestration** — if the job involves branching, retries, or parallel steps, consider a [state machine](/resources/orchestration/state-machine) triggered on a schedule via an [EventBridge event bus](/configuration/triggers/event-bus-events).
+- **Complex multi-step orchestration** — for branching, retries, or parallel steps, use a [state machine](/resources/orchestration/state-machine). This page only documents schedule triggers for Lambda functions.
 
 ## Basic example
 
@@ -50,9 +50,7 @@ export default defineConfig(() => {
 ```
 
 
-The handler at `./src/cleanup.ts` runs once every 24 hours. `ScheduleIntegration` has no batching controls — each schedule rule invokes the target with the configured event payload independently.
-
-[Batch jobs](/resources/compute/batch-job) also support schedule triggers — see the [batch job docs](/resources/compute/batch-job) for details on that configuration.
+The handler at `./src/cleanup.ts` runs once every 24 hours. `memory` and `timeout` are [Lambda function](/resources/compute/lambda-function) settings shown here to make the example realistic — the schedule trigger itself is configured entirely by the `ScheduleIntegration` entry. `ScheduleIntegrationProps` does not expose batching settings; if you add multiple schedule events to one Lambda function, configure a distinct `scheduleRate` and optional payload for each entry.
 
 ## Schedule formats
 
@@ -71,7 +69,7 @@ Rate expressions define a fixed interval. The syntax is `rate(value unit)` where
 | `rate(1 day)` | Once per day |
 | `rate(7 days)` | Once per week |
 
-Rate expressions are the simplest option. The first invocation happens one interval after the EventBridge rule is created (i.e., after deployment). Use them when you need a fixed interval and don't need to control the exact wall-clock time.
+Rate expressions are the simplest option. Use them when you need a fixed interval and don't need to control the exact wall-clock time.
 
 ### Cron expressions
 
@@ -139,11 +137,11 @@ This function generates a report every weekday at 6:00 PM UTC. Use cron when the
 
 ### Invalid expressions
 
-An invalid schedule expression causes the deployment to fail during CloudFormation stack creation. Common mistakes include using the 5-field Unix cron format (AWS requires 6 fields) and using `*` in both the day-of-month and day-of-week fields simultaneously (one must be `?`).
+The `scheduleRate` property must be a valid AWS rate or cron expression. Common mistakes include using the 5-field Unix cron format (AWS requires 6 fields) and using `*` in both the day-of-month and day-of-week fields simultaneously (one must be `?`).
 
 ## Multiple schedules
 
-A single Lambda function can have multiple schedule triggers. Each schedule creates an independent EventBridge rule. The function fires separately for each matched schedule.
+A single Lambda function can have multiple schedule triggers. Add multiple `ScheduleIntegration` entries to the `events` array, each with its own `scheduleRate` and optional payload.
 
 
 Example (TypeScript):
@@ -184,15 +182,15 @@ This pattern is useful when the same function handles different modes — an inc
 
 ## Event payload customization
 
-If you do not set `input`, `inputPath`, or `inputTransformer`, the schedule integration does not customize the payload — your function receives the standard AWS EventBridge scheduled event. You can customize what the function receives using one of three mutually exclusive options.
+`ScheduleIntegrationProps` only defines custom payload behavior when you set `input`, `inputPath`, or `inputTransformer`. If you need a stable handler shape, set `input` or `inputTransformer` explicitly. You can customize what the function receives using one of three mutually exclusive options.
 
 
-> **Warning:** You can only set one of `input`, `inputPath`, or `inputTransformer` per schedule trigger. Specifying more than one causes a deployment error.
+> **Warning:** Set only one of `input`, `inputPath`, or `inputTransformer` on a schedule trigger. They are mutually exclusive.
 
 
 ### Fixed input
 
-The `input` property replaces the entire event payload with a fixed value. Use this when your handler needs simple, static context — like distinguishing between multiple schedules or passing configuration values.
+The `input` property passes a fixed JSON object as the event payload. Use this when your handler needs simple, static context — like distinguishing between multiple schedules or passing configuration values.
 
 
 Example (TypeScript):
@@ -224,7 +222,7 @@ export default defineConfig(() => {
 ```
 
 
-The handler receives `{ task: 'expire-sessions', ttlHours: 24 }` as the event — no EventBridge metadata is included. The `input` property accepts any JSON-serializable value that replaces the default event payload.
+The handler receives `{ task: 'expire-sessions', ttlHours: 24 }` as the event, which is useful when the handler only needs static context. The `input` property passes a fixed JSON object as the event payload.
 
 ### Input path
 
@@ -326,13 +324,7 @@ When using a fixed `input`, the `event` parameter contains exactly the JSON valu
 
 ## Monitoring scheduled functions
 
-View logs from schedule-triggered functions using [`stacktape debug:logs`](/cli/debug-logs).
-
-```bash
-stacktape debug:logs --stage production --region eu-west-1 --resourceName dailyCleanup
-```
-
-You can also inspect deployed resources in the [Stacktape Console](/stacktape-console/console-overview).
+View logs from schedule-triggered functions using [`stacktape debug:logs`](/cli/debug-logs) with the `--resourceName` flag pointing to your scheduled function.
 
 
 > **Tip:** Set up [alarms](/observability/alarms) on your scheduled functions to catch failures early. A scheduled function that fails silently (no errors, but no useful work) is harder to notice than a broken API endpoint.
@@ -389,23 +381,23 @@ inputTransformer:
 
 ### What is the minimum schedule interval?
 
-The minimum interval for a rate expression is `rate(1 minute)`. Cron expressions also support per-minute granularity. There is no sub-minute scheduling — if you need higher frequency, use a stream-based trigger like [Kinesis](/configuration/triggers/kinesis-events) or run a long-lived container with an internal loop.
+The minimum interval for a rate expression is `rate(1 minute)`. The source type examples show `rate(1 minute)` as the smallest rate-style interval. There is no sub-minute scheduling — if you need higher frequency, use a stream-based trigger like [Kinesis](/configuration/triggers/kinesis-events) or run a long-lived container with an internal loop.
 
 ### Are schedule times in UTC or local time?
 
-All cron expressions use UTC. AWS EventBridge does not support timezone-aware cron expressions. If you need to run at 9:00 AM Eastern, calculate the UTC offset and account for daylight saving time changes — or handle the timezone logic in your function code.
+For Stacktape schedule triggers, cron expressions are UTC. If you need to run at 9:00 AM Eastern, calculate the UTC offset and account for daylight saving time changes — or handle the timezone logic in your function code.
 
 ### What happens if my function is still running when the next schedule fires?
 
-AWS Lambda invokes the function independently for each scheduled event. If the previous invocation hasn't finished, a new concurrent invocation starts in parallel. If concurrent execution is a problem (e.g., for a job that must not overlap), set the Lambda function's reserved concurrency to 1 so the second invocation gets throttled, or implement a distributed lock using DynamoDB.
+AWS Lambda can run concurrent invocations, so if the previous invocation hasn't finished when the next schedule fires, a new invocation starts in parallel. Design scheduled jobs to tolerate overlap, or implement a distributed lock using DynamoDB or a similar mechanism in your handler if concurrent execution would be unsafe.
 
 ### Does a schedule trigger cost anything when idle?
 
-No. AWS EventBridge schedule rules are free — there is no charge for the rule itself. You pay only for Lambda invocations when the function runs. This makes schedule triggers significantly cheaper than running a container 24/7 with a cron daemon for the same periodic task.
+EventBridge schedule rules do not add meaningful idle cost; check current AWS EventBridge pricing for your region. You pay for Lambda invocations and runtime when the function runs. This makes schedule triggers significantly cheaper than running a container 24/7 with a cron daemon for the same periodic task.
 
-### Can I use a schedule trigger with container workloads?
+### Can I run a container on a schedule?
 
-Schedule triggers (`ScheduleIntegration`) are available on [Lambda functions](/resources/compute/lambda-function) and [batch jobs](/resources/compute/batch-job). Container workloads like [web services](/resources/compute/web-service) or [worker services](/resources/compute/worker-service) do not support schedule triggers directly. To run a container on a schedule, use a batch job with a schedule trigger, or invoke a Lambda function on a schedule that starts the container task programmatically.
+This page documents `ScheduleIntegration` as a recurring trigger for [Lambda functions](/resources/compute/lambda-function). For recurring container-based work, you can invoke a scheduled Lambda function that starts a container task programmatically using the AWS SDK, or check whether your container compute resource supports schedule-based triggers in its dedicated documentation.
 
 ### How do I pass different payloads for different schedules on the same function?
 
@@ -413,16 +405,16 @@ Add multiple `ScheduleIntegration` entries to the function's `events` array, eac
 
 ### What is the difference between rate and cron expressions?
 
-Rate expressions (`rate(5 minutes)`) define a fixed interval from the moment the EventBridge rule is created. They are simpler but you cannot control the exact wall-clock time. Cron expressions (`cron(0 9 * * ? *)`) fire at specific times and support complex patterns like "weekdays only" or "first Monday of the month." Use rate for simple intervals where timing doesn't matter; use cron when you need precise scheduling.
+Rate expressions (`rate(5 minutes)`) define a fixed interval. They are simpler but you cannot control the exact wall-clock time. Cron expressions (`cron(0 9 * * ? *)`) fire at specific times and support complex patterns like "weekdays only" or "first Monday of the month." Use rate for simple intervals where timing doesn't matter; use cron when you need precise scheduling.
 
 ### What if my schedule expression is invalid?
 
-An invalid schedule expression causes the CloudFormation stack creation to fail during deployment. Common mistakes include using the 5-field Unix cron format (AWS requires 6 fields) and using `*` in both the day-of-month and day-of-week fields simultaneously (one must be `?`).
+The `scheduleRate` property must be a valid AWS rate or cron expression. Common mistakes include using the 5-field Unix cron format (AWS requires 6 fields) and using `*` in both the day-of-month and day-of-week fields simultaneously (one must be `?`).
 
 ### How much does a scheduled Lambda function cost on AWS?
 
-AWS Lambda pricing is purely pay-per-use: you pay for the number of invocations and the duration of each invocation (billed per millisecond). A function running once per hour with 512 MB memory and a 2-second runtime costs fractions of a cent per day. EventBridge schedule rules themselves are free. This makes Lambda-based cron jobs dramatically cheaper than running an always-on EC2 instance or ECS container solely for periodic tasks.
+AWS Lambda pricing is purely pay-per-use: you pay for the number of invocations and the duration of each invocation (billed per millisecond). A function running once per hour with 512 MB memory and a 2-second runtime costs fractions of a cent per day. EventBridge schedule rules do not add meaningful cost. This makes Lambda-based cron jobs dramatically cheaper than running an always-on EC2 instance or ECS container solely for periodic tasks.
 
 ### When should I use a schedule trigger vs a Step Functions state machine?
 
-Use a schedule trigger for simple, single-step periodic tasks — cleanup, polling, report generation, health checks. If the job involves branching logic, parallel execution, retries with exponential backoff, or chaining multiple steps together, a [state machine](/resources/orchestration/state-machine) is the better fit. You can trigger a state machine on a schedule using an [EventBridge event bus integration](/configuration/triggers/event-bus-events).
+Use a schedule trigger for simple, single-step periodic tasks — cleanup, polling, report generation, health checks. If the job involves branching logic, parallel execution, retries with exponential backoff, or chaining multiple steps together, a [state machine](/resources/orchestration/state-machine) is the better fit. This page only documents schedule triggers for Lambda functions.

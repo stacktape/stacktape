@@ -1,14 +1,15 @@
-import { ResourceBase, ResourceTag } from '../resource';
-import { Value, List } from '../dataTypes';
+import {ResourceBase, ResourceTag} from '../resource'
+import { Value, List } from '../dataTypes'
 
 export interface VpcLinkProperties {
-  Description?: Value<string>;
-  TargetArns: List<Value<string>>;
-  Tags?: List<ResourceTag>;
-  Name: Value<string>;
+    Description?: Value<string>
+    TargetArns: List<Value<string>>
+    Tags?: List<ResourceTag>
+    Name: Value<string>
 }
 export default class VpcLink extends ResourceBase<VpcLinkProperties> {
-  constructor(properties: VpcLinkProperties) {
-    super('AWS::ApiGateway::VpcLink', properties);
-  }
+
+    constructor(properties: VpcLinkProperties) {
+        super('AWS::ApiGateway::VpcLink', properties)
+    }
 }

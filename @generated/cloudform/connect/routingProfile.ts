@@ -33,8 +33,8 @@ export class RoutingProfileQueueConfig {
 }
 
 export class RoutingProfileQueueReference {
-  Channel!: Value<string>;
   QueueArn!: Value<string>;
+  Channel!: Value<string>;
   constructor(properties: RoutingProfileQueueReference) {
     Object.assign(this, properties);
   }

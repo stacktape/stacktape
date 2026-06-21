@@ -120,10 +120,11 @@ export class EncryptionMethod {
 }
 
 export class FilterConfiguration {
-  Start?: Value<string>;
   End?: Value<string>;
+  Start?: Value<string>;
   TimeDelaySeconds?: Value<number>;
   ClipStartTime?: Value<string>;
+  DrmSettings?: Value<string>;
   ManifestFilter?: Value<string>;
   constructor(properties: FilterConfiguration) {
     Object.assign(this, properties);
@@ -178,6 +179,7 @@ export class MssManifestConfiguration {
 }
 
 export class Scte {
+  ScteInSegments?: Value<string>;
   ScteFilter?: List<Value<string>>;
   constructor(properties: Scte) {
     Object.assign(this, properties);
@@ -217,14 +219,15 @@ export class SpekeKeyProvider {
   EncryptionContractConfiguration!: EncryptionContractConfiguration;
   RoleArn!: Value<string>;
   Url!: Value<string>;
+  CertificateArn?: Value<string>;
   constructor(properties: SpekeKeyProvider) {
     Object.assign(this, properties);
   }
 }
 
 export class StartTag {
-  Precise?: Value<boolean>;
   TimeOffset!: Value<number>;
+  Precise?: Value<boolean>;
   constructor(properties: StartTag) {
     Object.assign(this, properties);
   }

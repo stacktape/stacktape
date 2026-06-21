@@ -149,6 +149,7 @@ export class ParseRoute53 {
 
 export class ParseToOCSF {
   EventSource!: Value<string>;
+  MappingVersion?: Value<string>;
   OcsfVersion!: Value<string>;
   Source?: Value<string>;
   constructor(properties: ParseToOCSF) {

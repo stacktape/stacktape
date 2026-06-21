@@ -69,6 +69,13 @@ export class CpuPerformanceFactorRequest {
   }
 }
 
+export class InstanceLifecyclePolicy {
+  RetentionTriggers?: RetentionTriggers;
+  constructor(properties: InstanceLifecyclePolicy) {
+    Object.assign(this, properties);
+  }
+}
+
 export class InstanceMaintenancePolicy {
   MaxHealthyPercentage?: Value<number>;
   MinHealthyPercentage?: Value<number>;
@@ -131,6 +138,7 @@ export class LaunchTemplate {
 export class LaunchTemplateOverrides {
   LaunchTemplateSpecification?: LaunchTemplateSpecification;
   WeightedCapacity?: Value<string>;
+  ImageId?: Value<string>;
   InstanceRequirements?: InstanceRequirements;
   InstanceType?: Value<string>;
   constructor(properties: LaunchTemplateOverrides) {
@@ -139,8 +147,8 @@ export class LaunchTemplateOverrides {
 }
 
 export class LaunchTemplateSpecification {
-  LaunchTemplateName?: Value<string>;
   Version!: Value<string>;
+  LaunchTemplateName?: Value<string>;
   LaunchTemplateId?: Value<string>;
   constructor(properties: LaunchTemplateSpecification) {
     Object.assign(this, properties);
@@ -223,6 +231,13 @@ export class PerformanceFactorReferenceRequest {
   }
 }
 
+export class RetentionTriggers {
+  TerminateHookAbandon?: Value<string>;
+  constructor(properties: RetentionTriggers) {
+    Object.assign(this, properties);
+  }
+}
+
 export class TagProperty {
   Value!: Value<string>;
   Key!: Value<string>;
@@ -262,10 +277,12 @@ export interface AutoScalingGroupProperties {
   ServiceLinkedRoleARN?: Value<string>;
   AvailabilityZoneImpairmentPolicy?: AvailabilityZoneImpairmentPolicy;
   TargetGroupARNs?: List<Value<string>>;
+  AvailabilityZoneIds?: List<Value<string>>;
   Cooldown?: Value<string>;
   NotificationConfigurations?: List<NotificationConfiguration>;
   DesiredCapacity?: Value<string>;
   HealthCheckGracePeriod?: Value<number>;
+  InstanceLifecyclePolicy?: InstanceLifecyclePolicy;
   DefaultInstanceWarmup?: Value<number>;
   SkipZonalShiftValidation?: Value<boolean>;
   NewInstancesProtectedFromScaleIn?: Value<boolean>;
@@ -279,6 +296,7 @@ export interface AutoScalingGroupProperties {
   AvailabilityZones?: List<Value<string>>;
   AvailabilityZoneDistribution?: AvailabilityZoneDistribution;
   MetricsCollection?: List<MetricsCollection>;
+  DeletionProtection?: Value<string>;
   InstanceMaintenancePolicy?: InstanceMaintenancePolicy;
   MaxSize: Value<string>;
   MinSize: Value<string>;
@@ -301,6 +319,7 @@ export default class AutoScalingGroup extends ResourceBase<AutoScalingGroupPrope
   static CapacityReservationSpecification = CapacityReservationSpecification;
   static CapacityReservationTarget = CapacityReservationTarget;
   static CpuPerformanceFactorRequest = CpuPerformanceFactorRequest;
+  static InstanceLifecyclePolicy = InstanceLifecyclePolicy;
   static InstanceMaintenancePolicy = InstanceMaintenancePolicy;
   static InstanceRequirements = InstanceRequirements;
   static InstancesDistribution = InstancesDistribution;
@@ -316,6 +335,7 @@ export default class AutoScalingGroup extends ResourceBase<AutoScalingGroupPrope
   static NetworkInterfaceCountRequest = NetworkInterfaceCountRequest;
   static NotificationConfiguration = NotificationConfiguration;
   static PerformanceFactorReferenceRequest = PerformanceFactorReferenceRequest;
+  static RetentionTriggers = RetentionTriggers;
   static TagProperty = TagProperty;
   static TotalLocalStorageGBRequest = TotalLocalStorageGBRequest;
   static TrafficSourceIdentifier = TrafficSourceIdentifier;

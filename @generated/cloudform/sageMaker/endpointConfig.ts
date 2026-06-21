@@ -134,6 +134,15 @@ export class ExplainerConfig {
   }
 }
 
+export class InstancePools {
+  ModelNameOverride?: Value<string>;
+  Priority!: Value<number>;
+  InstanceType!: Value<string>;
+  constructor(properties: InstancePools) {
+    Object.assign(this, properties);
+  }
+}
+
 export class ManagedInstanceScaling {
   Status?: Value<string>;
   MaxInstanceCount?: Value<number>;
@@ -145,11 +154,13 @@ export class ManagedInstanceScaling {
 
 export class ProductionVariant {
   ManagedInstanceScaling?: ManagedInstanceScaling;
+  InstancePools?: List<InstancePools>;
   ModelName?: Value<string>;
   VolumeSizeInGB?: Value<number>;
   EnableSSMAccess?: Value<boolean>;
   VariantName!: Value<string>;
   InitialInstanceCount?: Value<number>;
+  VariantInstanceProvisionTimeoutInSeconds?: Value<number>;
   RoutingConfig?: RoutingConfig;
   InitialVariantWeight?: Value<number>;
   ModelDataDownloadTimeoutInSeconds?: Value<number>;
@@ -214,6 +225,7 @@ export default class EndpointConfig extends ResourceBase<EndpointConfigPropertie
   static ClarifyTextConfig = ClarifyTextConfig;
   static DataCaptureConfig = DataCaptureConfig;
   static ExplainerConfig = ExplainerConfig;
+  static InstancePools = InstancePools;
   static ManagedInstanceScaling = ManagedInstanceScaling;
   static ProductionVariant = ProductionVariant;
   static RoutingConfig = RoutingConfig;

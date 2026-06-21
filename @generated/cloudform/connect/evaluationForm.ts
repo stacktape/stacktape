@@ -78,6 +78,46 @@ export class EvaluationFormItemEnablementSourceValue {
   }
 }
 
+export class EvaluationFormLanguageConfiguration {
+  FormLanguage?: Value<string>;
+  constructor(properties: EvaluationFormLanguageConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class EvaluationFormMultiSelectQuestionAutomation {
+  Options?: List<EvaluationFormMultiSelectQuestionAutomationOption>;
+  AnswerSource?: EvaluationFormQuestionAutomationAnswerSource;
+  DefaultOptionRefIds?: List<Value<string>>;
+  constructor(properties: EvaluationFormMultiSelectQuestionAutomation) {
+    Object.assign(this, properties);
+  }
+}
+
+export class EvaluationFormMultiSelectQuestionAutomationOption {
+  RuleCategory!: MultiSelectQuestionRuleCategoryAutomation;
+  constructor(properties: EvaluationFormMultiSelectQuestionAutomationOption) {
+    Object.assign(this, properties);
+  }
+}
+
+export class EvaluationFormMultiSelectQuestionOption {
+  Text!: Value<string>;
+  RefId!: Value<string>;
+  constructor(properties: EvaluationFormMultiSelectQuestionOption) {
+    Object.assign(this, properties);
+  }
+}
+
+export class EvaluationFormMultiSelectQuestionProperties {
+  DisplayAs?: Value<string>;
+  Options!: List<EvaluationFormMultiSelectQuestionOption>;
+  Automation?: EvaluationFormMultiSelectQuestionAutomation;
+  constructor(properties: EvaluationFormMultiSelectQuestionProperties) {
+    Object.assign(this, properties);
+  }
+}
+
 export class EvaluationFormNumericQuestionAutomation {
   AnswerSource?: EvaluationFormQuestionAutomationAnswerSource;
   PropertyValue?: NumericQuestionPropertyValueAutomation;
@@ -131,6 +171,7 @@ export class EvaluationFormQuestionAutomationAnswerSource {
 export class EvaluationFormQuestionTypeProperties {
   Numeric?: EvaluationFormNumericQuestionProperties;
   SingleSelect?: EvaluationFormSingleSelectQuestionProperties;
+  MultiSelect?: EvaluationFormMultiSelectQuestionProperties;
   Text?: EvaluationFormTextQuestionProperties;
   constructor(properties: EvaluationFormQuestionTypeProperties) {
     Object.assign(this, properties);
@@ -149,7 +190,7 @@ export class EvaluationFormSection {
 }
 
 export class EvaluationFormSingleSelectQuestionAutomation {
-  Options!: List<EvaluationFormSingleSelectQuestionAutomationOption>;
+  Options?: List<EvaluationFormSingleSelectQuestionAutomationOption>;
   AnswerSource?: EvaluationFormQuestionAutomationAnswerSource;
   DefaultOptionRefId?: Value<string>;
   constructor(properties: EvaluationFormSingleSelectQuestionAutomation) {
@@ -184,6 +225,13 @@ export class EvaluationFormSingleSelectQuestionProperties {
   }
 }
 
+export class EvaluationFormTargetConfiguration {
+  ContactInteractionType!: Value<string>;
+  constructor(properties: EvaluationFormTargetConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class EvaluationFormTextQuestionAutomation {
   AnswerSource?: EvaluationFormQuestionAutomationAnswerSource;
   constructor(properties: EvaluationFormTextQuestionAutomation) {
@@ -194,6 +242,38 @@ export class EvaluationFormTextQuestionAutomation {
 export class EvaluationFormTextQuestionProperties {
   Automation?: EvaluationFormTextQuestionAutomation;
   constructor(properties: EvaluationFormTextQuestionProperties) {
+    Object.assign(this, properties);
+  }
+}
+
+export class EvaluationReviewConfiguration {
+  ReviewNotificationRecipients!: List<EvaluationReviewNotificationRecipient>;
+  EligibilityDays?: Value<number>;
+  constructor(properties: EvaluationReviewConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class EvaluationReviewNotificationRecipient {
+  Type!: Value<string>;
+  Value!: EvaluationReviewNotificationRecipientValue;
+  constructor(properties: EvaluationReviewNotificationRecipient) {
+    Object.assign(this, properties);
+  }
+}
+
+export class EvaluationReviewNotificationRecipientValue {
+  UserId?: Value<string>;
+  constructor(properties: EvaluationReviewNotificationRecipientValue) {
+    Object.assign(this, properties);
+  }
+}
+
+export class MultiSelectQuestionRuleCategoryAutomation {
+  Condition!: Value<string>;
+  Category!: Value<string>;
+  OptionRefIds!: List<Value<string>>;
+  constructor(properties: MultiSelectQuestionRuleCategoryAutomation) {
     Object.assign(this, properties);
   }
 }
@@ -224,11 +304,14 @@ export class SingleSelectQuestionRuleCategoryAutomation {
 export interface EvaluationFormProperties {
   ScoringStrategy?: ScoringStrategy;
   Status: Value<string>;
+  ReviewConfiguration?: EvaluationReviewConfiguration;
   AutoEvaluationConfiguration?: AutoEvaluationConfiguration;
   Description?: Value<string>;
+  TargetConfiguration?: EvaluationFormTargetConfiguration;
   InstanceArn: Value<string>;
   Title: Value<string>;
   Items: List<EvaluationFormBaseItem>;
+  LanguageConfiguration?: EvaluationFormLanguageConfiguration;
   Tags?: List<ResourceTag>;
 }
 export default class EvaluationForm extends ResourceBase<EvaluationFormProperties> {
@@ -242,6 +325,11 @@ export default class EvaluationForm extends ResourceBase<EvaluationFormPropertie
   static EvaluationFormItemEnablementExpression = EvaluationFormItemEnablementExpression;
   static EvaluationFormItemEnablementSource = EvaluationFormItemEnablementSource;
   static EvaluationFormItemEnablementSourceValue = EvaluationFormItemEnablementSourceValue;
+  static EvaluationFormLanguageConfiguration = EvaluationFormLanguageConfiguration;
+  static EvaluationFormMultiSelectQuestionAutomation = EvaluationFormMultiSelectQuestionAutomation;
+  static EvaluationFormMultiSelectQuestionAutomationOption = EvaluationFormMultiSelectQuestionAutomationOption;
+  static EvaluationFormMultiSelectQuestionOption = EvaluationFormMultiSelectQuestionOption;
+  static EvaluationFormMultiSelectQuestionProperties = EvaluationFormMultiSelectQuestionProperties;
   static EvaluationFormNumericQuestionAutomation = EvaluationFormNumericQuestionAutomation;
   static EvaluationFormNumericQuestionOption = EvaluationFormNumericQuestionOption;
   static EvaluationFormNumericQuestionProperties = EvaluationFormNumericQuestionProperties;
@@ -253,8 +341,13 @@ export default class EvaluationForm extends ResourceBase<EvaluationFormPropertie
   static EvaluationFormSingleSelectQuestionAutomationOption = EvaluationFormSingleSelectQuestionAutomationOption;
   static EvaluationFormSingleSelectQuestionOption = EvaluationFormSingleSelectQuestionOption;
   static EvaluationFormSingleSelectQuestionProperties = EvaluationFormSingleSelectQuestionProperties;
+  static EvaluationFormTargetConfiguration = EvaluationFormTargetConfiguration;
   static EvaluationFormTextQuestionAutomation = EvaluationFormTextQuestionAutomation;
   static EvaluationFormTextQuestionProperties = EvaluationFormTextQuestionProperties;
+  static EvaluationReviewConfiguration = EvaluationReviewConfiguration;
+  static EvaluationReviewNotificationRecipient = EvaluationReviewNotificationRecipient;
+  static EvaluationReviewNotificationRecipientValue = EvaluationReviewNotificationRecipientValue;
+  static MultiSelectQuestionRuleCategoryAutomation = MultiSelectQuestionRuleCategoryAutomation;
   static NumericQuestionPropertyValueAutomation = NumericQuestionPropertyValueAutomation;
   static ScoringStrategy = ScoringStrategy;
   static SingleSelectQuestionRuleCategoryAutomation = SingleSelectQuestionRuleCategoryAutomation;

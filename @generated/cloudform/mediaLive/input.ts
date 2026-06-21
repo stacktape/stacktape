@@ -94,6 +94,22 @@ export class MulticastSourceUpdateRequest {
   }
 }
 
+export class RouterDestinationSettings {
+  AvailabilityZoneName?: Value<string>;
+  constructor(properties: RouterDestinationSettings) {
+    Object.assign(this, properties);
+  }
+}
+
+export class RouterSettings {
+  SecretArn?: Value<string>;
+  EncryptionType?: Value<string>;
+  Destinations?: List<RouterDestinationSettings>;
+  constructor(properties: RouterSettings) {
+    Object.assign(this, properties);
+  }
+}
+
 export class Smpte2110ReceiverGroup {
   SdpSettings?: Smpte2110ReceiverGroupSdpSettings;
   constructor(properties: Smpte2110ReceiverGroup) {
@@ -117,6 +133,13 @@ export class Smpte2110ReceiverGroupSettings {
   }
 }
 
+export class SpecialRouterSettings {
+  RouterArn?: Value<string>;
+  constructor(properties: SpecialRouterSettings) {
+    Object.assign(this, properties);
+  }
+}
+
 export class SrtCallerDecryptionRequest {
   Algorithm?: Value<string>;
   PassphraseSecretArn?: Value<string>;
@@ -136,8 +159,26 @@ export class SrtCallerSourceRequest {
   }
 }
 
+export class SrtListenerDecryptionRequest {
+  Algorithm?: Value<string>;
+  PassphraseSecretArn?: Value<string>;
+  constructor(properties: SrtListenerDecryptionRequest) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SrtListenerSettingsRequest {
+  StreamId?: Value<string>;
+  MinimumLatency?: Value<number>;
+  Decryption?: SrtListenerDecryptionRequest;
+  constructor(properties: SrtListenerSettingsRequest) {
+    Object.assign(this, properties);
+  }
+}
+
 export class SrtSettingsRequest {
   SrtCallerSources?: List<SrtCallerSourceRequest>;
+  SrtListenerSettings?: SrtListenerSettingsRequest;
   constructor(properties: SrtSettingsRequest) {
     Object.assign(this, properties);
   }
@@ -151,6 +192,7 @@ export interface InputProperties {
   Sources?: List<InputSourceRequest>;
   RoleArn?: Value<string>;
   Name?: Value<string>;
+  RouterSettings?: RouterSettings;
   Type?: Value<string>;
   Smpte2110ReceiverGroupSettings?: Smpte2110ReceiverGroupSettings;
   SdiSources?: List<Value<string>>;
@@ -172,11 +214,16 @@ export default class Input extends ResourceBase<InputProperties> {
   static MulticastSettingsUpdateRequest = MulticastSettingsUpdateRequest;
   static MulticastSourceCreateRequest = MulticastSourceCreateRequest;
   static MulticastSourceUpdateRequest = MulticastSourceUpdateRequest;
+  static RouterDestinationSettings = RouterDestinationSettings;
+  static RouterSettings = RouterSettings;
   static Smpte2110ReceiverGroup = Smpte2110ReceiverGroup;
   static Smpte2110ReceiverGroupSdpSettings = Smpte2110ReceiverGroupSdpSettings;
   static Smpte2110ReceiverGroupSettings = Smpte2110ReceiverGroupSettings;
+  static SpecialRouterSettings = SpecialRouterSettings;
   static SrtCallerDecryptionRequest = SrtCallerDecryptionRequest;
   static SrtCallerSourceRequest = SrtCallerSourceRequest;
+  static SrtListenerDecryptionRequest = SrtListenerDecryptionRequest;
+  static SrtListenerSettingsRequest = SrtListenerSettingsRequest;
   static SrtSettingsRequest = SrtSettingsRequest;
   constructor(properties?: InputProperties) {
     super('AWS::MediaLive::Input', properties || {});

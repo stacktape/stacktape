@@ -13,9 +13,8 @@ conventions. Stages solve this by making the environment a first-class parameter
 `stacktape.ts`, branch on the `stage` value where sizing, secrets, or features differ, and let Stacktape create fully
 independent stacks per stage.
 
-Because every stage produces its own CloudFormation stack with its own resources, there is zero risk of a development
-deploy affecting production data or traffic. Stages also map cleanly to CI/CD workflows — push to `main` deploys
-`production`, push to a feature branch deploys a throwaway `feat-xyz` stage.
+Because every stage produces its own CloudFormation stack with its own resources, a development deploy does not touch
+production databases, functions, or storage — each stage's resources are independently provisioned. Stages can fit CI/CD workflows; for example, a team might deploy `main` to `production` and feature branches to short-lived stages.
 
 ## How stages work
 
@@ -28,12 +27,11 @@ Stacktape derives the CloudFormation stack name from your project name and stage
 ```
 
 A project named `my-api` deployed to stage `dev` creates a stack called `my-api-dev`. The same project deployed to
-`production` creates `my-api-production`. Every AWS resource inside the stack — databases, Lambda functions, queues —
-is scoped to that stack and cannot collide with resources in another stage.
+`production` creates `my-api-production`. Each stage creates a separate CloudFormation stack with separately provisioned resources — databases, Lambda functions, queues, and storage are all independent between stages.
 
 ### Stage name constraints
 
-Stage names are limited to 12 characters and must contain only lowercase alphanumeric characters and hyphens. The minimum length is 2 characters. Examples of valid stage names: `dev`, `staging`, `production`, `pr-42`, `dev-john`.
+Stage names are limited to 12 characters and should contain only alphanumeric characters and hyphens. Examples of valid stage names: `dev`, `staging`, `production`, `pr-42`, `dev-john`.
 
 
 > **Warning:** Keep stage names short. The combined project name + stage forms the CloudFormation stack name. If the combination is
@@ -61,7 +59,7 @@ removes only that stage's resources — other stages are unaffected.
 
 ## Stage-aware configuration
 
-The `defineConfig` callback receives a `stage` parameter along with `projectName`, `region`, and `command`. Use standard TypeScript logic — conditionals, lookup objects, helper functions — to vary your config per stage.
+The `defineConfig` callback receives a `stage` parameter. Use standard TypeScript logic — conditionals, lookup objects, helper functions — to vary your config per stage.
 
 
 Example (TypeScript):
@@ -110,21 +108,12 @@ export default defineConfig(({ stage }) => {
 
 In this example, the production stage gets a larger database instance with multi-AZ redundancy, more Lambda memory, and
 tighter log levels — while development stages use minimal resources to keep costs low. The `$Secret` directive
-references a stage-specific Stacktape secret (e.g. `db-password-dev`, `db-password-production`), so each
-stage uses its own credentials. See [Secrets](/configuration/secrets) for how to create and manage secrets.
+can reference a different secret name per stage, such as `db-password-dev` and `db-password-production`, when you
+create separate secrets for those stages. See [Secrets](/configuration/secrets) for how to create and manage secrets.
 
 ### Config callback parameters
 
-The `defineConfig` callback receives an object with these properties:
-
-| Parameter | Type | Description |
-|---|---|---|
-| `stage` | `string` | The stage name passed via `--stage` |
-| `projectName` | `string` | The project name for this operation |
-| `region` | `string` | The AWS region for this operation |
-| `command` | `string` | The CLI command being run (`deploy`, `delete`, `dev`, etc.) |
-
-Additional properties (`cliArgs`, `awsProfile`, `user`) are also available. See the [configuration files](/configuration/configuration-files) page for the full `defineConfig` API.
+The `defineConfig` callback receives an object whose `stage` property is the stage name passed via `--stage`. See the [configuration files](/configuration/configuration-files) page for the full `defineConfig` API and any other properties exposed on the callback object.
 
 ### Using $Stage() in directives
 
@@ -149,7 +138,8 @@ import {
   WebService,
   StacktapeImageBuildpackPackaging,
   RelationalDatabase,
-  RdsEnginePostgres
+  RdsEnginePostgres,
+  $Secret
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const tiers: Record<
@@ -169,7 +159,10 @@ export default defineConfig(({ stage }) => {
         instanceSize: tier.instanceSize,
         multiAz: tier.multiAz
       }
-    })
+    }),
+    credentials: {
+      masterUserPassword: $Secret('db-password-' + stage)
+    }
   });
 
   const app = new WebService({
@@ -208,7 +201,7 @@ resources. Keep stage names under 12 characters — abbreviate branch names if n
 
 ### Preview environments for pull requests
 
-The [Stacktape Console's GitOps integration](/ci-cd-and-gitops/gitops-with-console) can create preview environments for pull requests: it deploys a `preview-{pr-number}` stage when a PR is opened, comments with the deployment URL, and deletes the environment when the PR is merged or closed. This gives reviewers a live, isolated environment for every change. See [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for setup details.
+Stages are a good fit for per-PR preview environments. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) and [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for setup details.
 
 ## Conditional resources
 
@@ -226,7 +219,8 @@ import {
   StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
-  WebAppFirewall
+  WebAppFirewall,
+  $Secret
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const resources: Record<string, any> = {};
@@ -241,7 +235,10 @@ export default defineConfig(({ stage }) => {
       engine: new RdsEnginePostgres({
         version: '16',
         primaryInstance: { instanceSize: 'db.t4g.micro' }
-      })
+      }),
+      credentials: {
+        masterUserPassword: $Secret('db-password-' + stage)
+      }
     });
   }
 
@@ -263,17 +260,13 @@ Store separate Stacktape secrets for each stage. Use
 [`stacktape secret:create`](/cli/secret-create) to create them, and the
 [`$Secret` directive](/configuration/directives) to reference them in config.
 
-Create a development secret:
+Create separate secrets for each stage — for example, `db-password-dev` and `db-password-production` — using [`stacktape secret:create`](/cli/secret-create):
 
 ```bash
-stacktape secret:create --name db-password-dev --region eu-west-1
+stacktape secret:create --region eu-west-1
 ```
 
-Create a production secret:
-
-```bash
-stacktape secret:create --name db-password-production --region eu-west-1
-```
+Run the command once per secret. See the [CLI reference](/cli/secret-create) for available options.
 
 Then reference the stage-specific secret in your config using the `stage` parameter:
 
@@ -298,8 +291,7 @@ export default defineConfig(({ stage }) => {
 ```
 
 
-When deployed as `--stage dev`, this resolves to the secret named `db-password-dev`. When deployed as
-`--stage production`, it resolves to `db-password-production`. Never share production secrets with development stages.
+With `stage === 'dev'`, the config passes `db-password-dev` to `$Secret`; with `stage === 'production'`, it passes `db-password-production`. Never share production secrets with development stages.
 See [Secrets](/configuration/secrets) for the full guide.
 
 ## Stage-specific domains
@@ -333,12 +325,12 @@ This produces:
 | `staging` | `staging.api.example.com` |
 | `dev` | `dev.api.example.com` |
 
-You need to register the domain with Stacktape first using [`stacktape domain:add`](/cli/domain-add).
+Custom domains are managed separately. See [custom domains](/resources/networking/custom-domains) and [`stacktape domain:add`](/cli/domain-add) for setup.
 
 ## Sharing resources across stages
 
 Sometimes you want to share certain resources (like a database) across stages. Use a separate "shared infrastructure"
-project deployed as its own stack, then reference its outputs from other projects using the `$StackOutput` directive.
+project deployed as its own stack, then reference its outputs from other projects.
 
 
 ## Project Structure
@@ -352,17 +344,67 @@ project deployed as its own stack, then reference its outputs from other project
     - `stacktape.ts`: References shared-infra outputs
 
 
-The API project references the shared database's connection string via `$StackOutput('shared-infra-dev', 'database', 'connectionString')`. This keeps a single database instance serving multiple services within the same stage, reducing cost in development while still allowing full isolation between stages.
+The shared infrastructure project deploys resources that other projects reference:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+export default defineConfig(({ stage }) => {
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    }),
+    credentials: {
+      masterUserPassword: $Secret('shared-db-password-' + stage)
+    }
+  });
+
+  return { resources: { database } };
+});
+```
+
+
+A consuming project references the shared stack's outputs using the `$CfStackOutput` directive, which resolves at CloudFormation deploy time. A `$StackOutput` directive is also available for resolving values locally at config-evaluation time. The referenced stack must already be deployed. Manage shared infrastructure carefully — consuming stacks depend on its outputs. See [directives](/configuration/directives) for details on cross-stack references.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  $CfStackOutput
+} from 'stacktape';
+export default defineConfig(({ stage }) => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    environment: {
+      DATABASE_URL: $CfStackOutput('shared-infra-' + stage, 'DatabaseConnectionString')
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+This keeps a single database instance serving multiple services within the same stage, reducing cost in development while still allowing full isolation between stages. See [directives](/configuration/directives) for more about cross-stack references.
 
 ## Setting defaults
 
-If you always deploy to the same stage and region during development, use [`stacktape defaults:configure`](/cli/defaults-configure) to set defaults and skip typing them on every command.
+If you always deploy to the same stage and region during development, use [`stacktape defaults:configure`](/cli/defaults-configure) to set default values for stage and region. See the [CLI reference](/cli/defaults-configure) for details.
 
 ```bash
 stacktape defaults:configure
 ```
 
-Once configured, you can deploy without flags:
+Once configured, you can deploy without passing `--stage` and `--region`:
 
 ```bash
 stacktape deploy
@@ -378,7 +420,7 @@ stacktape deploy --stage production --region us-east-1
 
 ### Listing stacks
 
-Use [`stacktape info:stacks`](/cli/info-stacks) to list all deployed CloudFormation stacks in a region.
+Use [`stacktape info:stacks`](/cli/info-stacks) to list deployed stacks in a region. See the [CLI reference](/cli/info-stacks) for available options.
 
 ```bash
 stacktape info:stacks --region eu-west-1
@@ -386,14 +428,13 @@ stacktape info:stacks --region eu-west-1
 
 ### Deleting a stage
 
-Use [`stacktape delete`](/cli/delete) to tear down a stage and all its resources.
+Use [`stacktape delete`](/cli/delete) to delete a stage's stack.
 
 ```bash
 stacktape delete --stage feat-42 --region eu-west-1
 ```
 
-Deletion removes the CloudFormation stack and all resources it created (databases, functions, buckets, etc.). Other
-stages remain completely unaffected.
+Deletion removes the stage's CloudFormation stack. Other stages remain completely unaffected.
 
 
 > **Warning:** You cannot run `stacktape deploy` on a stage that is currently running in [dev mode](/local-development/dev-mode-overview).
@@ -414,8 +455,8 @@ same instance types, same scaling ranges, and same configuration — just with t
 **Separate secrets per stage.** Never reuse production credentials in development. Stage-interpolated secret names
 (`db-password-dev`, `db-password-production`) enforce this by convention.
 
-**Delete ephemeral stages promptly.** Feature branch and PR preview stages accumulate if not cleaned up. Use
-[GitOps](/ci-cd-and-gitops/gitops-with-console) to auto-delete stages when branches merge, or manually run
+**Delete ephemeral stages promptly.** Feature branch and PR preview stages accumulate if not cleaned up. See
+[GitOps with Console](/ci-cd-and-gitops/gitops-with-console) and [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for setting up preview-stage workflows, or manually run
 [`stacktape delete`](/cli/delete).
 
 **Add safeguards in production.** Enable multi-AZ for databases, add a
@@ -427,7 +468,7 @@ to add these only in production.
 
 ### How do I access the stage name in my config?
 
-The `defineConfig` callback receives an object with a `stage` property (along with `projectName`, `region`, and `command`). Use standard TypeScript logic to branch on the stage value — ternary operators, lookup objects, or if statements all work. In directive strings that need the stage at CloudFormation deploy time, use the [`$Stage()` directive](/configuration/directives).
+The `defineConfig` callback receives an object with a `stage` property. Use standard TypeScript logic to branch on the stage value — ternary operators, lookup objects, or if statements all work. In directive strings that need the stage at CloudFormation deploy time, use the [`$Stage()` directive](/configuration/directives).
 
 ### Can I include resources only in certain stages?
 
@@ -435,19 +476,19 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 ### Are stages fully isolated from each other?
 
-Each stage creates its own CloudFormation stack with its own AWS resources — separate databases, separate Lambda functions, separate S3 buckets, and so on. There is no data sharing or network overlap between stages unless you explicitly configure it (e.g., by referencing another stack's outputs via the [`$StackOutput` directive](/configuration/directives)). Deploying or deleting one stage has no effect on other stages.
+Each stage creates its own CloudFormation stack with its own AWS resources — separate databases, separate Lambda functions, separate S3 buckets, and so on. Stacktape provisions each stage's resources independently and does not share data between stages unless you explicitly configure it (e.g., by referencing another stack's outputs via the [`$StackOutput` directive](/configuration/directives)). Deploying or deleting one stage has no effect on other stages.
 
 ### How do I set up automatic preview environments for pull requests?
 
-Use the [Stacktape Console's GitOps integration](/ci-cd-and-gitops/gitops-with-console) to auto-deploy a stage for each PR. When a PR is opened, a `preview-{pr-number}` stage is deployed with a comment linking to the deployment URL. When the PR is merged or closed, the stage is automatically deleted. See [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for the full setup.
+Stages are a good fit for per-PR preview environments — each PR can deploy to its own isolated stage. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) and [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for the full setup.
 
 ### What happens when I deploy to an existing stage?
 
-Stacktape updates the existing CloudFormation stack in place. AWS CloudFormation computes the diff between the current and desired state, then applies only the changes. Resources that haven't changed are left untouched. If the update fails, CloudFormation rolls back to the previous state automatically.
+Deploying to an existing stage updates that stage's CloudFormation stack. Underneath, AWS CloudFormation computes the diff between the current and desired state and applies only the changes needed. When an update fails and auto-rollback is enabled, Stacktape deletes artifacts from the rolled-back deploy unless the error occurred during stack monitoring.
 
 ### How do I clean up unused stages?
 
-Run [`stacktape delete --stage <name> --region <region>`](/cli/delete) to remove a stage and all its resources. To see what stages exist, use [`stacktape info:stacks`](/cli/info-stacks). For automated cleanup, use [GitOps](/ci-cd-and-gitops/gitops-with-console) to tie stage lifecycles to branch lifecycles — stages are auto-deleted when the corresponding branch is removed.
+Run [`stacktape delete --stage <name> --region <region>`](/cli/delete) to delete a stage's stack. To see what stages exist, use [`stacktape info:stacks`](/cli/info-stacks). For automated cleanup, see [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) and [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern).
 
 ### Should I use separate AWS accounts or separate stages for production isolation?
 
@@ -459,8 +500,8 @@ Yes. The region is a separate parameter from the stage, so you can deploy `dev` 
 
 ### How does the stage name appear in AWS resource names?
 
-Stacktape combines the project name and stage into the CloudFormation stack name (`{projectName}-{stage}`). AWS resources within the stack inherit names derived from this stack name. If the combined name is too long, Stacktape obfuscates some internal resource names to stay within AWS naming limits — keeping stage names short avoids this.
+Stacktape derives the CloudFormation stack name from `{projectName}-{stage}`. If the combined name is too long, Stacktape obfuscates some internal resource names to stay within AWS naming limits — keeping stage names short avoids this.
 
 ### What's the difference between stages and AWS accounts for environment separation?
 
-Stages are logical separations within a single AWS account — fast to create, zero overhead, and fully automated. Multiple AWS accounts add physical IAM boundary isolation and independent billing, but require cross-account role setup and more complex CI/CD. Most teams start with stages (simpler, cheaper, faster feedback loops) and move to multi-account only when compliance or blast-radius requirements demand it. Stages and multi-account are not mutually exclusive — you can use stages within each account (e.g., `dev` and `staging` in a dev account, `production` in a prod account).
+Stages separate stacks and resources within the AWS account and region you deploy to. Separate AWS accounts can add a stronger IAM and billing boundary, but require additional account and CI/CD setup. Most teams start with stages (simpler, cheaper, faster feedback loops) and move to multi-account only when compliance or blast-radius requirements demand it. Stages and multi-account are not mutually exclusive — you can use stages within each account (e.g., `dev` and `staging` in a dev account, `production` in a prod account).

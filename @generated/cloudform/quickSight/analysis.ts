@@ -1,10 +1,10 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AggregationFunction {
-  AttributeAggregationFunction?: AttributeAggregationFunction;
-  DateAggregationFunction?: Value<string>;
   NumericalAggregationFunction?: NumericalAggregationFunction;
+  AttributeAggregationFunction?: AttributeAggregationFunction;
   CategoricalAggregationFunction?: Value<string>;
+  DateAggregationFunction?: Value<string>;
   constructor(properties: AggregationFunction) {
     Object.assign(this, properties);
   }
@@ -139,8 +139,8 @@ export class AxisDisplayMinMaxRange {
 
 export class AxisDisplayOptions {
   DataOptions?: AxisDataOptions;
-  TickLabelOptions?: AxisTickLabelOptions;
   AxisOffset?: Value<string>;
+  TickLabelOptions?: AxisTickLabelOptions;
   AxisLineVisibility?: Value<string>;
   GridLineVisibility?: Value<string>;
   ScrollbarOptions?: ScrollBarOptions;
@@ -228,12 +228,22 @@ export class BarChartConfiguration {
   VisualPalette?: VisualPalette;
   ValueLabelOptions?: ChartAxisLabelOptions;
   BarsArrangement?: Value<string>;
+  DefaultSeriesSettings?: BarChartDefaultSeriesSettings;
+  Series?: List<{ [key: string]: any }>;
   CategoryAxis?: AxisDisplayOptions;
   ContributionAnalysisDefaults?: List<ContributionAnalysisDefault>;
   FieldWells?: BarChartFieldWells;
   ValueAxis?: AxisDisplayOptions;
   Interactions?: VisualInteractionOptions;
   constructor(properties: BarChartConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class BarChartDefaultSeriesSettings {
+  BorderSettings?: BorderSettings;
+  DecalSettings?: DecalSettings;
+  constructor(properties: BarChartDefaultSeriesSettings) {
     Object.assign(this, properties);
   }
 }
@@ -341,6 +351,15 @@ export class BodySectionRepeatDimensionConfiguration {
 export class BodySectionRepeatPageBreakConfiguration {
   After?: SectionAfterPageBreak;
   constructor(properties: BodySectionRepeatPageBreakConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class BorderSettings {
+  BorderVisibility?: Value<string>;
+  BorderColor?: Value<string>;
+  BorderWidth?: Value<string>;
+  constructor(properties: BorderSettings) {
     Object.assign(this, properties);
   }
 }
@@ -504,9 +523,9 @@ export class CategoryInnerFilter {
 }
 
 export class ChartAxisLabelOptions {
+  AxisLabelOptions?: List<AxisLabelOptions>;
   Visibility?: Value<string>;
   SortIconVisibility?: Value<string>;
-  AxisLabelOptions?: List<AxisLabelOptions>;
   constructor(properties: ChartAxisLabelOptions) {
     Object.assign(this, properties);
   }
@@ -527,8 +546,8 @@ export class ClusterMarkerConfiguration {
 }
 
 export class ColorScale {
-  Colors!: List<DataColor>;
   ColorFillType!: Value<string>;
+  Colors!: List<DataColor>;
   NullValueColor?: DataColor;
   constructor(properties: ColorScale) {
     Object.assign(this, properties);
@@ -546,6 +565,7 @@ export class ColumnConfiguration {
   Role?: Value<string>;
   FormatConfiguration?: FormatConfiguration;
   Column!: ColumnIdentifier;
+  DecalSettingsConfiguration?: DecalSettingsConfiguration;
   ColorsConfiguration?: ColorsConfiguration;
   constructor(properties: ColumnConfiguration) {
     Object.assign(this, properties);
@@ -554,8 +574,8 @@ export class ColumnConfiguration {
 
 export class ColumnHierarchy {
   DateTimeHierarchy?: DateTimeHierarchy;
-  ExplicitHierarchy?: ExplicitHierarchy;
   PredefinedHierarchy?: PredefinedHierarchy;
+  ExplicitHierarchy?: ExplicitHierarchy;
   constructor(properties: ColumnHierarchy) {
     Object.assign(this, properties);
   }
@@ -571,8 +591,8 @@ export class ColumnIdentifier {
 
 export class ColumnSort {
   AggregationFunction?: AggregationFunction;
-  SortBy!: ColumnIdentifier;
   Direction!: Value<string>;
+  SortBy!: ColumnIdentifier;
   constructor(properties: ColumnSort) {
     Object.assign(this, properties);
   }
@@ -611,7 +631,9 @@ export class ComboChartConfiguration {
   PrimaryYAxisDisplayOptions?: AxisDisplayOptions;
   VisualPalette?: VisualPalette;
   BarsArrangement?: Value<string>;
+  DefaultSeriesSettings?: ComboChartDefaultSeriesSettings;
   SecondaryYAxisLabelOptions?: ChartAxisLabelOptions;
+  Series?: List<{ [key: string]: any }>;
   LineDataLabels?: DataLabelOptions;
   CategoryAxis?: AxisDisplayOptions;
   PrimaryYAxisLabelOptions?: ChartAxisLabelOptions;
@@ -619,6 +641,16 @@ export class ComboChartConfiguration {
   SecondaryYAxisDisplayOptions?: AxisDisplayOptions;
   Interactions?: VisualInteractionOptions;
   constructor(properties: ComboChartConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ComboChartDefaultSeriesSettings {
+  BorderSettings?: BorderSettings;
+  DecalSettings?: DecalSettings;
+  LineStyleSettings?: LineChartLineStyleSettings;
+  MarkerStyleSettings?: LineChartMarkerStyleSettings;
+  constructor(properties: ComboChartDefaultSeriesSettings) {
     Object.assign(this, properties);
   }
 }
@@ -1073,9 +1105,9 @@ export class DateTimeParameterDeclaration {
 }
 
 export class DateTimePickerControlDisplayOptions {
-  TitleOptions?: LabelOptions;
   InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
   HelperTextVisibility?: Value<string>;
+  TitleOptions?: LabelOptions;
   DateIconVisibility?: Value<string>;
   DateTimeFormat?: Value<string>;
   constructor(properties: DateTimePickerControlDisplayOptions) {
@@ -1087,6 +1119,24 @@ export class DateTimeValueWhenUnsetConfiguration {
   ValueWhenUnsetOption?: Value<string>;
   CustomValue?: Value<string>;
   constructor(properties: DateTimeValueWhenUnsetConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DecalSettings {
+  DecalStyleType?: Value<string>;
+  DecalVisibility?: Value<string>;
+  DecalPatternType?: Value<string>;
+  DecalColor?: Value<string>;
+  ElementValue?: Value<string>;
+  constructor(properties: DecalSettings) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DecalSettingsConfiguration {
+  CustomDecalSettings?: List<DecalSettings>;
+  constructor(properties: DecalSettingsConfiguration) {
     Object.assign(this, properties);
   }
 }
@@ -1306,9 +1356,9 @@ export class DrillDownFilter {
 }
 
 export class DropDownControlDisplayOptions {
-  TitleOptions?: LabelOptions;
   SelectAllOptions?: ListControlSelectAllOptions;
   InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
+  TitleOptions?: LabelOptions;
   constructor(properties: DropDownControlDisplayOptions) {
     Object.assign(this, properties);
   }
@@ -1341,8 +1391,8 @@ export class Entity {
 
 export class ExcludePeriodConfiguration {
   Status?: Value<string>;
-  Amount!: Value<number>;
   Granularity!: Value<string>;
+  Amount!: Value<number>;
   constructor(properties: ExcludePeriodConfiguration) {
     Object.assign(this, properties);
   }
@@ -1384,16 +1434,16 @@ export class FieldSeriesItem {
 }
 
 export class FieldSort {
-  FieldId!: Value<string>;
   Direction!: Value<string>;
+  FieldId!: Value<string>;
   constructor(properties: FieldSort) {
     Object.assign(this, properties);
   }
 }
 
 export class FieldSortOptions {
-  FieldSort?: FieldSort;
   ColumnSort?: ColumnSort;
+  FieldSort?: FieldSort;
   constructor(properties: FieldSortOptions) {
     Object.assign(this, properties);
   }
@@ -1655,12 +1705,12 @@ export class FilterTextFieldControl {
 }
 
 export class FontConfiguration {
+  FontColor?: Value<string>;
   FontFamily?: Value<string>;
   FontStyle?: Value<string>;
+  FontWeight?: FontWeight;
   FontSize?: FontSize;
   FontDecoration?: Value<string>;
-  FontColor?: Value<string>;
-  FontWeight?: FontWeight;
   constructor(properties: FontConfiguration) {
     Object.assign(this, properties);
   }
@@ -1715,8 +1765,8 @@ export class ForecastScenario {
 }
 
 export class FormatConfiguration {
-  NumberFormatConfiguration?: NumberFormatConfiguration;
   DateTimeFormatConfiguration?: DateTimeFormatConfiguration;
+  NumberFormatConfiguration?: NumberFormatConfiguration;
   StringFormatConfiguration?: StringFormatConfiguration;
   constructor(properties: FormatConfiguration) {
     Object.assign(this, properties);
@@ -1741,15 +1791,17 @@ export class FreeFormLayoutConfiguration {
 export class FreeFormLayoutElement {
   ElementType!: Value<string>;
   BorderStyle?: FreeFormLayoutElementBorderStyle;
-  Height!: Value<string>;
-  Visibility?: Value<string>;
+  BorderRadius?: Value<string>;
   RenderingRules?: List<SheetElementRenderingRule>;
   YAxisLocation!: Value<string>;
+  BackgroundStyle?: FreeFormLayoutElementBackgroundStyle;
+  XAxisLocation!: Value<string>;
+  Padding?: Value<string>;
+  Height!: Value<string>;
+  Visibility?: Value<string>;
   LoadingAnimation?: LoadingAnimation;
   Width!: Value<string>;
-  BackgroundStyle?: FreeFormLayoutElementBackgroundStyle;
   ElementId!: Value<string>;
-  XAxisLocation!: Value<string>;
   SelectedBorderStyle?: FreeFormLayoutElementBorderStyle;
   constructor(properties: FreeFormLayoutElement) {
     Object.assign(this, properties);
@@ -1765,8 +1817,9 @@ export class FreeFormLayoutElementBackgroundStyle {
 }
 
 export class FreeFormLayoutElementBorderStyle {
-  Color?: Value<string>;
+  Width?: Value<string>;
   Visibility?: Value<string>;
+  Color?: Value<string>;
   constructor(properties: FreeFormLayoutElementBorderStyle) {
     Object.assign(this, properties);
   }
@@ -1969,18 +2022,18 @@ export class GeospatialCircleSymbolStyle {
 
 export class GeospatialColor {
   Gradient?: GeospatialGradientColor;
-  Categorical?: GeospatialCategoricalColor;
   Solid?: GeospatialSolidColor;
+  Categorical?: GeospatialCategoricalColor;
   constructor(properties: GeospatialColor) {
     Object.assign(this, properties);
   }
 }
 
 export class GeospatialCoordinateBounds {
-  West!: Value<number>;
   South!: Value<number>;
   North!: Value<number>;
   East!: Value<number>;
+  West!: Value<number>;
   constructor(properties: GeospatialCoordinateBounds) {
     Object.assign(this, properties);
   }
@@ -2258,8 +2311,8 @@ export class GeospatialStaticFileSource {
 }
 
 export class GeospatialWindowOptions {
-  Bounds?: GeospatialCoordinateBounds;
   MapZoomMode?: Value<string>;
+  Bounds?: GeospatialCoordinateBounds;
   constructor(properties: GeospatialWindowOptions) {
     Object.assign(this, properties);
   }
@@ -2297,8 +2350,8 @@ export class GridLayoutCanvasSizeOptions {
 }
 
 export class GridLayoutConfiguration {
-  CanvasSizeOptions?: GridLayoutCanvasSizeOptions;
   Elements!: List<GridLayoutElement>;
+  CanvasSizeOptions?: GridLayoutCanvasSizeOptions;
   constructor(properties: GridLayoutConfiguration) {
     Object.assign(this, properties);
   }
@@ -2309,9 +2362,32 @@ export class GridLayoutElement {
   ColumnSpan!: Value<number>;
   ColumnIndex?: Value<number>;
   RowIndex?: Value<number>;
+  BorderStyle?: GridLayoutElementBorderStyle;
+  BorderRadius?: Value<string>;
   RowSpan!: Value<number>;
+  Padding?: Value<string>;
+  LoadingAnimation?: LoadingAnimation;
+  BackgroundStyle?: GridLayoutElementBackgroundStyle;
   ElementId!: Value<string>;
+  SelectedBorderStyle?: GridLayoutElementBorderStyle;
   constructor(properties: GridLayoutElement) {
+    Object.assign(this, properties);
+  }
+}
+
+export class GridLayoutElementBackgroundStyle {
+  Color?: Value<string>;
+  Visibility?: Value<string>;
+  constructor(properties: GridLayoutElementBackgroundStyle) {
+    Object.assign(this, properties);
+  }
+}
+
+export class GridLayoutElementBorderStyle {
+  Width?: Value<string>;
+  Visibility?: Value<string>;
+  Color?: Value<string>;
+  constructor(properties: GridLayoutElementBorderStyle) {
     Object.assign(this, properties);
   }
 }
@@ -2691,9 +2767,9 @@ export class KPIVisualStandardLayout {
 }
 
 export class LabelOptions {
+  FontConfiguration?: FontConfiguration;
   CustomLabel?: Value<string>;
   Visibility?: Value<string>;
-  FontConfiguration?: FontConfiguration;
   constructor(properties: LabelOptions) {
     Object.assign(this, properties);
   }
@@ -2749,12 +2825,12 @@ export class LayoutConfiguration {
 }
 
 export class LegendOptions {
-  Position?: Value<string>;
-  ValueFontConfiguration?: FontConfiguration;
   Title?: LabelOptions;
   Visibility?: Value<string>;
   Height?: Value<string>;
+  Position?: Value<string>;
   Width?: Value<string>;
+  ValueFontConfiguration?: FontConfiguration;
   constructor(properties: LegendOptions) {
     Object.assign(this, properties);
   }
@@ -2798,6 +2874,7 @@ export class LineChartConfiguration {
 }
 
 export class LineChartDefaultSeriesSettings {
+  DecalSettings?: DecalSettings;
   LineStyleSettings?: LineChartLineStyleSettings;
   AxisBinding?: Value<string>;
   MarkerStyleSettings?: LineChartMarkerStyleSettings;
@@ -2815,9 +2892,9 @@ export class LineChartFieldWells {
 
 export class LineChartLineStyleSettings {
   LineInterpolation?: Value<string>;
-  LineStyle?: Value<string>;
   LineVisibility?: Value<string>;
   LineWidth?: Value<string>;
+  LineStyle?: Value<string>;
   constructor(properties: LineChartLineStyleSettings) {
     Object.assign(this, properties);
   }
@@ -2825,8 +2902,8 @@ export class LineChartLineStyleSettings {
 
 export class LineChartMarkerStyleSettings {
   MarkerShape?: Value<string>;
-  MarkerSize?: Value<string>;
   MarkerVisibility?: Value<string>;
+  MarkerSize?: Value<string>;
   MarkerColor?: Value<string>;
   constructor(properties: LineChartMarkerStyleSettings) {
     Object.assign(this, properties);
@@ -2834,8 +2911,9 @@ export class LineChartMarkerStyleSettings {
 }
 
 export class LineChartSeriesSettings {
-  LineStyleSettings?: LineChartLineStyleSettings;
+  DecalSettings?: DecalSettings;
   MarkerStyleSettings?: LineChartMarkerStyleSettings;
+  LineStyleSettings?: LineChartLineStyleSettings;
   constructor(properties: LineChartSeriesSettings) {
     Object.assign(this, properties);
   }
@@ -2874,10 +2952,10 @@ export class LineSeriesAxisDisplayOptions {
 }
 
 export class ListControlDisplayOptions {
-  TitleOptions?: LabelOptions;
   SearchOptions?: ListControlSearchOptions;
   SelectAllOptions?: ListControlSelectAllOptions;
   InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
+  TitleOptions?: LabelOptions;
   constructor(properties: ListControlDisplayOptions) {
     Object.assign(this, properties);
   }
@@ -3057,8 +3135,8 @@ export class NumericEqualityFilter {
 
 export class NumericFormatConfiguration {
   NumberDisplayFormatConfiguration?: NumberDisplayFormatConfiguration;
-  CurrencyDisplayFormatConfiguration?: CurrencyDisplayFormatConfiguration;
   PercentageDisplayFormatConfiguration?: PercentageDisplayFormatConfiguration;
+  CurrencyDisplayFormatConfiguration?: CurrencyDisplayFormatConfiguration;
   constructor(properties: NumericFormatConfiguration) {
     Object.assign(this, properties);
   }
@@ -3216,8 +3294,8 @@ export class ParameterListControl {
 }
 
 export class ParameterSelectableValues {
-  LinkToDataSetColumn?: ColumnIdentifier;
   Values?: List<Value<string>>;
+  LinkToDataSetColumn?: ColumnIdentifier;
   constructor(properties: ParameterSelectableValues) {
     Object.assign(this, properties);
   }
@@ -3280,8 +3358,8 @@ export class PercentageDisplayFormatConfiguration {
   DecimalPlacesConfiguration?: DecimalPlacesConfiguration;
   NullValueFormatConfiguration?: NullValueFormatConfiguration;
   Suffix?: Value<string>;
-  SeparatorConfiguration?: NumericSeparatorConfiguration;
   Prefix?: Value<string>;
+  SeparatorConfiguration?: NumericSeparatorConfiguration;
   constructor(properties: PercentageDisplayFormatConfiguration) {
     Object.assign(this, properties);
   }
@@ -3822,8 +3900,8 @@ export class ReferenceLineValueLabelConfiguration {
 }
 
 export class RelativeDateTimeControlDisplayOptions {
-  TitleOptions?: LabelOptions;
   InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
+  TitleOptions?: LabelOptions;
   DateTimeFormat?: Value<string>;
   constructor(properties: RelativeDateTimeControlDisplayOptions) {
     Object.assign(this, properties);
@@ -4246,8 +4324,8 @@ export class SingleAxisOptions {
 }
 
 export class SliderControlDisplayOptions {
-  TitleOptions?: LabelOptions;
   InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
+  TitleOptions?: LabelOptions;
   constructor(properties: SliderControlDisplayOptions) {
     Object.assign(this, properties);
   }
@@ -4262,10 +4340,10 @@ export class SmallMultiplesAxisProperties {
 }
 
 export class SmallMultiplesOptions {
-  MaxVisibleRows?: Value<number>;
-  PanelConfiguration?: PanelConfiguration;
   MaxVisibleColumns?: Value<number>;
+  MaxVisibleRows?: Value<number>;
   XAxis?: SmallMultiplesAxisProperties;
+  PanelConfiguration?: PanelConfiguration;
   YAxis?: SmallMultiplesAxisProperties;
   constructor(properties: SmallMultiplesOptions) {
     Object.assign(this, properties);
@@ -4273,10 +4351,10 @@ export class SmallMultiplesOptions {
 }
 
 export class Spacing {
-  Left?: Value<string>;
-  Top?: Value<string>;
   Right?: Value<string>;
   Bottom?: Value<string>;
+  Left?: Value<string>;
+  Top?: Value<string>;
   constructor(properties: Spacing) {
     Object.assign(this, properties);
   }
@@ -4389,8 +4467,8 @@ export class TableAggregatedFieldWells {
 
 export class TableBorderOptions {
   Thickness?: Value<number>;
-  Color?: Value<string>;
   Style?: Value<string>;
+  Color?: Value<string>;
   constructor(properties: TableBorderOptions) {
     Object.assign(this, properties);
   }
@@ -4617,9 +4695,9 @@ export class TableVisual {
 }
 
 export class TextAreaControlDisplayOptions {
+  InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
   TitleOptions?: LabelOptions;
   PlaceholderOptions?: TextControlPlaceholderOptions;
-  InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
   constructor(properties: TextAreaControlDisplayOptions) {
     Object.assign(this, properties);
   }
@@ -4642,9 +4720,9 @@ export class TextControlPlaceholderOptions {
 }
 
 export class TextFieldControlDisplayOptions {
+  InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
   TitleOptions?: LabelOptions;
   PlaceholderOptions?: TextControlPlaceholderOptions;
-  InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
   constructor(properties: TextFieldControlDisplayOptions) {
     Object.assign(this, properties);
   }
@@ -4711,8 +4789,8 @@ export class TimeRangeFilter {
 }
 
 export class TimeRangeFilterValue {
-  RollingDate?: RollingDateConfiguration;
   StaticValue?: Value<string>;
+  RollingDate?: RollingDateConfiguration;
   Parameter?: Value<string>;
   constructor(properties: TimeRangeFilterValue) {
     Object.assign(this, properties);
@@ -4728,9 +4806,9 @@ export class TooltipItem {
 }
 
 export class TooltipOptions {
+  FieldBasedTooltip?: FieldBasedTooltip;
   SelectedTooltipType?: Value<string>;
   TooltipVisibility?: Value<string>;
-  FieldBasedTooltip?: FieldBasedTooltip;
   constructor(properties: TooltipOptions) {
     Object.assign(this, properties);
   }
@@ -4881,8 +4959,8 @@ export class TrendArrowOptions {
 }
 
 export class UnaggregatedField {
-  FormatConfiguration?: FormatConfiguration;
   Column!: ColumnIdentifier;
+  FormatConfiguration?: FormatConfiguration;
   FieldId!: Value<string>;
   constructor(properties: UnaggregatedField) {
     Object.assign(this, properties);
@@ -4945,8 +5023,8 @@ export class Visual {
 
 export class VisualCustomAction {
   Status?: Value<string>;
-  Trigger!: Value<string>;
   CustomActionId!: Value<string>;
+  Trigger!: Value<string>;
   Name!: Value<string>;
   ActionOperations!: List<VisualCustomActionOperation>;
   constructor(properties: VisualCustomAction) {
@@ -4965,8 +5043,8 @@ export class VisualCustomActionOperation {
 }
 
 export class VisualInteractionOptions {
-  ContextMenuOption?: ContextMenuOption;
   VisualMenuOption?: VisualMenuOption;
+  ContextMenuOption?: ContextMenuOption;
   constructor(properties: VisualInteractionOptions) {
     Object.assign(this, properties);
   }
@@ -5206,6 +5284,7 @@ export default class Analysis extends ResourceBase<AnalysisProperties> {
   static AxisTickLabelOptions = AxisTickLabelOptions;
   static BarChartAggregatedFieldWells = BarChartAggregatedFieldWells;
   static BarChartConfiguration = BarChartConfiguration;
+  static BarChartDefaultSeriesSettings = BarChartDefaultSeriesSettings;
   static BarChartFieldWells = BarChartFieldWells;
   static BarChartSortConfiguration = BarChartSortConfiguration;
   static BarChartVisual = BarChartVisual;
@@ -5218,6 +5297,7 @@ export default class Analysis extends ResourceBase<AnalysisProperties> {
   static BodySectionRepeatConfiguration = BodySectionRepeatConfiguration;
   static BodySectionRepeatDimensionConfiguration = BodySectionRepeatDimensionConfiguration;
   static BodySectionRepeatPageBreakConfiguration = BodySectionRepeatPageBreakConfiguration;
+  static BorderSettings = BorderSettings;
   static BoxPlotAggregatedFieldWells = BoxPlotAggregatedFieldWells;
   static BoxPlotChartConfiguration = BoxPlotChartConfiguration;
   static BoxPlotFieldWells = BoxPlotFieldWells;
@@ -5247,6 +5327,7 @@ export default class Analysis extends ResourceBase<AnalysisProperties> {
   static ColumnTooltipItem = ColumnTooltipItem;
   static ComboChartAggregatedFieldWells = ComboChartAggregatedFieldWells;
   static ComboChartConfiguration = ComboChartConfiguration;
+  static ComboChartDefaultSeriesSettings = ComboChartDefaultSeriesSettings;
   static ComboChartFieldWells = ComboChartFieldWells;
   static ComboChartSortConfiguration = ComboChartSortConfiguration;
   static ComboChartVisual = ComboChartVisual;
@@ -5298,6 +5379,8 @@ export default class Analysis extends ResourceBase<AnalysisProperties> {
   static DateTimeParameterDeclaration = DateTimeParameterDeclaration;
   static DateTimePickerControlDisplayOptions = DateTimePickerControlDisplayOptions;
   static DateTimeValueWhenUnsetConfiguration = DateTimeValueWhenUnsetConfiguration;
+  static DecalSettings = DecalSettings;
+  static DecalSettingsConfiguration = DecalSettingsConfiguration;
   static DecimalDefaultValues = DecimalDefaultValues;
   static DecimalParameter = DecimalParameter;
   static DecimalParameterDeclaration = DecimalParameterDeclaration;
@@ -5433,6 +5516,8 @@ export default class Analysis extends ResourceBase<AnalysisProperties> {
   static GridLayoutCanvasSizeOptions = GridLayoutCanvasSizeOptions;
   static GridLayoutConfiguration = GridLayoutConfiguration;
   static GridLayoutElement = GridLayoutElement;
+  static GridLayoutElementBackgroundStyle = GridLayoutElementBackgroundStyle;
+  static GridLayoutElementBorderStyle = GridLayoutElementBorderStyle;
   static GridLayoutScreenCanvasSizeOptions = GridLayoutScreenCanvasSizeOptions;
   static GrowthRateComputation = GrowthRateComputation;
   static HeaderFooterSectionConfiguration = HeaderFooterSectionConfiguration;

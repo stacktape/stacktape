@@ -1,4 +1,4 @@
-import { ResourceBase } from '../resource';
+import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 
 export interface GrantProperties {
@@ -8,6 +8,7 @@ export interface GrantProperties {
   AllowedOperations?: List<Value<string>>;
   LicenseArn?: Value<string>;
   GrantName?: Value<string>;
+  Tags?: List<ResourceTag>;
 }
 export default class Grant extends ResourceBase<GrantProperties> {
   constructor(properties?: GrantProperties) {

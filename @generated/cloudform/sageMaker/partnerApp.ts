@@ -15,11 +15,13 @@ export class PartnerAppMaintenanceConfig {
   }
 }
 export interface PartnerAppProperties {
+  AppVersion?: Value<string>;
   ExecutionRoleArn: Value<string>;
   Type: Value<string>;
   KmsKeyId?: Value<string>;
   EnableIamSessionBasedIdentity?: Value<boolean>;
   Tier: Value<string>;
+  EnableAutoMinorVersionUpgrade?: Value<boolean>;
   ApplicationConfig?: PartnerAppConfig;
   AuthType: Value<string>;
   MaintenanceConfig?: PartnerAppMaintenanceConfig;

@@ -1,16 +1,17 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class Attributes {
-  InboundCalls!: Value<boolean>;
   EnhancedContactMonitoring?: Value<boolean>;
-  EnhancedChatMonitoring?: Value<boolean>;
-  UseCustomTTSVoices?: Value<boolean>;
   OutboundCalls!: Value<boolean>;
   EarlyMedia?: Value<boolean>;
+  MessageStreaming?: Value<boolean>;
   MultiPartyConference?: Value<boolean>;
-  ContactflowLogs?: Value<boolean>;
   ContactLens?: Value<boolean>;
   AutoResolveBestVoices?: Value<boolean>;
+  InboundCalls!: Value<boolean>;
+  EnhancedChatMonitoring?: Value<boolean>;
+  UseCustomTTSVoices?: Value<boolean>;
+  ContactflowLogs?: Value<boolean>;
   MultiPartyChatConference?: Value<boolean>;
   HighVolumeOutBound?: Value<boolean>;
   constructor(properties: Attributes) {

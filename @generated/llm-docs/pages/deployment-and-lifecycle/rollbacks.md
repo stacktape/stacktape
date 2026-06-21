@@ -1,6 +1,6 @@
 # Rollbacks
 
-Stacktape provides two rollback commands for recovering from bad deployments. [`stacktape rollback`](/cli/rollback) re-deploys a previous good version using stored deployment artifacts. [`stacktape cf:rollback`](/cli/cf-rollback) recovers a stack stuck in a failed CloudFormation state. Neither command requires your local source code or config file.
+Stacktape provides two rollback commands for recovering from bad deployments. [`stacktape rollback`](/cli/rollback) re-deploys a previous good version using stored deployment artifacts. [`stacktape cf:rollback`](/cli/cf-rollback) triggers Stacktape's CloudFormation rollback flow when a deployment leaves the stack in a failed state. Neither command requires your local source code or config file — version rollback works from stored deployment artifacts and CloudFormation state rather than rebuilding from your current working tree.
 
 ## When to use each rollback type
 
@@ -9,7 +9,7 @@ Stacktape's two rollback commands serve different failure scenarios. Choosing th
 | Scenario | Command | What it does |
 |----------|---------|--------------|
 | Last deploy succeeded but introduced a bug | `stacktape rollback` | Re-deploys a previous version's CloudFormation template as a new deployment |
-| Deploy failed, stack in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` | `stacktape cf:rollback` | Triggers CloudFormation's native rollback to restore last known good state |
+| Deploy failed and the stack is stuck in a failed CloudFormation state | `stacktape cf:rollback` | Triggers Stacktape's CloudFormation rollback flow and cleans up rolled-back deployment artifacts |
 | You want to undo multiple deploys back | `stacktape rollback --rollbackSteps 3` | Targets an older version by stepping back N versions |
 
 ## Version rollback
@@ -24,11 +24,11 @@ When you run `stacktape rollback`, Stacktape:
 
 1. **Resolves the target version** — determines which version to roll back to, either by an explicit `--targetVersion` flag or by stepping back N versions (default: 1).
 2. **Verifies artifacts for the target version** — confirms the CloudFormation template and all referenced deployment artifacts still exist.
-3. **Checks rollback safety** — inspects metadata to warn if the original deploy used features that may not replay cleanly (e.g., `$File` directive, `after:deploy` hooks, TypeScript transforms, custom directives).
+3. **Checks rollback safety** — inspects the current stack's rollback safety metadata and warns if the config uses features that may not replay cleanly (e.g., `$File` directive, `after:deploy` hooks, TypeScript transforms, custom directives).
 4. **Deploys the old template** — downloads the old CloudFormation template, patches the version output, uploads it, and triggers a CloudFormation stack update.
-5. **Restores bucket-synced content** — if the stack includes [static hosting](/resources/frontend/static-hosting) with bucket sync, restores the old file versions from a stored manifest.
+5. **Restores bucket-synced content** — Stacktape attempts to restore bucket-synced content from the target version's manifest. If that restore fails, Stacktape warns that static websites may need redeployment from the original commit.
 
-The rolled-back template is deployed as a new version number. Rolling back from `v000005` to `v000003` creates `v000006` containing the `v000003` template. This means you can always roll forward again by deploying normally.
+The rolled-back template is deployed as a new version number. Rolling back from `v000005` to `v000003` creates `v000006` containing the `v000003` template. After a successful rollback, the stack has a new deployment version, so the next normal deploy continues from that version.
 
 ### Basic usage
 
@@ -58,13 +58,11 @@ Before rolling back, check which versions are available:
 stacktape rollback --stage production --region eu-west-1 --listVersions
 ```
 
-This prints the current version and all versions that still have artifacts in the deployment bucket. Versions are numbered sequentially, so you can correlate them with your deployment history. Versions older than the retention limit are automatically cleaned up and cannot be rolled back to.
+This prints the current version and versions found in Stacktape's previous-version list. Stacktape still verifies the selected version's artifacts before performing the rollback. Versions are numbered sequentially, so you can correlate them with your deployment history. Old versions may be cleaned up based on `previousVersionsToKeep`; if a target version is no longer available, Stacktape cannot roll back to it.
 
 ### Artifact retention
 
-Stacktape keeps deployment artifacts (Lambda bundles, container images) for a configurable number of previous versions. Once a version's artifacts are cleaned up, you can no longer roll back to it.
-
-Configure retention via `deploymentConfig.previousVersionsToKeep` in your Stacktape config. The default is `10` versions. Higher values give you more rollback targets but increase storage costs in the deployment bucket and container registry.
+Stacktape keeps deployment artifacts for previous versions so they remain available as rollback targets. Once a version's artifacts are cleaned up, you can no longer roll back to it. Retention is controlled via `deploymentConfig.previousVersionsToKeep` — higher values keep more rollback targets but retain more deployment artifacts, which can increase storage costs.
 
 
 Example (TypeScript):
@@ -88,109 +86,35 @@ export default defineConfig(() => {
 ```
 
 
-For most stacks, the default of `10` provides a good balance between rollback flexibility and storage cost. Lambda zip artifacts are typically small, and container images in ECR are deduplicated at the layer level — incremental versions share most storage. Increase retention if your team needs longer rollback windows; decrease it if you deploy very frequently and want to minimize storage.
+Higher retention gives you more rollback targets but keeps more deployment artifacts in storage. Increase retention if your team needs longer rollback windows; decrease it if you deploy very frequently and want to minimize storage costs.
 
 ### Rollback safety warnings
 
-Not all deployments can be rolled back cleanly. When Stacktape detects potential issues, it prints warnings but still proceeds with the rollback. The safety checks cover:
+Not all deployments can be rolled back cleanly. After Stacktape verifies the target version artifacts, rollback safety checks print warnings without blocking the rollback. The safety checks cover:
 
 - **State-embedding directives (`$File` and similar)** — the rolled-back template contains values that were baked in at the original deploy time. If the referenced file has changed since then, the rollback uses the old content.
-- **TypeScript transforms** — config-time transforms that generated dynamic CloudFormation are not re-executed; the old output is replayed as-is.
-- **`after:deploy` hooks** — [hooks](/configuration/hooks-and-scripts) that ran after the original deploy (database migrations, cache warming, etc.) will NOT re-run during rollback.
+- **TypeScript transforms** — Stacktape warns when the deployment used TypeScript transforms, because those transforms are not captured in the CloudFormation template and may require manual review after rollback.
+- **`after:deploy` hooks** — Stacktape warns when the config has `after:deploy` [hooks](/configuration/hooks-and-scripts) (database migrations, cache warming, etc.); those hooks are not re-executed during rollback.
 - **Custom directives** — results from custom directives were captured at original deploy time.
 
-If your config is purely declarative (no `$File`, no hooks, no transforms, no custom directives), rollbacks replay cleanly every time. For configs that use these features, review the warnings and decide whether manual follow-up is needed after the rollback completes.
+When rollback safety metadata is present, Stacktape prints warnings only for the safety fields that are set. The command does not block the rollback. Older deployments without rollback safety metadata still produce a cautionary warning. In all cases, the rollback is still a CloudFormation stack update and can fail for normal CloudFormation reasons. For configs that use these features, review the warnings and decide whether manual follow-up is needed after the rollback completes.
 
 
 > **Info:** When rollback safety metadata is not found — typically because the deployment predates rollback support — Stacktape proceeds with the rollback but warns that results may be unpredictable if the config used any of the features above.
 
 
-## Automatic rollback on alarms
-
-Stacktape can automatically roll back a deployment if a CloudWatch alarm fires during or shortly after the deploy. This is useful for production stacks where you want automated recovery when metrics degrade — such as a spike in error rates or a drop in availability after a deploy.
-
-Configure this with `deploymentConfig.triggerRollbackOnAlarms` and `deploymentConfig.monitoringTimeAfterDeploymentInMinutes`:
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
-export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    memory: 1024
-  });
-
-  return {
-    resources: { api },
-    deploymentConfig: {
-      triggerRollbackOnAlarms: ['api-error-rate-alarm'],
-      monitoringTimeAfterDeploymentInMinutes: 5
-    }
-  };
-});
-```
-
-
-`triggerRollbackOnAlarms` accepts alarm names (from your stack's [alarms](/observability/alarms) section) or full ARNs. The alarm must already exist from a prior deployment — a newly created alarm only takes effect on the *next* deploy.
-
-`monitoringTimeAfterDeploymentInMinutes` extends the monitoring window after CloudFormation reports the update as complete. If an alarm fires within this window, CloudFormation automatically rolls back the stack. Defaults to `0` (no post-deploy monitoring). For production stacks, set this to a few minutes so latent regressions that surface after the deploy completes still trigger a rollback.
-
-
-> **Tip:** Alarm-based rollback is most effective when combined with resource-level [alarms](/observability/alarms) that track error rate, latency, or availability. Set up alarms first, verify they work across a few deploys, then wire them into `triggerRollbackOnAlarms`.
-
-
-## Disabling automatic rollback
-
-By default, a failed CloudFormation deployment automatically rolls back to the previous state. You can disable this behavior to inspect the failed state before deciding how to proceed. This is useful for debugging deployment failures — you can examine CloudFormation events, check resource states, and understand what went wrong before triggering a manual recovery.
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
-export default defineConfig(() => {
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    })
-  });
-
-  return {
-    resources: { api },
-    deploymentConfig: {
-      disableAutoRollback: true
-    }
-  };
-});
-```
-
-
-When auto-rollback is disabled and a deployment fails, the stack enters `UPDATE_FAILED` state. You can then inspect the CloudFormation events in the AWS Console or via `stacktape cf:rollback` to recover manually.
-
-
-> **Warning:** Only use `disableAutoRollback` in non-production stages for debugging. In production, automatic rollback is your safety net — disable it only if you have a specific reason to inspect failure states.
-
-
 ## CloudFormation rollback
 
-The [`stacktape cf:rollback`](/cli/cf-rollback) command triggers CloudFormation's native rollback mechanism and then cleans up any deployment artifacts that were uploaded during the failed deployment. Use this when a deployment failed and left your stack in a broken state — it does not target a specific previous version like `stacktape rollback` does.
+The [`stacktape cf:rollback`](/cli/cf-rollback) command triggers Stacktape's CloudFormation rollback flow for the target stack and then cleans up any deployment artifacts that were uploaded during the failed deployment. Use this when a deployment failed and left your stack in a broken state — it does not target a specific previous version like `stacktape rollback` does.
 
 ### When to use cf:rollback
 
-Use `stacktape cf:rollback` when:
-
-- A deployment failed mid-way and the stack shows `UPDATE_FAILED` in the AWS Console
-- A previous automatic rollback itself failed, leaving the stack in `UPDATE_ROLLBACK_FAILED`
-- You used `disableAutoRollback: true` and now want to trigger the rollback manually
+Use `stacktape cf:rollback` when a deployment failed and left the CloudFormation stack in a failed state. The command triggers Stacktape's CloudFormation rollback flow and then deletes the artifacts uploaded during the failed deployment. Note that CloudFormation rollback itself can still fail in some cases — if the stack cannot be restored, manual recovery through the AWS Console or AWS CLI may be required.
 
 You do NOT need this command when:
 
 - The stack is healthy and you want to go back to an earlier version — use `stacktape rollback` instead
-- The deploy failed but auto-rollback succeeded — the stack is already recovered
+- The deploy failed but the stack already rolled back on its own — the stack is already recovered
 
 ### Basic usage
 
@@ -200,53 +124,23 @@ stacktape cf:rollback --stage production --region eu-west-1
 
 After a successful `cf:rollback`, Stacktape automatically cleans up any deployment artifacts that were uploaded during the failed deployment.
 
-### Skipping problematic resources
-
-Sometimes a CloudFormation rollback itself fails because a specific resource can't be restored to its previous state — for example, a manually deleted resource or a resource whose previous configuration is no longer valid. This leaves the stack in `UPDATE_ROLLBACK_FAILED` state.
-
-In this situation, use `--resourcesToSkip` to tell CloudFormation to skip those resources and continue the rollback for everything else:
-
-```bash
-stacktape cf:rollback --stage production --region eu-west-1 --resourcesToSkip MyBrokenLambda MyOtherResource
-```
-
-The `--resourcesToSkip` flag accepts one or more CloudFormation logical resource IDs. The skipped resources remain in their current state while the rest of the stack rolls back to the last known good state.
-
-
-> **Warning:** Skipping resources during rollback leaves them out of sync with the rest of your stack. Always follow up with a fresh [`stacktape deploy`](/cli/deploy) to reconcile the state. The `--resourcesToSkip` flag only applies when the stack is in `UPDATE_ROLLBACK_FAILED` state — when a previous rollback itself has failed.
-
-
-## Deployment configuration reference
-
-The `deploymentConfig` section controls rollback behavior, artifact retention, and deployment safety. These properties are set at the top level of your Stacktape config, not on individual resources.
-
-| Property | Default | Description |
-|----------|---------|-------------|
-| `previousVersionsToKeep` | `10` | Number of old deployment artifact versions to retain. Higher values give more rollback targets at the cost of more storage |
-| `triggerRollbackOnAlarms` | — | Alarm names or ARNs that trigger automatic rollback during deployment |
-| `monitoringTimeAfterDeploymentInMinutes` | `0` | Minutes to continue monitoring rollback alarms after deploy completes |
-| `disableAutoRollback` | `false` | Keep stack in failed state instead of auto-rolling back on deployment failure |
-| `terminationProtection` | `false` | Prevent accidental stack deletion. Must be disabled before you can delete the stack |
-| `cloudformationRoleArn` | — | IAM role for CloudFormation to assume during create/update/delete operations. Persisted across deployments and reused for rollback even if removed from config later |
-| `publishEventsToArn` | — | SNS topic ARNs to receive CloudFormation stack events during deployment |
-
 ## FAQ
 
 ### What's the difference between `stacktape rollback` and `stacktape cf:rollback`?
 
-`stacktape rollback` is a version-targeted operation — it picks a specific previous deployment version, verifies its artifacts still exist, and re-deploys its CloudFormation template as a new version. Use it when your stack is healthy but the latest code or config is wrong. `stacktape cf:rollback` is a recovery operation — it triggers CloudFormation's native rollback to unstick a stack left in a failed state, then cleans up artifacts from the failed deployment. Use it when the stack itself is broken, not just the application.
+`stacktape rollback` is a version-targeted operation — it picks a specific previous deployment version, verifies its artifacts still exist, and re-deploys its CloudFormation template as a new version. Use it when your stack is healthy but the latest code or config is wrong. `stacktape cf:rollback` is a recovery operation — it triggers Stacktape's CloudFormation rollback flow to unstick a stack left in a failed state, then cleans up artifacts from the failed deployment. Use it when the stack itself is broken, not just the application.
 
 ### What happens to my database during a rollback?
 
-A version rollback re-deploys the old CloudFormation template. If your database schema hasn't changed between versions, nothing happens to the database. If it has changed (for example, you added a column via a [deployment script](/deployment-and-lifecycle/deployment-scripts-and-hooks)), the rollback does NOT reverse database migrations — it only rolls back infrastructure and code. You need to handle data migrations separately.
+`stacktape rollback` does not run reverse database migrations; it deploys the old CloudFormation template. If your schema changed between versions (for example, you added a column via a [deployment script](/deployment-and-lifecycle/deployment-scripts-and-hooks)), you need to review and handle any schema or data changes separately before and after the rollback.
 
-### What CloudFormation states require `cf:rollback`?
+### When should I reach for `cf:rollback` instead of just redeploying?
 
-AWS CloudFormation uses `UPDATE_FAILED` when a stack update could not complete, and `UPDATE_ROLLBACK_FAILED` when CloudFormation tried to roll back a failed update but the rollback itself failed. Both states leave your stack unable to accept new updates. `stacktape cf:rollback` handles both: for `UPDATE_FAILED`, it initiates the rollback; for `UPDATE_ROLLBACK_FAILED`, it continues the interrupted rollback and optionally skips problematic resources with `--resourcesToSkip`.
+Use `cf:rollback` when a failed deployment leaves the stack unable to accept the next Stacktape update. The command calls Stacktape's CloudFormation rollback flow, then cleans up artifacts from the failed deployment so the next deploy starts clean.
 
 ### Does rollback work with gradual deployments?
 
-A version rollback replaces the entire CloudFormation template at once. If you were using a [gradual deployment](/deployment-and-lifecycle/gradual-deployments) strategy (canary or linear), the rollback bypasses it and immediately deploys the old version. This is by design — when you're rolling back, you want fast recovery, not gradual traffic shifting.
+A version rollback deploys the selected version's CloudFormation template as a new stack update through the rollback deployment path. If your normal deploys use a [gradual deployment](/deployment-and-lifecycle/gradual-deployments) strategy (canary or linear), verify the rollback behavior for your resource type before relying on rollback during an incident — the rollback path may not follow the same traffic-shifting sequence as a normal deploy.
 
 ### How do I know which version to roll back to?
 
@@ -254,20 +148,12 @@ Run `stacktape rollback --listVersions` to see all available versions with their
 
 ### Can I roll back a stack deployed from CI/CD?
 
-Yes. Neither `stacktape rollback` nor `stacktape cf:rollback` requires the original source code or config file — they work entirely from stored artifacts and CloudFormation state. You can run them from any machine with Stacktape installed and access to the target AWS account — your laptop, a CI runner, or through the Stacktape Console.
-
-### Should I enable automatic rollback on alarms in production?
-
-Yes, for most production stacks. Configure `triggerRollbackOnAlarms` with alarms that track your most important health signals — error rate, latency percentiles, or availability metrics. Set `monitoringTimeAfterDeploymentInMinutes` to a few minutes so regressions that surface shortly after deploy also trigger a rollback. Start with a small monitoring window and widen it as you gain confidence in your alarm thresholds.
+Yes. Neither command requires a config file. `stacktape rollback` uses retained deployment artifacts from the deployment bucket, while `stacktape cf:rollback` works against the deployed CloudFormation stack state and then cleans up rolled-back deployment artifacts. You can run either command from any machine with Stacktape installed and access to the target AWS account, such as your laptop or a CI runner.
 
 ### Can I roll forward after a rollback?
 
-Yes. A version rollback creates a new deployment version (e.g., rolling back from `v000005` to `v000003` creates `v000006`). The stack is in a normal, healthy state after the rollback. You can deploy new code normally with [`stacktape deploy`](/cli/deploy), which creates `v000007`, or roll back again to any retained version.
+Yes. A version rollback creates a new deployment version (e.g., rolling back from `v000005` to `v000003` creates `v000006`). After a successful version rollback, Stacktape reports the new deployment version. You can then deploy normally with [`stacktape deploy`](/cli/deploy) or run another rollback to any retained version.
 
 ### Does CloudFormation rollback always succeed?
 
-Not always. AWS CloudFormation rollback can fail if a resource can't be restored to its previous state — for example, if someone manually deleted a resource outside of CloudFormation, or if a resource's previous configuration is no longer valid (a deleted AMI, a deregistered domain). When this happens, the stack enters `UPDATE_ROLLBACK_FAILED` state. Use `stacktape cf:rollback --resourcesToSkip` to skip the problematic resources and complete the rollback for everything else, then follow up with a fresh deploy.
-
-### What is `terminationProtection` and how does it relate to rollbacks?
-
-`terminationProtection` is a separate safety feature configured alongside rollback settings in `deploymentConfig`. When enabled, it prevents accidental stack deletion via [`stacktape delete`](/cli/delete). To delete a protected stack, first deploy with `terminationProtection: false`, then run the delete command. It does not affect rollback behavior, but it's commonly enabled on the same production stacks where you configure rollback alarms.
+Not always. AWS CloudFormation rollback can fail if a resource can't be restored to its previous state — for example, if someone manually deleted a resource outside of CloudFormation, or if a resource's previous configuration is no longer valid (a deleted AMI, a deregistered domain). When this happens, the stack ends up in a state that requires manual recovery through the AWS Console or AWS CLI before further Stacktape deployments can proceed.

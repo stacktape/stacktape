@@ -14,22 +14,29 @@ The command compares your installed version against the latest published release
 
 When an upgrade is available, Stacktape detects your installation type and responds accordingly:
 
-- **Native installation**: the upgrade command runs automatically, replacing the existing binary via the platform-specific install script.
-- **Global package install** (npm, pnpm, or bun): the upgrade command runs automatically using the detected package manager (e.g. `npm update -g stacktape`, `pnpm update -g stacktape`, or `bun update -g stacktape`).
-- **Local project dependency**: Stacktape prints the correct update command (e.g. `npm update stacktape`) for you to run yourself, since modifying project dependencies should be an explicit choice.
-- **Unknown installation method**: Stacktape prints the native install script for your platform so you can run it manually.
+- **Native installation**: the upgrade command runs automatically.
+- **Global package install**: the upgrade command runs automatically.
+- **Local project dependency**: Stacktape prints the appropriate update command for you to run yourself, since modifying project dependencies should be an explicit choice.
+- **Unknown installation method**: Stacktape prints a command to run manually.
 
-On Windows, upgrade commands execute through PowerShell. On macOS and Linux, they execute through `sh`.
+For automatically-run upgrades (native and global installs), Stacktape executes the upgrade command through PowerShell on Windows and through `sh` on macOS and Linux.
 
 ## Flags
 
+<CliCommandsApiReference command="upgrade" sortedArgs={[
+  {
+    "name": "newVersion",
+    "required": false,
+    "alias": "nv",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> New Version</p>\n",
+    "longDescription": "<p>The version of Stacktape to install.</p>\n"
+  }
+]} />
 
-## CLI Options: `stacktape upgrade`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--newVersion (-nv)` | no | `string` | New Version The version of Stacktape to install. | - |
-
+When run without flags, Stacktape resolves and installs the latest published version automatically.
 
 ## Examples
 
@@ -53,7 +60,7 @@ stacktape upgrade
 
 ### Does `stacktape upgrade` require an API key or AWS credentials?
 
-No. The `upgrade` command is listed among commands that do not require a Stacktape API key. It only checks the latest published version and runs an install command locally — no cloud interaction is involved.
+No Stacktape API key is required. The command has no required arguments — it reads local version metadata, resolves the latest published version, and runs or prints an install command. It does not accept AWS account or region flags.
 
 ### What happens if I'm already on the latest version?
 
@@ -61,7 +68,7 @@ Stacktape compares your installed version against the latest published release. 
 
 ### How does Stacktape detect my installation method?
 
-Stacktape inspects the path of the running executable. If the binary lives inside the native Stacktape install directory, it is classified as a native installation. If it is inside a `node_modules` directory, Stacktape checks whether that path belongs to a global or local install location. The detected package manager (npm, pnpm, or bun) is inferred from environment variables and executable paths.
+Stacktape calls an installation-type detector that classifies the current install as `native`, `package-global`, `package-local`, or unknown. For native and global package installs, the upgrade runs automatically. For local project dependencies and unknown methods, Stacktape prints the command for you to run.
 
 ### Why does the command print a command instead of running it for local installs?
 
@@ -69,8 +76,8 @@ When Stacktape is installed as a local project dependency, modifying `node_modul
 
 ### Can I downgrade or pin a specific Stacktape version?
 
-The CLI schema exposes a `--newVersion` flag. However, the standard upgrade flow compares your current version against the latest published release and upgrades to that version. To install a specific older version, use your package manager directly (e.g. `npm install -g stacktape@3.4.0`) or re-run the native install script.
+The CLI exposes an optional `--newVersion` (`--nv`) flag for specifying the version to install. The implementation resolves the latest published version and only proceeds when that version is newer than the installed one. For workflows not covered by this flag — such as a verified downgrade — use your package manager directly rather than the `upgrade` command.
 
 ### How do I install Stacktape for the first time?
 
-The `upgrade` command is for existing installations. For a fresh install, follow the instructions in [Getting Started — Configure your stack](/getting-started/configure-your-stack), or run the platform-specific install script from the Stacktape website.
+The `upgrade` command is for existing installations. For first-time setup, start with [Getting Started — Configure your stack](/getting-started/configure-your-stack).

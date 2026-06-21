@@ -1,26 +1,22 @@
 # Security and Data Protection Guardrails
 
-Stacktape security guardrails are organization-level preventive policies configured in the [Stacktape Console](/stacktape-console/console-overview). They validate resource configurations against your team's security requirements — VPC-only database access, deletion protection, dead-letter queues, WAF on load balancers, custom domains, and approved database engines — and block non-compliant operations before any infrastructure changes occur.
+Stacktape security guardrails are policy definitions that express your team's security requirements — VPC-only database access, deletion protection, dead-letter queues, WAF on application load balancers, custom domains, and approved database engines. Each guardrail has a `type` and a `properties` object that describes the requirement to enforce.
 
 ## How security guardrails work
 
-Security guardrails are preventive policy definitions that validate resource configurations and block non-compliant operations. This is fundamentally different from [alarms](/observability/alarms), which reactively notify you when a running system behaves unexpectedly at runtime.
+Security guardrails are policy definitions with a `type` and `properties` object that express requirements for resource configurations. This is fundamentally different from [alarms](/observability/alarms), which reactively notify you when a running system behaves unexpectedly at runtime.
 
-Guardrails are managed at the organization level in the [Stacktape Console](/stacktape-console/console-overview) — they are not defined in your project's `stacktape.ts` config file. When any team member runs [`deploy`](/cli/deploy), [`delete`](/cli/delete), or [`preview-changes`](/cli/preview-changes), Stacktape fetches the organization's guardrail policies and validates the operation against them. If a guardrail check fails, the operation is blocked with a `GUARDRAIL` error identifying the violation — no infrastructure changes are made.
-
-Each guardrail has a `type` and a `properties` object. The property shape depends on the guardrail type: `require-*` guardrails use an `enabled` boolean toggle, restriction guardrails use either allowlists or blocklists, and limit guardrails use numeric maximums.
+Each guardrail has a `type` and a `properties` object. For the security and data-protection guardrails on this page, `require-*` guardrails use an optional `enabled` boolean, and `database-engine-restriction` uses an optional `allowedEngines` allowlist. Other guardrail types use different property shapes. See the [guardrails overview](/guardrails/overview) for the full list of all 15 guardrail types and their properties.
 
 | Aspect | Guardrails | Alarms |
 |--------|-----------|--------|
 | **Purpose** | Prevent non-compliant configurations | Detect runtime anomalies |
-| **Timing** | Before infrastructure changes (preventive) | Runtime (reactive) |
-| **Action** | Blocks the operation | Sends notification |
-| **Scope** | Organization-wide policy | Per-resource monitoring |
-| **Managed in** | [Stacktape Console](/stacktape-console/console-overview) | Stacktape config or Console |
+| **Timing** | Policy validation (preventive) | Runtime (reactive) |
+| **Action** | Enforces required settings or values | Sends notification |
 
 ## Security guardrail definitions
 
-Each security guardrail is an object with a `type` string and a `properties` object. The five `require-*` guardrails use an `enabled` boolean toggle. The `database-engine-restriction` guardrail uses an `allowedEngines` allowlist.
+Each security guardrail is an object with a `type` string and a `properties` object. The five `require-*` guardrails use an `enabled` boolean toggle. The `database-engine-restriction` guardrail uses an `allowedEngines` allowlist. These guardrail definitions are managed separately from your `stacktape.ts` resource configuration — they are not added to your `stacktape.ts` file. The object shapes below illustrate the guardrail policy format.
 
 ```typescript
 // require-* guardrails — enabled toggle
@@ -34,7 +30,9 @@ Each security guardrail is an object with a `type` string and a `properties` obj
 { type: 'database-engine-restriction', properties: { allowedEngines: ['postgres', 'aurora-postgresql'] } }
 ```
 
-These definitions are configured per organization in the [Stacktape Console](/stacktape-console/console-overview) and apply to every deployment in that organization. See the [guardrails overview](/guardrails/overview) for the full list of all 15 guardrail types across deployment, security, resource-limit, and database categories.
+The `GuardrailType` union currently includes 15 guardrail types; see the [guardrails overview](/guardrails/overview) for how the docs group them.
+
+The examples below show the resource-side settings that correspond to each guardrail requirement. See the linked resource pages for full resource configuration details.
 
 ## When to use
 
@@ -46,11 +44,11 @@ Enable security guardrails when your team needs to enforce compliance requiremen
 
 ## When NOT to use
 
-Skip guardrails in early prototyping or single-developer projects where speed matters more than governance. Guardrails add a validation step to every deployment — for a solo developer who understands the tradeoffs, they slow iteration without adding safety. You can always enable guardrails later when the team grows or the project reaches production.
+Skip guardrails in early prototyping or single-developer projects where speed matters more than governance. In early prototypes or solo projects, guardrails may be unnecessary until you have shared production baselines to enforce. You can always enable guardrails later when the team grows or the project reaches production.
 
 ## Require VPC databases
 
-The `require-vpc-databases` guardrail ensures all databases use VPC-only accessibility with no public internet access. When enabled, any [relational database](/resources/databases/relational-database) or [OpenSearch domain](/resources/databases/opensearch) configured without VPC-only accessibility is blocked. The accepted accessibility modes are `'vpc'` and `'scoping-workloads-in-vpc'` — any other mode (including the default `'internet'`) causes the operation to fail.
+The `require-vpc-databases` guardrail enforces that, when enabled, all databases must use VPC-only accessibility with no public internet access.
 
 **When to enable:** Enable in production stages or any organization handling sensitive data. VPC-only databases cannot be reached from the public internet, eliminating an entire class of network-based attack vectors. The tradeoff is that you need a [bastion host](/resources/security/bastion-host) or VPC-connected workloads to access the database for administration and debugging. For most production workloads, VPC-only is the right default.
 
@@ -62,10 +60,11 @@ A compliant [relational database](/resources/databases/relational-database) conf
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres16 } from 'stacktape';
+import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgres16({
+    engine: new RdsEnginePostgres({
+      version: '16.6',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -82,7 +81,7 @@ export default defineConfig(() => {
 ```
 
 
-The `accessibilityMode` property controls how the database is reachable. Setting it to `'vpc'` restricts access to resources within the same VPC — workloads configured with [`connectTo`](/configuration/connecting-resources) connect automatically. The alternative `'scoping-workloads-in-vpc'` also satisfies this guardrail. The `instanceSize` property controls the compute and memory capacity — `db.t4g.micro` is a cost-effective choice for development and low-traffic production workloads. See the [relational database page](/resources/databases/relational-database) for supported instance sizes and accessibility modes.
+This example configures the database with VPC-only access and no public internet exposure. See the [relational database page](/resources/databases/relational-database) for all supported accessibility modes, engine versions, and instance sizes. See [connecting resources](/configuration/connecting-resources) for how workloads connect to VPC-only databases.
 
 ## Require deletion protection
 
@@ -96,10 +95,11 @@ The `require-deletion-protection` guardrail requires all [relational databases](
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres16 } from 'stacktape';
+import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgres16({
+    engine: new RdsEnginePostgres({
+      version: '16.6',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -114,7 +114,7 @@ export default defineConfig(() => {
 ```
 
 
-Setting `deletionProtection: true` satisfies this guardrail. With deletion protection enabled, AWS RDS rejects API calls that would remove the database instance — this is an AWS-level safeguard independent of Stacktape. Any relational database without this flag is blocked by the guardrail.
+Setting `deletionProtection: true` satisfies this guardrail. With deletion protection enabled, AWS RDS rejects API calls that would remove the database instance — this is an AWS-level safeguard independent of Stacktape. When `require-deletion-protection` is enabled, every relational database must set `deletionProtection: true`.
 
 ## Require dead-letter queue
 
@@ -134,7 +134,7 @@ export default defineConfig(() => {
 
   const orderQueue = new SqsQueue({
     redrivePolicy: {
-      deadLetterQueue: 'deadLetterQueue',
+      targetSqsQueueName: 'deadLetterQueue',
       maxReceiveCount: 3
     }
   });
@@ -146,11 +146,11 @@ export default defineConfig(() => {
 ```
 
 
-The `redrivePolicy` specifies which queue receives failed messages (`deadLetterQueue`) and how many receive attempts are allowed before a message is moved there (`maxReceiveCount`). A `maxReceiveCount` of 3–5 is typical — low enough to catch persistent failures quickly, high enough to tolerate transient errors. Monitor your dead-letter queue with [alarms](/observability/alarms) to get notified when messages land there.
+The `redrivePolicy` specifies which queue receives failed messages and how many receive attempts are allowed before a message is moved there. A `maxReceiveCount` of 3–5 is typical — low enough to catch persistent failures quickly, high enough to tolerate transient errors. See the [SQS queue page](/resources/messaging/sqs-queue) for the full `redrivePolicy` structure. Monitor your dead-letter queue with [alarms](/observability/alarms) to get notified when messages land there.
 
 ## Require WAF
 
-The `require-waf` guardrail requires all [application load balancers](/resources/networking/application-load-balancer) to have a [web application firewall](/resources/security/web-application-firewall) attached. The guardrail checks that a firewall reference exists — the protection you get depends on the AWS WAF rules you configure on the firewall resource itself.
+The `require-waf` guardrail requires every [application load balancer](/resources/networking/application-load-balancer) to have a [web application firewall](/resources/security/web-application-firewall) attached.
 
 **When to enable:** Enable for public-facing applications that handle user input, authentication, or sensitive data. AWS WAF can defend against common web exploits including SQL injection and cross-site scripting. Most production APIs serving public traffic benefit from WAF.
 
@@ -179,11 +179,11 @@ export default defineConfig(() => {
 ```
 
 
-The `useFirewall` property references a [web application firewall](/resources/security/web-application-firewall) resource by name. The guardrail only verifies that the reference exists — you still need to configure the WAF rules on the `WebAppFirewall` resource to define what threats are blocked. See the [web application firewall page](/resources/security/web-application-firewall) for rule configuration.
+The `useFirewall` property references a [web application firewall](/resources/security/web-application-firewall) resource by name. When enabled, `require-waf` requires all application load balancers to have a web application firewall attached. See the [web application firewall page](/resources/security/web-application-firewall) for WAF rule configuration.
 
 ## Require custom domain
 
-The `require-custom-domain` guardrail ensures public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) have a [custom domain](/resources/networking/custom-domains) configured. Use it when production endpoints must be served from domains your team controls rather than auto-generated AWS URLs.
+When enabled, the `require-custom-domain` guardrail requires public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) to have a [custom domain](/resources/networking/custom-domains) configured. Use it when production endpoints must be served from domains your team controls rather than auto-generated AWS URLs.
 
 **When to enable:** Enable for production stages where URL stability, branding, and domain ownership matter. Custom domains give your users a predictable, professional endpoint. They also let you migrate backends without changing the URL your consumers depend on.
 
@@ -219,17 +219,17 @@ export default defineConfig(() => {
 ```
 
 
-The `customDomains` array must contain at least one entry for web services and hosting buckets to satisfy this guardrail. See the [custom domains page](/resources/networking/custom-domains) for domain configuration options including DNS setup and certificate provisioning.
+When enabled, this guardrail requires public-facing web services and hosting buckets to have a custom domain configured. See the [custom domains page](/resources/networking/custom-domains) for custom domain configuration.
 
 ## Database engine restriction
 
-The `database-engine-restriction` guardrail limits which database engine types can be used. You define an `allowedEngines` list — for example, `["postgres", "aurora-postgresql"]` — and any database using an engine type not on the list is blocked. This guardrail operates on engine families (like `postgres` or `aurora-postgresql`), not on specific engine versions.
+The `database-engine-restriction` guardrail limits which database engine types can be used. You define an `allowedEngines` list — for example, `["postgres", "aurora-postgresql"]`. Database engine types not included in `allowedEngines` are blocked.
 
-**When to enable:** Enable when your organization needs to standardize on specific database engine families:
+**When to enable:** Enable when your organization needs to standardize on specific database engine types:
 
-- **Enforce approved engines** — restrict deployments to engine families your DBA team actively supports and has runbooks for. This reduces operational risk when incidents happen.
+- **Enforce approved engines** — restrict deployments to engine types your DBA team actively supports and has runbooks for. This reduces operational risk when incidents happen.
 - **Standardize across teams** — prevent teams from deploying database engine types your organization has not approved, keeping the technology stack consistent.
-- **Meet compliance requirements** — some compliance frameworks mandate specific database technologies or encryption capabilities available on certain engine families.
+- **Meet compliance requirements** — some compliance frameworks mandate specific database technologies or encryption capabilities available on certain engine types.
 
 **When the default is fine:** Skip when your team is small enough that engine choice is a conversation rather than a policy, or when you're exploring different database technologies and don't want to constrain options prematurely.
 
@@ -237,22 +237,20 @@ This guardrail is also covered on the [database guardrails](/guardrails/database
 
 ## Resource type restriction (security use)
 
-The `resource-type-restriction` guardrail blocks specified resource types from being deployed. While covered in detail on the [deployment guardrails](/guardrails/deployment) page, it has a clear security application: blocking resource types that don't meet your organization's compliance or operational requirements.
-
-The `blockedResourceTypes` property accepts a list of Stacktape resource type identifiers — for example, `["open-search-domain", "redis-cluster"]`. Any stack containing a blocked resource type is rejected. Use this to prevent teams from deploying resource types that your security team hasn't reviewed or that expose unnecessary attack surface for your use case.
+The `resource-type-restriction` guardrail blocks the resource types listed in its `blockedResourceTypes` property — for example, `["open-search-domain", "redis-cluster"]`. For broader deployment governance guardrails and the full property shape, see [deployment guardrails](/guardrails/deployment).
 
 ## Combining security guardrails
 
-Most production organizations enable multiple security guardrails together. A typical production-security baseline combines network isolation, data protection, and access control guardrails:
+Most production organizations enable multiple security guardrails together. A typical production-security baseline combines network isolation, data protection, and web application firewall guardrails:
 
 | Guardrail | What it enforces | Recommended for |
 |-----------|-----------------|-----------------|
 | `require-vpc-databases` | Network isolation for all databases | All production stages |
 | `require-deletion-protection` | Prevent accidental database removal | All stages with persistent data |
 | `require-dead-letter-queue` | Message durability for SQS queues | Event-driven architectures |
-| `require-waf` | Application-layer firewall on load balancers | Public-facing APIs |
+| `require-waf` | Application-layer firewall on application load balancers | Public-facing APIs |
 | `require-custom-domain` | Stable, branded endpoints | Production web services |
-| `database-engine-restriction` | Approved engine families only | Compliance-regulated teams |
+| `database-engine-restriction` | Approved engine types only | Compliance-regulated teams |
 | `resource-type-restriction` | Block non-approved resource types | Security-sensitive environments |
 
 These guardrails complement each other. VPC databases prevent network-level exposure. WAF adds application-level protection. Deletion protection and dead-letter queues prevent data loss. Custom domains ensure stable endpoints. Engine restrictions enforce your approved technology list.
@@ -273,17 +271,9 @@ For a high-level overview of all 15 guardrail types, see the [guardrails overvie
 
 ## FAQ
 
-### Where are guardrails configured?
-
-Guardrails are configured at the organization level in the [Stacktape Console](/stacktape-console/console-overview), not in your project's `stacktape.ts` configuration file. This means guardrail policies apply to all deployments across the organization — individual projects cannot override them. When a team member runs [`deploy`](/cli/deploy), [`delete`](/cli/delete), or [`preview-changes`](/cli/preview-changes), the CLI fetches the organization's guardrails and validates the operation before making changes.
-
 ### How do guardrails differ from alarms?
 
-Guardrails are preventive — they validate resource configurations before infrastructure changes happen and block non-compliant operations. [Alarms](/observability/alarms) are reactive — they monitor running infrastructure and send notifications when metrics cross thresholds. Use guardrails to prevent insecure configurations from being deployed. Use alarms to detect unexpected behavior in already-deployed infrastructure. A production stack benefits from both.
-
-### What happens when a guardrail is violated?
-
-The operation is blocked before any infrastructure changes are made, and a `GUARDRAIL` error is returned identifying the specific violation — for example, which resource failed the check and what policy it violated. The resource configuration must be updated to satisfy the guardrail before the operation can proceed.
+Guardrails are preventive — they validate resource configurations against policy and require non-compliant configurations to be corrected. [Alarms](/observability/alarms) are reactive — they monitor running infrastructure and send notifications when metrics cross thresholds. Use guardrails to prevent insecure configurations from being deployed. Use alarms to detect unexpected behavior in already-deployed infrastructure. A production stack benefits from both.
 
 ### What is VPC-only database accessibility?
 
@@ -291,11 +281,11 @@ VPC-only accessibility means the database has no public IP address and can only 
 
 ### What does AWS WAF protect against?
 
-AWS WAF inspects incoming HTTP/HTTPS requests and blocks those matching configured rules. Common rule sets defend against OWASP top-10 threats including SQL injection, cross-site scripting (XSS), and bot traffic. WAF rules can also implement rate limiting and geographic restrictions. The `require-waf` guardrail only verifies that a [web application firewall](/resources/security/web-application-firewall) is attached to your load balancers — the actual protection depends on the WAF rules you configure.
+AWS WAF inspects incoming HTTP/HTTPS requests and blocks those matching configured rules. Common rule sets defend against OWASP top-10 threats including SQL injection, cross-site scripting (XSS), and bot traffic. WAF rules can also implement rate limiting and geographic restrictions. The `require-waf` guardrail requires all [application load balancers](/resources/networking/application-load-balancer) to have a [web application firewall](/resources/security/web-application-firewall) attached — the actual protection depends on the WAF rules you configure.
 
 ### Do security guardrails add cost to my AWS bill?
 
-Guardrails are organization-level policy checks — the costs come from the resources required to satisfy those policies, not from the guardrails themselves. For example, AWS WAF charges per rule and per request evaluated, and [custom domains](/resources/networking/custom-domains) require DNS configuration. VPC-only databases don't add direct cost, but workloads that need both VPC access and internet access may need additional networking configuration. Evaluate the cost of each required resource when planning which guardrails to enable.
+Guardrails are configuration policy checks. Cost planning should focus on the resources you add to satisfy a policy — for example, AWS WAF charges per rule and per request evaluated, and [custom domains](/resources/networking/custom-domains) require DNS configuration. VPC-only databases don't add direct cost, but workloads that need both VPC access and internet access may need additional networking configuration. Evaluate the cost of each required resource when planning which guardrails to enable.
 
 ### When should I use guardrails instead of code reviews?
 
@@ -307,8 +297,8 @@ Deletion protection and backups protect against different failure modes. Deletio
 
 ### Does the require-vpc-databases guardrail apply to all database types?
 
-The `require-vpc-databases` guardrail checks both [relational databases](/resources/databases/relational-database) and [OpenSearch domains](/resources/databases/opensearch). Both resource types must use VPC-only accessibility when this guardrail is enabled. The accepted modes are `'vpc'` and `'scoping-workloads-in-vpc'` — any other accessibility mode causes the operation to be blocked.
+The guardrail source describes the requirement as applying to all databases — when enabled, all databases must use VPC-only accessibility with no public internet access. See the [relational database page](/resources/databases/relational-database) for supported accessibility modes.
 
 ### Can I restrict which database engines my team uses?
 
-Yes. The `database-engine-restriction` guardrail lets you define an `allowedEngines` list of permitted engine family identifiers, such as `["postgres", "aurora-postgresql"]`. Any database using an engine type not on the list is blocked. This guardrail operates on engine families, not specific engine versions — for example, `postgres` covers all RDS PostgreSQL versions. See [database guardrails](/guardrails/databases) for the full database-related guardrail set including instance size restrictions.
+Yes. The `database-engine-restriction` guardrail lets you define an `allowedEngines` list of permitted engine type identifiers, such as `["postgres", "aurora-postgresql"]`. Database engine types not included in `allowedEngines` are blocked. See [database guardrails](/guardrails/databases) for the full database-related guardrail set including instance size restrictions.

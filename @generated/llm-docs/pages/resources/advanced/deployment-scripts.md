@@ -11,7 +11,7 @@ Deployment scripts solve a specific problem: running code *inside AWS* at deploy
 - **Schema changes** — create DynamoDB indexes, configure OpenSearch mappings, or set up Redis data structures
 - **Pre-deletion cleanup** — export data, drain queues, or snapshot resources before the stack is torn down
 
-A deployment script is the right choice when your task needs to run in AWS (not on your local machine or CI runner) and must complete before the deployment is considered successful.
+For `after:deploy`, use a deployment script when the task must run in AWS and should fail the deployment if it fails. For `before:delete`, use it for best-effort cleanup before Stacktape deletes resources.
 
 ## When NOT to use
 
@@ -34,18 +34,29 @@ Not every deploy-time task needs a deployment script. Consider alternatives:
 | Can run manually | yes | yes |
 
 
-Lifecycle hooks run a `local-script` on your machine or CI runner. If the local command needs VPC-only resources (databases, Redis), define a `local-script-with-bastion-tunneling` script that tunnels connections through a [bastion host](/resources/security/bastion-host). See [hooks and scripts](/configuration/hooks-and-scripts) for details.
+Lifecycle hooks run a `local-script` on your machine or CI runner. For commands that need to reach VPC-protected resources, define a `local-script-with-bastion-tunneling` script — it still runs locally, but tunnels connections through a [bastion host](/resources/security/bastion-host) to supported protected resources, including relational databases and Redis clusters. Set the optional `bastionResource` property when you need to pick a specific bastion. See [hooks and scripts](/configuration/hooks-and-scripts) for details.
 
 ## Basic example
 
-This deployment script runs database migrations after every deploy. It references a relational database named `mainDatabase` (defined elsewhere in the same config) via `connectTo`, joins the VPC for network access, and has a 2-minute timeout to accommodate large migrations.
+This deployment script runs database migrations after every deploy. It uses `connectTo` to reference a [relational database](/resources/databases/relational-database) named `mainDatabase`, joins the VPC for network access, and has a 2-minute timeout to accommodate large migrations.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import {
+  defineConfig,
+  DeploymentScript,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
 export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgres({ version: '16' }),
+    instanceSize: 'db.t4g.micro'
+  });
+
   const runMigrations = new DeploymentScript({
     trigger: 'after:deploy',
     packaging: new StacktapeLambdaBuildpackPackaging({
@@ -58,15 +69,15 @@ export default defineConfig(() => {
   });
 
   return {
-    resources: { runMigrations }
+    resources: { mainDatabase, runMigrations }
   };
 });
 ```
 
 
-The `trigger: 'after:deploy'` means this script runs after resources in the stack are created or updated. If it fails, the entire deployment rolls back — so a broken migration won't leave you with updated code pointing at an un-migrated database.
+The `trigger: 'after:deploy'` means this script runs after resources in the stack are created or updated. If it fails, the deployment rolls back — so a broken migration won't leave you with updated code pointing at an un-migrated database.
 
-The `memory` property controls how much memory (in MB) the Lambda function gets. Valid range is 128–10,240 MB. CPU scales proportionally — at 1,769 MB the function gets 1 full vCPU. For most migration scripts, 512 MB is enough. Increase to 1,024 MB or higher for memory-intensive tasks like large data transformations.
+The `memory` property controls how much memory (in MB) the Lambda function gets. Valid range is 128–10,240 MB. CPU scales proportionally — at 1,769 MB the function gets 1 full vCPU. 512 MB is a reasonable starting point for lightweight migration scripts; increase memory for memory-intensive transformations.
 
 The `storage` property controls ephemeral `/tmp` storage available to the script Lambda. It accepts 512–10,240 MB and defaults to 512 MB. Leave it at the default unless your script downloads, generates, or transforms large temporary files (e.g., database dumps or build artifacts that need scratch disk space).
 
@@ -95,7 +106,7 @@ The `trigger` property controls when your script runs and what happens if it fai
 
 A script with `after:deploy` runs after resources in the stack are created or updated. Use it for migrations, seeding, and any setup that depends on your infrastructure being in place.
 
-**If the script fails, the entire deployment rolls back.** This is the safety mechanism that makes deployment scripts reliable for migrations — a failed migration means your stack stays at the previous working state rather than leaving you with updated code pointing at an un-migrated database. Fix the script, then redeploy.
+**If the script fails, Stacktape treats the deployment as failed and triggers a rollback.** This is the safety mechanism that makes deployment scripts reliable for migrations — a failed migration means your stack returns to the previous working state rather than leaving you with updated code pointing at an un-migrated database. Fix the script, then redeploy.
 
 ### before:delete
 
@@ -130,10 +141,10 @@ Deployment scripts support two Lambda packaging modes. Most teams use the Stackt
 
 | Mode | Class | When to use |
 |------|-------|-------------|
-| [Stacktape buildpack](/packaging/function/stacktape-buildpack) | `StacktapeLambdaBuildpackPackaging` | Default. Point to a source file — Stacktape bundles and uploads it. |
+| [Stacktape buildpack](/packaging/function/stacktape-buildpack) | `StacktapeLambdaBuildpackPackaging` | Default. Point to a source file — Stacktape bundles code and dependencies into a Lambda deployment package. |
 | [Custom artifact](/packaging/function/custom-artifact) | `CustomArtifactLambdaPackaging` | You have a pre-built zip or directory from a custom build step. |
 
-The Stacktape buildpack supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. The runtime is auto-detected from the file extension when `runtime` is not specified explicitly.
+`StacktapeLambdaBuildpackPackaging` supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. Deployment scripts also expose an optional `runtime` property; when omitted, Stacktape auto-detects the Lambda runtime from the file extension.
 
 ### Custom artifact packaging
 
@@ -161,7 +172,7 @@ export default defineConfig(() => {
 ```
 
 
-For language-specific tuning (Node.js version, Python version, module format), see [language-specific packaging config](/packaging/function/language-specific-config).
+For language-specific tuning (Node.js version, Python version, module format), configure the buildpack's `languageSpecificConfig` property. See the [Stacktape buildpack packaging reference](/packaging/function/stacktape-buildpack) for supported options.
 
 ## Connecting to resources
 
@@ -169,13 +180,13 @@ Deployment scripts frequently need to interact with databases, buckets, or queue
 
 When you list a resource in `connectTo`, Stacktape:
 - **Grants IAM permissions** for the script's Lambda execution role (e.g., read/write to a bucket, send messages to a queue)
-- **Opens network access** via security group rules (for databases and Redis)
+- **Configures security group rules** for databases and Redis — but the script must also set `joinDefaultVpc: true` to run inside the VPC and actually reach these resources
 - **Injects environment variables** with connection details, named `STP_[RESOURCE_NAME]_[PARAM]`
 
 For example, connecting to a resource named `mainDatabase` injects `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`. See [connecting resources](/configuration/connecting-resources) for the full list of injected variables per resource type.
 
 
-> **Info:** For VPC-protected resources like [relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis), you must also set `joinDefaultVpc: true`. Without it, the Lambda function runs outside the VPC and cannot reach these resources. Note that joining the VPC means the function loses direct internet access. If your script also needs to call external APIs, you will need NAT Gateways configured in `stackConfig.vpc.nat`, which route outbound traffic through a static IP. Alternatively, split the work into a VPC-joined script for database access and a separate non-VPC script for external API calls.
+> **Info:** For VPC-protected resources like [relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis), you must also set `joinDefaultVpc: true`. Without it, the Lambda function runs outside the VPC and cannot reach these resources. Note that joining the VPC means the function loses direct internet access — this is standard AWS Lambda VPC behavior. If your script also needs to call external APIs, either configure NAT Gateways in your VPC for outbound internet routing, or split the work into a VPC-joined script for database access and a separate non-VPC script for external API calls.
 
 
 You can also add raw IAM policy statements with `iamRoleStatements` for AWS services not covered by `connectTo` — for example, calling Amazon Bedrock or writing to a cross-account S3 bucket.
@@ -229,15 +240,15 @@ export default async (event: { tableName: string; region: string }) => {
 
 ## Manual execution
 
-Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to invoke any deployment script on demand without a full deploy. See the [CLI reference](/cli/deployment-script-run) for available flags and options.
+Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to invoke a configured deployment script on demand without a full deploy. Deploy first when you need Stacktape to apply resource, packaging, permission, or environment changes. See the [CLI reference](/cli/deployment-script-run) for available flags and options.
 
-This is useful for re-running migrations after a hotfix, re-seeding data, or testing a script before a full deploy. Use a full [`stacktape deploy`](/cli/deploy) when you need to apply configuration changes beyond the script code itself.
+This is useful for re-running migrations after a hotfix, re-seeding data, or testing a script before a full deploy.
 
 ## FAQ
 
 ### What happens if my after:deploy script fails?
 
-The entire CloudFormation deployment rolls back to its previous state. All resources created or updated during the deployment are reverted. This ensures your stack stays consistent — you won't end up with updated application code pointing at a database that failed to migrate. Fix the script, then redeploy.
+Stacktape treats the deployment as failed and triggers a rollback. Your stack stays consistent — you won't end up with updated application code pointing at a database that failed to migrate. Fix the script, then redeploy.
 
 ### What happens if my before:delete script fails?
 
@@ -249,7 +260,7 @@ Yes. Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to invo
 
 ### Can a deployment script access my database?
 
-Yes. Add the database to `connectTo` and set `joinDefaultVpc: true`. Stacktape injects the connection string as an environment variable (e.g., `STP_MAIN_DATABASE_CONNECTION_STRING` for a resource named `mainDatabase`) and opens the necessary security group rules. This is the standard pattern for running database migrations in a deployment script.
+Yes. Add the database to `connectTo` and set `joinDefaultVpc: true`. For a relational database, `connectTo` injects `STP_[RESOURCE_NAME]_CONNECTION_STRING`, `STP_[RESOURCE_NAME]_HOST`, and `STP_[RESOURCE_NAME]_PORT`. Aurora clusters also get `STP_[RESOURCE_NAME]_READER_CONNECTION_STRING` and `STP_[RESOURCE_NAME]_READER_HOST`. This is the standard pattern for running database migrations in a deployment script.
 
 ### How long can a deployment script run?
 
@@ -257,11 +268,11 @@ Deployment scripts are Lambda functions, so the maximum execution time is 900 se
 
 ### Can I have multiple deployment scripts in one stack?
 
-Yes. Define multiple `DeploymentScript` resources in your config, each with its own `trigger`. If your workflow requires strict ordering between scripts, prefer combining the steps into a single script that performs them in sequence.
+Yes. Define multiple `DeploymentScript` resources in your config, each with its own `trigger`. The provided config type does not expose an ordering property for deployment scripts. If steps must run in a strict sequence, the practical approach is to put them in one script.
 
 ### Should I use a deployment script or a lifecycle hook for migrations?
 
-Use a deployment script when the migration needs direct VPC access to the database (the common case). A deployment script runs inside AWS as a Lambda function, so it can reach VPC-protected databases when `joinDefaultVpc` is enabled. Use a lifecycle hook with a `local-script` when the migration tool doesn't package well as a Lambda or takes longer than 15 minutes. If the local script needs VPC-only resources, define a `local-script-with-bastion-tunneling` script to tunnel connections through a [bastion host](/resources/security/bastion-host).
+Use a deployment script when the migration needs direct VPC access to the database; this is usually the cleanest Stacktape-native path when the migration fits within Lambda limits. A deployment script runs inside AWS as a Lambda function, so it can reach VPC-protected databases when `joinDefaultVpc` is enabled. Use a lifecycle hook with a `local-script` when the migration tool doesn't package well as a Lambda or takes longer than 15 minutes. If the local script needs to reach VPC-protected resources, a `local-script-with-bastion-tunneling` script runs locally and can tunnel connections to supported protected resources, including relational databases and Redis clusters, through a [bastion host](/resources/security/bastion-host); set the optional `bastionResource` property when you need to choose a specific bastion.
 
 ### When should I use a batch job instead of a deployment script?
 

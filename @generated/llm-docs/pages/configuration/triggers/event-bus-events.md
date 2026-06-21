@@ -1,6 +1,6 @@
 # Event Bus Events
 
-Stacktape event bus events trigger compute resources when an event matching a pattern arrives on an Amazon EventBridge event bus. EventBridge is a serverless event router — you publish structured JSON events to a bus, define filter patterns, and EventBridge delivers matching events to your targets. Stacktape configures the EventBridge rule and target integration declaratively.
+Stacktape's `EventBusIntegration` triggers a target when an event matching a pattern arrives on an Amazon EventBridge event bus. EventBridge is a serverless event router — you publish structured JSON events to a bus, define filter patterns, and EventBridge delivers matching events to your targets. Stacktape configures the EventBridge rule and target integration declaratively.
 
 ## When to use
 
@@ -9,8 +9,8 @@ Event bus triggers are the right choice when your architecture needs **content-b
 Common scenarios:
 
 - **Decoupled microservices** — services emit domain events (`OrderPlaced`, `PaymentFailed`) without knowing who consumes them. Functions subscribe by pattern and react independently.
-- **Reacting to AWS service events** — EC2 state changes, CodePipeline failures, S3 operations via CloudTrail, and hundreds of other AWS signals land on the default event bus automatically. Use `useDefaultBus` to tap into them.
-- **Cross-account or cross-region routing** — EventBridge natively supports forwarding events between accounts and regions, making it the standard for multi-account event architectures.
+- **Reacting to AWS service events** — the default AWS event bus receives events from AWS services automatically. Bind to it with `useDefaultBus: true` to react to infrastructure changes without managing a custom bus.
+- **Cross-account event routing** — use `eventBusArn` to subscribe to an event bus in another AWS account or another Stacktape stack, enabling multi-account event architectures.
 
 ## When NOT to use
 
@@ -18,10 +18,10 @@ Event bus triggers add a pattern-matching routing layer. If your use case doesn'
 
 | Scenario | Better alternative |
 |---|---|
-| Point-to-point messaging with batching and retries | [SQS queue trigger](/configuration/triggers/sqs-events) — configurable batch sizes, visibility timeouts, built-in deduplication |
+| Point-to-point messaging with batching and retries | [SQS queue trigger](/configuration/triggers/sqs-events) — point-to-point queue consumption with configurable batch sizes and batch windows |
 | Fan-out where every subscriber gets every message | [SNS trigger](/configuration/triggers/sns-events) — simpler pub/sub without pattern syntax |
 | High-throughput ordered streaming with replay | [Kinesis trigger](/configuration/triggers/kinesis-events) — per-shard ordering and built-in replay |
-| Payloads larger than 256 KB | Store data in [S3](/resources/storage/s3-bucket) and pass a reference through any event source |
+| Payloads exceeding the EventBridge size limit | Store data in [S3](/resources/storage/s3-bucket) and pass a reference through any event source |
 
 ## Basic example
 
@@ -63,25 +63,25 @@ export default defineConfig(() => {
 ```
 
 
-The `eventPattern` property is required on every event bus integration. It controls which events reach your target — only events whose fields match all specified pattern conditions are delivered. Unspecified fields are treated as wildcards.
+The `eventPattern` property is required on every `EventBusIntegration`. It controls which events reach your target — underneath, EventBridge delivers only events whose fields match all specified pattern conditions. Fields not specified in the pattern are treated as wildcards by EventBridge.
 
-Use `EventBusIntegration` in the `events` array of resources that support event-bus triggers, such as [Lambda functions](/resources/compute/lambda-function) and [batch jobs](/resources/compute/batch-job).
+`EventBusIntegration` is the Stacktape event type for EventBridge event-bus triggers. Add it to the `events` array of a compute resource. The examples on this page use [Lambda functions](/resources/compute/lambda-function); the source types also describe usage with [batch jobs](/resources/compute/batch-job).
 
 ## Choosing the event source
 
-Choose one of `eventBusName`, `eventBusArn`, or `useDefaultBus` when binding to a bus. You must specify only one of these three properties.
+`EventBusIntegration` can attach to one of three bus sources: a Stacktape [event bus](/resources/messaging/event-bus) resource (via `eventBusName`), an external event bus ARN (via `eventBusArn`), or the default AWS event bus (via `useDefaultBus`). You must specify exactly one of these three properties.
 
 | Property | Use when |
 |---|---|
 | `eventBusName` | The event bus is defined in the same Stacktape stack. Reference it by its resource name. |
 | `eventBusArn` | The event bus lives outside your stack — another Stacktape stack, another AWS account, or a manually created bus. |
-| `useDefaultBus` | You want to react to AWS service events (EC2, S3 via CloudTrail, CodePipeline, etc.) that arrive on the default bus automatically. |
+| `useDefaultBus` | You want to bind to the default AWS event bus, which receives events from AWS services automatically. |
 
 Most custom architectures use `eventBusName` with an [event bus resource](/resources/messaging/event-bus) in the same stack. The default AWS event bus is useful for operational automation — reacting to infrastructure events without creating any bus resource.
 
 ### Using the default AWS event bus
 
-Every AWS account has a default event bus that receives events from AWS services automatically. Set `useDefaultBus: true` and write a pattern matching the AWS event structure. You do not need to create an event bus resource.
+Set `useDefaultBus: true` to bind the integration to the default AWS event bus instead of a custom bus defined in your stack. Underneath, AWS EventBridge provides a default bus in every account that receives events from many AWS services automatically, so you can write a pattern matching the AWS event structure and react to it directly.
 
 This example triggers a function whenever an EC2 instance enters the `stopped` state:
 
@@ -160,7 +160,7 @@ export default defineConfig(() => {
 
 ## Event patterns
 
-The `eventPattern` is the core of every event bus integration. It defines a filter that EventBridge evaluates against each event on the bus. Only events where **every specified field matches** are delivered. Fields you omit act as wildcards — they match any value.
+The `eventPattern` is the core of every `EventBusIntegration`. It defines a filter that the underlying EventBridge service evaluates against each event on the bus. Only events where **every specified field matches** are delivered. Fields you omit act as wildcards — EventBridge matches any value for those fields.
 
 ### Pattern fields
 
@@ -175,7 +175,7 @@ The `eventPattern` is the core of every event bus integration. It defines a filt
 | `version` | Event schema version | `['1']` |
 | `replay-name` | Present only on replayed events (for event replay filtering) | `['my-replay']` |
 
-**Matching logic:** Within a single field, the event matches if its value equals **any** value in the array (OR logic). Across fields, **all** specified fields must match (AND logic).
+**Matching logic (EventBridge behavior):** Within a single field, the event matches if its value equals **any** value in the array (OR logic). Across fields, **all** specified fields must match (AND logic).
 
 ### Content-based filtering with detail
 
@@ -224,7 +224,7 @@ This function fires only for `OrderPlaced` events where `detail.amount` exceeds 
 
 ## Payload transformation
 
-By default, EventBridge delivers the full event envelope to your target. The envelope includes metadata fields like `source`, `account`, `time`, and `region` alongside your `detail` payload. You can customize what gets delivered using one of three mutually exclusive options. You can only use one of `input`, `inputPath`, or `inputTransformer` on an event bus integration.
+By default, the underlying EventBridge service delivers the full event envelope to your target. The envelope includes metadata fields like `source`, `account`, `time`, and `region` alongside your `detail` payload. Stacktape's `EventBusIntegration` exposes three mutually exclusive properties to customize what gets delivered: `input`, `inputPath`, or `inputTransformer`. You can only use one of these three on an event bus integration.
 
 ### Fixed input
 
@@ -293,7 +293,7 @@ For an incoming event whose `detail.orderId` is `12345` and `detail.customerName
 
 ## Delivery failure handling
 
-In rare cases — such as when your Lambda function is throttled or unavailable — EventBridge may fail to deliver an event. Use `onDeliveryFailure` to route failed events to an [SQS queue](/resources/messaging/sqs-queue) so they are not silently dropped. Use `sqsQueueName` for a queue defined in the same Stacktape configuration, or `sqsQueueArn` for an existing queue ARN.
+In rare cases, an event might fail to be delivered to the target. Use `onDeliveryFailure` to route failed events to an [SQS queue](/resources/messaging/sqs-queue). Specify `sqsQueueName` for a queue defined in the same Stacktape configuration, or `sqsQueueArn` for an existing queue ARN.
 
 
 Example (TypeScript):
@@ -335,10 +335,7 @@ export default defineConfig(() => {
 ```
 
 
-> **Tip:** Set up an [alarm](/observability/alarms) on the dead-letter queue's message count so your team gets notified when deliveries fail. Even a simple threshold alarm (messages > 0) catches problems early.
-
-
-Without `onDeliveryFailure`, AWS EventBridge retries failed deliveries for up to 24 hours by default before dropping the event. For production workloads, always configure a dead-letter queue to preserve events for later inspection or reprocessing.
+The `onDeliveryFailure` property specifies an SQS queue where failed events are sent. For production workloads, configure a dead-letter queue to preserve events for later inspection or reprocessing.
 
 ## API reference
 
@@ -410,11 +407,11 @@ Amazon EventBridge is a serverless event bus service from AWS. It receives struc
 
 ### Can I use the default AWS event bus without creating an event bus resource?
 
-Yes. Set `useDefaultBus: true` on the integration instead of specifying `eventBusName` or `eventBusArn`. The default bus receives events from most AWS services automatically — EC2 state changes, CodePipeline transitions, GuardDuty findings, and more. No [event bus resource](/resources/messaging/event-bus) is needed in your stack.
+Yes. Set `useDefaultBus: true` on the integration instead of specifying `eventBusName` or `eventBusArn`. The default AWS event bus receives events from AWS services automatically, so no [event bus resource](/resources/messaging/event-bus) is needed in your stack.
 
 ### How much does EventBridge cost?
 
-EventBridge charges per event published to a custom bus — approximately $1 per million events in most regions. Events from AWS services to the default bus are free. There is no charge for rules, pattern evaluation, or event delivery to targets. For workloads under a few million events per month, EventBridge cost is negligible compared to the compute cost of the target functions.
+AWS EventBridge uses a pay-per-event pricing model — you pay for events published to custom buses. There is no charge for rules or pattern evaluation. For most event-driven workloads, the EventBridge cost is small relative to the compute cost of the target functions. See the [AWS EventBridge pricing page](https://aws.amazon.com/eventbridge/pricing/) for current rates.
 
 ### How do I filter events by nested payload fields?
 
@@ -422,7 +419,7 @@ Use the `detail` field in your `eventPattern`. It supports nested object matchin
 
 ### What happens if event delivery fails?
 
-AWS EventBridge retries failed delivery for up to 24 hours by default. If delivery still fails after retries, the event is dropped — unless you configure `onDeliveryFailure` to route failed events to an [SQS queue](/resources/messaging/sqs-queue). This dead-letter queue preserves events for later inspection or reprocessing. For production workloads, always set a dead-letter queue.
+Configure `onDeliveryFailure` to route failed events to an [SQS queue](/resources/messaging/sqs-queue). The dead-letter queue preserves events for later inspection or reprocessing. For production workloads, always set a dead-letter queue to avoid losing events that fail delivery.
 
 ### Can I transform the event before it reaches my function?
 
@@ -436,10 +433,10 @@ Use EventBridge when you need **pattern-based routing** — multiple targets rea
 
 [SNS](/configuration/triggers/sns-events) delivers every message to every subscriber (fan-out). EventBridge delivers only events that match a subscriber's pattern (content-based routing). If every consumer should see every message, SNS is simpler and has lower per-message latency. If consumers only care about specific event types or payload values, EventBridge eliminates filtering logic from your application code and keeps each function focused on the events it handles.
 
-### What is the maximum EventBridge event size?
+### How do I handle large payloads with EventBridge?
 
-EventBridge accepts events up to 256 KB. If your payload exceeds this limit, store the full data in an [S3 bucket](/resources/storage/s3-bucket) and include only the S3 key in the event's `detail` field. The consuming function fetches the full object from S3 at runtime. This "claim check" pattern is standard for large-payload event-driven architectures.
+AWS EventBridge has an event size limit (see [AWS EventBridge quotas](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-quota.html)). If your payload is too large, store the full data in an [S3 bucket](/resources/storage/s3-bucket) and include only the S3 key in the event's `detail` field. The consuming function fetches the full object from S3 at runtime. This "claim check" pattern is standard for large-payload event-driven architectures.
 
 ### Can I receive events from another AWS account?
 
-Yes. Use `eventBusArn` to subscribe to an event bus in another AWS account. The remote bus must have a resource policy that grants your account permission to create rules on it. EventBridge natively supports cross-account event routing, making it the standard choice for multi-account architectures. See [Using an external event bus](#using-an-external-event-bus) for an example.
+Yes. Use `eventBusArn` with the full ARN of an existing bus outside your stack. For cross-account buses, make sure the source account grants the required EventBridge permissions. See [Using an external event bus](#using-an-external-event-bus) for an example.

@@ -23,8 +23,8 @@ export class EnvironmentConfiguration {
 }
 
 export class EnvironmentConfigurationParameter {
-  IsEditable?: Value<boolean>;
   Value?: Value<string>;
+  IsEditable?: Value<boolean>;
   Name?: Value<string>;
   constructor(properties: EnvironmentConfigurationParameter) {
     Object.assign(this, properties);
@@ -46,13 +46,26 @@ export class Region {
     Object.assign(this, properties);
   }
 }
+
+export class ResourceTagParameter {
+  IsValueEditable!: Value<boolean>;
+  Value!: Value<string>;
+  Key!: Value<string>;
+  constructor(properties: ResourceTagParameter) {
+    Object.assign(this, properties);
+  }
+}
 export interface ProjectProfileProperties {
   Status?: Value<string>;
   EnvironmentConfigurations?: List<EnvironmentConfiguration>;
   Description?: Value<string>;
+  AllowCustomProjectResourceTags?: Value<boolean>;
+  ProjectResourceTags?: List<ResourceTagParameter>;
+  UseDefaultConfigurations?: Value<boolean>;
   DomainUnitIdentifier?: Value<string>;
   Name: Value<string>;
   DomainIdentifier?: Value<string>;
+  ProjectResourceTagsDescription?: Value<string>;
 }
 export default class ProjectProfile extends ResourceBase<ProjectProfileProperties> {
   static AwsAccount = AwsAccount;
@@ -60,6 +73,7 @@ export default class ProjectProfile extends ResourceBase<ProjectProfilePropertie
   static EnvironmentConfigurationParameter = EnvironmentConfigurationParameter;
   static EnvironmentConfigurationParametersDetails = EnvironmentConfigurationParametersDetails;
   static Region = Region;
+  static ResourceTagParameter = ResourceTagParameter;
   constructor(properties: ProjectProfileProperties) {
     super('AWS::DataZone::ProjectProfile', properties);
   }

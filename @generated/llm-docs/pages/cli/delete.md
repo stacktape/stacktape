@@ -1,6 +1,6 @@
 # delete
 
-The `stacktape delete` command permanently removes a deployed stack and all its AWS resources. It deletes deployment artifacts recorded for the stack, then tears down the CloudFormation stack and cleans up associated infrastructure. Back up any data you need before running this command — the operation is irreversible.
+The `stacktape delete` command permanently removes a deployed stack and all its AWS resources. It deletes deployment artifacts recorded for the stack, then deletes the CloudFormation stack. Back up any data you need before running this command — the operation is irreversible.
 
 ## Usage
 
@@ -8,75 +8,193 @@ The `stacktape delete` command permanently removes a deployed stack and all its 
 stacktape delete --stage production --region eu-west-1
 ```
 
-The only required flag is `--region`. In practice, you also need to identify the stack — either by providing `--stage` (and optionally `--projectName`), or by pointing to a configuration file with `--configPath` so Stacktape can resolve the stack name automatically.
+`--region` is the only required flag. To avoid deleting the wrong stack, pass the identifying flags you normally use, such as `--stage`, `--projectName`, and `--configPath` when applicable.
 
 
-> **Warning:** This command permanently deletes all resources in the stack, including databases, buckets, and any data they contain. Make sure you have backups of anything you want to keep.
+> **Warning:** The delete command removes all resources managed by the stack according to CloudFormation's deletion behavior. Back up or export anything you need before deletion — this operation cannot be undone.
 
 
 ## Important flags
 
-**`--autoConfirmOperation`** — Stacktape prompts for confirmation before deleting a stack. Use this flag in CI/CD or other non-interactive scripts to skip the confirmation prompt.
+**`--autoConfirmOperation`** — Skips the interactive confirmation prompt. Required for CI/CD and non-interactive scripts.
 
-```bash
-stacktape delete --stage staging --region eu-west-1 --autoConfirmOperation
-```
+**`--configPath`** — When provided, Stacktape loads the configuration file and runs any `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) before deletion. Without it, hooks are skipped.
 
-**`--configPath`** — Path to your Stacktape configuration file. The config is optional for deletion, but providing it enables `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts). Without it, hooks are skipped.
-
-```bash
-stacktape delete --stage production --region eu-west-1 --configPath ./stacktape.ts
-```
-
-**`--projectName`** — Explicitly set the project name to identify which stack to delete. If omitted, Stacktape resolves it from the configuration file.
-
-**`--stage`** — The stage to delete (e.g., `production`, `staging`, `dev-john`). Combined with the project name and region, this uniquely identifies the target stack.
-
-**`--profile`** — AWS profile to use for authentication. Manage profiles with [`aws-profile:create`](/cli/aws-profile-create) or set a default with [`defaults:configure`](/cli/defaults-configure).
-
-
-## CLI Options: `stacktape delete`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--region (-r)` | yes | `string` | AWS Region The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption:
-
-Uses strict JSONL/NDJSON output (one JSON object per line)
-Disables interactive terminal UI
-Automatically confirms operations (equivalent to --autoConfirmOperation)
-For dev command: also enables HTTP server for programmatic control. | - |
-| `--autoConfirmOperation (-aco)` | no | `boolean` | Auto-Confirm Operation If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
-| `--awsAccount (-aa)` | no | `string` | AWS Account The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts). | - |
-| `--configPath (-cp)` | no | `string` | Config File Path The path to your Stacktape configuration file, relative to the current working directory. | - |
-| `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--help (-h)` | no | `string` | Show Help If provided, the command will not execute and will instead print help information. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format:
-
-`jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.
-`plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.
-`tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
-If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--profile (-p)` | no | `string` | AWS Profile The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
-| `--projectName (-prj)` | no | `string` | Project Name The name of the Stacktape project for this operation. | - |
-| `--stage (-s)` | no | `string` | Stage The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
-| `--templateId (-ti)` | no | `string` | Template ID The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
-
+<CliCommandsApiReference command="delete" sortedArgs={[
+  {
+    "name": "region",
+    "required": true,
+    "alias": "r",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "us-east-2",
+      "us-east-1",
+      "us-west-1",
+      "us-west-2",
+      "ap-east-1",
+      "ap-south-1",
+      "ap-northeast-3",
+      "ap-northeast-2",
+      "ap-southeast-1",
+      "ap-southeast-2",
+      "ap-northeast-1",
+      "ca-central-1",
+      "eu-central-1",
+      "eu-west-1",
+      "eu-west-2",
+      "eu-west-3",
+      "eu-north-1",
+      "me-south-1",
+      "sa-east-1",
+      "af-south-1",
+      "eu-south-1"
+    ],
+    "shortDescription": "<p> AWS Region</p>\n",
+    "longDescription": "<p>The AWS region for the operation. For a list of available regions, see the <a href=\"https://docs.aws.amazon.com/general/latest/gr/rande.html\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">AWS documentation</a>.</p>\n"
+  },
+  {
+    "name": "agent",
+    "required": false,
+    "alias": "ag",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Agent Mode</p>\n",
+    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
+  },
+  {
+    "name": "autoConfirmOperation",
+    "required": false,
+    "alias": "aco",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Auto-Confirm Operation</p>\n",
+    "longDescription": "<p>If <code>true</code>, automatically confirms prompts during <code>deploy</code> or <code>delete</code> operations, skipping the manual confirmation step.</p>\n"
+  },
+  {
+    "name": "awsAccount",
+    "required": false,
+    "alias": "aa",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> AWS Account</p>\n",
+    "longDescription": "<p>The name of the AWS account to use for the operation. The account must first be connected in the <a href=\"https://console.stacktape.com/aws-accounts\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Stacktape console</a>.</p>\n"
+  },
+  {
+    "name": "configPath",
+    "required": false,
+    "alias": "cp",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Config File Path</p>\n",
+    "longDescription": "<p>The path to your Stacktape configuration file, relative to the current working directory.</p>\n"
+  },
+  {
+    "name": "currentWorkingDirectory",
+    "required": false,
+    "alias": "cwd",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Current Working Directory</p>\n",
+    "longDescription": "<p>The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file.</p>\n"
+  },
+  {
+    "name": "help",
+    "required": false,
+    "alias": "h",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Show Help</p>\n",
+    "longDescription": "<p>If provided, the command will not execute and will instead print help information.</p>\n"
+  },
+  {
+    "name": "logLevel",
+    "required": false,
+    "alias": "ll",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "info",
+      "debug",
+      "error"
+    ],
+    "shortDescription": "<p> Log Level</p>\n",
+    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+  },
+  {
+    "name": "outputFormat",
+    "required": false,
+    "alias": "ofmt",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "jsonl",
+      "plain",
+      "tty"
+    ],
+    "shortDescription": "<p> Output Format</p>\n",
+    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
+  },
+  {
+    "name": "profile",
+    "required": false,
+    "alias": "p",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> AWS Profile</p>\n",
+    "longDescription": "<p>The AWS profile to use for the command. You can manage profiles using the <code>aws-profile:*</code> commands and set a default profile with <code>defaults:configure</code>.</p>\n"
+  },
+  {
+    "name": "projectName",
+    "required": false,
+    "alias": "prj",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Project Name</p>\n",
+    "longDescription": "<p>The name of the Stacktape project for this operation.</p>\n"
+  },
+  {
+    "name": "stage",
+    "required": false,
+    "alias": "s",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Stage</p>\n",
+    "longDescription": "<p>The stage for the operation (e.g., <code>production</code>, <code>staging</code>, <code>dev-john</code>). You can set a default stage using the <code>defaults:configure</code> command. The maximum length is 12 characters.</p>\n"
+  },
+  {
+    "name": "templateId",
+    "required": false,
+    "alias": "ti",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Template ID</p>\n",
+    "longDescription": "<p>The ID of the template to download. You can find a list of available templates on the <a href=\"https://console.stacktape.com/templates\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Config Builder page</a>.</p>\n"
+  }
+]} />
 
 ## Lifecycle hooks
 
-When a configuration file is provided via `--configPath`, Stacktape registers hooks and runs the `beforeDelete` hook phase before deleting artifacts and the stack. This is useful for exporting data, cleaning up external resources, or notifying other systems before the stack is torn down.
+When a configuration file is loaded, Stacktape registers configured hooks before artifact and stack deletion. The command description documents these as `beforeDelete` hooks. This is useful for exporting data, cleaning up external resources, or notifying other systems before the stack is torn down.
 
-Without a configuration file, hooks are silently skipped and the stack is deleted directly.
+Without a configuration file, `beforeDelete` hooks are not executed.
 
 ## Termination protection
 
-If a stack has `terminationProtection` enabled in its configuration, the delete command fails with an error. To delete such a stack, first [deploy](/cli/deploy) an update that sets `terminationProtection` to `false`, then run the delete command again.
+Deletion fails when the CloudFormation stack has `EnableTerminationProtection` set. To proceed, first [deploy](/cli/deploy) an update with the `terminationProtection` property set to `false`, then run the delete command again.
 
 ## Examples
 
@@ -120,7 +238,7 @@ stacktape delete --stage staging --region eu-west-1 --logLevel debug
 
 ### What happens to my data when I delete a stack?
 
-All AWS resources in the stack are permanently deleted, including databases, S3 buckets, and any data they contain. There is no undo. Export or back up any data you need before running the delete command. CloudFormation handles the teardown, so resource deletion follows AWS dependency ordering.
+The delete command deletes deployment artifacts and then deletes the CloudFormation stack, so resources and data managed by that stack are removed according to CloudFormation's deletion behavior. There is no undo. Export or back up anything you need before running the delete command.
 
 ### Can I delete a stack without a configuration file?
 
@@ -132,23 +250,19 @@ Use `--autoConfirmOperation` to skip the interactive confirmation prompt in CI/C
 
 ### How do I delete a stack with termination protection?
 
-You cannot delete a stack that has `terminationProtection` enabled. First [deploy](/cli/deploy) an update that sets `terminationProtection` to `false`, then run the delete command. This two-step process is intentional — it prevents accidental deletion of production stacks.
+Deletion fails when the CloudFormation stack has `EnableTerminationProtection` set. First [deploy](/cli/deploy) an update with the `terminationProtection` property set to `false`, then run the delete command again.
 
 ### Does deleting a stack affect other stages?
 
-No. Each stage is an independent CloudFormation stack. Deleting `staging` has no effect on `production` or any other stage. Resources are scoped to the specific stack being deleted.
+The delete command targets only the stack identified by the provided `--projectName`, `--stage`, and `--region` arguments. Other stacks are not affected.
 
 ### How long does a stack deletion take?
 
-Deletion time depends on the number and type of resources in the stack. Stacks with databases, VPCs, or large container clusters take longer because AWS must drain connections and clean up dependencies sequentially. Simple stacks with only Lambda functions and an API Gateway complete faster.
-
-### What if a delete operation fails partway through?
-
-If CloudFormation encounters an error during deletion (e.g., a resource cannot be deleted due to dependencies or manual modifications), the stack enters a `DELETE_FAILED` state. Resolve the blocking issue — typically a manually modified resource or a dependency that AWS cannot automatically remove — then retry `stacktape delete`. In some cases, you may need to manually remove the blocking resource in the AWS Console before retrying.
+Deletion time varies depending on the number and type of AWS resources in the stack.
 
 ### Can I recover a deleted stack?
 
-No. Once a stack is deleted, all resources and data are permanently removed. If you need to recreate the stack, run [`deploy`](/cli/deploy) again with the same configuration. The new deployment creates fresh resources — previous data is not restored.
+No. Once deleted, the stack and its deployment artifacts are permanently removed. To recreate the stack, run [`deploy`](/cli/deploy) again with the same configuration.
 
 ### What is the difference between delete and rollback?
 

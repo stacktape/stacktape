@@ -1,4 +1,4 @@
-import { ResourceBase } from '../resource';
+import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 
 export interface FlowVpcInterfaceProperties {
@@ -6,6 +6,7 @@ export interface FlowVpcInterfaceProperties {
   FlowArn: Value<string>;
   SecurityGroupIds: List<Value<string>>;
   RoleArn: Value<string>;
+  Tags?: List<ResourceTag>;
   Name: Value<string>;
 }
 export default class FlowVpcInterface extends ResourceBase<FlowVpcInterfaceProperties> {

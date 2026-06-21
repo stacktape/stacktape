@@ -71,9 +71,9 @@ export default defineConfig(() => {
 ```
 
 
-The gateway `myApi` has no configuration because the defaults are sufficient — TLS is automatic, access logging is enabled, and the API is publicly accessible. The `getUsers` Lambda function registers a `GET /users` route on the gateway through its `HttpApiIntegration` event.
+The gateway `myApi` has no configuration because TLS is included and access logging is enabled by default. The `getUsers` Lambda function registers a `GET /users` route on the gateway through its `HttpApiIntegration` event.
 
-You can reference the deployed gateway URL with `$ResourceParam('myApi', 'url')` in your config or retrieve it via [`stacktape param:get`](/cli/param-get). To surface the URL in terminal output after every deploy, add it to `stackConfig.outputs`.
+You can reference the deployed gateway URL with `$ResourceParam('myApi', 'url')` in your config. To surface the URL in terminal output after every deploy, add it to `stackConfig.outputs`.
 
 ## Routing
 
@@ -220,9 +220,9 @@ export default defineConfig(() => {
 ```
 
 
-Setting `enabled: true` activates the CDN. The `cloudfrontPriceClass` controls which edge regions are used — `PriceClass_100` (North America + Europe, cheapest), `PriceClass_200` (adds Asia, Middle East, Africa), or `PriceClass_All` (default, all regions worldwide). By default, API Gateway origins are not cached unless your origin sends `Cache-Control` headers. You can also attach a [web application firewall](/resources/security/web-application-firewall) to the CDN using the `useFirewall` property.
+Setting `enabled: true` activates the CDN. The `cloudfrontPriceClass` controls which CloudFront edge regions serve traffic — `PriceClass_100` (North America + Europe, cheapest), `PriceClass_200` (adds Asia, Middle East, Africa), or `PriceClass_All` (all regions worldwide). WAF protection for CDN-backed APIs is configured on the CDN layer — see [CDN](/resources/networking/cdn) and [Web Application Firewall](/resources/security/web-application-firewall) for details.
 
-See [CDN](/resources/networking/cdn) for the full CDN configuration surface, including custom domains on the CDN itself, edge functions, and route rewrites.
+See [CDN](/resources/networking/cdn) for the full CDN configuration surface, including caching behavior, custom domains on the CDN itself, edge functions, and route rewrites.
 
 ## Access logging
 
@@ -250,7 +250,7 @@ export default defineConfig(() => {
 
 The `format` property controls the log output shape — `JSON` (default), `CLF` (Common Log Format), `XML`, or `CSV`. JSON is the most practical for programmatic analysis and integrates well with log forwarding. The `retentionDays` property defaults to `30`. Allowed values are: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, or 3653 days.
 
-The logging section supports log forwarding to external services like Datadog, Highlight.io, or any HTTP endpoint via the `logForwarding` property. See [Log forwarding](/observability/log-forwarding) for setup details.
+HTTP API access logs support the shared log-forwarding configuration surface for sending logs to external services. See [Log forwarding](/observability/log-forwarding) for setup details.
 
 To disable access logging entirely (not recommended for production), set `disabled: true`.
 
@@ -258,10 +258,10 @@ To disable access logging entirely (not recommended for production), set `disabl
 
 The payload format controls the shape of the event object your Lambda function receives from API Gateway. There are two versions:
 
-| Version | Shape | Best for |
-|---------|-------|----------|
-| `1.0` | Detailed, includes `multiValueHeaders` and `multiValueQueryStringParameters` | Legacy integrations, existing code expecting v1 |
-| `2.0` | Simplified, flat structure with `cookies` array and `rawPath` | New projects — less parsing code |
+| Version | Best for |
+|---------|----------|
+| `1.0` | Legacy integrations, existing code expecting the v1 event shape |
+| `2.0` | New projects — simpler, flatter event structure with less parsing code |
 
 When not set at the gateway level, the effective default is determined by each integration — integrations default to `1.0` unless overridden. You can set the format at the gateway level (applies to all routes unless an individual integration overrides it) or set it per-route on individual integrations.
 
@@ -423,7 +423,7 @@ AWS API Gateway V2 (HTTP API) has a maximum payload size of 10 MB for both reque
 
 ### Can I protect my API Gateway with a firewall?
 
-Not directly on the HTTP API Gateway resource — AWS WAF does not support API Gateway V2 HTTP APIs natively. However, you can place a [CDN](/resources/networking/cdn) in front of your gateway and attach a [web application firewall](/resources/security/web-application-firewall) to the CDN distribution using the `useFirewall` property. This provides rate limiting, IP filtering, geo-blocking, and bot protection at the edge layer.
+The `HttpApiGateway` resource does not expose a top-level `useFirewall` property. To add WAF protection, enable `cdn` on the gateway and attach a [WebAppFirewall](/resources/security/web-application-firewall) resource to the CDN distribution. This provides rate limiting, IP filtering, geo-blocking, and bot protection at the edge layer in front of your API. See the [CDN](/resources/networking/cdn) and [Web Application Firewall](/resources/security/web-application-firewall) pages for configuration details.
 
 ### How fast does API Gateway respond?
 

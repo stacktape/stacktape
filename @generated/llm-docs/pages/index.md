@@ -1,40 +1,86 @@
-# Introduction
+# Stacktape
 
-Stacktape deploys and manages production-grade AWS infrastructure from a single TypeScript or YAML config file. It supports 30+ resource types — Lambda functions, containers, databases, queues, CDNs, and more — with opinionated defaults that follow AWS well-architected practices. Everything deploys to your own AWS account, so you keep full control of your infrastructure.
+**The fastest way to ship production AWS infrastructure. Define it in TypeScript, deploy it in one command, and own every byte — it runs in your AWS account.**
 
-## Who Stacktape is for
+Stacktape gives you the speed of a PaaS (Heroku, Vercel, Render) with the control and cost structure of raw AWS. You write a TypeScript file, run `stacktape deploy`, and Stacktape provisions every resource — Lambda, ECS, RDS, DynamoDB, S3, CloudFront, ALB, EventBridge, Step Functions, and 30+ more — with sensible defaults, automatic IAM, and full override access when you need it. No CloudFormation YAML, no Terraform modules, no DevOps team required.
 
-Stacktape is built for developers and teams who want to run on AWS without becoming AWS experts. If you know what a database, an API, and a deployment are, you have enough background to use Stacktape. No DevOps or CloudFormation knowledge required.
+## A real Stacktape config
 
-Stacktape fits best when you want the control and cost structure of your own AWS account but don't want to maintain Terraform modules, CDK stacks, or CloudFormation templates yourself.
+A complete HTTP API backed by DynamoDB, with auto-generated IAM and environment variables — 22 lines:
 
-## How Stacktape compares
 
-| | Raw AWS (CloudFormation, CDK, Terraform) | Traditional PaaS (Heroku, Render, Railway) | **Stacktape** |
-|---|---|---|---|
-| **Infrastructure ownership** | Your AWS account | Vendor-managed | Your AWS account |
-| **Config verbosity** | High — hundreds of lines per resource | Minimal — platform decides | Minimal — with full override access |
-| **Vendor lock-in** | Low | High | Low — eject to raw CloudFormation anytime |
-| **Operational visibility** | You build it | Limited | Built-in logs, metrics, alarms, cost tracking |
-| **Scaling control** | Full | Limited | Full — same AWS scaling primitives |
+Example (stacktape.ts):
 
-Stacktape gives you PaaS-level simplicity with IaC-level control. You define resources in TypeScript using `defineConfig` and typed classes, deploy with one command, and override or extend any underlying AWS resource when you need to.
+```typescript
+import {
+  defineConfig,
+  DynamoDbTable,
+  HttpApiGateway,
+  HttpApiIntegration,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
 
-## What you get
+export default defineConfig(() => {
+  const api = new HttpApiGateway({});
 
-- **Containers and serverless** in the same config — [Lambda functions](/resources/compute/lambda-function), [web services](/resources/compute/web-service), [batch jobs](/resources/compute/batch-job), and more.
-- **Managed databases** — [PostgreSQL, MySQL](/resources/databases/relational-database), [DynamoDB](/resources/databases/dynamodb), [Redis](/resources/databases/redis), [MongoDB Atlas](/resources/databases/mongodb-atlas).
-- **Zero-config builds** — Stacktape packages your code automatically. Point to a source file or Dockerfile and deploy.
-- **Built-in CI/CD** — [push-to-deploy and PR preview environments](/ci-cd-and-gitops/overview) through the Stacktape Console.
-- **Dev mode** — run your code locally while connected to real cloud resources with [`stacktape dev`](/local-development/dev-mode-overview).
-- **Security defaults** — least-privilege IAM, [secret management](/configuration/secrets), private networking.
-- **Cost visibility** — per-resource [cost breakdown](/managing-costs/per-resource-breakdown) across all your stacks and accounts.
-- **Override anything** — use [overrides, transforms](/configuration/overrides-and-escape-hatches), raw CloudFormation, or [CDK constructs](/resources/advanced/aws-cdk-constructs) when Stacktape's abstractions aren't enough.
+  const usersTable = new DynamoDbTable({
+    primaryKey: { partitionKey: { name: 'id', type: 'string' } }
+  });
 
-## Open source
+  const createUser = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/create-user.ts' }),
+    connectTo: [{ resource: usersTable, access: 'readWrite' }],
+    events: [new HttpApiIntegration({ httpApiGatewayName: 'api', method: 'POST', path: '/users' })]
+  });
 
-Stacktape core is open source under the MIT license and free to use from the CLI. The [Stacktape Console](/stacktape-console/console-overview) adds CI/CD, log browsing, cost dashboards, guardrails, and team management as a paid service.
+  return { resources: { api, usersTable, createUser } };
+});
+```
 
-## Next step
 
-Ready to start? Head to [Configure your stack](/getting-started/configure-your-stack) to create your first Stacktape project.
+Run `stacktape deploy --stage prod` and you get a live API Gateway endpoint, a DynamoDB table, a Lambda with the table's name injected as `STP_USERS_TABLE_NAME` and IAM that lets it `GetItem` / `PutItem` — nothing else. No console clicking, no IAM JSON.
+
+## What you can build with Stacktape
+
+
+## Related Pages
+- [Fullstack web apps](/resources/frontend/nextjs): Next.js, Astro, Remix, SvelteKit, SolidStart, Nuxt, TanStack Start — deployed to AWS with global CDN and zero config.
+
+- [Serverless APIs](/resources/compute/lambda-function): Lambda + API Gateway, with DynamoDB, RDS, Redis, or OpenSearch wired in via connectTo.
+
+- [Long-running services](/resources/compute/web-service): Container workloads on Fargate or EC2 — web services, workers, multi-container stacks, batch jobs.
+
+- [Event-driven pipelines](/configuration/triggers/overview): SQS, SNS, EventBridge, Kinesis, DynamoDB Streams, S3 events, schedules — declarative wiring, automatic IAM.
+
+- [AI agents on AWS Bedrock](/resources/ai/agentcore-runtime): AgentCore runtimes, memory, gateways, browsers, and code interpreters — production agents in a few lines of config.
+
+- [Workflows and orchestration](/resources/orchestration/state-machine): Step Functions state machines for multi-step workflows with retries, parallelism, and human-in-the-loop.
+
+
+## Why Stacktape
+
+- **Your AWS account, your costs.** Stacktape provisions everything inside the AWS account you own. No middleman markup, no per-seat pricing on compute. Pay AWS rates, see line-item costs in the Console.
+- **Containers AND serverless, side by side.** Use Lambda for spiky workloads, Fargate for steady ones, EC2 when you need GPUs or raw control — all in the same `stacktape.ts`.
+- **Sensible defaults, full overrides.** Stacktape picks production-ready settings (HTTPS, encrypted storage, least-privilege IAM, VPC isolation where appropriate). When you need to override something, you can: every resource accepts raw CloudFormation overrides, and you can drop CDK constructs or hand-written CloudFormation inline.
+- **No redeploy loop.** Run `stacktape dev` once and your code runs locally against real cloud resources. Edit, save, hit your endpoint — no `deploy`, no `terraform apply`. Lambda, container, schedule, and queue handlers all hot-reload.
+- **CI/CD and observability built in.** [Push-to-deploy](/ci-cd-and-gitops/gitops-with-console), PR preview stages, [live logs](/observability/logs), [metrics](/observability/metrics), [alarms](/observability/alarms), [issue tracking](/observability/issues), and [per-resource cost dashboards](/managing-costs/per-resource-breakdown) come with the Console. Free tier covers most teams.
+- **Open source core.** The CLI, the resource library, and the deployment engine are MIT-licensed. [Paid Console plans](/stacktape-console/billing-and-subscription) add hosted CI/CD, GitOps, team management, and observability — but the CLI alone gets you production deploys.
+
+## Get started
+
+
+## Related Pages
+- [Install and configure](/getting-started/configure-your-stack): Bootstrap your first stacktape.ts in 2 minutes.
+
+- [Use dev mode](/getting-started/use-the-dev-mode): The local + cloud loop with no redeploys.
+
+- [Deploy your first stage](/getting-started/deploy-your-first-stage): `stacktape deploy` and see a real stack come up.
+
+
+## Related Pages
+- [Browse resources](/resources/compute/lambda-function): Every supported AWS resource type.
+
+- [Stacktape Console](/stacktape-console/console-overview): GitOps, logs, metrics, costs, secrets, guardrails.
+
+- [Use with AI](/using-with-ai/overview): MCP server, agent mode, AI config generation.

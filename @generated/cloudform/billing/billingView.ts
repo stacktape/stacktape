@@ -1,6 +1,7 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class DataFilterExpression {
+  TimeRange?: TimeRange;
   Dimensions?: Dimensions;
   Tags?: Tags;
   constructor(properties: DataFilterExpression) {
@@ -23,6 +24,14 @@ export class Tags {
     Object.assign(this, properties);
   }
 }
+
+export class TimeRange {
+  EndDateInclusive?: Value<string>;
+  BeginDateInclusive?: Value<string>;
+  constructor(properties: TimeRange) {
+    Object.assign(this, properties);
+  }
+}
 export interface BillingViewProperties {
   Description?: Value<string>;
   SourceViews: List<Value<string>>;
@@ -34,6 +43,7 @@ export default class BillingView extends ResourceBase<BillingViewProperties> {
   static DataFilterExpression = DataFilterExpression;
   static Dimensions = Dimensions;
   static Tags = Tags;
+  static TimeRange = TimeRange;
   constructor(properties: BillingViewProperties) {
     super('AWS::Billing::BillingView', properties);
   }

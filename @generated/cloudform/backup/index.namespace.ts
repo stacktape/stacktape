@@ -6,6 +6,7 @@ import LogicallyAirGappedBackupVault_ from './logicallyAirGappedBackupVault';
 import ReportPlan_ from './reportPlan';
 import RestoreTestingPlan_ from './restoreTestingPlan';
 import RestoreTestingSelection_ from './restoreTestingSelection';
+import TieringConfiguration_ from './tieringConfiguration';
 export namespace Backup {
   export const BackupPlan = BackupPlan_;
   export const BackupSelection = BackupSelection_;
@@ -15,6 +16,7 @@ export namespace Backup {
   export const ReportPlan = ReportPlan_;
   export const RestoreTestingPlan = RestoreTestingPlan_;
   export const RestoreTestingSelection = RestoreTestingSelection_;
+  export const TieringConfiguration = TieringConfiguration_;
   export type BackupPlan = BackupPlan_;
   export type BackupSelection = BackupSelection_;
   export type BackupVault = BackupVault_;
@@ -23,4 +25,5 @@ export namespace Backup {
   export type ReportPlan = ReportPlan_;
   export type RestoreTestingPlan = RestoreTestingPlan_;
   export type RestoreTestingSelection = RestoreTestingSelection_;
+  export type TieringConfiguration = TieringConfiguration_;
 }

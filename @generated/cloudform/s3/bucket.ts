@@ -31,6 +31,13 @@ export class AnalyticsConfiguration {
   }
 }
 
+export class BlockedEncryptionTypes {
+  EncryptionType?: List<Value<string>>;
+  constructor(properties: BlockedEncryptionTypes) {
+    Object.assign(this, properties);
+  }
+}
+
 export class BucketEncryption {
   ServerSideEncryptionConfiguration!: List<ServerSideEncryptionRule>;
   constructor(properties: BucketEncryption) {
@@ -83,8 +90,8 @@ export class DeleteMarkerReplication {
 
 export class Destination {
   BucketArn!: Value<string>;
-  Format!: Value<string>;
   BucketAccountId?: Value<string>;
+  Format!: Value<string>;
   Prefix?: Value<string>;
   constructor(properties: Destination) {
     Object.assign(this, properties);
@@ -489,6 +496,7 @@ export class ServerSideEncryptionByDefault {
 
 export class ServerSideEncryptionRule {
   BucketKeyEnabled?: Value<boolean>;
+  BlockedEncryptionTypes?: BlockedEncryptionTypes;
   ServerSideEncryptionByDefault?: ServerSideEncryptionByDefault;
   constructor(properties: ServerSideEncryptionRule) {
     Object.assign(this, properties);
@@ -576,21 +584,17 @@ export class WebsiteConfiguration {
   }
 }
 export interface BucketProperties {
+  BucketNamespace?: Value<string>;
   InventoryConfigurations?: List<InventoryConfiguration>;
-  BucketEncryption?: BucketEncryption;
+  BucketNamePrefix?: Value<string>;
   WebsiteConfiguration?: WebsiteConfiguration;
-  NotificationConfiguration?: NotificationConfiguration;
-  LifecycleConfiguration?: LifecycleConfiguration;
-  VersioningConfiguration?: VersioningConfiguration;
-  MetricsConfigurations?: List<MetricsConfiguration>;
   AccessControl?: Value<string>;
   MetadataTableConfiguration?: MetadataTableConfiguration;
-  IntelligentTieringConfigurations?: List<IntelligentTieringConfiguration>;
   AnalyticsConfigurations?: List<AnalyticsConfiguration>;
+  AbacStatus?: Value<string>;
   AccelerateConfiguration?: AccelerateConfiguration;
   PublicAccessBlockConfiguration?: PublicAccessBlockConfiguration;
   BucketName?: Value<string>;
-  CorsConfiguration?: CorsConfiguration;
   OwnershipControls?: OwnershipControls;
   ObjectLockConfiguration?: ObjectLockConfiguration;
   ObjectLockEnabled?: Value<boolean>;
@@ -598,12 +602,20 @@ export interface BucketProperties {
   MetadataConfiguration?: MetadataConfiguration;
   ReplicationConfiguration?: ReplicationConfiguration;
   Tags?: List<ResourceTag>;
+  BucketEncryption?: BucketEncryption;
+  NotificationConfiguration?: NotificationConfiguration;
+  LifecycleConfiguration?: LifecycleConfiguration;
+  VersioningConfiguration?: VersioningConfiguration;
+  MetricsConfigurations?: List<MetricsConfiguration>;
+  IntelligentTieringConfigurations?: List<IntelligentTieringConfiguration>;
+  CorsConfiguration?: CorsConfiguration;
 }
 export default class Bucket extends ResourceBase<BucketProperties> {
   static AbortIncompleteMultipartUpload = AbortIncompleteMultipartUpload;
   static AccelerateConfiguration = AccelerateConfiguration;
   static AccessControlTranslation = AccessControlTranslation;
   static AnalyticsConfiguration = AnalyticsConfiguration;
+  static BlockedEncryptionTypes = BlockedEncryptionTypes;
   static BucketEncryption = BucketEncryption;
   static CorsConfiguration = CorsConfiguration;
   static CorsRule = CorsRule;

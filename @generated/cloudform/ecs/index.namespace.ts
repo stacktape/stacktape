@@ -1,6 +1,9 @@
 import CapacityProvider_ from './capacityProvider';
 import Cluster_ from './cluster';
 import ClusterCapacityProviderAssociations_ from './clusterCapacityProviderAssociations';
+import Daemon_ from './daemon';
+import DaemonTaskDefinition_ from './daemonTaskDefinition';
+import ExpressGatewayService_ from './expressGatewayService';
 import PrimaryTaskSet_ from './primaryTaskSet';
 import Service_ from './service';
 import TaskDefinition_ from './taskDefinition';
@@ -9,6 +12,9 @@ export namespace ECS {
   export const CapacityProvider = CapacityProvider_;
   export const Cluster = Cluster_;
   export const ClusterCapacityProviderAssociations = ClusterCapacityProviderAssociations_;
+  export const Daemon = Daemon_;
+  export const DaemonTaskDefinition = DaemonTaskDefinition_;
+  export const ExpressGatewayService = ExpressGatewayService_;
   export const PrimaryTaskSet = PrimaryTaskSet_;
   export const Service = Service_;
   export const TaskDefinition = TaskDefinition_;
@@ -16,6 +22,9 @@ export namespace ECS {
   export type CapacityProvider = CapacityProvider_;
   export type Cluster = Cluster_;
   export type ClusterCapacityProviderAssociations = ClusterCapacityProviderAssociations_;
+  export type Daemon = Daemon_;
+  export type DaemonTaskDefinition = DaemonTaskDefinition_;
+  export type ExpressGatewayService = ExpressGatewayService_;
   export type PrimaryTaskSet = PrimaryTaskSet_;
   export type Service = Service_;
   export type TaskDefinition = TaskDefinition_;

@@ -49,6 +49,7 @@ export interface ServerlessCacheProperties {
   MajorEngineVersion?: Value<string>;
   Engine: Value<string>;
   Tags?: List<ResourceTag>;
+  NetworkType?: Value<string>;
 }
 export default class ServerlessCache extends ResourceBase<ServerlessCacheProperties> {
   static CacheUsageLimits = CacheUsageLimits;

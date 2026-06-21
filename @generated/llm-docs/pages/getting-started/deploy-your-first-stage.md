@@ -18,7 +18,7 @@ If you followed [Use the dev mode](/getting-started/use-the-dev-mode), your conf
 
 ## Step 1: Log in to Stacktape
 
-The [`stacktape login`](/cli/login) command authenticates your CLI with the Stacktape platform. Stacktape uses your identity to manage deployments, secrets, and team access across your organization.
+The [`stacktape login`](/cli/login) command authenticates your CLI with the Stacktape platform. The command verifies your credentials, saves the API key locally, and shows the authenticated user and organization.
 
 ```bash
 stacktape login
@@ -38,30 +38,15 @@ You can create API keys in the [Stacktape Console](/stacktape-console/api-keys).
 
 Stacktape deploys resources into your own AWS account. Before your first deploy, you need to connect an AWS account to your Stacktape organization. This creates a cross-account IAM role that Stacktape assumes to perform deployments, read logs, and manage resources on your behalf.
 
-### Option A: Connect during your first deploy (recommended)
-
-When you run [`stacktape deploy`](/cli/deploy) and no AWS account is connected yet, the CLI detects this and walks you through connection interactively. If you have local AWS credentials configured (via `~/.aws/credentials` or environment variables like `AWS_ACCESS_KEY_ID`), the CLI offers two choices:
-
-1. **Use detected credentials** — Stacktape deploys the connection CloudFormation stack in `eu-west-1` using your local credentials. The stack creates an IAM role with cross-account trust. Once the stack finishes, the connection activates and the deploy proceeds.
-2. **Connect via browser** — Opens a CloudFormation Quick Create link in your AWS console for guided setup.
-
-If no local credentials are found, the CLI opens the browser-based flow directly.
-
-This means you can skip manual account setup entirely — run `stacktape deploy` and the CLI handles everything inline.
-
-### Option B: Connect via the Console first
-
-Open the [Stacktape Console](/stacktape-console/connecting-your-aws-account), click **Connect AWS account**, enter a name for the connection, and follow the guided flow. The Console generates a CloudFormation Quick Create link that you open in your AWS console. After the stack finishes creating, the connection activates automatically.
-
-This approach works well when your AWS credentials live on a different machine, when a team admin handles account connections separately from developers, or when you want to prepare the connection before any deploys.
+Open the connected AWS accounts page in the [Stacktape Console](/stacktape-console/connecting-your-aws-account) and click **Connect AWS account**. Enter an **Account name** (an arbitrary name like `dev-account`), then click **Connect account in AWS console**. This opens a CloudFormation Quick Create link in your AWS console. After the stack finishes creating, the connection activates automatically and the account status changes to `ACTIVE` in the Console.
 
 
-> **Tip:** Connecting an AWS account is free. Stacktape charges only for the platform subscription — all AWS infrastructure costs go directly to your AWS bill at standard AWS pricing.
+> **Tip:** Connecting an AWS account is free. AWS resources created by your stacks are billed by AWS in your AWS account.
 
 
 ### What the connection creates
 
-The connection CloudFormation stack is deployed in the `eu-west-1` region and creates an IAM role with cross-account trust. Stacktape assumes this role to deploy and manage resources in your account. Your actual project stacks can deploy to any AWS region — the connection stack location does not restrict where your infrastructure runs.
+The connection CloudFormation stack must be created in the `eu-west-1` region and creates an IAM role with cross-account trust. Stacktape assumes this role to deploy and manage resources in your account. Your actual project stacks can deploy to any AWS region — the connection stack location does not restrict where your infrastructure runs.
 
 You can revoke access at any time by deleting the connection in the Console or deleting the CloudFormation stack directly in AWS. For details on the exact permissions granted, see [AWS permissions](/stacktape-console/aws-permissions).
 
@@ -73,11 +58,9 @@ With authentication and AWS connection in place, deploy your stack with the [`st
 stacktape deploy --stage dev --region eu-west-1
 ```
 
-The `--stage` flag names this deployment. Stages let you run multiple independent copies of your infrastructure — `dev`, `staging`, `production` — from the same configuration. Stage names must be at most 10 characters.
+Stages let you run multiple independent copies of your infrastructure — `dev`, `staging`, `production` — from the same configuration. See the [`stacktape deploy`](/cli/deploy) CLI reference for the full list of flags and their accepted values.
 
-The `--region` flag sets the AWS region where resources are provisioned. Pick a region close to your users for lower latency.
-
-If your configuration file is not named `stacktape.ts` or is in a different directory, specify it explicitly.
+If your configuration file is not named `stacktape.ts` or is in a different directory, point the CLI at it explicitly.
 
 ```bash
 stacktape deploy --stage dev --region eu-west-1 --configPath ./infra/stacktape.ts
@@ -92,33 +75,33 @@ Stacktape processes your configuration in four phases:
 1. **Build & Package**: Bundles your application code (Lambda zips, container images), resolves resource configuration, evaluates directives and secrets, and generates the CloudFormation template.
 2. **Upload**: Packaged artifacts are uploaded to an S3 deployment bucket in your AWS account.
 3. **Deploy**: A CloudFormation stack is created (first deploy) or updated with the generated template. CloudFormation provisions, updates, or removes AWS resources as needed.
-4. **Post-deploy**: CDN caches are invalidated, static files are synced to hosting buckets, and resource URLs are resolved.
+4. **Post-deploy**: For stacks that include hosting buckets or CDNs, Stacktape syncs static files and invalidates CDN caches. Then it prepares deployed stack information and resource links.
 
 
-On the first deploy, CloudFormation creates the stack and all resources from scratch. On subsequent deploys, Stacktape prepares a template diff and CloudFormation updates only the resources that changed.
+On the first deploy, CloudFormation creates the stack and all resources from scratch. On subsequent deploys, Stacktape prepares the CloudFormation template, computes a diff, uploads artifacts, and submits the template to CloudFormation to update the stack. When `--hotSwap` is enabled and eligible, Stacktape updates Lambda function code or container workload services directly instead of running a full CloudFormation stack update.
 
 ### Deploy output
 
-After a successful deploy, the CLI prints resource links (public endpoints for your web services, API gateways, and frontends) and a Console URL. The Console URL follows the pattern:
+After a successful CLI deploy, Stacktape includes resource links and a Console URL in the completion output. The Console URL follows the pattern:
 
 ```
 https://console.stacktape.com/projects/{project}/{stage}/overview
 ```
 
-This gives you immediate access to logs, metrics, and alarms for the deployed stack.
+The Console URL includes the project name. The project name is set via `--projectName`, a configured default (see [`stacktape defaults:configure`](/cli/defaults-configure)), or an interactive prompt on your first deploy. See the [`stacktape deploy`](/cli/deploy) CLI reference for the full list of flags. Open this URL to manage the deployed stack in the Console.
 
 ## What gets created in AWS
 
-Every Stacktape deploy creates or updates a CloudFormation stack in your AWS account. The stack is the single unit of management — updates, rollbacks, and deletions are atomic. Inside the stack, CloudFormation provisions whatever your configuration declares:
+A standard Stacktape deploy creates or updates a CloudFormation stack in the connected AWS account. When `--hotSwap` is enabled and eligible, Stacktape can update Lambda function code or container workload services directly without a CloudFormation stack update. The CloudFormation stack is the unit Stacktape manages for the stage. Inside the stack, CloudFormation provisions whatever your configuration declares:
 
 | What | Example |
 |---|---|
 | Your declared resources | Lambda functions, container services, databases, buckets, queues — everything in your `stacktape.ts` |
-| Deployment artifacts | An S3 bucket stores packaged Lambda zips and CloudFormation templates |
-| IAM roles and policies | Least-privilege roles auto-generated from your [`connectTo`](/configuration/connecting-resources) declarations |
+| Deployment artifacts | Uploaded before the stack is deployed; Stacktape passes the CloudFormation template URL to CloudFormation |
+| IAM roles and policies | Resource access configured through [`connectTo`](/configuration/connecting-resources); see [Connecting resources](/configuration/connecting-resources) for details |
 | Log groups | CloudWatch log groups for each compute resource that produces logs |
 
-Stacktape never provisions resources outside your AWS account. Everything appears in your AWS console under the CloudFormation stack name, and you own it entirely.
+Because Stacktape deploys through CloudFormation, the resulting AWS resources also appear in the AWS console for direct inspection.
 
 ## Verifying the deploy
 
@@ -126,12 +109,12 @@ After the deploy completes, verify your stack is running.
 
 Open the resource URL printed by the CLI. For a [web service](/resources/compute/web-service) or [Lambda function](/resources/compute/lambda-function) with an HTTP trigger, this is a live HTTPS endpoint you can hit immediately.
 
-You can also open the Console link to see all deployed resources, their status, recent logs, and metrics — no additional setup required.
+The deploy output also includes a Console URL for the deployed stack. See [Manage your app in the Console](/getting-started/using-console-ui) for what you can do there.
 
 To view logs from the CLI, use [`stacktape debug:logs`](/cli/debug-logs).
 
 ```bash
-stacktape debug:logs --stage dev --region eu-west-1 --resourceName myApi
+stacktape debug:logs
 ```
 
 ## Redeploying after changes
@@ -142,7 +125,7 @@ After making code or configuration changes, run the same deploy command again.
 stacktape deploy --stage dev --region eu-west-1
 ```
 
-Stacktape prepares a template diff and deploys the updated stack through CloudFormation. Only changed resources are modified.
+Stacktape prepares the CloudFormation template, computes a diff, uploads artifacts, and submits the template to CloudFormation to update the stack.
 
 ### Hot-swap for faster code iteration
 
@@ -162,13 +145,13 @@ Stages are independent copies of your infrastructure. Deploy a staging environme
 stacktape deploy --stage staging --region eu-west-1
 ```
 
-Each stage gets its own CloudFormation stack, its own resources, and its own URLs. Stages share nothing by default — they're fully isolated. This lets you test changes in staging without affecting production users. For automated stage-per-branch workflows, see [Stacks per git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern).
+Each stage is deployed as its own CloudFormation stack with its own resources and URLs. Use different stage names to run separate copies of the resources declared by your configuration. This lets you test changes in staging without affecting production users. For automated stage-per-branch workflows, see [Stacks per git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern).
 
 ## Troubleshooting
 
 ### "No connected AWS accounts"
 
-You need to connect an AWS account before deploying. If running in a TTY terminal, the CLI prompts you to connect interactively during deploy. In non-TTY environments (CI), you must connect an account via the [Console](/stacktape-console/connecting-your-aws-account) first, then use `--apiKey` for authentication.
+You need to connect an AWS account before deploying. Open the connected AWS accounts page in the [Stacktape Console](/stacktape-console/connecting-your-aws-account) and follow the connection flow described in Step 2.
 
 ### Deploy takes longer than expected
 
@@ -176,7 +159,7 @@ First deploys take longer because every resource must be created from scratch. D
 
 ### CloudFormation rollback
 
-If a resource fails to create, CloudFormation automatically rolls back all changes — your stack returns to its previous working state. The CLI displays the specific error. Common causes include IAM permission issues, resource limit quotas, or invalid configuration values. For manual rollback options, see [`stacktape rollback`](/cli/rollback).
+If a resource fails to create, CloudFormation automatically rolls back all changes — your stack returns to its previous working state. The CLI displays the specific error. Common causes include IAM permission issues, resource limit quotas, or invalid configuration values. For rollback options, see [`stacktape rollback`](/cli/rollback) for version-based rollback and [`stacktape cf:rollback`](/cli/cf-rollback) for CloudFormation-level rollback.
 
 ### Deploy fails during dev mode
 
@@ -190,7 +173,7 @@ First deploys depend on the resources being provisioned. Lambda-only stacks are 
 
 ### Does Stacktape cost money to use with AWS?
 
-Stacktape has its own subscription plans for platform features (Console, GitOps, team management, issues, alarms). All AWS infrastructure costs go directly to your AWS bill at standard AWS pricing — Stacktape adds no markup on AWS resources. There is a free tier to start with.
+Connecting an AWS account is free. AWS resources created by your stacks are billed by AWS in your AWS account. See [Billing and subscription](/stacktape-console/billing-and-subscription) for Stacktape plan details.
 
 ### Can I deploy to any AWS region?
 
@@ -198,7 +181,7 @@ Yes. The AWS account connection stack is created in `eu-west-1`, but your projec
 
 ### What if I already have resources in my AWS account?
 
-Stacktape creates resources inside a dedicated CloudFormation stack. It does not modify existing resources in your account. You can deploy Stacktape alongside manually-created or Terraform-managed resources without conflicts — each stack is self-contained.
+Stacktape deploys the resources declared in your configuration through a CloudFormation stack. You can generally run Stacktape alongside other infrastructure, but avoid naming or ownership conflicts with resources managed elsewhere.
 
 ### Can I deploy from CI/CD instead of my local machine?
 
@@ -212,23 +195,23 @@ Use the [`stacktape delete`](/cli/delete) command with the same stage and region
 stacktape delete --stage dev --region eu-west-1
 ```
 
-This removes the CloudFormation stack and all associated resources from your AWS account. The deletion is atomic — either everything is removed or the stack rolls back to its previous state.
+This deletes the CloudFormation stack and all associated resources from your AWS account. See [`stacktape delete`](/cli/delete) for details.
 
 ### Is the connection between Stacktape and my AWS account secure?
 
-The connection uses AWS cross-account IAM roles with the AssumeRole pattern — the standard enterprise approach for granting third-party access to an AWS account. Stacktape never stores your AWS access keys. You can revoke access instantly by deleting the connection stack in AWS or removing the account from the Console.
+The connection uses a CloudFormation stack that grants Stacktape cross-account AssumeRole access — the standard AWS approach for third-party integrations. You can revoke access instantly by deleting the connection stack in AWS or removing the account from the Console.
 
 ### What happens if I lose internet during a deploy?
 
-CloudFormation continues the deployment on AWS's side regardless of your local connection. If the CLI disconnects, run [`stacktape info:stack`](/cli/info-stack) to check the current stack status. The next deploy picks up where things left off.
+CloudFormation continues the deployment on AWS's side regardless of your local connection. If the CLI disconnects, check the stack status with [`stacktape info:stack`](/cli/info-stack) before running another deploy.
 
 ### What's the difference between stages and AWS accounts?
 
-Stages are logical environments (dev, staging, production) within a single AWS account — each stage gets its own CloudFormation stack with fully isolated resources. You can also deploy different stages to different AWS accounts (e.g., production in a separate account) by connecting multiple accounts and selecting one per deploy with `--awsAccount`.
+Stages are logical environments (dev, staging, production) within a single AWS account — each stage gets its own CloudFormation stack with fully isolated resources. You can also connect multiple AWS accounts in the Console and deploy different stages to different accounts (e.g., production in a separate account). See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details.
 
 ### Can I preview what a deploy will change before running it?
 
-Yes. Use [`stacktape preview-changes`](/cli/preview-changes) to see the CloudFormation diff without actually deploying. This shows which resources would be created, updated, or deleted. The deploy command itself also shows a confirmation prompt before proceeding with changes.
+Yes. Use [`stacktape preview-changes`](/cli/preview-changes) to see the CloudFormation diff without actually deploying. This shows which resources would be created, updated, or deleted.
 
 ---
 

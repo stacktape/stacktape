@@ -146,6 +146,7 @@ export class ZendeskSourceProperties {
 export interface IntegrationProperties {
   EventTriggerNames?: List<Value<string>>;
   ObjectTypeNames?: List<ObjectTypeMapping>;
+  Scope?: Value<string>;
   DomainName: Value<string>;
   ObjectTypeName?: Value<string>;
   Uri?: Value<string>;

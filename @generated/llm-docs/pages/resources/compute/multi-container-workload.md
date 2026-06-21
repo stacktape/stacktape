@@ -11,7 +11,7 @@ A multi-container-workload is the right choice when containers must run together
 - **Multiple cooperating processes** — an API server and a metrics collector communicating via `localhost:9090` without any load balancer in between
 - **Init/migration containers** — a container that runs database migrations to completion before the main API container starts, using `dependsOn` ordering
 - **Multiple traffic paths** — different containers receiving traffic from different load balancers or API gateways through separate ports in the same task
-- **Custom sidecar control** — when you need explicit startup ordering or per-container `essential` flags beyond what the built-in `sideContainers` on [web-service](/resources/compute/web-service), [worker-service](/resources/compute/worker-service), and [private-service](/resources/compute/private-service) provides
+- **Independent traffic routing per container** — when each container needs its own load balancer or API gateway integration, something the built-in `sideContainers` on [web-service](/resources/compute/web-service), [worker-service](/resources/compute/worker-service), and [private-service](/resources/compute/private-service) cannot do
 
 ## When NOT to use
 
@@ -23,7 +23,7 @@ A multi-container-workload is the right choice when containers must run together
 
 ## Basic example
 
-This example runs two containers together: an API server receiving HTTP traffic through an HTTP API Gateway, and a metrics exporter reachable only on localhost.
+This example runs two containers together: an API server receiving HTTP traffic through an HTTP API Gateway, and a metrics exporter reachable only on localhost. Both containers share the task-level allocation of `0.5` vCPU and `1024` MB memory — size this for the peak combined usage of all containers.
 
 
 Example (TypeScript):
@@ -83,13 +83,13 @@ export default defineConfig(() => {
 ```
 
 
-After deploying, the `apiGateway` resource produces a public HTTPS URL. The `metrics` container is never publicly exposed — the `workload-internal` event type documents the port for internal use and both containers reach each other via `localhost`.
+After deploying, the `apiGateway` resource produces a URL you can use to send HTTP requests to the `server` container. The `metrics` container is never publicly exposed — the `workload-internal` event type opens a container port for connections from other containers within the same workload, without exposing it externally.
 
 ## Containers
 
-The `containers` array defines each container in the workload. Unlike other workload types that have a single main container with optional `sideContainers`, a multi-container-workload treats all containers as peers — each with its own packaging, environment variables, health check, and traffic routing. Two properties shape the workload's lifecycle:
+A Stacktape multi-container-workload defines its containers in the `containers` array. Unlike other workload types that have a single main container with optional `sideContainers`, a multi-container-workload treats all containers as peers — each with its own packaging, environment variables, health check, and traffic routing. Two properties shape the workload's lifecycle:
 
-**`essential`** (default `true`) — when an essential container exits unexpectedly, ECS stops and replaces the entire task. Set `essential: false` for containers expected to exit once, like an init container. At least one container in the workload must remain essential.
+**`essential`** (default `true`) — when an essential container exits unexpectedly, ECS stops and replaces the entire task. Set `essential: false` for containers expected to exit once, like an init container.
 
 **`dependsOn`** — controls startup ordering. A container waits for a listed container to reach a specific state before starting. Available conditions are `START` (dependency has started), `COMPLETE` (finished with any exit code), `SUCCESS` (finished with exit code 0), and `HEALTHY` (passed its first health check).
 
@@ -155,7 +155,7 @@ export default defineConfig(() => {
 
 ## Traffic
 
-Each container specifies how it receives traffic through its `events` array. Unlike [web-service](/resources/compute/web-service), a multi-container-workload does not provision a load balancer on your behalf — each container references a load balancer or API Gateway resource defined elsewhere in your Stacktape config. This lets you attach multiple containers to different load balancers or gateways within the same task.
+Stacktape multi-container-workload containers specify how they receive traffic through their `events` array. Unlike [web-service](/resources/compute/web-service), a multi-container-workload does not provision a load balancer on your behalf — each container references a load balancer or API Gateway resource defined elsewhere in your Stacktape config. This lets you attach multiple containers to different load balancers or gateways within the same task.
 
 Five event types are available:
 
@@ -164,7 +164,7 @@ Five event types are available:
 | `http-api-gateway` | HTTP traffic from an [HTTP API Gateway](/resources/networking/http-api-gateway) resource |
 | `application-load-balancer` | HTTP/HTTPS traffic from an [Application Load Balancer](/resources/networking/application-load-balancer) with content-based routing |
 | `network-load-balancer` | TCP/TLS traffic from a [Network Load Balancer](/resources/networking/network-load-balancer) |
-| `workload-internal` | Opens a port for localhost communication between containers in the same workload |
+| `workload-internal` | Opens a container port for connections from other containers within the same workload |
 | `service-connect` | Exposes a port for service discovery from other compute resources in the stack |
 
 ### HTTP API Gateway
@@ -260,11 +260,11 @@ export default defineConfig(() => {
 ```
 
 
-`loadBalancerHealthCheck` configures the ALB's health check for this specific container. Defaults: `healthcheckPath` `/`, `healthcheckInterval` `5s`, `healthcheckTimeout` `4s`. ALB routing rules also support `methods`, `hosts`, `headers`, `queryParams`, and `sourceIps` filters.
+`priority: 10` sets the evaluation order for this ALB routing rule — lower numbers are evaluated first. Use different priorities when multiple containers or services share the same ALB (e.g., `priority: 10` for the API, `priority: 20` for a dashboard). `loadBalancerHealthCheck` configures the ALB's health check for this specific container — `healthcheckInterval: 10` checks every 10 seconds (default `5`), and `healthcheckTimeout: 5` waits up to 5 seconds for a response (default `4`). ALB routing rules also support `methods`, `hosts`, `headers`, `queryParams`, and `sourceIps` filters.
 
 ### Network Load Balancer
 
-Use `network-load-balancer` for non-HTTP protocols (TCP/TLS): MQTT brokers, custom database proxies, game servers, or binary protocols. `listenerPort` specifies which NLB listener forwards traffic; `containerPort` is the container's listening port.
+Use `network-load-balancer` for non-HTTP protocols (TCP/TLS): MQTT brokers, custom database proxies, game servers, or binary protocols. `listenerPort` specifies which NLB listener forwards traffic (e.g., `8883` for MQTTS); `containerPort` is the port the container actually listens on (e.g., `1883` for plain MQTT). The NLB handles TLS termination between the two ports when configured with a certificate.
 
 
 Example (TypeScript):
@@ -307,7 +307,7 @@ export default defineConfig(() => {
 
 ### Internal and service-connect
 
-**`workload-internal`** opens a port for localhost communication within the same task. All containers already share a network namespace — `workload-internal` documents the port without exposing it externally. No load balancer reference is needed. The basic example at the top of this page shows the `workload-internal` pattern for a metrics exporter.
+**`workload-internal`** opens a container port for connections from other containers within the same workload, without exposing it externally. No load balancer reference is needed. The basic example at the top of this page shows the `workload-internal` pattern for a metrics exporter.
 
 **`service-connect`** exposes a container port for other compute resources in the same stack to discover via DNS. Other services reach this container at `protocol://alias:containerPort` (e.g., `http://internal-api:3000`). The `alias` defaults to `{workloadName}-{containerName}` when omitted. Setting `protocol` (`http`, `http2`, or `grpc`) enables AWS protocol-level metrics — such as HTTP 5xx counts — for this service endpoint.
 
@@ -347,7 +347,7 @@ With this configuration, other workloads and services in the same stack can reac
 
 ## Compute resources
 
-All containers in a workload share a single CPU and memory allocation. Stacktape supports two compute engines: **Fargate** (serverless, default) and **EC2** (custom instances).
+A Stacktape multi-container-workload allocates CPU and memory at the task level, shared across all containers. Two compute engines are available: **Fargate** (serverless, default) and **EC2** (custom instances).
 
 **Fargate** — specify `cpu` and `memory`. Valid CPU values are `0.25`, `0.5`, `1`, `2`, `4`, `8`, and `16` vCPU. Memory must be compatible with the vCPU tier: 0.25 → 512–2048 MB, 0.5 → 1024–4096 MB, 1 → 2048–8192 MB, 2 → 4096–16384 MB, 4 → 8192–30720 MB, 8 → 16384–61440 MB, 16 → 32768–122880 MB. Set `architecture: 'arm64'` for Graviton at ~20% lower cost; the default is `x86_64`. Fargate is right for most workloads — no servers to manage, and you pay only for what runs.
 
@@ -424,7 +424,7 @@ The following table shows approximate monthly costs for a single Fargate task (x
 
 ## Scaling
 
-Multi-container-workloads auto-scale horizontally by adding or removing whole task instances. When a new task starts, all containers in that task start together. Traffic is distributed across all healthy task instances.
+Multi-container-workloads auto-scale horizontally by adding or removing whole task instances. When a new task starts, all containers in that task start together. Traffic is distributed across all healthy task instances. The example below keeps at least 2 instances running for availability and allows scaling up to 10 during traffic spikes. The `keepAvgCpuUtilizationUnder: 70` threshold is set below the default of 80 to leave headroom for burst traffic — adjust this based on your workload's traffic patterns.
 
 
 Example (TypeScript):
@@ -469,7 +469,7 @@ export default defineConfig(() => {
 
 ## Packaging
 
-Each container independently specifies its packaging mode. Containers in the same workload can use different modes — for example, an init container using a custom Dockerfile while the API container uses the Stacktape buildpack. For detailed configuration, see the [packaging overview](/packaging/overview).
+Stacktape multi-container-workload containers independently specify their packaging mode. Containers in the same workload can use different modes — for example, an init container using a custom Dockerfile while the API container uses the Stacktape buildpack. For detailed configuration, see the [packaging overview](/packaging/overview).
 
 | Mode | When to use |
 |------|-------------|
@@ -481,7 +481,7 @@ Each container independently specifies its packaging mode. Containers in the sam
 
 ## Connecting to other resources
 
-Use `connectTo` on the workload to give all containers access to other stack resources. Stacktape automatically grants IAM permissions, opens security group rules (for databases and Redis), and injects environment variables with connection details into every container. For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
+Stacktape multi-container-workloads use `connectTo` to give all containers access to other stack resources. Stacktape automatically grants IAM permissions, opens security group rules (for databases and Redis), and injects environment variables with connection details into every container. For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
 
 
 Example (TypeScript):
@@ -510,7 +510,7 @@ When you connect to a relational database, every container in the workload recei
 
 ## Health checks
 
-Each container independently supports two health check types.
+Stacktape multi-container-workload containers independently support two health check types.
 
 **Load balancer health check** — configured via `loadBalancerHealthCheck` on the container. Only active when the container has an ALB or NLB event. The load balancer pings the container and stops routing traffic to tasks with unhealthy containers. Defaults: path `/`, interval `5s`, timeout `4s`. For NLB containers, the default protocol is `TCP` (port check); set `healthCheckProtocol: 'HTTP'` for path-based checking.
 
@@ -549,13 +549,13 @@ Internal health check defaults: `intervalSeconds` `30` (range 5–300), `timeout
 
 ## EFS storage
 
-Each container can mount an [EFS filesystem](/resources/storage/efs-filesystem) for persistent storage that survives task replacement. Multiple containers in the same workload can mount the same EFS filesystem — useful when one container writes files that another container reads.
+Stacktape multi-container-workload containers can mount an [EFS filesystem](/resources/storage/efs-filesystem) for persistent storage that survives task replacement. Multiple containers in the same workload can mount the same EFS filesystem — useful when one container writes files that another container reads.
 
 **When to enable EFS:** Mount an EFS volume when data must outlive individual container instances — for example, user-uploaded files that need to persist across deployments, or large model weights shared between an inference container and a preprocessing sidecar that would be slow to re-download on every task start.
 
 **When to skip EFS:** If data is ephemeral (only needed for the duration of one request), fits in container memory, or can be stored in S3 and pulled on demand, EFS adds cost and network latency without benefit.
 
-**Cost signal:** EFS charges approximately ~$0.08/GB-month for standard storage plus throughput charges on top of Fargate task costs — small files are cheap, but a multi-container workload with gigabytes of shared model weights will see meaningful EFS costs beyond the Fargate bill.
+**Cost signal:** Enabling EFS adds separate storage and throughput charges on top of the Fargate task cost. Small files are cheap, but a multi-container workload with gigabytes of shared model weights will see meaningful EFS costs beyond the Fargate bill.
 
 
 Example (TypeScript):
@@ -602,7 +602,7 @@ export default defineConfig(() => {
 
 Gradual deployment strategies shift traffic from the old workload version to the new version incrementally, limiting the blast radius of a bad deployment. This requires at least one container with an `application-load-balancer` event.
 
-Enable gradual deployments for production services where a bad deploy could affect revenue or user experience — the `Canary10Percent5Minutes` strategy routes 10% of traffic to the new version for 5 minutes before shifting everything, giving you time to catch errors. Skip gradual deployments for dev and staging stages or low-traffic services where rolling back quickly is straightforward and the added deployment time isn't justified. All gradual strategies extend deploy time: `Canary10Percent15Minutes` adds up to 15 minutes of monitoring before completing; linear strategies add up to 10 minutes per 10% increment. An Application Load Balancer must already be provisioned since gradual deployments use CodeDeploy's ALB target group swapping.
+Enable gradual deployments for production services where a bad deploy could affect revenue or user experience — the `Canary10Percent5Minutes` strategy routes 10% of traffic to the new version for 5 minutes before shifting everything, giving you time to catch errors. Skip gradual deployments for dev and staging stages or low-traffic services where rolling back quickly is straightforward and the added deployment time isn't justified. All gradual strategies extend deploy time: `Canary10Percent15Minutes` adds up to 15 minutes of monitoring before completing; `Linear10PercentEvery1Minutes` shifts 10% more every minute (~10 minutes total); `Linear10PercentEvery3Minutes` shifts 10% more every 3 minutes (~30 minutes total). An Application Load Balancer must already be provisioned since gradual deployments require an ALB integration.
 
 For detailed configuration, see [gradual deployments](/deployment-and-lifecycle/gradual-deployments).
 
@@ -663,13 +663,13 @@ Set `usePrivateSubnetsWithNAT: true` to deploy in private subnets where all outb
 
 ## Logging
 
-Container `stdout`/`stderr` is automatically sent to CloudWatch Logs and retained for 90 days by default. Each container has independent logging configuration via its `logging` property — you can disable logging per container or set a different retention period. View logs with the [`debug:logs`](/cli/debug-logs) CLI command or in the [Stacktape Console](/stacktape-console/console-overview).
+Stacktape multi-container-workload container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. Each container has independent logging configuration via its `logging` property — you can disable logging per container or set a different retention period. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the [Stacktape Console](/stacktape-console/console-overview).
 
 Set `logging.disabled: true` on a container to stop sending its output to CloudWatch. You can also configure [log forwarding](/observability/log-forwarding) to external services like Datadog on a per-container basis.
 
 ## Remote sessions
 
-Set `enableRemoteSessions: true` to allow interactive shell access to running containers via [`stacktape container:session`](/cli/container-session). This adds an SSM agent that uses minimal CPU and memory. Useful for debugging production issues; disabled by default to minimize attack surface.
+Stacktape multi-container-workloads support interactive shell access to running containers when `enableRemoteSessions` is set to `true`. This enables [`stacktape container:session`](/cli/container-session), which adds a small SSM agent that uses minimal CPU and memory. Leave `enableRemoteSessions` unset unless you need shell access for debugging.
 
 ## FAQ
 
@@ -679,7 +679,7 @@ A [web-service](/resources/compute/web-service) is purpose-built for a single HT
 
 ### Can I use a custom domain with a multi-container-workload?
 
-Not directly on the workload itself. Custom domains are configured on the load balancer or API Gateway resource the container connects to. Define a [custom domain](/resources/networking/custom-domains) on your `ApplicationLoadBalancer` or `HttpApiGateway` resource, then point the container's event at that resource.
+Not directly on the workload itself. Custom domains are configured on the load balancer or API Gateway resource that the container connects to via its `events` array. See the [custom domains](/resources/networking/custom-domains) page for setup details on each resource type.
 
 ### Does a multi-container-workload scale to zero?
 
@@ -687,7 +687,7 @@ No. Like all ECS Fargate workloads, `minInstances` cannot be set below 1 — at 
 
 ### How do containers in the same workload communicate?
 
-All containers in an ECS task share a network namespace, so they communicate via `localhost` on any port the target container is listening on. No load balancer or service discovery is needed for intra-task traffic. Use the `workload-internal` event type to document those ports — it makes intent explicit in your config without restricting access.
+All containers in an ECS task share a network namespace, so they communicate via `localhost` on any port the target container is listening on. No load balancer or service discovery is needed for intra-task traffic. Use the `workload-internal` event type to explicitly open those ports in your config for connections from other containers in the workload.
 
 ### How much does a Fargate multi-container task cost?
 
@@ -703,7 +703,7 @@ No. CPU and memory are allocated at the task level and shared across all contain
 
 ### How fast does a Fargate task with multiple containers start?
 
-Cold-start typically takes 30–90 seconds, scaling with the number and total size of container images being pulled. Pulling images from ECR (in the same region) is faster than Docker Hub. `dependsOn` chains add sequencing time — an init container's runtime is added to the total startup time before the main container is healthy.
+Fargate task startup time depends on the number and total size of container images being pulled. `dependsOn` chains add sequencing time — an init container's runtime is added to the total startup before the main container is healthy. Smaller, optimized images reduce startup time.
 
 ### When should I use multi-container-workload vs separate services?
 

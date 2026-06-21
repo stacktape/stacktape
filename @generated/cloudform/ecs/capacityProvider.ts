@@ -16,6 +16,13 @@ export class AcceleratorTotalMemoryMiBRequest {
   }
 }
 
+export class AutoRepairConfiguration {
+  ActionsStatus?: Value<string>;
+  constructor(properties: AutoRepairConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class AutoScalingGroupProvider {
   ManagedScaling?: ManagedScaling;
   AutoScalingGroupArn!: Value<string>;
@@ -34,11 +41,31 @@ export class BaselineEbsBandwidthMbpsRequest {
   }
 }
 
+export class CapacityReservationRequest {
+  ReservationGroupArn?: Value<string>;
+  ReservationPreference?: Value<string>;
+  constructor(properties: CapacityReservationRequest) {
+    Object.assign(this, properties);
+  }
+}
+
+export class InfrastructureOptimization {
+  ScaleInAfter?: Value<number>;
+  constructor(properties: InfrastructureOptimization) {
+    Object.assign(this, properties);
+  }
+}
+
 export class InstanceLaunchTemplate {
   Ec2InstanceProfileArn!: Value<string>;
+  CapacityOptionType?: Value<string>;
+  FipsEnabled?: Value<boolean>;
+  InstanceMetadataTagsPropagation?: Value<boolean>;
   StorageConfiguration?: ManagedInstancesStorageConfiguration;
   NetworkConfiguration!: ManagedInstancesNetworkConfiguration;
   InstanceRequirements?: InstanceRequirementsRequest;
+  CapacityReservations?: CapacityReservationRequest;
+  LocalStorageConfiguration?: ManagedInstancesLocalStorageConfiguration;
   Monitoring?: Value<string>;
   constructor(properties: InstanceLaunchTemplate) {
     Object.assign(this, properties);
@@ -75,8 +102,15 @@ export class InstanceRequirementsRequest {
   }
 }
 
+export class ManagedInstancesLocalStorageConfiguration {
+  UseLocalStorage?: Value<boolean>;
+  constructor(properties: ManagedInstancesLocalStorageConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class ManagedInstancesNetworkConfiguration {
-  SecurityGroups?: List<Value<string>>;
+  SecurityGroups!: List<Value<string>>;
   Subnets!: List<Value<string>>;
   constructor(properties: ManagedInstancesNetworkConfiguration) {
     Object.assign(this, properties);
@@ -85,7 +119,9 @@ export class ManagedInstancesNetworkConfiguration {
 
 export class ManagedInstancesProvider {
   InfrastructureRoleArn!: Value<string>;
+  AutoRepairConfiguration?: AutoRepairConfiguration;
   PropagateTags?: Value<string>;
+  InfrastructureOptimization?: InfrastructureOptimization;
   InstanceLaunchTemplate!: InstanceLaunchTemplate;
   constructor(properties: ManagedInstancesProvider) {
     Object.assign(this, properties);
@@ -167,10 +203,14 @@ export interface CapacityProviderProperties {
 export default class CapacityProvider extends ResourceBase<CapacityProviderProperties> {
   static AcceleratorCountRequest = AcceleratorCountRequest;
   static AcceleratorTotalMemoryMiBRequest = AcceleratorTotalMemoryMiBRequest;
+  static AutoRepairConfiguration = AutoRepairConfiguration;
   static AutoScalingGroupProvider = AutoScalingGroupProvider;
   static BaselineEbsBandwidthMbpsRequest = BaselineEbsBandwidthMbpsRequest;
+  static CapacityReservationRequest = CapacityReservationRequest;
+  static InfrastructureOptimization = InfrastructureOptimization;
   static InstanceLaunchTemplate = InstanceLaunchTemplate;
   static InstanceRequirementsRequest = InstanceRequirementsRequest;
+  static ManagedInstancesLocalStorageConfiguration = ManagedInstancesLocalStorageConfiguration;
   static ManagedInstancesNetworkConfiguration = ManagedInstancesNetworkConfiguration;
   static ManagedInstancesProvider = ManagedInstancesProvider;
   static ManagedInstancesStorageConfiguration = ManagedInstancesStorageConfiguration;

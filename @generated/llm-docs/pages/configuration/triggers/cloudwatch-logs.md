@@ -20,18 +20,13 @@ CloudWatch Logs triggers fit when you need programmatic access to raw log data a
 
 ## Basic example
 
-This configuration defines a CloudWatch Logs event integration for a Lambda function. The integration attaches the Lambda function to the specified CloudWatch log group.
+This configuration defines a Lambda function that triggers whenever new log records appear in a specified CloudWatch log group.
 
 
 Example (TypeScript):
 
 ```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  CloudwatchLogIntegration
-} from 'stacktape';
+import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 export default defineConfig(() => {
   const logProcessor = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
@@ -40,9 +35,12 @@ export default defineConfig(() => {
     memory: 256,
     timeout: 60,
     events: [
-      new CloudwatchLogIntegration({
-        logGroupArn: 'arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/my-app:*'
-      })
+      {
+        type: 'cloudwatch-log',
+        properties: {
+          logGroupArn: 'arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/my-app:*'
+        }
+      }
     ]
   });
 
@@ -55,7 +53,7 @@ export default defineConfig(() => {
 
 The `logGroupArn` property is the ARN of the CloudWatch log group to watch. It can point to any log group — one belonging to a Lambda function, an ECS service, VPC flow logs, or any other AWS resource that writes to CloudWatch Logs.
 
-To reference the log group of a resource within your own stack, use the [`$ResourceParam()`](/configuration/directives) directive. If the producing resource exposes a `logGroupArn` referenceable parameter, you can pass it to `logGroupArn` with `$ResourceParam()`. See [referenceable parameters](/configuration/referenceable-parameters) for the per-resource list.
+To reference the log group of a resource within your own stack, use the [`$ResourceParam()`](/configuration/directives) directive with the `logGroupArn` parameter name. Check the [referenceable parameters](/configuration/referenceable-parameters) page to confirm which resource types expose `logGroupArn`.
 
 ## Filtering logs
 
@@ -65,12 +63,7 @@ The optional `filter` property narrows which log records cause an invocation. On
 Example (TypeScript):
 
 ```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  CloudwatchLogIntegration
-} from 'stacktape';
+import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 export default defineConfig(() => {
   const errorMonitor = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
@@ -79,10 +72,13 @@ export default defineConfig(() => {
     memory: 256,
     timeout: 60,
     events: [
-      new CloudwatchLogIntegration({
-        logGroupArn: 'arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/my-app:*',
-        filter: '{ $.level = "error" }'
-      })
+      {
+        type: 'cloudwatch-log',
+        properties: {
+          logGroupArn: 'arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/my-app:*',
+          filter: '{ $.level = "error" }'
+        }
+      }
     ]
   });
 
@@ -107,18 +103,13 @@ For the full pattern syntax reference including logical operators, numeric compa
 
 ## Referencing log groups within a stack
 
-If a Stacktape resource in your stack exposes `logGroupArn` as a referenceable parameter, use the [`$ResourceParam()`](/configuration/directives) directive to resolve the ARN at deploy time instead of hardcoding it.
+When the log group you want to monitor belongs to a resource in the same stack, use the [`$ResourceParam()`](/configuration/directives) directive to resolve the ARN at deploy time instead of hardcoding it. Check the [referenceable parameters](/configuration/referenceable-parameters) page to confirm the resource type exposes `logGroupArn`.
 
 
 Example (TypeScript):
 
 ```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  CloudwatchLogIntegration
-} from 'stacktape';
+import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
@@ -135,9 +126,12 @@ export default defineConfig(() => {
     memory: 256,
     timeout: 60,
     events: [
-      new CloudwatchLogIntegration({
-        logGroupArn: "$ResourceParam('api', 'logGroupArn')"
-      })
+      {
+        type: 'cloudwatch-log',
+        properties: {
+          logGroupArn: "$ResourceParam('api', 'logGroupArn')"
+        }
+      }
     ]
   });
 
@@ -229,7 +223,7 @@ Use an [alarm trigger](/configuration/triggers/alarms-as-triggers) when you want
 
 ### Can I trigger on logs from a resource in my own stack?
 
-Yes. Use the [`$ResourceParam()`](/configuration/directives) directive to reference the `logGroupArn` of a resource in your stack, provided that resource exposes `logGroupArn` as a [referenceable parameter](/configuration/referenceable-parameters).
+Yes. Use the [`$ResourceParam()`](/configuration/directives) directive to reference the `logGroupArn` of a resource in your stack. Check the [referenceable parameters](/configuration/referenceable-parameters) page to confirm the resource type you want to monitor exposes `logGroupArn`.
 
 ### Can I filter on JSON-structured logs?
 
@@ -249,7 +243,7 @@ No. AWS batches multiple log events into a single invocation. The `logEvents` ar
 
 ### Which resources can use this trigger?
 
-The provided type describes `CloudwatchLogIntegration` as a function trigger — it appears in the `events` array of a [Lambda function](/resources/compute/lambda-function). The configuration is: provide a `logGroupArn` and an optional `filter`.
+`CloudwatchLogIntegration` is a [Lambda function](/resources/compute/lambda-function) trigger — it appears in the `events` array of a Lambda function. The configuration requires a `logGroupArn` and accepts an optional `filter`.
 
 ### What happens if my handler throws an error?
 

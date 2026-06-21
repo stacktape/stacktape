@@ -1,7 +1,8 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AccountGrouping {
-  LinkedAccountIds!: List<Value<string>>;
+  ResponsibilityTransferArn?: Value<string>;
+  LinkedAccountIds?: List<Value<string>>;
   AutoAssociate?: Value<boolean>;
   constructor(properties: AccountGrouping) {
     Object.assign(this, properties);
@@ -16,7 +17,7 @@ export class ComputationPreference {
 }
 export interface BillingGroupProperties {
   Description?: Value<string>;
-  PrimaryAccountId: Value<string>;
+  PrimaryAccountId?: Value<string>;
   ComputationPreference: ComputationPreference;
   AccountGrouping: AccountGrouping;
   Tags?: List<ResourceTag>;

@@ -19,7 +19,9 @@ export class KeyValue {
 }
 export interface StepProperties {
   JobFlowId: Value<string>;
+  LogUri?: Value<string>;
   ActionOnFailure: Value<string>;
+  EncryptionKeyArn?: Value<string>;
   HadoopJarStep: HadoopJarStepConfig;
   Name: Value<string>;
 }

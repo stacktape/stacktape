@@ -67,12 +67,12 @@ export class HlsEncryption {
 }
 
 export class HlsManifest {
+  IncludeIframeOnlyStream?: Value<boolean>;
   AdMarkers?: Value<string>;
   ManifestName?: Value<string>;
   ProgramDateTimeIntervalSeconds?: Value<number>;
   StreamSelection?: StreamSelection;
   RepeatExtXKey?: Value<boolean>;
-  IncludeIframeOnlyStream?: Value<boolean>;
   constructor(properties: HlsManifest) {
     Object.assign(this, properties);
   }
@@ -114,19 +114,19 @@ export class MssPackage {
 }
 
 export class SpekeKeyProvider {
-  SystemIds!: List<Value<string>>;
   EncryptionContractConfiguration?: EncryptionContractConfiguration;
   RoleArn!: Value<string>;
   Url!: Value<string>;
+  SystemIds!: List<Value<string>>;
   constructor(properties: SpekeKeyProvider) {
     Object.assign(this, properties);
   }
 }
 
 export class StreamSelection {
+  MaxVideoBitsPerSecond?: Value<number>;
   MinVideoBitsPerSecond?: Value<number>;
   StreamOrder?: Value<string>;
-  MaxVideoBitsPerSecond?: Value<number>;
   constructor(properties: StreamSelection) {
     Object.assign(this, properties);
   }

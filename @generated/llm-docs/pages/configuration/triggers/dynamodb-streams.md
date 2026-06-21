@@ -15,28 +15,21 @@ DynamoDB stream triggers fit scenarios where you need to react to data changes a
 
 DynamoDB stream triggers are not the right fit for every event-driven pattern. Several common scenarios are better served by other Stacktape trigger types.
 
-- **High-throughput, multi-consumer streaming** — DynamoDB Streams supports at most 2 simultaneous readers per shard and is limited to 5 read calls per second per shard. For fan-out to many consumers or longer retention, pipe changes into a [Kinesis stream](/configuration/triggers/kinesis-events) instead.
+- **High-throughput, multi-consumer streaming** — AWS DynamoDB Streams supports at most 2 simultaneous readers per shard and is limited to 5 `GetRecords` calls per second per shard. For fan-out to many consumers or longer retention, pipe changes into a [Kinesis stream](/configuration/triggers/kinesis-events) instead.
 - **Request-response patterns** — stream processing is asynchronous. If the caller needs an immediate result, use an [HTTP trigger](/configuration/triggers/http-triggers).
 - **Complex event routing** — if you need content-based filtering across many consumers, use an [EventBridge event bus](/configuration/triggers/event-bus-events) rather than writing routing logic inside the stream consumer.
 
 ## Enabling streams on the table
 
-Before attaching a DynamoDB stream trigger, you must enable streaming on your [DynamoDB table](/resources/databases/dynamodb) by setting the `streamType` property. The `streamType` value controls which item data appears in each stream record:
+`DynamoDbIntegration` requires the ARN of a DynamoDB table stream via its `streamArn` property. Before attaching the trigger, enable streams on the [DynamoDB table](/resources/databases/dynamodb) — the table must have streams enabled to produce change records. See the [DynamoDB resource page](/resources/databases/dynamodb) for full details on configuring stream view types at the table level.
 
-| `streamType` value | What the record contains |
-|---|---|
-| `KEYS_ONLY` | Only the key attributes of the changed item |
-| `NEW_IMAGE` | The complete item after the change |
-| `OLD_IMAGE` | The complete item before the change |
-| `NEW_AND_OLD_IMAGES` | Both before and after — best for auditing and diff logic |
+The stream view type determines what your handler can read off each record. For audit-and-diff workflows, choose a view that includes both before and after images so the handler has full context; for patterns where the handler reloads the item anyway, a keys-only view reduces stream record size.
 
-For most use cases, `NEW_AND_OLD_IMAGES` is the right choice because it gives your handler full context for both the previous and current state. Use `NEW_IMAGE` if you only care about the final result, or `KEYS_ONLY` if you just need to know which item changed and will fetch it separately.
+Once streams are enabled, pass the stream ARN to `DynamoDbIntegration`. For tables in the same stack, use [`$ResourceParam`](/configuration/directives) to resolve the ARN at deploy time — the table's stream ARN can be resolved as a [referenceable parameter](/configuration/referenceable-parameters) (shown in the example below). For external tables, pass the ARN as a string literal.
 
-Once `streamType` is set, the DynamoDB table exposes a `streamArn` [referenceable parameter](/configuration/referenceable-parameters) that you pass to the trigger configuration using the `$ResourceParam` [directive](/configuration/directives).
+## Same-stack table stream to Lambda example
 
-## Basic example
-
-This configuration creates a DynamoDB table with streaming enabled and a Lambda function that processes every change.
+This configuration creates a DynamoDB table with streams enabled and a Lambda function that processes every change.
 
 
 Example (TypeScript):
@@ -64,9 +57,7 @@ export default defineConfig(() => {
     }),
     events: [
       new DynamoDbIntegration({
-        streamArn: $ResourceParam('ordersTable', 'streamArn'),
-        batchSize: 100,
-        startingPosition: 'LATEST'
+        streamArn: $ResourceParam('ordersTable', 'streamArn')
       })
     ]
   });
@@ -78,9 +69,9 @@ export default defineConfig(() => {
 ```
 
 
-The `streamArn` property is required on every `DynamoDbIntegration`. Use the `$ResourceParam` directive to reference the stream ARN from a table defined in the same stack — the first argument (`'ordersTable'`) must match the key in the `resources` object.
+The `streamArn` property is required on every `DynamoDbIntegration`. In the example above, `$ResourceParam('ordersTable', 'streamArn')` resolves the stream ARN from the table defined in the same stack — the first argument (`'ordersTable'`) must match the key in the `resources` object. See the [DynamoDB resource page](/resources/databases/dynamodb) for all [referenceable parameters](/configuration/referenceable-parameters) available on a DynamoDB table.
 
-`startingPosition` controls where the trigger begins reading. `LATEST` processes only new changes — appropriate for most real-time use cases. `TRIM_HORIZON` processes all records still available in the stream, which is useful for initial backfills or reprocessing after a fix. The source documents `TRIM_HORIZON` as the default.
+`startingPosition` is optional. Two values are documented: `LATEST` processes only new changes — appropriate for most real-time use cases, and `TRIM_HORIZON` processes all records still available in the stream, useful for initial backfills or reprocessing after a fix. The default is `TRIM_HORIZON`.
 
 ## Batching and throughput
 
@@ -134,7 +125,7 @@ export default defineConfig(() => {
 ```
 
 
-This example waits up to 30 seconds to fill a batch of 500 records. If 500 records arrive in 5 seconds, the function fires immediately with the full batch. For high-write tables (hundreds of writes per second), set `batchSize` to 200–1,000 and `maxBatchWindowSeconds` to 5–60 seconds to reduce invocation count and cost.
+This example waits up to 30 seconds to fill a batch of 500 records. If 500 records arrive in 5 seconds, the function fires immediately with the full batch. For high-write tables, increasing `batchSize` and adding a `maxBatchWindowSeconds` window reduces invocation count and cost.
 
 ### Parallelization
 
@@ -202,7 +193,7 @@ export default defineConfig(() => {
 | `onFailure` | Sends failed batches to an [SQS queue](/resources/messaging/sqs-queue) or [SNS topic](/resources/messaging/sns-topic) for later investigation. Requires both `arn` and `type` (`'sqs'` or `'sns'`). |
 
 
-> **Warning:** Because the entire batch is retried on failure, your handler must be idempotent — processing the same record twice should produce the same result. Use the record's event ID or item keys for deduplication.
+> **Warning:** Because the entire batch is retried on failure, your handler must be idempotent — processing the same record twice should produce the same result. Use item keys or another application-level idempotency key for deduplication.
 
 
 > **Tip:** Always set `maximumRetryAttempts` and `onFailure` together. Without a retry cap, a single bad record can block its shard indefinitely. Without a failure destination, you lose visibility into what failed and why.
@@ -210,7 +201,7 @@ export default defineConfig(() => {
 
 ## Processing stream records
 
-Your Lambda handler receives an event with a `Records` array. Each record includes `eventName` (`INSERT`, `MODIFY`, or `REMOVE`) and a `dynamodb` object containing the key attributes and item images. Which images are present depends on the `streamType` you configured on the table.
+Your Lambda handler receives an event with a `Records` array. Each record includes `eventName` (`INSERT`, `MODIFY`, or `REMOVE`) and a `dynamodb` object containing the key attributes and item images. Which images are present depends on the stream view type you configured on the table.
 
 ```typescript
 const handler = async (event: { Records: Array<{
@@ -227,7 +218,7 @@ const handler = async (event: { Records: Array<{
         // New item created — NewImage has the full item
         break;
       case 'MODIFY':
-        // Item updated — OldImage and NewImage available (with NEW_AND_OLD_IMAGES)
+        // Item updated — OldImage and NewImage available with new-and-old-images view
         break;
       case 'REMOVE':
         // Item deleted — OldImage has the item before deletion
@@ -276,7 +267,7 @@ export default defineConfig(() => {
 ```
 
 
-> **Warning:** When referencing a stream from an external table, verify that the consuming Lambda function's execution role has `dynamodb:GetRecords`, `dynamodb:GetShardIterator`, `dynamodb:DescribeStream`, and `dynamodb:ListStreams` permissions on the stream ARN. For tables defined within the same stack, use `$ResourceParam` to reference the `streamArn` — Stacktape resolves the ARN and wires up the integration automatically.
+> **Warning:** When referencing a stream from an external table, ensure the consuming Lambda function's execution role has the necessary DynamoDB Streams read permissions on that stream ARN. For tables defined within the same stack, use `$ResourceParam` instead of hard-coding the ARN.
 
 
 ## API reference
@@ -323,7 +314,7 @@ type DynamoDbIntegrationProps = {
 
 ### How do I enable DynamoDB Streams on a table?
 
-Set the `streamType` property on your [DynamoDB table](/resources/databases/dynamodb) configuration. The four supported values are `KEYS_ONLY`, `NEW_IMAGE`, `OLD_IMAGE`, and `NEW_AND_OLD_IMAGES`. Enabling streams does not affect existing data or cause downtime. Once enabled, the table's `streamArn` referenceable parameter becomes available for use in `DynamoDbIntegration` trigger configurations.
+Set the `streamType` property on your [DynamoDB table](/resources/databases/dynamodb) resource. The DynamoDB resource page documents the available stream view types and their differences. Once enabled, pass the stream ARN to your `DynamoDbIntegration` via the `streamArn` property, using `$ResourceParam` for same-stack references or a literal ARN string for external tables.
 
 ### What is the retention period for DynamoDB stream records?
 

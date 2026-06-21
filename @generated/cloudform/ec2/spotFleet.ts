@@ -123,6 +123,7 @@ export class InstanceNetworkInterfaceSpecification {
 
 export class InstanceRequirementsRequest {
   InstanceGenerations?: List<Value<string>>;
+  RequireEncryptionInTransit?: Value<boolean>;
   MemoryGiBPerVCpu?: MemoryGiBPerVCpuRequest;
   AcceleratorTypes?: List<Value<string>>;
   VCpuCount?: VCpuCountRangeRequest;
@@ -164,6 +165,7 @@ export class LaunchTemplateOverrides {
   SpotPrice?: Value<string>;
   WeightedCapacity?: Value<number>;
   Priority?: Value<number>;
+  AvailabilityZoneId?: Value<string>;
   AvailabilityZone?: Value<string>;
   SubnetId?: Value<string>;
   InstanceRequirements?: InstanceRequirementsRequest;
@@ -314,6 +316,7 @@ export class SpotMaintenanceStrategies {
 export class SpotPlacement {
   GroupName?: Value<string>;
   Tenancy?: Value<string>;
+  AvailabilityZoneId?: Value<string>;
   AvailabilityZone?: Value<string>;
   constructor(properties: SpotPlacement) {
     Object.assign(this, properties);
@@ -351,6 +354,7 @@ export class VCpuCountRangeRequest {
 }
 export interface SpotFleetProperties {
   SpotFleetRequestConfigData: SpotFleetRequestConfigData;
+  Tags?: List<ResourceTag>;
 }
 export default class SpotFleet extends ResourceBase<SpotFleetProperties> {
   static AcceleratorCountRequest = AcceleratorCountRequest;

@@ -9,15 +9,19 @@ export class IpAddressRequest {
   }
 }
 export interface ResolverEndpointProperties {
-  IpAddresses: List<IpAddressRequest>;
   Protocols?: List<Value<string>>;
   OutpostArn?: Value<string>;
-  PreferredInstanceType?: Value<string>;
   ResolverEndpointType?: Value<string>;
   Direction: Value<string>;
   SecurityGroupIds: List<Value<string>>;
-  Tags?: List<ResourceTag>;
   Name?: Value<string>;
+  IpAddresses: List<IpAddressRequest>;
+  TargetNameServerMetricsEnabled?: Value<boolean>;
+  RniEnhancedMetricsEnabled?: Value<boolean>;
+  Ipv6InternetAccessEnabled?: Value<boolean>;
+  PreferredInstanceType?: Value<string>;
+  Dns64Enabled?: Value<boolean>;
+  Tags?: List<ResourceTag>;
 }
 export default class ResolverEndpoint extends ResourceBase<ResolverEndpointProperties> {
   static IpAddressRequest = IpAddressRequest;

@@ -18,9 +18,9 @@ export class ConditionExpression {
 }
 
 export class DataCatalogInputDefinition {
+  DatabaseName?: Value<string>;
   TableName?: Value<string>;
   TempDirectory?: S3Location;
-  DatabaseName?: Value<string>;
   CatalogId?: Value<string>;
   constructor(properties: DataCatalogInputDefinition) {
     Object.assign(this, properties);

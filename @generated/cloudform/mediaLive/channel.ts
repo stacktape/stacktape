@@ -255,6 +255,7 @@ export class Av1ColorSpaceSettings {
   Rec709Settings?: Rec709Settings;
   ColorSpacePassthroughSettings?: ColorSpacePassthroughSettings;
   Hdr10Settings?: Hdr10Settings;
+  Hlg2020Settings?: Hlg2020Settings;
   constructor(properties: Av1ColorSpaceSettings) {
     Object.assign(this, properties);
   }
@@ -263,6 +264,8 @@ export class Av1ColorSpaceSettings {
 export class Av1Settings {
   TimecodeBurninSettings?: TimecodeBurninSettings;
   ColorSpaceSettings?: Av1ColorSpaceSettings;
+  SpatialAq?: Value<string>;
+  TemporalAq?: Value<string>;
   QvbrQualityLevel?: Value<number>;
   ParDenominator?: Value<number>;
   FixedAfd?: Value<string>;
@@ -270,10 +273,12 @@ export class Av1Settings {
   FramerateNumerator?: Value<number>;
   AfdSignaling?: Value<string>;
   Bitrate?: Value<number>;
+  BitDepth?: Value<string>;
   ParNumerator?: Value<number>;
   RateControlMode?: Value<string>;
   BufSize?: Value<number>;
   MinBitrate?: Value<number>;
+  TimecodeInsertion?: Value<string>;
   MinIInterval?: Value<number>;
   SceneChangeDetect?: Value<string>;
   FramerateDenominator?: Value<number>;
@@ -502,6 +507,13 @@ export class ColorSpacePassthroughSettings {
   }
 }
 
+export class DisabledLockingSettings {
+  CustomEpoch?: Value<string>;
+  constructor(properties: DisabledLockingSettings) {
+    Object.assign(this, properties);
+  }
+}
+
 export class DolbyVision81Settings {
   constructor(properties: DolbyVision81Settings) {
     Object.assign(this, properties);
@@ -721,6 +733,14 @@ export class Fmp4HlsSettings {
   }
 }
 
+export class FollowerChannelSettings {
+  PrimaryChannelArn?: Value<string>;
+  LinkedChannelType?: Value<string>;
+  constructor(properties: FollowerChannelSettings) {
+    Object.assign(this, properties);
+  }
+}
+
 export class FrameCaptureCdnSettings {
   FrameCaptureS3Settings?: FrameCaptureS3Settings;
   constructor(properties: FrameCaptureCdnSettings) {
@@ -851,6 +871,7 @@ export class H265ColorSpaceSettings {
   ColorSpacePassthroughSettings?: ColorSpacePassthroughSettings;
   DolbyVision81Settings?: DolbyVision81Settings;
   Hdr10Settings?: Hdr10Settings;
+  Hlg2020Settings?: Hlg2020Settings;
   constructor(properties: H265ColorSpaceSettings) {
     Object.assign(this, properties);
   }
@@ -916,6 +937,12 @@ export class Hdr10Settings {
   MaxCll?: Value<number>;
   MaxFall?: Value<number>;
   constructor(properties: Hdr10Settings) {
+    Object.assign(this, properties);
+  }
+}
+
+export class Hlg2020Settings {
+  constructor(properties: Hlg2020Settings) {
     Object.assign(this, properties);
   }
 }
@@ -1069,6 +1096,13 @@ export class HtmlMotionGraphicsSettings {
   }
 }
 
+export class InferenceSettings {
+  FeedArn?: Value<string>;
+  constructor(properties: InferenceSettings) {
+    Object.assign(this, properties);
+  }
+}
+
 export class InputAttachment {
   InputAttachmentName?: Value<string>;
   LogicalInterfaceNames?: List<Value<string>>;
@@ -1144,6 +1178,14 @@ export class InputSpecification {
 export class KeyProviderSettings {
   StaticKeySettings?: StaticKeySettings;
   constructor(properties: KeyProviderSettings) {
+    Object.assign(this, properties);
+  }
+}
+
+export class LinkedChannelSettings {
+  FollowerChannelSettings?: FollowerChannelSettings;
+  PrimaryChannelSettings?: PrimaryChannelSettings;
+  constructor(properties: LinkedChannelSettings) {
     Object.assign(this, properties);
   }
 }
@@ -1244,6 +1286,13 @@ export class MaintenanceUpdateSettings {
   }
 }
 
+export class MediaPackageAdditionalDestinations {
+  Destination?: OutputLocationRef;
+  constructor(properties: MediaPackageAdditionalDestinations) {
+    Object.assign(this, properties);
+  }
+}
+
 export class MediaPackageGroupSettings {
   Destination?: OutputLocationRef;
   MediapackageV2GroupSettings?: MediaPackageV2GroupSettings;
@@ -1256,6 +1305,8 @@ export class MediaPackageOutputDestinationSettings {
   ChannelName?: Value<string>;
   ChannelId?: Value<string>;
   ChannelGroup?: Value<string>;
+  ChannelEndpointId?: Value<string>;
+  MediaPackageRegionName?: Value<string>;
   constructor(properties: MediaPackageOutputDestinationSettings) {
     Object.assign(this, properties);
   }
@@ -1285,6 +1336,7 @@ export class MediaPackageV2GroupSettings {
   TimedMetadataId3Frame?: Value<string>;
   TimedMetadataId3Period?: Value<number>;
   TimedMetadataPassthrough?: Value<string>;
+  AdditionalDestinations?: List<MediaPackageAdditionalDestinations>;
   NielsenId3Behavior?: Value<string>;
   KlvBehavior?: Value<string>;
   Id3Behavior?: Value<string>;
@@ -1547,6 +1599,7 @@ export class OutputLocationRef {
 }
 
 export class OutputLockingSettings {
+  DisabledLockingSettings?: DisabledLockingSettings;
   PipelineLockingSettings?: PipelineLockingSettings;
   EpochLockingSettings?: EpochLockingSettings;
   constructor(properties: OutputLockingSettings) {
@@ -1577,7 +1630,16 @@ export class PassThroughSettings {
 }
 
 export class PipelineLockingSettings {
+  PipelineLockingMethod?: Value<string>;
+  CustomEpoch?: Value<string>;
   constructor(properties: PipelineLockingSettings) {
+    Object.assign(this, properties);
+  }
+}
+
+export class PrimaryChannelSettings {
+  LinkedChannelType?: Value<string>;
+  constructor(properties: PrimaryChannelSettings) {
     Object.assign(this, properties);
   }
 }
@@ -1699,7 +1761,9 @@ export class SrtGroupSettings {
 }
 
 export class SrtOutputDestinationSettings {
+  ListenerPort?: Value<number>;
   StreamId?: Value<string>;
+  ConnectionMode?: Value<string>;
   EncryptionPassphraseSecretArn?: Value<string>;
   Url?: Value<string>;
   constructor(properties: SrtOutputDestinationSettings) {
@@ -1911,6 +1975,7 @@ export class WebvttDestinationSettings {
 export interface ChannelProperties {
   InputAttachments?: List<InputAttachment>;
   InputSpecification?: InputSpecification;
+  ChannelSecurityGroups?: List<Value<string>>;
   Destinations?: List<OutputDestination>;
   DryRun?: Value<boolean>;
   Vpc?: VpcOutputSettings;
@@ -1921,9 +1986,11 @@ export interface ChannelProperties {
   Name?: Value<string>;
   ChannelClass?: Value<string>;
   EncoderSettings?: EncoderSettings;
+  LinkedChannelSettings?: LinkedChannelSettings;
   AnywhereSettings?: AnywhereSettings;
   CdiInputSpecification?: CdiInputSpecification;
   Tags?: { [key: string]: any };
+  InferenceSettings?: InferenceSettings;
 }
 export default class Channel extends ResourceBase<ChannelProperties> {
   static AacSettings = AacSettings;
@@ -1976,6 +2043,7 @@ export default class Channel extends ResourceBase<ChannelProperties> {
   static ColorCorrection = ColorCorrection;
   static ColorCorrectionSettings = ColorCorrectionSettings;
   static ColorSpacePassthroughSettings = ColorSpacePassthroughSettings;
+  static DisabledLockingSettings = DisabledLockingSettings;
   static DolbyVision81Settings = DolbyVision81Settings;
   static DvbNitSettings = DvbNitSettings;
   static DvbSdtSettings = DvbSdtSettings;
@@ -1996,6 +2064,7 @@ export default class Channel extends ResourceBase<ChannelProperties> {
   static FeatureActivations = FeatureActivations;
   static FecOutputSettings = FecOutputSettings;
   static Fmp4HlsSettings = Fmp4HlsSettings;
+  static FollowerChannelSettings = FollowerChannelSettings;
   static FrameCaptureCdnSettings = FrameCaptureCdnSettings;
   static FrameCaptureGroupSettings = FrameCaptureGroupSettings;
   static FrameCaptureHlsSettings = FrameCaptureHlsSettings;
@@ -2010,6 +2079,7 @@ export default class Channel extends ResourceBase<ChannelProperties> {
   static H265FilterSettings = H265FilterSettings;
   static H265Settings = H265Settings;
   static Hdr10Settings = Hdr10Settings;
+  static Hlg2020Settings = Hlg2020Settings;
   static HlsAkamaiSettings = HlsAkamaiSettings;
   static HlsBasicPutSettings = HlsBasicPutSettings;
   static HlsCdnSettings = HlsCdnSettings;
@@ -2021,6 +2091,7 @@ export default class Channel extends ResourceBase<ChannelProperties> {
   static HlsSettings = HlsSettings;
   static HlsWebdavSettings = HlsWebdavSettings;
   static HtmlMotionGraphicsSettings = HtmlMotionGraphicsSettings;
+  static InferenceSettings = InferenceSettings;
   static InputAttachment = InputAttachment;
   static InputChannelLevel = InputChannelLevel;
   static InputLocation = InputLocation;
@@ -2029,10 +2100,12 @@ export default class Channel extends ResourceBase<ChannelProperties> {
   static InputSettings = InputSettings;
   static InputSpecification = InputSpecification;
   static KeyProviderSettings = KeyProviderSettings;
+  static LinkedChannelSettings = LinkedChannelSettings;
   static M2tsSettings = M2tsSettings;
   static M3u8Settings = M3u8Settings;
   static MaintenanceCreateSettings = MaintenanceCreateSettings;
   static MaintenanceUpdateSettings = MaintenanceUpdateSettings;
+  static MediaPackageAdditionalDestinations = MediaPackageAdditionalDestinations;
   static MediaPackageGroupSettings = MediaPackageGroupSettings;
   static MediaPackageOutputDestinationSettings = MediaPackageOutputDestinationSettings;
   static MediaPackageOutputSettings = MediaPackageOutputSettings;
@@ -2066,6 +2139,7 @@ export default class Channel extends ResourceBase<ChannelProperties> {
   static OutputSettings = OutputSettings;
   static PassThroughSettings = PassThroughSettings;
   static PipelineLockingSettings = PipelineLockingSettings;
+  static PrimaryChannelSettings = PrimaryChannelSettings;
   static RawSettings = RawSettings;
   static Rec601Settings = Rec601Settings;
   static Rec709Settings = Rec709Settings;

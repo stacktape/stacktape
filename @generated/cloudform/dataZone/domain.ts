@@ -9,7 +9,7 @@ export class SingleSignOn {
   }
 }
 export interface DomainProperties {
-  DomainExecutionRole: Value<string>;
+  DomainExecutionRole?: Value<string>;
   KmsKeyIdentifier?: Value<string>;
   Description?: Value<string>;
   ServiceRole?: Value<string>;

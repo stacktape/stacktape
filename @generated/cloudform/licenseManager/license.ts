@@ -1,4 +1,4 @@
-import { ResourceBase } from '../resource';
+import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class BorrowConfiguration {
   AllowEarlyCheckIn!: Value<boolean>;
@@ -60,7 +60,7 @@ export class ValidityDateFormat {
   }
 }
 export interface LicenseProperties {
-  ProductSKU?: Value<string>;
+  ProductSKU: Value<string>;
   Status?: Value<string>;
   ConsumptionConfiguration: ConsumptionConfiguration;
   Validity: ValidityDateFormat;
@@ -70,7 +70,8 @@ export interface LicenseProperties {
   Entitlements: List<Entitlement>;
   LicenseMetadata?: List<Metadata>;
   LicenseName: Value<string>;
-  Beneficiary?: Value<string>;
+  Tags?: List<ResourceTag>;
+  Beneficiary: Value<string>;
 }
 export default class License extends ResourceBase<LicenseProperties> {
   static BorrowConfiguration = BorrowConfiguration;

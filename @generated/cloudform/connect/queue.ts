@@ -1,5 +1,12 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
+export class EmailAddress {
+  EmailAddressArn!: Value<string>;
+  constructor(properties: EmailAddress) {
+    Object.assign(this, properties);
+  }
+}
+
 export class OutboundCallerConfig {
   OutboundCallerIdNumberArn?: Value<string>;
   OutboundFlowArn?: Value<string>;
@@ -19,15 +26,17 @@ export interface QueueProperties {
   Status?: Value<string>;
   HoursOfOperationArn: Value<string>;
   Description?: Value<string>;
+  QuickConnectArns?: List<Value<string>>;
   InstanceArn: Value<string>;
   OutboundEmailConfig?: OutboundEmailConfig;
-  QuickConnectArns?: List<Value<string>>;
   OutboundCallerConfig?: OutboundCallerConfig;
+  AdditionalEmailAddresses?: List<EmailAddress>;
   MaxContacts?: Value<number>;
   Tags?: List<ResourceTag>;
   Name: Value<string>;
 }
 export default class Queue extends ResourceBase<QueueProperties> {
+  static EmailAddress = EmailAddress;
   static OutboundCallerConfig = OutboundCallerConfig;
   static OutboundEmailConfig = OutboundEmailConfig;
   constructor(properties: QueueProperties) {

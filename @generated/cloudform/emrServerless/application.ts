@@ -27,9 +27,9 @@ export class CloudWatchLoggingConfiguration {
 }
 
 export class ConfigurationObject {
-  Classification!: Value<string>;
   Properties?: { [key: string]: Value<string> };
   Configurations?: List<ConfigurationObject>;
+  Classification!: Value<string>;
   constructor(properties: ConfigurationObject) {
     Object.assign(this, properties);
   }
@@ -66,6 +66,7 @@ export class InitialCapacityConfigKeyValuePair {
 }
 
 export class InteractiveConfiguration {
+  SessionEnabled?: Value<boolean>;
   StudioEnabled?: Value<boolean>;
   LivyEndpointEnabled?: Value<boolean>;
   constructor(properties: InteractiveConfiguration) {

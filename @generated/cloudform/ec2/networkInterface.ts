@@ -37,11 +37,22 @@ export class PrivateIpAddressSpecification {
     Object.assign(this, properties);
   }
 }
+
+export class PublicIpDnsNameOptions {
+  DnsHostnameType?: Value<string>;
+  PublicIpv4DnsName?: Value<string>;
+  PublicDualStackDnsName?: Value<string>;
+  PublicIpv6DnsName?: Value<string>;
+  constructor(properties: PublicIpDnsNameOptions) {
+    Object.assign(this, properties);
+  }
+}
 export interface NetworkInterfaceProperties {
   Description?: Value<string>;
   PrivateIpAddress?: Value<string>;
   PrivateIpAddresses?: List<PrivateIpAddressSpecification>;
   SecondaryPrivateIpAddressCount?: Value<number>;
+  PublicIpDnsHostnameTypeSpecification?: Value<string>;
   Ipv6PrefixCount?: Value<number>;
   Ipv4Prefixes?: List<Ipv4PrefixSpecification>;
   Ipv4PrefixCount?: Value<number>;
@@ -61,6 +72,7 @@ export default class NetworkInterface extends ResourceBase<NetworkInterfacePrope
   static Ipv4PrefixSpecification = Ipv4PrefixSpecification;
   static Ipv6PrefixSpecification = Ipv6PrefixSpecification;
   static PrivateIpAddressSpecification = PrivateIpAddressSpecification;
+  static PublicIpDnsNameOptions = PublicIpDnsNameOptions;
   constructor(properties: NetworkInterfaceProperties) {
     super('AWS::EC2::NetworkInterface', properties);
   }

@@ -8,6 +8,7 @@ export class VectorSearchConfiguration {
 }
 export interface GraphProperties {
   PublicConnectivity?: Value<boolean>;
+  KmsKeyIdentifier?: Value<string>;
   GraphName?: Value<string>;
   ReplicaCount?: Value<number>;
   ProvisionedMemory: Value<number>;

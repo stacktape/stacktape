@@ -22,7 +22,7 @@ An edge function is the wrong tool when the logic needs normal application runti
 
 ## Basic example
 
-This example defines an edge function packaged from a TypeScript entry file. The function is a standalone Stacktape resource; CloudFront invokes it only after you reference the resource from CDN `edgeFunctions` configuration on a [CDN](/resources/networking/cdn) resource.
+This example defines an edge function packaged from a TypeScript entry file. The function is a standalone Stacktape resource, referenced from CDN `edgeFunctions` configuration on a [CDN](/resources/networking/cdn) resource.
 
 
 Example (TypeScript):
@@ -57,7 +57,7 @@ The source for this resource defines the edge function and its limits, but the C
 
 Edge function memory and timeout limits depend on the CloudFront event type that invokes the function. Stacktape defaults to `128` MB of memory and `3` seconds of timeout. Viewer events are limited to `128` MB and `5` seconds; origin events can use up to `10,240` MB and `30` seconds.
 
-Use the viewer-event shape for cheap, fast request decisions that only need headers, cookies, or the URL. Use an origin-event attachment only when the edge logic genuinely needs more memory or runtime before CloudFront talks to the origin. If the function starts looking like application logic, use a regional compute resource instead.
+Use the viewer-event shape for lightweight request decisions that only need headers or the URL. Use an origin-event attachment only when the edge logic genuinely needs more memory or runtime before CloudFront talks to the origin. If the function starts looking like application logic, use a regional compute resource instead.
 
 
 Example (TypeScript):
@@ -91,7 +91,28 @@ Edge functions use Lambda packaging, not container packaging. Stacktape supports
 | [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) | Package JS/TS, Python, Java, Go, Ruby, PHP, or .NET from an entry file |
 | [Custom artifact](/packaging/function/custom-artifact) | Provide a pre-built Lambda zip, directory, or file from your own build process |
 
-The custom-artifact mode is useful when a monorepo build already emits the exact Lambda package you want to deploy. `packagePath` points to the artifact, and `handler` uses the `{{filepath}}:{{functionName}}` syntax documented by the packaging type.
+The buildpack is the default choice for most teams. Point `entryfilePath` at your source file and optionally set `handlerFunction` to name the exported handler. Stacktape bundles and uploads the package automatically.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, EdgeLambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const edgeRewrite = new EdgeLambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/edge-rewrite.ts',
+      handlerFunction: 'handler'
+    })
+  });
+
+  return { resources: { edgeRewrite } };
+});
+```
+
+
+The custom-artifact mode (`CustomArtifactLambdaPackaging`) is useful when a monorepo build already emits the exact Lambda package you want to deploy. `packagePath` points to the artifact, and `handler` uses the `{{filepath}}:{{functionName}}` syntax documented by the packaging type.
 
 
 Example (TypeScript):
@@ -114,7 +135,7 @@ export default defineConfig(() => {
 
 ## Permissions
 
-`connectTo` on an edge function grants IAM permissions only. Unlike regional Lambda functions and container workloads, an edge function cannot use environment variables and cannot connect to VPC resources. Use `connectTo` for supported IAM access such as S3, DynamoDB, or SES; use `iamRoleStatements` for AWS permissions that are not covered by `connectTo`.
+`connectTo` on an edge function grants IAM permissions only. Unlike regional Lambda functions and container workloads, an edge function cannot use environment variables and cannot connect to VPC resources. Use `connectTo` for IAM-only access where the edge function type supports it; the source examples name S3 bucket access, DynamoDB, and SES. Use `iamRoleStatements` for AWS permissions that are not covered by `connectTo`.
 
 
 Example (TypeScript):
@@ -149,7 +170,7 @@ export default defineConfig(() => {
 ```
 
 
-The `assets` connection gives the edge function IAM access to the bucket, but it does not inject variables such as `STP_ASSETS_NAME`. That difference is intentional: edge functions run under Lambda@Edge constraints, so code that needs connection strings or VPC security-group access should run in a regional [Lambda function](/resources/compute/lambda-function) or container resource.
+The `assets` connection gives the edge function IAM access to the bucket. Edge Lambda functions cannot use environment variables, so `connectTo` on an edge function is IAM-only. Code that needs connection strings or VPC security-group access should run in a regional [Lambda function](/resources/compute/lambda-function) or container resource.
 
 ## Logging
 
@@ -242,6 +263,8 @@ type EdgeLambdaFunctionPackaging =
 
 
 ## Referenceable parameters
+
+Edge functions expose `arn`, the Lambda function ARN. Access it with `$ResourceParam('edgeAuth', 'arn')` where `edgeAuth` is the resource name in your config.
 
 
 ## Referenceable Parameters: `edge-lambda-function`

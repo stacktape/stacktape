@@ -1,16 +1,16 @@
 # Going to Production
 
-Your stack is deployed and CI/CD pushes changes automatically. Before real users hit it, harden the deployment with alarms, budgets, custom domains, gradual rollouts, and policy guardrails. This page is a production-readiness checklist — each section links to its dedicated deep-dive.
+Your stack is deployed and CI/CD pushes changes automatically. Before real users hit it, harden the deployment with alarms, budgets, custom domains, gradual rollouts, and policy guardrails. Each topic below covers what to configure, why it matters, and links to its dedicated deep-dive.
 
 
-> **Info:** Already production-ready? Jump to [Resources](/configuration/resources) for resource configuration, [Observability](/observability/overview) for monitoring setup, or [Managing Costs](/managing-costs/overview) for spend control.
+> **Info:** Already hardened? Skip ahead to [Resources](/configuration/resources) to configure individual resource types, [Observability](/observability/overview) for monitoring, or [Managing Costs](/managing-costs/overview) for spend control.
 
 
 ## Alarms
 
 Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds are breached. Define alarms directly on individual resources in your config, or configure global alarms in the [Stacktape Console](/getting-started/using-console-ui) that apply across all matching resources.
 
-Alarm triggers cover the most critical failure modes: Lambda error rate and duration, database CPU/memory/storage/connections/latency, HTTP API Gateway error rate and latency, Application Load Balancer error rate and unhealthy targets, and SQS queue depth. Each alarm supports configurable evaluation windows — period length, how many periods to evaluate, and how many must breach before firing.
+Alarm triggers cover the most critical failure modes: Lambda error rate and duration, database CPU/memory/storage/connections/latency, HTTP API Gateway error rate and latency, Application Load Balancer error rate and unhealthy targets, and SQS received-message count and not-empty alarms. Each alarm supports configurable evaluation windows — period length, how many periods to evaluate, and how many must breach before firing.
 
 Without `notificationTargets`, alarms change state in CloudWatch but nobody gets paged. Always route alarms to at least one notification channel. Stacktape supports five channel types: Slack, Microsoft Teams, Discord, email, and custom webhooks.
 
@@ -63,7 +63,7 @@ For production, most teams use Slack (`type: 'slack'` with `conversationId` and 
 
 Budget alerts prevent surprise AWS bills. Configure them in the [Stacktape Console](/getting-started/using-console-ui) with a dollar threshold and percentage-based triggers (e.g., alert at 50%, 80%, 100%). Budgets can scope to your entire organization or to individual stacks — filter by project and stage to set different limits for production versus development.
 
-You can also enable forecast-based alerts that fire when projected spend is on track to exceed the threshold, even if actual spend hasn't reached it yet. Budget alerts include their own alert channels for notifications. See [Budgets](/managing-costs/budgets) for setup details and channel configuration.
+You can also enable forecast-based alerts that fire when projected spend is on track to exceed the threshold, even if actual spend hasn't reached it yet. When creating a budget, attach one or more [alert channels](/observability/alert-channels) — Slack, Microsoft Teams, Discord, email, or webhooks — so notifications reach your team automatically. See [Budgets](/managing-costs/budgets) for setup details.
 
 
 > **Tip:** Set a budget alert for every production stack. Even a generous threshold catches misconfigurations (e.g., a runaway Lambda loop or an oversized database instance) before they become expensive. Alert at 80% and 100% of expected monthly spend as a starting point.
@@ -71,7 +71,7 @@ You can also enable forecast-based alerts that fire when projected spend is on t
 
 ## Custom domains
 
-Stacktape [web services](/resources/compute/web-service) support custom domains through the `customDomains` property. Provide your domain name, and Stacktape creates DNS records in Route53 and provisions free TLS certificates automatically. Other public resources (Lambda functions with URLs, hosting buckets, SSR frontends) have their own domain configuration — see [Custom domains](/resources/networking/custom-domains) for the full setup guide across all supported resource types.
+Stacktape [web services](/resources/compute/web-service) support custom domains through the `customDomains` property. Provide your domain name, and Stacktape creates DNS records in Route53 and provisions TLS certificates automatically. The example below shows the most common case — a web service API. Other public resources are covered in the [Custom domains](/resources/networking/custom-domains) guide.
 
 
 Example (TypeScript):
@@ -96,19 +96,21 @@ export default defineConfig(() => {
 ```
 
 
-Your domain must have a Route53 hosted zone in your AWS account. Use the [`stacktape domain:add`](/cli/domain-add) command to register a domain, or add the hosted zone manually in the AWS Console. If you manage DNS externally (e.g., Cloudflare), Stacktape supports disabling automatic DNS record creation so you can point records manually — see [Custom domains](/resources/networking/custom-domains) for details.
+Your domain must have a Route53 hosted zone in your AWS account. Use the [`stacktape domain:add`](/cli/domain-add) command to register a domain, or add the hosted zone manually in the AWS Console. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
 
-Custom domains add no Stacktape cost, but Route53 charges ~$0.50/month per hosted zone plus a small per-query fee. For production, custom domains are worth the cost — they give users a branded URL instead of an auto-generated AWS hostname, and TLS certificates are provisioned and renewed automatically.
+Custom domains add no Stacktape cost, but Route53 hosted-zone and DNS-query charges apply in AWS. For production, custom domains are worth the cost — they give users a branded URL instead of an auto-generated AWS hostname, and TLS certificates are provisioned and renewed automatically.
 
 ## Gradual deployments
 
-Instead of switching all traffic to a new version instantly, gradual deployments shift traffic incrementally — catching regressions before they affect all users. Stacktape supports canary and linear strategies for both [Lambda functions](/resources/compute/lambda-function) and container workloads ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service)).
+Instead of switching all traffic to a new version instantly, gradual deployments shift traffic incrementally — catching regressions before they affect all users. Stacktape supports canary and linear strategies for [Lambda functions](/resources/compute/lambda-function) and [web services](/resources/compute/web-service) (and other container workloads — see [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) for the full list).
 
-**Lambda functions** support nine deployment strategies. Canary strategies (`Canary10Percent5Minutes`, `Canary10Percent10Minutes`, `Canary10Percent15Minutes`, `Canary10Percent30Minutes`) send 10% of traffic to the new version first, then shift the rest after the specified wait period. Linear strategies (`Linear10PercentEvery1Minute`, `Linear10PercentEvery2Minutes`, `Linear10PercentEvery3Minutes`, `Linear10PercentEvery10Minutes`) shift 10% of traffic at regular intervals until complete. `AllAtOnce` provides an instant switch with no gradual rollout. If alarms fire during the traffic shift, CodeDeploy rolls back automatically.
+**Lambda functions** support nine deployment strategies. Canary strategies (`Canary10Percent5Minutes`, `Canary10Percent10Minutes`, `Canary10Percent15Minutes`, `Canary10Percent30Minutes`) send 10% of traffic to the new version first, then shift the rest after the specified wait period. Linear strategies (`Linear10PercentEvery1Minute`, `Linear10PercentEvery2Minutes`, `Linear10PercentEvery3Minutes`, `Linear10PercentEvery10Minutes`) shift 10% of traffic at regular intervals until complete. `AllAtOnce` provides an instant switch with no gradual rollout.
 
-Lambda deployments also support optional `beforeAllowTrafficFunction` and `afterTrafficShiftFunction` hooks — references to Lambda functions in your config that run smoke tests before traffic begins shifting and validation after all traffic has moved. If either hook signals failure, the deployment rolls back.
+Lambda deployments also support optional `beforeAllowTrafficFunction` and `afterTrafficShiftFunction` hooks — references to Lambda functions in your config that run smoke tests before traffic begins shifting and validation after all traffic has moved. If the `beforeAllowTrafficFunction` hook signals failure, the deployment rolls back.
 
-**Container workloads** support a similar set of canary and linear deployment strategies. Container gradual deployments require `application-load-balancer` load balancing. See [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) for the full list of container strategies, rollback behavior, and hook configuration.
+**Web services** and other container workloads expose gradual deployments through the `deployment` property, which requires `application-load-balancer` load balancing. Container workloads support five strategies: `Canary10Percent5Minutes`, `Canary10Percent15Minutes`, `Linear10PercentEvery1Minutes`, `Linear10PercentEvery3Minutes`, and `AllAtOnce`. Container deployments also support `beforeAllowTrafficFunction` and `afterTrafficShiftFunction` hooks. See [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) for rollback behavior and hook configuration.
+
+### Lambda function example
 
 
 Example (TypeScript):
@@ -130,7 +132,36 @@ export default defineConfig(() => {
 ```
 
 
-`Canary10Percent5Minutes` sends 10% of traffic to the new version for 5 minutes before shifting the rest. This is a good starting point for most production APIs — it validates with real traffic on a small slice before committing. If your service handles high traffic and you want more gradual rollout, consider `Linear10PercentEvery3Minutes` for a 30-minute complete rollout. See [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) for strategy comparisons.
+`Canary10Percent5Minutes` sends 10% of traffic to the new version for 5 minutes before shifting the rest. This is a good starting point for most production APIs — it validates with real traffic on a small slice before committing. If your service handles high traffic and you want more gradual rollout, consider `Linear10PercentEvery3Minutes` for a 30-minute complete rollout.
+
+### Web service example
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    containers: [
+      {
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/server.ts'
+        })
+      }
+    ],
+    loadBalancing: { type: 'application-load-balancer' },
+    deployment: {
+      strategy: 'Canary10Percent5Minutes'
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+Container gradual deployments require `loadBalancing` set to `application-load-balancer` — the default `http-api-gateway` does not support traffic shifting. The ALB adds a flat base cost (~$18/month), but enables gradual rollouts, WebSocket support, and top-level firewalls. See [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) for strategy comparisons.
 
 ## Multi-region deployments
 
@@ -163,20 +194,13 @@ Before sending real traffic, run through these concrete checks:
 
 3. **Verify your custom domain resolves.** Open your custom domain in a browser and confirm the TLS certificate is valid (lock icon, no warnings). If you registered the domain with [`stacktape domain:add`](/cli/domain-add), the DNS records are managed automatically. If you manage DNS externally, verify the CNAME or alias record points to the correct AWS endpoint.
 
-4. **Test a gradual deployment.** Push a small change and monitor the deployment in the [Stacktape Console](/getting-started/using-console-ui). Confirm that traffic shifts gradually and that the old version continues serving during the rollout. Check [`stacktape debug:logs`](/cli/debug-logs) to see both versions receiving traffic.
+4. **Test a gradual deployment.** Push a small change and monitor the deployment in the [Stacktape Console](/getting-started/using-console-ui). Confirm that traffic shifts gradually according to your chosen strategy. Use [`stacktape debug:logs`](/cli/debug-logs) to verify the new version is handling requests correctly.
 
 5. **Review guardrails.** Confirm deletion protection is required for production databases, VPC-only access is enforced where needed, and resource limits match your team's standards. See [Guardrails](/guardrails/overview) for the full list of policy rules.
 
 ## What's next
 
 You've completed the Getting Started guide. Your stack is deployed, monitored, automated, and hardened. From here:
-
-
-## Flow
-1. **Browse Resources**: Deep-dive into compute, databases, networking, and storage. Configure each resource type for your exact needs.
-2. **Set Up Observability**: Logs, metrics, alarms, and alerting in depth. Forward logs to external services.
-3. **Control Costs**: Cost dashboards, budgets, per-resource breakdowns, and optimization tips.
-
 
 - [Resources](/configuration/resources) — the full resource catalogue with configuration guides
 - [Observability](/observability/overview) — logs, metrics, alarms, and alerting in depth

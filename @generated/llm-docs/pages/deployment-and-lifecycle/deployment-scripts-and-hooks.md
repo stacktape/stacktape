@@ -18,7 +18,7 @@ Hooks and deployment scripts serve different execution contexts. Choose based on
 
 **Use hooks** when you need access to your local filesystem (running builds, linting, local CLI tools like Prisma or Drizzle), or when you want to use tooling installed on your machine or CI runner.
 
-**Use deployment scripts** when the work must happen inside AWS (direct VPC access without a bastion), when failure should trigger a full CloudFormation rollback to keep schema and code in sync, or when the script must execute regardless of how the deployment was triggered (CLI, Console, or CI).
+**Use deployment scripts** when the work must happen inside AWS (direct VPC access without a bastion), when failure should trigger a full CloudFormation rollback to keep schema and code in sync, or when the script must run as part of the CloudFormation lifecycle regardless of what initiated the deployment.
 
 ## Hooks
 
@@ -32,12 +32,23 @@ This configuration builds the frontend before every deploy and runs database mig
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, RelationalDatabase, RdsEnginePostgres, HttpApiGateway, HttpApiIntegration, StacktapeLambdaBuildpackPackaging, $Secret, LocalScript } from 'stacktape';
-export default defineConfig(({ stage }) => {
+import {
+  defineConfig,
+  LambdaFunction,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  StacktapeLambdaBuildpackPackaging,
+  $Secret,
+  LocalScript
+} from 'stacktape';
+export default defineConfig(() => {
   const database = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    }),
     credentials: {
-      masterUserPassword: $Secret(`db-password-${stage}`)
+      masterUserPassword: $Secret('db-password')
     }
   });
 
@@ -48,8 +59,13 @@ export default defineConfig(({ stage }) => {
     connectTo: [database]
   });
 
-  const gateway = new HttpApiGateway({
-    routes: [{ path: '/{proxy+}', method: '*', integration: new HttpApiIntegration({ function: api }) }]
+  const build = new LocalScript({
+    executeCommand: 'npm run build'
+  });
+
+  const migrate = new LocalScript({
+    executeCommand: 'npx prisma migrate deploy',
+    connectTo: [database]
   });
 
   return {
@@ -57,16 +73,8 @@ export default defineConfig(({ stage }) => {
       beforeDeploy: [{ scriptName: 'build' }],
       afterDeploy: [{ scriptName: 'migrate' }]
     },
-    scripts: {
-      build: new LocalScript({
-        executeCommand: 'npm run build'
-      }),
-      migrate: new LocalScript({
-        executeCommand: 'npx prisma migrate deploy',
-        connectTo: [database]
-      })
-    },
-    resources: { database, api, gateway }
+    scripts: { build, migrate },
+    resources: { database, api }
   };
 });
 ```
@@ -76,7 +84,7 @@ The `beforeDeploy` hook runs the build script before Stacktape begins packaging.
 
 ### Skipping hooks in CI or locally
 
-A hook entry can be configured to skip running in CI or locally — useful when a hook only makes sense in one environment (for example, opening a browser locally or sending a notification from CI). See [hooks and scripts configuration](/configuration/hooks-and-scripts) for the exact skip-flag names and behavior.
+Hook entries support `skipOnCI` and `skipOnLocal` flags — useful when a hook only makes sense in one environment (for example, opening a browser locally or sending a notification from CI). See [hooks and scripts configuration](/configuration/hooks-and-scripts) for the full hook entry reference.
 
 
 Example (TypeScript):
@@ -95,6 +103,14 @@ export default defineConfig(() => {
     })
   });
 
+  const openBrowser = new LocalScript({
+    executeCommand: 'open https://my-app.example.com'
+  });
+
+  const notifySlack = new LocalScript({
+    executeScript: './scripts/notify-slack.ts'
+  });
+
   return {
     hooks: {
       afterDeploy: [
@@ -102,14 +118,7 @@ export default defineConfig(() => {
         { scriptName: 'notifySlack', skipOnLocal: true }
       ]
     },
-    scripts: {
-      openBrowser: new LocalScript({
-        executeCommand: 'open https://my-app.example.com'
-      }),
-      notifySlack: new LocalScript({
-        executeScript: './scripts/notify-slack.ts'
-      })
-    },
+    scripts: { openBrowser, notifySlack },
     resources: { api }
   };
 });
@@ -122,20 +131,31 @@ Scripts are named, reusable commands or code files defined in the top-level `scr
 
 ### Local scripts
 
-A local script runs on the machine executing the Stacktape command — your laptop or a CI runner. Use local scripts for builds, linting, running migration CLIs, seed scripts, or any task that benefits from your local tooling. See [hooks and scripts configuration](/configuration/hooks-and-scripts) for the full property reference (entry-file vs inline command, working directory, output handling, and more).
+A local script runs on the machine executing the Stacktape command — your laptop or a CI runner. Use local scripts for builds, linting, running migration CLIs, seed scripts, or any task that benefits from your local tooling. Each local script must define one of `executeCommand`, `executeScript`, `executeCommands`, or `executeScripts`. See [hooks and scripts configuration](/configuration/hooks-and-scripts) for the full property reference.
 
-The `connectTo` property auto-injects environment variables with connection details for each specified resource, in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME]` (for example, `STP_MY_DATABASE_CONNECTION_STRING` when connecting to a resource named `myDatabase`).
+The `connectTo` property auto-injects environment variables with connection details for each specified resource, in the format `STP_[RESOURCE_NAME]_[PARAM]` (for example, `STP_MY_DATABASE_CONNECTION_STRING` when connecting to a resource named `myDatabase`).
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, RelationalDatabase, RdsEnginePostgres, StacktapeLambdaBuildpackPackaging, $Secret, LocalScript } from 'stacktape';
-export default defineConfig(({ stage }) => {
+import {
+  defineConfig,
+  LambdaFunction,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  StacktapeLambdaBuildpackPackaging,
+  $Secret,
+  LocalScript
+} from 'stacktape';
+export default defineConfig(() => {
   const database = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    }),
     credentials: {
-      masterUserPassword: $Secret(`db-password-${stage}`)
+      masterUserPassword: $Secret('db-password')
     }
   });
 
@@ -146,27 +166,23 @@ export default defineConfig(({ stage }) => {
     connectTo: [database]
   });
 
+  const migrate = new LocalScript({
+    executeCommand: 'npx prisma migrate deploy',
+    connectTo: [database]
+  });
+
+  const seed = new LocalScript({
+    executeScript: './scripts/seed.ts',
+    connectTo: [database],
+    environment: [{ name: 'SEED_COUNT', value: '100' }]
+  });
+
+  const setup = new LocalScript({
+    executeCommands: ['npm run build', 'npm run test', 'npm run lint']
+  });
+
   return {
-    scripts: {
-      migrate: new LocalScript({
-        executeCommand: 'npx prisma migrate deploy',
-        connectTo: [database]
-      }),
-      seed: new LocalScript({
-        executeScript: './scripts/seed.ts',
-        connectTo: [database],
-        environment: [
-          { name: 'SEED_COUNT', value: '100' }
-        ]
-      }),
-      setup: new LocalScript({
-        executeCommands: [
-          'npm run build',
-          'npm run test',
-          'npm run lint'
-        ]
-      })
-    },
+    scripts: { migrate, seed, setup },
     resources: { database, api }
   };
 });
@@ -175,18 +191,30 @@ export default defineConfig(({ stage }) => {
 
 ### Bastion scripts
 
-A bastion script runs remotely on a [bastion host](/resources/security/bastion-host) inside your VPC. Use bastion scripts when you need direct network access to VPC-only resources from a consistent Linux execution environment.
+A bastion script runs remotely on a [bastion host](/resources/security/bastion-host) inside your VPC. Use bastion scripts when you need direct network access to VPC-only resources from a consistent Linux execution environment. The `bastionResource` property specifies which bastion host to use.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres, Bastion, LambdaFunction, StacktapeLambdaBuildpackPackaging, $Secret, BastionScript } from 'stacktape';
-export default defineConfig(({ stage }) => {
+import {
+  defineConfig,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  Bastion,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  $Secret,
+  BastionScript
+} from 'stacktape';
+export default defineConfig(() => {
   const database = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    }),
     credentials: {
-      masterUserPassword: $Secret(`db-password-${stage}`)
+      masterUserPassword: $Secret('db-password')
     }
   });
 
@@ -199,14 +227,14 @@ export default defineConfig(({ stage }) => {
     connectTo: [database]
   });
 
+  const checkDb = new BastionScript({
+    executeCommand: 'psql -c "SELECT count(*) FROM users;"',
+    connectTo: [database],
+    bastionResource: 'bastion'
+  });
+
   return {
-    scripts: {
-      checkDb: new BastionScript({
-        executeCommand: 'psql -c "SELECT count(*) FROM users;"',
-        connectTo: [database],
-        bastionResource: 'bastion'
-      })
-    },
+    scripts: { checkDb },
     resources: { database, bastion, api }
   };
 });
@@ -221,12 +249,24 @@ A local script with bastion tunneling runs on your machine but tunnels connectio
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres, Bastion, LambdaFunction, StacktapeLambdaBuildpackPackaging, $Secret, LocalScriptWithBastionTunneling } from 'stacktape';
-export default defineConfig(({ stage }) => {
+import {
+  defineConfig,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  Bastion,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  $Secret,
+  LocalScriptWithBastionTunneling
+} from 'stacktape';
+export default defineConfig(() => {
   const database = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    }),
     credentials: {
-      masterUserPassword: $Secret(`db-password-${stage}`)
+      masterUserPassword: $Secret('db-password')
     }
   });
 
@@ -239,14 +279,14 @@ export default defineConfig(({ stage }) => {
     connectTo: [database]
   });
 
+  const migrate = new LocalScriptWithBastionTunneling({
+    executeCommand: 'npx prisma migrate deploy',
+    connectTo: [database],
+    bastionResource: 'bastion'
+  });
+
   return {
-    scripts: {
-      migrate: new LocalScriptWithBastionTunneling({
-        executeCommand: 'npx prisma migrate deploy',
-        connectTo: [database],
-        bastionResource: 'bastion'
-      })
-    },
+    scripts: { migrate },
     resources: { database, bastion, api }
   };
 });
@@ -258,13 +298,13 @@ export default defineConfig(({ stage }) => {
 
 ### Shared script properties
 
-All three script types accept the same environment configuration:
+All three script types (`LocalScript`, `BastionScript`, `LocalScriptWithBastionTunneling`) inherit from a shared base that provides the following properties:
 
-- **`connectTo`** — List resource names to auto-inject connection environment variables (`STP_[RESOURCE_NAME]_[PARAM]`). Also grants IAM permissions and opens network access as needed.
+- **`connectTo`** — List resource names to auto-inject connection environment variables (`STP_[RESOURCE_NAME]_[PARAM]`).
 - **`environment`** — Additional environment variables. Supports [`$ResourceParam()`](/configuration/directives) and [`$Secret()`](/configuration/directives) for dynamic values.
-- **`assumeRoleOfResource`** — Assume the IAM role of a deployed workload so the script gets the same AWS permissions. Stacktape injects temporary AWS credentials that AWS SDKs and CLIs pick up automatically.
+- **`assumeRoleOfResource`** — Assume the IAM role of a deployed resource so the script gets the same AWS permissions. Stacktape injects temporary AWS credentials that AWS SDKs and CLIs pick up automatically. The resource must be deployed before the script runs. See [hooks and scripts configuration](/configuration/hooks-and-scripts) for the list of supported resource types.
 
-See [hooks and scripts configuration](/configuration/hooks-and-scripts) for the complete property reference and the list of resource types that can be the role source.
+See [hooks and scripts configuration](/configuration/hooks-and-scripts) for the complete property reference for each script type.
 
 ### Running scripts manually
 
@@ -287,18 +327,30 @@ Deployment scripts support two trigger points:
 
 ### Basic example
 
-This deployment script runs a database migration after every deploy. The `environment` property passes the connection string explicitly using [`$ResourceParam()`](/configuration/directives), and `joinDefaultVpc` grants network access to the private database.
+This deployment script runs a database migration after every deploy. The `environment` property passes the connection string explicitly using [`$ResourceParam()`](/configuration/directives), and `joinDefaultVpc` connects the Lambda function to the default VPC for network access to VPC resources.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres, DeploymentScript, StacktapeLambdaBuildpackPackaging, LambdaFunction, HttpApiGateway, HttpApiIntegration, $Secret, $ResourceParam } from 'stacktape';
-export default defineConfig(({ stage }) => {
+import {
+  defineConfig,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  DeploymentScript,
+  StacktapeLambdaBuildpackPackaging,
+  LambdaFunction,
+  $Secret,
+  $ResourceParam
+} from 'stacktape';
+export default defineConfig(() => {
   const database = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    }),
     credentials: {
-      masterUserPassword: $Secret(`db-password-${stage}`)
+      masterUserPassword: $Secret('db-password')
     }
   });
 
@@ -307,9 +359,7 @@ export default defineConfig(({ stage }) => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './scripts/migrate.ts'
     }),
-    environment: [
-      { name: 'DATABASE_URL', value: $ResourceParam('database', 'connectionString') }
-    ],
+    environment: [{ name: 'DATABASE_URL', value: $ResourceParam('database', 'connectionString') }],
     joinDefaultVpc: true,
     timeout: 120,
     memory: 512
@@ -322,20 +372,14 @@ export default defineConfig(({ stage }) => {
     connectTo: [database]
   });
 
-  const gateway = new HttpApiGateway({
-    routes: [{ path: '/{proxy+}', method: '*', integration: new HttpApiIntegration({ function: api }) }]
-  });
-
   return {
-    resources: { database, migrate, api, gateway }
+    resources: { database, migrate, api }
   };
 });
 ```
 
 
-The `timeout` is set to 120 seconds because migrations can take longer than the 10-second default. The `memory` is set to 512 MB — CPU scales proportionally with memory (1,769 MB equals 1 full vCPU). The `joinDefaultVpc` flag connects the Lambda function to your default VPC so it can reach the private database.
-
-The handler receives the `parameters` object (if defined) as the Lambda event payload:
+The `timeout` is set to 120 seconds because migrations can take longer than the 10-second default. The `memory` is set to 512 MB — CPU scales proportionally with memory (1,769 MB equals 1 full vCPU). The `joinDefaultVpc` flag connects the Lambda function to the default VPC, enabling network access to VPC resources such as databases and Redis clusters.
 
 ```typescript
 // scripts/migrate.ts
@@ -361,7 +405,7 @@ export const handler = async () => {
 ```
 
 
-> **Warning:** Enabling `joinDefaultVpc` means the Lambda function loses direct internet access. If your script needs to call external APIs, configure a NAT gateway in your VPC.
+> **Warning:** Enabling `joinDefaultVpc` connects the Lambda function to the default VPC but removes direct internet access. If your script needs to call external APIs, configure a NAT gateway in your VPC.
 
 
 ### Passing parameters
@@ -382,7 +426,7 @@ import {
   Bucket,
   $ResourceParam
 } from 'stacktape';
-export default defineConfig(({ stage }) => {
+export default defineConfig(() => {
   const uploads = new Bucket({});
 
   const cleanup = new DeploymentScript({
@@ -390,10 +434,9 @@ export default defineConfig(({ stage }) => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './scripts/cleanup.ts'
     }),
-    connectTo: [uploads],
+    connectTo: ['uploads'],
     parameters: {
-      bucketName: $ResourceParam('uploads', 'name'),
-      stage: stage
+      bucketName: $ResourceParam('uploads', 'name')
     },
     timeout: 300
   });
@@ -405,13 +448,15 @@ export default defineConfig(({ stage }) => {
 ```
 
 
+The handler receives the `parameters` object as the Lambda event payload:
+
 ```typescript
 // scripts/cleanup.ts
 import { S3Client, DeleteObjectsCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
-export const handler = async (event: { bucketName: string; stage: string }) => {
+export const handler = async (event: { bucketName: string }) => {
   const s3 = new S3Client({});
-  console.info(`Cleaning up bucket ${event.bucketName} for stage ${event.stage}`);
+  console.info(`Cleaning up bucket ${event.bucketName}`);
 
   const listed = await s3.send(new ListObjectsV2Command({ Bucket: event.bucketName }));
   if (listed.Contents?.length) {
@@ -430,7 +475,7 @@ export const handler = async (event: { bucketName: string; stage: string }) => {
 Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to execute a deployment script outside of the normal deploy lifecycle. This is useful during development or when a migration needs to be re-applied. See the [CLI reference](/cli/deployment-script-run) for the available flags.
 
 ```bash
-stacktape deployment-script:run
+stacktape deployment-script:run --scriptName migrate
 ```
 
 ### Memory, timeout, and storage
@@ -446,92 +491,18 @@ Deployment scripts run as Lambda functions with the following configurable limit
 
 ### Packaging
 
-Deployment scripts are packaged as Lambda functions. The default and recommended choice is the Stacktape buildpack (`stacktape-lambda-buildpack`), which auto-bundles your source from an entry file. For pre-built artifacts (custom build processes, binary dependencies the buildpack does not handle), use the custom-artifact packaging mode and point it at your zip or directory. See [Lambda packaging](/packaging/overview) for full details on both options.
+Deployment scripts are packaged as Lambda functions and support two packaging modes. The **Stacktape buildpack** (`StacktapeLambdaBuildpackPackaging`) auto-bundles your source from an entry file — this is the recommended default for most scripts. The **custom-artifact** mode (`CustomArtifactLambdaPackaging`) accepts a pre-built zip or directory — use it when you have a custom build process or binary dependencies the buildpack cannot handle. See [Lambda packaging](/packaging/overview) for full configuration details on both modes.
 
 ## Common patterns
 
+These patterns highlight common automation tasks — build steps and permission reuse.
+
 ### Database migrations — choosing the right approach
 
-This is the most common use case. Choose between a hook (runs your local tooling) and a deployment script (runs in AWS with rollback support).
+Database migrations are the most common automation use case. Stacktape supports two approaches:
 
-**Hook approach** — runs locally, uses your installed migration CLI:
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres, LambdaFunction, StacktapeLambdaBuildpackPackaging, $Secret, LocalScript } from 'stacktape';
-export default defineConfig(({ stage }) => {
-  const database = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
-    credentials: {
-      masterUserPassword: $Secret(`db-password-${stage}`)
-    }
-  });
-
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    connectTo: [database]
-  });
-
-  return {
-    hooks: {
-      afterDeploy: [{ scriptName: 'migrate' }]
-    },
-    scripts: {
-      migrate: new LocalScript({
-        executeCommand: 'npx prisma migrate deploy',
-        connectTo: [database]
-      })
-    },
-    resources: { database, api }
-  };
-});
-```
-
-
-**Deployment script approach** — runs in AWS, failure triggers CloudFormation rollback:
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres, DeploymentScript, LambdaFunction, StacktapeLambdaBuildpackPackaging, $Secret, $ResourceParam } from 'stacktape';
-export default defineConfig(({ stage }) => {
-  const database = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
-    credentials: {
-      masterUserPassword: $Secret(`db-password-${stage}`)
-    }
-  });
-
-  const migrate = new DeploymentScript({
-    trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './scripts/migrate.ts'
-    }),
-    environment: [
-      { name: 'DATABASE_URL', value: $ResourceParam('database', 'connectionString') }
-    ],
-    joinDefaultVpc: true,
-    timeout: 120
-  });
-
-  const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    connectTo: [database]
-  });
-
-  return {
-    resources: { database, migrate, api }
-  };
-});
-```
-
+- **Hook approach** — Attach a [local script with `connectTo`](#local-scripts) to the `afterDeploy` hook. Runs your installed migration CLI (Prisma, Drizzle, Knex) directly on your machine or CI runner. See the [basic hook example](#basic-hook-example) for a complete configuration.
+- **Deployment script approach** — Use a [deployment script](#basic-example) with `trigger: 'after:deploy'`. Runs inside AWS as a Lambda function. If the migration fails, CloudFormation rolls back all infrastructure changes from that deployment.
 
 The hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — if the migration fails, all infrastructure changes from that deploy roll back automatically, keeping your database schema and application code in sync.
 
@@ -556,63 +527,24 @@ export default defineConfig(() => {
     })
   });
 
+  const build = new LocalScript({
+    executeCommands: ['npm run typecheck', 'npm run build']
+  });
+
   return {
     hooks: {
       beforeDeploy: [{ scriptName: 'build' }]
     },
-    scripts: {
-      build: new LocalScript({
-        executeCommands: ['npm run typecheck', 'npm run build']
-      })
-    },
+    scripts: { build },
     resources: { api }
   };
 });
 ```
 
 
-### Cleanup before delete
-
-Export data or deregister from external services before your stack is destroyed:
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  Bucket,
-  DeploymentScript,
-  StacktapeLambdaBuildpackPackaging,
-  $ResourceParam
-} from 'stacktape';
-export default defineConfig(() => {
-  const storage = new Bucket({});
-
-  const exportData = new DeploymentScript({
-    trigger: 'before:delete',
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './scripts/export-data.ts'
-    }),
-    connectTo: [storage],
-    parameters: {
-      bucketName: $ResourceParam('storage', 'name')
-    },
-    timeout: 300
-  });
-
-  return {
-    resources: { storage, exportData }
-  };
-});
-```
-
-
-If the export script fails, stack deletion continues — `before:delete` failures are logged but do not block resource cleanup.
-
 ### Using assumeRoleOfResource
 
-When a local script needs the same AWS permissions as a deployed workload (to interact with AWS services directly), use `assumeRoleOfResource` instead of configuring IAM permissions separately. The script assumes the IAM role of the specified resource, and Stacktape injects temporary AWS credentials that AWS SDKs pick up automatically.
+When a local script needs the same AWS permissions as a deployed workload (to interact with AWS services directly), use `assumeRoleOfResource` instead of configuring IAM permissions separately. The script assumes the IAM role of the specified resource, and Stacktape injects temporary AWS credentials that AWS SDKs pick up automatically. See [hooks and scripts configuration](/configuration/hooks-and-scripts) for the list of supported resource types.
 
 
 Example (TypeScript):
@@ -637,16 +569,16 @@ export default defineConfig(() => {
     connectTo: [table]
   });
 
+  const seedData = new LocalScript({
+    executeScript: './scripts/seed.ts',
+    assumeRoleOfResource: 'api'
+  });
+
   return {
     hooks: {
       afterDeploy: [{ scriptName: 'seedData' }]
     },
-    scripts: {
-      seedData: new LocalScript({
-        executeScript: './scripts/seed.ts',
-        assumeRoleOfResource: 'api'
-      })
-    },
+    scripts: { seedData },
     resources: { table, api }
   };
 });
@@ -697,17 +629,19 @@ Yes. Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to invo
 
 ### How do I access a private database from a deployment script?
 
-Set `joinDefaultVpc: true` on the deployment script. This connects the Lambda function to your default VPC, giving it network access to private resources like databases and Redis clusters. Be aware that VPC-connected Lambda functions lose direct internet access — if your script also needs to call external APIs, configure a NAT gateway in your VPC.
+Set `joinDefaultVpc: true` on the deployment script. This connects the Lambda function to the default VPC, enabling network access to VPC resources such as databases and Redis clusters. VPC-connected Lambda functions lose direct internet access — if your script also needs to call external APIs, configure a NAT gateway in your VPC.
 
 ### Can I use a pre-built package for deployment scripts?
 
-Yes. Instead of the Stacktape buildpack (which auto-bundles from source), use the custom-artifact packaging mode and point it at your pre-built zip or directory. See [custom artifact packaging](/packaging/function/custom-artifact) for details.
+Yes. Instead of the Stacktape buildpack (which auto-bundles from source), use the `CustomArtifactLambdaPackaging` mode and point it at your pre-built zip or directory. See [custom artifact packaging](/packaging/function/custom-artifact) for details.
 
 ### How are deployment scripts different from Lambda functions?
 
 A deployment script uses the same underlying AWS Lambda infrastructure but is tied to the CloudFormation lifecycle rather than serving as a standalone compute resource. Deployment scripts run once during deploy or delete (depending on the `trigger`), not in response to HTTP requests or other event sources. They share the same memory, timeout, and storage limits as [Lambda functions](/resources/compute/lambda-function).
 
 ## API reference
+
+The full property reference for the `DeploymentScript` resource. For script and hook entry properties (`LocalScript`, `BastionScript`, `LocalScriptWithBastionTunneling`, hook entries), see [hooks and scripts configuration](/configuration/hooks-and-scripts).
 
 
 ## API Reference: `DeploymentScriptProps`

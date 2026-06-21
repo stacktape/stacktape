@@ -18,23 +18,9 @@ The type definitions include 15 guardrail types. This page focuses on stage, reg
 
 ## Where guardrails are configured
 
-Guardrails are organization-level policies managed in the Stacktape Console — they are not part of your local `stacktape.ts` project configuration. When you run a CLI command like [`deploy`](/cli/deploy), [`delete`](/cli/delete), or [`preview-changes`](/cli/preview-changes), Stacktape fetches the guardrail definitions from the Console API and validates them before proceeding.
+Guardrails are configured in the [Stacktape Console](/stacktape-console/console-overview), not in your project's `stacktape.ts` file. Each guardrail is modeled as a `GuardrailDefinition` with a `type` discriminator (for example `stage-restriction`) and a `properties` payload (for example `allowedStages`). All guardrail properties are optional — a restriction is only active when the corresponding property is set.
 
-This design means guardrails apply consistently across your entire organization without requiring each project to opt in. A single team member with Console access can set guardrails that affect every deployment in the organization, regardless of which developer runs the command or which project they're deploying.
-
-Because guardrails live in the Console rather than in project config files, there are no `defineConfig` code examples on this page. Configure guardrails through the [Stacktape Console](/stacktape-console/console-overview). The property types and structures described below correspond to the `GuardrailDefinition` union type that the Console sends to the CLI at validation time.
-
-### How validation works
-
-Guardrail validation runs automatically during [`deploy`](/cli/deploy), [`codebuild:deploy`](/cli/codebuild-deploy), [`delete`](/cli/delete), and [`preview-changes`](/cli/preview-changes). The CLI fetches all active guardrails from the Console, then evaluates each one against the current command, stage, region, and (when a config file is present) the stack's resources.
-
-When a guardrail violation is detected, the operation is blocked with an error message identifying the guardrail type and the offending value. For example, deploying to an unapproved stage produces:
-
-```
-Stage "test-123" is not allowed. Allowed stages: production, staging, dev.
-```
-
-The validator evaluates guardrails sequentially. If multiple guardrails would fail, the first violation is reported. Fix the issue and retry — subsequent violations surface on the next attempt.
+The rest of this page documents the structure of each deployment guardrail variant and when to reach for it.
 
 ## When to use deployment guardrails
 
@@ -43,8 +29,8 @@ Deployment guardrails are most valuable once your team grows beyond a single dev
 Enable deployment guardrails when any of these apply:
 
 - **Multiple people deploy.** Without guardrails, any team member can deploy to any stage or region. A misspelled stage name creates an orphaned stack that accumulates AWS costs.
-- **You have compliance requirements.** Data residency laws (GDPR, HIPAA) may require infrastructure in specific AWS regions. Region restriction enforces this at the deployment layer rather than relying on manual discipline.
-- **You want to protect production.** Blocking the `delete` command prevents accidental stack removal. Capping resource counts discourages monolithic stacks.
+- **You have compliance requirements.** Regulations like GDPR or HIPAA may require infrastructure in specific AWS regions. Region restriction enforces this at the deployment layer rather than relying on manual discipline.
+- **You want to protect production.** Restricting the `delete` command discourages accidental stack removal. Capping resource counts discourages monolithic stacks.
 
 ## When NOT to use deployment guardrails
 
@@ -52,7 +38,7 @@ During early prototyping, guardrails add friction. If you are a solo developer e
 
 ## Stage restriction
 
-Stage restriction limits which stage names your organization can deploy to. Set an `allowedStages` list containing permitted stage names — a deployment targeting a stage not in the list is blocked. The `allowedStages` property accepts an array of strings such as `["production", "staging", "dev"]`.
+Stage restriction limits which stage names can be used for deployment. Set an `allowedStages` list containing permitted stage names — stages not in the list are blocked. The `allowedStages` property accepts an array of strings, for example `["production", "staging", "dev"]`.
 
 Stage restriction prevents inconsistent naming from creating orphaned stacks. Without it, one developer might deploy to `prod`, another to `production`, and a third to `prd` — each creating a separate stack with separate AWS resources and costs. It also prevents ad-hoc stages from accumulating when developers forget to clean up after experiments.
 
@@ -68,9 +54,9 @@ If your team intentionally creates per-developer or per-branch stages (see [stac
 
 ## Region restriction
 
-Region restriction limits which AWS regions your organization can target. Set an `allowedRegions` list with permitted region identifiers — the `allowedRegions` property accepts an `AWSRegion[]`, for example `["eu-west-1", "eu-central-1"]`. Operations targeting any other region are blocked.
+Region restriction limits which AWS regions can be targeted for deployment. Set an `allowedRegions` list with permitted region identifiers — the `allowedRegions` property accepts an `AWSRegion[]`, for example `["eu-west-1", "eu-central-1"]`. Regions not in the list are blocked.
 
-Region restriction is the simplest way to enforce data residency. If your organization must keep data within the EU, restricting to `eu-west-1` and `eu-central-1` ensures no one accidentally deploys to `us-east-1`. It also helps control costs — some AWS regions have higher pricing — and keeps infrastructure concentrated where your team has operational familiarity.
+Region restriction is the simplest way to enforce data residency. If your team must keep data within the EU, restricting to `eu-west-1` and `eu-central-1` ensures no one accidentally deploys to `us-east-1`. It also helps control costs — some AWS regions have higher pricing — and keeps infrastructure concentrated where your team has operational familiarity.
 
 ### When to use
 
@@ -84,18 +70,18 @@ If your team operates across many regions intentionally — for example, deployi
 
 ## Command restriction
 
-Command restriction blocks specific CLI commands from executing. Set a `blockedCommands` list with command names to block — for example, `["delete", "rollback"]` as shown in the type definition's JSDoc. Any attempt to run a blocked command is rejected.
+Command restriction defines commands that are blocked. Set a `blockedCommands` list with command names — the property accepts a string array, for example `["delete", "rollback"]`. Use it for commands your team does not want allowed by policy.
 
-Command restriction is most valuable for protecting production stacks from accidental destructive operations. Blocking `delete` prevents anyone from removing a stack via the CLI.
+Command restriction is most useful for protecting production stacks from destructive operations by policy. Listing `delete` in `blockedCommands` is a way to signal that stack removal is not an allowed action under the active guardrail.
 
 
-> **Tip:** A common pattern is to block `delete` so that stack removal requires a deliberate policy change in the Console first. This adds a human review step for destructive operations without removing the capability entirely.
+> **Tip:** A common pattern is to block `delete` so that stack removal requires removing it from `blockedCommands` first. This adds a deliberate review step for destructive operations without removing the capability entirely.
 
 
 ### When to use
 
-- **Prevent accidental deletions.** Block `delete` to ensure stacks can only be removed through a controlled process — temporarily adjust the guardrail in the Console, run the command, then re-enable the guardrail.
-- **Restrict specific operations.** Block any command your team considers risky for unsupervised use. The JSDoc example includes `rollback` — use it if your team wants rollback to require an explicit policy change.
+- **Discourage accidental deletions.** Add `delete` to `blockedCommands` so that stack removal is blocked until the guardrail is updated.
+- **Restrict specific operations.** Block any command your team considers risky for unsupervised use — for example, `rollback` if your team wants rollback to require an explicit guardrail change.
 
 ### When to skip
 
@@ -103,23 +89,13 @@ For small teams where everyone needs full CLI access, command restriction adds f
 
 ## Resource type restriction
 
-Resource type restriction blocks specific Stacktape resource types from being used in any stack. Set a `blockedResourceTypes` list — if any resource in the configuration uses a blocked type, the deployment is rejected. The `blockedResourceTypes` property accepts an array of `StpResourceType` values.
+Resource type restriction blocks specific Stacktape resource types from being used. Set a `blockedResourceTypes` list containing the resource types you want to ban. The `blockedResourceTypes` property accepts an array of `StpResourceType` values.
 
-This guardrail lets you curate which AWS services your organization uses through Stacktape. Block expensive resource types that haven't been approved, restrict types that require special operational expertise, or limit teams to a standard set of approved services. The JSDoc example uses `["open-search-domain", "redis-cluster"]` as blocked types.
+This guardrail lets you curate which Stacktape resource types are allowed in your stacks. Block expensive resource types that haven't been approved, restrict types that require special operational expertise, or limit teams to a standard set of approved services. For example, to block OpenSearch and Redis: `["open-search-domain", "redis-cluster"]`.
 
 ### Resource type identifiers
 
-The `blockedResourceTypes` property accepts values from the `StpResourceType` union, which is derived from the `type` field on each Stacktape resource definition. Some examples:
-
-- **Compute:** `function`, `web-service`, `private-service`, `worker-service`, `multi-container-workload`, `batch-job`, `edge-lambda-function`
-- **Frontend:** `hosting-bucket`, `nextjs-web`, `astro-web`, `nuxt-web`, `sveltekit-web`, `solidstart-web`, `tanstack-web`, `remix-web`
-- **Databases:** `relational-database`, `dynamo-db-table`, `redis-cluster`, `mongo-db-atlas-cluster`, `upstash-redis`, `open-search-domain`
-- **Storage:** `bucket`, `efs-filesystem`
-- **Networking:** `http-api-gateway`, `application-load-balancer`, `network-load-balancer`
-- **Messaging:** `event-bus`, `sqs-queue`, `sns-topic`, `kinesis-stream`
-- **Other:** `state-machine`, `user-auth-pool`, `web-app-firewall`, `bastion`, `deployment-script`, `aws-cdk-construct`
-
-These identifiers correspond to the resource types listed in the [Resources](/configuration/resources) documentation.
+The `blockedResourceTypes` property accepts values from the `StpResourceType` union, which corresponds to the `type` discriminator on each Stacktape resource definition — for example, `["open-search-domain", "redis-cluster"]`. For the full set of resource types you can reference here, see the [Resources](/configuration/resources) documentation — each resource page documents its own type identifier.
 
 ### When to use
 
@@ -133,9 +109,9 @@ If your team is small and everyone understands the cost and operational implicat
 
 ## Resource count limit
 
-Resource count limit caps the total number of Stacktape resources allowed in a single stack. Set a `maxResources` threshold — if the stack's resource count exceeds it, the deployment is blocked. The `maxResources` property accepts a number. The JSDoc example uses `20`.
+Resource count limit caps the total number of Stacktape resources allowed in a single stack. Set a `maxResources` threshold — if the stack's resource count exceeds it, the deployment is blocked. The `maxResources` property accepts a number, for example `20`.
 
-Large stacks are harder to manage, slower to deploy, and eventually approach AWS CloudFormation limits. AWS CloudFormation supports up to 500 resources per stack, but practical issues start well before that — deployment times grow, error surfaces widen, and blast radius increases. Setting a lower organizational limit encourages teams to decompose large applications into smaller, focused stacks.
+Large stacks are harder to manage, slower to deploy, and riskier to update. As general AWS background, CloudFormation supports up to 500 resources per stack — but practical issues start well before that limit as deployment times grow, error surfaces widen, and blast radius increases. Setting a `maxResources` threshold encourages teams to decompose large applications into smaller, focused stacks.
 
 ### When to use
 
@@ -157,7 +133,7 @@ Deployment guardrails also combine with guardrails from other categories. A comm
 |---|---|---|
 | Stage restriction | `allowedStages: ["production", "staging", "dev"]` | Enforce naming conventions |
 | Region restriction | `allowedRegions: ["eu-west-1"]` | Data residency |
-| Command restriction | `blockedCommands: ["delete"]` | Prevent accidental stack deletion |
+| Command restriction | `blockedCommands: ["delete"]` | Discourage accidental stack deletion |
 | Resource count limit | `maxResources: 30` | Prevent stack sprawl |
 | [Require deletion protection](/guardrails/security-and-data-protection) | `enabled: true` | Protect database data |
 | [Function memory limit](/guardrails/resource-limits) | `maxMemoryMB: 2048` | Cost control |
@@ -180,39 +156,35 @@ Guardrails are preventive — they block non-compliant operations before infrast
 
 ### How do Stacktape guardrails compare to AWS Service Control Policies?
 
-AWS Service Control Policies (SCPs) restrict which AWS API calls IAM principals can make at the AWS Organizations level. Stacktape guardrails validate deployment parameters and configuration before AWS API calls happen. Guardrails produce actionable messages tied to Stacktape concepts like stages, resource types, and stack size. SCPs are broader and can restrict AWS actions outside Stacktape's control. For defense-in-depth, use both — guardrails for Stacktape-level policy, SCPs for AWS-level access control.
+As general AWS background, Service Control Policies (SCPs) restrict which AWS API calls IAM principals can make at the AWS Organizations level. Stacktape guardrails operate at the Stacktape layer — they restrict deployment parameters and configuration using concepts like stages, resource types, and stack size (as defined in the `GuardrailDefinition` union). SCPs are broader and can restrict AWS actions outside Stacktape's control. For defense-in-depth, use both — guardrails for Stacktape-level policy, SCPs for AWS-level access control.
 
 ### Can I block the delete command but still allow deployments?
 
-Yes. The command restriction guardrail accepts a list of specific commands to block. Adding `delete` to `blockedCommands` blocks [`stacktape delete`](/cli/delete) while leaving [`deploy`](/cli/deploy) and other commands unaffected. The JSDoc example uses `["delete", "rollback"]`, but you can block any combination that fits your policy.
+Yes. The `command-restriction` guardrail's `blockedCommands` property is a string array — you list only the commands to block. Adding `"delete"` to the array blocks that specific command. For example, `["delete", "rollback"]` blocks both commands, but you can list any combination that fits your policy.
 
 ### Where do I configure guardrails?
 
-Guardrails are organization-level policies managed in the [Stacktape Console](/stacktape-console/console-overview), not in your project's `stacktape.ts` file. This means a single administrator can set guardrails that apply across all projects and stages in the organization. The CLI fetches active guardrails from the Console API before each [`deploy`](/cli/deploy), [`delete`](/cli/delete), or [`preview-changes`](/cli/preview-changes) command.
-
-### Which CLI commands enforce guardrails?
-
-Guardrail validation runs during [`deploy`](/cli/deploy), [`codebuild:deploy`](/cli/codebuild-deploy), [`delete`](/cli/delete), and [`preview-changes`](/cli/preview-changes). Stage, region, and command restrictions are evaluated for all of these commands. Resource-type and resource-count guardrails are evaluated only when a configuration file is present. Commands that do not modify infrastructure — such as [`debug:logs`](/cli/debug-logs) or [`info:stack`](/cli/info-stack) — do not trigger guardrail checks.
+Guardrails are configured in the [Stacktape Console](/stacktape-console/console-overview), not in your project's `stacktape.ts` file. The property shapes documented on this page correspond to the `GuardrailDefinition` union type defined in Stacktape's configuration types.
 
 ### Can I restrict any resource type, not just databases?
 
-Yes. The `blockedResourceTypes` property accepts any Stacktape resource type identifier — compute types like `batch-job`, networking types like `application-load-balancer`, storage types like `efs-filesystem`, or any other type in the `StpResourceType` union. See the [resource type identifiers](#resource-type-identifiers) list. This guardrail is not limited to database-related types.
+Yes. The `blockedResourceTypes` property accepts any value from the `StpResourceType` union — the same `type` discriminator that identifies each Stacktape resource. See the [Resources](/configuration/resources) documentation for the full list. This guardrail is not limited to database-related types.
 
 ### What happens when a guardrail is violated?
 
-The operation is blocked with an error message that names the guardrail type and the offending value — for example, `Stage "test-123" is not allowed. Allowed stages: production, staging, dev.` Fix the deployment parameters or configuration to comply with the active guardrails, then retry.
+The operation is rejected by the guardrail — for example, a deployment targeting a stage outside `allowedStages` is not permitted by the stage-restriction guardrail. Adjust the deployment parameters or configuration to comply with the active guardrails, then retry.
 
 ### Should I use guardrails or IAM to restrict deployments?
 
-They serve different layers. IAM controls who can call AWS APIs — it answers "is this user allowed to create an EC2 instance?" Guardrails control Stacktape-level policy — they answer "is this stage name or resource type allowed by our organization's rules?" IAM alone cannot enforce Stacktape concepts like stage naming conventions or resource count caps. Use guardrails for Stacktape-specific policy and IAM for AWS-level access control.
+They serve different layers. As general AWS background, IAM controls who can call AWS APIs — it answers "is this user allowed to create an EC2 instance?" Stacktape guardrails control policy at the Stacktape layer — using the `GuardrailDefinition` types like `stage-restriction`, `resource-type-restriction`, and `resource-count-limit` to enforce concepts that IAM alone cannot express (stage naming conventions, resource type bans, resource count caps). Use guardrails for Stacktape-specific policy and IAM for AWS-level access control.
 
 ### Can I use different guardrails for different stages?
 
-The guardrail property types do not include a per-stage override field. Each guardrail definition applies uniformly across the organization. If you need fundamentally different policies for production and development workflows, consider structuring your organization or project boundaries to reflect that separation. The [Guardrails overview](/guardrails/overview) covers the full guardrail management model.
+The `GuardrailDefinition` types do not include a per-stage override field — each guardrail variant applies as a single policy without per-stage conditions. If you need different policies for production and development workflows, consider structuring your project boundaries to reflect that separation. The [Guardrails overview](/guardrails/overview) covers the full guardrail management model.
 
 ### How does resource count limit relate to AWS CloudFormation limits?
 
-AWS CloudFormation supports up to 500 resources per stack. Stacktape's `maxResources` guardrail lets you set a lower organizational limit — such as 20 or 30 — to encourage smaller, more manageable stacks. A single Stacktape resource often maps to multiple CloudFormation resources (a [web service](/resources/compute/web-service) creates an ECS service, task definition, IAM role, and more), so CloudFormation's 500-resource limit can be reached well before your Stacktape resource count seems high.
+As general AWS background, CloudFormation supports up to 500 resources per stack. Stacktape's `maxResources` guardrail (from the `resource-count-limit` type) lets you set a lower threshold — such as 20 or 30 — to encourage smaller, more manageable stacks. A single Stacktape resource often maps to multiple CloudFormation resources (a [web service](/resources/compute/web-service) creates an ECS service, task definition, IAM role, and more), so CloudFormation's 500-resource limit can be reached well before your Stacktape resource count seems high.
 
 ### What stage names should I standardize on?
 

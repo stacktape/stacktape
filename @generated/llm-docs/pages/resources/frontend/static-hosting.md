@@ -52,7 +52,7 @@ export default defineConfig(() => {
 
 A hosting-bucket can run one command for deployment builds and a separate command for dev mode. Both commands use the same `HostingBucketBuild` shape: a required `command` and an optional `workingDirectory`, which defaults to the project root when omitted.
 
-Use `build` when your static files are generated from source code. Skip `build` when `uploadDirectoryPath` already contains the files you want to upload, such as a directory produced by an external CI job. Use `dev` when `stacktape dev` should start your frontend development server instead of only working with deployed AWS resources.
+Use `build` when your static files are generated from source code. Skip `build` when `uploadDirectoryPath` already contains the files you want to upload, such as a directory produced by an external CI job. Use `dev` to tell `stacktape dev` which frontend development server command to run.
 
 
 Example (TypeScript):
@@ -114,11 +114,11 @@ export default defineConfig(() => {
 ```
 
 
-`indexDocument` controls the page served for `/` and defaults to `/index.html`. `errorDocument` sets the page shown for 404 errors. `disableUrlNormalization` is available when you do not want clean URL normalization such as `/about` resolving to `/about.html`.
+`indexDocument` controls the page served for `/` and defaults to `/index.html`. `errorDocument` sets the page shown for 404 errors — `/404.html` in the example above is only an example; set `errorDocument` to the path of the error page in your uploaded output directory. `disableUrlNormalization` is available when you do not want clean URL normalization such as `/about` resolving to `/about.html`.
 
 ## Custom domains
 
-A hosting-bucket can serve static content from custom domains such as `www.example.com`. Stacktape creates DNS records and TLS certificates for configured domains, and the domain must already be added as a Route53 hosted zone in the AWS account.
+A hosting-bucket can serve static content from custom domains such as `www.example.com`. By default, Stacktape creates DNS records and provisions TLS certificates for configured domains; set `disableDnsRecordCreation` when DNS is managed elsewhere. The domain must already be added as a Route53 hosted zone in the AWS account.
 
 
 Example (TypeScript):
@@ -141,7 +141,7 @@ export default defineConfig(() => {
 ```
 
 
-Use Stacktape-managed DNS and certificates for most sites because it keeps the configuration small. Set `customCertificateArn` only when you need to use a specific ACM certificate, and set `disableDnsRecordCreation` when DNS records are managed outside Stacktape, such as through another DNS provider.
+For most sites, prefer the default DNS-record and certificate behavior because it keeps the Stacktape config small. Set `customCertificateArn` only when you need to use a specific ACM certificate, and set `disableDnsRecordCreation` when DNS records are managed outside Stacktape, such as through another DNS provider.
 
 ## Environment injection
 
@@ -170,19 +170,19 @@ export default defineConfig(() => {
 ```
 
 
-Use `injectEnvironment` for values that the browser reads at runtime from HTML. Use `writeDotenvFilesTo` when your static output or supporting tooling expects a `.env` file; Stacktape merges with existing `.env` content if the file already exists.
+Use `injectEnvironment` for values that the browser reads at runtime from HTML. Use `writeDotenvFilesTo` when you want Stacktape to write deploy-time values to a `.env` file in the specified directory; existing `.env` content is merged if present.
 
 ## Routing
 
-A hosting-bucket serves unmatched requests from the bucket, and `routeRewrites` can send specific URL patterns to different origins such as `/api/*` to a Lambda function. Route rewrites are evaluated in order, and the first matching rule wins.
+`routeRewrites` routes specific URL patterns to different origins, for example `/api/*` to a Lambda function. Rewrites are evaluated in order; unmatched requests go to the bucket. See the [API reference](#api-reference) for the exact `CdnRouteRewrite` fields.
 
-Use route rewrites when a mostly static frontend needs a small number of backend paths under the same site hostname. Skip rewrites when the backend deserves its own API domain or when you are already using a server-rendered frontend resource that owns routing. The source exposes `routeRewrites` as CDN route rewrite configuration; use the API reference for the exact target shape.
+Use route rewrites when a mostly static frontend needs a small number of backend paths under the same site hostname. Skip rewrites when the backend deserves its own API domain or when you are already using a server-rendered frontend resource that owns routing.
 
 ## Edge functions
 
 A hosting-bucket can attach edge functions to CDN requests and responses for URL rewrites, authentication checks, A/B testing, or response changes. `onRequest` runs before the CDN cache lookup and before forwarding to the bucket; `onResponse` runs before returning the response to the client.
 
-Use edge functions for small request or response decisions that must happen at the CDN layer. Keep application logic in a [Lambda function](/resources/compute/lambda-function) or backend service when the code needs normal backend dependencies, persistent state, or easier debugging. Edge code changes can make caching and routing harder to reason about, so most static sites should start without edge functions.
+Use edge functions for small request or response decisions that must happen at the CDN layer. Keep application logic in a [Lambda function](/resources/compute/lambda-function) or backend service when the code needs normal backend dependencies, persistent state, or easier debugging. Edge code changes can make caching and routing harder to reason about, so most static sites should start without edge functions. The exact `EdgeFunctionsConfig` shape — including `onRequest` and `onResponse` sub-properties — is in the [API reference](#api-reference) below.
 
 ## Firewall
 
@@ -211,13 +211,13 @@ export default defineConfig(() => {
 ```
 
 
-Treat exclusions as a deploy hygiene tool, not as security control for secrets. Static hosting publishes uploaded files to users through the CDN, so sensitive values should not be present in the output directory before upload.
+Because static hosting publishes uploaded files through the CDN, use `excludeFilesPatterns` to avoid uploading known unwanted files; do not rely on a static-site output directory as a place to hold secrets.
 
 ## FAQ
 
 ### What is Stacktape static hosting?
 
-Stacktape static hosting is the `HostingBucket` resource, which uploads a directory of static frontend files to S3 and serves them through CloudFront. It is intended for static websites, SPAs, and pre-rendered framework output rather than server-rendered apps. See the [static website recipe](/recipes/static-website) for an end-to-end build pattern.
+Stacktape static hosting is the `HostingBucket` resource, which uploads a directory of static frontend files to S3 and serves them through CloudFront. It is intended for static websites, SPAs, and pre-rendered framework output rather than server-rendered apps.
 
 ### Which build output directory should I upload?
 
@@ -253,7 +253,7 @@ Use static hosting when your app can be built into static files and does not nee
 
 ### Can I route API requests from a static site?
 
-Yes, `routeRewrites` can route specific URL patterns such as `/api/*` to different origins while unmatched requests continue to the bucket. Use this for simple same-hostname frontend and API setups. For larger APIs, define the backend explicitly with [HTTP API Gateway](/resources/networking/http-api-gateway), [Lambda functions](/resources/compute/lambda-function), or [web services](/resources/compute/web-service).
+Yes, `routeRewrites` routes specific URL patterns to different origins — for example, `/api/*` to a Lambda function — while unmatched requests go to the bucket. See the [API reference](#api-reference) for the exact `CdnRouteRewrite` fields. For larger APIs, define the backend explicitly with [HTTP API Gateway](/resources/networking/http-api-gateway), [Lambda functions](/resources/compute/lambda-function), or [web services](/resources/compute/web-service).
 
 ## API Reference
 

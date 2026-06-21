@@ -1,8 +1,8 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AccessScopePathRequest {
-  Destination?: PathStatementRequest;
   ThroughResources?: List<ThroughResourcesStatementRequest>;
+  Destination?: PathStatementRequest;
   Source?: PathStatementRequest;
   constructor(properties: AccessScopePathRequest) {
     Object.assign(this, properties);
@@ -23,8 +23,8 @@ export class PacketHeaderStatementRequest {
 }
 
 export class PathStatementRequest {
-  ResourceStatement?: ResourceStatementRequest;
   PacketHeaderStatement?: PacketHeaderStatementRequest;
+  ResourceStatement?: ResourceStatementRequest;
   constructor(properties: PathStatementRequest) {
     Object.assign(this, properties);
   }

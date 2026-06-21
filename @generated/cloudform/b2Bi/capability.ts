@@ -26,8 +26,8 @@ export class EdiType {
 }
 
 export class S3Location {
-  BucketName?: Value<string>;
   Key?: Value<string>;
+  BucketName?: Value<string>;
   constructor(properties: S3Location) {
     Object.assign(this, properties);
   }

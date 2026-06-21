@@ -1,25 +1,25 @@
 # Custom Artifact
 
-Custom artifact packaging lets you bring a pre-built Lambda deployment package to Stacktape. Point `packagePath` at a zip file, a directory, or a single file — Stacktape automatically zips directories and non-zip files, then deploys the result. This packaging mode applies only to [Lambda function](/resources/compute/lambda-function) resources.
+Custom artifact packaging lets you bring a pre-built Lambda deployment package to Stacktape. Point `packagePath` at a zip file, a directory, or a non-zip file — Stacktape automatically zips directories and non-zip files, then deploys the result. This packaging mode applies only to [Lambda function](/resources/compute/lambda-function) resources.
 
 ## When to use
 
 Choose custom artifact packaging when:
 
-- Your CI/CD pipeline already produces a deployment zip (Webpack, esbuild, custom scripts, Bazel, Cargo Lambda) and you want Stacktape to deploy it without re-bundling.
+- Your CI/CD pipeline already produces a deployment zip and you want Stacktape to deploy it without re-bundling.
 - You need full control over what goes into the package — native binaries, pre-compiled assets, vendored dependencies.
 - You're migrating an existing Lambda project to Stacktape and want to keep your existing build step unchanged.
-- You use a language or toolchain that the Stacktape buildpack doesn't cover (Rust, C++, Zig, or custom runtimes).
+- You have a custom build process and need full control over what gets packaged.
 
 ## When NOT to use
 
-If you're writing TypeScript, JavaScript, Python, Java, Go, Ruby, PHP, or .NET and don't have a custom build step, the [Stacktape buildpack](/packaging/function/stacktape-buildpack) is simpler. For JS/TS, the buildpack bundles code into a single file and automatically generates source maps — no build configuration beyond an entry file path.
+Skip custom artifact packaging if you're writing TypeScript, JavaScript, Python, Java, Go, Ruby, PHP, or .NET and don't have a custom build step — the [Stacktape buildpack](/packaging/function/stacktape-buildpack) is simpler. For JS/TS, the buildpack bundles code into a single file and automatically generates source maps — no build configuration beyond an entry file path.
 
 Use the buildpack if you want Stacktape to manage the build. Use custom artifact if you manage the build yourself.
 
 ## Basic example
 
-The minimal configuration points `packagePath` at your pre-built artifact:
+The minimal custom artifact configuration points `packagePath` at your pre-built artifact:
 
 
 Example (TypeScript):
@@ -41,6 +41,8 @@ export default defineConfig(() => {
 
 
 ## Configuration
+
+`CustomArtifactLambdaPackaging` exposes two properties: the required `packagePath` and an optional `handler`. All other Lambda runtime settings (`memory`, `timeout`, environment variables, etc.) are configured on the [Lambda function](/resources/compute/lambda-function) resource itself, not on the packaging.
 
 ### packagePath
 
@@ -86,11 +88,11 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `packagePath` points to a directory. Stacktape zips it automatically, and Lambda invokes the `main` export from `handlers/process.js` inside the resulting package.
+In this example, `packagePath` points to a directory. Stacktape zips it automatically, and Lambda invokes the `main` export from `handlers/process.js` inside the resulting package. The `memory` and `timeout` properties are [Lambda function](/resources/compute/lambda-function) settings, not part of the packaging configuration.
 
 ## Using with a custom build step
 
-Custom artifact packaging works well with an external build step in your CI pipeline or local workflow. Run your build tool (Webpack, esbuild, Rollup, Cargo Lambda, `go build`, or any other tool) to produce the artifact, then point `packagePath` at the output.
+Custom artifact packaging works well with an external build step in your CI pipeline or local workflow. Run your build tool to produce the artifact, then point `packagePath` at the output.
 
 Make sure the build runs before `stacktape deploy` so that `packagePath` contains the artifact you intend to release.
 
@@ -108,7 +110,7 @@ The build step is entirely decoupled from Stacktape — Stacktape reads the arti
 
 ## Directory packaging example
 
-When your build produces a directory (common with Python virtualenvs or vendored Node.js projects), point `packagePath` at the directory root:
+Custom artifact packaging accepts directories as input. When your build produces a directory, point `packagePath` at the directory root:
 
 
 Example (TypeScript):
@@ -132,7 +134,7 @@ export default defineConfig(() => {
 ```
 
 
-The directory is zipped at deploy time. The resulting zip preserves the directory's internal structure, so `handler: 'app.py:handler'` resolves to the `handler` function in `app.py` at the zip root.
+Stacktape zips the directory before deployment. Make sure the file referenced by `handler` is located at the expected path inside the package — in this case, `app.py` must be at the root of the `./lambda-build` directory. As with the previous example, `memory` and `timeout` are [Lambda function](/resources/compute/lambda-function) settings configured alongside packaging.
 
 ## Comparison with Stacktape buildpack
 
@@ -140,10 +142,10 @@ The directory is zipped at deploy time. The resulting zip preserves the director
 |---|---|---|
 | **Build responsibility** | You build the artifact | Stacktape builds from source |
 | **Configuration** | `packagePath` + optional `handler` | `entryfilePath` + language config |
-| **Supported languages** | Any (you control the runtime) | JS, TS, Python, Java, Go, Ruby, PHP, .NET |
+| **Supported languages** | Any Lambda-compatible artifact you build yourself | JS, TS, Python, Java, Go, Ruby, PHP, .NET |
 | **JS/TS bundling** | Your responsibility | Automatic single-file bundle |
 | **Source maps** | Your responsibility | Automatic (JS/TS) |
-| **Best for** | Custom toolchains, Rust, C++, pre-built CI artifacts | Standard app code with minimal config |
+| **Best for** | Custom build processes, pre-built CI artifacts | Standard app code with minimal config |
 
 
 > **Info:** Both packaging modes produce a Lambda deployment package. The difference is who builds the artifact — you or Stacktape.
@@ -153,31 +155,31 @@ The directory is zipped at deploy time. The resulting zip preserves the director
 
 ### When should I use custom artifact instead of the Stacktape buildpack?
 
-Use custom artifact when your project has a build step that the buildpack can't replicate — Rust with Cargo Lambda, C++ custom runtimes, complex Webpack configurations with plugins, or when your CI pipeline already produces a tested zip. If you're writing standard TypeScript or Python without special build requirements, the [Stacktape buildpack](/packaging/function/stacktape-buildpack) is simpler and handles bundling automatically.
+Use custom artifact packaging when your project has a custom build process that the buildpack can't replicate, or when your CI pipeline already produces a tested zip and you want Stacktape to deploy it directly. If you're writing standard TypeScript or Python without special build requirements, the [Stacktape buildpack](/packaging/function/stacktape-buildpack) is simpler and handles bundling automatically.
 
 ### Can I use a directory instead of a zip file?
 
-Yes. If `packagePath` points to a directory, Stacktape automatically zips it before deployment. The internal directory structure is preserved in the resulting zip. This is convenient when your build tool outputs to a folder rather than producing a zip directly — no need for a manual `zip` step.
+Yes. If `packagePath` points to a directory, Stacktape automatically zips it before deployment. Make sure the file referenced by `handler` exists at the path Lambda will see inside the package. This is convenient when your build tool outputs to a folder rather than producing a zip directly — no need for a manual `zip` step.
 
-### How do I set the handler for different languages?
+### How do I set the handler property?
 
-The `handler` property uses the syntax `filepath:functionName`. For a Node.js function, use something like `src/index.js:handler`. For Python, use `app.py:handler` to call the `handler` function in `app.py`. For Go, compiled binaries using custom runtimes typically use `bootstrap` as the handler value. For Java, use the full class path like `com.example.Handler:handleRequest`.
+The `handler` property uses the `filepath:functionName` syntax. For example, `src/index.js:handler` calls the `handler` export from `src/index.js` inside your deployment package. Set the file path and function name to match the entry point in your artifact.
 
 ### What's the maximum size for a Lambda deployment package?
 
-AWS Lambda accepts deployment packages up to 50 MB zipped for direct upload, or up to 250 MB unzipped when deployed via S3. If your artifact exceeds 250 MB unzipped, consider using a [container-based workload](/resources/compute/web-service) instead, which supports images up to 10 GB.
+AWS Lambda enforces its own deployment package size limits. Custom artifact packaging targets Lambda deployment packages specifically — if your workload doesn't fit within Lambda's package constraints, consider a [container workload](/resources/compute/web-service), which uses one of the [container packaging modes](/packaging/overview) (custom Dockerfile, prebuilt image, Stacktape image buildpack, Nixpacks, or external buildpack) instead of a Lambda zip.
 
 ### How do I debug deployment issues with custom artifacts?
 
-If your function fails after deploy, check that the `handler` path matches the file structure inside your zip. Unzip the artifact locally and verify the handler file exists at the expected path. Use [`stacktape debug:logs`](/cli/debug-logs) to view Lambda invocation errors — the most common issue is a "cannot find module" error when the handler path doesn't match the zip contents.
+If your function fails after deploy, check that the `handler` path matches the file structure inside your zip. Unzip the artifact locally and verify the handler file exists at the expected path. Use [`stacktape debug:logs`](/cli/debug-logs) to view Lambda invocation errors — a mismatched handler path typically surfaces as a module-not-found or handler-not-found error.
 
 ### Does custom artifact packaging affect other Lambda settings?
 
-Custom artifact packaging configures the Lambda deployment package through `packagePath` and optional `handler`. Other Lambda function settings — memory, timeout, environment variables, VPC configuration, triggers — belong to the [Lambda function](/resources/compute/lambda-function) resource configuration and work the same regardless of which packaging mode you choose.
+Custom artifact packaging only exposes `packagePath` and an optional `handler`. All other runtime behavior is configured on the [Lambda function](/resources/compute/lambda-function) resource itself and works the same regardless of which packaging mode you choose.
 
 ### Can I use custom artifact for container workloads?
 
-No. Custom artifact packaging applies only to Lambda functions. For container-based workloads (web services, private services, worker services, multi-container workloads, batch jobs), use one of the [container packaging modes](/packaging/containers/custom-dockerfile): custom Dockerfile, prebuilt image, Stacktape image buildpack, Nixpacks, or external buildpack.
+No. Custom artifact packaging applies only to Lambda functions. For container-based workloads (web services, private services, worker services, multi-container workloads, batch jobs), see the [container packaging modes](/packaging/overview): custom Dockerfile, prebuilt image, Stacktape image buildpack, Nixpacks, or external buildpack.
 
 ### How does Stacktape handle non-zip files at packagePath?
 

@@ -46,6 +46,7 @@ export class S3Destination {
   S3Bucket!: Value<string>;
   S3OutputConfigurations!: S3OutputConfigurations;
   S3Region!: Value<string>;
+  S3BucketOwner?: Value<string>;
   S3Prefix!: Value<string>;
   constructor(properties: S3Destination) {
     Object.assign(this, properties);

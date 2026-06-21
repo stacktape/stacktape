@@ -24,6 +24,7 @@ export class RegionalParameter {
 }
 export interface EnvironmentBlueprintConfigurationProperties {
   RegionalParameters?: List<RegionalParameter>;
+  GlobalParameters?: { [key: string]: Value<string> };
   ProvisioningRoleArn?: Value<string>;
   ProvisioningConfigurations?: List<ProvisioningConfiguration>;
   EnabledRegions: List<Value<string>>;

@@ -1,2 +1,2 @@
-import { AppMesh } from './index.namespace';
-export default AppMesh;
+import {AppMesh} from './index.namespace'
+export default AppMesh

@@ -14,7 +14,7 @@ The command is fully interactive. It reads the profiles already configured in yo
 2. **AWS_ACCESS_KEY_ID** — the new access key ID from your IAM user's security credentials.
 3. **AWS_SECRET_ACCESS_KEY** — the corresponding secret key (input is masked).
 
-After confirmation, the selected profile's credentials are overwritten in place. Other profiles in the file are not affected.
+After the prompts complete, Stacktape updates the selected profile's credentials and prints `Updated credentials for AWS profile <profile>.`
 
 
 > **Warning:** If no AWS profiles exist on your system, the command exits with an error. Use [`aws-profile:create`](/cli/aws-profile-create) to set up your first profile.
@@ -30,17 +30,23 @@ stacktape aws-profile:update --logLevel debug
 
 ## Flags reference
 
-
-## CLI Options: `stacktape aws-profile:update`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-
+<CliCommandsApiReference command="aws-profile:update" sortedArgs={[
+  {
+    "name": "logLevel",
+    "required": false,
+    "alias": "ll",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "info",
+      "debug",
+      "error"
+    ],
+    "shortDescription": "<p> Log Level</p>\n",
+    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+  }
+]} />
 
 ## Related commands
 

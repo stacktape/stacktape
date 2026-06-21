@@ -8,55 +8,303 @@ The `stacktape dev` command runs your application locally for development and de
 stacktape dev --stage dev-john --region eu-west-1
 ```
 
-
-## CLI Options: `stacktape dev`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--region (-r)` | yes | `string` | AWS Region The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--stage (-s)` | yes | `string` | Stage The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
-| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption:
-
-Uses strict JSONL/NDJSON output (one JSON object per line)
-Disables interactive terminal UI
-Automatically confirms operations (equivalent to --autoConfirmOperation)
-For dev command: also enables HTTP server for programmatic control. | - |
-| `--agentChild` | no | `boolean` | Agent Child (internal) Internal flag used when spawning the daemon child process. Do not use directly. | - |
-| `--agentPort (-ap)` | no | `number` | Agent Port The port for the agent HTTP server. Providing this option enables agent mode. | - |
-| `--awsAccount (-aa)` | no | `string` | AWS Account The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts). | - |
-| `--configPath (-cp)` | no | `string` | Config File Path The path to your Stacktape configuration file, relative to the current working directory. | - |
-| `--container (-cnt)` | no | `string` | Container Name The name of the container as defined in your container compute resource configuration. | - |
-| `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--devMode (-dm)` | no | `string` | Dev Mode Specifies which dev mode to use:
-
-`normal` (default): Deploys a minimal &quot;dev stack&quot; to AWS (IAM roles, secrets only) and runs workloads locally. Databases (PostgreSQL, MySQL, DynamoDB) and Redis are emulated locally using Docker. Tunnels are automatically created so Lambda functions can reach local databases.
-`legacy`: Requires an already deployed stack. Runs selected workloads locally while connecting to all deployed AWS resources. No local database emulation - uses deployed databases directly. Useful for testing against production-like data. | `normal`, `legacy` |
-| `--disableEmulation (-de)` | no | `boolean` | Disable Emulation Disables the automatic injection of parameters and credentials during local emulation. Use this flag if you want to run a compute resource locally that has not yet been deployed. | - |
-| `--dockerArgs (-da)` | no | `array` | Docker Arguments Additional arguments to pass to the `docker run` or `docker build` commands. | - |
-| `--freshDb` | no | `boolean` | Fresh Database If `true`, deletes existing local database data before starting. Use this to start with a clean database state. | - |
-| `--help (-h)` | no | `string` | Show Help If provided, the command will not execute and will instead print help information. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--noTunnel (-nt)` | no | `boolean` | No Tunnel Disables automatic tunneling for Lambda functions. In normal dev mode, Stacktape creates tunnels (using bore.pub) so that AWS Lambda functions can reach your locally emulated databases. Use this flag if you don&#39;t need Lambda-to-local connectivity or if tunneling causes issues. | - |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format:
-
-`jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.
-`plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.
-`tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
-If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--preserveTempFiles (-ptf)` | no | `boolean` | Preserve Temporary Files If `true`, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to `.stacktape/[invocation-id]`. | - |
-| `--profile (-p)` | no | `string` | AWS Profile The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
-| `--projectName (-prj)` | no | `string` | Project Name The name of the Stacktape project for this operation. | - |
-| `--remoteResources (-rr)` | no | `array` | Remote Resources In normal dev mode, databases and Redis run locally by default. Use this flag to connect to deployed AWS resources instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remoteResources myDb`, `--remoteResources postgres,redis`. | - |
-| `--resourceName (-rn)` | no | `string` | Resource Name The name of the resource as defined in your Stacktape configuration. | - |
-| `--resources (-res)` | no | `array` | Resources Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
-| `--skipResources (-sr)` | no | `array` | Skip Resources Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skipResources myHeavyDb`, `--skipResources fn1,fn2`. | - |
-| `--templateId (-ti)` | no | `string` | Template ID The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
-| `--watch (-w)` | no | `boolean` | Watch If `true`, watches for changes to your source files and automatically re-executes the compute resource when a change is detected. | - |
-
+<CliCommandsApiReference command="dev" sortedArgs={[
+  {
+    "name": "region",
+    "required": true,
+    "alias": "r",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "us-east-2",
+      "us-east-1",
+      "us-west-1",
+      "us-west-2",
+      "ap-east-1",
+      "ap-south-1",
+      "ap-northeast-3",
+      "ap-northeast-2",
+      "ap-southeast-1",
+      "ap-southeast-2",
+      "ap-northeast-1",
+      "ca-central-1",
+      "eu-central-1",
+      "eu-west-1",
+      "eu-west-2",
+      "eu-west-3",
+      "eu-north-1",
+      "me-south-1",
+      "sa-east-1",
+      "af-south-1",
+      "eu-south-1"
+    ],
+    "shortDescription": "<p> AWS Region</p>\n",
+    "longDescription": "<p>The AWS region for the operation. For a list of available regions, see the <a href=\"https://docs.aws.amazon.com/general/latest/gr/rande.html\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">AWS documentation</a>.</p>\n"
+  },
+  {
+    "name": "stage",
+    "required": true,
+    "alias": "s",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Stage</p>\n",
+    "longDescription": "<p>The stage for the operation (e.g., <code>production</code>, <code>staging</code>, <code>dev-john</code>). You can set a default stage using the <code>defaults:configure</code> command. The maximum length is 12 characters.</p>\n"
+  },
+  {
+    "name": "agent",
+    "required": false,
+    "alias": "ag",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Agent Mode</p>\n",
+    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
+  },
+  {
+    "name": "agentChild",
+    "required": false,
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Agent Child (internal)</p>\n",
+    "longDescription": "<p>Internal flag used when spawning the daemon child process. Do not use directly.</p>\n"
+  },
+  {
+    "name": "agentPort",
+    "required": false,
+    "alias": "ap",
+    "allowedTypes": [
+      "number"
+    ],
+    "shortDescription": "<p> Agent Port</p>\n",
+    "longDescription": "<p>The port for the agent HTTP server. Providing this option enables agent mode.</p>\n"
+  },
+  {
+    "name": "awsAccount",
+    "required": false,
+    "alias": "aa",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> AWS Account</p>\n",
+    "longDescription": "<p>The name of the AWS account to use for the operation. The account must first be connected in the <a href=\"https://console.stacktape.com/aws-accounts\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Stacktape console</a>.</p>\n"
+  },
+  {
+    "name": "configPath",
+    "required": false,
+    "alias": "cp",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Config File Path</p>\n",
+    "longDescription": "<p>The path to your Stacktape configuration file, relative to the current working directory.</p>\n"
+  },
+  {
+    "name": "container",
+    "required": false,
+    "alias": "cnt",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Container Name</p>\n",
+    "longDescription": "<p>The name of the container as defined in your container compute resource configuration.</p>\n"
+  },
+  {
+    "name": "currentWorkingDirectory",
+    "required": false,
+    "alias": "cwd",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Current Working Directory</p>\n",
+    "longDescription": "<p>The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file.</p>\n"
+  },
+  {
+    "name": "devMode",
+    "required": false,
+    "alias": "dm",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "normal",
+      "legacy"
+    ],
+    "shortDescription": "<p> Dev Mode</p>\n",
+    "longDescription": "<p>Specifies which dev mode to use:</p>\n<ul>\n<li><code>normal</code> (default): Deploys a minimal &quot;dev stack&quot; to AWS (IAM roles, secrets only) and runs workloads locally. Databases (PostgreSQL, MySQL, DynamoDB) and Redis are emulated locally using Docker. Tunnels are automatically created so Lambda functions can reach local databases.</li>\n<li><code>legacy</code>: Requires an already deployed stack. Runs selected workloads locally while connecting to all deployed AWS resources. No local database emulation - uses deployed databases directly. Useful for testing against production-like data.</li>\n</ul>\n"
+  },
+  {
+    "name": "disableEmulation",
+    "required": false,
+    "alias": "de",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Disable Emulation</p>\n",
+    "longDescription": "<p>Disables the automatic injection of parameters and credentials during local emulation. Use this flag if you want to run a compute resource locally that has not yet been deployed.</p>\n"
+  },
+  {
+    "name": "dockerArgs",
+    "required": false,
+    "alias": "da",
+    "allowedTypes": [
+      "array"
+    ],
+    "shortDescription": "<p> Docker Arguments</p>\n",
+    "longDescription": "<p>Additional arguments to pass to the <code>docker run</code> or <code>docker build</code> commands.</p>\n"
+  },
+  {
+    "name": "freshDb",
+    "required": false,
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Fresh Database</p>\n",
+    "longDescription": "<p>If <code>true</code>, deletes existing local database data before starting. Use this to start with a clean database state.</p>\n"
+  },
+  {
+    "name": "help",
+    "required": false,
+    "alias": "h",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Show Help</p>\n",
+    "longDescription": "<p>If provided, the command will not execute and will instead print help information.</p>\n"
+  },
+  {
+    "name": "logLevel",
+    "required": false,
+    "alias": "ll",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "info",
+      "debug",
+      "error"
+    ],
+    "shortDescription": "<p> Log Level</p>\n",
+    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+  },
+  {
+    "name": "noTunnel",
+    "required": false,
+    "alias": "nt",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> No Tunnel</p>\n",
+    "longDescription": "<p>Disables automatic tunneling for Lambda functions. In normal dev mode, Stacktape creates tunnels (using bore.pub) so that AWS Lambda functions can reach your locally emulated databases. Use this flag if you don&#39;t need Lambda-to-local connectivity or if tunneling causes issues.</p>\n"
+  },
+  {
+    "name": "outputFormat",
+    "required": false,
+    "alias": "ofmt",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "jsonl",
+      "plain",
+      "tty"
+    ],
+    "shortDescription": "<p> Output Format</p>\n",
+    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
+  },
+  {
+    "name": "preserveTempFiles",
+    "required": false,
+    "alias": "ptf",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Preserve Temporary Files</p>\n",
+    "longDescription": "<p>If <code>true</code>, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to <code>.stacktape/[invocation-id]</code>.</p>\n"
+  },
+  {
+    "name": "profile",
+    "required": false,
+    "alias": "p",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> AWS Profile</p>\n",
+    "longDescription": "<p>The AWS profile to use for the command. You can manage profiles using the <code>aws-profile:*</code> commands and set a default profile with <code>defaults:configure</code>.</p>\n"
+  },
+  {
+    "name": "projectName",
+    "required": false,
+    "alias": "prj",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Project Name</p>\n",
+    "longDescription": "<p>The name of the Stacktape project for this operation.</p>\n"
+  },
+  {
+    "name": "remoteResources",
+    "required": false,
+    "alias": "rr",
+    "allowedTypes": [
+      "array"
+    ],
+    "shortDescription": "<p> Remote Resources</p>\n",
+    "longDescription": "<p>In normal dev mode, databases and Redis run locally by default. Use this flag to connect to deployed AWS resources instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: <code>--remoteResources myDb</code>, <code>--remoteResources postgres,redis</code>.</p>\n"
+  },
+  {
+    "name": "resourceName",
+    "required": false,
+    "alias": "rn",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Resource Name</p>\n",
+    "longDescription": "<p>The name of the resource as defined in your Stacktape configuration.</p>\n"
+  },
+  {
+    "name": "resources",
+    "required": false,
+    "alias": "res",
+    "allowedTypes": [
+      "array"
+    ],
+    "shortDescription": "<p> Resources</p>\n",
+    "longDescription": "<p>Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use <code>all</code> to run all resources without prompting. Examples: <code>--resources myApi</code>, <code>--resources myApi,myDb</code>, or <code>--resources all</code>.</p>\n"
+  },
+  {
+    "name": "skipResources",
+    "required": false,
+    "alias": "sr",
+    "allowedTypes": [
+      "array"
+    ],
+    "shortDescription": "<p> Skip Resources</p>\n",
+    "longDescription": "<p>Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: <code>--skipResources myHeavyDb</code>, <code>--skipResources fn1,fn2</code>.</p>\n"
+  },
+  {
+    "name": "templateId",
+    "required": false,
+    "alias": "ti",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Template ID</p>\n",
+    "longDescription": "<p>The ID of the template to download. You can find a list of available templates on the <a href=\"https://console.stacktape.com/templates\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Config Builder page</a>.</p>\n"
+  },
+  {
+    "name": "watch",
+    "required": false,
+    "alias": "w",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Watch</p>\n",
+    "longDescription": "<p>If <code>true</code>, watches for changes to your source files and automatically re-executes the compute resource when a change is detected.</p>\n"
+  }
+]} />
 
 ## What it does
 
@@ -67,7 +315,7 @@ The `dev` command supports two modes, selected via the `--devMode` flag.
 Normal mode deploys a minimal "dev stack" to AWS containing only essential infrastructure (IAM roles, secrets), then runs everything else locally. This is the recommended mode for day-to-day development.
 
 - Runs containers, Lambda functions, and frontend workloads locally on your machine
-- Emulates databases (PostgreSQL, MySQL, DynamoDB) and Redis locally using Docker
+- Emulates databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally using Docker
 - Sets up tunnels so Lambda functions can reach local databases when Lambda-to-local connectivity is needed
 - Creates the dev stack automatically on first run — no pre-deployment required
 - Injects environment variables, secrets, and AWS credentials into local workloads
@@ -93,13 +341,13 @@ The `dev` command can run the following resource types locally:
 | Containers | web-service, private-service, worker-service, multi-container-workload |
 | Functions | Lambda functions |
 | Frontends | nextjs-web, astro-web, nuxt-web, sveltekit-web, solidstart-web, tanstack-web, remix-web, hosting-bucket (with `dev` config) |
-| Databases (emulated in normal mode) | PostgreSQL, MySQL, MariaDB, Redis, DynamoDB, OpenSearch |
+| Databases (emulated in normal mode) | PostgreSQL, MySQL, MariaDB, DynamoDB, Redis, OpenSearch |
 
 ## Important flags
 
 ### --resources / --skipResources
 
-Control which resources run in dev mode. Without these flags, an interactive picker appears.
+Control which resources run in dev mode. Without these flags, an interactive picker appears. Use these flags to scope a dev session to a specific workload or container compute resource — for example, run just the API service while skipping a heavy database.
 
 Run all resources without prompting:
 
@@ -121,7 +369,7 @@ stacktape dev --stage dev --region eu-west-1 --skipResources myHeavyDb
 
 ### --watch
 
-Enables automatic file watching. When source files change, the affected workload rebuilds automatically.
+Enables automatic file watching. When source files change, Stacktape automatically re-executes the affected compute resource.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --watch
@@ -175,17 +423,9 @@ stacktape dev --stage dev --region eu-west-1 --agentPort 8080
 
 Stop a running agent with [`dev:stop`](/cli/dev-stop).
 
-### --resourceName / --container
-
-Use `--resourceName` to name a specific configured resource and `--container` to name a container inside a container compute resource (e.g. multi-container-workload) when a command path needs a specific workload or container context.
-
-```bash
-stacktape dev --stage dev --region eu-west-1 --resourceName myService --container api
-```
-
 ## Interactive commands
 
-While running in interactive mode, you can control dev mode with keyboard commands. The command description supports typing a number + Enter to rebuild a specific workload, or `a` + Enter to rebuild all workloads. The command handler also accepts the following text commands:
+While running in interactive mode, you can control dev mode with the following text commands:
 
 | Command | Action |
 |---------|--------|
@@ -268,7 +508,7 @@ Use the `--freshDb` flag to delete existing local database data before starting 
 
 ### Can I rebuild workloads without restarting dev mode?
 
-Yes. While dev mode is running interactively, type a number + Enter to rebuild a specific workload, or `a` + Enter to rebuild all. You can also type `rs` to rebuild all workloads, or `rs <name>` to rebuild a specific one by name.
+Yes. While dev mode is running interactively, type `rs` to rebuild all workloads, or `rs <name>` to rebuild a specific one by name.
 
 ## Related commands
 

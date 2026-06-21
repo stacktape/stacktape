@@ -74,6 +74,14 @@ export class EFSFileSystemConfig {
   }
 }
 
+export class EmrSettings {
+  AssumableRoleArns?: List<Value<string>>;
+  ExecutionRoleArns?: List<Value<string>>;
+  constructor(properties: EmrSettings) {
+    Object.assign(this, properties);
+  }
+}
+
 export class FSxLustreFileSystemConfig {
   FileSystemPath?: Value<string>;
   FileSystemId!: Value<string>;
@@ -101,6 +109,7 @@ export class IdleSettings {
 }
 
 export class JupyterLabAppSettings {
+  EmrSettings?: EmrSettings;
   CustomImages?: List<CustomImage>;
   DefaultResourceSpec?: ResourceSpec;
   LifecycleConfigArns?: List<Value<string>>;
@@ -138,9 +147,9 @@ export class RStudioServerProAppSettings {
 }
 
 export class ResourceSpec {
-  LifecycleConfigArn?: Value<string>;
   SageMakerImageArn?: Value<string>;
   InstanceType?: Value<string>;
+  LifecycleConfigArn?: Value<string>;
   SageMakerImageVersionArn?: Value<string>;
   constructor(properties: ResourceSpec) {
     Object.assign(this, properties);
@@ -212,6 +221,7 @@ export default class UserProfile extends ResourceBase<UserProfileProperties> {
   static DefaultEbsStorageSettings = DefaultEbsStorageSettings;
   static DefaultSpaceStorageSettings = DefaultSpaceStorageSettings;
   static EFSFileSystemConfig = EFSFileSystemConfig;
+  static EmrSettings = EmrSettings;
   static FSxLustreFileSystemConfig = FSxLustreFileSystemConfig;
   static HiddenSageMakerImage = HiddenSageMakerImage;
   static IdleSettings = IdleSettings;

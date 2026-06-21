@@ -2,6 +2,7 @@ import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 
 export interface ServiceNetworkResourceAssociationProperties {
+  PrivateDnsEnabled?: Value<boolean>;
   ResourceConfigurationId?: Value<string>;
   ServiceNetworkId?: Value<string>;
   Tags?: List<ResourceTag>;

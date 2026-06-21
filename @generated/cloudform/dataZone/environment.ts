@@ -11,12 +11,15 @@ export interface EnvironmentProperties {
   ProjectIdentifier: Value<string>;
   EnvironmentAccountRegion?: Value<string>;
   UserParameters?: List<EnvironmentParameter>;
-  EnvironmentRoleArn?: Value<string>;
   Description?: Value<string>;
-  EnvironmentProfileIdentifier?: Value<string>;
+  EnvironmentConfigurationId?: Value<string>;
   GlossaryTerms?: List<Value<string>>;
-  EnvironmentAccountIdentifier?: Value<string>;
+  EnvironmentBlueprintIdentifier?: Value<string>;
   Name: Value<string>;
+  EnvironmentRoleArn?: Value<string>;
+  EnvironmentProfileIdentifier?: Value<string>;
+  DeploymentOrder?: Value<number>;
+  EnvironmentAccountIdentifier?: Value<string>;
   DomainIdentifier: Value<string>;
 }
 export default class Environment extends ResourceBase<EnvironmentProperties> {

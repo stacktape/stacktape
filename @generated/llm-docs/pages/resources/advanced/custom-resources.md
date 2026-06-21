@@ -7,8 +7,8 @@ A Stacktape custom resource runs a Lambda function during stack create, update, 
 Custom resources are the right choice when you need to manage an external resource's lifecycle in sync with your Stacktape stack. Common scenarios:
 
 - **Third-party API setup** — creating webhooks, API keys, or accounts in external services (Stripe, PagerDuty, Cloudflare) that should be torn down when you delete the stack.
-- **Cross-account AWS resources** — provisioning resources in a different AWS account that CloudFormation can't reach directly.
-- **Custom validation or seed operations** — running checks or data seeding that must succeed before the stack is considered deployed.
+- **SaaS service provisioning** — managing resources in external SaaS platforms (Datadog monitors, LaunchDarkly flags, PlanetScale databases) tied to your stack lifecycle.
+- **Custom infrastructure** — provisioning infrastructure that CloudFormation doesn't support natively, such as DNS records in non-Route53 providers or certificates in external CAs.
 - **External database provisioning** — creating databases or schemas in services outside AWS that need lifecycle management.
 
 Custom resource handlers receive Create, Update, and Delete events as part of CloudFormation stack operations. Because custom resources participate in CloudFormation stack operations, design Create, Update, and Delete handlers to be idempotent and rollback-tolerant. This makes custom resources safer than one-off scripts for managing external state that should stay in sync with your stack.
@@ -38,13 +38,10 @@ Stacktape custom resources use a two-part model:
 
 You can create multiple instances from a single definition, each with different properties. For example, one definition that manages DNS records could have separate instances for `api.example.com` and `app.example.com`.
 
-
-## Flow
-1. **Deploy starts**: CloudFormation processes the stack and encounters a custom resource instance.
-2. **Lambda invoked**: CloudFormation invokes the backing Lambda with RequestType and ResourceProperties from the instance.
-3. **Handler runs**: Your code creates, updates, or deletes the external resource based on RequestType.
-4. **Response sent**: The handler sends SUCCESS or FAILED back to CloudFormation via a pre-signed URL provided in the event. On failure, the stack operation fails.
-
+1. **Deploy starts** — CloudFormation processes the stack and encounters a custom resource instance.
+2. **Lambda invoked** — CloudFormation invokes the backing Lambda with RequestType and ResourceProperties from the instance.
+3. **Handler runs** — Your code creates, updates, or deletes the external resource based on RequestType.
+4. **Response sent** — The handler sends SUCCESS or FAILED back to CloudFormation via a pre-signed URL provided in the event. On failure, the stack operation fails.
 
 ## Basic example
 
@@ -112,6 +109,18 @@ export const handler = async (event: any) => {
         const webhook = await response.json();
         physicalResourceId = webhook.id;
         data = { webhookId: webhook.id };
+        break;
+      }
+      case 'Update': {
+        await fetch(`https://api.example.com/webhooks/${event.PhysicalResourceId}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${process.env.EXTERNAL_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ url: ResourceProperties.callbackUrl })
+        });
+        data = { webhookId: event.PhysicalResourceId };
         break;
       }
       case 'Delete': {
@@ -185,7 +194,7 @@ Your handler must PUT a JSON response to `ResponseURL`:
 - **Always respond.** As part of the AWS CloudFormation custom resource protocol, a missing response causes CloudFormation to wait until its internal timeout and then fail the stack operation.
 - **Return a stable `PhysicalResourceId`.** Per CloudFormation behavior, if you return a different physical ID on an Update, CloudFormation interprets this as a resource replacement and sends a separate Delete event for the old physical ID.
 - **Handle Delete gracefully.** The Delete handler may run during rollbacks. If the resource was never fully created, your Delete handler should succeed silently rather than throw.
-- **Keep the `Data` object small.** Per CloudFormation limits, the maximum response payload is 4,096 bytes.
+- **Keep the `Data` object small.** AWS CloudFormation imposes a 4,096-byte limit on the custom resource response body.
 
 ## Instances
 
@@ -253,7 +262,7 @@ The `packaging` property on `CustomResourceDefinition` configures how the backin
 
 ### Stacktape Lambda buildpack
 
-The [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) is zero-config packaging that bundles your source code automatically. It supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. This is the recommended choice for most custom resources — point it at your handler file and Stacktape handles bundling, dependency resolution, and upload. Use this unless you have a pre-existing build pipeline or need precise control over the deployment artifact.
+The [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) is zero-config packaging that bundles your source code automatically. It supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. This is the recommended choice for most custom resources — point it at your handler file and Stacktape handles bundling, dependency resolution, and upload. The buildpack automatically resolves dependencies and optimizes the bundle size, but you have less control over the exact contents of the deployment package. Use this unless you have a pre-existing build pipeline or need precise control over the deployment artifact.
 
 
 Example (TypeScript):
@@ -283,7 +292,7 @@ The `timeout` is set to 60 seconds here — the default is 10 seconds. Increase 
 
 ### Custom artifact
 
-The [custom artifact](/packaging/function/custom-artifact) mode lets you provide a pre-built zip or directory. Stacktape uploads it as-is (zipping directories automatically). Use this when you have a custom build pipeline, need dependencies that the buildpack doesn't handle well, or want precise control over the deployment package contents.
+The [custom artifact](/packaging/function/custom-artifact) mode lets you provide a pre-built zip or directory. Stacktape uploads it as-is (zipping directories automatically). This works with any Lambda runtime since you provide the complete deployment package — unlike the buildpack, which handles only the supported languages listed above. Use custom artifact when you have a custom build pipeline, need dependencies that the buildpack doesn't handle well, or want precise control over the deployment package contents. The tradeoff is that you are responsible for maintaining the build process, dependency resolution, and artifact structure yourself.
 
 
 Example (TypeScript):
@@ -311,7 +320,7 @@ The `handler` property specifies the entry point in `filepath:functionName` form
 
 ## Runtime
 
-The `runtime` property sets the Lambda runtime (e.g., `nodejs22.x`, `python3.12`, `java17`). When using the [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack), the runtime is auto-detected from the entry file extension, so you rarely need to set this explicitly. Set it manually when using [custom artifact](/packaging/function/custom-artifact) packaging or when you need a specific runtime version. See the [function packaging docs](/packaging/function/language-specific-config) for runtime-specific configuration.
+The `runtime` property sets the Lambda runtime to a supported AWS Lambda runtime identifier. When using the [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack), the runtime is auto-detected from the entry file extension, so you rarely need to set this explicitly. Set `runtime` manually when using [custom artifact](/packaging/function/custom-artifact) packaging (since there is no entry file for Stacktape to detect from) or when you need to pin a specific runtime version. See the API reference below for the full list of supported runtime values, and the [function packaging docs](/packaging/function/language-specific-config) for runtime-specific configuration.
 
 ## Connecting to resources
 

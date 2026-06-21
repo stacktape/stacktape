@@ -237,6 +237,10 @@ export const stacktapeConfigSchema = z.object({
                   , z.object({
                     "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                     "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                    "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                    "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                    "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                    "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                     "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                     "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                     "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -413,6 +417,10 @@ export const stacktapeConfigSchema = z.object({
                   , z.object({
                     "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                     "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                    "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                    "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                    "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                    "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                     "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                     "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                     "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -1020,6 +1028,10 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                   "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                  "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                  "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                  "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                  "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                   "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                   "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                   "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -1172,6 +1184,10 @@ export const stacktapeConfigSchema = z.object({
                   , z.object({
                     "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                     "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                    "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                    "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                    "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                    "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                     "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                     "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                     "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -1330,6 +1346,10 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                   "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                  "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                  "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                  "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                  "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                   "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                   "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                   "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -1482,6 +1502,10 @@ export const stacktapeConfigSchema = z.object({
                   , z.object({
                     "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                     "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                    "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                    "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                    "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                    "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                     "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                     "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                     "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -1635,6 +1659,10 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                   "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                  "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                  "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                  "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                  "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                   "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                   "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                   "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -1787,6 +1815,10 @@ export const stacktapeConfigSchema = z.object({
                   , z.object({
                     "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                     "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                    "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                    "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                    "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                    "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                     "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                     "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                     "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -3389,6 +3421,10 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                   "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                  "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                  "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                  "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                  "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                   "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                   "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                   "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -3459,6 +3495,10 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                   "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                  "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                  "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                  "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                  "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                   "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                   "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                   "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -4003,7 +4043,12 @@ export const stacktapeConfigSchema = z.object({
     .describe("#### Real-time data stream for ingesting high-volume events (logs, clickstreams, IoT, analytics).\n\n---\n\nContinuously captures data from many producers. Consumers (Lambda functions, etc.) process records in order.\nUse when you need real-time processing with sub-second latency, not just async messaging (use SQS for that)."), z.object({
       "type": z.literal("convex"),
       "properties": z.object({
-        "appDirectory": z.string().describe("#### Path to the `convex/` directory in your project (where `schema.ts` and function files live).\n\n---\n\nAfter each `stacktape deploy`, Stacktape runs `npx convex deploy` from this directory against the\nfreshly-deployed backend. Type generation (`convex/_generated/`) should be wired in via a\n`hooks.beforeDeploy` script running `npx convex codegen` — see the `convex-nextjs` starter project.\n\nExample: `appDirectory: './convex'`"),
+        "appDirectory": z.string().describe("#### Path to the `convex/` directory in your project.\n\n---\n\nAfter each `stacktape deploy`, Stacktape runs `npx convex deploy` from the parent project directory\nagainst the freshly-deployed backend.\n\nExample: `appDirectory: './convex'`"),
+        "functionsDeployment": z.object({
+          "enabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether Stacktape should deploy Convex functions after infrastructure deploy.").default(true),
+          "command": z.string().optional().describe("#### Custom command to deploy Convex functions.\n\n---\n\nStacktape injects `CONVEX_SELF_HOSTED_URL` and `CONVEX_SELF_HOSTED_ADMIN_KEY` into the command\nenvironment. If omitted, Stacktape runs:\n\n`npx convex deploy --codegen disable --typecheck try`\n\nExamples: `pnpm convex deploy --codegen disable`, `bunx convex deploy --typecheck disable`.").optional(),
+          "workingDirectory": z.string().optional().describe("#### Working directory for the deploy command.\n\n---\n\nDefaults to the project directory containing `appDirectory` when `appDirectory` points at a\n`convex/` folder.").optional() }).strict()
+        .optional().describe("#### How Stacktape deploys Convex functions after infrastructure is ready.\n\n---\n\nBy default, Stacktape runs `npx convex deploy --codegen disable --typecheck try` from the\nproject directory containing `appDirectory`, with `CONVEX_SELF_HOSTED_URL` and\n`CONVEX_SELF_HOSTED_ADMIN_KEY` injected automatically.\n\nSet `enabled: false` if your CI/CD pipeline deploys functions separately, or set `command`\nwhen your project uses a custom package-manager command.").optional(),
         "customDomains": z.object({
           "cloud": z.object({
             "domainName": z.string().describe("#### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).\n\n---\n\nDon't include the protocol (`https://`). The domain must have a Route53 hosted zone\nin your AWS account, with your registrar's nameservers pointing to it.\n\nStacktape automatically creates a DNS record and provisions a free TLS certificate."),
@@ -4019,8 +4064,8 @@ export const stacktapeConfigSchema = z.object({
             "domainName": z.string().describe("#### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).\n\n---\n\nDon't include the protocol (`https://`). The domain must have a Route53 hosted zone\nin your AWS account, with your registrar's nameservers pointing to it.\n\nStacktape automatically creates a DNS record and provisions a free TLS certificate."),
             "customCertificateArn": z.string().optional().describe("#### Use your own TLS certificate instead of the auto-generated one.\n\n---\n\nProvide the ARN of an ACM certificate from your AWS account.\nOnly needed if you have specific certificate requirements (e.g., EV/OV certs).\nBy default, Stacktape provisions and renews free certificates automatically.").optional(),
             "disableDnsRecordCreation": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip DNS record creation for this domain.\n\n---\n\nSet to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\nStacktape will still provision the TLS certificate but won't touch your DNS.").default(false) }).strict()
-          .optional().describe("#### Optional dashboard domain. Only used if `dashboard.enabled` is `true`.\n\n---\n\nIf omitted, the dashboard is served on the ALB's default DNS at port 6791.\nExample: `convex-admin.myapp.com`.").optional() }).strict()
-        .optional().describe("#### Custom domains for the Convex backend.\n\n---\n\nConvex exposes two distinct origins that the outside world reaches:\n\n- **`cloud`** — the API + WebSocket endpoint (`CONVEX_CLOUD_ORIGIN`). All client traffic\n  (queries, mutations, actions, reactive subscriptions) hits this URL via the `convex-js`\n  client. Required.\n- **`site`** — the HTTP-actions endpoint (`CONVEX_SITE_ORIGIN`). User-defined `httpAction()`\n  routes (webhooks, OAuth callbacks, etc.) live here. Kept separate from `cloud` so webhook\n  URLs don't collide with internal API paths. Required.\n- **`dashboard`** — optional. If provided and `dashboard.enabled` is `true`, the dashboard\n  serves at this domain. Otherwise the dashboard is reachable via the ALB DNS on port 6791.\n\nEach domain must have a Route53 hosted zone in your AWS account. Stacktape provisions free\nTLS certificates and DNS records automatically.\n\nIf `customDomains` is omitted entirely, the ALB's default DNS is used with port-based routing\n(3210 cloud, 3211 site, 6791 dashboard). Fine for dev/staging; **not recommended for\nproduction** — the ALB DNS is unstable across stack recreations, and clients hard-code the URL.").optional(),
+          .optional().describe("#### Dashboard domain. Required if `dashboard.enabled` is `true`.\n\n---\n\nExample: `convex-admin.myapp.com`.").optional() }).strict()
+        .optional().describe("#### Custom domains for the Convex backend.\n\n---\n\nConvex exposes two distinct origins that the outside world reaches:\n\n- **`cloud`** — the API + WebSocket endpoint (`CONVEX_CLOUD_ORIGIN`). All client traffic\n  (queries, mutations, actions, reactive subscriptions) hits this URL via the `convex-js`\n  client. Required.\n- **`site`** — the HTTP-actions endpoint (`CONVEX_SITE_ORIGIN`). User-defined `httpAction()`\n  routes (webhooks, OAuth callbacks, etc.) live here. Kept separate from `cloud` so webhook\n  URLs don't collide with internal API paths. Required.\n- **`dashboard`** — required when `dashboard.enabled` is `true`. The dashboard serves at this domain.\n\nEach domain must have a Route53 hosted zone in your AWS account. Stacktape provisions free\nTLS certificates and DNS records automatically.\n\nIf `customDomains` is omitted entirely, the ALB's default DNS is used with port-based routing\n(3210 cloud, 3211 site, 6791 dashboard). Fine for dev/staging; **not recommended for\nproduction** — the ALB DNS is unstable across stack recreations, and clients hard-code the URL.").optional(),
         "backend": z.object({
           "resources": z.object({
             "cpu": z.union([z.literal(0.25), z.literal(0.5), z.literal(1), z.literal(16), z.literal(2), z.literal(4), z.literal(8)]).optional().describe("#### vCPUs for the workload (Fargate). Ignored when using `instanceTypes`.").optional(),
@@ -4028,11 +4073,8 @@ export const stacktapeConfigSchema = z.object({
             "instanceTypes": z.array(z.string()).optional().describe("#### EC2 instance types for the workload (e.g., `t3.medium`, `c6g.large`). Use instead of `cpu`/`memory`.\n\n---\n\nFirst type in the list is preferred. Instances auto-scale and are refreshed weekly for patching.\nTip: specify a single type and omit `cpu`/`memory` for optimal sizing.").optional(),
             "enableWarmPool": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Keep pre-initialized EC2 instances ready for faster scaling. Only works with a single instance type.").optional(),
             "architecture": z.enum(["arm64","x86_64"]).optional().describe("#### CPU architecture for Fargate. `arm64` is ~20% cheaper. Ignored when using `instanceTypes`.") }).strict()
-          .describe("#### CPU, memory, and compute engine for the backend container.\n\n---\n\nRequired — there is no default. Pick a sizing appropriate to your workload:\n\n- **Hobby / small dev**: `{ cpu: 0.5, memory: 1024 }` — fine for a few dozen concurrent users\n- **Production baseline**: `{ cpu: 1, memory: 2048 }` — handles hundreds of concurrent reactive subscribers\n- **Heavier production**: `{ cpu: 2, memory: 4096 }` or `{ cpu: 4, memory: 8192 }` — thousands of subscribers, vector search\n\nFor EC2 instead of Fargate, specify `instanceTypes` (e.g., `['c6g.large']`). EC2 is typically\ncheaper per vCPU and supports `enableWarmPool: true` for faster cold-starts.\n\nConvex backend is single-process — scale **vertically** (bigger box), not horizontally."),
-          "image": z.string().optional().describe("#### Pinned Convex backend Docker image.\n\n---\n\nDefaults to a known-good version pinned by Stacktape (currently from `ghcr.io/get-convex/convex-backend`).\nOverride to test newer/older versions. Image upgrades trigger Convex's in-place migration path\n(see `deploymentMode`).\n\nExample: `image: 'ghcr.io/get-convex/convex-backend:0a8d9ae0f0e5c6c9c0c0c0c0'`").optional(),
-          "highAvailability": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Run a warm standby task for ~5–10s failover instead of ~60–90s cold start.\n\n---\n\nWhen `true`, Stacktape runs an additional backend task in the same ECS service, kept\nderegistered from the ALB target group. On primary task failure, an event-driven Lambda\nswaps the targets: deregister the dead primary, register the standby, then launch a new\nstandby in the background.\n\nBoth tasks share the same Postgres + S3, but only one ever serves traffic — preserving\nConvex's single-writer correctness invariant.\n\n**Cost:** 2× backend compute (roughly an extra $20–50/month at small sizes).").default(false),
-          "deploymentMode": z.enum(["auto","fast","safe"]).optional().describe("#### How `stacktape deploy` handles backend version upgrades.\n\n---\n\n- **`auto`** *(default)*: Non-image changes (env vars, sizing) use warm-standby blue/green\n  for ~3–8s downtime. Image-version changes follow Convex's official Option 1 in-place\n  migration: stop active → start new version → wait for `MigrationComplete(N)` log line →\n  bring up traffic. ~30s to a few minutes depending on migration size.\n- **`fast`**: Forces warm-standby blue/green even on image changes. **Unsafe** unless you've\n  verified the upgrade has no schema migrations.\n- **`safe`**: Always uses Convex's Option 2 export/import path — full data export before\n  the upgrade, then import after. Most downtime, lowest risk. Use for major version jumps\n  or when in-place migration has previously failed.").default("auto"),
-          "preUpgradeExport": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Run `npx convex export` to the `exports` bucket before any backend image upgrade.\n\n---\n\nProvides a one-command restore path if a migration goes wrong. Recommended by Convex's\nofficial self-hosted upgrade guide. Disable only if you have a separate backup strategy\nand want faster image upgrades.").default(true),
+          .optional().describe("#### CPU, memory, and compute engine for the backend container.\n\n---\n\nDefaults to `{ cpu: 0.5, memory: 1024 }`. Override this for production traffic:\n\n- **Hobby / small dev**: `{ cpu: 0.5, memory: 1024 }` — fine for a few dozen concurrent users\n- **Production baseline**: `{ cpu: 1, memory: 2048 }` — handles hundreds of concurrent reactive subscribers\n- **Heavier production**: `{ cpu: 2, memory: 4096 }` or `{ cpu: 4, memory: 8192 }` — thousands of subscribers, vector search\n\nFor EC2 instead of Fargate, specify `instanceTypes` (e.g., `['c6g.large']`). EC2 is typically\ncheaper per vCPU and supports `enableWarmPool: true` for faster cold-starts.\n\nConvex backend is single-process — scale **vertically** (bigger box), not horizontally.").optional(),
+          "image": z.string().optional().describe("#### Pinned Convex backend Docker image.\n\n---\n\nDefaults to a known-good version pinned by Stacktape (currently from `ghcr.io/get-convex/convex-backend`).\nOverride to test newer/older versions. Image upgrades trigger Convex's in-place migration path.\n\nExample: `image: 'ghcr.io/get-convex/convex-backend:0a8d9ae0f0e5c6c9c0c0c0c0'`").optional(),
           "logging": z.object({
             "disabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable logging to CloudWatch.").default(false),
             "retentionDays": z.union([z.literal(1), z.literal(120), z.literal(14), z.literal(150), z.literal(180), z.literal(1827), z.literal(3), z.literal(30), z.literal(365), z.literal(3653), z.literal(400), z.literal(5), z.literal(545), z.literal(60), z.literal(7), z.literal(731), z.literal(90)]).optional().describe("#### How many days to keep logs.").default(90),
@@ -4059,8 +4101,8 @@ export const stacktapeConfigSchema = z.object({
               }).strict()
             ]).optional().describe("#### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n\n---\n\nUses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.").optional() }).strict()
           .optional().describe("#### Logging configuration for the backend container.\n\n---\n\nContainer `stdout`/`stderr` are sent to CloudWatch and retained for 90 days by default.\nView logs with `stacktape logs <resourceName>`.").optional(),
-          "enableRemoteSessions": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Allow SSH-like sessions into the running backend container for debugging.\n\n---\n\nEnables `stacktape container:session` to open an interactive shell. Adds a small SSM agent\n(negligible CPU/memory).").default(false) }).strict()
-        .describe("#### Configuration for the Convex backend container (the Rust server process)."),
+          "enableRemoteSessions": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Allow SSH-like sessions into the running backend container for debugging.\n\n---\n\nStacktape enables ECS Exec for Convex internally because it is required to generate the managed\nadmin key after the backend starts. This property is kept for compatibility with generic workload\ncontrols and may be removed in a future Convex resource revision.").default(false) }).strict()
+        .optional().describe("#### Configuration for the Convex backend container (the Rust server process).").optional(),
         "dashboard": z.object({
           "enabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether to provision the admin dashboard.\n\n---\n\nThe dashboard is a small stateless Next.js app (~$3–5/month at default sizing) that gives\nyou a data browser, log viewer, function REPL, env-var manager, and snapshot export/import\nUI. Disable only if you have a strong reason — self-hosted Convex without the dashboard is\noperationally painful.").default(true),
           "allowedIpRanges": z.array(z.string()).optional().describe("#### CIDR ranges allowed to reach the dashboard. By default the dashboard is internet-reachable.\n\n---\n\nThe dashboard has no built-in authentication — the admin key (which you paste on login) is\nthe only security barrier. Convex's admin key is high-entropy and is the same model managed\nConvex uses, but if you want defense-in-depth, pin access to your office IPs or VPN range.\n\nExample: `allowedIpRanges: ['203.0.113.0/24', '198.51.100.42/32']`.").optional(),
@@ -4070,7 +4112,7 @@ export const stacktapeConfigSchema = z.object({
             "instanceTypes": z.array(z.string()).optional().describe("#### EC2 instance types for the workload (e.g., `t3.medium`, `c6g.large`). Use instead of `cpu`/`memory`.\n\n---\n\nFirst type in the list is preferred. Instances auto-scale and are refreshed weekly for patching.\nTip: specify a single type and omit `cpu`/`memory` for optimal sizing.").optional(),
             "enableWarmPool": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Keep pre-initialized EC2 instances ready for faster scaling. Only works with a single instance type.").optional(),
             "architecture": z.enum(["arm64","x86_64"]).optional().describe("#### CPU architecture for Fargate. `arm64` is ~20% cheaper. Ignored when using `instanceTypes`.") }).strict()
-          .optional().describe("#### CPU, memory, and compute engine for the dashboard container.\n\n---\n\nRequired when the dashboard is enabled. The dashboard is a Next.js app and is very light —\n`{ cpu: 0.25, memory: 512 }` is plenty for most teams.").optional(),
+          .optional().describe("#### CPU, memory, and compute engine for the dashboard container.\n\n---\n\nDefaults to `{ cpu: 0.25, memory: 512 }`. The dashboard is a Next.js app and is very light —\n`{ cpu: 0.25, memory: 512 }` is plenty for most teams.").optional(),
           "image": z.string().optional().describe("#### Pinned Convex dashboard Docker image.\n\n---\n\nDefaults to a known-good version pinned by Stacktape (currently from `ghcr.io/get-convex/convex-dashboard`).\nOverride to test newer/older versions.").optional(),
           "logging": z.object({
             "disabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable logging to CloudWatch.").default(false),
@@ -4393,7 +4435,212 @@ export const stacktapeConfigSchema = z.object({
         "disabledGlobalAlarms": z.array(z.string()).optional().describe("#### Global alarm names to exclude from this deployment.").optional() }).strict()
       ,
       "overrides": z.record(z.string(), z.record(z.string(), z.any())).optional().describe("#### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.\n\n---\n\nUse dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with `stacktape stack-info --detailed`.\n\n```yaml\noverrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n```").optional() }).strict()
-    .describe("#### Self-hosted Convex backend on AWS — reactive database, functions, file storage, and dashboard.\n\n---\n\nProvisions everything needed to run [Convex](https://www.convex.dev) self-hosted on your own AWS account:\na Fargate-based backend container, a PostgreSQL database, five S3 buckets (modules, files, search,\nexports, snapshot imports), an ALB for HTTPS + WebSocket traffic, and an optional admin dashboard.\n\nOn every `stacktape deploy`, after the infrastructure is healthy, Stacktape runs `npx convex deploy`\nfrom your `appDirectory` to push the latest function code to the freshly-deployed backend, with the\nadmin key auto-injected from AWS Secrets Manager.\n\n---\n\n##### Single-instance constraint\n\nThe open-source convex-backend distribution is **single-process**: it cannot be horizontally scaled.\nRunning two backends against the same Postgres would corrupt MVCC transaction validation and break\nreactive query invalidation. Stacktape therefore enforces a single active task. For higher\navailability, set `backend.highAvailability: true` to run a warm standby that fails over in ~5–10s\ninstead of the ~60–90s cold-start window.\n\nScale **vertically** by bumping `backend.resources.cpu`/`memory` (or by switching to `instanceTypes`\nwith EC2). A single 4 vCPU / 8 GB backend comfortably handles thousands of concurrent reactive\nsubscribers per Convex's own self-hosted guidance.\n\n---\n\n##### Cost\n\nThe smallest viable configuration (single-AZ `db.t4g.micro` Postgres, 0.5 vCPU / 1 GB Fargate\nbackend, 0.25 vCPU / 512 MB dashboard, ALB, S3) lands around **$45–65/month idle**. Production\nconfigurations with HA and larger backends scale up from there."), z.object({
+    .describe("#### Self-hosted Convex backend on AWS — reactive database, functions, file storage, and dashboard.\n\n---\n\nProvisions everything needed to run [Convex](https://www.convex.dev) self-hosted on your own AWS account:\na Fargate-based backend container, a PostgreSQL database, five S3 buckets (modules, files, search,\nexports, snapshot imports), an ALB for HTTPS + WebSocket traffic, and an optional admin dashboard.\n\nOn every `stacktape deploy`, after the infrastructure is healthy, Stacktape runs `npx convex deploy`\nfrom the parent project directory to push the latest function code to the freshly-deployed backend, with the\nadmin key injected automatically.\n\n---\n\n##### Single-instance constraint\n\nThe open-source convex-backend distribution is **single-process**: it cannot be horizontally scaled.\nRunning two backends against the same Postgres would corrupt MVCC transaction validation and break\nreactive query invalidation. Stacktape therefore enforces one active backend task.\n\nScale **vertically** by bumping `backend.resources.cpu`/`memory` (or by switching to `instanceTypes`\nwith EC2). A single 4 vCPU / 8 GB backend comfortably handles thousands of concurrent reactive\nsubscribers per Convex's own self-hosted guidance.\n\n---\n\n##### Cost\n\nThe smallest viable configuration (single-AZ `db.t4g.micro` Postgres, 0.5 vCPU / 1 GB Fargate\nbackend, 0.25 vCPU / 512 MB dashboard, ALB, S3) lands around **$45–65/month idle**. Production\nconfigurations with larger backends scale up from there."), z.object({
+      "type": z.literal("agentcore-runtime"),
+      "properties": z.object({
+        "packaging": z.union([z.object({
+            "type": z.literal("stacktape-image-buildpack"),
+            "properties": z.object({
+              "languageSpecificConfig": z.union([z.object({
+                  "tsConfigPath": z.string().optional().describe("#### The path to the `tsconfig.json` file.\n\n---\n\nThis is primarily used to resolve path aliases during the build process.").optional(),
+                  "emitTsDecoratorMetadata": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.").optional(),
+                  "dependenciesToExcludeFromBundle": z.array(z.string()).optional().describe("#### A list of dependencies to exclude from the main bundle.\n\n---\n\nThese dependencies will be treated as \"external\" and will not be bundled directly into your application's code.\nInstead, they will be installed separately in the deployment package.\nUse `*` to exclude all dependencies from the bundle.").optional(),
+                  "outputModuleFormat": z.enum(["cjs","esm"]).optional().describe("#### Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`).\n\n---\n\n**Note:** Some npm packages don't support ESM. ESM may also produce less readable stack traces."),
+                  "nodeVersion": z.union([z.literal(16), z.literal(17), z.literal(18), z.literal(19), z.literal(20), z.literal(21), z.literal(22), z.literal(23), z.literal(24)]).optional().describe("#### The major version of Node.js to use.").default(18),
+                  "disableSourceMaps": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip generating source maps. Reduces package size but makes production errors harder to debug.").optional(),
+                  "outputSourceMapsTo": z.string().optional().describe("#### Save source maps to a local directory instead of uploading them to AWS.\n\n---\n\nUseful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won't be mapped.").optional(),
+                  "dependenciesToExcludeFromDeploymentPackage": z.array(z.string()).optional().describe("#### A list of dependencies to exclude from the deployment package.\n\n---\n\nThis only applies to dependencies that are not statically bundled.\nTo exclude a dependency from the static bundle, use `dependenciesToExcludeFromBundle`.\nUse `*` to exclude all non-bundled dependencies.").optional() }).strict()
+                , z.object({
+                  "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
+                  "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                  "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                  "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                  "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                  "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
+                  "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
+                  "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
+                  "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
+                , z.object({
+                  "useMaven": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Specifies whether to use Maven instead of Gradle.\n\n---\n\nBy default, Stacktape uses Gradle to build Java projects.").optional(),
+                  "packageManagerFile": z.string().optional().describe("#### The path to your project's build file (`pom.xml` for Maven or `build.gradle` for Gradle).").optional(),
+                  "javaVersion": z.union([z.literal(11), z.literal(17), z.literal(19), z.literal(8)]).optional().describe("#### The version of Java to use.").default(11) }).strict()
+                , z.object({
+                  "phpVersion": z.union([z.literal(8.2), z.literal(8.3)]).optional().describe("#### The version of PHP to use.").default(8.3) }).strict()
+                , z.object({
+                  "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
+                  "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
+                , z.record(z.string(), z.any()), z.object({
+                  "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
+              ]).optional().describe("#### Language-specific packaging configuration.").optional(),
+              "requiresGlibcBinaries": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.\n\n---\n\nResults in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.").optional(),
+              "customDockerBuildCommands": z.array(z.string()).optional().describe("#### A list of commands to be executed during the `docker build` process.\n\n---\n\nThese commands are executed using the `RUN` directive in the Dockerfile.\nThis is useful for installing additional system dependencies in your container.").optional(),
+              "entryfilePath": z.string().describe("#### Path to your app's entry point, relative to the Stacktape config file.\n\n---\n\nFor JS/TS: code is bundled into a single file. Dependencies with native binaries are installed separately.\nFor Python: use `module/file.py:app` format when using `runAppAs` (WSGI/ASGI)."),
+              "includeFiles": z.array(z.string()).optional().describe("#### A glob pattern of files to explicitly include in the deployment package.\n\n---\n\nThe path is relative to your Stacktape configuration file.").optional(),
+              "excludeFiles": z.array(z.string()).optional().describe("#### A glob pattern of files to explicitly exclude from the deployment package.\n\n---").optional(),
+              "excludeDependencies": z.array(z.string()).optional().describe("#### A list of dependencies to exclude from the deployment package.").optional() }).strict()
+            .describe("#### Configures an image to be built automatically by Stacktape from your source code.") }).strict()
+          .describe("#### A zero-config buildpack that creates a container image from your source code.\n\n---\n\nThe `stacktape-image-buildpack` automatically bundles your code and dependencies into an optimized container image.\n\n**Supported languages:** JavaScript, TypeScript, Python, Java, and Go.\n\nFor JS/TS, your code is bundled into a single file with source maps.\nThe resulting image is uploaded to a managed ECR repository."), z.object({
+            "type": z.literal("external-buildpack"),
+            "properties": z.object({
+              "builder": z.string().optional().describe("#### The Buildpack Builder to use.\n\n---"),
+              "buildpacks": z.array(z.string()).optional().describe("#### The specific Buildpack to use.\n\n---\n\nBy default, the buildpack is detected automatically.").optional(),
+              "sourceDirectoryPath": z.string().describe("#### The path to the source code directory."),
+              "command": z.array(z.string()).optional().describe("#### A command to be executed when the container starts.\n\n---\n\nExample: `['/app/start.sh']`").optional() }).strict()
+          }).strict()
+          .describe("#### Builds a container image using an external buildpack.\n\n---\n\nExternal buildpacks (buildpacks.io) automatically detect your application type\nand build an optimized container image with zero configuration.\n\nThe default builder is `paketobuildpacks/builder-jammy-base`.\nYou can find buildpacks for almost any language or framework."), z.object({
+            "type": z.literal("prebuilt-image"),
+            "properties": z.object({
+              "repositoryCredentialsSecretArn": z.string().optional().describe("#### The ARN of a secret containing credentials for a private container registry.\n\n---\n\nThe secret must be a JSON object with `username` and `password` keys.\nYou can create secrets using the `stacktape secret:create` command.").optional(),
+              "entryPoint": z.array(z.string()).optional().describe("#### A script to be executed when the container starts.\n\n---\n\nThis overrides the `ENTRYPOINT` instruction in the Dockerfile.").optional(),
+              "image": z.string().describe("#### The name or URL of the container image."),
+              "command": z.array(z.string()).optional().describe("#### A command to be executed when the container starts.\n\n---\n\nThis overrides the `CMD` instruction in the Dockerfile.\n\nExample: `['/app/start.sh']`").optional() }).strict()
+            .describe("#### Configures a pre-built container image.") }).strict()
+          .describe("#### Uses a pre-built container image.\n\n---\n\nWith `prebuilt-image`, you provide a reference to an existing container image.\nThis can be a public image from Docker Hub or a private image from any container registry.\n\nFor private registries, configure `repositoryCredentialsSecretArn` with credentials stored in AWS Secrets Manager."), z.object({
+            "type": z.literal("custom-dockerfile"),
+            "properties": z.object({
+              "entryPoint": z.array(z.string()).optional().describe("#### A script to be executed when the container starts.\n\n---\n\nThis overrides the `ENTRYPOINT` instruction in the Dockerfile.").optional(),
+              "dockerfilePath": z.string().optional().describe("#### The path to the Dockerfile, relative to `buildContextPath`.").optional(),
+              "buildContextPath": z.string().describe("#### The path to the build context directory, relative to your Stacktape configuration file."),
+              "buildArgs": z.array(z.object({
+                "argName": z.string().describe("#### Argument name"),
+                "value": z.string().describe("#### Argument value") }).strict()
+              ).optional().describe("#### A list of arguments to pass to the `docker build` command.").optional(),
+              "command": z.array(z.string()).optional().describe("#### A command to be executed when the container starts.\n\n---\n\nThis overrides the `CMD` instruction in the Dockerfile.\n\nExample: `['/app/start.sh']`").optional() }).strict()
+            .describe("#### Configures an image to be built by Stacktape from a specified Dockerfile.") }).strict()
+          .describe("#### Builds a container image from your own Dockerfile.\n\n---\n\nWith `custom-dockerfile`, you provide a path to your Dockerfile and build context.\nStacktape builds the image and uploads it to a managed ECR repository.\n\nThis gives you full control over the container environment and is ideal for complex setups."), z.object({
+            "type": z.literal("nixpacks"),
+            "properties": z.object({
+              "sourceDirectoryPath": z.string().describe("#### The path to the source code directory."),
+              "buildImage": z.string().optional().describe("#### The base image to use for building the application.\n\n---\n\nFor more details, see the [Nixpacks documentation](https://nixpacks.com/docs/configuration/file#build-image).").optional(),
+              "providers": z.array(z.string()).optional().describe("#### A list of providers to use for determining the build and runtime environments.").optional(),
+              "startCmd": z.string().optional().describe("#### The command to execute when starting the application.\n\n---\n\nThis overrides the default start command inferred by Nixpacks.").optional(),
+              "startRunImage": z.string().optional().describe("#### The base image to use for running the application.").optional(),
+              "startOnlyIncludeFiles": z.array(z.string()).optional().describe("#### A list of file paths to include in the runtime environment; all other files will be excluded.").optional(),
+              "phases": z.array(z.object({
+                "name": z.string().describe("#### The name of the build phase."),
+                "cmds": z.array(z.string()).optional().describe("#### A list of shell commands to execute in this phase.").optional(),
+                "nixPkgs": z.array(z.string()).optional().describe("#### A list of Nix packages to install in this phase.").optional(),
+                "nixLibs": z.array(z.string()).optional().describe("#### A list of Nix libraries to include in this phase.").optional(),
+                "nixOverlay": z.array(z.string()).optional().describe("#### A list of Nix overlay files to apply in this phase.").optional(),
+                "nixpkgsArchive": z.string().optional().describe("#### The Nixpkgs archive to use.").optional(),
+                "aptPkgs": z.array(z.string()).optional().describe("#### A list of APT packages to install in this phase.").optional(),
+                "cacheDirectories": z.array(z.string()).optional().describe("#### A list of directories to cache between builds to speed up subsequent builds.").optional(),
+                "onlyIncludeFiles": z.array(z.string()).optional().describe("#### A list of file paths to include in this phase; all other files will be excluded.").optional() }).strict()
+              ).optional().describe("#### The build phases for the application.").optional() }).strict()
+          }).strict()
+          .describe("#### Builds a container image using Nixpacks.\n\n---\n\nNixpacks automatically detects your application type and builds an optimized container image.\nIn most cases, no configuration is required.\n\nIt supports a wide range of languages and frameworks out of the box.")]),
+        "description": z.string().optional().describe("").optional(),
+        "protocol": z.enum(["A2A","AGUI","HTTP","MCP"]).optional().describe("").optional(),
+        "environment": z.array(z.object({
+          "name": z.string().describe("#### Environment variable name (e.g., `DATABASE_URL`, `API_KEY`)."),
+          "value": z.union([z.string().describe("#### Environment variable value. Numbers and booleans are converted to strings."), z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Environment variable value. Numbers and booleans are converted to strings."), z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).describe("#### Environment variable value. Numbers and booleans are converted to strings.")]).describe("#### Environment variable value. Numbers and booleans are converted to strings.") }).strict()
+        ).optional().describe("").optional(),
+        "useMemory": z.string().optional().describe("").optional(),
+        "useGateway": z.string().optional().describe("").optional(),
+        "useBrowser": z.string().optional().describe("").optional(),
+        "useCodeInterpreter": z.string().optional().describe("").optional(),
+        "endpoints": z.array(z.union([z.object({
+            "name": z.string(),
+            "description": z.string().optional().describe("").optional(),
+            "runtimeVersion": z.string().optional().describe("").optional() }).strict()
+          , z.string()])).optional().describe("").optional(),
+        "lifecycle": z.object({
+          "maxLifetime": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("").optional(),
+          "idleRuntimeSessionTimeout": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("").optional() }).strict()
+        .optional().describe("").optional(),
+        "requestHeaders": z.array(z.string()).optional().describe("").optional(),
+        "authorizer": z.object({
+          "discoveryUrl": z.string(),
+          "allowedAudience": z.array(z.string()).optional().describe("").optional(),
+          "allowedClients": z.array(z.string()).optional().describe("").optional(),
+          "allowedScopes": z.array(z.string()).optional().describe("").optional() }).strict()
+        .optional().describe("").optional(),
+        "tags": z.array(z.object({
+          "name": z.string().describe("#### Tag name (1-128 characters)."),
+          "value": z.string().describe("#### Tag value (1-256 characters).") }).strict()
+        ).optional().describe("").optional(),
+        "connectTo": z.array(z.string()).optional().describe("#### Give this resource access to other resources in your stack.\n\n---\n\nList the names of resources this workload needs to communicate with. Stacktape automatically:\n- **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n- **Opens network access** (security group rules for databases, Redis)\n- **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`\n\nExample: `connectTo: [\"myDatabase\", \"myBucket\"]` gives this workload full access to both\nresources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.\n\n---\n\n#### What each resource type provides:\n\n**`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n\n**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n\n**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\nAurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.\n\n**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`\n\n**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`\n\n**`Function`** — invoke permission → `ARN`\n\n**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`\n\n**`EventBus`** — publish events → `ARN`\n\n**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`\n\n**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`\n\n**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`\n\n**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`\n\n**`PrivateService`** → `ADDRESS`\n\n**`aws:ses`** — full SES email sending permissions").optional(),
+        "iamRoleStatements": z.array(z.object({
+          "Sid": z.string().optional().describe("#### Optional identifier for this statement (for readability).").optional(),
+          "Effect": z.string().optional().describe("#### Whether to allow or deny the specified actions."),
+          "Action": z.array(z.string()).optional().describe("#### AWS actions to allow or deny (e.g., `s3:GetObject`, `sqs:SendMessage`).").optional(),
+          "Condition": z.any().optional().describe("#### Conditions under which this statement applies (e.g., IP restrictions, tag-based access).").optional(),
+          "Resource": z.array(z.string()).describe("#### ARNs of the AWS resources this statement applies to. Use `\"*\"` for all resources.") }).strict()
+        ).optional().describe("#### Raw IAM policy statements for permissions not covered by `connectTo`.\n\n---\n\nAdded as a separate policy alongside auto-generated permissions. Use this for\naccessing AWS services directly (e.g., Rekognition, Textract, Bedrock).").optional() }).strict()
+      ,
+      "overrides": z.record(z.string(), z.record(z.string(), z.any())).optional().describe("#### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.\n\n---\n\nUse dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with `stacktape stack-info --detailed`.\n\n```yaml\noverrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n```").optional() }).strict()
+    , z.object({
+      "type": z.literal("agentcore-memory"),
+      "properties": z.object({
+        "description": z.string().optional().describe("").optional(),
+        "expirationDays": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("").optional(),
+        "eventExpiryDuration": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("").optional(),
+        "encryptionKeyArn": z.string().optional().describe("").optional(),
+        "memoryStrategies": z.array(z.any()).optional().describe("").optional(),
+        "tags": z.array(z.object({
+          "name": z.string().describe("#### Tag name (1-128 characters)."),
+          "value": z.string().describe("#### Tag value (1-256 characters).") }).strict()
+        ).optional().describe("").optional() }).strict()
+      ,
+      "overrides": z.record(z.string(), z.record(z.string(), z.any())).optional().describe("#### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.\n\n---\n\nUse dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with `stacktape stack-info --detailed`.\n\n```yaml\noverrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n```").optional() }).strict()
+    , z.object({
+      "type": z.literal("agentcore-gateway"),
+      "properties": z.object({
+        "description": z.string().optional().describe("").optional(),
+        "authorizer": z.object({
+          "discoveryUrl": z.string(),
+          "allowedAudience": z.array(z.string()).optional().describe("").optional(),
+          "allowedClients": z.array(z.string()).optional().describe("").optional(),
+          "allowedScopes": z.array(z.string()).optional().describe("").optional() }).strict()
+        .optional().describe("").optional(),
+        "tools": z.array(z.object({
+          "name": z.string(),
+          "description": z.string().optional().describe("").optional(),
+          "function": z.string().optional().describe("").optional(),
+          "lambdaArn": z.string().optional().describe("").optional(),
+          "toolSchema": z.array(z.object({
+            "name": z.string(),
+            "description": z.string().optional().describe("").optional(),
+            "inputSchema": z.any(),
+            "outputSchema": z.any().optional().describe("").optional() }).strict()
+          ) }).strict()
+        ).optional().describe("").optional(),
+        "instructions": z.string().optional().describe("").optional(),
+        "supportedVersions": z.array(z.string()).optional().describe("").optional(),
+        "searchType": z.string().optional().describe("").optional(),
+        "exceptionLevel": z.literal("DEBUG").optional().describe("").optional(),
+        "tags": z.array(z.object({
+          "name": z.string().describe("#### Tag name (1-128 characters)."),
+          "value": z.string().describe("#### Tag value (1-256 characters).") }).strict()
+        ).optional().describe("").optional() }).strict()
+      ,
+      "overrides": z.record(z.string(), z.record(z.string(), z.any())).optional().describe("#### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.\n\n---\n\nUse dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with `stacktape stack-info --detailed`.\n\n```yaml\noverrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n```").optional() }).strict()
+    , z.object({
+      "type": z.literal("agentcore-browser"),
+      "properties": z.object({
+        "description": z.string().optional().describe("").optional(),
+        "recording": z.object({
+          "enabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("").optional(),
+          "bucketName": z.string().optional().describe("").optional(),
+          "prefix": z.string().optional().describe("").optional() }).strict()
+        .optional().describe("").optional(),
+        "tags": z.array(z.object({
+          "name": z.string().describe("#### Tag name (1-128 characters)."),
+          "value": z.string().describe("#### Tag value (1-256 characters).") }).strict()
+        ).optional().describe("").optional() }).strict()
+      ,
+      "overrides": z.record(z.string(), z.record(z.string(), z.any())).optional().describe("#### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.\n\n---\n\nUse dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with `stacktape stack-info --detailed`.\n\n```yaml\noverrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n```").optional() }).strict()
+    , z.object({
+      "type": z.literal("agentcore-code-interpreter"),
+      "properties": z.object({
+        "description": z.string().optional().describe("").optional(),
+        "tags": z.array(z.object({
+          "name": z.string().describe("#### Tag name (1-128 characters)."),
+          "value": z.string().describe("#### Tag value (1-256 characters).") }).strict()
+        ).optional().describe("").optional() }).strict()
+      ,
+      "overrides": z.record(z.string(), z.record(z.string(), z.any())).optional().describe("#### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.\n\n---\n\nUse dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with `stacktape stack-info --detailed`.\n\n```yaml\noverrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n```").optional() }).strict()
+    , z.object({
       "type": z.literal("function"),
       "properties": z.object({
         "packaging": z.union([z.object({
@@ -4416,6 +4663,10 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                   "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                  "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                  "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                  "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                  "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                   "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                   "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                   "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()
@@ -4621,7 +4872,7 @@ export const stacktapeConfigSchema = z.object({
         "architecture": z.enum(["arm64","x86_64"]).optional().describe("#### Processor architecture: `x86_64` (default) or `arm64` (Graviton, ~20% cheaper).\n\n---\n\n`arm64` is cheaper per GB-second and often faster. Works with most code out of the box.\nIf using `stacktape-lambda-buildpack`, Stacktape builds for the selected architecture automatically.\nWith `custom-artifact`, you must pre-compile for the target architecture.").default("x86_64"),
         "memory": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Memory in MB (128 - 10,240). Also determines CPU power.\n\n---\n\nLambda scales CPU proportionally to memory: 1,769 MB = 1 vCPU, 3,538 MB = 2 vCPUs, etc.\nIf your function is slow, increasing memory gives it more CPU, which often makes it faster\nand cheaper overall (less execution time).").optional(),
         "timeout": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Max execution time in seconds. Function is killed if it exceeds this.\n\n---\n\nMaximum: 900 seconds (15 minutes). For longer tasks, use a `batch-job` or `worker-service`.").default(10),
-        "joinDefaultVpc": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources.\n\n---\n\n**You usually don't need to set this manually.** Stacktape will tell you if a resource in your `connectTo`\nrequires it (e.g., a database with `accessibilityMode: 'vpc'`, or any Redis cluster).\n\n**Tradeoff:** The function loses direct internet access. It can still reach S3 and DynamoDB\n(Stacktape auto-creates VPC endpoints), but calls to external APIs (Stripe, OpenAI, etc.) will fail.\nIf you need both VPC access and internet, use a `web-service` or `worker-service` instead.\n\nRequired when using `volumeMounts` (EFS).").default(false),
+        "joinDefaultVpc": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources.\n\n---\n\nSet this to `true` when the function must reach VPC-only resources such as a database with\n`accessibilityMode: 'vpc'`/`'scoping-workloads-in-vpc'`, a Redis cluster, or EFS.\n\n**Tradeoff:** The function loses direct internet access. It can still reach S3 and DynamoDB\n(Stacktape auto-creates VPC endpoints), but calls to external APIs (Stripe, OpenAI, etc.) will fail.\nIf you need both VPC access and internet, use a `web-service` or `worker-service` instead.\n\nRequired when using `volumeMounts` (EFS or S3 Files).").default(false),
         "tags": z.array(z.object({
           "name": z.string().describe("#### Tag name (1-128 characters)."),
           "value": z.string().describe("#### Tag value (1-256 characters).") }).strict()
@@ -4894,14 +5145,23 @@ export const stacktapeConfigSchema = z.object({
           "useFirewall": z.string().optional().describe("#### Name of a `web-app-firewall` resource to protect this CDN from common web exploits.").optional() }).strict()
         .optional().describe("#### Put a CDN (CloudFront) in front of this function for caching and lower latency.\n\n---\n\nCaches responses at edge locations worldwide. Reduces function invocations and bandwidth costs.").optional(),
         "storage": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation.\n\n---\n\nIncrease if your function downloads/processes large files temporarily.").default(512),
-        "volumeMounts": z.array(z.object({
-          "type": z.literal("efs").describe("#### The type of the volume mount."),
-          "properties": z.object({
-            "efsFilesystemName": z.string().describe("#### Name of the `efs-filesystem` resource defined in your config."),
-            "rootDirectory": z.string().optional().describe("#### Subdirectory within the EFS filesystem to mount. Omit for full access.").default("/"),
-            "mountPath": z.string().describe("#### Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/data`).") }).strict()
-          .describe("#### Properties for the EFS volume mount.") }).strict()
-        ).optional().describe("#### Persistent EFS storage shared across invocations and functions.\n\n---\n\nUnlike `/tmp`, EFS data persists indefinitely and can be shared across multiple functions.\nRequires `joinDefaultVpc: true` (Stacktape will remind you if you forget).").optional(),
+        "volumeMounts": z.array(z.union([z.object({
+            "type": z.literal("efs").describe("#### The type of the volume mount."),
+            "properties": z.object({
+              "efsFilesystemName": z.string().describe("#### Name of the `efs-filesystem` resource defined in your config."),
+              "rootDirectory": z.string().optional().describe("#### Subdirectory within the EFS filesystem to mount. Omit for full access.").default("/"),
+              "mountPath": z.string().describe("#### Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/data`).") }).strict()
+            .describe("#### Properties for the EFS volume mount.") }).strict()
+          , z.object({
+            "type": z.literal("s3files").describe("#### The type of the volume mount."),
+            "properties": z.object({
+              "accessPointArn": z.union([z.object({
+                  "name": z.string(),
+                  "payload": z.any() }).strict()
+                , z.string()]).describe("#### ARN of an existing S3 Files access point."),
+              "mountPath": z.string().describe("#### Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`).") }).strict()
+            .describe("#### Properties for the S3 Files volume mount.") }).strict()
+        ])).optional().describe("#### Persistent file-system mounts shared across invocations and functions.\n\n---\n\nUnlike `/tmp`, mounted file systems persist independently from the function runtime and can be\nshared across multiple functions.\nRequires `joinDefaultVpc: true` (Stacktape will remind you if you forget).").optional(),
         "connectTo": z.array(z.string()).optional().describe("#### Give this resource access to other resources in your stack.\n\n---\n\nList the names of resources this workload needs to communicate with. Stacktape automatically:\n- **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n- **Opens network access** (security group rules for databases, Redis)\n- **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`\n\nExample: `connectTo: [\"myDatabase\", \"myBucket\"]` gives this workload full access to both\nresources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.\n\n---\n\n#### What each resource type provides:\n\n**`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n\n**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n\n**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\nAurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.\n\n**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`\n\n**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`\n\n**`Function`** — invoke permission → `ARN`\n\n**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`\n\n**`EventBus`** — publish events → `ARN`\n\n**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`\n\n**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`\n\n**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`\n\n**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`\n\n**`PrivateService`** → `ADDRESS`\n\n**`aws:ses`** — full SES email sending permissions").optional(),
         "iamRoleStatements": z.array(z.object({
           "Sid": z.string().optional().describe("#### Optional identifier for this statement (for readability).").optional(),
@@ -4935,6 +5195,10 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "packageManagerFile": z.string().optional().describe("#### The path to your project's dependency file.\n\n---\n\nThis can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.").optional(),
                   "packageManager": z.literal("uv").optional().describe("#### The Python package manager to use.\n\n---\n\nStacktape uses `uv` for dependency resolution and installation. This option is kept\nfor compatibility and must be set to `uv` if provided.").optional(),
+                  "uvOptionalDependencies": z.array(z.string()).optional().describe("#### Optional dependency extras to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--extra <name>`.").optional(),
+                  "uvWithGroups": z.array(z.string()).optional().describe("#### Dependency groups to include from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--group <name>`.").optional(),
+                  "uvWithoutGroups": z.array(z.string()).optional().describe("#### Dependency groups to exclude from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--no-group <name>`.").optional(),
+                  "uvOnlyGroups": z.array(z.string()).optional().describe("#### Only include these dependency groups from `pyproject.toml`.\n\n---\n\nEach value is passed to `uv pip compile` as `--only-group <name>`.\nThis omits the project dependencies and default groups, matching `uv` behavior.").optional(),
                   "pythonVersion": z.union([z.literal(2.7), z.literal(3.11), z.literal(3.12), z.literal(3.13), z.literal(3.14), z.literal(3.6), z.literal(3.7), z.literal(3.8), z.literal(3.9)]).optional().describe("#### The version of Python to use.").default(3.9),
                   "runAppAs": z.enum(["ASGI","WSGI"]).optional().describe("#### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).\n\n---\n\nOnly for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.\nSet `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).").optional(),
                   "minify": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Minify Python code to reduce package size. Makes production stack traces harder to read.").default(true) }).strict()

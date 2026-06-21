@@ -1,5 +1,5 @@
+import type { IntrinsicFunction } from './dataTypes';
 import { Ref } from './functions';
-import { IntrinsicFunction } from './dataTypes';
 
 export const AccountId: IntrinsicFunction = Ref('AWS::AccountId');
 export const NotificationARNs: IntrinsicFunction = Ref('AWS::NotificationARNs');

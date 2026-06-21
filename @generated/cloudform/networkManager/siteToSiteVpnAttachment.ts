@@ -22,6 +22,7 @@ export interface SiteToSiteVpnAttachmentProperties {
   CoreNetworkId: Value<string>;
   ProposedNetworkFunctionGroupChange?: ProposedNetworkFunctionGroupChange;
   VpnConnectionArn: Value<string>;
+  RoutingPolicyLabel?: Value<string>;
   NetworkFunctionGroupName?: Value<string>;
   Tags?: List<ResourceTag>;
 }

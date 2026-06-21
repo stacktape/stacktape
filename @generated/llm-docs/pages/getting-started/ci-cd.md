@@ -1,6 +1,6 @@
 # CI/CD
 
-Stacktape offers two paths to automated deployments: **GitOps via the Stacktape Console** (recommended) and **custom CI pipelines** using the CLI. GitOps gives you push-to-deploy and PR preview environments with zero pipeline code. Custom CI gives full control when you already have an established workflow.
+Stacktape offers two paths to automated deployments: **GitOps via the Stacktape Console** (recommended) and **custom CI pipelines** using the CLI. GitOps gives you push-to-deploy and PR preview environments without writing a GitHub Actions workflow file for the deploy path. Custom CI gives full control when you already have an established workflow.
 
 
 > **Info:** Already have CI/CD running? Skip ahead to [Going to production](/getting-started/going-to-production).
@@ -8,19 +8,11 @@ Stacktape offers two paths to automated deployments: **GitOps via the Stacktape 
 
 ## GitOps via the Stacktape Console
 
-GitOps is the recommended path for most teams. You connect your repository once, then every push triggers a deployment automatically — no workflow files to maintain.
+GitOps is the recommended path for most teams. You connect your repository once, then Stacktape manages the deployment trigger — every push to the configured branch deploys automatically.
 
 ### CLI prompt after first deploy
 
-After a successful CLI deploy that creates a new stack, Stacktape prompts you to set up CI/CD in interactive terminal sessions. The prompt uses your current branch name:
-
-```
-? Set up automatic deployments on push to 'main'? (Y/n)
-```
-
-If you accept, the CLI checks whether your git provider is connected to Stacktape. If it isn't, it offers to open your browser to complete the connection. Once connected, it creates a GitOps configuration that deploys on every push to the current branch.
-
-If you skip the prompt, you can configure GitOps at any time in the Stacktape Console.
+After a successful CLI deploy that creates a new stack, Stacktape runs a CI/CD setup prompt when invoked from an interactive terminal. If you skip the prompt, you can configure GitOps at any time in the Stacktape Console.
 
 ### What you can configure
 
@@ -31,8 +23,7 @@ Each GitOps configuration maps a git event to a deployment action. In the Consol
 - **Target stage** — the stage name to deploy (e.g. `production`, `staging`, or `pr-{#number}` for PR previews)
 - **AWS region** — where the stack deploys
 - **AWS account** — which connected account to use
-- **Configuration source** — read `stacktape.ts` from the git repository, or use a config stored in the Console
-- **Auto-delete on PR close** — automatically destroy the preview stack when the PR is merged or closed
+- **Auto-delete on PR close** — when enabled (`deleteStackAfterPrClose`), Stacktape deletes the PR stack when the PR is merged or closed
 
 You can create multiple GitOps configurations per project — for example, one that deploys `main` to `production` and another that creates preview environments for every PR.
 
@@ -42,21 +33,21 @@ When you configure a pull-request trigger, Stacktape creates an isolated stage f
 
 For the full reference on branch patterns and advanced configuration, see [GitOps with Console](/ci-cd-and-gitops/gitops-with-console).
 
-### Supported git providers
+### Connecting your repository
 
-Stacktape supports **GitHub**, **GitLab**, and **Bitbucket** repositories. Connect your git provider in the Stacktape Console before creating your first GitOps configuration. The Console handles webhook registration for each provider — when you push code or open a PR, the webhook fires and Stacktape starts the configured deployment.
+GitOps uses the GitHub App integration to react to git events. Connect your repository in the Stacktape Console before creating your first GitOps configuration.
 
 ## Custom CI/CD integration
 
-If you prefer managing your own pipelines — GitHub Actions, GitLab CI, CircleCI, or any system that can run shell commands — use the Stacktape CLI directly.
+If you prefer managing your own pipeline — or need pre-deploy steps like tests and lint — use the Stacktape CLI directly. Any CI system that can run shell commands works: GitHub Actions, GitLab CI, CircleCI, and others.
 
 ### Required environment variables
 
 | Variable | Purpose |
 |----------|---------|
-| `STACKTAPE_API_KEY` | Authenticates the CLI. Create one in the Console under [API keys](/stacktape-console/api-keys). |
+| `STACKTAPE_API_KEY` | Authenticates the CLI against the Stacktape API. Create one in the Console under [API keys](/stacktape-console/api-keys). |
 
-The CLI authenticates against your connected AWS account through Stacktape — you don't need raw AWS credentials in your pipeline when using a connected account.
+Store this key in your CI provider's secret store and expose it to the CLI as an environment variable. The CLI deploys into the AWS account you connected to your Stacktape organization.
 
 ### GitHub Actions example
 
@@ -79,10 +70,10 @@ jobs:
         env:
           STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
         run: |
-          npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+          npx stacktape deploy --projectName my-project --stage production --region us-east-1 --autoConfirmOperation
 ```
 
-Store `STACKTAPE_API_KEY` in your repository's secrets settings. The `--autoConfirmOperation` flag skips the interactive confirmation prompt that would block CI.
+Replace `my-project` with your Stacktape project name. Store `STACKTAPE_API_KEY` in your repository's secrets settings. The `--autoConfirmOperation` flag skips the interactive confirmation prompt that would block CI.
 
 ### GitLab CI example
 
@@ -95,7 +86,7 @@ deploy:
   only:
     - main
   script:
-    - npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+    - npx stacktape deploy --projectName my-project --stage production --region us-east-1 --autoConfirmOperation
   variables:
     STACKTAPE_API_KEY: $STACKTAPE_API_KEY
 ```
@@ -107,13 +98,13 @@ Use dynamic stage names based on the PR number to create isolated preview enviro
 Deploy when the PR opens or updates:
 
 ```bash
-npx stacktape deploy --stage "pr-${PR_NUMBER}" --region us-east-1 --autoConfirmOperation
+npx stacktape deploy --projectName my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --autoConfirmOperation
 ```
 
 Clean up when the PR closes:
 
 ```bash
-npx stacktape delete --stage "pr-${PR_NUMBER}" --region us-east-1 --autoConfirmOperation
+npx stacktape delete --projectName my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --autoConfirmOperation
 ```
 
 For more detail on custom pipelines, see [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd).
@@ -123,12 +114,14 @@ For more detail on custom pipelines, see [Custom CI/CD](/ci-cd-and-gitops/custom
 For large projects where uploading built artifacts from your CI runner is slow, Stacktape can offload the entire build and deploy to AWS CodeBuild using [`codebuild:deploy`](/cli/codebuild-deploy). The CLI zips your project, uploads it to S3, and runs the deployment remotely in your AWS account — useful when your codebase or dependencies are large.
 
 ```bash
-npx stacktape codebuild:deploy --stage production --region us-east-1
+npx stacktape codebuild:deploy --projectName my-project --stage production --region us-east-1
 ```
 
-[`codebuild:deploy`](/cli/codebuild-deploy) performs the same deployment as [`deploy`](/cli/deploy) but runs the build step on AWS infrastructure rather than your local machine or CI runner. It skips the interactive confirmation automatically once the build starts remotely.
+[`codebuild:deploy`](/cli/codebuild-deploy) performs the same deployment as [`deploy`](/cli/deploy) but runs the build step on AWS infrastructure instead of your local machine or CI runner. In CI, pass `--autoConfirmOperation` to skip the confirmation prompt.
 
 ## Which path to choose
+
+Use this comparison to decide between Console-managed GitOps and a self-managed CI pipeline.
 
 
 ## Feature Comparison
@@ -136,51 +129,13 @@ npx stacktape codebuild:deploy --stage production --region us-east-1
 | Feature | GitOps (Console) | Custom CI/CD |
 | --- | --- | --- |
 | Setup effort | Minutes, no files | Write workflow file |
-| Pipeline maintenance | None — managed by Stacktape | You own it |
+| Pipeline maintenance | Stacktape manages the deploy trigger | You own it |
 | PR previews | Built-in with auto-delete | Manual setup with dynamic stage names |
 | Custom steps (tests, lint, gates) | Not supported | Full control |
-| Git providers | GitHub, GitLab, Bitbucket | Any |
+| Repository source | Connected git repository | Any CI system |
 
 
-**Recommendation:** Start with GitOps. It takes minutes to set up, handles PR previews automatically, and requires no maintenance. If you need custom test steps, approval gates, or complex multi-stage pipelines that run before or after the deploy, switch to custom CI or combine both — use GitOps for staging and custom CI for branches that need extra validation before deploying to production.
-
-## FAQ
-
-### Can I use GitOps with GitLab or Bitbucket?
-
-Yes. Stacktape supports GitHub, GitLab, and Bitbucket as git providers. Connect your provider in the Stacktape Console, and the Console registers the appropriate webhooks for push and pull request events. The GitOps configuration workflow is the same regardless of provider.
-
-### How do PR preview environments work?
-
-When you create a GitOps configuration with a pull-request trigger, Stacktape deploys a full isolated stage for each PR — named `pr-{#number}` by default. The stage deploys on PR open, redeploys on each push, and optionally deletes when the PR is merged or closed. Each PR gets its own independent infrastructure. See [stacks per git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for the pattern.
-
-### Do I need AWS credentials in my CI pipeline?
-
-No. The CLI authenticates via `STACKTAPE_API_KEY` and deploys through your connected AWS account in the Stacktape Console. You don't need to store IAM access keys or secret keys in your CI secrets. Create an API key under [API keys](/stacktape-console/api-keys).
-
-### Can I run tests before deploying with GitOps?
-
-GitOps triggers a deployment directly on push or PR events — there is no built-in step for running tests or linting before the deploy. If you need pre-deploy validation, use a custom CI pipeline where you control the full workflow (run tests, then deploy). You can also combine both: use custom CI for production (with test gates) and GitOps for staging or PR previews.
-
-### What is `codebuild:deploy` and when should I use it?
-
-[`codebuild:deploy`](/cli/codebuild-deploy) offloads the build and deploy process to AWS CodeBuild instead of running it on your local machine or CI runner. Use it when your project is large and uploading build artifacts from your CI runner is slow. The CLI zips the project, uploads it to S3, and CodeBuild runs the deployment. For most projects, the standard [`deploy`](/cli/deploy) command is sufficient.
-
-### How much does AWS CodeBuild cost for deployments?
-
-AWS CodeBuild charges per build minute. The `general1.small` instance type (the default for most workloads) costs roughly $0.005 per build minute in US regions. A typical Stacktape deployment takes 2-10 minutes depending on project size, so each deploy costs a few cents. See the [build runners](/ci-cd-and-gitops/build-runners) page for more on runner options.
-
-### GitOps vs custom CI — which should I use?
-
-Use GitOps if you want zero-maintenance push-to-deploy with built-in PR previews. Use custom CI if you need test steps, approval gates, or multi-stage pipelines before deploying. Many teams start with GitOps and add custom CI only when their workflow demands it. You can also use both: GitOps for staging environments and custom CI for production with extra validation.
-
-### Can I combine GitOps and custom CI?
-
-Yes. A common pattern is to use GitOps for staging (every push to `develop` deploys automatically) and a custom CI pipeline for production (push to `main` runs tests, then calls `npx stacktape deploy`). There is no conflict — GitOps and custom CI operate independently.
-
-### How do I roll back a GitOps deployment?
-
-GitOps triggers a forward deployment on every push. To roll back, push a revert commit to the branch — the GitOps webhook fires and deploys the reverted code. For immediate rollback without a code push, use the CLI's [`rollback`](/cli/rollback) command, which reverts to the previous CloudFormation stack version.
+**Recommendation:** Start with GitOps. It takes minutes to set up and handles PR previews automatically. If you need custom test steps, approval gates, or multi-stage pipelines that run before or after the deploy, switch to custom CI or combine both — use GitOps for staging and custom CI for branches that need extra validation before deploying to production.
 
 ## Next step
 

@@ -261,6 +261,16 @@ export class RuntimePlatform {
   }
 }
 
+export class S3FilesVolumeConfiguration {
+  FileSystemArn!: Value<string>;
+  AccessPointArn?: Value<string>;
+  RootDirectory?: Value<string>;
+  TransitEncryptionPort?: Value<number>;
+  constructor(properties: S3FilesVolumeConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class Secret {
   ValueFrom!: Value<string>;
   Name!: Value<string>;
@@ -305,6 +315,7 @@ export class Ulimit {
 
 export class Volume {
   EFSVolumeConfiguration?: EFSVolumeConfiguration;
+  S3FilesVolumeConfiguration?: S3FilesVolumeConfiguration;
   Host?: HostVolumeProperties;
   ConfiguredAtLaunch?: Value<boolean>;
   DockerVolumeConfiguration?: DockerVolumeConfiguration;
@@ -367,6 +378,7 @@ export default class TaskDefinition extends ResourceBase<TaskDefinitionPropertie
   static ResourceRequirement = ResourceRequirement;
   static RestartPolicy = RestartPolicy;
   static RuntimePlatform = RuntimePlatform;
+  static S3FilesVolumeConfiguration = S3FilesVolumeConfiguration;
   static Secret = Secret;
   static SystemControl = SystemControl;
   static TaskDefinitionPlacementConstraint = TaskDefinitionPlacementConstraint;

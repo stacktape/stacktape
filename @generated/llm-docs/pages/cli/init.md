@@ -26,7 +26,7 @@ You can skip the wizard entirely by using `--starterId` or `--templateId` to ini
 
 ### `--configFormat`
 
-Controls whether the generated configuration file is TypeScript (`stacktape.ts`) or YAML (`stacktape.yml`). Defaults to the wizard's interactive prompt if omitted.
+Sets the format of the generated configuration. Accepts `typescript` or `yaml`.
 
 ```bash
 stacktape init --configFormat typescript
@@ -46,7 +46,7 @@ stacktape init --infrastructureType production
 
 ### `--starterId`
 
-Initializes from a specific starter project template instead of running the AI-powered wizard. Each starter has a unique identifier.
+Initializes from a specific starter project template instead of running the AI-powered wizard. Pass the identifier of the starter project you want to initialize.
 
 ```bash
 stacktape init --starterId lambda-api-postgres
@@ -54,7 +54,7 @@ stacktape init --starterId lambda-api-postgres
 
 ### `--starterProject`
 
-When set to `true`, enters the starter project selection flow — an interactive picker where you choose from available templates.
+When set to `true`, initializes from a starter project template instead of running the default wizard flow.
 
 ```bash
 stacktape init --starterProject
@@ -62,7 +62,7 @@ stacktape init --starterProject
 
 ### `--templateId`
 
-Fetches a configuration template from the Stacktape Console and initializes the project from it. Useful when you've built a config in the Console's visual editor and want to pull it locally.
+Fetches a configuration template from the Stacktape Console's Config Builder page and initializes the project from it.
 
 ```bash
 stacktape init --templateId your-template-id
@@ -70,7 +70,7 @@ stacktape init --templateId your-template-id
 
 ### `--projectDirectory`
 
-Sets the root directory where the configuration file is generated. Defaults to the current working directory.
+Sets the root directory where the project configuration should be generated.
 
 ```bash
 stacktape init --projectDirectory ./my-app
@@ -102,7 +102,7 @@ Initialize from a starter project into a specific directory:
 stacktape init --starterId nextjs-saas --initializeProjectTo ./my-saas-app
 ```
 
-Run in agent mode for programmatic use (outputs JSONL, disables interactive prompts):
+Run in agent mode for programmatic use (JSONL output, no interactive terminal UI, auto-confirms operations):
 
 ```bash
 stacktape init --agent
@@ -110,40 +110,127 @@ stacktape init --agent
 
 ## All flags
 
-
-## CLI Options: `stacktape init`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption:
-
-Uses strict JSONL/NDJSON output (one JSON object per line)
-Disables interactive terminal UI
-Automatically confirms operations (equivalent to --autoConfirmOperation)
-For dev command: also enables HTTP server for programmatic control. | - |
-| `--configFormat (-cf)` | no | `string` | Config Format Format (language) used for the generated config. Options are typescript or yaml. | `yaml`, `typescript` |
-| `--infrastructureType (-it)` | no | `string` | Infrastructure Type The infrastructure tier for the generated configuration. Affects resource sizing, scaling, security, and cost:
-
-**low-cost**: Minimal resources, single instances, no WAF/VPC. Best for development and experimentation.
-**standard**: Balanced defaults with serverless databases and moderate scaling. Best for staging and small production workloads.
-**production**: High-availability setup with Aurora, WAF, VPC, bastions, backups, and deletion protection. | `low-cost`, `standard`, `production` |
-| `--initializeProjectTo (-ipt)` | no | `string` | Initialize Project To The directory where the starter project should be initialized. If the directory is not empty, its contents will be deleted. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format:
-
-`jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.
-`plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.
-`tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
-If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--projectDirectory (-pd)` | no | `string` | Project Directory The root directory where the project configuration should be generated. | - |
-| `--starterId (-sid)` | no | `string` | Starter ID The identifier of the starter project to initialize. | - |
-| `--starterProject (-sp)` | no | `boolean` | Starter Project If `true`, initializes from a starter project template instead of running the default wizard flow. | - |
-| `--templateId (-ti)` | no | `string` | Template ID The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
-
+<CliCommandsApiReference command="init" sortedArgs={[
+  {
+    "name": "agent",
+    "required": false,
+    "alias": "ag",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Agent Mode</p>\n",
+    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
+  },
+  {
+    "name": "configFormat",
+    "required": false,
+    "alias": "cf",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "yaml",
+      "typescript"
+    ],
+    "shortDescription": "<p> Config Format</p>\n",
+    "longDescription": "<p>Format (language) used for the generated config. Options are typescript or yaml.</p>\n"
+  },
+  {
+    "name": "infrastructureType",
+    "required": false,
+    "alias": "it",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "low-cost",
+      "standard",
+      "production"
+    ],
+    "shortDescription": "<p> Infrastructure Type</p>\n",
+    "longDescription": "<p>The infrastructure tier for the generated configuration. Affects resource sizing, scaling, security, and cost:</p>\n<ul>\n<li><strong>low-cost</strong>: Minimal resources, single instances, no WAF/VPC. Best for development and experimentation.</li>\n<li><strong>standard</strong>: Balanced defaults with serverless databases and moderate scaling. Best for staging and small production workloads.</li>\n<li><strong>production</strong>: High-availability setup with Aurora, WAF, VPC, bastions, backups, and deletion protection.</li>\n</ul>\n"
+  },
+  {
+    "name": "initializeProjectTo",
+    "required": false,
+    "alias": "ipt",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Initialize Project To</p>\n",
+    "longDescription": "<p>The directory where the starter project should be initialized. If the directory is not empty, its contents will be deleted.</p>\n"
+  },
+  {
+    "name": "logLevel",
+    "required": false,
+    "alias": "ll",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "info",
+      "debug",
+      "error"
+    ],
+    "shortDescription": "<p> Log Level</p>\n",
+    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+  },
+  {
+    "name": "outputFormat",
+    "required": false,
+    "alias": "ofmt",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "jsonl",
+      "plain",
+      "tty"
+    ],
+    "shortDescription": "<p> Output Format</p>\n",
+    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
+  },
+  {
+    "name": "projectDirectory",
+    "required": false,
+    "alias": "pd",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Project Directory</p>\n",
+    "longDescription": "<p>The root directory where the project configuration should be generated.</p>\n"
+  },
+  {
+    "name": "starterId",
+    "required": false,
+    "alias": "sid",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Starter ID</p>\n",
+    "longDescription": "<p>The identifier of the starter project to initialize.</p>\n"
+  },
+  {
+    "name": "starterProject",
+    "required": false,
+    "alias": "sp",
+    "allowedTypes": [
+      "boolean"
+    ],
+    "shortDescription": "<p> Starter Project</p>\n",
+    "longDescription": "<p>If <code>true</code>, initializes from a starter project template instead of running the default wizard flow.</p>\n"
+  },
+  {
+    "name": "templateId",
+    "required": false,
+    "alias": "ti",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Template ID</p>\n",
+    "longDescription": "<p>The ID of the template to download. You can find a list of available templates on the <a href=\"https://console.stacktape.com/templates\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Config Builder page</a>.</p>\n"
+  }
+]} />
 
 ## Related commands
 
@@ -155,7 +242,7 @@ If not specified, the format is auto-detected from the environment. --agent impl
 
 ### What's the fastest way to start a new Stacktape project?
 
-Run `stacktape init` with no flags. The wizard analyzes your existing code, generates a configuration, and can deploy in a single session. If you prefer a known-good starting point, use `--starterProject` to pick from pre-configured templates.
+Run `stacktape init` with no flags. The wizard analyzes your existing code, generates a configuration, and can deploy in a single session. If you prefer a known-good starting point, use `--starterProject` to initialize from a starter project template.
 
 ### Do I need an AWS account before running init?
 
@@ -163,11 +250,11 @@ No. The wizard walks you through connecting an AWS account as one of its steps. 
 
 ### Can I use init in a CI pipeline or with an AI coding agent?
 
-Yes. Pass `--agent` to disable interactive prompts and get structured JSONL output. Combine it with `--configFormat`, `--infrastructureType`, and `--starterId` to fully automate initialization without any interactive input.
+Yes. Pass `--agent` to optimize CLI output for programmatic consumption — it uses JSONL output, disables the interactive terminal UI, and auto-confirms operations. For non-interactive starter-project initialization, combine `--agent` with explicit flags such as `--starterId`, `--configFormat`, and `--infrastructureType`.
 
 ### What is the difference between --starterId and --templateId?
 
-`--starterId` initializes from a built-in starter project template bundled with Stacktape. `--templateId` fetches a configuration template you've saved in the Stacktape Console — useful when you've designed a config in the [visual editor](/stacktape-console/visual-config-editor) and want to pull it into a local project.
+`--starterId` initializes from a built-in starter project template bundled with Stacktape. `--templateId` fetches a configuration template from the Stacktape Console's [Config Builder page](/stacktape-console/visual-config-editor).
 
 ### Does init deploy anything?
 
@@ -175,4 +262,4 @@ Not automatically. At the end of the wizard, you're offered the option to deploy
 
 ### Can I re-run init on an existing project?
 
-Yes. Running `init` in a directory that already has a Stacktape config will start the wizard again. Review the generated configuration before deploying to make sure it matches your intent.
+You can run `init` again in the same directory. Review the generated configuration before deploying to make sure it matches your intent.

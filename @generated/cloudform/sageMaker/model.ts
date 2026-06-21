@@ -1,13 +1,5 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
-export class AdditionalModelDataSource {
-  ChannelName!: Value<string>;
-  S3DataSource!: S3DataSource;
-  constructor(properties: AdditionalModelDataSource) {
-    Object.assign(this, properties);
-  }
-}
-
 export class ContainerDefinition {
   ImageConfig?: ImageConfig;
   InferenceSpecificationName?: Value<string>;
@@ -93,8 +85,8 @@ export class VpcConfig {
   }
 }
 export interface ModelProperties {
-  ExecutionRoleArn?: Value<string>;
   EnableNetworkIsolation?: Value<boolean>;
+  ExecutionRoleArn?: Value<string>;
   PrimaryContainer?: ContainerDefinition;
   ModelName?: Value<string>;
   VpcConfig?: VpcConfig;
@@ -103,7 +95,6 @@ export interface ModelProperties {
   Tags?: List<ResourceTag>;
 }
 export default class Model extends ResourceBase<ModelProperties> {
-  static AdditionalModelDataSource = AdditionalModelDataSource;
   static ContainerDefinition = ContainerDefinition;
   static HubAccessConfig = HubAccessConfig;
   static ImageConfig = ImageConfig;

@@ -1,6 +1,7 @@
 import AnycastIpList_ from './anycastIpList';
 import CachePolicy_ from './cachePolicy';
 import CloudFrontOriginAccessIdentity_ from './cloudFrontOriginAccessIdentity';
+import ConnectionFunction_ from './connectionFunction';
 import ConnectionGroup_ from './connectionGroup';
 import ContinuousDeploymentPolicy_ from './continuousDeploymentPolicy';
 import Distribution_ from './distribution';
@@ -15,11 +16,13 @@ import PublicKey_ from './publicKey';
 import RealtimeLogConfig_ from './realtimeLogConfig';
 import ResponseHeadersPolicy_ from './responseHeadersPolicy';
 import StreamingDistribution_ from './streamingDistribution';
+import TrustStore_ from './trustStore';
 import VpcOrigin_ from './vpcOrigin';
 export namespace CloudFront {
   export const AnycastIpList = AnycastIpList_;
   export const CachePolicy = CachePolicy_;
   export const CloudFrontOriginAccessIdentity = CloudFrontOriginAccessIdentity_;
+  export const ConnectionFunction = ConnectionFunction_;
   export const ConnectionGroup = ConnectionGroup_;
   export const ContinuousDeploymentPolicy = ContinuousDeploymentPolicy_;
   export const Distribution = Distribution_;
@@ -34,10 +37,12 @@ export namespace CloudFront {
   export const RealtimeLogConfig = RealtimeLogConfig_;
   export const ResponseHeadersPolicy = ResponseHeadersPolicy_;
   export const StreamingDistribution = StreamingDistribution_;
+  export const TrustStore = TrustStore_;
   export const VpcOrigin = VpcOrigin_;
   export type AnycastIpList = AnycastIpList_;
   export type CachePolicy = CachePolicy_;
   export type CloudFrontOriginAccessIdentity = CloudFrontOriginAccessIdentity_;
+  export type ConnectionFunction = ConnectionFunction_;
   export type ConnectionGroup = ConnectionGroup_;
   export type ContinuousDeploymentPolicy = ContinuousDeploymentPolicy_;
   export type Distribution = Distribution_;
@@ -52,5 +57,6 @@ export namespace CloudFront {
   export type RealtimeLogConfig = RealtimeLogConfig_;
   export type ResponseHeadersPolicy = ResponseHeadersPolicy_;
   export type StreamingDistribution = StreamingDistribution_;
+  export type TrustStore = TrustStore_;
   export type VpcOrigin = VpcOrigin_;
 }

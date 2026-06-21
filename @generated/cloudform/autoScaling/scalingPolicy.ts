@@ -23,11 +23,11 @@ export class Metric {
 }
 
 export class MetricDataQuery {
-  ReturnData?: Value<boolean>;
-  Expression?: Value<string>;
   Label?: Value<string>;
   MetricStat?: MetricStat;
   Id!: Value<string>;
+  ReturnData?: Value<boolean>;
+  Expression?: Value<string>;
   constructor(properties: MetricDataQuery) {
     Object.assign(this, properties);
   }

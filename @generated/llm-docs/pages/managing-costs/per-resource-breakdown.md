@@ -3,16 +3,12 @@
 Stacktape Console breaks down your AWS spend by project, stage, and individual resource. You can identify which Lambda function, database, or container workload is driving costs in each stack. All costs shown are billed by AWS directly to your AWS account — the Stacktape subscription fee is separate and does not appear in these reports.
 
 
-> **Info:** Cost reports are generated daily from AWS Cost and Usage Reports. After deploying a new stack, it can take up to a day before cost data appears in the Console.
+> **Info:** Cost reports are generated daily. After deploying a new stack, it can take a while before cost data appears in the Console.
 
 
 ## Costs per stack
 
 The **Costs per stack** page in the Stacktape Console displays month-to-date costs for every attributed stack in a connected AWS account. Each row shows the project name, stage, AWS region, and total cost for that stack. The table is sorted by cost (highest first) by default, so the most expensive stacks appear at the top.
-
-
-> Screenshot: Stacktape Console Costs per stack page showing a table of stacks with columns for project name, stage, region, and month-to-date costs, sorted by cost descending Caption: Costs per stack — select an AWS account and month to see which stacks are driving spend.
-
 
 Two filters narrow the view:
 
@@ -27,11 +23,7 @@ The costs-per-stack table formats amounts using the currency code returned by th
 
 When you open a specific stack's costs, the Console shows a per-resource cost table. Each row displays the Stacktape resource name, the AWS resource type, and the cost for that resource in the selected month. A total of all resource costs is displayed above the table.
 
-
-> Screenshot: Stacktape Console per-resource cost breakdown for a single stack, showing resource name, AWS resource type, and cost columns, with a total cost displayed above the table Caption: Per-resource breakdown for a single stack — individual resource costs rounded to four decimal places.
-
-
-The per-resource table is sorted by cost (highest first). Individual resource costs are rounded to four decimal places, so even low-cost resources like infrequent Lambda invocations show meaningful data. The total is rounded to two decimal places.
+The per-resource table defaults to sorting by the Costs column. Individual resource costs are rounded to four decimal places, so even low-cost resources like infrequent Lambda invocations show meaningful data. The total is rounded to two decimal places.
 
 The month selector works the same way as the costs-per-stack page — you can view any month in the current year or the previous calendar year.
 
@@ -52,17 +44,19 @@ The [cost overview dashboard](/managing-costs/dashboards) provides a higher-leve
 
 ## Using cost data effectively
 
+The Stacktape per-resource cost breakdown gives you the data to prioritize optimization work. Sort by cost to find the biggest line items, compare stages to catch oversized non-production resources, and track month-over-month trends to correlate cost changes with deployments. The strategies below turn raw cost numbers into concrete next steps.
+
 ### Identify expensive resources
 
-Sort the per-resource table by cost (the default) to see which resources dominate your bill. In most stacks, one or two resources account for the majority of spend — often a relational database running continuously or a high-traffic container workload. Focus optimization efforts there first.
+The per-resource table defaults to the Costs column, making it easy to spot which resources dominate your bill. In many AWS stacks, a small number of resources account for the majority of spend — commonly an always-on relational database or a high-traffic container workload. Focus optimization efforts on those top line items first.
 
 ### Compare stages
 
-Check the costs-per-stack view to compare your `production` and `staging` stages. If staging costs are close to production, you may be over-provisioning non-production infrastructure. Consider using smaller [database instance classes](/resources/databases/relational-database) or lower [container CPU/memory settings](/resources/compute/web-service) for development and test stages.
+Check the costs-per-stack view to compare your `production` and `staging` stages. If staging costs are close to production, open the per-resource breakdown for each stage and compare the individual resource rows — this shows which specific resources are similarly sized across stages and where non-production spend could be investigated further.
 
 ### Track cost trends month over month
 
-Select different months to see how costs change over time. A sudden increase in a specific resource's cost often correlates with a recent deployment or a traffic spike. Check your [deployment history](/observability/overview) to identify what changed.
+Select different months to see how costs change over time. A sudden increase in a specific resource's cost often correlates with a recent deployment or a traffic spike. Compare the affected month's per-resource breakdown with a prior month to narrow down which resource changed.
 
 ### Set budget alerts based on real data
 
@@ -72,7 +66,7 @@ The per-resource breakdown shows you what you're actually spending, which makes 
 
 ### How often is cost data updated?
 
-Cost reports are generated daily from AWS Cost and Usage Reports. After deploying a new stack, it can take up to a day before cost data appears in the Console. Within a given month, the figures shown are month-to-date totals that update daily.
+Cost reports are generated daily, so newly deployed stacks may not show cost data immediately. Within a given month, the figures shown are month-to-date totals that update daily.
 
 ### How far back can I view cost data?
 
@@ -84,19 +78,19 @@ No. The cost breakdown shows only AWS infrastructure charges billed directly by 
 
 ### Why is no cost data showing for my stack?
 
-Cost reports are generated daily and may not be available immediately after deploying a new stack. If you deployed recently, wait up to a day for the first report to appear. Also confirm you've selected the correct AWS account and month in the filters.
+Cost reports are generated daily and may not be available immediately after deploying a new stack. If you deployed recently, it can take a while before the first report appears. Also confirm you've selected the correct AWS account and month in the filters.
 
 ### Why is my database the most expensive resource?
 
-Relational databases (RDS, Aurora) run continuously and charge by the hour for the instance class, plus storage and I/O. Unlike Lambda functions that scale to zero when idle, databases maintain a baseline cost even with no traffic. For non-production stages, consider smaller instance classes or Aurora Serverless v2 for variable workloads. See [relational databases](/resources/databases/relational-database) for configuration options.
+Relational databases (RDS, Aurora) run continuously and charge by the hour for the instance class, plus storage and I/O. Unlike Lambda functions that scale to zero when idle, databases maintain a baseline cost even with no traffic. The per-resource breakdown makes this visible — compare the database cost row against compute rows to see the split. See [relational databases](/resources/databases/relational-database) for configuration options.
 
 ### Can I use AWS Cost Explorer alongside the Stacktape Console?
 
-Yes. Stacktape tags the AWS resources it creates, and those tags are available in AWS Cost Explorer, AWS Budgets, and third-party cost tools. You can filter and group costs by project and stage outside the Console using the same dimensions.
+Yes. AWS Cost Explorer provides its own grouping and filtering across your entire AWS account. You can use both tools — the Stacktape Console for a stack-oriented view organized by project and stage, and Cost Explorer for broader AWS-account-wide analysis with service-level and tag-based grouping.
 
 ### How do I reduce costs for a specific resource?
 
-Once you've identified the expensive resources in the per-resource breakdown, visit the [optimization tips](/managing-costs/optimization-tips) page for actionable strategies. Common wins include right-sizing database instances, switching Lambda functions to ARM architecture, and adjusting container CPU/memory to match actual utilization.
+Once you've identified the expensive resources in the per-resource breakdown, use the resource names as inputs to your optimization work. The [optimization tips](/managing-costs/optimization-tips) page covers specific strategies for reducing spend on common resource types.
 
 ### What currency are costs displayed in?
 
@@ -104,4 +98,4 @@ The costs-per-stack table uses the currency code returned by the cost report, fa
 
 ### How does the cost breakdown differ from AWS Cost Explorer?
 
-AWS Cost Explorer shows all charges across your entire AWS account with flexible grouping and filtering. The Stacktape Console's cost breakdown is pre-grouped by project, stage, and Stacktape resource — you see costs organized the way you think about your application, not the way AWS organizes services. Both views reflect the same underlying AWS billing data.
+AWS Cost Explorer shows all charges across your entire AWS account with flexible grouping and filtering. The Stacktape Console first groups attributed costs by stack, showing project, stage, and region. From a stack row, you can open a resource-level table for that stack — so you see costs organized the way you think about your application, not the way AWS organizes services. The two tools complement each other: use the Stacktape Console for stack-level attribution and Cost Explorer for account-wide trends.

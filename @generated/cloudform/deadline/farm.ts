@@ -4,6 +4,7 @@ import { Value, List } from '../dataTypes';
 export interface FarmProperties {
   Description?: Value<string>;
   KmsKeyArn?: Value<string>;
+  CostScaleFactor?: Value<number>;
   DisplayName: Value<string>;
   Tags?: List<ResourceTag>;
 }

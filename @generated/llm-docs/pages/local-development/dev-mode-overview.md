@@ -17,7 +17,7 @@ Dev mode splits your stack between your local machine and AWS. Container workloa
 | [Hosting buckets](/resources/frontend/static-hosting) (with `dev` config) | Local machine | Custom dev command |
 | SSR frontends ([Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)) | Local machine | Framework dev server |
 
-Lambda functions deployed to AWS can reach locally-emulated databases through automatic tunneling. Stacktape creates network tunnels (using a bore-compatible TCP relay) when local database emulation is active, routing database traffic from Lambda executions back to Docker containers on your machine. Tunnels are not created when no databases are emulated locally, or when you disable them with `--noTunnel`.
+Lambda functions deployed to AWS can reach locally-emulated databases through automatic tunneling. When local database emulation is active and `--noTunnel` is not set, dev mode adds a Lambda tunnels setup step so Lambda functions can reach locally emulated databases. Tunnels are not created when no databases are emulated locally, or when you disable them with `--noTunnel`.
 
 ### Startup flow
 
@@ -84,7 +84,7 @@ Without `--watch`, you trigger rebuilds manually from the dev mode terminal usin
 
 ### Disabling tunnels
 
-Stacktape creates Lambda tunnels when local database emulation is active, unless you pass `--noTunnel`. If your Lambda functions don't access locally-emulated databases, or you only run container workloads, disable tunneling:
+Dev mode sets up Lambda tunnels when local database emulation is active, unless you pass `--noTunnel`. If your Lambda functions don't access locally-emulated databases, or you only run container workloads, disable tunneling:
 
 ```bash
 stacktape dev --stage dev --region us-east-1 --noTunnel
@@ -92,7 +92,7 @@ stacktape dev --stage dev --region us-east-1 --noTunnel
 
 ## Local database emulation
 
-In normal dev mode, selected emulatable databases run locally unless listed in `--remoteResources`. Your workloads receive `STP_*` environment variables with local endpoint values (e.g. `localhost`) instead of AWS endpoints, so code that reads Stacktape-provided variables uses the same lookup path in both dev mode and deployed stacks.
+In normal dev mode, selected emulatable databases run locally unless listed in `--remoteResources`. When local resources are active, dev mode runs an environment injection step so workloads can use Stacktape-provided `STP_*` variables with local endpoints. Code that reads these variables uses the same lookup path in both dev mode and deployed stacks.
 
 | Config resource type | Local Docker image |
 |---|---|
@@ -102,11 +102,11 @@ In normal dev mode, selected emulatable databases run locally unless listed in `
 | DynamoDB table | `amazon/dynamodb-local` |
 | OpenSearch domain | `opensearchproject/opensearch` |
 
-Database data persists between dev mode sessions in `.stacktape/dev-data/{stage}/`. This means you keep your data across restarts without re-seeding.
+Local database data persists between dev mode sessions under `.stacktape/dev-data/{stage}/`, so you typically keep your data across restarts without re-seeding.
 
 ### Start with a fresh database
 
-Use `--freshDb` to delete existing local database data and start fresh:
+Use `--freshDb` when you want dev mode to start local databases from a fresh state:
 
 ```bash
 stacktape dev --stage dev --region us-east-1 --freshDb
@@ -120,23 +120,23 @@ When you need to test against a real AWS database — for example, to use produc
 stacktape dev --stage dev --region us-east-1 --remoteResources myDatabase
 ```
 
-The `--remoteResources` flag applies to emulatable database resources (relational databases, Redis, DynamoDB, OpenSearch). Other workloads continue running locally as usual.
+Use `--remoteResources` for emulatable databases when you want dev mode to use the deployed database instead of the local Docker emulator.
 
 For more details on local database setup, supported engines, and troubleshooting, see [Local databases](/local-development/local-databases).
 
 ## Environment variables
 
-In normal dev mode, workloads connected to locally-emulated resources receive `STP_*` environment variables pointing to local endpoints instead of AWS endpoints. Resources listed in `--remoteResources` use deployed AWS endpoint values instead, and in legacy mode all resources use deployed values. Dev mode uses the same variable names as deployed stacks — only the values change.
+In normal dev mode, workloads connected to locally-emulated resources receive `STP_*` environment variables pointing to local endpoints instead of AWS endpoints. Dev mode uses the same variable names as deployed stacks — only the values change.
 
-For a [relational database](/resources/databases/relational-database) resource named `myDb` connected to a workload via [`connectTo`](/configuration/connecting-resources), the connection string, host, and port point at the local emulator in normal mode:
+For a [relational database](/resources/databases/relational-database) resource named `myDb` connected to a workload via [`connectTo`](/configuration/connecting-resources), the connection string, host, and port point at the local emulator in normal mode. For example, a PostgreSQL database may produce variables like:
 
 ```
-STP_MY_DB_CONNECTION_STRING=postgres://postgres:postgres@localhost:5432/postgres
+STP_MY_DB_CONNECTION_STRING=postgres://...@localhost:5432/postgres
 STP_MY_DB_HOST=localhost
 STP_MY_DB_PORT=5432
 ```
 
-Code that reads these environment variables works with the same variable lookup path in dev mode and deployed stacks — no conditional logic, no `.env` files, no environment switching.
+In most applications, reading the Stacktape-provided `STP_*` variables lets the same code path work in dev mode and deployed stacks without conditional logic or environment switching.
 
 ## Rebuilding workloads
 
@@ -164,7 +164,7 @@ Stacktape dev mode supports two modes: **normal** (default) and **legacy**. They
 | **Databases** | Emulated locally with Docker | Uses deployed AWS databases |
 | **Requires existing deployment** | No — deploys a minimal dev stack automatically | Yes — errors if no deployed stack exists |
 | **Lambda tunneling** | Enabled when local databases are active | Not available |
-| **Docker required** | Yes — for container workloads and databases | Only for container workloads |
+| **Docker required** | Required when selected resources include container workloads or locally emulated databases | Only for container workloads |
 | **Best for** | Daily iteration, self-contained development | Testing against real deployed AWS resources |
 
 ### Normal mode
@@ -194,7 +194,7 @@ Stacktape auto-recovers (deletes and redeploys a fresh dev stack) when the exist
 
 ## Agent mode
 
-Agent mode runs dev mode as a background daemon with an HTTP server, keeping workload and local-resource state available for integrations with [AI coding assistants](/using-with-ai/agent-mode-in-dev) and automated workflows.
+When started with `--agent`, Stacktape spawns a detached daemon process. The daemon starts the agent server, writes a lock file with process and connection details, and reports readiness back to the parent command, which then exits. See [Agent mode in dev](/using-with-ai/agent-mode-in-dev) for the full guide.
 
 Start dev mode as an agent:
 
@@ -202,15 +202,13 @@ Start dev mode as an agent:
 stacktape dev --stage dev --region us-east-1 --resources all --agent
 ```
 
-When `--agentPort` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agentPort` to request a specific port. If an agent is already running for the same project, the command returns the existing agent's connection details instead of starting a second one.
+When `--agentPort` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agentPort` to request a specific port. If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one.
 
 Stop a running agent with [`stacktape dev:stop`](/cli/dev-stop):
 
 ```bash
 stacktape dev:stop --agentPort 7331
 ```
-
-For full agent mode documentation, see [Agent mode in dev](/using-with-ai/agent-mode-in-dev).
 
 ## Command reference
 
@@ -224,7 +222,7 @@ For the complete list of flags and options, see the [`stacktape dev`](/cli/dev) 
 | `--skipResources` | Resources to exclude from the run |
 | `--watch` | Auto-rebuild on file changes |
 | `--remoteResources` | Emulatable databases to connect to AWS instead of local emulation |
-| `--freshDb` | Delete existing local database data and start fresh |
+| `--freshDb` | Start local databases from a fresh state |
 | `--noTunnel` | Disable Lambda-to-local tunneling |
 | `--devMode` | Dev mode type: `normal` (default) or `legacy` |
 | `--agent` | Run as a background daemon with HTTP server |
@@ -242,27 +240,27 @@ Dev mode supports container workloads ([web-service](/resources/compute/web-serv
 
 ### How do Lambda functions connect to local databases in dev mode?
 
-Stacktape creates network tunnels (using a bore-compatible TCP relay) between AWS and your local machine when local database emulation is active. When a Lambda function runs in AWS and needs to reach a locally-emulated database, the tunnel routes traffic from the Lambda execution environment to the Docker container on your machine. This happens automatically — disable it with `--noTunnel` if your Lambda functions don't need local database access.
+Stacktape creates Lambda tunnels between AWS and your local machine when local database emulation is active. When a Lambda function runs in AWS and needs to reach a locally-emulated database, the tunnel routes traffic from the Lambda execution environment to the Docker container on your machine. This happens automatically — disable it with `--noTunnel` if your Lambda functions don't need local database access.
 
 ### How do I reset my local database data?
 
-Use the `--freshDb` flag: `stacktape dev --stage dev --region us-east-1 --freshDb`. This deletes existing local database data and starts fresh Docker containers. Without this flag, database data persists between dev mode sessions in `.stacktape/dev-data/{stage}/`, which is usually what you want during iterative development.
+Use the `--freshDb` flag: `stacktape dev --stage dev --region us-east-1 --freshDb`. This starts local databases from a fresh state. Without this flag, local database data persists between dev mode sessions under `.stacktape/dev-data/{stage}/`, which is usually what you want during iterative development.
 
 ### What is the difference between dev mode and deploying to a dev stage?
 
-Dev mode (`stacktape dev`) runs workloads on your local machine with Docker, deploys only a minimal dev stack to AWS, and gives you instant code-to-result feedback. [Deploying](/cli/deploy) to a dev stage (`stacktape deploy --stage dev`) provisions the full AWS infrastructure — containers on ECS, databases on RDS, Lambda functions, load balancers — and runs everything in the cloud. Use dev mode for rapid daily iteration; use a deployed dev stage for integration testing against real AWS infrastructure.
+Dev mode (`stacktape dev`) runs workloads on your local machine with Docker and, in normal mode, deploys a dev stack to your AWS account when one does not already exist. [Deploying](/cli/deploy) to a dev stage (`stacktape deploy --stage dev`) provisions the full AWS infrastructure for your config and runs everything in the cloud. Use dev mode for rapid daily iteration; use a deployed dev stage for integration testing against real AWS infrastructure.
 
 ### Does dev mode cost anything on AWS?
 
-Normal dev mode creates AWS resources for the dev stack, and Lambda functions deployed during dev mode incur standard AWS Lambda charges (pay-per-invocation). Development-level Lambda usage is typically within the AWS free tier. Container workloads and emulated databases run on your machine and don't generate AWS charges. The primary AWS cost during dev mode comes from Lambda invocations and any resources connected via `--remoteResources`.
+Normal dev mode creates a minimal dev stack in AWS, so AWS charges can come from the AWS resources in that dev stack, Lambda invocations, and any deployed resources you choose to use through `--remoteResources`. Container workloads and locally emulated databases run on your machine and don't generate AWS charges. Small development workloads may fall within AWS Lambda free-tier usage, depending on account eligibility and invocation volume.
 
 ### Can I run multiple dev mode sessions simultaneously?
 
-You can run separate dev mode sessions for different stages or projects, since each session targets its own dev stack and local Docker containers. Avoid running multiple sessions against the same project and stage because they can contend for the same local containers, ports, and dev stack. Running many concurrent sessions increases local resource usage (CPU, memory, Docker containers, ports).
+Dev mode state is scoped by project and stage, but avoid concurrent sessions unless you have verified that their ports, Docker resources, and selected stages do not conflict. Running multiple sessions against the same project and stage can contend for the same local containers, ports, and dev stack. Running many concurrent sessions increases local resource usage (CPU, memory, Docker containers, ports).
 
 ### Can I use dev mode in a monorepo?
 
-Yes. Point `stacktape dev` at a config file that references the resources you want to run, then use `--resources` to select specific workloads or the interactive picker. Each workload packages and runs independently, so you can iterate on one service while others continue running. See [Monorepo setup](/recipes/monorepo-setup) for configuration patterns.
+Yes. Point `stacktape dev` at a config file that references the resources you want to run, then use `--resources` to select specific workloads or the interactive picker. Each workload packages and runs independently, so you can iterate on one service while others continue running. See [Configure your stack](/getting-started/configure-your-stack) for how to organize your Stacktape config.
 
 ### How does Stacktape dev mode compare to Docker Compose?
 

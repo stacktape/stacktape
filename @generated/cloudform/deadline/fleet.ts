@@ -9,8 +9,8 @@ export class AcceleratorCapabilities {
 }
 
 export class AcceleratorCountRange {
-  Min!: Value<number>;
   Max?: Value<number>;
+  Min!: Value<number>;
   constructor(properties: AcceleratorCountRange) {
     Object.assign(this, properties);
   }
@@ -32,11 +32,21 @@ export class AcceleratorTotalMemoryMiBRange {
   }
 }
 
+export class CustomerManagedAutoScalingConfiguration {
+  StandbyWorkerCount?: Value<number>;
+  ScaleOutWorkersPerMinute?: Value<number>;
+  WorkerIdleDurationSeconds?: Value<number>;
+  constructor(properties: CustomerManagedAutoScalingConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class CustomerManagedFleetConfiguration {
   StorageProfileId?: Value<string>;
   Mode!: Value<string>;
   WorkerCapabilities!: CustomerManagedWorkerCapabilities;
   TagPropagationMode?: Value<string>;
+  AutoScalingConfiguration?: CustomerManagedAutoScalingConfiguration;
   constructor(properties: CustomerManagedFleetConfiguration) {
     Object.assign(this, properties);
   }
@@ -67,8 +77,8 @@ export class Ec2EbsVolume {
 }
 
 export class FleetAmountCapability {
-  Min!: Value<number>;
   Max?: Value<number>;
+  Min!: Value<number>;
   Name!: Value<string>;
   constructor(properties: FleetAmountCapability) {
     Object.assign(this, properties);
@@ -108,9 +118,18 @@ export class HostConfiguration {
 }
 
 export class MemoryMiBRange {
-  Min!: Value<number>;
   Max?: Value<number>;
+  Min!: Value<number>;
   constructor(properties: MemoryMiBRange) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ServiceManagedEc2AutoScalingConfiguration {
+  StandbyWorkerCount?: Value<number>;
+  ScaleOutWorkersPerMinute?: Value<number>;
+  WorkerIdleDurationSeconds?: Value<number>;
+  constructor(properties: ServiceManagedEc2AutoScalingConfiguration) {
     Object.assign(this, properties);
   }
 }
@@ -120,6 +139,7 @@ export class ServiceManagedEc2FleetConfiguration {
   InstanceMarketOptions!: ServiceManagedEc2InstanceMarketOptions;
   InstanceCapabilities!: ServiceManagedEc2InstanceCapabilities;
   VpcConfiguration?: VpcConfiguration;
+  AutoScalingConfiguration?: ServiceManagedEc2AutoScalingConfiguration;
   constructor(properties: ServiceManagedEc2FleetConfiguration) {
     Object.assign(this, properties);
   }
@@ -149,8 +169,8 @@ export class ServiceManagedEc2InstanceMarketOptions {
 }
 
 export class VCpuCountRange {
-  Min!: Value<number>;
   Max?: Value<number>;
+  Min!: Value<number>;
   constructor(properties: VCpuCountRange) {
     Object.assign(this, properties);
   }
@@ -178,6 +198,7 @@ export default class Fleet extends ResourceBase<FleetProperties> {
   static AcceleratorCountRange = AcceleratorCountRange;
   static AcceleratorSelection = AcceleratorSelection;
   static AcceleratorTotalMemoryMiBRange = AcceleratorTotalMemoryMiBRange;
+  static CustomerManagedAutoScalingConfiguration = CustomerManagedAutoScalingConfiguration;
   static CustomerManagedFleetConfiguration = CustomerManagedFleetConfiguration;
   static CustomerManagedWorkerCapabilities = CustomerManagedWorkerCapabilities;
   static Ec2EbsVolume = Ec2EbsVolume;
@@ -187,6 +208,7 @@ export default class Fleet extends ResourceBase<FleetProperties> {
   static FleetConfiguration = FleetConfiguration;
   static HostConfiguration = HostConfiguration;
   static MemoryMiBRange = MemoryMiBRange;
+  static ServiceManagedEc2AutoScalingConfiguration = ServiceManagedEc2AutoScalingConfiguration;
   static ServiceManagedEc2FleetConfiguration = ServiceManagedEc2FleetConfiguration;
   static ServiceManagedEc2InstanceCapabilities = ServiceManagedEc2InstanceCapabilities;
   static ServiceManagedEc2InstanceMarketOptions = ServiceManagedEc2InstanceMarketOptions;

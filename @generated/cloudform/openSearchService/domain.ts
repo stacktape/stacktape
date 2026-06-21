@@ -1,5 +1,13 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
+export class AIMLOptions {
+  S3VectorsEngine?: S3VectorsEngine;
+  ServerlessVectorAcceleration?: ServerlessVectorAcceleration;
+  constructor(properties: AIMLOptions) {
+    Object.assign(this, properties);
+  }
+}
+
 export class AdvancedSecurityOptionsInput {
   IAMFederationOptions?: IAMFederationOptions;
   AnonymousAuthEnabled?: Value<boolean>;
@@ -46,6 +54,13 @@ export class CognitoOptions {
 export class ColdStorageOptions {
   Enabled?: Value<boolean>;
   constructor(properties: ColdStorageOptions) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DeploymentStrategyOptions {
+  DeploymentStrategy?: Value<string>;
+  constructor(properties: DeploymentStrategyOptions) {
     Object.assign(this, properties);
   }
 }
@@ -175,6 +190,13 @@ export class OffPeakWindowOptions {
   }
 }
 
+export class S3VectorsEngine {
+  Enabled!: Value<boolean>;
+  constructor(properties: S3VectorsEngine) {
+    Object.assign(this, properties);
+  }
+}
+
 export class SAMLOptions {
   MasterBackendRole?: Value<string>;
   SubjectKey?: Value<string>;
@@ -184,6 +206,13 @@ export class SAMLOptions {
   Enabled?: Value<boolean>;
   MasterUserName?: Value<string>;
   constructor(properties: SAMLOptions) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ServerlessVectorAcceleration {
+  Enabled?: Value<boolean>;
+  constructor(properties: ServerlessVectorAcceleration) {
     Object.assign(this, properties);
   }
 }
@@ -244,9 +273,11 @@ export interface DomainProperties {
   SoftwareUpdateOptions?: SoftwareUpdateOptions;
   DomainName?: Value<string>;
   LogPublishingOptions?: { [key: string]: LogPublishingOption };
+  AIMLOptions?: AIMLOptions;
   SnapshotOptions?: SnapshotOptions;
   VPCOptions?: VPCOptions;
   NodeToNodeEncryptionOptions?: NodeToNodeEncryptionOptions;
+  DeploymentStrategyOptions?: DeploymentStrategyOptions;
   AccessPolicies?: { [key: string]: any };
   DomainEndpointOptions?: DomainEndpointOptions;
   CognitoOptions?: CognitoOptions;
@@ -261,10 +292,12 @@ export interface DomainProperties {
   ClusterConfig?: ClusterConfig;
 }
 export default class Domain extends ResourceBase<DomainProperties> {
+  static AIMLOptions = AIMLOptions;
   static AdvancedSecurityOptionsInput = AdvancedSecurityOptionsInput;
   static ClusterConfig = ClusterConfig;
   static CognitoOptions = CognitoOptions;
   static ColdStorageOptions = ColdStorageOptions;
+  static DeploymentStrategyOptions = DeploymentStrategyOptions;
   static DomainEndpointOptions = DomainEndpointOptions;
   static EBSOptions = EBSOptions;
   static EncryptionAtRestOptions = EncryptionAtRestOptions;
@@ -279,7 +312,9 @@ export default class Domain extends ResourceBase<DomainProperties> {
   static NodeToNodeEncryptionOptions = NodeToNodeEncryptionOptions;
   static OffPeakWindow = OffPeakWindow;
   static OffPeakWindowOptions = OffPeakWindowOptions;
+  static S3VectorsEngine = S3VectorsEngine;
   static SAMLOptions = SAMLOptions;
+  static ServerlessVectorAcceleration = ServerlessVectorAcceleration;
   static ServiceSoftwareOptions = ServiceSoftwareOptions;
   static SnapshotOptions = SnapshotOptions;
   static SoftwareUpdateOptions = SoftwareUpdateOptions;

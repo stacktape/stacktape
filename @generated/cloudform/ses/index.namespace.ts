@@ -1,6 +1,7 @@
 import ConfigurationSet_ from './configurationSet';
 import ConfigurationSetEventDestination_ from './configurationSetEventDestination';
 import ContactList_ from './contactList';
+import CustomVerificationEmailTemplate_ from './customVerificationEmailTemplate';
 import DedicatedIpPool_ from './dedicatedIpPool';
 import EmailIdentity_ from './emailIdentity';
 import MailManagerAddonInstance_ from './mailManagerAddonInstance';
@@ -11,15 +12,18 @@ import MailManagerIngressPoint_ from './mailManagerIngressPoint';
 import MailManagerRelay_ from './mailManagerRelay';
 import MailManagerRuleSet_ from './mailManagerRuleSet';
 import MailManagerTrafficPolicy_ from './mailManagerTrafficPolicy';
+import MultiRegionEndpoint_ from './multiRegionEndpoint';
 import ReceiptFilter_ from './receiptFilter';
 import ReceiptRule_ from './receiptRule';
 import ReceiptRuleSet_ from './receiptRuleSet';
 import Template_ from './template';
+import Tenant_ from './tenant';
 import VdmAttributes_ from './vdmAttributes';
 export namespace SES {
   export const ConfigurationSet = ConfigurationSet_;
   export const ConfigurationSetEventDestination = ConfigurationSetEventDestination_;
   export const ContactList = ContactList_;
+  export const CustomVerificationEmailTemplate = CustomVerificationEmailTemplate_;
   export const DedicatedIpPool = DedicatedIpPool_;
   export const EmailIdentity = EmailIdentity_;
   export const MailManagerAddonInstance = MailManagerAddonInstance_;
@@ -30,14 +34,17 @@ export namespace SES {
   export const MailManagerRelay = MailManagerRelay_;
   export const MailManagerRuleSet = MailManagerRuleSet_;
   export const MailManagerTrafficPolicy = MailManagerTrafficPolicy_;
+  export const MultiRegionEndpoint = MultiRegionEndpoint_;
   export const ReceiptFilter = ReceiptFilter_;
   export const ReceiptRule = ReceiptRule_;
   export const ReceiptRuleSet = ReceiptRuleSet_;
   export const Template = Template_;
+  export const Tenant = Tenant_;
   export const VdmAttributes = VdmAttributes_;
   export type ConfigurationSet = ConfigurationSet_;
   export type ConfigurationSetEventDestination = ConfigurationSetEventDestination_;
   export type ContactList = ContactList_;
+  export type CustomVerificationEmailTemplate = CustomVerificationEmailTemplate_;
   export type DedicatedIpPool = DedicatedIpPool_;
   export type EmailIdentity = EmailIdentity_;
   export type MailManagerAddonInstance = MailManagerAddonInstance_;
@@ -48,9 +55,11 @@ export namespace SES {
   export type MailManagerRelay = MailManagerRelay_;
   export type MailManagerRuleSet = MailManagerRuleSet_;
   export type MailManagerTrafficPolicy = MailManagerTrafficPolicy_;
+  export type MultiRegionEndpoint = MultiRegionEndpoint_;
   export type ReceiptFilter = ReceiptFilter_;
   export type ReceiptRule = ReceiptRule_;
   export type ReceiptRuleSet = ReceiptRuleSet_;
   export type Template = Template_;
+  export type Tenant = Tenant_;
   export type VdmAttributes = VdmAttributes_;
 }

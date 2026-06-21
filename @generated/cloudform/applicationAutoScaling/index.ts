@@ -1,2 +1,2 @@
-import { ApplicationAutoScaling } from './index.namespace';
-export default ApplicationAutoScaling;
+import {ApplicationAutoScaling} from './index.namespace'
+export default ApplicationAutoScaling

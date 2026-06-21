@@ -7,6 +7,9 @@ export interface AcceleratorProperties {
   Enabled?: Value<boolean>;
   Tags?: List<ResourceTag>;
   Name: Value<string>;
+  FlowLogsS3Prefix?: Value<string>;
+  FlowLogsS3Bucket?: Value<string>;
+  FlowLogsEnabled?: Value<boolean>;
 }
 export default class Accelerator extends ResourceBase<AcceleratorProperties> {
   constructor(properties: AcceleratorProperties) {

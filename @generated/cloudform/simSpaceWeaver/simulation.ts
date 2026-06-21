@@ -1,8 +1,8 @@
 import { ResourceBase } from '../resource';
 import { Value, List } from '../dataTypes';
 export class S3Location {
-  BucketName!: Value<string>;
   ObjectKey!: Value<string>;
+  BucketName!: Value<string>;
   constructor(properties: S3Location) {
     Object.assign(this, properties);
   }

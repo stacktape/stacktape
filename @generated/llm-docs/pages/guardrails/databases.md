@@ -1,9 +1,9 @@
 # Database Guardrails
 
-Stacktape database guardrails are preventive policy definitions that restrict which database engines, instance sizes, and accessibility modes your team can deploy. Each definition has a `type` identifier and a `properties` object describing what is allowed or blocked for [relational databases](/resources/databases/relational-database) in the stack.
+Stacktape database guardrails are preventive policy definitions that restrict which database engines, instance sizes, and accessibility modes your team can deploy. Each definition has a `type` identifier and a `properties` object describing what is allowed or blocked for database resources in the stack. The deletion protection guardrail targets [relational databases](/resources/databases/relational-database) specifically, the VPC-only guardrail applies to all databases, and the engine and instance restriction guardrails apply to databases that use engine types and instance sizes respectively.
 
 
-> **Info:** Guardrails are **preventive** — non-matching values are blocked, so deployments that violate an active guardrail do not produce infrastructure that breaks the policy. They are distinct from [alarms](/observability/alarms), which are **reactive** and notify you about runtime problems after deployment.
+> **Info:** Guardrails are **preventive** — non-matching values are blocked, preventing non-compliant configurations from being applied. They are distinct from [alarms](/observability/alarms), which are **reactive** and notify you about runtime problems after deployment.
 
 
 Stacktape defines four database-specific guardrail types:
@@ -15,28 +15,13 @@ Stacktape defines four database-specific guardrail types:
 | [VPC-only databases](#vpc-only-databases) | `require-vpc-databases` | `enabled` | Boolean toggle |
 | [Deletion protection](#deletion-protection) | `require-deletion-protection` | `enabled` | Boolean toggle |
 
-For other guardrail categories, see [deployment guardrails](/guardrails/deployment), [security guardrails](/guardrails/security-and-data-protection), and [resource limit guardrails](/guardrails/resource-limits).
-
-## How database guardrails work
-
-Each database guardrail definition has a `type` identifier and a `properties` object containing the policy settings. The `properties` object lists allowed or blocked values for the guardrail's target — for example, the engine restriction guardrail definition looks like this:
-
-```typescript
-{
-  type: 'database-engine-restriction',
-  properties: {
-    allowedEngines: ['postgres', 'aurora-postgresql']
-  }
-}
-```
-
-When a guardrail is active, non-matching values are blocked. Adding a guardrail is therefore safe for already-running stacks: it protects future deployments without disrupting infrastructure that is already in place. For how to set up and manage guardrails across your organization, see the [guardrails overview](/guardrails/overview).
+Guardrails are managed at the organization level in the [Stacktape Console](/stacktape-console/console-overview) — they are not defined in your `stacktape.ts` config file. For how to set up and manage guardrails, see the [guardrails overview](/guardrails/overview). For other guardrail categories, see [deployment guardrails](/guardrails/deployment), [security guardrails](/guardrails/security-and-data-protection), and [resource limit guardrails](/guardrails/resource-limits).
 
 ## Engine restriction
 
-The `database-engine-restriction` guardrail controls which database engine types can be provisioned. It uses an allowlist — the `allowedEngines` property lists permitted engine type strings, and any [relational database](/resources/databases/relational-database) whose engine type is not in the list is blocked. This is the most common database guardrail, used to standardize on a single engine family across an organization.
+The `database-engine-restriction` guardrail controls which database engine types can be provisioned. It uses an allowlist — the `allowedEngines` property lists permitted engine type strings, and any database whose engine type is not in the list is blocked. This is the most common database guardrail, used to standardize on a single engine family across an organization.
 
-The guardrail definition shape:
+Guardrail definition shape (configured in the Stacktape Console):
 
 ```typescript
 {
@@ -61,9 +46,9 @@ The `allowedEngines` property accepts an array of engine type identifier strings
 
 ## Instance restriction
 
-The `database-instance-restriction` guardrail prevents teams from provisioning databases with specific instance sizes. Unlike engine restriction, this guardrail uses a **blocklist** — the `blockedInstanceSizes` property lists forbidden instance sizes, and any [relational database](/resources/databases/relational-database) configured with a blocked size is rejected at deploy time.
+The `database-instance-restriction` guardrail prevents teams from provisioning databases with specific instance sizes. Unlike engine restriction, this guardrail uses a **blocklist** — the `blockedInstanceSizes` property lists forbidden instance size strings, and any database configured with a blocked size is blocked.
 
-The guardrail definition shape:
+Guardrail definition shape (configured in the Stacktape Console):
 
 ```typescript
 {
@@ -88,9 +73,9 @@ The `blockedInstanceSizes` property accepts an array of database instance size s
 
 ## VPC-only databases
 
-The `require-vpc-databases` guardrail enforces that all databases use VPC-only network accessibility with no public internet access. When `enabled` is `true`, any database that is not VPC-only is blocked.
+The `require-vpc-databases` guardrail enforces that all databases must use VPC-only accessibility with no public internet access. When `enabled` is `true`, any database without VPC-only accessibility is blocked.
 
-The guardrail definition shape:
+Guardrail definition shape (configured in the Stacktape Console):
 
 ```typescript
 {
@@ -107,13 +92,13 @@ For the accessibility modes available on databases and how to configure them, se
 
 **When to skip:** Development-only environments where developers need to connect to databases directly from their local machines without a VPN or bastion. For production stages, the friction of requiring VPC-only access is worth the security benefit.
 
-**Tradeoff:** VPC-only databases require consuming workloads to be in the same VPC, which adds a configuration step for every resource that needs database access. For local access to VPC-only databases during development, use a [bastion host](/resources/security/bastion-host).
+**Tradeoff:** VPC-only databases remove public internet access, meaning workloads that need database connectivity must be configured for VPC networking. A [bastion host](/resources/security/bastion-host) can provide local access to VPC-only databases during development.
 
 ## Deletion protection
 
 The `require-deletion-protection` guardrail enforces that all [relational databases](/resources/databases/relational-database) have `deletionProtection` set to `true`. When `enabled` is `true`, any relational database without explicit deletion protection is blocked.
 
-The guardrail definition shape:
+Guardrail definition shape (configured in the Stacktape Console):
 
 ```typescript
 {
@@ -130,13 +115,13 @@ AWS RDS deletion protection is a safeguard that prevents a database instance fro
 
 **When to skip:** Development and testing stages where databases are ephemeral and frequently recreated. Enforcing deletion protection on short-lived dev databases adds friction without meaningful benefit.
 
-**Tradeoff:** With this guardrail active, you cannot deploy a relational database without `deletionProtection: true`. When you genuinely need to remove a database, this adds intentional friction — the protection flag must be disabled in a separate deployment before the database can be removed.
+**Tradeoff:** With this guardrail active, you cannot deploy a relational database without `deletionProtection: true` in its configuration.
 
 ## Combining database guardrails
 
 Database guardrails work independently and can be enabled simultaneously to enforce a comprehensive database policy. A typical production setup enables all four: standardize on PostgreSQL engines, block oversized instances, require VPC isolation, and enforce deletion protection.
 
-When multiple guardrails are active, a deployment must satisfy every one of them to proceed — the first violation blocks the deployment and reports the specific error.
+When multiple guardrails are active, a stack must satisfy every one of them that applies to its resources.
 
 | Guardrail | What it prevents |
 |---|---|
@@ -147,15 +132,40 @@ When multiple guardrails are active, a deployment must satisfy every one of them
 
 **Recommended starting point:** Enable VPC-only databases and deletion protection first — they provide the highest-value safety net for production with minimal configuration overhead. They prevent the two most costly mistakes: data exposure and accidental deletion. Add engine restriction once your team has standardized on an engine family, and instance restriction once cost control across teams becomes a priority.
 
+The following database configuration satisfies all four guardrails — it uses a PostgreSQL engine, a non-blocked instance size, VPC-only accessibility, and deletion protection:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      primaryInstance: {
+        instanceSize: 'db.t4g.micro'
+      }
+    }),
+    accessibility: {
+      accessibilityMode: 'vpc'
+    },
+    deletionProtection: true
+  });
+
+  return { resources: { mainDatabase } };
+});
+```
+
+
 ## FAQ
 
 ### What's the difference between guardrails and alarms for databases?
 
-[Guardrails](/guardrails/overview) are **preventive** — they block non-compliant deployments before infrastructure changes happen. [Alarms](/observability/alarms) are **reactive** — they monitor runtime metrics (CPU usage, connection count, storage) and notify you when thresholds are crossed. Use guardrails to enforce policy at deploy time and alarms to monitor database health at runtime. They complement each other but serve different purposes.
+[Guardrails](/guardrails/overview) are **preventive** — they block non-compliant configurations. [Alarms](/observability/alarms) are **reactive** — they monitor runtime metrics (CPU usage, connection count, storage) and notify you when thresholds are crossed. Use guardrails to enforce policy on resource configurations and alarms to monitor database health at runtime. They complement each other but serve different purposes.
 
 ### Where are database guardrails configured?
 
-Database guardrails are guardrail definitions with a `type` identifier and a `properties` object, applied across your organization rather than written into a single `stacktape.ts` file. See the [guardrails overview](/guardrails/overview) for how to set them up and manage them across projects and stages.
+Database guardrails are managed at the organization level in the [Stacktape Console](/stacktape-console/console-overview) — they are not defined in your `stacktape.ts` config file. See the [guardrails overview](/guardrails/overview) for the full setup and management workflow.
 
 ### Does the engine restriction use an allowlist or blocklist?
 
@@ -171,7 +181,7 @@ The type definition gives `postgres` and `aurora-postgresql` as examples. The `a
 
 ### What happens when a guardrail blocks my deployment?
 
-A deployment that violates an active guardrail is blocked, with an error describing which resource and value triggered the violation. Fix the offending configuration so the resource matches the guardrail's allowed or blocked list, then redeploy.
+Active guardrails block non-matching values during deployment. Update the database configuration to match the guardrail requirements, then deploy again.
 
 ### Should I enable all four database guardrails at once?
 
@@ -179,4 +189,4 @@ Start with the guardrails that match your current priorities. VPC-only databases
 
 ### How much does AWS RDS cost compared to Aurora Serverless?
 
-AWS RDS single-instance databases bill per hour of runtime based on instance size, plus storage. Aurora Serverless v2 bills based on consumed capacity units (ACUs) and can scale down when idle, making it cost-effective for variable workloads. The `database-instance-restriction` guardrail helps control RDS costs by blocking expensive instance sizes before they are provisioned. See the [managing costs overview](/managing-costs/overview) for Stacktape-specific cost monitoring.
+AWS RDS single-instance databases bill per hour of runtime based on instance size, plus storage. Aurora Serverless v2 bills based on consumed capacity units (ACUs) and can scale down when idle, making it cost-effective for variable workloads. The `database-instance-restriction` guardrail helps control RDS costs by blocking expensive instance sizes. See the [managing costs overview](/managing-costs/overview) for Stacktape-specific cost monitoring.

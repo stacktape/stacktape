@@ -2,6 +2,7 @@ import AggregatorV2_ from './aggregatorV2';
 import AutomationRule_ from './automationRule';
 import AutomationRuleV2_ from './automationRuleV2';
 import ConfigurationPolicy_ from './configurationPolicy';
+import ConnectorV2_ from './connectorV2';
 import DelegatedAdmin_ from './delegatedAdmin';
 import FindingAggregator_ from './findingAggregator';
 import Hub_ from './hub';
@@ -17,6 +18,7 @@ export namespace SecurityHub {
   export const AutomationRule = AutomationRule_;
   export const AutomationRuleV2 = AutomationRuleV2_;
   export const ConfigurationPolicy = ConfigurationPolicy_;
+  export const ConnectorV2 = ConnectorV2_;
   export const DelegatedAdmin = DelegatedAdmin_;
   export const FindingAggregator = FindingAggregator_;
   export const Hub = Hub_;
@@ -31,6 +33,7 @@ export namespace SecurityHub {
   export type AutomationRule = AutomationRule_;
   export type AutomationRuleV2 = AutomationRuleV2_;
   export type ConfigurationPolicy = ConfigurationPolicy_;
+  export type ConnectorV2 = ConnectorV2_;
   export type DelegatedAdmin = DelegatedAdmin_;
   export type FindingAggregator = FindingAggregator_;
   export type Hub = Hub_;

@@ -1,5 +1,13 @@
 import { ResourceBase } from '../resource';
 import { Value, List } from '../dataTypes';
+export class ExternalSecretRotationMetadataItem {
+  Value!: Value<string>;
+  Key!: Value<string>;
+  constructor(properties: ExternalSecretRotationMetadataItem) {
+    Object.assign(this, properties);
+  }
+}
+
 export class HostedRotationLambda {
   Runtime?: Value<string>;
   KmsKeyArn?: Value<string>;
@@ -28,11 +36,14 @@ export class RotationRules {
 export interface RotationScheduleProperties {
   HostedRotationLambda?: HostedRotationLambda;
   SecretId: Value<string>;
+  ExternalSecretRotationMetadata?: List<ExternalSecretRotationMetadataItem>;
+  ExternalSecretRotationRoleArn?: Value<string>;
   RotateImmediatelyOnUpdate?: Value<boolean>;
   RotationLambdaARN?: Value<string>;
   RotationRules?: RotationRules;
 }
 export default class RotationSchedule extends ResourceBase<RotationScheduleProperties> {
+  static ExternalSecretRotationMetadataItem = ExternalSecretRotationMetadataItem;
   static HostedRotationLambda = HostedRotationLambda;
   static RotationRules = RotationRules;
   constructor(properties: RotationScheduleProperties) {

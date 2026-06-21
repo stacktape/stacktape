@@ -1,6 +1,6 @@
 # defaults:list
 
-The `defaults:list` command prints all system-wide Stacktape defaults configured on your machine. These defaults are applied automatically to every Stacktape command, so you don't need to pass common flags like `--region` or `--stage` repeatedly.
+The `defaults:list` command prints all system-wide Stacktape defaults configured on your machine. Stacktape uses these defaults as fallback values for commands that accept the corresponding arguments, so you don't need to pass common flags like `--region` or `--stage` each time.
 
 ## Usage
 
@@ -9,6 +9,14 @@ stacktape defaults:list
 ```
 
 This command takes no arguments. It reads stored defaults and prints each configured key-value pair. If no defaults are set, it suggests running [`defaults:configure`](/cli/defaults-configure).
+
+## Command reference
+
+
+## CLI Options: `stacktape defaults:list`
+
+No available options.
+
 
 ## What gets displayed
 
@@ -20,28 +28,12 @@ The output shows all defaults you've previously set with [`defaults:configure`](
 - `projectName` — default project name
 - `awsAccount` — AWS account identifier
 
-Each default appears as a `key: value` pair. These values are used as fallbacks when the corresponding CLI flag is not explicitly provided to a command.
+`defaults:list` also prints other stored defaults, such as default executables for resolving Node.js directives, when configured.
+
+Each default appears as a `key: value` pair. Stacktape uses these values as fallback arguments for commands that accept the corresponding options.
 
 
 > **Info:** This command does not require a Stacktape API key. You can run it without being logged in.
-
-
-## Examples
-
-List all configured defaults:
-
-```bash
-stacktape defaults:list
-```
-
-If you haven't configured any defaults yet, the output will prompt you to run `defaults:configure`.
-
-## Command reference
-
-
-## CLI Options: `stacktape defaults:list`
-
-No available options.
 
 
 ## Related commands

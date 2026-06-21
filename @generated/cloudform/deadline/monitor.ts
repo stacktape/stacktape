@@ -7,6 +7,7 @@ export interface MonitorProperties {
   DisplayName: Value<string>;
   RoleArn: Value<string>;
   Tags?: List<ResourceTag>;
+  IdentityCenterRegion?: Value<string>;
 }
 export default class Monitor extends ResourceBase<MonitorProperties> {
   constructor(properties: MonitorProperties) {

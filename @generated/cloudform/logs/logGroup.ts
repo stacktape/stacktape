@@ -5,9 +5,11 @@ export interface LogGroupProperties {
   FieldIndexPolicies?: List<{ [key: string]: any }>;
   RetentionInDays?: Value<number>;
   KmsKeyId?: Value<string>;
+  BearerTokenAuthenticationEnabled?: Value<boolean>;
   LogGroupClass?: Value<string>;
   ResourcePolicyDocument?: { [key: string]: any };
   LogGroupName?: Value<string>;
+  DeletionProtectionEnabled?: Value<boolean>;
   Tags?: List<ResourceTag>;
   DataProtectionPolicy?: { [key: string]: any };
 }

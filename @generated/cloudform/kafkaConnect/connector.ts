@@ -12,6 +12,7 @@ export class AutoScaling {
   ScaleOutPolicy!: ScaleOutPolicy;
   ScaleInPolicy!: ScaleInPolicy;
   MaxWorkerCount!: Value<number>;
+  MaxAutoscalingTaskCount?: Value<number>;
   MinWorkerCount!: Value<number>;
   McuCount!: Value<number>;
   constructor(properties: AutoScaling) {
@@ -88,7 +89,7 @@ export class Plugin {
 
 export class ProvisionedCapacity {
   WorkerCount!: Value<number>;
-  McuCount?: Value<number>;
+  McuCount!: Value<number>;
   constructor(properties: ProvisionedCapacity) {
     Object.assign(this, properties);
   }
@@ -149,6 +150,7 @@ export interface ConnectorProperties {
   WorkerConfiguration?: WorkerConfiguration;
   Capacity: Capacity;
   KafkaClusterEncryptionInTransit: KafkaClusterEncryptionInTransit;
+  NetworkType?: Value<string>;
   ConnectorDescription?: Value<string>;
   KafkaClusterClientAuthentication: KafkaClusterClientAuthentication;
   ConnectorName: Value<string>;

@@ -22,6 +22,7 @@ export interface TransitGatewayRouteTableAttachmentProperties {
   TransitGatewayRouteTableArn: Value<string>;
   ProposedNetworkFunctionGroupChange?: ProposedNetworkFunctionGroupChange;
   PeeringId: Value<string>;
+  RoutingPolicyLabel?: Value<string>;
   NetworkFunctionGroupName?: Value<string>;
   Tags?: List<ResourceTag>;
 }

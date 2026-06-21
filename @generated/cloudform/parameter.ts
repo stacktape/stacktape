@@ -1,6 +1,6 @@
 import DataType from './dataTypes';
 
-export default interface Parameter {
+type Parameter = {
   AllowedPattern?: string;
   AllowedValues?: any[];
   ConstraintDescription?: string;
@@ -12,9 +12,10 @@ export default interface Parameter {
   MinValue?: number;
   NoEcho?: boolean;
   Type: DataType | string;
-}
+};
+export default Parameter;
 
-export interface StringParameterProperties {
+export type StringParameterProperties = {
   AllowedPattern?: string;
   AllowedValues?: string[];
   ConstraintDescription?: string;
@@ -23,7 +24,7 @@ export interface StringParameterProperties {
   MaxLength?: number;
   MinLength?: number;
   NoEcho?: boolean;
-}
+};
 
 export abstract class StringParameterBase implements Parameter {
   AllowedPattern?: string;
@@ -55,7 +56,7 @@ export class CommaDelimitedListParameter extends StringParameterBase {
   }
 }
 
-export interface NumberParameterProperties {
+export type NumberParameterProperties = {
   AllowedValues?: number[];
   ConstraintDescription?: string;
   Default?: number;
@@ -63,7 +64,7 @@ export interface NumberParameterProperties {
   MaxValue?: number;
   MinValue?: number;
   NoEcho?: boolean;
-}
+};
 
 export abstract class NumberParameterBase implements Parameter {
   AllowedValues?: number[];

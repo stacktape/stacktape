@@ -32,7 +32,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['uploads', 'orderQueue']
+    connectTo: [uploads, orderQueue]
   });
 
   return {
@@ -46,9 +46,9 @@ The resource name you choose matters:
 
 - It determines the prefix for injected environment variables (e.g., a resource named `uploads` produces `STP_UPLOADS_NAME`, `STP_UPLOADS_ARN`).
 - It's used in `$ResourceParam('uploads', 'arn')` references across your config.
-- Changing a resource name is a replacement operation in CloudFormation — for stateful resources like databases, this means data loss.
+- Changing a resource name affects every reference to it — `$ResourceParam` lookups, `connectTo` listings, and injected environment variable prefixes.
 
-Pick short, descriptive, camelCase names. Resource names must be alphanumeric only (letters and numbers, no hyphens or underscores) and are validated at deploy time.
+Pick short, descriptive, camelCase names. Resource names must be alphanumeric — letters and numbers only (matching `/^[a-z0-9]+$/i`). Hyphens, underscores, and special characters are not allowed. Stacktape validates this at deploy time and rejects invalid names.
 
 ## Resource categories
 
@@ -86,7 +86,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/process-order.ts'
     }),
-    connectTo: ['invoiceBucket']
+    connectTo: [invoiceBucket]
   });
 
   return {
@@ -98,14 +98,16 @@ export default defineConfig(() => {
 
 In this example, the `processOrder` function receives `STP_INVOICE_BUCKET_NAME` and `STP_INVOICE_BUCKET_ARN` as environment variables automatically. No manual IAM policies or security group rules needed.
 
-The `connectTo` property accepts an array of resource name strings. Each resource type injects specific environment variables:
+In the TypeScript `defineConfig` style, pass the resource variables directly in the `connectTo` array (`[invoiceBucket]`, not `['invoiceBucket']`). Stacktape resolves these to the underlying resource names automatically. In YAML config, `connectTo` accepts an array of resource name strings. Common workload resource types inject variables such as:
 
 | Resource type | Injected variables |
 |---------------|-------------------|
 | **Bucket** | `NAME`, `ARN` |
 | **DynamoDbTable** | `NAME`, `ARN`, `STREAM_ARN` |
-| **RelationalDatabase** | `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT` (Aurora adds `READER_CONNECTION_STRING`, `READER_HOST`) |
+| **RelationalDatabase** | `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT` (Aurora also adds `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, `READER_HOST`) |
 | **RedisCluster** | `HOST`, `READER_HOST`, `PORT` |
+| **MongoDbAtlasCluster** | `CONNECTION_STRING` |
+| **UpstashRedis** | `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL` |
 | **SqsQueue** | `ARN`, `NAME`, `URL` |
 | **SnsTopic** | `ARN`, `NAME` |
 | **EventBus** | `ARN` |
@@ -115,7 +117,7 @@ The `connectTo` property accepts an array of resource name strings. Each resourc
 | **PrivateService** | `ADDRESS` |
 | **WebService** | `URL` |
 
-All variable names follow the pattern `STP_[RESOURCE_NAME]_[PARAM]`. For the full reference, see [Connecting resources](/configuration/connecting-resources).
+All variable names follow the pattern `STP_[RESOURCE_NAME]_[PARAM]`. For the full per-resource reference, see [Connecting resources](/configuration/connecting-resources).
 
 You can also connect to `aws:ses` to grant full SES email sending permissions without injecting environment variables.
 
@@ -123,25 +125,42 @@ You can also connect to `aws:ses` to grant full SES email sending permissions wi
 
 Beyond `connectTo`, you can reference any resource's parameters anywhere in your config using the `$ResourceParam` directive. This is useful for wiring values that `connectTo` doesn't cover — like passing a queue URL to a Step Functions state machine definition or embedding a bucket name in a custom environment variable.
 
+
+Example (TypeScript):
+
 ```typescript
-environment: [
-  { name: 'QUEUE_URL', value: "$ResourceParam('orderQueue', 'url')" }
-]
+import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  SqsQueue
+} from 'stacktape';
+export default defineConfig(() => {
+  const orderQueue = new SqsQueue({});
+
+  const worker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/worker.ts'
+    }),
+    environment: [{ name: 'QUEUE_URL', value: "$ResourceParam('orderQueue', 'url')" }]
+  });
+
+  return {
+    resources: { orderQueue, worker }
+  };
+});
 ```
+
+
+The `environment` property accepts an array of `{ name, value }` objects. Use `$ResourceParam` inside the `value` to reference any parameter from another resource.
 
 See [Directives](/configuration/directives) for all built-in directives and [Referenceable parameters](/configuration/referenceable-parameters) for the full list of parameters each resource exposes.
 
 ## How resources map to AWS
 
-Each Stacktape resource produces one or more CloudFormation resources. When you run [`stacktape deploy`](/cli/deploy), the process works as follows:
+Each Stacktape resource produces one or more CloudFormation resources. When you run [`stacktape deploy`](/cli/deploy), Stacktape resolves your configuration (variables, directives, secrets), translates each resource into CloudFormation definitions with the necessary IAM roles and security groups, and submits the resulting template to AWS for provisioning.
 
-1. Stacktape resolves your configuration (variables, directives, secrets).
-2. Each resource is translated into CloudFormation resource definitions.
-3. IAM roles and security groups are generated based on `connectTo` references.
-4. The CloudFormation template is submitted to AWS.
-5. AWS provisions or updates the actual infrastructure.
-
-You can inspect the generated template with [`stacktape compile-template`](/cli/compile-template) before deploying. After deploying, use [`stacktape stack-info`](/cli/info-stack) to see deployed resource details.
+You can inspect the generated template with [`stacktape compile-template`](/cli/compile-template) before deploying. After deploying, use [`stacktape info:stack`](/cli/info-stack) to see deployed resource details.
 
 
 > **Info:** Stacktape automatically adds `projectName`, `stage`, and `stackName` tags to every AWS resource in your stack. Custom tags defined in `stackConfig.tags` are merged on top — useful for cost tracking and access control in AWS Cost Explorer.
@@ -149,9 +168,9 @@ You can inspect the generated template with [`stacktape compile-template`](/cli/
 
 ## Overrides
 
-Every Stacktape resource accepts an `overrides` property that lets you modify the underlying CloudFormation resources directly. This is the escape hatch for edge cases where Stacktape's abstraction doesn't expose a specific AWS property you need.
+Most Stacktape resources expose an `overrides` property that lets you modify the underlying CloudFormation resources directly. This is the escape hatch for edge cases where Stacktape's abstraction doesn't expose a specific AWS property you need. A few resource types that don't map to CloudFormation (such as MongoDB Atlas clusters) do not support overrides.
 
-Overrides use dot-notation paths to target specific CloudFormation properties on child resources. You can find resource logical IDs with `stacktape stack-info --detailed`.
+Overrides use dot-notation paths to target specific CloudFormation properties on child resources. You can find resource logical IDs with `stacktape info:stack --detailed`.
 
 For full details, see [Overrides and escape hatches](/configuration/overrides-and-escape-hatches).
 
@@ -170,7 +189,7 @@ One stack per [stage](/configuration/stages-and-environments) is the standard pa
 
 The `resources` section uses Stacktape's typed abstractions — you get IntelliSense, automatic IAM wiring, `connectTo` integration, and managed lifecycle. The `cloudformationResources` section accepts raw CloudFormation resource definitions for anything Stacktape doesn't abstract.
 
-Raw CloudFormation resources don't participate in `connectTo` but can still be referenced via CloudFormation intrinsic functions and the `$CfResourceParam` directive.
+Raw CloudFormation resources don't participate in `connectTo`. If you need to expose values from raw resources to other stacks, define a `stackConfig.outputs` entry with `export: true` and reference it from another stack with the `$CfStackOutput()` directive.
 
 
 > **Warning:** Renaming a resource in your config is a destructive operation for stateful resources. If you rename a database resource from `ordersDb` to `mainDatabase`, CloudFormation interprets this as "delete ordersDb, create mainDatabase" — losing all data. Use `deploymentConfig.terminationProtection` to guard against accidental stack deletion, and CloudFormation stack policies via `overrides` to prevent replacement of specific resources.
@@ -180,11 +199,11 @@ Raw CloudFormation resources don't participate in `connectTo` but can still be r
 
 ### How many resources can I put in one stack?
 
-AWS CloudFormation supports up to 500 resources per stack. A single Stacktape resource typically produces multiple CloudFormation resources (IAM roles, security groups, log groups, etc.), so most stacks comfortably hold 20-50 Stacktape resources before approaching the limit. If you need more, split by domain boundary into separate projects.
+Each Stacktape resource produces multiple CloudFormation resources underneath (IAM roles, security groups, log groups, etc.), so there is a practical ceiling on how many Stacktape resources fit in one stack. A typical web application with a handful of compute resources, databases, and queues stays well within limits. If you find yourself hitting CloudFormation limits, split by domain boundary into separate projects.
 
 ### Do resources cost money when idle?
 
-It depends on the resource type. Lambda functions and DynamoDB tables (on-demand mode) cost nothing when idle — you pay per request. Container services (web service, private service, worker service) run continuously and charge based on CPU/memory allocation regardless of traffic. Relational databases charge per hour while the instance is running. Check each resource's dedicated page for pricing context.
+It depends on the resource type. Serverless resources like Lambda functions and DynamoDB tables (on-demand mode) follow a pay-per-request model. Container-based services (web service, private service, worker service) run continuously and incur charges based on allocated CPU and memory. Relational databases and Redis clusters charge while the instance is running. Check each resource's dedicated page for pricing details specific to that resource type.
 
 ### Can I reference resources across different stacks?
 
@@ -192,7 +211,7 @@ Yes. Use `stackConfig.outputs` with `export: true` to expose values from one sta
 
 ### What happens if a deployment fails?
 
-By default, AWS CloudFormation automatically rolls back all changes to the last successful state. No partial updates remain. You can disable this with `deploymentConfig.disableAutoRollback` for debugging, then manually roll back with [`stacktape rollback`](/cli/rollback).
+By default, AWS CloudFormation automatically rolls back all changes to the last successful state. You can disable this with `deploymentConfig.disableAutoRollback` for debugging, then manually roll back with [`stacktape cf:rollback`](/cli/cf-rollback).
 
 ### Can I use AWS services that Stacktape doesn't have a built-in resource for?
 
@@ -200,7 +219,7 @@ Yes. Use [raw CloudFormation resources](/resources/advanced/raw-cloudformation-r
 
 ### How do I see what AWS resources Stacktape created?
 
-Run [`stacktape stack-info`](/cli/info-stack) to see all CloudFormation resources in your stack. Use the `--detailed` flag for full logical resource IDs. You can also run [`stacktape compile-template`](/cli/compile-template) to inspect the raw CloudFormation template before deploying.
+Run [`stacktape info:stack`](/cli/info-stack) to see all CloudFormation resources in your stack. Use the `--detailed` flag for full logical resource IDs. You can also run [`stacktape compile-template`](/cli/compile-template) to inspect the raw CloudFormation template before deploying.
 
 ### Should I use one big stack or many small ones?
 

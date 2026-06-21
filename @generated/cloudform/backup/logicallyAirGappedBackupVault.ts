@@ -10,9 +10,11 @@ export class NotificationObjectType {
 export interface LogicallyAirGappedBackupVaultProperties {
   BackupVaultTags?: { [key: string]: Value<string> };
   BackupVaultName: Value<string>;
+  EncryptionKeyArn?: Value<string>;
   MaxRetentionDays: Value<number>;
   MinRetentionDays: Value<number>;
   Notifications?: NotificationObjectType;
+  MpaApprovalTeamArn?: Value<string>;
   AccessPolicy?: { [key: string]: any };
 }
 export default class LogicallyAirGappedBackupVault extends ResourceBase<LogicallyAirGappedBackupVaultProperties> {

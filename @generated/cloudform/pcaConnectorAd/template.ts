@@ -1,8 +1,8 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class ApplicationPolicies {
-  Policies!: List<ApplicationPolicy>;
   Critical?: Value<boolean>;
+  Policies!: List<ApplicationPolicy>;
   constructor(properties: ApplicationPolicies) {
     Object.assign(this, properties);
   }
@@ -106,8 +106,8 @@ export class GeneralFlagsV4 {
 }
 
 export class KeyUsage {
-  Critical?: Value<boolean>;
   UsageFlags!: KeyUsageFlags;
+  Critical?: Value<boolean>;
   constructor(properties: KeyUsage) {
     Object.assign(this, properties);
   }

@@ -33,6 +33,14 @@ export class DiskIopsConfiguration {
   }
 }
 
+export class FsrmConfiguration {
+  FsrmServiceEnabled!: Value<boolean>;
+  EventLogDestination?: Value<string>;
+  constructor(properties: FsrmConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class LustreConfiguration {
   DriveCacheType?: Value<string>;
   AutoImportPolicy?: Value<string>;
@@ -135,6 +143,7 @@ export class SelfManagedActiveDirectoryConfiguration {
   UserName?: Value<string>;
   DomainName?: Value<string>;
   OrganizationalUnitDistinguishedName?: Value<string>;
+  DomainJoinServiceAccountSecret?: Value<string>;
   DnsIps?: List<Value<string>>;
   Password?: Value<string>;
   constructor(properties: SelfManagedActiveDirectoryConfiguration) {
@@ -154,15 +163,16 @@ export class UserAndGroupQuotas {
 export class WindowsConfiguration {
   SelfManagedActiveDirectoryConfiguration?: SelfManagedActiveDirectoryConfiguration;
   AuditLogConfiguration?: AuditLogConfiguration;
-  WeeklyMaintenanceStartTime?: Value<string>;
   ActiveDirectoryId?: Value<string>;
-  DiskIopsConfiguration?: DiskIopsConfiguration;
   DeploymentType?: Value<string>;
   Aliases?: List<Value<string>>;
   ThroughputCapacity!: Value<number>;
+  WeeklyMaintenanceStartTime?: Value<string>;
+  DiskIopsConfiguration?: DiskIopsConfiguration;
   CopyTagsToBackups?: Value<boolean>;
   DailyAutomaticBackupStartTime?: Value<string>;
   AutomaticBackupRetentionDays?: Value<number>;
+  FsrmConfiguration?: FsrmConfiguration;
   PreferredSubnetId?: Value<string>;
   constructor(properties: WindowsConfiguration) {
     Object.assign(this, properties);
@@ -189,6 +199,7 @@ export default class FileSystem extends ResourceBase<FileSystemProperties> {
   static ClientConfigurations = ClientConfigurations;
   static DataReadCacheConfiguration = DataReadCacheConfiguration;
   static DiskIopsConfiguration = DiskIopsConfiguration;
+  static FsrmConfiguration = FsrmConfiguration;
   static LustreConfiguration = LustreConfiguration;
   static MetadataConfiguration = MetadataConfiguration;
   static NfsExports = NfsExports;

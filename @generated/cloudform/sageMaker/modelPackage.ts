@@ -215,9 +215,9 @@ export class S3DataSource {
 
 export class S3ModelDataSource {
   ModelAccessConfig?: ModelAccessConfig;
+  S3Uri!: Value<string>;
   S3DataType!: Value<string>;
   CompressionType!: Value<string>;
-  S3Uri!: Value<string>;
   constructor(properties: S3ModelDataSource) {
     Object.assign(this, properties);
   }
@@ -326,7 +326,6 @@ export interface ModelPackageProperties {
   ValidationSpecification?: ValidationSpecification;
   SkipModelValidation?: Value<string>;
   ModelPackageName?: Value<string>;
-  LastModifiedTime?: Value<string>;
   ClientToken?: Value<string>;
   Domain?: Value<string>;
   AdditionalInferenceSpecifications?: List<AdditionalInferenceSpecificationDefinition>;

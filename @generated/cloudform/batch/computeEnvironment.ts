@@ -1,6 +1,7 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class ComputeResources {
+  ScalingPolicy?: ComputeScalingPolicy;
   SpotIamFleetRole?: Value<string>;
   MaxvCpus!: Value<number>;
   Ec2Configuration?: List<Ec2ConfigurationObject>;
@@ -24,9 +25,17 @@ export class ComputeResources {
   }
 }
 
+export class ComputeScalingPolicy {
+  MinScaleDownDelayMinutes?: Value<number>;
+  constructor(properties: ComputeScalingPolicy) {
+    Object.assign(this, properties);
+  }
+}
+
 export class Ec2ConfigurationObject {
   ImageIdOverride?: Value<string>;
   ImageKubernetesVersion?: Value<string>;
+  BatchImageStatus?: Value<string>;
   ImageType!: Value<string>;
   constructor(properties: Ec2ConfigurationObject) {
     Object.assign(this, properties);
@@ -85,6 +94,7 @@ export interface ComputeEnvironmentProperties {
 }
 export default class ComputeEnvironment extends ResourceBase<ComputeEnvironmentProperties> {
   static ComputeResources = ComputeResources;
+  static ComputeScalingPolicy = ComputeScalingPolicy;
   static Ec2ConfigurationObject = Ec2ConfigurationObject;
   static EksConfiguration = EksConfiguration;
   static LaunchTemplateSpecification = LaunchTemplateSpecification;

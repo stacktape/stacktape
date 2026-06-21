@@ -1,6 +1,6 @@
 # aws-profile:create
 
-The `aws-profile:create` command creates a new AWS profile on your local machine. It prompts you for a profile name, AWS Access Key ID, and AWS Secret Access Key, then stores them in the standard AWS credentials file (`~/.aws/credentials`). Other AWS tools — including the AWS CLI — can use these profiles.
+The `aws-profile:create` command creates a new AWS profile on your local machine. It prompts you for a profile name, AWS Access Key ID, and AWS Secret Access Key, then stores them in the default AWS credentials location in your home directory. Other AWS tools — including the AWS CLI — can use these profiles.
 
 ## Usage
 
@@ -14,23 +14,27 @@ The command is fully interactive. It walks you through three prompts:
 2. **AWS Access Key ID** — the access key from your IAM user's security credentials.
 3. **AWS Secret Access Key** — the corresponding secret key (input is masked).
 
-If a profile with the chosen name already exists in your credentials or config file, the command fails with an error. Use [`aws-profile:update`](/cli/aws-profile-update) to change credentials for an existing profile.
+If a profile with the chosen name already exists in your credentials or config file, the command fails with an error. Use [`aws-profile:update`](/cli/aws-profile-update) to change credentials for an existing profile. All prompts are handled interactively — there are no required flags.
 
-## Important flags
+## Flags
 
-This command has no command-specific flags beyond `logLevel`. All prompts are handled interactively.
-
-
-## CLI Options: `stacktape aws-profile:create`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-
+<CliCommandsApiReference command="aws-profile:create" sortedArgs={[
+  {
+    "name": "logLevel",
+    "required": false,
+    "alias": "ll",
+    "allowedTypes": [
+      "string"
+    ],
+    "allowedValues": [
+      "info",
+      "debug",
+      "error"
+    ],
+    "shortDescription": "<p> Log Level</p>\n",
+    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+  }
+]} />
 
 ## Examples
 
@@ -58,10 +62,10 @@ stacktape aws-profile:create --logLevel error
 
 ## Where credentials are stored
 
-Credentials are written to the standard AWS credentials file at `~/.aws/credentials`. This is the same location used by the AWS CLI and AWS SDKs, so profiles created with Stacktape work with any AWS tooling on the same machine.
+Credentials are stored in the default AWS credentials location in your home directory. This is the same location used by the AWS CLI and AWS SDKs, so profiles created with Stacktape work with any AWS tooling on the same machine.
 
 
-> **Info:** If you need to manage AWS access through the Stacktape Console instead of local profiles, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account). Console-based access uses IAM roles rather than local credential files.
+> **Info:** For Console-managed AWS access, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
 
 
 ## Related commands

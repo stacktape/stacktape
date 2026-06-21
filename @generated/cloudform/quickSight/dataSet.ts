@@ -1,5 +1,49 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
+export class AdditionalNotes {
+  Text?: Value<string>;
+  constructor(properties: AdditionalNotes) {
+    Object.assign(this, properties);
+  }
+}
+
+export class AggregateOperation {
+  GroupByColumnNames?: List<Value<string>>;
+  Alias!: Value<string>;
+  Aggregations!: List<Aggregation>;
+  Source!: TransformOperationSource;
+  constructor(properties: AggregateOperation) {
+    Object.assign(this, properties);
+  }
+}
+
+export class Aggregation {
+  AggregationFunction!: DataPrepAggregationFunction;
+  NewColumnName!: Value<string>;
+  NewColumnId!: Value<string>;
+  constructor(properties: Aggregation) {
+    Object.assign(this, properties);
+  }
+}
+
+export class AppendOperation {
+  AppendedColumns!: List<AppendedColumn>;
+  SecondSource?: TransformOperationSource;
+  Alias!: Value<string>;
+  FirstSource?: TransformOperationSource;
+  constructor(properties: AppendOperation) {
+    Object.assign(this, properties);
+  }
+}
+
+export class AppendedColumn {
+  ColumnName!: Value<string>;
+  NewColumnId!: Value<string>;
+  constructor(properties: AppendedColumn) {
+    Object.assign(this, properties);
+  }
+}
+
 export class CalculatedColumn {
   ColumnId!: Value<string>;
   ColumnName!: Value<string>;
@@ -10,11 +54,20 @@ export class CalculatedColumn {
 }
 
 export class CastColumnTypeOperation {
-  ColumnName?: Value<string>;
+  ColumnName!: Value<string>;
   SubType?: Value<string>;
   Format?: Value<string>;
   NewColumnType!: Value<string>;
   constructor(properties: CastColumnTypeOperation) {
+    Object.assign(this, properties);
+  }
+}
+
+export class CastColumnTypesOperation {
+  CastColumnTypeOperations!: List<CastColumnTypeOperation>;
+  Alias!: Value<string>;
+  Source!: TransformOperationSource;
+  constructor(properties: CastColumnTypesOperation) {
     Object.assign(this, properties);
   }
 }
@@ -41,17 +94,42 @@ export class ColumnLevelPermissionRule {
   }
 }
 
-export class ColumnTag {
-  ColumnGeographicRole?: Value<string>;
-  ColumnDescription?: ColumnDescription;
-  constructor(properties: ColumnTag) {
+export class ColumnSemanticProperty {
+  SemanticType?: ColumnSemanticType;
+  Description?: ColumnDescription;
+  AdditionalNotes?: AdditionalNotes;
+  constructor(properties: ColumnSemanticProperty) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ColumnSemanticType {
+  GeographicalRole?: Value<string>;
+  constructor(properties: ColumnSemanticType) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ColumnToUnpivot {
+  ColumnName?: Value<string>;
+  NewValue?: Value<string>;
+  constructor(properties: ColumnToUnpivot) {
     Object.assign(this, properties);
   }
 }
 
 export class CreateColumnsOperation {
-  Columns?: List<CalculatedColumn>;
+  Alias?: Value<string>;
+  Columns!: List<CalculatedColumn>;
+  Source?: TransformOperationSource;
   constructor(properties: CreateColumnsOperation) {
+    Object.assign(this, properties);
+  }
+}
+
+export class CustomInstruction {
+  InlineCustomInstruction?: InlineCustomInstruction;
+  constructor(properties: CustomInstruction) {
     Object.assign(this, properties);
   }
 }
@@ -59,9 +137,128 @@ export class CreateColumnsOperation {
 export class CustomSql {
   DataSourceArn!: Value<string>;
   SqlQuery!: Value<string>;
-  Columns?: List<InputColumn>;
+  Columns!: List<InputColumn>;
   Name!: Value<string>;
   constructor(properties: CustomSql) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataPrepAggregationFunction {
+  PercentileAggregation?: DataPrepPercentileAggregationFunction;
+  ListAggregation?: DataPrepListAggregationFunction;
+  SimpleAggregation?: DataPrepSimpleAggregationFunction;
+  constructor(properties: DataPrepAggregationFunction) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataPrepConfiguration {
+  DestinationTableMap!: { [key: string]: DestinationTable };
+  TransformStepMap!: { [key: string]: TransformStep };
+  SourceTableMap!: { [key: string]: SourceTable };
+  constructor(properties: DataPrepConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataPrepListAggregationFunction {
+  Distinct!: Value<boolean>;
+  InputColumnName?: Value<string>;
+  Separator!: Value<string>;
+  constructor(properties: DataPrepListAggregationFunction) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataPrepPercentileAggregationFunction {
+  InputColumnName?: Value<string>;
+  PercentileValue!: Value<number>;
+  constructor(properties: DataPrepPercentileAggregationFunction) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataPrepSimpleAggregationFunction {
+  FunctionType!: Value<string>;
+  InputColumnName?: Value<string>;
+  constructor(properties: DataPrepSimpleAggregationFunction) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetColumnIdMapping {
+  SourceColumnId!: Value<string>;
+  TargetColumnId!: Value<string>;
+  constructor(properties: DataSetColumnIdMapping) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetDateComparisonFilterCondition {
+  Operator!: Value<string>;
+  Value?: DataSetDateFilterValue;
+  constructor(properties: DataSetDateComparisonFilterCondition) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetDateFilterCondition {
+  ColumnName?: Value<string>;
+  RangeFilterCondition?: DataSetDateRangeFilterCondition;
+  ComparisonFilterCondition?: DataSetDateComparisonFilterCondition;
+  constructor(properties: DataSetDateFilterCondition) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetDateFilterValue {
+  StaticValue?: Value<string>;
+  constructor(properties: DataSetDateFilterValue) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetDateRangeFilterCondition {
+  IncludeMaximum?: Value<boolean>;
+  RangeMinimum?: DataSetDateFilterValue;
+  RangeMaximum?: DataSetDateFilterValue;
+  IncludeMinimum?: Value<boolean>;
+  constructor(properties: DataSetDateRangeFilterCondition) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetNumericComparisonFilterCondition {
+  Operator!: Value<string>;
+  Value?: DataSetNumericFilterValue;
+  constructor(properties: DataSetNumericComparisonFilterCondition) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetNumericFilterCondition {
+  ColumnName?: Value<string>;
+  RangeFilterCondition?: DataSetNumericRangeFilterCondition;
+  ComparisonFilterCondition?: DataSetNumericComparisonFilterCondition;
+  constructor(properties: DataSetNumericFilterCondition) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetNumericFilterValue {
+  StaticValue?: Value<number>;
+  constructor(properties: DataSetNumericFilterValue) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetNumericRangeFilterCondition {
+  IncludeMaximum?: Value<boolean>;
+  RangeMinimum?: DataSetNumericFilterValue;
+  RangeMaximum?: DataSetNumericFilterValue;
+  IncludeMinimum?: Value<boolean>;
+  constructor(properties: DataSetNumericRangeFilterCondition) {
     Object.assign(this, properties);
   }
 }
@@ -70,6 +267,60 @@ export class DataSetRefreshProperties {
   RefreshConfiguration?: RefreshConfiguration;
   FailureConfiguration?: RefreshFailureConfiguration;
   constructor(properties: DataSetRefreshProperties) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetSemanticDescription {
+  Text!: Value<string>;
+  constructor(properties: DataSetSemanticDescription) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetSemanticMetadata {
+  CustomInstructions?: List<CustomInstruction>;
+  Description?: DataSetSemanticDescription;
+  constructor(properties: DataSetSemanticMetadata) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetStringComparisonFilterCondition {
+  Operator!: Value<string>;
+  Value?: DataSetStringFilterValue;
+  constructor(properties: DataSetStringComparisonFilterCondition) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetStringFilterCondition {
+  ColumnName?: Value<string>;
+  ComparisonFilterCondition?: DataSetStringComparisonFilterCondition;
+  ListFilterCondition?: DataSetStringListFilterCondition;
+  constructor(properties: DataSetStringFilterCondition) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetStringFilterValue {
+  StaticValue?: Value<string>;
+  constructor(properties: DataSetStringFilterValue) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetStringListFilterCondition {
+  Operator!: Value<string>;
+  Values?: DataSetStringListFilterValue;
+  constructor(properties: DataSetStringListFilterCondition) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DataSetStringListFilterValue {
+  StaticValues?: List<Value<string>>;
+  constructor(properties: DataSetStringListFilterValue) {
     Object.assign(this, properties);
   }
 }
@@ -127,6 +378,21 @@ export class DecimalDatasetParameterDefaultValues {
   }
 }
 
+export class DestinationTable {
+  Alias!: Value<string>;
+  Source!: DestinationTableSource;
+  constructor(properties: DestinationTable) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DestinationTableSource {
+  TransformOperationId!: Value<string>;
+  constructor(properties: DestinationTableSource) {
+    Object.assign(this, properties);
+  }
+}
+
 export class FieldFolder {
   Description?: Value<string>;
   Columns?: List<Value<string>>;
@@ -136,8 +402,20 @@ export class FieldFolder {
 }
 
 export class FilterOperation {
+  DateFilterCondition?: DataSetDateFilterCondition;
+  StringFilterCondition?: DataSetStringFilterCondition;
   ConditionExpression?: Value<string>;
+  NumericFilterCondition?: DataSetNumericFilterCondition;
   constructor(properties: FilterOperation) {
+    Object.assign(this, properties);
+  }
+}
+
+export class FiltersOperation {
+  FilterOperations!: List<FilterOperation>;
+  Alias!: Value<string>;
+  Source!: TransformOperationSource;
+  constructor(properties: FiltersOperation) {
     Object.assign(this, properties);
   }
 }
@@ -147,6 +425,22 @@ export class GeoSpatialColumnGroup {
   CountryCode?: Value<string>;
   Name!: Value<string>;
   constructor(properties: GeoSpatialColumnGroup) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ImportTableOperation {
+  Alias!: Value<string>;
+  Source!: ImportTableOperationSource;
+  constructor(properties: ImportTableOperation) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ImportTableOperationSource {
+  SourceTableId!: Value<string>;
+  ColumnIdMappings?: List<DataSetColumnIdMapping>;
+  constructor(properties: ImportTableOperationSource) {
     Object.assign(this, properties);
   }
 }
@@ -166,9 +460,18 @@ export class IngestionWaitPolicy {
   }
 }
 
+export class InlineCustomInstruction {
+  InstructionText!: Value<string>;
+  UploadedDocumentMetadata?: UploadedDocumentMetadata;
+  constructor(properties: InlineCustomInstruction) {
+    Object.assign(this, properties);
+  }
+}
+
 export class InputColumn {
   Type!: Value<string>;
   SubType?: Value<string>;
+  Id?: Value<string>;
   Name!: Value<string>;
   constructor(properties: InputColumn) {
     Object.assign(this, properties);
@@ -192,39 +495,22 @@ export class IntegerDatasetParameterDefaultValues {
   }
 }
 
-export class JoinInstruction {
+export class JoinOperandProperties {
+  OutputColumnNameOverrides!: List<OutputColumnNameOverride>;
+  constructor(properties: JoinOperandProperties) {
+    Object.assign(this, properties);
+  }
+}
+
+export class JoinOperation {
   OnClause!: Value<string>;
   Type!: Value<string>;
-  LeftJoinKeyProperties?: JoinKeyProperties;
-  LeftOperand!: Value<string>;
-  RightOperand!: Value<string>;
-  RightJoinKeyProperties?: JoinKeyProperties;
-  constructor(properties: JoinInstruction) {
-    Object.assign(this, properties);
-  }
-}
-
-export class JoinKeyProperties {
-  UniqueKey?: Value<boolean>;
-  constructor(properties: JoinKeyProperties) {
-    Object.assign(this, properties);
-  }
-}
-
-export class LogicalTable {
+  RightOperandProperties?: JoinOperandProperties;
+  LeftOperandProperties?: JoinOperandProperties;
   Alias!: Value<string>;
-  DataTransforms?: List<TransformOperation>;
-  Source?: LogicalTableSource;
-  constructor(properties: LogicalTable) {
-    Object.assign(this, properties);
-  }
-}
-
-export class LogicalTableSource {
-  PhysicalTableId?: Value<string>;
-  JoinInstruction?: JoinInstruction;
-  DataSetArn?: Value<string>;
-  constructor(properties: LogicalTableSource) {
+  LeftOperand!: TransformOperationSource;
+  RightOperand!: TransformOperationSource;
+  constructor(properties: JoinOperation) {
     Object.assign(this, properties);
   }
 }
@@ -238,31 +524,29 @@ export class LookbackWindow {
   }
 }
 
-export class NewDefaultValues {
-  DecimalStaticValues?: List<Value<number>>;
-  IntegerStaticValues?: List<Value<number>>;
-  StringStaticValues?: List<Value<string>>;
-  DateTimeStaticValues?: List<Value<string>>;
-  constructor(properties: NewDefaultValues) {
-    Object.assign(this, properties);
-  }
-}
-
 export class OutputColumn {
   Type?: Value<string>;
   Description?: Value<string>;
   SubType?: Value<string>;
+  Id?: Value<string>;
   Name?: Value<string>;
   constructor(properties: OutputColumn) {
     Object.assign(this, properties);
   }
 }
 
-export class OverrideDatasetParameterOperation {
-  NewDefaultValues?: NewDefaultValues;
-  ParameterName!: Value<string>;
-  NewParameterName?: Value<string>;
-  constructor(properties: OverrideDatasetParameterOperation) {
+export class OutputColumnNameOverride {
+  OutputColumnName!: Value<string>;
+  SourceColumnName?: Value<string>;
+  constructor(properties: OutputColumnNameOverride) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ParentDataSet {
+  InputColumns!: List<InputColumn>;
+  DataSetArn!: Value<string>;
+  constructor(properties: ParentDataSet) {
     Object.assign(this, properties);
   }
 }
@@ -275,6 +559,7 @@ export class PerformanceConfiguration {
 }
 
 export class PhysicalTable {
+  SaaSTable?: SaaSTable;
   RelationalTable?: RelationalTable;
   CustomSql?: CustomSql;
   S3Source?: S3Source;
@@ -283,8 +568,38 @@ export class PhysicalTable {
   }
 }
 
+export class PivotConfiguration {
+  LabelColumnName?: Value<string>;
+  PivotedLabels!: List<PivotedLabel>;
+  constructor(properties: PivotConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class PivotOperation {
+  PivotConfiguration!: PivotConfiguration;
+  GroupByColumnNames?: List<Value<string>>;
+  Alias!: Value<string>;
+  ValueColumnConfiguration!: ValueColumnConfiguration;
+  Source!: TransformOperationSource;
+  constructor(properties: PivotOperation) {
+    Object.assign(this, properties);
+  }
+}
+
+export class PivotedLabel {
+  NewColumnName!: Value<string>;
+  NewColumnId!: Value<string>;
+  LabelName!: Value<string>;
+  constructor(properties: PivotedLabel) {
+    Object.assign(this, properties);
+  }
+}
+
 export class ProjectOperation {
+  Alias?: Value<string>;
   ProjectedColumns?: List<Value<string>>;
+  Source?: TransformOperationSource;
   constructor(properties: ProjectOperation) {
     Object.assign(this, properties);
   }
@@ -313,7 +628,7 @@ export class RefreshFailureEmailAlert {
 
 export class RelationalTable {
   DataSourceArn!: Value<string>;
-  InputColumns?: List<InputColumn>;
+  InputColumns!: List<InputColumn>;
   Schema?: Value<string>;
   Catalog?: Value<string>;
   Name!: Value<string>;
@@ -323,9 +638,18 @@ export class RelationalTable {
 }
 
 export class RenameColumnOperation {
-  NewColumnName?: Value<string>;
-  ColumnName?: Value<string>;
+  NewColumnName!: Value<string>;
+  ColumnName!: Value<string>;
   constructor(properties: RenameColumnOperation) {
+    Object.assign(this, properties);
+  }
+}
+
+export class RenameColumnsOperation {
+  Alias!: Value<string>;
+  RenameColumnOperations!: List<RenameColumnOperation>;
+  Source!: TransformOperationSource;
+  constructor(properties: RenameColumnsOperation) {
     Object.assign(this, properties);
   }
 }
@@ -334,6 +658,14 @@ export class ResourcePermission {
   Actions!: List<Value<string>>;
   Principal!: Value<string>;
   constructor(properties: ResourcePermission) {
+    Object.assign(this, properties);
+  }
+}
+
+export class RowLevelPermissionConfiguration {
+  TagConfiguration?: RowLevelPermissionTagConfiguration;
+  RowLevelPermissionDataSet?: RowLevelPermissionDataSet;
+  constructor(properties: RowLevelPermissionConfiguration) {
     Object.assign(this, properties);
   }
 }
@@ -359,7 +691,7 @@ export class RowLevelPermissionTagConfiguration {
 }
 
 export class RowLevelPermissionTagRule {
-  ColumnName?: Value<string>;
+  ColumnName!: Value<string>;
   TagKey!: Value<string>;
   MatchAllValue?: Value<string>;
   TagMultiValueDelimiter?: Value<string>;
@@ -370,9 +702,52 @@ export class RowLevelPermissionTagRule {
 
 export class S3Source {
   DataSourceArn!: Value<string>;
-  InputColumns?: List<InputColumn>;
+  InputColumns!: List<InputColumn>;
   UploadSettings?: UploadSettings;
   constructor(properties: S3Source) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SaaSTable {
+  DataSourceArn!: Value<string>;
+  InputColumns!: List<InputColumn>;
+  TablePath!: List<TablePathElement>;
+  constructor(properties: SaaSTable) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SemanticModelConfiguration {
+  SemanticMetadata?: List<DataSetSemanticMetadata>;
+  TableMap?: { [key: string]: SemanticTable };
+  constructor(properties: SemanticModelConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SemanticTable {
+  SemanticMetadata?: TableSemanticMetadata;
+  Alias!: Value<string>;
+  DestinationTableId!: Value<string>;
+  RowLevelPermissionConfiguration?: RowLevelPermissionConfiguration;
+  constructor(properties: SemanticTable) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SharedColumnSemanticMetadata {
+  ColumnNames?: List<Value<string>>;
+  ColumnProperties!: List<ColumnSemanticProperty>;
+  constructor(properties: SharedColumnSemanticMetadata) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SourceTable {
+  PhysicalTableId?: Value<string>;
+  DataSet?: ParentDataSet;
+  constructor(properties: SourceTable) {
     Object.assign(this, properties);
   }
 }
@@ -394,39 +769,62 @@ export class StringDatasetParameterDefaultValues {
   }
 }
 
-export class TagColumnOperation {
-  ColumnName!: Value<string>;
-  Tags!: List<ColumnTag>;
-  constructor(properties: TagColumnOperation) {
+export class TablePathElement {
+  Id?: Value<string>;
+  Name?: Value<string>;
+  constructor(properties: TablePathElement) {
     Object.assign(this, properties);
   }
 }
 
-export class TransformOperation {
-  TagColumnOperation?: TagColumnOperation;
-  UntagColumnOperation?: UntagColumnOperation;
-  OverrideDatasetParameterOperation?: OverrideDatasetParameterOperation;
-  FilterOperation?: FilterOperation;
-  CastColumnTypeOperation?: CastColumnTypeOperation;
-  RenameColumnOperation?: RenameColumnOperation;
-  CreateColumnsOperation?: CreateColumnsOperation;
-  ProjectOperation?: ProjectOperation;
-  constructor(properties: TransformOperation) {
+export class TableSemanticMetadata {
+  ColumnMetadata?: List<SharedColumnSemanticMetadata>;
+  constructor(properties: TableSemanticMetadata) {
+    Object.assign(this, properties);
+  }
+}
+
+export class TransformOperationSource {
+  TransformOperationId!: Value<string>;
+  ColumnIdMappings?: List<DataSetColumnIdMapping>;
+  constructor(properties: TransformOperationSource) {
+    Object.assign(this, properties);
+  }
+}
+
+export class TransformStep {
+  ProjectStep?: ProjectOperation;
+  CreateColumnsStep?: CreateColumnsOperation;
+  RenameColumnsStep?: RenameColumnsOperation;
+  CastColumnTypesStep?: CastColumnTypesOperation;
+  ImportTableStep?: ImportTableOperation;
+  UnpivotStep?: UnpivotOperation;
+  JoinStep?: JoinOperation;
+  AppendStep?: AppendOperation;
+  FiltersStep?: FiltersOperation;
+  AggregateStep?: AggregateOperation;
+  PivotStep?: PivotOperation;
+  constructor(properties: TransformStep) {
     Object.assign(this, properties);
   }
 }
 
 export class UniqueKey {
-  ColumnNames?: List<Value<string>>;
+  ColumnNames!: List<Value<string>>;
   constructor(properties: UniqueKey) {
     Object.assign(this, properties);
   }
 }
 
-export class UntagColumnOperation {
-  ColumnName!: Value<string>;
-  TagNames!: List<Value<string>>;
-  constructor(properties: UntagColumnOperation) {
+export class UnpivotOperation {
+  UnpivotedLabelColumnName!: Value<string>;
+  ColumnsToUnpivot!: List<ColumnToUnpivot>;
+  UnpivotedLabelColumnId!: Value<string>;
+  Alias!: Value<string>;
+  UnpivotedValueColumnId!: Value<string>;
+  UnpivotedValueColumnName!: Value<string>;
+  Source!: TransformOperationSource;
+  constructor(properties: UnpivotOperation) {
     Object.assign(this, properties);
   }
 }
@@ -441,80 +839,141 @@ export class UploadSettings {
     Object.assign(this, properties);
   }
 }
+
+export class UploadedDocumentMetadata {
+  Name?: Value<string>;
+  constructor(properties: UploadedDocumentMetadata) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ValueColumnConfiguration {
+  AggregationFunction?: DataPrepAggregationFunction;
+  constructor(properties: ValueColumnConfiguration) {
+    Object.assign(this, properties);
+  }
+}
 export interface DataSetProperties {
   PhysicalTableMap?: { [key: string]: PhysicalTable };
   FieldFolders?: { [key: string]: FieldFolder };
+  SemanticModelConfiguration?: SemanticModelConfiguration;
   FolderArns?: List<Value<string>>;
   DataSetId?: Value<string>;
-  RowLevelPermissionDataSet?: RowLevelPermissionDataSet;
   PerformanceConfiguration?: PerformanceConfiguration;
   IngestionWaitPolicy?: IngestionWaitPolicy;
   DataSetRefreshProperties?: DataSetRefreshProperties;
-  RowLevelPermissionTagConfiguration?: RowLevelPermissionTagConfiguration;
   ColumnLevelPermissionRules?: List<ColumnLevelPermissionRule>;
   Name?: Value<string>;
   ColumnGroups?: List<ColumnGroup>;
   ImportMode?: Value<string>;
   DatasetParameters?: List<DatasetParameter>;
-  LogicalTableMap?: { [key: string]: LogicalTable };
   Permissions?: List<ResourcePermission>;
   AwsAccountId?: Value<string>;
   DataSetUsageConfiguration?: DataSetUsageConfiguration;
   UseAs?: Value<string>;
+  DataPrepConfiguration?: DataPrepConfiguration;
   Tags?: List<ResourceTag>;
 }
 export default class DataSet extends ResourceBase<DataSetProperties> {
+  static AdditionalNotes = AdditionalNotes;
+  static AggregateOperation = AggregateOperation;
+  static Aggregation = Aggregation;
+  static AppendOperation = AppendOperation;
+  static AppendedColumn = AppendedColumn;
   static CalculatedColumn = CalculatedColumn;
   static CastColumnTypeOperation = CastColumnTypeOperation;
+  static CastColumnTypesOperation = CastColumnTypesOperation;
   static ColumnDescription = ColumnDescription;
   static ColumnGroup = ColumnGroup;
   static ColumnLevelPermissionRule = ColumnLevelPermissionRule;
-  static ColumnTag = ColumnTag;
+  static ColumnSemanticProperty = ColumnSemanticProperty;
+  static ColumnSemanticType = ColumnSemanticType;
+  static ColumnToUnpivot = ColumnToUnpivot;
   static CreateColumnsOperation = CreateColumnsOperation;
+  static CustomInstruction = CustomInstruction;
   static CustomSql = CustomSql;
+  static DataPrepAggregationFunction = DataPrepAggregationFunction;
+  static DataPrepConfiguration = DataPrepConfiguration;
+  static DataPrepListAggregationFunction = DataPrepListAggregationFunction;
+  static DataPrepPercentileAggregationFunction = DataPrepPercentileAggregationFunction;
+  static DataPrepSimpleAggregationFunction = DataPrepSimpleAggregationFunction;
+  static DataSetColumnIdMapping = DataSetColumnIdMapping;
+  static DataSetDateComparisonFilterCondition = DataSetDateComparisonFilterCondition;
+  static DataSetDateFilterCondition = DataSetDateFilterCondition;
+  static DataSetDateFilterValue = DataSetDateFilterValue;
+  static DataSetDateRangeFilterCondition = DataSetDateRangeFilterCondition;
+  static DataSetNumericComparisonFilterCondition = DataSetNumericComparisonFilterCondition;
+  static DataSetNumericFilterCondition = DataSetNumericFilterCondition;
+  static DataSetNumericFilterValue = DataSetNumericFilterValue;
+  static DataSetNumericRangeFilterCondition = DataSetNumericRangeFilterCondition;
   static DataSetRefreshProperties = DataSetRefreshProperties;
+  static DataSetSemanticDescription = DataSetSemanticDescription;
+  static DataSetSemanticMetadata = DataSetSemanticMetadata;
+  static DataSetStringComparisonFilterCondition = DataSetStringComparisonFilterCondition;
+  static DataSetStringFilterCondition = DataSetStringFilterCondition;
+  static DataSetStringFilterValue = DataSetStringFilterValue;
+  static DataSetStringListFilterCondition = DataSetStringListFilterCondition;
+  static DataSetStringListFilterValue = DataSetStringListFilterValue;
   static DataSetUsageConfiguration = DataSetUsageConfiguration;
   static DatasetParameter = DatasetParameter;
   static DateTimeDatasetParameter = DateTimeDatasetParameter;
   static DateTimeDatasetParameterDefaultValues = DateTimeDatasetParameterDefaultValues;
   static DecimalDatasetParameter = DecimalDatasetParameter;
   static DecimalDatasetParameterDefaultValues = DecimalDatasetParameterDefaultValues;
+  static DestinationTable = DestinationTable;
+  static DestinationTableSource = DestinationTableSource;
   static FieldFolder = FieldFolder;
   static FilterOperation = FilterOperation;
+  static FiltersOperation = FiltersOperation;
   static GeoSpatialColumnGroup = GeoSpatialColumnGroup;
+  static ImportTableOperation = ImportTableOperation;
+  static ImportTableOperationSource = ImportTableOperationSource;
   static IncrementalRefresh = IncrementalRefresh;
   static IngestionWaitPolicy = IngestionWaitPolicy;
+  static InlineCustomInstruction = InlineCustomInstruction;
   static InputColumn = InputColumn;
   static IntegerDatasetParameter = IntegerDatasetParameter;
   static IntegerDatasetParameterDefaultValues = IntegerDatasetParameterDefaultValues;
-  static JoinInstruction = JoinInstruction;
-  static JoinKeyProperties = JoinKeyProperties;
-  static LogicalTable = LogicalTable;
-  static LogicalTableSource = LogicalTableSource;
+  static JoinOperandProperties = JoinOperandProperties;
+  static JoinOperation = JoinOperation;
   static LookbackWindow = LookbackWindow;
-  static NewDefaultValues = NewDefaultValues;
   static OutputColumn = OutputColumn;
-  static OverrideDatasetParameterOperation = OverrideDatasetParameterOperation;
+  static OutputColumnNameOverride = OutputColumnNameOverride;
+  static ParentDataSet = ParentDataSet;
   static PerformanceConfiguration = PerformanceConfiguration;
   static PhysicalTable = PhysicalTable;
+  static PivotConfiguration = PivotConfiguration;
+  static PivotOperation = PivotOperation;
+  static PivotedLabel = PivotedLabel;
   static ProjectOperation = ProjectOperation;
   static RefreshConfiguration = RefreshConfiguration;
   static RefreshFailureConfiguration = RefreshFailureConfiguration;
   static RefreshFailureEmailAlert = RefreshFailureEmailAlert;
   static RelationalTable = RelationalTable;
   static RenameColumnOperation = RenameColumnOperation;
+  static RenameColumnsOperation = RenameColumnsOperation;
   static ResourcePermission = ResourcePermission;
+  static RowLevelPermissionConfiguration = RowLevelPermissionConfiguration;
   static RowLevelPermissionDataSet = RowLevelPermissionDataSet;
   static RowLevelPermissionTagConfiguration = RowLevelPermissionTagConfiguration;
   static RowLevelPermissionTagRule = RowLevelPermissionTagRule;
   static S3Source = S3Source;
+  static SaaSTable = SaaSTable;
+  static SemanticModelConfiguration = SemanticModelConfiguration;
+  static SemanticTable = SemanticTable;
+  static SharedColumnSemanticMetadata = SharedColumnSemanticMetadata;
+  static SourceTable = SourceTable;
   static StringDatasetParameter = StringDatasetParameter;
   static StringDatasetParameterDefaultValues = StringDatasetParameterDefaultValues;
-  static TagColumnOperation = TagColumnOperation;
-  static TransformOperation = TransformOperation;
+  static TablePathElement = TablePathElement;
+  static TableSemanticMetadata = TableSemanticMetadata;
+  static TransformOperationSource = TransformOperationSource;
+  static TransformStep = TransformStep;
   static UniqueKey = UniqueKey;
-  static UntagColumnOperation = UntagColumnOperation;
+  static UnpivotOperation = UnpivotOperation;
   static UploadSettings = UploadSettings;
+  static UploadedDocumentMetadata = UploadedDocumentMetadata;
+  static ValueColumnConfiguration = ValueColumnConfiguration;
   constructor(properties?: DataSetProperties) {
     super('AWS::QuickSight::DataSet', properties || {});
   }

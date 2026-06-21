@@ -10,22 +10,38 @@ stacktape mcp
 
 You typically do not run this command directly. Instead, configure your AI coding agent to spawn it as an MCP server. The [`mcp:add`](/cli/mcp-add) command automates this setup for supported clients.
 
+<CliCommandsApiReference
+  command="mcp"
+  sortedArgs={[
+    {
+      name: 'logLevel',
+      required: false,
+      alias: 'll',
+      allowedTypes: ['string'],
+      allowedValues: ['info', 'debug', 'error'],
+      shortDescription: '<p> Log Level</p>\n',
+      longDescription:
+        '<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n'
+    }
+  ]}
+/>
+
 ## What the server provides
 
-The MCP server exposes four tools that AI agents use to interact with your Stacktape infrastructure:
+The MCP server exposes four focused tools that AI agents use to search docs, inspect projects, plan or run CLI commands, and control dev mode:
 
-| Tool | Purpose |
-|------|---------|
-| `stacktape_docs` | Search Stacktape documentation for configuration help, resource types, and troubleshooting |
-| `stacktape_ops` | Execute infrastructure operations: deploy, delete, preview changes, manage secrets, run scripts |
-| `stacktape_diagnose` | Read-only inspection: view logs, metrics, alarms, query databases, execute container commands |
-| `stacktape_dev` | Control dev mode: start, check status, read logs, rebuild workloads, stop |
+| Tool                | Purpose                                                                                        |
+| ------------------- | ---------------------------------------------------------------------------------------------- |
+| `stacktape_docs`    | Search docs (`action: "search"`) or fetch exact docs (`action: "get"`)                         |
+| `stacktape_project` | Inspect the local workspace for Stacktape config files, package scripts, and inferred defaults |
+| `stacktape_cli`     | List, describe, plan, or run Stacktape CLI commands with validation and safety gates           |
+| `stacktape_dev`     | Plan, start, inspect, rebuild, and stop dev mode sessions                                      |
 
 ## How it works
 
-When an MCP-compatible client starts the server, Stacktape builds a lexical search index from its documentation, then listens for tool calls over stdio using the MCP protocol. Each tool call maps to one or more Stacktape CLI commands executed in the background, with structured JSON output returned to the agent.
+When an MCP-compatible client starts the server, Stacktape builds a lexical search index from its generated documentation, then listens for tool calls over stdio using the MCP protocol. Infrastructure operations and diagnostics (`stacktape_cli`) execute Stacktape CLI commands with validation and safety gates. Documentation queries (`stacktape_docs`) search the local lexical index. Project scanning (`stacktape_project`) reads local config files and package scripts. Dev-mode follow-up operations like status checks, log reading, rebuilds, and stop (`stacktape_dev`) communicate with the dev agent API started by [`stacktape dev`](/cli/dev).
 
-The server does not require a Stacktape API key to start. However, tools that interact with deployed infrastructure (`stacktape_ops`, `stacktape_diagnose`, `stacktape_dev`) require a valid API key configured via [`stacktape login`](/cli/login).
+`stacktape mcp` itself does not require an API key. Operations that run Stacktape CLI commands requiring account access — such as deploy, delete, diagnostics, and starting dev mode — need credentials configured with [`stacktape login`](/cli/login).
 
 ## Client configuration
 
@@ -44,32 +60,7 @@ To configure manually, add an entry like this to your client's MCP configuration
 }
 ```
 
-The exact file location depends on your client:
-
-| Client | Configuration file |
-|--------|-------------------|
-| Claude Code | `~/.claude.json` or project `.mcp.json` |
-| Cursor | `~/.cursor/mcp.json` |
-| VS Code / Copilot | `.vscode/mcp.json` in workspace |
-| Windsurf | `~/.windsurf/mcp.json` |
-
-
-> **Tip:** Use [`stacktape mcp:add`](/cli/mcp-add) to handle detection and configuration automatically. It creates timestamped backups before modifying existing files.
-
-
-## Important flags
-
-
-## CLI Options: `stacktape mcp`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-
+[`stacktape mcp:add`](/cli/mcp-add) detects supported client config files (Claude Code, Codex, Cursor, VS Code/Copilot, OpenCode, and Windsurf) and adds or updates the `stacktape` server entry automatically, creating timestamped backups before modifying existing files. Prefer `mcp:add` over manual setup — it handles the correct file location for each client.
 
 ## Examples
 
@@ -87,15 +78,17 @@ MCP (Model Context Protocol) is an open protocol that lets AI coding agents disc
 
 ### Which AI clients support MCP?
 
-Claude Code, Cursor, VS Code Copilot, Windsurf, OpenCode, and Codex all support MCP servers. Any client that implements the MCP stdio transport can use `stacktape mcp`. Run [`stacktape mcp:add`](/cli/mcp-add) to auto-detect and configure supported clients on your machine.
+`stacktape mcp:add` can detect Claude Code, Codex, Cursor, VS Code/Copilot, OpenCode, and Windsurf configuration files. The `mcp` command communicates over stdio using the MCP protocol, so any client that supports MCP stdio transport can use it. Run [`stacktape mcp:add`](/cli/mcp-add) to auto-detect and configure supported clients on your machine.
 
 ### Do I need an API key to use the MCP server?
 
-The server itself starts without an API key. However, any tool that interacts with deployed infrastructure (deploying, viewing logs, querying databases) requires a valid API key. Run [`stacktape login`](/cli/login) to configure one.
+The `stacktape mcp` command itself does not require an API key. Operations that run CLI commands requiring account access — such as deploying, viewing logs, and querying databases — need credentials configured with [`stacktape login`](/cli/login).
 
 ### Can the MCP server modify my infrastructure?
 
-Yes. The `stacktape_ops` tool supports deploy, delete, rollback, and secret management. Destructive operations like `delete` require explicit confirmation (`confirm: true`) from the agent before executing.
+Yes. The `stacktape_cli` tool can run non-interactive CLI commands with `action: "run"`, such as `deploy`, `delete`, `rollback`, `secret:create`, and `debug:logs`. Mutating commands require `confirm: true` before they run. Destructive commands also require direct user confirmation through MCP elicitation when the client supports it; otherwise they fail closed.
+
+For deployment preparation, agents should use `stacktape_cli` with `action: "plan"` and `command: "deploy"` first. Planning is read-only and returns the recommended run arguments, matched package script, inferred config path, working directory, and confirmation requirement without starting a deployment.
 
 ### Is the MCP server a long-running process?
 
@@ -103,7 +96,7 @@ Yes. It runs as long as the AI client keeps the stdio connection open. When the 
 
 ### How does `stacktape_docs` search work?
 
-The server builds a lexical (BM25) search index from generated LLM documentation at startup. Queries are matched against section-level chunks and returned with route, source file, heading path, and generated docs kind metadata. Syntax and property lookups are biased toward `config-reference` chunks, workflow questions are biased toward `docs-page` chunks, and near-duplicate top results from the same page are skipped. This ensures agents get accurate, up-to-date answers grounded in the current Stacktape docs rather than relying on training data.
+The server loads a generated lexical search index from bundled LLM documentation. Queries are matched against section-level chunks and returned with route, source file, heading path, and generated docs kind metadata. Syntax and property lookups are biased toward `config-reference` chunks, workflow questions are biased toward `docs-page` chunks, and near-duplicate top results from the same page are skipped. Use `stacktape_docs` with `action: "get"` when the agent needs a complete exact route or config reference after searching.
 
 ### Can I use MCP tools alongside dev mode?
 

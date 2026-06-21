@@ -7,6 +7,7 @@ export class Action {
   AuthenticateCognitoConfig?: AuthenticateCognitoConfig;
   Type!: Value<string>;
   RedirectConfig?: RedirectConfig;
+  JwtValidationConfig?: JwtValidationConfig;
   ForwardConfig?: ForwardConfig;
   AuthenticateOidcConfig?: AuthenticateOidcConfig;
   constructor(properties: Action) {
@@ -29,9 +30,9 @@ export class AuthenticateCognitoConfig {
 }
 
 export class AuthenticateOidcConfig {
-  UseExistingClientSecret?: Value<boolean>;
   OnUnauthenticatedRequest?: Value<string>;
   TokenEndpoint!: Value<string>;
+  UseExistingClientSecret?: Value<boolean>;
   SessionTimeout?: Value<number>;
   Scope?: Value<string>;
   Issuer!: Value<string>;
@@ -83,6 +84,24 @@ export class HttpHeaderConfig {
 export class HttpRequestMethodConfig {
   Values?: List<Value<string>>;
   constructor(properties: HttpRequestMethodConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class JwtValidationActionAdditionalClaim {
+  Format!: Value<string>;
+  Values!: List<Value<string>>;
+  Name!: Value<string>;
+  constructor(properties: JwtValidationActionAdditionalClaim) {
+    Object.assign(this, properties);
+  }
+}
+
+export class JwtValidationConfig {
+  JwksEndpoint!: Value<string>;
+  Issuer!: Value<string>;
+  AdditionalClaims?: List<JwtValidationActionAdditionalClaim>;
+  constructor(properties: JwtValidationConfig) {
     Object.assign(this, properties);
   }
 }
@@ -199,6 +218,8 @@ export default class ListenerRule extends ResourceBase<ListenerRuleProperties> {
   static HostHeaderConfig = HostHeaderConfig;
   static HttpHeaderConfig = HttpHeaderConfig;
   static HttpRequestMethodConfig = HttpRequestMethodConfig;
+  static JwtValidationActionAdditionalClaim = JwtValidationActionAdditionalClaim;
+  static JwtValidationConfig = JwtValidationConfig;
   static PathPatternConfig = PathPatternConfig;
   static QueryStringConfig = QueryStringConfig;
   static QueryStringKeyValue = QueryStringKeyValue;

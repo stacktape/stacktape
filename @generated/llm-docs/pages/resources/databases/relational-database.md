@@ -360,7 +360,7 @@ export default defineConfig(() => {
 
 Use [`connectTo`](/configuration/connecting-resources) to give your compute resources access to a database. Stacktape opens network access (security group rules) and injects environment variables with connection details.
 
-For a relational database named `mainDatabase`, `connectTo` injects `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT` into workloads. Aurora clusters also inject `STP_MAIN_DATABASE_READER_CONNECTION_STRING` and `STP_MAIN_DATABASE_READER_HOST`. Scripts (defined in the `scripts` section) additionally receive `JDBC_CONNECTION_STRING` and, for Aurora, `READER_JDBC_CONNECTION_STRING`. The [`$ResourceParam()`](/configuration/directives) directive exposes all [referenceable parameters](#referenceable-parameters) including `jdbcConnectionString`, `dbName`, and replica-specific endpoints.
+For workload `connectTo`, Stacktape injects `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`; Aurora also injects `STP_MAIN_DATABASE_READER_CONNECTION_STRING` and `STP_MAIN_DATABASE_READER_HOST`. For scripts in the `scripts` section, script `connectTo` also injects JDBC variants: `STP_MAIN_DATABASE_JDBC_CONNECTION_STRING` and, for Aurora, `STP_MAIN_DATABASE_READER_JDBC_CONNECTION_STRING`. The [`$ResourceParam()`](/configuration/directives) directive exposes all [referenceable parameters](#referenceable-parameters) including `jdbcConnectionString`, `dbName`, and replica-specific endpoints.
 
 
 Example (TypeScript):
@@ -383,17 +383,16 @@ export default defineConfig(() => {
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
-    }),
-    accessibility: {
-      accessibilityMode: 'scoping-workloads-in-vpc'
-    }
+    })
   });
 
   const api = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/api.ts'
     }),
-    connectTo: ['mainDatabase']
+    memory: 1024,
+    timeout: 30,
+    connectTo: [mainDatabase]
   });
 
   return {
@@ -672,7 +671,7 @@ Aurora Serverless v2 is the best default for most new projects. It auto-scales c
 
 ### How do I run database migrations with Stacktape?
 
-Define a script of type `local-script` in the `scripts` section of your config with `connectTo` set to include the database resource name, then reference the script from `hooks.afterDeploy` using `scriptName`. Stacktape injects the connection string environment variable into your script automatically. For databases behind a VPC, use a script of type `local-script-with-bastion-tunneling` to tunnel through a [bastion host](/resources/security/bastion-host). See the [database migrations recipe](/recipes/database-migrations) for a complete walkthrough.
+Define a script of type `local-script` in the `scripts` section of your config with `connectTo` set to include the database resource name, then reference the script from `hooks.afterDeploy` using `scriptName`. Stacktape injects the connection string environment variable into your script automatically. For databases behind a VPC, use a script of type `local-script-with-bastion-tunneling` to tunnel through a [bastion host](/resources/security/bastion-host). See [hooks and scripts](/configuration/hooks-and-scripts) for the full setup.
 
 ### How much does AWS RDS cost?
 

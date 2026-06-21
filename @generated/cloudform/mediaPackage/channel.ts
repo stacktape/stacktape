@@ -8,10 +8,10 @@ export class HlsIngest {
 }
 
 export class IngestEndpoint {
-  Username!: Value<string>;
-  Id!: Value<string>;
-  Url!: Value<string>;
-  Password!: Value<string>;
+  Username?: Value<string>;
+  Id?: Value<string>;
+  Url?: Value<string>;
+  Password?: Value<string>;
   constructor(properties: IngestEndpoint) {
     Object.assign(this, properties);
   }

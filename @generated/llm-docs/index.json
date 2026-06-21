@@ -1,11 +1,30 @@
 {
-  "generatedAt": "2026-05-21T15:48:44.856Z",
+  "generatedAt": "2026-05-29T15:33:04.666Z",
   "version": "0.1",
   "sourceRoots": [
     "docs/docs",
     "types/stacktape-config"
   ],
   "pages": [
+    {
+      "id": "config-reference:agentcore",
+      "title": "Agent Core Runtime",
+      "route": "/config-reference/agentcore",
+      "sourcePath": "types/stacktape-config/agentcore.d.ts",
+      "outputPath": "config-reference/agentcore.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AgentCoreRuntime"
+      ],
+      "tags": [
+        "config-reference",
+        "agentcore"
+      ],
+      "chunks": [
+        "config-reference:agentcore#agent-core-runtime",
+        "config-reference:agentcore#typescript-definition"
+      ]
+    },
     {
       "id": "config-reference:alarms",
       "title": "Alarm Definition Base",
@@ -958,9 +977,9 @@
         "page:/ci-cd-and-gitops/custom-ci-cd#passing-config-level-variables-per-environment",
         "page:/ci-cd-and-gitops/custom-ci-cd#previewing-changes-before-deploying",
         "page:/ci-cd-and-gitops/custom-ci-cd#troubleshooting",
-        "page:/ci-cd-and-gitops/custom-ci-cd#cli-hangs-waiting-for-input",
+        "page:/ci-cd-and-gitops/custom-ci-cd#cli-hangs-or-throws-an-error-waiting-for-input",
         "page:/ci-cd-and-gitops/custom-ci-cd#authentication-fails",
-        "page:/ci-cd-and-gitops/custom-ci-cd#stage-name-too-long-or-resource-names-obfuscated",
+        "page:/ci-cd-and-gitops/custom-ci-cd#stack-name-too-long-or-resource-names-obfuscated",
         "page:/ci-cd-and-gitops/custom-ci-cd#concurrent-deploys-to-the-same-stage",
         "page:/ci-cd-and-gitops/custom-ci-cd#faq",
         "page:/ci-cd-and-gitops/custom-ci-cd#how-do-i-authenticate-stacktape-in-a-ci-pipeline",
@@ -971,7 +990,7 @@
         "page:/ci-cd-and-gitops/custom-ci-cd#can-i-run-stacktape-in-docker-based-ci-runners",
         "page:/ci-cd-and-gitops/custom-ci-cd#how-do-i-deploy-to-multiple-aws-regions-from-ci",
         "page:/ci-cd-and-gitops/custom-ci-cd#how-long-does-a-cloudformation-deployment-take",
-        "page:/ci-cd-and-gitops/custom-ci-cd#is-there-a-dedicated-github-action-for-stacktape",
+        "page:/ci-cd-and-gitops/custom-ci-cd#how-do-i-use-stacktape-with-github-actions",
         "page:/ci-cd-and-gitops/custom-ci-cd#can-i-combine-gitops-and-custom-ci-cd-for-the-same-project"
       ]
     },
@@ -1004,14 +1023,16 @@
         "page:/ci-cd-and-gitops/gitops-with-console#managing-configurations",
         "page:/ci-cd-and-gitops/gitops-with-console#typical-setup",
         "page:/ci-cd-and-gitops/gitops-with-console#faq",
-        "page:/ci-cd-and-gitops/gitops-with-console#how-do-i-set-up-push-to-deploy-with-stacktape",
+        "page:/ci-cd-and-gitops/gitops-with-console#what-is-gitops-and-how-does-it-work",
+        "page:/ci-cd-and-gitops/gitops-with-console#how-do-github-webhooks-trigger-ci-cd-pipelines",
         "page:/ci-cd-and-gitops/gitops-with-console#how-do-pr-preview-environments-get-cleaned-up",
         "page:/ci-cd-and-gitops/gitops-with-console#what-happens-if-a-gitops-action-fails",
         "page:/ci-cd-and-gitops/gitops-with-console#how-much-does-aws-codebuild-cost-for-deployments",
         "page:/ci-cd-and-gitops/gitops-with-console#can-i-deploy-to-multiple-aws-accounts-from-the-same-repository",
         "page:/ci-cd-and-gitops/gitops-with-console#how-is-gitops-with-console-different-from-custom-ci-cd",
         "page:/ci-cd-and-gitops/gitops-with-console#can-i-run-tests-before-deploying-with-gitops",
-        "page:/ci-cd-and-gitops/gitops-with-console#can-i-use-stacktape-managed-github-actions-runners-with-gitops",
+        "page:/ci-cd-and-gitops/gitops-with-console#when-should-i-use-gitops-with-console-vs-github-actions",
+        "page:/ci-cd-and-gitops/gitops-with-console#how-does-push-based-gitops-compare-to-pull-based-gitops",
         "page:/ci-cd-and-gitops/gitops-with-console#do-i-need-to-install-anything-in-my-repository-to-use-gitops",
         "page:/ci-cd-and-gitops/gitops-with-console#can-a-single-push-trigger-multiple-deployments"
       ]
@@ -1149,6 +1170,38 @@
       ]
     },
     {
+      "id": "page:/cli/alarms",
+      "title": "alarms",
+      "route": "/cli/alarms",
+      "sourcePath": "docs/docs/cli/alarms.mdx",
+      "outputPath": "pages/cli/alarms.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "alarms"
+      ],
+      "chunks": [
+        "page:/cli/alarms#alarms"
+      ]
+    },
+    {
+      "id": "page:/cli/aws-call",
+      "title": "aws:call",
+      "route": "/cli/aws-call",
+      "sourcePath": "docs/docs/cli/aws-call.mdx",
+      "outputPath": "pages/cli/aws-call.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "aws-call"
+      ],
+      "chunks": [
+        "page:/cli/aws-call#aws-call"
+      ]
+    },
+    {
       "id": "page:/cli/aws-profile-create",
       "title": "aws-profile:create",
       "route": "/cli/aws-profile-create",
@@ -1163,8 +1216,7 @@
       "chunks": [
         "page:/cli/aws-profile-create#aws-profile-create",
         "page:/cli/aws-profile-create#usage",
-        "page:/cli/aws-profile-create#important-flags",
-        "page:/cli/aws-profile-create#cli-options-stacktape-aws-profile-create",
+        "page:/cli/aws-profile-create#flags",
         "page:/cli/aws-profile-create#examples",
         "page:/cli/aws-profile-create#where-credentials-are-stored",
         "page:/cli/aws-profile-create#related-commands"
@@ -1185,9 +1237,7 @@
       "chunks": [
         "page:/cli/aws-profile-delete#aws-profile-delete",
         "page:/cli/aws-profile-delete#usage",
-        "page:/cli/aws-profile-delete#how-it-works",
         "page:/cli/aws-profile-delete#arguments-reference",
-        "page:/cli/aws-profile-delete#cli-options-stacktape-aws-profile-delete",
         "page:/cli/aws-profile-delete#examples",
         "page:/cli/aws-profile-delete#related-commands"
       ]
@@ -1208,7 +1258,6 @@
         "page:/cli/aws-profile-list#aws-profile-list",
         "page:/cli/aws-profile-list#usage",
         "page:/cli/aws-profile-list#options-reference",
-        "page:/cli/aws-profile-list#cli-options-stacktape-aws-profile-list",
         "page:/cli/aws-profile-list#examples",
         "page:/cli/aws-profile-list#related-commands"
       ]
@@ -1230,7 +1279,6 @@
         "page:/cli/aws-profile-update#usage",
         "page:/cli/aws-profile-update#examples",
         "page:/cli/aws-profile-update#flags-reference",
-        "page:/cli/aws-profile-update#cli-options-stacktape-aws-profile-update",
         "page:/cli/aws-profile-update#related-commands"
       ]
     },
@@ -1251,7 +1299,6 @@
         "page:/cli/bastion-session#usage",
         "page:/cli/bastion-session#how-it-works",
         "page:/cli/bastion-session#cli-reference",
-        "page:/cli/bastion-session#cli-options-stacktape-bastion-session",
         "page:/cli/bastion-session#examples",
         "page:/cli/bastion-session#connect-to-the-only-bastion-in-a-stack",
         "page:/cli/bastion-session#connect-to-a-specific-bastion-by-name",
@@ -1277,7 +1324,6 @@
         "page:/cli/bastion-tunnel#usage",
         "page:/cli/bastion-tunnel#important-flags",
         "page:/cli/bastion-tunnel#flags-reference",
-        "page:/cli/bastion-tunnel#cli-options-stacktape-bastion-tunnel",
         "page:/cli/bastion-tunnel#supported-resource-types",
         "page:/cli/bastion-tunnel#examples",
         "page:/cli/bastion-tunnel#tunnel-to-a-relational-database",
@@ -1313,14 +1359,13 @@
       "chunks": [
         "page:/cli/bucket-sync#bucket-sync",
         "page:/cli/bucket-sync#usage",
+        "page:/cli/bucket-sync#argument-reference",
         "page:/cli/bucket-sync#important-flags",
         "page:/cli/bucket-sync#invalidatecdncache",
         "page:/cli/bucket-sync#headerspreset",
         "page:/cli/bucket-sync#sourcepath",
         "page:/cli/bucket-sync#resourcename",
         "page:/cli/bucket-sync#examples",
-        "page:/cli/bucket-sync#argument-reference",
-        "page:/cli/bucket-sync#cli-options-stacktape-bucket-sync",
         "page:/cli/bucket-sync#related-commands"
       ]
     },
@@ -1339,10 +1384,8 @@
       "chunks": [
         "page:/cli/cf-module-update#cf-module-update",
         "page:/cli/cf-module-update#usage",
-        "page:/cli/cf-module-update#when-to-use",
-        "page:/cli/cf-module-update#examples",
         "page:/cli/cf-module-update#arguments-reference",
-        "page:/cli/cf-module-update#cli-options-stacktape-cf-module-update",
+        "page:/cli/cf-module-update#examples",
         "page:/cli/cf-module-update#related-commands"
       ]
     },
@@ -1361,15 +1404,14 @@
       "chunks": [
         "page:/cli/cf-rollback#cf-rollback",
         "page:/cli/cf-rollback#usage",
+        "page:/cli/cf-rollback#arguments-reference",
         "page:/cli/cf-rollback#what-it-does",
-        "page:/cli/cf-rollback#when-to-use-cf-rollback-vs-rollback",
+        "page:/cli/cf-rollback#cf-rollback-vs-rollback",
         "page:/cli/cf-rollback#important-flags",
         "page:/cli/cf-rollback#resourcestoskip",
         "page:/cli/cf-rollback#stage",
         "page:/cli/cf-rollback#profile",
         "page:/cli/cf-rollback#examples",
-        "page:/cli/cf-rollback#arguments-reference",
-        "page:/cli/cf-rollback#cli-options-stacktape-cf-rollback",
         "page:/cli/cf-rollback#related-commands",
         "page:/cli/cf-rollback#faq",
         "page:/cli/cf-rollback#when-should-i-use-cf-rollback-instead-of-rollback",
@@ -1383,70 +1425,19 @@
       ]
     },
     {
-      "id": "page:/cli/codebuild-deploy",
-      "title": "codebuild:deploy",
-      "route": "/cli/codebuild-deploy",
-      "sourcePath": "docs/docs/cli/codebuild-deploy.mdx",
-      "outputPath": "pages/cli/codebuild-deploy.md",
+      "id": "page:/cli/container-exec",
+      "title": "container:exec",
+      "route": "/cli/container-exec",
+      "sourcePath": "docs/docs/cli/container-exec.mdx",
+      "outputPath": "pages/cli/container-exec.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "codebuild-deploy"
+        "container-exec"
       ],
       "chunks": [
-        "page:/cli/codebuild-deploy#codebuild-deploy",
-        "page:/cli/codebuild-deploy#how-it-works",
-        "page:/cli/codebuild-deploy#flow",
-        "page:/cli/codebuild-deploy#when-to-use",
-        "page:/cli/codebuild-deploy#when-not-to-use",
-        "page:/cli/codebuild-deploy#usage",
-        "page:/cli/codebuild-deploy#arguments-reference",
-        "page:/cli/codebuild-deploy#cli-options-stacktape-codebuild-deploy",
-        "page:/cli/codebuild-deploy#examples",
-        "page:/cli/codebuild-deploy#related-commands",
-        "page:/cli/codebuild-deploy#faq",
-        "page:/cli/codebuild-deploy#when-should-i-use-codebuild-deploy-instead-of-deploy",
-        "page:/cli/codebuild-deploy#does-codebuild-deploy-cost-extra",
-        "page:/cli/codebuild-deploy#what-happens-if-the-codebuild-deployment-fails",
-        "page:/cli/codebuild-deploy#how-does-the-project-get-uploaded-to-codebuild",
-        "page:/cli/codebuild-deploy#can-i-use-codebuild-deploy-in-ci-cd-pipelines",
-        "page:/cli/codebuild-deploy#can-i-stop-a-running-codebuild-build",
-        "page:/cli/codebuild-deploy#what-gets-validated-before-the-codebuild-build-starts",
-        "page:/cli/codebuild-deploy#how-does-codebuild-deploy-compare-to-using-a-full-ci-cd-pipeline",
-        "page:/cli/codebuild-deploy#does-codebuild-deploy-accept-the-same-flags-as-deploy"
-      ]
-    },
-    {
-      "id": "page:/cli/compile-template",
-      "title": "compile-template",
-      "route": "/cli/compile-template",
-      "sourcePath": "docs/docs/cli/compile-template.mdx",
-      "outputPath": "pages/cli/compile-template.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "compile-template"
-      ],
-      "chunks": [
-        "page:/cli/compile-template#compile-template",
-        "page:/cli/compile-template#usage",
-        "page:/cli/compile-template#when-to-use",
-        "page:/cli/compile-template#important-flags",
-        "page:/cli/compile-template#examples",
-        "page:/cli/compile-template#compare-templates-across-stages",
-        "page:/cli/compile-template#lint-before-deploying",
-        "page:/cli/compile-template#flags-reference",
-        "page:/cli/compile-template#cli-options-stacktape-compile-template",
-        "page:/cli/compile-template#related-commands",
-        "page:/cli/compile-template#faq",
-        "page:/cli/compile-template#what-format-is-the-compiled-template",
-        "page:/cli/compile-template#does-compile-template-deploy-anything",
-        "page:/cli/compile-template#why-do-i-need-to-specify-stage-and-region-if-nothing-is-deployed",
-        "page:/cli/compile-template#can-i-use-the-compiled-template-with-the-aws-cli-or-console",
-        "page:/cli/compile-template#how-do-i-diff-configuration-changes-between-stages",
-        "page:/cli/compile-template#can-i-run-compile-template-in-ci"
+        "page:/cli/container-exec#container-exec"
       ]
     },
     {
@@ -1466,302 +1457,10 @@
         "page:/cli/container-session#usage",
         "page:/cli/container-session#important-flags",
         "page:/cli/container-session#multiple-running-instances",
-        "page:/cli/container-session#common-errors",
         "page:/cli/container-session#arguments-reference",
-        "page:/cli/container-session#cli-options-stacktape-container-session",
+        "page:/cli/container-session#common-errors",
         "page:/cli/container-session#examples",
         "page:/cli/container-session#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/debug-alarms",
-      "title": "debug:alarms",
-      "route": "/cli/debug-alarms",
-      "sourcePath": "docs/docs/cli/debug-alarms.mdx",
-      "outputPath": "pages/cli/debug-alarms.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "debug-alarms"
-      ],
-      "chunks": [
-        "page:/cli/debug-alarms#debug-alarms",
-        "page:/cli/debug-alarms#usage",
-        "page:/cli/debug-alarms#cli-options-stacktape-debug-alarms",
-        "page:/cli/debug-alarms#examples",
-        "page:/cli/debug-alarms#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/debug-aws-sdk",
-      "title": "debug:aws-sdk",
-      "route": "/cli/debug-aws-sdk",
-      "sourcePath": "docs/docs/cli/debug-aws-sdk.mdx",
-      "outputPath": "pages/cli/debug-aws-sdk.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "debug-aws-sdk"
-      ],
-      "chunks": [
-        "page:/cli/debug-aws-sdk#debug-aws-sdk",
-        "page:/cli/debug-aws-sdk#usage",
-        "page:/cli/debug-aws-sdk#cli-options-stacktape-debug-aws-sdk",
-        "page:/cli/debug-aws-sdk#read-only-enforcement",
-        "page:/cli/debug-aws-sdk#discovering-services-and-commands",
-        "page:/cli/debug-aws-sdk#passing-input-parameters",
-        "page:/cli/debug-aws-sdk#output",
-        "page:/cli/debug-aws-sdk#no-config-file-required",
-        "page:/cli/debug-aws-sdk#examples",
-        "page:/cli/debug-aws-sdk#list-all-lambda-functions-in-a-region",
-        "page:/cli/debug-aws-sdk#describe-a-specific-lambda-function",
-        "page:/cli/debug-aws-sdk#list-dynamodb-tables",
-        "page:/cli/debug-aws-sdk#describe-a-specific-ecs-service",
-        "page:/cli/debug-aws-sdk#check-cloudformation-stack-status",
-        "page:/cli/debug-aws-sdk#get-a-secret-value",
-        "page:/cli/debug-aws-sdk#list-cloudwatch-alarms-in-alarm-state",
-        "page:/cli/debug-aws-sdk#batch-get-multiple-dynamodb-items",
-        "page:/cli/debug-aws-sdk#use-agent-mode-for-machine-readable-output",
-        "page:/cli/debug-aws-sdk#related-commands",
-        "page:/cli/debug-aws-sdk#faq",
-        "page:/cli/debug-aws-sdk#when-should-i-use-debug-aws-sdk-instead-of-the-specialized-debug-commands",
-        "page:/cli/debug-aws-sdk#can-i-use-debug-aws-sdk-to-modify-resources",
-        "page:/cli/debug-aws-sdk#do-i-need-a-stacktape-config-file-to-use-this-command",
-        "page:/cli/debug-aws-sdk#how-do-i-find-out-which-services-and-commands-are-supported",
-        "page:/cli/debug-aws-sdk#how-is-the-input-flag-structured",
-        "page:/cli/debug-aws-sdk#can-i-use-this-command-in-ci-cd-pipelines",
-        "page:/cli/debug-aws-sdk#what-happens-if-i-get-an-accessdeniedexception",
-        "page:/cli/debug-aws-sdk#what-s-the-difference-between-debug-aws-sdk-and-the-aws-cli",
-        "page:/cli/debug-aws-sdk#can-i-query-resources-across-multiple-regions"
-      ]
-    },
-    {
-      "id": "page:/cli/debug-container-exec",
-      "title": "debug:container-exec",
-      "route": "/cli/debug-container-exec",
-      "sourcePath": "docs/docs/cli/debug-container-exec.mdx",
-      "outputPath": "pages/cli/debug-container-exec.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "debug-container-exec"
-      ],
-      "chunks": [
-        "page:/cli/debug-container-exec#debug-container-exec",
-        "page:/cli/debug-container-exec#usage",
-        "page:/cli/debug-container-exec#cli-options-stacktape-debug-container-exec",
-        "page:/cli/debug-container-exec#output-format",
-        "page:/cli/debug-container-exec#examples",
-        "page:/cli/debug-container-exec#when-to-use-debug-container-exec-vs-container-session",
-        "page:/cli/debug-container-exec#common-errors",
-        "page:/cli/debug-container-exec#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/debug-dynamodb",
-      "title": "debug:dynamodb",
-      "route": "/cli/debug-dynamodb",
-      "sourcePath": "docs/docs/cli/debug-dynamodb.mdx",
-      "outputPath": "pages/cli/debug-dynamodb.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "debug-dynamodb"
-      ],
-      "chunks": [
-        "page:/cli/debug-dynamodb#debug-dynamodb",
-        "page:/cli/debug-dynamodb#usage",
-        "page:/cli/debug-dynamodb#operations",
-        "page:/cli/debug-dynamodb#sample",
-        "page:/cli/debug-dynamodb#schema",
-        "page:/cli/debug-dynamodb#scan",
-        "page:/cli/debug-dynamodb#query",
-        "page:/cli/debug-dynamodb#get",
-        "page:/cli/debug-dynamodb#agent-mode",
-        "page:/cli/debug-dynamodb#flags-reference",
-        "page:/cli/debug-dynamodb#cli-options-stacktape-debug-dynamodb",
-        "page:/cli/debug-dynamodb#related-commands",
-        "page:/cli/debug-dynamodb#faq",
-        "page:/cli/debug-dynamodb#what-operations-does-debug-dynamodb-support",
-        "page:/cli/debug-dynamodb#do-i-need-a-stacktape-config-file-to-run-this-command",
-        "page:/cli/debug-dynamodb#how-do-i-find-the-right-resourcename-value",
-        "page:/cli/debug-dynamodb#when-should-i-use-query-vs-scan",
-        "page:/cli/debug-dynamodb#can-i-query-a-global-secondary-index-gsi",
-        "page:/cli/debug-dynamodb#what-format-does-pk-and-sk-expect",
-        "page:/cli/debug-dynamodb#what-does-the-limit-flag-default-to",
-        "page:/cli/debug-dynamodb#can-i-use-this-command-with-ai-coding-assistants"
-      ]
-    },
-    {
-      "id": "page:/cli/debug-logs",
-      "title": "debug:logs",
-      "route": "/cli/debug-logs",
-      "sourcePath": "docs/docs/cli/debug-logs.mdx",
-      "outputPath": "pages/cli/debug-logs.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "debug-logs"
-      ],
-      "chunks": [
-        "page:/cli/debug-logs#debug-logs",
-        "page:/cli/debug-logs#usage",
-        "page:/cli/debug-logs#how-it-works",
-        "page:/cli/debug-logs#important-flags",
-        "page:/cli/debug-logs#starttime",
-        "page:/cli/debug-logs#filter",
-        "page:/cli/debug-logs#query",
-        "page:/cli/debug-logs#limit",
-        "page:/cli/debug-logs#raw",
-        "page:/cli/debug-logs#agent",
-        "page:/cli/debug-logs#examples",
-        "page:/cli/debug-logs#tail-recent-errors-from-a-lambda-function",
-        "page:/cli/debug-logs#investigate-a-specific-time-window",
-        "page:/cli/debug-logs#find-cold-starts-with-insights",
-        "page:/cli/debug-logs#get-raw-json-output-for-scripting",
-        "page:/cli/debug-logs#aggregate-error-counts-by-hour",
-        "page:/cli/debug-logs#find-high-memory-lambda-invocations",
-        "page:/cli/debug-logs#flags-reference",
-        "page:/cli/debug-logs#cli-options-stacktape-debug-logs",
-        "page:/cli/debug-logs#related-commands",
-        "page:/cli/debug-logs#faq",
-        "page:/cli/debug-logs#what-is-the-difference-between-filter-and-query",
-        "page:/cli/debug-logs#how-far-back-can-i-fetch-logs",
-        "page:/cli/debug-logs#can-i-pipe-log-output-to-other-tools",
-        "page:/cli/debug-logs#how-much-does-cloudwatch-logs-cost",
-        "page:/cli/debug-logs#when-should-i-use-insights-mode-vs-standard-mode",
-        "page:/cli/debug-logs#can-i-view-logs-in-the-stacktape-console-instead-of-the-cli",
-        "page:/cli/debug-logs#what-does-the-agent-flag-do-differently-from-raw",
-        "page:/cli/debug-logs#what-cloudwatch-logs-insights-query-syntax-is-supported"
-      ]
-    },
-    {
-      "id": "page:/cli/debug-metrics",
-      "title": "debug:metrics",
-      "route": "/cli/debug-metrics",
-      "sourcePath": "docs/docs/cli/debug-metrics.mdx",
-      "outputPath": "pages/cli/debug-metrics.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "debug-metrics"
-      ],
-      "chunks": [
-        "page:/cli/debug-metrics#debug-metrics",
-        "page:/cli/debug-metrics#usage",
-        "page:/cli/debug-metrics#supported-resource-types-and-metrics",
-        "page:/cli/debug-metrics#output-modes",
-        "page:/cli/debug-metrics#key-flags",
-        "page:/cli/debug-metrics#flags-reference",
-        "page:/cli/debug-metrics#cli-options-stacktape-debug-metrics",
-        "page:/cli/debug-metrics#examples",
-        "page:/cli/debug-metrics#related-commands",
-        "page:/cli/debug-metrics#faq",
-        "page:/cli/debug-metrics#what-resource-types-does-debug-metrics-support",
-        "page:/cli/debug-metrics#can-i-query-custom-cloudwatch-metrics",
-        "page:/cli/debug-metrics#what-is-the-default-time-range-and-aggregation-period",
-        "page:/cli/debug-metrics#how-does-relative-time-parsing-work-for-starttime",
-        "page:/cli/debug-metrics#how-do-i-use-debug-metrics-with-ai-coding-agents",
-        "page:/cli/debug-metrics#what-statistics-can-i-use-with-stat",
-        "page:/cli/debug-metrics#how-much-does-querying-cloudwatch-metrics-cost",
-        "page:/cli/debug-metrics#what-is-the-difference-between-debug-metrics-and-debug-alarms",
-        "page:/cli/debug-metrics#can-i-view-metrics-in-the-stacktape-console-instead-of-the-cli"
-      ]
-    },
-    {
-      "id": "page:/cli/debug-opensearch",
-      "title": "debug:opensearch",
-      "route": "/cli/debug-opensearch",
-      "sourcePath": "docs/docs/cli/debug-opensearch.mdx",
-      "outputPath": "pages/cli/debug-opensearch.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "debug-opensearch"
-      ],
-      "chunks": [
-        "page:/cli/debug-opensearch#debug-opensearch",
-        "page:/cli/debug-opensearch#usage",
-        "page:/cli/debug-opensearch#operations",
-        "page:/cli/debug-opensearch#indices",
-        "page:/cli/debug-opensearch#mapping",
-        "page:/cli/debug-opensearch#count",
-        "page:/cli/debug-opensearch#get",
-        "page:/cli/debug-opensearch#search",
-        "page:/cli/debug-opensearch#important-flags",
-        "page:/cli/debug-opensearch#agent-mode",
-        "page:/cli/debug-opensearch#flags-reference",
-        "page:/cli/debug-opensearch#cli-options-stacktape-debug-opensearch",
-        "page:/cli/debug-opensearch#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/debug-redis",
-      "title": "debug:redis",
-      "route": "/cli/debug-redis",
-      "sourcePath": "docs/docs/cli/debug-redis.mdx",
-      "outputPath": "pages/cli/debug-redis.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "debug-redis"
-      ],
-      "chunks": [
-        "page:/cli/debug-redis#debug-redis",
-        "page:/cli/debug-redis#usage",
-        "page:/cli/debug-redis#operations",
-        "page:/cli/debug-redis#accessing-vpc-only-clusters",
-        "page:/cli/debug-redis#examples",
-        "page:/cli/debug-redis#agent-mode",
-        "page:/cli/debug-redis#flags-reference",
-        "page:/cli/debug-redis#cli-options-stacktape-debug-redis",
-        "page:/cli/debug-redis#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/debug-sql",
-      "title": "debug:sql",
-      "route": "/cli/debug-sql",
-      "sourcePath": "docs/docs/cli/debug-sql.mdx",
-      "outputPath": "pages/cli/debug-sql.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "debug-sql"
-      ],
-      "chunks": [
-        "page:/cli/debug-sql#debug-sql",
-        "page:/cli/debug-sql#usage",
-        "page:/cli/debug-sql#read-only-enforcement",
-        "page:/cli/debug-sql#vpc-only-databases",
-        "page:/cli/debug-sql#reader-endpoint-preference",
-        "page:/cli/debug-sql#agent-mode-output",
-        "page:/cli/debug-sql#result-limiting",
-        "page:/cli/debug-sql#query-timeout",
-        "page:/cli/debug-sql#examples",
-        "page:/cli/debug-sql#flags-reference",
-        "page:/cli/debug-sql#cli-options-stacktape-debug-sql",
-        "page:/cli/debug-sql#related-commands",
-        "page:/cli/debug-sql#faq",
-        "page:/cli/debug-sql#which-database-engines-does-debug-sql-support",
-        "page:/cli/debug-sql#can-i-run-write-queries-with-debug-sql",
-        "page:/cli/debug-sql#how-does-debug-sql-connect-to-a-vpc-only-database",
-        "page:/cli/debug-sql#what-happens-if-my-query-returns-too-many-rows",
-        "page:/cli/debug-sql#does-debug-sql-prefer-the-reader-or-writer-endpoint",
-        "page:/cli/debug-sql#how-do-i-increase-the-query-timeout",
-        "page:/cli/debug-sql#do-i-need-to-provide-database-credentials",
-        "page:/cli/debug-sql#can-i-use-debug-sql-in-ci-or-with-ai-agents",
-        "page:/cli/debug-sql#what-is-the-difference-between-debug-sql-and-bastion-tunnel",
-        "page:/cli/debug-sql#why-does-debug-sql-reject-my-query"
       ]
     },
     {
@@ -1794,7 +1493,7 @@
         "page:/cli/defaults-configure#do-i-need-to-be-logged-in-to-run-defaults-configure",
         "page:/cli/defaults-configure#can-i-set-defaults-per-project-instead-of-globally",
         "page:/cli/defaults-configure#should-i-use-defaults-configure-or-shell-aliases",
-        "page:/cli/defaults-configure#is-my-api-key-stored-securely",
+        "page:/cli/defaults-configure#are-stored-defaults-secure",
         "page:/cli/defaults-configure#how-do-defaults-work-in-ci-cd-pipelines",
         "page:/cli/defaults-configure#what-happens-if-i-configure-a-default-for-a-flag-that-a-specific-command-doesn-t-accept",
         "page:/cli/defaults-configure#can-i-see-which-defaults-are-active-before-running-a-command"
@@ -1815,10 +1514,9 @@
       "chunks": [
         "page:/cli/defaults-list#defaults-list",
         "page:/cli/defaults-list#usage",
-        "page:/cli/defaults-list#what-gets-displayed",
-        "page:/cli/defaults-list#examples",
         "page:/cli/defaults-list#command-reference",
         "page:/cli/defaults-list#cli-options-stacktape-defaults-list",
+        "page:/cli/defaults-list#what-gets-displayed",
         "page:/cli/defaults-list#related-commands"
       ]
     },
@@ -1838,7 +1536,6 @@
         "page:/cli/delete#delete",
         "page:/cli/delete#usage",
         "page:/cli/delete#important-flags",
-        "page:/cli/delete#cli-options-stacktape-delete",
         "page:/cli/delete#lifecycle-hooks",
         "page:/cli/delete#termination-protection",
         "page:/cli/delete#examples",
@@ -1850,7 +1547,6 @@
         "page:/cli/delete#how-do-i-delete-a-stack-with-termination-protection",
         "page:/cli/delete#does-deleting-a-stack-affect-other-stages",
         "page:/cli/delete#how-long-does-a-stack-deletion-take",
-        "page:/cli/delete#what-if-a-delete-operation-fails-partway-through",
         "page:/cli/delete#can-i-recover-a-deleted-stack",
         "page:/cli/delete#what-is-the-difference-between-delete-and-rollback",
         "page:/cli/delete#do-beforedelete-hooks-have-access-to-deployed-resources"
@@ -1872,8 +1568,7 @@
         "page:/cli/deploy#deploy",
         "page:/cli/deploy#usage",
         "page:/cli/deploy#what-happens-during-deploy",
-        "page:/cli/deploy#flow",
-        "page:/cli/deploy#important-flags",
+        "page:/cli/deploy#common-flags",
         "page:/cli/deploy#hotswap",
         "page:/cli/deploy#autoconfirmoperation",
         "page:/cli/deploy#disableautorollback",
@@ -1882,6 +1577,7 @@
         "page:/cli/deploy#configpath",
         "page:/cli/deploy#disablelayeroptimization",
         "page:/cli/deploy#showsensitivevalues",
+        "page:/cli/deploy#all-flags",
         "page:/cli/deploy#examples",
         "page:/cli/deploy#deploy-a-new-production-stage",
         "page:/cli/deploy#deploy-with-a-specific-aws-profile-and-project",
@@ -1890,8 +1586,6 @@
         "page:/cli/deploy#preview-changes-before-deploying",
         "page:/cli/deploy#deploy-with-a-remote-build-environment",
         "page:/cli/deploy#dev-stacks-cannot-be-deployed",
-        "page:/cli/deploy#all-flags",
-        "page:/cli/deploy#cli-options-stacktape-deploy",
         "page:/cli/deploy#related-commands"
       ]
     },
@@ -1909,13 +1603,10 @@
       ],
       "chunks": [
         "page:/cli/deployment-script-run#deployment-script-run",
-        "page:/cli/deployment-script-run#what-it-does",
         "page:/cli/deployment-script-run#usage",
-        "page:/cli/deployment-script-run#prerequisites",
+        "page:/cli/deployment-script-run#arguments-reference",
         "page:/cli/deployment-script-run#examples",
         "page:/cli/deployment-script-run#when-to-use-this-vs-deploy",
-        "page:/cli/deployment-script-run#arguments-reference",
-        "page:/cli/deployment-script-run#cli-options-stacktape-deployment-script-run",
         "page:/cli/deployment-script-run#related-commands"
       ]
     },
@@ -1937,10 +1628,7 @@
         "page:/cli/dev-stop#important-flags",
         "page:/cli/dev-stop#agentport",
         "page:/cli/dev-stop#cleanupcontainers",
-        "page:/cli/dev-stop#examples",
-        "page:/cli/dev-stop#how-agent-discovery-works",
         "page:/cli/dev-stop#flags-reference",
-        "page:/cli/dev-stop#cli-options-stacktape-dev-stop",
         "page:/cli/dev-stop#related-commands"
       ]
     },
@@ -1959,7 +1647,6 @@
       "chunks": [
         "page:/cli/dev#dev",
         "page:/cli/dev#usage",
-        "page:/cli/dev#cli-options-stacktape-dev",
         "page:/cli/dev#what-it-does",
         "page:/cli/dev#normal-mode-default",
         "page:/cli/dev#legacy-mode",
@@ -1972,7 +1659,6 @@
         "page:/cli/dev#notunnel",
         "page:/cli/dev#disableemulation",
         "page:/cli/dev#agent-agentport",
-        "page:/cli/dev#resourcename-container",
         "page:/cli/dev#interactive-commands",
         "page:/cli/dev#examples",
         "page:/cli/dev#faq",
@@ -1986,6 +1672,22 @@
         "page:/cli/dev#how-do-i-reset-local-database-state",
         "page:/cli/dev#can-i-rebuild-workloads-without-restarting-dev-mode",
         "page:/cli/dev#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/diff",
+      "title": "diff",
+      "route": "/cli/diff",
+      "sourcePath": "docs/docs/cli/diff.mdx",
+      "outputPath": "pages/cli/diff.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "diff"
+      ],
+      "chunks": [
+        "page:/cli/diff#diff"
       ]
     },
     {
@@ -2005,12 +1707,11 @@
         "page:/cli/domain-add#usage",
         "page:/cli/domain-add#what-it-does",
         "page:/cli/domain-add#dns-ownership-scenarios",
-        "page:/cli/domain-add#domain-registered-in-route-53",
-        "page:/cli/domain-add#domain-registered-elsewhere",
+        "page:/cli/domain-add#dns-already-verified",
+        "page:/cli/domain-add#dns-managed-outside-aws",
         "page:/cli/domain-add#tls-certificates",
         "page:/cli/domain-add#ses-email-verification",
         "page:/cli/domain-add#arguments-reference",
-        "page:/cli/domain-add#cli-options-stacktape-domain-add",
         "page:/cli/domain-add#examples",
         "page:/cli/domain-add#related-commands",
         "page:/cli/domain-add#faq",
@@ -2043,7 +1744,6 @@
         "page:/cli/help#usage",
         "page:/cli/help#the-command-flag",
         "page:/cli/help#options-reference",
-        "page:/cli/help#cli-options-stacktape-help",
         "page:/cli/help#examples",
         "page:/cli/help#related-commands"
       ]
@@ -2067,7 +1767,6 @@
         "page:/cli/info-operations#controlling-output-size",
         "page:/cli/info-operations#machine-readable-output",
         "page:/cli/info-operations#flags-reference",
-        "page:/cli/info-operations#cli-options-stacktape-info-operations",
         "page:/cli/info-operations#related-commands"
       ]
     },
@@ -2087,7 +1786,6 @@
         "page:/cli/info-stack#info-stack",
         "page:/cli/info-stack#usage",
         "page:/cli/info-stack#command-reference",
-        "page:/cli/info-stack#cli-options-stacktape-info-stack",
         "page:/cli/info-stack#examples",
         "page:/cli/info-stack#related-commands"
       ]
@@ -2107,11 +1805,10 @@
       "chunks": [
         "page:/cli/info-stacks#info-stacks",
         "page:/cli/info-stacks#usage",
+        "page:/cli/info-stacks#api-reference",
         "page:/cli/info-stacks#what-it-does",
         "page:/cli/info-stacks#important-flags",
         "page:/cli/info-stacks#examples",
-        "page:/cli/info-stacks#api-reference",
-        "page:/cli/info-stacks#cli-options-stacktape-info-stacks",
         "page:/cli/info-stacks#related-commands"
       ]
     },
@@ -2132,7 +1829,6 @@
         "page:/cli/info-whoami#usage",
         "page:/cli/info-whoami#examples",
         "page:/cli/info-whoami#flags",
-        "page:/cli/info-whoami#cli-options-stacktape-info-whoami",
         "page:/cli/info-whoami#related-commands"
       ]
     },
@@ -2162,7 +1858,6 @@
         "page:/cli/init#initializeprojectto",
         "page:/cli/init#examples",
         "page:/cli/init#all-flags",
-        "page:/cli/init#cli-options-stacktape-init",
         "page:/cli/init#related-commands",
         "page:/cli/init#faq",
         "page:/cli/init#what-s-the-fastest-way-to-start-a-new-stacktape-project",
@@ -2189,7 +1884,6 @@
         "page:/cli/issues-ignore#issues-ignore",
         "page:/cli/issues-ignore#usage",
         "page:/cli/issues-ignore#flags-reference",
-        "page:/cli/issues-ignore#cli-options-stacktape-issues-ignore",
         "page:/cli/issues-ignore#examples",
         "page:/cli/issues-ignore#when-to-ignore-vs-resolve",
         "page:/cli/issues-ignore#related-commands"
@@ -2211,7 +1905,6 @@
         "page:/cli/issues-list#issues-list",
         "page:/cli/issues-list#usage",
         "page:/cli/issues-list#flags-reference",
-        "page:/cli/issues-list#cli-options-stacktape-issues-list",
         "page:/cli/issues-list#examples",
         "page:/cli/issues-list#output",
         "page:/cli/issues-list#related-commands"
@@ -2232,11 +1925,8 @@
       "chunks": [
         "page:/cli/issues-reopen#issues-reopen",
         "page:/cli/issues-reopen#usage",
-        "page:/cli/issues-reopen#when-to-use",
-        "page:/cli/issues-reopen#important-flags",
         "page:/cli/issues-reopen#examples",
         "page:/cli/issues-reopen#arguments-reference",
-        "page:/cli/issues-reopen#cli-options-stacktape-issues-reopen",
         "page:/cli/issues-reopen#related-commands"
       ]
     },
@@ -2255,9 +1945,7 @@
       "chunks": [
         "page:/cli/issues-resolve#issues-resolve",
         "page:/cli/issues-resolve#usage",
-        "page:/cli/issues-resolve#when-to-use",
         "page:/cli/issues-resolve#flags-reference",
-        "page:/cli/issues-resolve#cli-options-stacktape-issues-resolve",
         "page:/cli/issues-resolve#examples",
         "page:/cli/issues-resolve#related-commands"
       ]
@@ -2280,7 +1968,6 @@
         "page:/cli/login#what-happens-during-login",
         "page:/cli/login#non-interactive-login",
         "page:/cli/login#flags-reference",
-        "page:/cli/login#cli-options-stacktape-login",
         "page:/cli/login#examples",
         "page:/cli/login#interactive-login",
         "page:/cli/login#login-with-an-api-key-in-ci",
@@ -2315,10 +2002,24 @@
         "page:/cli/logout#logout",
         "page:/cli/logout#usage",
         "page:/cli/logout#when-to-use",
-        "page:/cli/logout#examples",
         "page:/cli/logout#command-reference",
-        "page:/cli/logout#cli-options-stacktape-logout",
         "page:/cli/logout#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/logs",
+      "title": "logs",
+      "route": "/cli/logs",
+      "sourcePath": "docs/docs/cli/logs.mdx",
+      "outputPath": "pages/cli/logs.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "logs"
+      ],
+      "chunks": [
+        "page:/cli/logs#logs"
       ]
     },
     {
@@ -2340,7 +2041,6 @@
         "page:/cli/mcp-add#behavior-details",
         "page:/cli/mcp-add#examples",
         "page:/cli/mcp-add#flags-reference",
-        "page:/cli/mcp-add#cli-options-stacktape-mcp-add",
         "page:/cli/mcp-add#related-commands"
       ]
     },
@@ -2362,8 +2062,6 @@
         "page:/cli/mcp#what-the-server-provides",
         "page:/cli/mcp#how-it-works",
         "page:/cli/mcp#client-configuration",
-        "page:/cli/mcp#important-flags",
-        "page:/cli/mcp#cli-options-stacktape-mcp",
         "page:/cli/mcp#examples",
         "page:/cli/mcp#faq",
         "page:/cli/mcp#what-is-mcp",
@@ -2374,6 +2072,22 @@
         "page:/cli/mcp#how-does-stacktape-docs-search-work",
         "page:/cli/mcp#can-i-use-mcp-tools-alongside-dev-mode",
         "page:/cli/mcp#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/metrics",
+      "title": "metrics",
+      "route": "/cli/metrics",
+      "sourcePath": "docs/docs/cli/metrics.mdx",
+      "outputPath": "pages/cli/metrics.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "metrics"
+      ],
+      "chunks": [
+        "page:/cli/metrics#metrics"
       ]
     },
     {
@@ -2392,9 +2106,8 @@
         "page:/cli/org-create#org-create",
         "page:/cli/org-create#usage",
         "page:/cli/org-create#what-the-command-returns",
-        "page:/cli/org-create#examples",
         "page:/cli/org-create#flags-reference",
-        "page:/cli/org-create#cli-options-stacktape-org-create",
+        "page:/cli/org-create#examples",
         "page:/cli/org-create#related-commands"
       ]
     },
@@ -2414,10 +2127,8 @@
         "page:/cli/org-delete#org-delete",
         "page:/cli/org-delete#usage",
         "page:/cli/org-delete#prerequisites",
-        "page:/cli/org-delete#important-flags",
-        "page:/cli/org-delete#examples",
         "page:/cli/org-delete#flags-reference",
-        "page:/cli/org-delete#cli-options-stacktape-org-delete",
+        "page:/cli/org-delete#examples",
         "page:/cli/org-delete#related-commands"
       ]
     },
@@ -2438,38 +2149,24 @@
         "page:/cli/org-list#usage",
         "page:/cli/org-list#output-formats",
         "page:/cli/org-list#flags-reference",
-        "page:/cli/org-list#cli-options-stacktape-org-list",
         "page:/cli/org-list#examples",
         "page:/cli/org-list#related-commands"
       ]
     },
     {
-      "id": "page:/cli/package-workloads",
-      "title": "package-workloads",
-      "route": "/cli/package-workloads",
-      "sourcePath": "docs/docs/cli/package-workloads.mdx",
-      "outputPath": "pages/cli/package-workloads.md",
+      "id": "page:/cli/package",
+      "title": "package",
+      "route": "/cli/package",
+      "sourcePath": "docs/docs/cli/package.mdx",
+      "outputPath": "pages/cli/package.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "package-workloads"
+        "package"
       ],
       "chunks": [
-        "page:/cli/package-workloads#package-workloads",
-        "page:/cli/package-workloads#usage",
-        "page:/cli/package-workloads#cli-reference",
-        "page:/cli/package-workloads#cli-options-stacktape-package-workloads",
-        "page:/cli/package-workloads#examples",
-        "page:/cli/package-workloads#when-to-use",
-        "page:/cli/package-workloads#related-commands",
-        "page:/cli/package-workloads#faq",
-        "page:/cli/package-workloads#what-does-package-workloads-actually-do",
-        "page:/cli/package-workloads#when-should-i-use-package-workloads-instead-of-just-running-deploy",
-        "page:/cli/package-workloads#does-package-workloads-require-a-deployed-stack",
-        "page:/cli/package-workloads#can-i-package-only-specific-workloads",
-        "page:/cli/package-workloads#what-s-the-difference-between-package-workloads-and-compile-template",
-        "page:/cli/package-workloads#can-i-use-package-workloads-in-a-ci-pipeline"
+        "page:/cli/package#package"
       ]
     },
     {
@@ -2488,7 +2185,6 @@
         "page:/cli/param-get#param-get",
         "page:/cli/param-get#usage",
         "page:/cli/param-get#arguments-reference",
-        "page:/cli/param-get#cli-options-stacktape-param-get",
         "page:/cli/param-get#examples",
         "page:/cli/param-get#error-handling",
         "page:/cli/param-get#faq",
@@ -2498,38 +2194,6 @@
         "page:/cli/param-get#what-is-the-difference-between-param-get-and-info-stack",
         "page:/cli/param-get#do-i-need-to-pass-stage-every-time",
         "page:/cli/param-get#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/preview-changes",
-      "title": "preview-changes",
-      "route": "/cli/preview-changes",
-      "sourcePath": "docs/docs/cli/preview-changes.mdx",
-      "outputPath": "pages/cli/preview-changes.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "preview-changes"
-      ],
-      "chunks": [
-        "page:/cli/preview-changes#preview-changes",
-        "page:/cli/preview-changes#usage",
-        "page:/cli/preview-changes#command-reference",
-        "page:/cli/preview-changes#cli-options-stacktape-preview-changes",
-        "page:/cli/preview-changes#how-it-works",
-        "page:/cli/preview-changes#important-flags",
-        "page:/cli/preview-changes#examples",
-        "page:/cli/preview-changes#related-commands",
-        "page:/cli/preview-changes#faq",
-        "page:/cli/preview-changes#does-preview-changes-modify-my-deployed-stack",
-        "page:/cli/preview-changes#how-long-does-preview-changes-take",
-        "page:/cli/preview-changes#can-i-use-preview-changes-in-a-ci-pipeline",
-        "page:/cli/preview-changes#what-does-no-meaningful-stacktape-resource-changes-mean",
-        "page:/cli/preview-changes#does-preview-changes-require-a-deployed-stack",
-        "page:/cli/preview-changes#how-is-preview-changes-different-from-compile-template",
-        "page:/cli/preview-changes#what-does-a-replaced-resource-mean",
-        "page:/cli/preview-changes#can-i-preview-changes-for-a-specific-resource-only"
       ]
     },
     {
@@ -2547,34 +2211,89 @@
       "chunks": [
         "page:/cli/project-create#project-create",
         "page:/cli/project-create#usage",
-        "page:/cli/project-create#important-flags",
-        "page:/cli/project-create#naming-rules",
-        "page:/cli/project-create#examples",
         "page:/cli/project-create#cli-reference",
-        "page:/cli/project-create#cli-options-stacktape-project-create",
+        "page:/cli/project-create#examples",
         "page:/cli/project-create#related-commands"
       ]
     },
     {
-      "id": "page:/cli/projects-list",
-      "title": "projects:list",
-      "route": "/cli/projects-list",
-      "sourcePath": "docs/docs/cli/projects-list.mdx",
-      "outputPath": "pages/cli/projects-list.md",
+      "id": "page:/cli/project-list",
+      "title": "project:list",
+      "route": "/cli/project-list",
+      "sourcePath": "docs/docs/cli/project-list.mdx",
+      "outputPath": "pages/cli/project-list.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "projects-list"
+        "project-list"
       ],
       "chunks": [
-        "page:/cli/projects-list#projects-list",
-        "page:/cli/projects-list#usage",
-        "page:/cli/projects-list#output",
-        "page:/cli/projects-list#examples",
-        "page:/cli/projects-list#flags-reference",
-        "page:/cli/projects-list#cli-options-stacktape-projects-list",
-        "page:/cli/projects-list#related-commands"
+        "page:/cli/project-list#project-list"
+      ]
+    },
+    {
+      "id": "page:/cli/query-dynamodb",
+      "title": "query:dynamodb",
+      "route": "/cli/query-dynamodb",
+      "sourcePath": "docs/docs/cli/query-dynamodb.mdx",
+      "outputPath": "pages/cli/query-dynamodb.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "query-dynamodb"
+      ],
+      "chunks": [
+        "page:/cli/query-dynamodb#query-dynamodb"
+      ]
+    },
+    {
+      "id": "page:/cli/query-opensearch",
+      "title": "query:opensearch",
+      "route": "/cli/query-opensearch",
+      "sourcePath": "docs/docs/cli/query-opensearch.mdx",
+      "outputPath": "pages/cli/query-opensearch.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "query-opensearch"
+      ],
+      "chunks": [
+        "page:/cli/query-opensearch#query-opensearch"
+      ]
+    },
+    {
+      "id": "page:/cli/query-redis",
+      "title": "query:redis",
+      "route": "/cli/query-redis",
+      "sourcePath": "docs/docs/cli/query-redis.mdx",
+      "outputPath": "pages/cli/query-redis.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "query-redis"
+      ],
+      "chunks": [
+        "page:/cli/query-redis#query-redis"
+      ]
+    },
+    {
+      "id": "page:/cli/query-sql",
+      "title": "query:sql",
+      "route": "/cli/query-sql",
+      "sourcePath": "docs/docs/cli/query-sql.mdx",
+      "outputPath": "pages/cli/query-sql.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "query-sql"
+      ],
+      "chunks": [
+        "page:/cli/query-sql#query-sql"
       ]
     },
     {
@@ -2604,7 +2323,6 @@
         "page:/cli/rollback#version-availability",
         "page:/cli/rollback#bucket-synced-content",
         "page:/cli/rollback#arguments-reference",
-        "page:/cli/rollback#cli-options-stacktape-rollback",
         "page:/cli/rollback#examples",
         "page:/cli/rollback#quick-rollback-after-a-bad-deploy",
         "page:/cli/rollback#inspect-available-versions-first",
@@ -2638,46 +2356,9 @@
       "chunks": [
         "page:/cli/script-run#script-run",
         "page:/cli/script-run#usage",
-        "page:/cli/script-run#cli-options-stacktape-script-run",
         "page:/cli/script-run#examples",
         "page:/cli/script-run#errors",
         "page:/cli/script-run#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/secret-create",
-      "title": "secret:create",
-      "route": "/cli/secret-create",
-      "sourcePath": "docs/docs/cli/secret-create.mdx",
-      "outputPath": "pages/cli/secret-create.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "secret-create"
-      ],
-      "chunks": [
-        "page:/cli/secret-create#secret-create",
-        "page:/cli/secret-create#usage",
-        "page:/cli/secret-create#non-interactive-usage",
-        "page:/cli/secret-create#updating-an-existing-secret",
-        "page:/cli/secret-create#using-secrets-in-your-configuration",
-        "page:/cli/secret-create#flags-reference",
-        "page:/cli/secret-create#cli-options-stacktape-secret-create",
-        "page:/cli/secret-create#examples",
-        "page:/cli/secret-create#store-a-database-password",
-        "page:/cli/secret-create#store-a-multi-line-service-account-json-from-a-file",
-        "page:/cli/secret-create#rotate-a-secret-in-ci",
-        "page:/cli/secret-create#faq",
-        "page:/cli/secret-create#where-is-the-secret-stored",
-        "page:/cli/secret-create#how-do-i-use-a-secret-in-my-stacktape-configuration",
-        "page:/cli/secret-create#can-i-update-a-secret-without-redeploying",
-        "page:/cli/secret-create#how-much-does-aws-secrets-manager-cost",
-        "page:/cli/secret-create#what-is-the-difference-between-interactive-and-agent-mode",
-        "page:/cli/secret-create#can-i-store-binary-files-as-secrets",
-        "page:/cli/secret-create#how-do-i-delete-a-secret",
-        "page:/cli/secret-create#is-secret-create-idempotent",
-        "page:/cli/secret-create#related-commands"
       ]
     },
     {
@@ -2696,7 +2377,6 @@
         "page:/cli/secret-delete#secret-delete",
         "page:/cli/secret-delete#usage",
         "page:/cli/secret-delete#arguments-reference",
-        "page:/cli/secret-delete#cli-options-stacktape-secret-delete",
         "page:/cli/secret-delete#examples",
         "page:/cli/secret-delete#related-commands"
       ]
@@ -2716,12 +2396,42 @@
       "chunks": [
         "page:/cli/secret-get#secret-get",
         "page:/cli/secret-get#usage",
-        "page:/cli/secret-get#important-flags",
+        "page:/cli/secret-get#api-reference",
         "page:/cli/secret-get#output",
         "page:/cli/secret-get#examples",
-        "page:/cli/secret-get#api-reference",
-        "page:/cli/secret-get#cli-options-stacktape-secret-get",
         "page:/cli/secret-get#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/secret-set",
+      "title": "secret:set",
+      "route": "/cli/secret-set",
+      "sourcePath": "docs/docs/cli/secret-set.mdx",
+      "outputPath": "pages/cli/secret-set.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "secret-set"
+      ],
+      "chunks": [
+        "page:/cli/secret-set#secret-set"
+      ]
+    },
+    {
+      "id": "page:/cli/synth",
+      "title": "synth",
+      "route": "/cli/synth",
+      "sourcePath": "docs/docs/cli/synth.mdx",
+      "outputPath": "pages/cli/synth.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "synth"
+      ],
+      "chunks": [
+        "page:/cli/synth#synth"
       ]
     },
     {
@@ -2741,7 +2451,6 @@
         "page:/cli/upgrade#usage",
         "page:/cli/upgrade#how-it-works",
         "page:/cli/upgrade#flags",
-        "page:/cli/upgrade#cli-options-stacktape-upgrade",
         "page:/cli/upgrade#examples",
         "page:/cli/upgrade#related-commands",
         "page:/cli/upgrade#faq",
@@ -2751,6 +2460,22 @@
         "page:/cli/upgrade#why-does-the-command-print-a-command-instead-of-running-it-for-local-installs",
         "page:/cli/upgrade#can-i-downgrade-or-pin-a-specific-stacktape-version",
         "page:/cli/upgrade#how-do-i-install-stacktape-for-the-first-time"
+      ]
+    },
+    {
+      "id": "page:/cli/validate",
+      "title": "validate",
+      "route": "/cli/validate",
+      "sourcePath": "docs/docs/cli/validate.mdx",
+      "outputPath": "pages/cli/validate.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "validate"
+      ],
+      "chunks": [
+        "page:/cli/validate#validate"
       ]
     },
     {
@@ -2807,11 +2532,11 @@
         "page:/configuration/configuration-files#how-typescript-maps-to-yaml",
         "page:/configuration/configuration-files#faq",
         "page:/configuration/configuration-files#should-i-use-typescript-or-yaml-for-my-stacktape-config",
-        "page:/configuration/configuration-files#can-i-switch-from-yaml-to-typescript-without-redeploying",
+        "page:/configuration/configuration-files#can-i-switch-from-yaml-to-typescript",
         "page:/configuration/configuration-files#where-should-i-put-my-stacktape-ts-file",
         "page:/configuration/configuration-files#can-i-use-javascript-instead-of-typescript",
         "page:/configuration/configuration-files#how-do-i-pass-per-stage-values-without-duplicating-config",
-        "page:/configuration/configuration-files#can-i-reference-environment-variables-in-my-config",
+        "page:/configuration/configuration-files#can-i-reference-secrets-in-my-config",
         "page:/configuration/configuration-files#how-do-i-validate-my-configuration-before-deploying",
         "page:/configuration/configuration-files#what-is-the-resources-field",
         "page:/configuration/configuration-files#can-i-use-raw-cloudformation-alongside-stacktape-resources",
@@ -2835,10 +2560,12 @@
         "page:/configuration/connecting-resources#when-to-use",
         "page:/configuration/connecting-resources#when-not-to-use",
         "page:/configuration/connecting-resources#basic-example",
+        "page:/configuration/connecting-resources#complete-lambda-and-dynamodb-api-example",
         "page:/configuration/connecting-resources#what-connectto-does",
         "page:/configuration/connecting-resources#environment-variable-naming",
         "page:/configuration/connecting-resources#injected-variables",
         "page:/configuration/connecting-resources#relational-database",
+        "page:/configuration/connecting-resources#lambda-to-postgres-example",
         "page:/configuration/connecting-resources#bucket",
         "page:/configuration/connecting-resources#dynamodb-table",
         "page:/configuration/connecting-resources#sqs-queue",
@@ -2949,8 +2676,7 @@
         "page:/configuration/hooks-and-scripts#lifecycle-events",
         "page:/configuration/hooks-and-scripts#conditional-execution",
         "page:/configuration/hooks-and-scripts#environment-variables-in-scripts",
-        "page:/configuration/hooks-and-scripts#assuming-iam-roles",
-        "page:/configuration/hooks-and-scripts#when-to-use-deployment-scripts-instead",
+        "page:/configuration/hooks-and-scripts#deployment-scripts",
         "page:/configuration/hooks-and-scripts#faq",
         "page:/configuration/hooks-and-scripts#how-do-i-run-a-database-migration-after-deploy",
         "page:/configuration/hooks-and-scripts#can-i-run-multiple-scripts-in-a-single-hook",
@@ -2982,7 +2708,7 @@
         "page:/configuration/overrides-and-escape-hatches#when-to-use-escape-hatches",
         "page:/configuration/overrides-and-escape-hatches#when-not-to-use-escape-hatches",
         "page:/configuration/overrides-and-escape-hatches#understanding-child-resources",
-        "page:/configuration/overrides-and-escape-hatches#finding-child-resource-logical-names",
+        "page:/configuration/overrides-and-escape-hatches#finding-child-resource-names",
         "page:/configuration/overrides-and-escape-hatches#common-child-resource-names",
         "page:/configuration/overrides-and-escape-hatches#overrides",
         "page:/configuration/overrides-and-escape-hatches#basic-override-example",
@@ -3012,8 +2738,8 @@
         "page:/configuration/overrides-and-escape-hatches#how-do-i-find-what-cloudformation-attributes-i-can-reference-with-cfresourceparam",
         "page:/configuration/overrides-and-escape-hatches#do-raw-cloudformation-resources-get-automatic-iam-permissions",
         "page:/configuration/overrides-and-escape-hatches#when-should-i-use-a-cdk-construct-instead-of-raw-cloudformation",
-        "page:/configuration/overrides-and-escape-hatches#can-i-reference-cdk-construct-outputs-in-my-stacktape-resources",
-        "page:/configuration/overrides-and-escape-hatches#what-is-the-resource-limit-for-raw-cloudformation-resources",
+        "page:/configuration/overrides-and-escape-hatches#how-do-i-inspect-cdk-construct-outputs-in-my-stack",
+        "page:/configuration/overrides-and-escape-hatches#are-there-limits-on-raw-cloudformation-resources",
         "page:/configuration/overrides-and-escape-hatches#can-i-override-resources-conditionally-based-on-the-stage"
       ]
     },
@@ -3044,9 +2770,7 @@
         "page:/configuration/referenceable-parameters#batch-job",
         "page:/configuration/referenceable-parameters#referenceable-parameters-batch-job",
         "page:/configuration/referenceable-parameters#worker-service",
-        "page:/configuration/referenceable-parameters#referenceable-parameters-worker-service",
         "page:/configuration/referenceable-parameters#multi-container-workload",
-        "page:/configuration/referenceable-parameters#referenceable-parameters-multi-container-workload",
         "page:/configuration/referenceable-parameters#frontend-resources",
         "page:/configuration/referenceable-parameters#next-js",
         "page:/configuration/referenceable-parameters#referenceable-parameters-nextjs-web",
@@ -3093,11 +2817,16 @@
         "page:/configuration/referenceable-parameters#state-machine",
         "page:/configuration/referenceable-parameters#referenceable-parameters-state-machine",
         "page:/configuration/referenceable-parameters#kinesis-stream",
+        "page:/configuration/referenceable-parameters#referenceable-parameters-kinesis-stream",
         "page:/configuration/referenceable-parameters#security",
         "page:/configuration/referenceable-parameters#user-auth-pool",
         "page:/configuration/referenceable-parameters#referenceable-parameters-user-auth-pool",
         "page:/configuration/referenceable-parameters#web-application-firewall",
         "page:/configuration/referenceable-parameters#referenceable-parameters-web-app-firewall",
+        "page:/configuration/referenceable-parameters#platform-resources",
+        "page:/configuration/referenceable-parameters#convex",
+        "page:/configuration/referenceable-parameters#referenceable-parameters-convex",
+        "page:/configuration/referenceable-parameters#agentcore",
         "page:/configuration/referenceable-parameters#using-parameters-in-practice",
         "page:/configuration/referenceable-parameters#environment-variables",
         "page:/configuration/referenceable-parameters#stack-outputs",
@@ -3340,7 +3069,7 @@
         "page:/configuration/triggers/dynamodb-streams#when-to-use",
         "page:/configuration/triggers/dynamodb-streams#when-not-to-use",
         "page:/configuration/triggers/dynamodb-streams#enabling-streams-on-the-table",
-        "page:/configuration/triggers/dynamodb-streams#basic-example",
+        "page:/configuration/triggers/dynamodb-streams#same-stack-table-stream-to-lambda-example",
         "page:/configuration/triggers/dynamodb-streams#batching-and-throughput",
         "page:/configuration/triggers/dynamodb-streams#parallelization",
         "page:/configuration/triggers/dynamodb-streams#retry-and-failure-handling",
@@ -3403,7 +3132,7 @@
         "page:/configuration/triggers/event-bus-events#can-i-transform-the-event-before-it-reaches-my-function",
         "page:/configuration/triggers/event-bus-events#when-should-i-use-eventbridge-vs-sqs",
         "page:/configuration/triggers/event-bus-events#when-should-i-use-eventbridge-vs-sns",
-        "page:/configuration/triggers/event-bus-events#what-is-the-maximum-eventbridge-event-size",
+        "page:/configuration/triggers/event-bus-events#how-do-i-handle-large-payloads-with-eventbridge",
         "page:/configuration/triggers/event-bus-events#can-i-receive-events-from-another-aws-account"
       ]
     },
@@ -3414,26 +3143,30 @@
       "sourcePath": "docs/docs/configuration/triggers/http-triggers.mdx",
       "outputPath": "pages/configuration/triggers/http-triggers.md",
       "docKind": "docs-page",
-      "definitionNames": [],
+      "definitionNames": [
+        "HttpApiIntegrationProps"
+      ],
       "tags": [
         "configuration",
         "triggers",
-        "http-triggers"
+        "http-triggers",
+        "HttpApiIntegrationProps"
       ],
       "chunks": [
         "page:/configuration/triggers/http-triggers#http-triggers",
-        "page:/configuration/triggers/http-triggers#choosing-an-http-trigger-type",
+        "page:/configuration/triggers/http-triggers#choosing-a-trigger-type",
         "page:/configuration/triggers/http-triggers#feature-comparison",
         "page:/configuration/triggers/http-triggers#http-api-gateway-integration",
         "page:/configuration/triggers/http-triggers#route-matching",
         "page:/configuration/triggers/http-triggers#payload-format",
         "page:/configuration/triggers/http-triggers#authorization",
-        "page:/configuration/triggers/http-triggers#application-load-balancer-integration",
+        "page:/configuration/triggers/http-triggers#alb-integration",
         "page:/configuration/triggers/http-triggers#routing-conditions",
         "page:/configuration/triggers/http-triggers#rule-priority",
-        "page:/configuration/triggers/http-triggers#using-http-triggers-with-container-workloads",
+        "page:/configuration/triggers/http-triggers#container-workloads",
+        "page:/configuration/triggers/http-triggers#api-reference-httpapiintegrationprops",
         "page:/configuration/triggers/http-triggers#faq",
-        "page:/configuration/triggers/http-triggers#can-i-use-both-http-api-gateway-and-application-load-balancer-in-the-same-stack",
+        "page:/configuration/triggers/http-triggers#can-i-use-both-http-api-gateway-and-alb-in-the-same-stack",
         "page:/configuration/triggers/http-triggers#how-do-i-route-different-url-paths-to-different-lambda-functions",
         "page:/configuration/triggers/http-triggers#what-is-the-difference-between-payload-format-1-0-and-2-0",
         "page:/configuration/triggers/http-triggers#how-much-does-aws-http-api-gateway-cost",
@@ -3558,7 +3291,6 @@
         "page:/configuration/triggers/overview#basic-example",
         "page:/configuration/triggers/overview#how-triggers-work",
         "page:/configuration/triggers/overview#choosing-the-right-trigger",
-        "page:/configuration/triggers/overview#decision-tree",
         "page:/configuration/triggers/overview#batching-and-throughput",
         "page:/configuration/triggers/overview#error-handling-and-retries",
         "page:/configuration/triggers/overview#event-filtering",
@@ -3570,9 +3302,7 @@
         "page:/configuration/triggers/overview#when-should-i-use-http-api-gateway-versus-an-application-load-balancer",
         "page:/configuration/triggers/overview#what-happens-if-my-function-fails-while-processing-a-batch",
         "page:/configuration/triggers/overview#what-is-the-default-batch-size-for-event-source-triggers",
-        "page:/configuration/triggers/overview#can-i-trigger-a-batch-job-on-a-schedule",
         "page:/configuration/triggers/overview#how-do-i-filter-which-events-trigger-my-function",
-        "page:/configuration/triggers/overview#how-do-batch-job-triggers-work-internally",
         "page:/configuration/triggers/overview#what-is-service-connect-and-when-should-i-use-it"
       ]
     },
@@ -3599,7 +3329,6 @@
         "page:/configuration/triggers/s3-events#basic-example",
         "page:/configuration/triggers/s3-events#event-types",
         "page:/configuration/triggers/s3-events#filtering-events",
-        "page:/configuration/triggers/s3-events#using-with-batch-jobs",
         "page:/configuration/triggers/s3-events#event-payload",
         "page:/configuration/triggers/s3-events#delivery-and-retries",
         "page:/configuration/triggers/s3-events#avoiding-infinite-loops",
@@ -3657,7 +3386,7 @@
         "page:/configuration/triggers/schedule-triggers#are-schedule-times-in-utc-or-local-time",
         "page:/configuration/triggers/schedule-triggers#what-happens-if-my-function-is-still-running-when-the-next-schedule-fires",
         "page:/configuration/triggers/schedule-triggers#does-a-schedule-trigger-cost-anything-when-idle",
-        "page:/configuration/triggers/schedule-triggers#can-i-use-a-schedule-trigger-with-container-workloads",
+        "page:/configuration/triggers/schedule-triggers#can-i-run-a-container-on-a-schedule",
         "page:/configuration/triggers/schedule-triggers#how-do-i-pass-different-payloads-for-different-schedules-on-the-same-function",
         "page:/configuration/triggers/schedule-triggers#what-is-the-difference-between-rate-and-cron-expressions",
         "page:/configuration/triggers/schedule-triggers#what-if-my-schedule-expression-is-invalid",
@@ -3734,11 +3463,10 @@
         "page:/configuration/triggers/sqs-events#api-reference",
         "page:/configuration/triggers/sqs-events#api-reference-sqsintegrationprops",
         "page:/configuration/triggers/sqs-events#faq",
-        "page:/configuration/triggers/sqs-events#can-i-consume-messages-from-an-sqs-queue-in-another-aws-account",
+        "page:/configuration/triggers/sqs-events#can-i-consume-messages-from-an-sqs-queue-not-managed-by-this-stack",
         "page:/configuration/triggers/sqs-events#can-i-attach-multiple-lambda-functions-to-the-same-sqs-queue",
         "page:/configuration/triggers/sqs-events#what-happens-when-my-lambda-function-fails-to-process-a-message",
         "page:/configuration/triggers/sqs-events#how-do-fifo-queues-work-with-lambda-triggers",
-        "page:/configuration/triggers/sqs-events#can-i-use-sqs-triggers-with-batch-jobs",
         "page:/configuration/triggers/sqs-events#how-much-does-sqs-cost",
         "page:/configuration/triggers/sqs-events#sqs-vs-sns-when-should-i-use-each",
         "page:/configuration/triggers/sqs-events#sqs-vs-eventbridge-which-is-better-for-event-routing",
@@ -3766,10 +3494,7 @@
         "page:/configuration/variables-and-reuse#stage-based-conditional-logic",
         "page:/configuration/variables-and-reuse#helper-functions",
         "page:/configuration/variables-and-reuse#shared-modules-across-projects",
-        "page:/configuration/variables-and-reuse#object-spreading",
-        "page:/configuration/variables-and-reuse#conditional-resources",
-        "page:/configuration/variables-and-reuse#dynamic-resource-generation",
-        "page:/configuration/variables-and-reuse#deployment-context-in-defineconfig",
+        "page:/configuration/variables-and-reuse#other-typescript-patterns",
         "page:/configuration/variables-and-reuse#the-variables-property",
         "page:/configuration/variables-and-reuse#when-to-use-variables-vs-typescript-constants",
         "page:/configuration/variables-and-reuse#custom-directives",
@@ -3779,13 +3504,13 @@
         "page:/configuration/variables-and-reuse#can-i-use-environment-variables-in-my-stacktape-ts",
         "page:/configuration/variables-and-reuse#what-s-the-difference-between-var-and-a-typescript-const",
         "page:/configuration/variables-and-reuse#how-do-i-share-configuration-across-multiple-stacktape-projects",
-        "page:/configuration/variables-and-reuse#what-deployment-context-is-available-inside-defineconfig",
         "page:/configuration/variables-and-reuse#what-happens-to-variables-at-runtime",
         "page:/configuration/variables-and-reuse#how-do-i-avoid-hardcoding-the-stage-name-in-custom-domains",
         "page:/configuration/variables-and-reuse#when-should-i-use-a-custom-directive-instead-of-inline-typescript",
         "page:/configuration/variables-and-reuse#can-i-generate-resources-dynamically-in-a-loop",
         "page:/configuration/variables-and-reuse#should-i-use-one-stacktape-ts-or-split-into-multiple-files",
-        "page:/configuration/variables-and-reuse#when-should-i-use-a-web-application-firewall-conditionally"
+        "page:/configuration/variables-and-reuse#typescript-config-vs-yaml-config-which-should-i-use",
+        "page:/configuration/variables-and-reuse#how-do-stacktape-config-variables-compare-to-cloudformation-parameters"
       ]
     },
     {
@@ -3802,7 +3527,7 @@
       ],
       "chunks": [
         "page:/deployment-and-lifecycle/deploy-time-parameters#deploy-time-parameters",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#typescript-callback-parameters",
+        "page:/deployment-and-lifecycle/deploy-time-parameters#typescript-programmatic-config",
         "page:/deployment-and-lifecycle/deploy-time-parameters#directive-syntax",
         "page:/deployment-and-lifecycle/deploy-time-parameters#resolution-phases",
         "page:/deployment-and-lifecycle/deploy-time-parameters#deployment-context-directives",
@@ -3816,6 +3541,9 @@
         "page:/deployment-and-lifecycle/deploy-time-parameters#stackoutput",
         "page:/deployment-and-lifecycle/deploy-time-parameters#cfstackoutput",
         "page:/deployment-and-lifecycle/deploy-time-parameters#secrets-and-ssm-parameters",
+        "page:/deployment-and-lifecycle/deploy-time-parameters#resource-references",
+        "page:/deployment-and-lifecycle/deploy-time-parameters#resourceparam",
+        "page:/deployment-and-lifecycle/deploy-time-parameters#cfresourceparam",
         "page:/deployment-and-lifecycle/deploy-time-parameters#variables-and-self-reference",
         "page:/deployment-and-lifecycle/deploy-time-parameters#faq",
         "page:/deployment-and-lifecycle/deploy-time-parameters#can-i-use-directives-in-any-config-property",
@@ -3866,8 +3594,6 @@
         "page:/deployment-and-lifecycle/deploying-stacks#cloudformation-stack-states",
         "page:/deployment-and-lifecycle/deploying-stacks#deploying-from-the-stacktape-console",
         "page:/deployment-and-lifecycle/deploying-stacks#dev-mode-and-deployment",
-        "page:/deployment-and-lifecycle/deploying-stacks#dev-mode-runs-workloads-locally",
-        "page:/deployment-and-lifecycle/deploying-stacks#full-deployment-separate-stage",
         "page:/deployment-and-lifecycle/deploying-stacks#troubleshooting",
         "page:/deployment-and-lifecycle/deploying-stacks#stack-is-in-rollback-complete-state",
         "page:/deployment-and-lifecycle/deploying-stacks#stack-name-too-long",
@@ -3924,7 +3650,6 @@
         "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#common-patterns",
         "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#database-migrations-choosing-the-right-approach",
         "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#build-before-deploy",
-        "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#cleanup-before-delete",
         "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#using-assumeroleofresource",
         "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#debugging",
         "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#faq",
@@ -4137,24 +3862,18 @@
         "page:/deployment-and-lifecycle/rollbacks#listing-available-versions",
         "page:/deployment-and-lifecycle/rollbacks#artifact-retention",
         "page:/deployment-and-lifecycle/rollbacks#rollback-safety-warnings",
-        "page:/deployment-and-lifecycle/rollbacks#automatic-rollback-on-alarms",
-        "page:/deployment-and-lifecycle/rollbacks#disabling-automatic-rollback",
         "page:/deployment-and-lifecycle/rollbacks#cloudformation-rollback",
         "page:/deployment-and-lifecycle/rollbacks#when-to-use-cf-rollback",
         "page:/deployment-and-lifecycle/rollbacks#basic-usage-2",
-        "page:/deployment-and-lifecycle/rollbacks#skipping-problematic-resources",
-        "page:/deployment-and-lifecycle/rollbacks#deployment-configuration-reference",
         "page:/deployment-and-lifecycle/rollbacks#faq",
         "page:/deployment-and-lifecycle/rollbacks#what-s-the-difference-between-stacktape-rollback-and-stacktape-cf-rollback",
         "page:/deployment-and-lifecycle/rollbacks#what-happens-to-my-database-during-a-rollback",
-        "page:/deployment-and-lifecycle/rollbacks#what-cloudformation-states-require-cf-rollback",
+        "page:/deployment-and-lifecycle/rollbacks#when-should-i-reach-for-cf-rollback-instead-of-just-redeploying",
         "page:/deployment-and-lifecycle/rollbacks#does-rollback-work-with-gradual-deployments",
         "page:/deployment-and-lifecycle/rollbacks#how-do-i-know-which-version-to-roll-back-to",
         "page:/deployment-and-lifecycle/rollbacks#can-i-roll-back-a-stack-deployed-from-ci-cd",
-        "page:/deployment-and-lifecycle/rollbacks#should-i-enable-automatic-rollback-on-alarms-in-production",
         "page:/deployment-and-lifecycle/rollbacks#can-i-roll-forward-after-a-rollback",
-        "page:/deployment-and-lifecycle/rollbacks#does-cloudformation-rollback-always-succeed",
-        "page:/deployment-and-lifecycle/rollbacks#what-is-terminationprotection-and-how-does-it-relate-to-rollbacks"
+        "page:/deployment-and-lifecycle/rollbacks#does-cloudformation-rollback-always-succeed"
       ]
     },
     {
@@ -4175,7 +3894,7 @@
         "page:/getting-started/ci-cd#cli-prompt-after-first-deploy",
         "page:/getting-started/ci-cd#what-you-can-configure",
         "page:/getting-started/ci-cd#pr-preview-environments",
-        "page:/getting-started/ci-cd#supported-git-providers",
+        "page:/getting-started/ci-cd#connecting-your-repository",
         "page:/getting-started/ci-cd#custom-ci-cd-integration",
         "page:/getting-started/ci-cd#required-environment-variables",
         "page:/getting-started/ci-cd#github-actions-example",
@@ -4184,16 +3903,6 @@
         "page:/getting-started/ci-cd#codebuild-deploy",
         "page:/getting-started/ci-cd#which-path-to-choose",
         "page:/getting-started/ci-cd#feature-comparison",
-        "page:/getting-started/ci-cd#faq",
-        "page:/getting-started/ci-cd#can-i-use-gitops-with-gitlab-or-bitbucket",
-        "page:/getting-started/ci-cd#how-do-pr-preview-environments-work",
-        "page:/getting-started/ci-cd#do-i-need-aws-credentials-in-my-ci-pipeline",
-        "page:/getting-started/ci-cd#can-i-run-tests-before-deploying-with-gitops",
-        "page:/getting-started/ci-cd#what-is-codebuild-deploy-and-when-should-i-use-it",
-        "page:/getting-started/ci-cd#how-much-does-aws-codebuild-cost-for-deployments",
-        "page:/getting-started/ci-cd#gitops-vs-custom-ci-which-should-i-use",
-        "page:/getting-started/ci-cd#can-i-combine-gitops-and-custom-ci",
-        "page:/getting-started/ci-cd#how-do-i-roll-back-a-gitops-deployment",
         "page:/getting-started/ci-cd#next-step"
       ]
     },
@@ -4240,8 +3949,6 @@
         "page:/getting-started/deploy-your-first-stage#prerequisites",
         "page:/getting-started/deploy-your-first-stage#step-1-log-in-to-stacktape",
         "page:/getting-started/deploy-your-first-stage#step-2-connect-your-aws-account",
-        "page:/getting-started/deploy-your-first-stage#option-a-connect-during-your-first-deploy-recommended",
-        "page:/getting-started/deploy-your-first-stage#option-b-connect-via-the-console-first",
         "page:/getting-started/deploy-your-first-stage#what-the-connection-creates",
         "page:/getting-started/deploy-your-first-stage#step-3-deploy",
         "page:/getting-started/deploy-your-first-stage#what-happens-during-deploy",
@@ -4288,11 +3995,12 @@
         "page:/getting-started/going-to-production#budgets",
         "page:/getting-started/going-to-production#custom-domains",
         "page:/getting-started/going-to-production#gradual-deployments",
+        "page:/getting-started/going-to-production#lambda-function-example",
+        "page:/getting-started/going-to-production#web-service-example",
         "page:/getting-started/going-to-production#multi-region-deployments",
         "page:/getting-started/going-to-production#guardrails",
         "page:/getting-started/going-to-production#verify-before-go-live",
-        "page:/getting-started/going-to-production#what-s-next",
-        "page:/getting-started/going-to-production#flow"
+        "page:/getting-started/going-to-production#what-s-next"
       ]
     },
     {
@@ -4318,20 +4026,9 @@
         "page:/getting-started/use-the-dev-mode#environment-variables",
         "page:/getting-started/use-the-dev-mode#terminal-commands",
         "page:/getting-started/use-the-dev-mode#useful-flags",
-        "page:/getting-started/use-the-dev-mode#agent-mode-for-ai-coding-assistants",
+        "page:/getting-started/use-the-dev-mode#agent-mode",
         "page:/getting-started/use-the-dev-mode#debugging",
         "page:/getting-started/use-the-dev-mode#legacy-mode",
-        "page:/getting-started/use-the-dev-mode#faq",
-        "page:/getting-started/use-the-dev-mode#does-dev-mode-cost-anything-on-aws",
-        "page:/getting-started/use-the-dev-mode#can-i-run-dev-mode-without-docker",
-        "page:/getting-started/use-the-dev-mode#how-do-lambda-functions-reach-my-local-databases",
-        "page:/getting-started/use-the-dev-mode#can-i-use-dev-mode-with-multiple-developers-on-the-same-project",
-        "page:/getting-started/use-the-dev-mode#what-happens-if-i-change-my-stacktape-config",
-        "page:/getting-started/use-the-dev-mode#how-is-dev-mode-different-from-stacktape-deploy",
-        "page:/getting-started/use-the-dev-mode#can-i-use-dev-mode-with-a-monorepo",
-        "page:/getting-started/use-the-dev-mode#does-the-local-database-data-survive-restarts",
-        "page:/getting-started/use-the-dev-mode#what-s-the-difference-between-normal-and-legacy-dev-mode",
-        "page:/getting-started/use-the-dev-mode#can-i-connect-to-a-remote-database-while-emulating-others-locally",
         "page:/getting-started/use-the-dev-mode#next-step"
       ]
     },
@@ -4374,7 +4071,6 @@
       ],
       "chunks": [
         "page:/guardrails/databases#database-guardrails",
-        "page:/guardrails/databases#how-database-guardrails-work",
         "page:/guardrails/databases#engine-restriction",
         "page:/guardrails/databases#instance-restriction",
         "page:/guardrails/databases#vpc-only-databases",
@@ -4406,7 +4102,6 @@
       "chunks": [
         "page:/guardrails/deployment#deployment-guardrails",
         "page:/guardrails/deployment#where-guardrails-are-configured",
-        "page:/guardrails/deployment#how-validation-works",
         "page:/guardrails/deployment#when-to-use-deployment-guardrails",
         "page:/guardrails/deployment#when-not-to-use-deployment-guardrails",
         "page:/guardrails/deployment#stage-restriction",
@@ -4432,7 +4127,6 @@
         "page:/guardrails/deployment#how-do-stacktape-guardrails-compare-to-aws-service-control-policies",
         "page:/guardrails/deployment#can-i-block-the-delete-command-but-still-allow-deployments",
         "page:/guardrails/deployment#where-do-i-configure-guardrails",
-        "page:/guardrails/deployment#which-cli-commands-enforce-guardrails",
         "page:/guardrails/deployment#can-i-restrict-any-resource-type-not-just-databases",
         "page:/guardrails/deployment#what-happens-when-a-guardrail-is-violated",
         "page:/guardrails/deployment#should-i-use-guardrails-or-iam-to-restrict-deployments",
@@ -4469,7 +4163,6 @@
         "page:/guardrails/overview#can-i-set-different-guardrails-for-production-vs-development-stages",
         "page:/guardrails/overview#how-do-stacktape-guardrails-differ-from-aws-service-control-policies",
         "page:/guardrails/overview#can-i-block-specific-resource-types-entirely",
-        "page:/guardrails/overview#do-guardrails-apply-to-already-deployed-stacks",
         "page:/guardrails/overview#can-guardrails-prevent-accidental-stack-deletion",
         "page:/guardrails/overview#what-is-the-relationship-between-guardrails-and-iam-policies",
         "page:/guardrails/overview#how-many-guardrail-types-does-stacktape-support",
@@ -4510,7 +4203,7 @@
         "page:/guardrails/resource-limits#how-much-does-a-lambda-function-cost-per-mb-of-memory",
         "page:/guardrails/resource-limits#how-does-the-resource-count-limit-relate-to-aws-cloudformation-limits",
         "page:/guardrails/resource-limits#when-should-i-use-resource-type-restriction-vs-other-guardrails",
-        "page:/guardrails/resource-limits#do-guardrails-run-during-stacktape-delete"
+        "page:/guardrails/resource-limits#can-a-guardrail-block-stacktape-delete"
       ]
     },
     {
@@ -4541,9 +4234,7 @@
         "page:/guardrails/security-and-data-protection#combining-security-guardrails",
         "page:/guardrails/security-and-data-protection#related-guardrails",
         "page:/guardrails/security-and-data-protection#faq",
-        "page:/guardrails/security-and-data-protection#where-are-guardrails-configured",
         "page:/guardrails/security-and-data-protection#how-do-guardrails-differ-from-alarms",
-        "page:/guardrails/security-and-data-protection#what-happens-when-a-guardrail-is-violated",
         "page:/guardrails/security-and-data-protection#what-is-vpc-only-database-accessibility",
         "page:/guardrails/security-and-data-protection#what-does-aws-waf-protect-against",
         "page:/guardrails/security-and-data-protection#do-security-guardrails-add-cost-to-my-aws-bill",
@@ -4563,12 +4254,14 @@
       "definitionNames": [],
       "tags": [],
       "chunks": [
-        "page:/#introduction",
-        "page:/#who-stacktape-is-for",
-        "page:/#how-stacktape-compares",
-        "page:/#what-you-get",
-        "page:/#open-source",
-        "page:/#next-step"
+        "page:/#stacktape",
+        "page:/#a-real-stacktape-config",
+        "page:/#what-you-can-build-with-stacktape",
+        "page:/#related-pages",
+        "page:/#why-stacktape",
+        "page:/#get-started",
+        "page:/#related-pages-2",
+        "page:/#related-pages-3"
       ]
     },
     {
@@ -4600,51 +4293,26 @@
         "page:/local-development/debug-commands-reference#customizing-the-query",
         "page:/local-development/debug-commands-reference#terminal-output",
         "page:/local-development/debug-commands-reference#viewing-alarms",
-        "page:/local-development/debug-commands-reference#basic-usage-3",
-        "page:/local-development/debug-commands-reference#filtering-2",
         "page:/local-development/debug-commands-reference#querying-sql-databases",
-        "page:/local-development/debug-commands-reference#basic-usage-4",
-        "page:/local-development/debug-commands-reference#read-only-enforcement",
-        "page:/local-development/debug-commands-reference#vpc-only-databases",
-        "page:/local-development/debug-commands-reference#flags",
         "page:/local-development/debug-commands-reference#querying-dynamodb",
-        "page:/local-development/debug-commands-reference#operations",
-        "page:/local-development/debug-commands-reference#examples",
-        "page:/local-development/debug-commands-reference#flags-2",
         "page:/local-development/debug-commands-reference#querying-redis",
-        "page:/local-development/debug-commands-reference#operations-2",
-        "page:/local-development/debug-commands-reference#examples-2",
-        "page:/local-development/debug-commands-reference#flags-3",
         "page:/local-development/debug-commands-reference#querying-opensearch",
-        "page:/local-development/debug-commands-reference#operations-3",
-        "page:/local-development/debug-commands-reference#examples-3",
-        "page:/local-development/debug-commands-reference#flags-4",
         "page:/local-development/debug-commands-reference#running-aws-sdk-commands",
-        "page:/local-development/debug-commands-reference#read-only-enforcement-2",
-        "page:/local-development/debug-commands-reference#basic-usage-5",
-        "page:/local-development/debug-commands-reference#flags-5",
         "page:/local-development/debug-commands-reference#executing-commands-in-containers",
-        "page:/local-development/debug-commands-reference#basic-usage-6",
-        "page:/local-development/debug-commands-reference#flags-6",
         "page:/local-development/debug-commands-reference#interactive-container-shell",
-        "page:/local-development/debug-commands-reference#flags-7",
         "page:/local-development/debug-commands-reference#bastion-tunneling",
-        "page:/local-development/debug-commands-reference#supported-target-resource-types",
-        "page:/local-development/debug-commands-reference#basic-usage-7",
-        "page:/local-development/debug-commands-reference#flags-8",
         "page:/local-development/debug-commands-reference#bastion-shell-session",
         "page:/local-development/debug-commands-reference#credentials-and-permissions",
         "page:/local-development/debug-commands-reference#faq",
         "page:/local-development/debug-commands-reference#how-do-i-view-real-time-logs-as-they-arrive",
         "page:/local-development/debug-commands-reference#can-i-use-debug-commands-with-dev-mode-stacks",
-        "page:/local-development/debug-commands-reference#why-does-debug-sql-only-allow-read-only-queries",
+        "page:/local-development/debug-commands-reference#what-query-types-does-debug-sql-support",
         "page:/local-development/debug-commands-reference#how-do-i-debug-a-vpc-only-database-without-a-bastion",
         "page:/local-development/debug-commands-reference#what-s-the-difference-between-debug-container-exec-and-container-session",
         "page:/local-development/debug-commands-reference#how-do-i-know-which-metrics-are-available-for-my-resource",
         "page:/local-development/debug-commands-reference#can-bastion-tunnel-forward-to-multiple-resources-simultaneously",
         "page:/local-development/debug-commands-reference#how-much-do-debug-commands-cost",
-        "page:/local-development/debug-commands-reference#can-i-pipe-debug-command-output-to-other-tools",
-        "page:/local-development/debug-commands-reference#what-happens-if-the-debug-agent-role-is-missing-from-my-stack"
+        "page:/local-development/debug-commands-reference#can-i-pipe-debug-command-output-to-other-tools"
       ]
     },
     {
@@ -4677,14 +4345,14 @@
         "page:/local-development/debugging-containers#troubleshooting",
         "page:/local-development/debugging-containers#resource-is-not-a-valid-container-based-resource",
         "page:/local-development/debugging-containers#does-not-have-a-deployed-ecs-service",
-        "page:/local-development/debugging-containers#no-running-tasks-found",
+        "page:/local-development/debugging-containers#no-running-tasks-found-for-this-resource",
         "page:/local-development/debugging-containers#session-disconnects-immediately",
         "page:/local-development/debugging-containers#specifying-which-container-to-connect-to",
         "page:/local-development/debugging-containers#faq",
         "page:/local-development/debugging-containers#which-container-resources-support-debugging",
         "page:/local-development/debugging-containers#can-i-debug-containers-in-dev-mode",
         "page:/local-development/debugging-containers#how-does-ecs-exec-work-under-the-hood",
-        "page:/local-development/debugging-containers#what-s-the-default-shell-for-container-session",
+        "page:/local-development/debugging-containers#which-shell-does-container-session-start",
         "page:/local-development/debugging-containers#can-i-use-debug-container-exec-in-ci-cd-pipelines",
         "page:/local-development/debugging-containers#what-s-the-difference-between-container-session-and-ssh",
         "page:/local-development/debugging-containers#how-do-i-connect-to-a-specific-container-in-a-multi-container-workload",
@@ -4707,11 +4375,10 @@
       ],
       "chunks": [
         "page:/local-development/debugging-lambda-functions#debugging-lambda-functions",
-        "page:/local-development/debugging-lambda-functions#how-dev-mode-runs-lambda-functions",
-        "page:/local-development/debugging-lambda-functions#flow",
+        "page:/local-development/debugging-lambda-functions#how-it-works",
         "page:/local-development/debugging-lambda-functions#starting-dev-mode",
         "page:/local-development/debugging-lambda-functions#first-time-setup",
-        "page:/local-development/debugging-lambda-functions#rebuilding-functions-in-the-dev-tui",
+        "page:/local-development/debugging-lambda-functions#rebuilds",
         "page:/local-development/debugging-lambda-functions#viewing-logs",
         "page:/local-development/debugging-lambda-functions#dev-tui-log-streaming",
         "page:/local-development/debugging-lambda-functions#historical-logs-with-debug-logs",
@@ -4730,7 +4397,7 @@
         "page:/local-development/debugging-lambda-functions#can-i-set-breakpoints-in-lambda-functions-during-dev-mode",
         "page:/local-development/debugging-lambda-functions#how-do-i-rebuild-a-function-after-changing-code",
         "page:/local-development/debugging-lambda-functions#do-my-lambda-function-s-event-sources-work-in-dev-mode",
-        "page:/local-development/debugging-lambda-functions#can-i-debug-only-some-functions-while-keeping-others-on-the-deployed-stack",
+        "page:/local-development/debugging-lambda-functions#can-i-debug-only-some-functions-while-keeping-others-untouched",
         "page:/local-development/debugging-lambda-functions#what-happens-to-lambda-environment-variables-when-dev-mode-exits",
         "page:/local-development/debugging-lambda-functions#what-s-the-difference-between-normal-and-legacy-dev-mode",
         "page:/local-development/debugging-lambda-functions#should-i-use-dev-mode-or-full-deploy-to-test-lambda-functions",
@@ -4783,22 +4450,6 @@
         "page:/local-development/dev-mode-overview#can-i-use-dev-mode-in-a-monorepo",
         "page:/local-development/dev-mode-overview#how-does-stacktape-dev-mode-compare-to-docker-compose",
         "page:/local-development/dev-mode-overview#when-should-i-use-legacy-mode-instead-of-normal-dev-mode"
-      ]
-    },
-    {
-      "id": "page:/local-development/dev-mode-with-ai",
-      "title": "Dev Mode with AI",
-      "route": "/local-development/dev-mode-with-ai",
-      "sourcePath": "docs/docs/local-development/dev-mode-with-ai.mdx",
-      "outputPath": "pages/local-development/dev-mode-with-ai.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "local-development",
-        "dev-mode-with-ai"
-      ],
-      "chunks": [
-        "page:/local-development/dev-mode-with-ai#dev-mode-with-ai"
       ]
     },
     {
@@ -4870,8 +4521,7 @@
         "page:/managing-costs/budgets#what-is-the-difference-between-threshold-exceeded-and-forecasted-overspend-alerts",
         "page:/managing-costs/budgets#can-i-set-a-budget-alert-for-a-single-resource-like-one-database",
         "page:/managing-costs/budgets#how-much-do-aws-budgets-cost",
-        "page:/managing-costs/budgets#can-i-send-budget-alerts-to-slack-or-other-chat-tools",
-        "page:/managing-costs/budgets#do-budget-alerts-reset-automatically-each-month",
+        "page:/managing-costs/budgets#can-i-send-budget-alerts-to-slack-email-or-a-webhook",
         "page:/managing-costs/budgets#why-isn-t-my-forecast-alert-firing",
         "page:/managing-costs/budgets#should-i-use-budgets-guardrails-or-both-for-cost-control",
         "page:/managing-costs/budgets#where-can-i-see-how-much-each-stack-is-costing-me"
@@ -4899,7 +4549,6 @@
         "page:/managing-costs/dashboards#costs-per-stack",
         "page:/managing-costs/dashboards#filters",
         "page:/managing-costs/dashboards#cost-table",
-        "page:/managing-costs/dashboards#per-stage-cost-detail",
         "page:/managing-costs/dashboards#faq",
         "page:/managing-costs/dashboards#how-often-is-cost-data-updated",
         "page:/managing-costs/dashboards#does-stacktape-add-any-markup-to-aws-costs",
@@ -4952,7 +4601,7 @@
         "page:/managing-costs/optimization-tips#faq",
         "page:/managing-costs/optimization-tips#how-do-i-see-what-each-resource-costs",
         "page:/managing-costs/optimization-tips#does-stacktape-add-cost-on-top-of-aws",
-        "page:/managing-costs/optimization-tips#can-fargate-containers-scale-to-zero",
+        "page:/managing-costs/optimization-tips#can-a-stacktape-web-service-scale-to-zero",
         "page:/managing-costs/optimization-tips#how-much-cheaper-is-arm-graviton",
         "page:/managing-costs/optimization-tips#when-should-i-use-aurora-serverless-v2-vs-standard-rds",
         "page:/managing-costs/optimization-tips#how-do-i-reduce-lambda-cold-start-costs-without-provisioned-concurrency",
@@ -5036,12 +4685,12 @@
       "outputPath": "pages/observability/alarms.md",
       "docKind": "docs-page",
       "definitionNames": [
-        "AlarmDefinitionBase"
+        "AlarmDefinition"
       ],
       "tags": [
         "observability",
         "alarms",
-        "AlarmDefinitionBase"
+        "AlarmDefinition"
       ],
       "chunks": [
         "page:/observability/alarms#alarms",
@@ -5072,7 +4721,7 @@
         "page:/observability/alarms#console",
         "page:/observability/alarms#alarms-as-event-triggers",
         "page:/observability/alarms#api-reference",
-        "page:/observability/alarms#api-reference-alarmdefinitionbase",
+        "page:/observability/alarms#api-reference-alarmdefinition",
         "page:/observability/alarms#faq",
         "page:/observability/alarms#which-resources-support-inline-alarms",
         "page:/observability/alarms#how-much-do-cloudwatch-alarms-cost",
@@ -5117,11 +4766,11 @@
         "page:/observability/alert-channels#how-do-i-test-that-my-channel-is-working",
         "page:/observability/alert-channels#what-happens-if-a-channel-s-endpoint-becomes-unreachable",
         "page:/observability/alert-channels#can-i-send-alerts-to-multiple-slack-channels",
-        "page:/observability/alert-channels#when-should-i-use-inline-notification-targets-instead-of-console-channels",
+        "page:/observability/alert-channels#when-should-i-use-console-channels-vs-config-level-alarm-options",
         "page:/observability/alert-channels#are-alert-channels-managed-per-organization-or-per-project",
-        "page:/observability/alert-channels#can-i-route-different-alert-severities-to-different-channels",
+        "page:/observability/alert-channels#can-i-route-different-thresholds-to-different-channels",
         "page:/observability/alert-channels#is-there-a-cli-command-for-managing-alert-channels",
-        "page:/observability/alert-channels#what-is-the-difference-between-alert-channels-and-inline-notification-targets"
+        "page:/observability/alert-channels#what-is-the-difference-between-alert-channels-and-alarm-configuration-in-stacktape-config"
       ]
     },
     {
@@ -5153,7 +4802,7 @@
         "page:/observability/alert-history#what-delivery-statuses-can-an-alert-have",
         "page:/observability/alert-history#how-do-i-set-up-alerts-so-events-appear-in-alert-history",
         "page:/observability/alert-history#can-i-view-alert-history-from-the-cli",
-        "page:/observability/alert-history#what-severity-levels-does-stacktape-use-for-alerts",
+        "page:/observability/alert-history#what-severity-levels-are-shown-in-alert-history",
         "page:/observability/alert-history#how-does-alert-history-relate-to-cloudwatch-alarms"
       ]
     },
@@ -5188,7 +4837,7 @@
         "page:/observability/issues#faq",
         "page:/observability/issues#how-do-i-enable-issue-monitoring-for-my-projects",
         "page:/observability/issues#what-types-of-errors-does-stacktape-detect",
-        "page:/observability/issues#does-issue-monitoring-add-cost-to-my-aws-bill",
+        "page:/observability/issues#does-issue-monitoring-add-cost",
         "page:/observability/issues#can-i-manage-issues-from-ci-cd-pipelines",
         "page:/observability/issues#what-permissions-do-i-need-to-configure-issue-monitoring",
         "page:/observability/issues#how-is-stacktape-issues-different-from-sentry-or-bugsnag",
@@ -5206,12 +4855,12 @@
       "outputPath": "pages/observability/log-forwarding.md",
       "docKind": "docs-page",
       "definitionNames": [
-        "HttpEndpointLogForwardingProps"
+        "LogForwardingBase"
       ],
       "tags": [
         "observability",
         "log-forwarding",
-        "HttpEndpointLogForwardingProps"
+        "LogForwardingBase"
       ],
       "chunks": [
         "page:/observability/log-forwarding#log-forwarding",
@@ -5225,7 +4874,7 @@
         "page:/observability/log-forwarding#when-to-use-each-property",
         "page:/observability/log-forwarding#how-it-works",
         "page:/observability/log-forwarding#failure-handling",
-        "page:/observability/log-forwarding#logs-remain-in-cloudwatch",
+        "page:/observability/log-forwarding#built-in-log-viewing",
         "page:/observability/log-forwarding#choosing-a-destination",
         "page:/observability/log-forwarding#faq",
         "page:/observability/log-forwarding#do-forwarded-logs-still-appear-in-cloudwatch",
@@ -5237,9 +4886,9 @@
         "page:/observability/log-forwarding#should-i-use-the-datadog-type-or-http-endpoint-type-for-datadog",
         "page:/observability/log-forwarding#does-log-forwarding-support-filtering-which-logs-are-sent",
         "page:/observability/log-forwarding#how-do-i-verify-that-log-forwarding-is-working",
-        "page:/observability/log-forwarding#can-i-forward-logs-from-a-relational-database-or-redis-cluster",
+        "page:/observability/log-forwarding#can-i-forward-logs-from-any-resource-type",
         "page:/observability/log-forwarding#api-reference",
-        "page:/observability/log-forwarding#api-reference-httpendpointlogforwardingprops"
+        "page:/observability/log-forwarding#api-reference-logforwardingbase"
       ]
     },
     {
@@ -5264,26 +4913,14 @@
         "page:/observability/logs#viewing-logs-with-the-cli",
         "page:/observability/logs#basic-usage",
         "page:/observability/logs#time-ranges",
-        "page:/observability/logs#last-30-minutes",
-        "page:/observability/logs#last-3-hours",
-        "page:/observability/logs#last-2-days",
-        "page:/observability/logs#specific-time-window-used-with-logs-insights-queries",
         "page:/observability/logs#limiting-results",
-        "page:/observability/logs#fetch-last-500-events",
         "page:/observability/logs#filter-patterns-2",
-        "page:/observability/logs#only-errors",
-        "page:/observability/logs#json-structured-logs-filter-by-field-value",
         "page:/observability/logs#cloudwatch-logs-insights-queries",
-        "page:/observability/logs#find-the-20-most-recent-errors-with-timestamps",
-        "page:/observability/logs#count-errors-per-hour-over-the-last-24-hours",
-        "page:/observability/logs#find-slowest-lambda-invocations",
         "page:/observability/logs#container-specific-logs",
         "page:/observability/logs#raw-json-output",
         "page:/observability/logs#cli-vs-console-comparison",
         "page:/observability/logs#feature-comparison",
         "page:/observability/logs#structured-logging",
-        "page:/observability/logs#filter-to-errors-for-a-specific-user",
-        "page:/observability/logs#aggregate-error-counts-by-status-code-over-the-last-6-hours",
         "page:/observability/logs#log-forwarding",
         "page:/observability/logs#faq",
         "page:/observability/logs#which-stacktape-resources-produce-logs",
@@ -5497,12 +5134,11 @@
         "page:/packaging/containers/external-buildpack#can-i-use-heroku-buildpacks-with-stacktape",
         "page:/packaging/containers/external-buildpack#how-does-external-buildpack-differ-from-the-stacktape-image-buildpack",
         "page:/packaging/containers/external-buildpack#how-does-external-buildpack-differ-from-nixpacks",
-        "page:/packaging/containers/external-buildpack#what-happens-if-my-source-hasn-t-changed-since-the-last-deploy",
         "page:/packaging/containers/external-buildpack#can-i-combine-multiple-buildpacks",
         "page:/packaging/containers/external-buildpack#how-do-i-debug-a-failed-buildpack-build",
         "page:/packaging/containers/external-buildpack#when-should-i-use-a-custom-dockerfile-instead",
         "page:/packaging/containers/external-buildpack#what-s-the-cost-difference-between-external-buildpack-and-other-modes",
-        "page:/packaging/containers/external-buildpack#do-i-need-to-install-anything-locally-to-use-external-buildpack"
+        "page:/packaging/containers/external-buildpack#what-is-the-default-builder"
       ]
     },
     {
@@ -5636,19 +5272,19 @@
         "page:/packaging/containers/stacktape-buildpack#dependency-management",
         "page:/packaging/containers/stacktape-buildpack#minification",
         "page:/packaging/containers/stacktape-buildpack#java",
-        "page:/packaging/containers/stacktape-buildpack#other-supported-languages",
+        "page:/packaging/containers/stacktape-buildpack#additional-language-specific-options",
         "page:/packaging/containers/stacktape-buildpack#go",
         "page:/packaging/containers/stacktape-buildpack#ruby",
         "page:/packaging/containers/stacktape-buildpack#php",
         "page:/packaging/containers/stacktape-buildpack#net",
-        "page:/packaging/containers/stacktape-buildpack#customizing-the-container-image",
+        "page:/packaging/containers/stacktape-buildpack#image-customization",
         "page:/packaging/containers/stacktape-buildpack#installing-system-dependencies",
         "page:/packaging/containers/stacktape-buildpack#using-glibc-instead-of-alpine-musl",
-        "page:/packaging/containers/stacktape-buildpack#controlling-packaged-files",
-        "page:/packaging/containers/stacktape-buildpack#comparing-container-packaging-modes",
+        "page:/packaging/containers/stacktape-buildpack#file-inclusion-and-exclusion",
+        "page:/packaging/containers/stacktape-buildpack#mode-comparison",
         "page:/packaging/containers/stacktape-buildpack#faq",
         "page:/packaging/containers/stacktape-buildpack#which-languages-does-the-stacktape-container-buildpack-support",
-        "page:/packaging/containers/stacktape-buildpack#do-i-need-to-write-a-dockerfile-to-use-the-stacktape-buildpack",
+        "page:/packaging/containers/stacktape-buildpack#how-much-does-aws-ecr-storage-cost-for-container-images",
         "page:/packaging/containers/stacktape-buildpack#when-should-i-use-the-stacktape-buildpack-instead-of-a-custom-dockerfile",
         "page:/packaging/containers/stacktape-buildpack#how-does-the-stacktape-container-buildpack-handle-python-web-servers",
         "page:/packaging/containers/stacktape-buildpack#what-base-image-does-the-stacktape-container-buildpack-use",
@@ -5656,7 +5292,8 @@
         "page:/packaging/containers/stacktape-buildpack#what-is-the-difference-between-the-stacktape-buildpack-and-nixpacks",
         "page:/packaging/containers/stacktape-buildpack#where-are-built-container-images-stored",
         "page:/packaging/containers/stacktape-buildpack#can-i-use-the-stacktape-buildpack-with-a-multi-container-workload",
-        "page:/packaging/containers/stacktape-buildpack#how-do-i-keep-my-container-images-small",
+        "page:/packaging/containers/stacktape-buildpack#what-container-image-size-limits-apply-on-ecs-fargate",
+        "page:/packaging/containers/stacktape-buildpack#how-does-docker-layer-caching-affect-build-times-with-the-stacktape-buildpack",
         "page:/packaging/containers/stacktape-buildpack#api-reference",
         "page:/packaging/containers/stacktape-buildpack#api-reference-stpbuildpackcwimagepackagingprops"
       ]
@@ -5691,7 +5328,7 @@
         "page:/packaging/function/custom-artifact#faq",
         "page:/packaging/function/custom-artifact#when-should-i-use-custom-artifact-instead-of-the-stacktape-buildpack",
         "page:/packaging/function/custom-artifact#can-i-use-a-directory-instead-of-a-zip-file",
-        "page:/packaging/function/custom-artifact#how-do-i-set-the-handler-for-different-languages",
+        "page:/packaging/function/custom-artifact#how-do-i-set-the-handler-property",
         "page:/packaging/function/custom-artifact#what-s-the-maximum-size-for-a-lambda-deployment-package",
         "page:/packaging/function/custom-artifact#how-do-i-debug-deployment-issues-with-custom-artifacts",
         "page:/packaging/function/custom-artifact#does-custom-artifact-packaging-affect-other-lambda-settings",
@@ -5812,7 +5449,6 @@
         "page:/resources/advanced/aws-cdk-constructs#passing-props-to-constructs",
         "page:/resources/advanced/aws-cdk-constructs#limitations",
         "page:/resources/advanced/aws-cdk-constructs#comparison-with-raw-cloudformation",
-        "page:/resources/advanced/aws-cdk-constructs#feature-comparison",
         "page:/resources/advanced/aws-cdk-constructs#faq",
         "page:/resources/advanced/aws-cdk-constructs#what-is-aws-cdk",
         "page:/resources/advanced/aws-cdk-constructs#can-i-use-existing-cdk-constructs-from-npm",
@@ -5824,8 +5460,6 @@
         "page:/resources/advanced/aws-cdk-constructs#how-do-i-pass-values-from-a-cdk-construct-to-other-stacktape-resources",
         "page:/resources/advanced/aws-cdk-constructs#what-is-the-difference-between-cdk-constructs-and-custom-resources",
         "page:/resources/advanced/aws-cdk-constructs#when-should-i-use-a-cdk-construct-vs-a-native-stacktape-resource",
-        "page:/resources/advanced/aws-cdk-constructs#referenceable-parameters",
-        "page:/resources/advanced/aws-cdk-constructs#referenceable-parameters-aws-cdk-construct",
         "page:/resources/advanced/aws-cdk-constructs#api-reference",
         "page:/resources/advanced/aws-cdk-constructs#api-reference-awscdkconstructprops"
       ]
@@ -5853,7 +5487,6 @@
         "page:/resources/advanced/custom-resources#when-to-use",
         "page:/resources/advanced/custom-resources#when-not-to-use",
         "page:/resources/advanced/custom-resources#how-it-works",
-        "page:/resources/advanced/custom-resources#flow",
         "page:/resources/advanced/custom-resources#basic-example",
         "page:/resources/advanced/custom-resources#writing-the-handler",
         "page:/resources/advanced/custom-resources#event-fields",
@@ -5934,14 +5567,11 @@
       "sourcePath": "docs/docs/resources/advanced/raw-cloudformation-resources.mdx",
       "outputPath": "pages/resources/advanced/raw-cloudformation-resources.md",
       "docKind": "docs-page",
-      "definitionNames": [
-        "default"
-      ],
+      "definitionNames": [],
       "tags": [
         "resources",
         "advanced",
-        "raw-cloudformation-resources",
-        "default"
+        "raw-cloudformation-resources"
       ],
       "chunks": [
         "page:/resources/advanced/raw-cloudformation-resources#raw-cloudformation-resources",
@@ -5954,6 +5584,7 @@
         "page:/resources/advanced/raw-cloudformation-resources#avoiding-naming-conflicts",
         "page:/resources/advanced/raw-cloudformation-resources#choosing-an-escape-hatch",
         "page:/resources/advanced/raw-cloudformation-resources#feature-comparison",
+        "page:/resources/advanced/raw-cloudformation-resources#api-reference",
         "page:/resources/advanced/raw-cloudformation-resources#faq",
         "page:/resources/advanced/raw-cloudformation-resources#do-raw-cloudformation-resources-count-toward-the-stacktape-resource-limit",
         "page:/resources/advanced/raw-cloudformation-resources#are-raw-cloudformation-resources-deleted-when-i-delete-the-stack",
@@ -5964,9 +5595,234 @@
         "page:/resources/advanced/raw-cloudformation-resources#when-should-i-use-raw-cloudformation-instead-of-cdk-constructs",
         "page:/resources/advanced/raw-cloudformation-resources#when-should-i-use-raw-cloudformation-instead-of-overrides",
         "page:/resources/advanced/raw-cloudformation-resources#how-much-do-raw-cloudformation-resources-cost",
-        "page:/resources/advanced/raw-cloudformation-resources#can-i-set-dependson-between-raw-resources-and-stacktape-managed-resources",
-        "page:/resources/advanced/raw-cloudformation-resources#api-reference",
-        "page:/resources/advanced/raw-cloudformation-resources#api-reference-default"
+        "page:/resources/advanced/raw-cloudformation-resources#can-i-set-dependson-between-raw-resources-and-stacktape-managed-resources"
+      ]
+    },
+    {
+      "id": "page:/resources/ai/agentcore-browser",
+      "title": "AgentCore Browser",
+      "route": "/resources/ai/agentcore-browser",
+      "sourcePath": "docs/docs/resources/ai/agentcore-browser.mdx",
+      "outputPath": "pages/resources/ai/agentcore-browser.md",
+      "docKind": "docs-page",
+      "definitionNames": [
+        "AgentCoreBrowserProps"
+      ],
+      "tags": [
+        "resources",
+        "ai",
+        "agentcore-browser",
+        "AgentCoreBrowserProps"
+      ],
+      "chunks": [
+        "page:/resources/ai/agentcore-browser#agentcore-browser",
+        "page:/resources/ai/agentcore-browser#when-to-use",
+        "page:/resources/ai/agentcore-browser#when-not-to-use",
+        "page:/resources/ai/agentcore-browser#basic-example",
+        "page:/resources/ai/agentcore-browser#examples",
+        "page:/resources/ai/agentcore-browser#session-recording",
+        "page:/resources/ai/agentcore-browser#full-agent-with-memory-and-browser",
+        "page:/resources/ai/agentcore-browser#overrides",
+        "page:/resources/ai/agentcore-browser#tags",
+        "page:/resources/ai/agentcore-browser#referenceable-parameters",
+        "page:/resources/ai/agentcore-browser#api-reference",
+        "page:/resources/ai/agentcore-browser#api-reference-agentcorebrowserprops",
+        "page:/resources/ai/agentcore-browser#faq",
+        "page:/resources/ai/agentcore-browser#how-do-i-connect-the-browser-to-my-agent-runtime",
+        "page:/resources/ai/agentcore-browser#can-i-use-the-browser-without-enabling-recording",
+        "page:/resources/ai/agentcore-browser#where-are-session-recordings-stored",
+        "page:/resources/ai/agentcore-browser#what-is-the-difference-between-agentcore-browser-and-agentcore-code-interpreter",
+        "page:/resources/ai/agentcore-browser#how-much-does-agentcore-browser-cost",
+        "page:/resources/ai/agentcore-browser#when-should-i-use-a-browser-instead-of-http-calls-in-my-agent",
+        "page:/resources/ai/agentcore-browser#can-i-customize-the-underlying-cloudformation-resources",
+        "page:/resources/ai/agentcore-browser#can-multiple-runtimes-reference-the-same-browser-resource"
+      ]
+    },
+    {
+      "id": "page:/resources/ai/agentcore-code-interpreter",
+      "title": "AgentCore Code Interpreter",
+      "route": "/resources/ai/agentcore-code-interpreter",
+      "sourcePath": "docs/docs/resources/ai/agentcore-code-interpreter.mdx",
+      "outputPath": "pages/resources/ai/agentcore-code-interpreter.md",
+      "docKind": "docs-page",
+      "definitionNames": [
+        "AgentCoreCodeInterpreterProps"
+      ],
+      "tags": [
+        "resources",
+        "ai",
+        "agentcore-code-interpreter",
+        "AgentCoreCodeInterpreterProps"
+      ],
+      "chunks": [
+        "page:/resources/ai/agentcore-code-interpreter#agentcore-code-interpreter",
+        "page:/resources/ai/agentcore-code-interpreter#when-to-use",
+        "page:/resources/ai/agentcore-code-interpreter#when-not-to-use",
+        "page:/resources/ai/agentcore-code-interpreter#basic-example",
+        "page:/resources/ai/agentcore-code-interpreter#examples",
+        "page:/resources/ai/agentcore-code-interpreter#runtime-with-code-interpreter",
+        "page:/resources/ai/agentcore-code-interpreter#runtime-with-code-interpreter-memory-and-storage",
+        "page:/resources/ai/agentcore-code-interpreter#tags",
+        "page:/resources/ai/agentcore-code-interpreter#overrides",
+        "page:/resources/ai/agentcore-code-interpreter#referenceable-parameters",
+        "page:/resources/ai/agentcore-code-interpreter#api-reference",
+        "page:/resources/ai/agentcore-code-interpreter#api-reference-agentcorecodeinterpreterprops",
+        "page:/resources/ai/agentcore-code-interpreter#faq",
+        "page:/resources/ai/agentcore-code-interpreter#what-does-the-code-interpreter-actually-do",
+        "page:/resources/ai/agentcore-code-interpreter#how-does-the-code-interpreter-differ-from-a-lambda-function",
+        "page:/resources/ai/agentcore-code-interpreter#can-i-use-the-code-interpreter-without-an-agentcore-runtime",
+        "page:/resources/ai/agentcore-code-interpreter#is-the-code-execution-sandboxed",
+        "page:/resources/ai/agentcore-code-interpreter#how-much-does-agentcore-code-interpreter-cost",
+        "page:/resources/ai/agentcore-code-interpreter#can-multiple-runtimes-share-the-same-code-interpreter",
+        "page:/resources/ai/agentcore-code-interpreter#how-do-i-access-the-code-interpreter-s-id-in-my-agent-code",
+        "page:/resources/ai/agentcore-code-interpreter#what-other-tools-can-i-attach-to-an-agentcore-runtime",
+        "page:/resources/ai/agentcore-code-interpreter#when-should-i-use-a-code-interpreter-vs-a-batch-job-for-data-processing"
+      ]
+    },
+    {
+      "id": "page:/resources/ai/agentcore-gateway",
+      "title": "AgentCore Gateway",
+      "route": "/resources/ai/agentcore-gateway",
+      "sourcePath": "docs/docs/resources/ai/agentcore-gateway.mdx",
+      "outputPath": "pages/resources/ai/agentcore-gateway.md",
+      "docKind": "docs-page",
+      "resourceType": "agentcore-gateway",
+      "definitionNames": [
+        "AgentCoreGatewayProps"
+      ],
+      "tags": [
+        "resources",
+        "ai",
+        "agentcore-gateway",
+        "AgentCoreGatewayProps"
+      ],
+      "chunks": [
+        "page:/resources/ai/agentcore-gateway#agentcore-gateway",
+        "page:/resources/ai/agentcore-gateway#when-to-use",
+        "page:/resources/ai/agentcore-gateway#when-not-to-use",
+        "page:/resources/ai/agentcore-gateway#basic-example",
+        "page:/resources/ai/agentcore-gateway#examples",
+        "page:/resources/ai/agentcore-gateway#multi-tool-gateway-with-jwt-authorization",
+        "page:/resources/ai/agentcore-gateway#full-stack-gateway-with-agentcore-runtime",
+        "page:/resources/ai/agentcore-gateway#tools",
+        "page:/resources/ai/agentcore-gateway#referencing-lambda-functions",
+        "page:/resources/ai/agentcore-gateway#tool-schema",
+        "page:/resources/ai/agentcore-gateway#jwt-authorization",
+        "page:/resources/ai/agentcore-gateway#connecting-to-an-agentcore-runtime",
+        "page:/resources/ai/agentcore-gateway#mcp-protocol-configuration",
+        "page:/resources/ai/agentcore-gateway#debugging",
+        "page:/resources/ai/agentcore-gateway#overrides",
+        "page:/resources/ai/agentcore-gateway#api-reference",
+        "page:/resources/ai/agentcore-gateway#api-reference-agentcoregatewayprops",
+        "page:/resources/ai/agentcore-gateway#referenceable-parameters",
+        "page:/resources/ai/agentcore-gateway#referenceable-parameters-agentcore-gateway",
+        "page:/resources/ai/agentcore-gateway#faq",
+        "page:/resources/ai/agentcore-gateway#what-is-an-agentcore-gateway",
+        "page:/resources/ai/agentcore-gateway#how-does-the-gateway-relate-to-the-agentcore-runtime",
+        "page:/resources/ai/agentcore-gateway#can-i-use-the-gateway-without-jwt-authentication",
+        "page:/resources/ai/agentcore-gateway#which-identity-providers-work-with-the-jwt-authorizer",
+        "page:/resources/ai/agentcore-gateway#can-a-single-tool-expose-multiple-operations",
+        "page:/resources/ai/agentcore-gateway#how-do-i-reference-a-lambda-function-in-another-stack-or-aws-account",
+        "page:/resources/ai/agentcore-gateway#what-is-mcp-and-why-does-the-gateway-use-it",
+        "page:/resources/ai/agentcore-gateway#when-should-i-use-a-gateway-versus-direct-lambda-invocation",
+        "page:/resources/ai/agentcore-gateway#which-json-schema-keys-are-supported-in-tool-schemas",
+        "page:/resources/ai/agentcore-gateway#how-much-does-an-agentcore-gateway-cost"
+      ]
+    },
+    {
+      "id": "page:/resources/ai/agentcore-memory",
+      "title": "AgentCore Memory",
+      "route": "/resources/ai/agentcore-memory",
+      "sourcePath": "docs/docs/resources/ai/agentcore-memory.mdx",
+      "outputPath": "pages/resources/ai/agentcore-memory.md",
+      "docKind": "docs-page",
+      "definitionNames": [
+        "AgentCoreMemoryProps"
+      ],
+      "tags": [
+        "resources",
+        "ai",
+        "agentcore-memory",
+        "AgentCoreMemoryProps"
+      ],
+      "chunks": [
+        "page:/resources/ai/agentcore-memory#agentcore-memory",
+        "page:/resources/ai/agentcore-memory#when-to-use",
+        "page:/resources/ai/agentcore-memory#when-not-to-use",
+        "page:/resources/ai/agentcore-memory#basic-example",
+        "page:/resources/ai/agentcore-memory#connecting-to-an-agentcore-runtime",
+        "page:/resources/ai/agentcore-memory#memory-expiration",
+        "page:/resources/ai/agentcore-memory#memory-strategies",
+        "page:/resources/ai/agentcore-memory#encryption",
+        "page:/resources/ai/agentcore-memory#examples",
+        "page:/resources/ai/agentcore-memory#encrypted-memory-with-custom-retention",
+        "page:/resources/ai/agentcore-memory#agentcore-runtime-with-dedicated-memory",
+        "page:/resources/ai/agentcore-memory#referenceable-parameters",
+        "page:/resources/ai/agentcore-memory#api-reference",
+        "page:/resources/ai/agentcore-memory#api-reference-agentcorememoryprops",
+        "page:/resources/ai/agentcore-memory#faq",
+        "page:/resources/ai/agentcore-memory#what-is-aws-bedrock-agentcore-memory",
+        "page:/resources/ai/agentcore-memory#how-do-i-connect-agentcore-memory-to-an-agentcore-runtime",
+        "page:/resources/ai/agentcore-memory#how-does-agent-memory-get-populated",
+        "page:/resources/ai/agentcore-memory#what-are-memory-strategies-in-bedrock-agentcore",
+        "page:/resources/ai/agentcore-memory#what-referenceable-parameters-does-agentcore-memory-expose",
+        "page:/resources/ai/agentcore-memory#can-i-encrypt-agentcore-memory-with-my-own-kms-key",
+        "page:/resources/ai/agentcore-memory#agentcore-memory-vs-dynamodb-for-agent-state-which-should-i-use",
+        "page:/resources/ai/agentcore-memory#do-i-need-agentcore-memory-for-every-ai-agent",
+        "page:/resources/ai/agentcore-memory#how-do-i-delete-or-reset-stored-memories",
+        "page:/resources/ai/agentcore-memory#can-multiple-agentcore-runtimes-reference-the-same-memory-resource"
+      ]
+    },
+    {
+      "id": "page:/resources/ai/agentcore-runtime",
+      "title": "AgentCore Runtime",
+      "route": "/resources/ai/agentcore-runtime",
+      "sourcePath": "docs/docs/resources/ai/agentcore-runtime.mdx",
+      "outputPath": "pages/resources/ai/agentcore-runtime.md",
+      "docKind": "docs-page",
+      "definitionNames": [
+        "AgentCoreRuntimeProps"
+      ],
+      "tags": [
+        "resources",
+        "ai",
+        "agentcore-runtime",
+        "AgentCoreRuntimeProps"
+      ],
+      "chunks": [
+        "page:/resources/ai/agentcore-runtime#agentcore-runtime",
+        "page:/resources/ai/agentcore-runtime#when-to-use",
+        "page:/resources/ai/agentcore-runtime#when-not-to-use",
+        "page:/resources/ai/agentcore-runtime#basic-example",
+        "page:/resources/ai/agentcore-runtime#examples",
+        "page:/resources/ai/agentcore-runtime#agent-with-persistent-memory-and-lifecycle",
+        "page:/resources/ai/agentcore-runtime#agent-with-tools-authentication-and-resource-access",
+        "page:/resources/ai/agentcore-runtime#protocols",
+        "page:/resources/ai/agentcore-runtime#endpoints",
+        "page:/resources/ai/agentcore-runtime#tool-integrations",
+        "page:/resources/ai/agentcore-runtime#lifecycle",
+        "page:/resources/ai/agentcore-runtime#authentication",
+        "page:/resources/ai/agentcore-runtime#connecting-to-other-resources",
+        "page:/resources/ai/agentcore-runtime#packaging",
+        "page:/resources/ai/agentcore-runtime#environment-variables",
+        "page:/resources/ai/agentcore-runtime#request-headers",
+        "page:/resources/ai/agentcore-runtime#faq",
+        "page:/resources/ai/agentcore-runtime#what-is-aws-bedrock-agentcore",
+        "page:/resources/ai/agentcore-runtime#what-protocols-does-agentcore-runtime-support",
+        "page:/resources/ai/agentcore-runtime#can-i-attach-persistent-memory-to-my-agent",
+        "page:/resources/ai/agentcore-runtime#how-do-i-access-other-aws-resources-from-my-agent",
+        "page:/resources/ai/agentcore-runtime#what-container-images-can-i-use",
+        "page:/resources/ai/agentcore-runtime#when-should-i-use-agentcore-runtime-vs-a-lambda-function-for-ai",
+        "page:/resources/ai/agentcore-runtime#when-should-i-use-agentcore-runtime-vs-a-web-service",
+        "page:/resources/ai/agentcore-runtime#how-do-i-secure-my-agent-endpoints",
+        "page:/resources/ai/agentcore-runtime#can-i-use-multiple-tools-with-a-single-agent",
+        "page:/resources/ai/agentcore-runtime#what-referenceable-parameters-does-agentcore-runtime-expose",
+        "page:/resources/ai/agentcore-runtime#how-is-aws-bedrock-agentcore-priced",
+        "page:/resources/ai/agentcore-runtime#what-aws-regions-support-agentcore-runtime",
+        "page:/resources/ai/agentcore-runtime#how-does-agentcore-runtime-handle-concurrency",
+        "page:/resources/ai/agentcore-runtime#api-reference",
+        "page:/resources/ai/agentcore-runtime#api-reference-agentcoreruntimeprops",
+        "page:/resources/ai/agentcore-runtime#referenceable-parameters"
       ]
     },
     {
@@ -6013,6 +5869,67 @@
         "page:/resources/compute/batch-job#api-reference-batchjobprops",
         "page:/resources/compute/batch-job#referenceable-parameters",
         "page:/resources/compute/batch-job#referenceable-parameters-batch-job"
+      ]
+    },
+    {
+      "id": "page:/resources/compute/convex",
+      "title": "Convex",
+      "route": "/resources/compute/convex",
+      "sourcePath": "docs/docs/resources/compute/convex.mdx",
+      "outputPath": "pages/resources/compute/convex.md",
+      "docKind": "docs-page",
+      "resourceType": "convex",
+      "definitionNames": [
+        "ConvexProps"
+      ],
+      "tags": [
+        "resources",
+        "compute",
+        "convex",
+        "ConvexProps"
+      ],
+      "chunks": [
+        "page:/resources/compute/convex#convex",
+        "page:/resources/compute/convex#when-to-use",
+        "page:/resources/compute/convex#when-not-to-use",
+        "page:/resources/compute/convex#basic-example",
+        "page:/resources/compute/convex#examples",
+        "page:/resources/compute/convex#production-with-custom-domains",
+        "page:/resources/compute/convex#passing-the-convex-url-to-other-workloads",
+        "page:/resources/compute/convex#functions-deployment",
+        "page:/resources/compute/convex#what-gets-provisioned",
+        "page:/resources/compute/convex#backend",
+        "page:/resources/compute/convex#compute-resources",
+        "page:/resources/compute/convex#single-process-constraint",
+        "page:/resources/compute/convex#fargate-vs-ec2",
+        "page:/resources/compute/convex#backend-image",
+        "page:/resources/compute/convex#dashboard",
+        "page:/resources/compute/convex#dashboard-resources",
+        "page:/resources/compute/convex#restricting-dashboard-access",
+        "page:/resources/compute/convex#disabling-the-dashboard",
+        "page:/resources/compute/convex#database",
+        "page:/resources/compute/convex#engine-options",
+        "page:/resources/compute/convex#other-database-overrides",
+        "page:/resources/compute/convex#storage",
+        "page:/resources/compute/convex#custom-domains",
+        "page:/resources/compute/convex#deletion-protection",
+        "page:/resources/compute/convex#alarms",
+        "page:/resources/compute/convex#dev-mode",
+        "page:/resources/compute/convex#referencing-parameters",
+        "page:/resources/compute/convex#referenceable-parameters-convex",
+        "page:/resources/compute/convex#api-reference",
+        "page:/resources/compute/convex#api-reference-convexprops",
+        "page:/resources/compute/convex#faq",
+        "page:/resources/compute/convex#how-does-deployment-work-with-self-hosted-convex",
+        "page:/resources/compute/convex#how-much-does-a-self-hosted-convex-deployment-cost-on-aws",
+        "page:/resources/compute/convex#self-hosted-convex-vs-managed-convex-cloud-when-should-i-self-host",
+        "page:/resources/compute/convex#can-i-scale-the-convex-backend-horizontally",
+        "page:/resources/compute/convex#how-do-i-restrict-access-to-the-convex-dashboard",
+        "page:/resources/compute/convex#how-do-i-back-up-my-convex-data",
+        "page:/resources/compute/convex#can-i-use-aurora-serverless-v2-instead-of-rds-for-the-convex-database",
+        "page:/resources/compute/convex#convex-vs-a-traditional-database-api-when-should-i-use-convex",
+        "page:/resources/compute/convex#what-happens-if-the-convex-backend-container-crashes",
+        "page:/resources/compute/convex#how-does-dev-mode-work-with-convex"
       ]
     },
     {
@@ -6083,27 +6000,36 @@
         "page:/resources/compute/lambda-function#when-to-use",
         "page:/resources/compute/lambda-function#when-not-to-use",
         "page:/resources/compute/lambda-function#basic-example",
+        "page:/resources/compute/lambda-function#examples",
+        "page:/resources/compute/lambda-function#http-api-with-dynamodb",
+        "page:/resources/compute/lambda-function#scheduled-cleanup-task",
         "page:/resources/compute/lambda-function#packaging",
+        "page:/resources/compute/lambda-function#stacktape-lambda-buildpack",
+        "page:/resources/compute/lambda-function#custom-artifact",
         "page:/resources/compute/lambda-function#triggers",
         "page:/resources/compute/lambda-function#function-urls",
         "page:/resources/compute/lambda-function#runtime-resources",
         "page:/resources/compute/lambda-function#concurrency",
         "page:/resources/compute/lambda-function#networking",
+        "page:/resources/compute/lambda-function#connecting-to-resources",
         "page:/resources/compute/lambda-function#storage",
         "page:/resources/compute/lambda-function#cdn",
         "page:/resources/compute/lambda-function#deployments",
+        "page:/resources/compute/lambda-function#destinations",
         "page:/resources/compute/lambda-function#observability",
+        "page:/resources/compute/lambda-function#alarms",
+        "page:/resources/compute/lambda-function#layers",
         "page:/resources/compute/lambda-function#faq",
         "page:/resources/compute/lambda-function#does-a-stacktape-lambda-function-scale-to-zero",
-        "page:/resources/compute/lambda-function#what-is-the-maximum-runtime-for-a-stacktape-lambda-function",
+        "page:/resources/compute/lambda-function#what-is-the-maximum-runtime-for-a-lambda-function",
         "page:/resources/compute/lambda-function#can-i-expose-a-lambda-function-without-api-gateway",
-        "page:/resources/compute/lambda-function#which-lambda-packaging-modes-does-stacktape-support",
-        "page:/resources/compute/lambda-function#how-do-i-give-a-lambda-function-database-access",
-        "page:/resources/compute/lambda-function#when-should-i-use-lambda-instead-of-a-web-service",
-        "page:/resources/compute/lambda-function#how-much-memory-should-i-give-a-lambda-function",
-        "page:/resources/compute/lambda-function#how-do-lambda-cold-starts-affect-apis",
+        "page:/resources/compute/lambda-function#which-packaging-modes-does-stacktape-support-for-lambda",
+        "page:/resources/compute/lambda-function#how-do-i-connect-a-lambda-function-to-a-database",
+        "page:/resources/compute/lambda-function#when-should-i-use-a-lambda-function-instead-of-a-web-service",
+        "page:/resources/compute/lambda-function#how-much-memory-should-i-allocate",
+        "page:/resources/compute/lambda-function#how-do-lambda-cold-starts-affect-api-latency",
         "page:/resources/compute/lambda-function#can-a-lambda-function-use-persistent-file-storage",
-        "page:/resources/compute/lambda-function#what-can-trigger-a-stacktape-lambda-function",
+        "page:/resources/compute/lambda-function#what-event-sources-can-trigger-a-stacktape-lambda-function",
         "page:/resources/compute/lambda-function#api-reference",
         "page:/resources/compute/lambda-function#api-reference-lambdafunctionprops",
         "page:/resources/compute/lambda-function#referenceable-parameters",
@@ -6200,8 +6126,8 @@
         "page:/resources/compute/private-service#connecting-to-other-resources",
         "page:/resources/compute/private-service#health-checks",
         "page:/resources/compute/private-service#side-containers",
-        "page:/resources/compute/private-service#run-on-init",
-        "page:/resources/compute/private-service#always-running",
+        "page:/resources/compute/private-service#using-run-on-init-sidecars",
+        "page:/resources/compute/private-service#using-always-running-sidecars",
         "page:/resources/compute/private-service#private-subnets",
         "page:/resources/compute/private-service#logging",
         "page:/resources/compute/private-service#remote-sessions",
@@ -6427,7 +6353,7 @@
         "page:/resources/databases/mongodb-atlas#does-stacktape-support-mongodb-atlas-sharding",
         "page:/resources/databases/mongodb-atlas#how-do-i-back-up-my-mongodb-atlas-cluster",
         "page:/resources/databases/mongodb-atlas#can-i-connect-to-my-cluster-from-my-local-machine",
-        "page:/resources/databases/mongodb-atlas#do-i-need-a-mongodb-atlas-account-to-use-this-resource"
+        "page:/resources/databases/mongodb-atlas#do-i-need-additional-provider-configuration-to-use-this-resource"
       ]
     },
     {
@@ -6631,7 +6557,7 @@
         "page:/resources/databases/upstash-redis#what-environment-variables-does-connectto-inject-for-upstash-redis",
         "page:/resources/databases/upstash-redis#can-i-use-upstash-redis-for-caching-and-rate-limiting",
         "page:/resources/databases/upstash-redis#does-upstash-redis-run-inside-my-vpc",
-        "page:/resources/databases/upstash-redis#how-do-i-store-the-upstash-api-key-securely",
+        "page:/resources/databases/upstash-redis#how-do-i-store-upstash-provider-credentials-securely",
         "page:/resources/databases/upstash-redis#can-i-use-upstash-redis-with-container-workloads",
         "page:/resources/databases/upstash-redis#should-i-use-the-rest-api-or-the-redis-protocol"
       ]
@@ -6704,6 +6630,9 @@
         "page:/resources/frontend/nextjs#when-to-use",
         "page:/resources/frontend/nextjs#when-not-to-use",
         "page:/resources/frontend/nextjs#basic-example",
+        "page:/resources/frontend/nextjs#examples",
+        "page:/resources/frontend/nextjs#production-app-with-custom-domain-and-streaming",
+        "page:/resources/frontend/nextjs#next-js-connected-to-a-dynamodb-table",
         "page:/resources/frontend/nextjs#build-and-dev",
         "page:/resources/frontend/nextjs#server-lambda",
         "page:/resources/frontend/nextjs#cold-starts",
@@ -6725,9 +6654,7 @@
         "page:/resources/frontend/nextjs#when-should-i-use-static-hosting-instead-of-next-js",
         "page:/resources/frontend/nextjs#when-should-i-use-a-web-service-instead-of-the-next-js-resource",
         "page:/resources/frontend/nextjs#api-reference",
-        "page:/resources/frontend/nextjs#api-reference-nextjswebprops",
-        "page:/resources/frontend/nextjs#referenceable-parameters",
-        "page:/resources/frontend/nextjs#referenceable-parameters-nextjs-web"
+        "page:/resources/frontend/nextjs#api-reference-nextjswebprops"
       ]
     },
     {
@@ -6757,6 +6684,8 @@
         "page:/resources/frontend/nuxt#server-lambda",
         "page:/resources/frontend/nuxt#domains-and-firewall",
         "page:/resources/frontend/nuxt#static-files-and-cdn",
+        "page:/resources/frontend/nuxt#file-options",
+        "page:/resources/frontend/nuxt#cdn-caching",
         "page:/resources/frontend/nuxt#connecting-resources",
         "page:/resources/frontend/nuxt#environment-variables",
         "page:/resources/frontend/nuxt#logging",
@@ -6765,12 +6694,12 @@
         "page:/resources/frontend/nuxt#where-should-appdirectory-point",
         "page:/resources/frontend/nuxt#can-i-use-a-custom-domain-with-nuxt",
         "page:/resources/frontend/nuxt#can-i-protect-a-nuxt-app-with-aws-waf",
+        "page:/resources/frontend/nuxt#can-i-use-nuxt-api-routes-nitro-server-routes",
         "page:/resources/frontend/nuxt#how-does-nuxt-ssr-run-on-lambda",
-        "page:/resources/frontend/nuxt#should-i-use-a-vpc-for-my-nuxt-ssr-function",
         "page:/resources/frontend/nuxt#how-much-does-hosting-nuxt-on-lambda-and-cloudfront-cost",
         "page:/resources/frontend/nuxt#when-should-i-use-static-hosting-instead-of-the-nuxt-resource",
         "page:/resources/frontend/nuxt#when-should-i-use-a-web-service-instead-of-the-nuxt-resource",
-        "page:/resources/frontend/nuxt#can-i-use-nuxt-api-routes-nitro-server-routes",
+        "page:/resources/frontend/nuxt#does-the-nuxt-resource-support-environment-variables-and-secrets",
         "page:/resources/frontend/nuxt#api-reference",
         "page:/resources/frontend/nuxt#api-reference-nuxtwebprops"
       ]
@@ -6800,8 +6729,8 @@
         "page:/resources/frontend/remix#basic-example",
         "page:/resources/frontend/remix#build-and-dev",
         "page:/resources/frontend/remix#server-lambda",
-        "page:/resources/frontend/remix#domains-and-firewall",
         "page:/resources/frontend/remix#static-files-and-cdn",
+        "page:/resources/frontend/remix#domains-and-firewall",
         "page:/resources/frontend/remix#connecting-resources",
         "page:/resources/frontend/remix#environment-variables",
         "page:/resources/frontend/remix#logging",
@@ -6810,16 +6739,14 @@
         "page:/resources/frontend/remix#where-should-appdirectory-point",
         "page:/resources/frontend/remix#can-i-use-a-custom-domain-with-remix",
         "page:/resources/frontend/remix#can-i-protect-a-remix-app-with-aws-waf",
-        "page:/resources/frontend/remix#does-the-remix-resource-support-response-streaming-or-edge-lambda",
+        "page:/resources/frontend/remix#does-the-remix-resource-expose-edge-lambda-or-response-streaming-options",
         "page:/resources/frontend/remix#how-do-i-run-database-migrations-with-remix-on-stacktape",
-        "page:/resources/frontend/remix#how-does-cloudfront-caching-work-for-remix-apps-on-stacktape",
+        "page:/resources/frontend/remix#how-does-cloudfront-caching-work-for-remix-apps",
         "page:/resources/frontend/remix#how-much-does-hosting-remix-on-lambda-and-cloudfront-cost",
         "page:/resources/frontend/remix#when-should-i-use-static-hosting-instead-of-the-remix-resource",
         "page:/resources/frontend/remix#when-should-i-use-a-web-service-instead-of-the-remix-resource",
         "page:/resources/frontend/remix#api-reference",
-        "page:/resources/frontend/remix#api-reference-remixwebprops",
-        "page:/resources/frontend/remix#referenceable-parameters",
-        "page:/resources/frontend/remix#referenceable-parameters-remix-web"
+        "page:/resources/frontend/remix#api-reference-remixwebprops"
       ]
     },
     {
@@ -6945,7 +6872,7 @@
         "page:/resources/frontend/sveltekit#environment-and-access",
         "page:/resources/frontend/sveltekit#server-lambda",
         "page:/resources/frontend/sveltekit#security",
-        "page:/resources/frontend/sveltekit#how-it-works",
+        "page:/resources/frontend/sveltekit#dev-mode",
         "page:/resources/frontend/sveltekit#faq",
         "page:/resources/frontend/sveltekit#does-sveltekitweb-deploy-ssr-or-static-sveltekit-apps",
         "page:/resources/frontend/sveltekit#when-should-i-use-static-hosting-instead-of-sveltekitweb",
@@ -6957,6 +6884,8 @@
         "page:/resources/frontend/sveltekit#should-i-use-sveltekitweb-or-nextjsweb",
         "page:/resources/frontend/sveltekit#should-i-use-sveltekitweb-or-a-web-service",
         "page:/resources/frontend/sveltekit#how-do-i-configure-sveltekitweb-in-a-monorepo",
+        "page:/resources/frontend/sveltekit#referenceable-parameters",
+        "page:/resources/frontend/sveltekit#referenceable-parameters-sveltekit-web",
         "page:/resources/frontend/sveltekit#api-reference",
         "page:/resources/frontend/sveltekit#api-reference-sveltekitwebprops"
       ]
@@ -6986,11 +6915,11 @@
         "page:/resources/frontend/tanstack-start#basic-example",
         "page:/resources/frontend/tanstack-start#build-and-dev",
         "page:/resources/frontend/tanstack-start#server-lambda",
-        "page:/resources/frontend/tanstack-start#domains-and-firewall",
-        "page:/resources/frontend/tanstack-start#static-files-and-cdn",
+        "page:/resources/frontend/tanstack-start#vpc-connectivity",
         "page:/resources/frontend/tanstack-start#connecting-resources",
         "page:/resources/frontend/tanstack-start#environment-variables",
-        "page:/resources/frontend/tanstack-start#logging",
+        "page:/resources/frontend/tanstack-start#cdn-and-static-assets",
+        "page:/resources/frontend/tanstack-start#custom-domains-and-firewall",
         "page:/resources/frontend/tanstack-start#faq",
         "page:/resources/frontend/tanstack-start#what-does-stacktape-create-for-a-tanstack-start-app",
         "page:/resources/frontend/tanstack-start#where-should-appdirectory-point",
@@ -7072,6 +7001,9 @@
         "page:/resources/messaging/kinesis-stream#when-to-use",
         "page:/resources/messaging/kinesis-stream#when-not-to-use",
         "page:/resources/messaging/kinesis-stream#basic-example",
+        "page:/resources/messaging/kinesis-stream#examples",
+        "page:/resources/messaging/kinesis-stream#analytics-pipeline-with-lambda-consumer",
+        "page:/resources/messaging/kinesis-stream#event-ingestion-api-with-producer-lambda",
         "page:/resources/messaging/kinesis-stream#capacity-modes",
         "page:/resources/messaging/kinesis-stream#provisioned-mode",
         "page:/resources/messaging/kinesis-stream#data-retention",
@@ -7079,6 +7011,7 @@
         "page:/resources/messaging/kinesis-stream#encryption",
         "page:/resources/messaging/kinesis-stream#triggering-a-lambda-function",
         "page:/resources/messaging/kinesis-stream#connecting-to-other-resources",
+        "page:/resources/messaging/kinesis-stream#referenceable-parameters",
         "page:/resources/messaging/kinesis-stream#api-reference",
         "page:/resources/messaging/kinesis-stream#api-reference-kinesisstreamprops",
         "page:/resources/messaging/kinesis-stream#faq",
@@ -7122,8 +7055,10 @@
         "page:/resources/messaging/sns-topic#fan-out-pattern",
         "page:/resources/messaging/sns-topic#subscribing-a-lambda-function",
         "page:/resources/messaging/sns-topic#connecting-to-other-resources",
+        "page:/resources/messaging/sns-topic#examples",
+        "page:/resources/messaging/sns-topic#lambda-fan-out",
+        "page:/resources/messaging/sns-topic#publishing-from-a-connected-lambda",
         "page:/resources/messaging/sns-topic#referenceable-parameters",
-        "page:/resources/messaging/sns-topic#referenceable-parameters-sns-topic",
         "page:/resources/messaging/sns-topic#api-reference",
         "page:/resources/messaging/sns-topic#api-reference-snstopicprops",
         "page:/resources/messaging/sns-topic#faq",
@@ -7261,6 +7196,9 @@
         "page:/resources/networking/cdn#basic-example",
         "page:/resources/networking/cdn#api-backed-cdn",
         "page:/resources/networking/cdn#bucket-backed-cdn",
+        "page:/resources/networking/cdn#examples",
+        "page:/resources/networking/cdn#static-site-with-custom-domain",
+        "page:/resources/networking/cdn#multi-origin-api-with-waf",
         "page:/resources/networking/cdn#caching",
         "page:/resources/networking/cdn#cache-key",
         "page:/resources/networking/cdn#route-rewrites",
@@ -7460,7 +7398,7 @@
         "page:/resources/orchestration/state-machine#how-do-i-reference-lambda-functions-in-a-state-machine-definition",
         "page:/resources/orchestration/state-machine#how-do-i-pass-the-state-machine-arn-to-a-lambda-function",
         "page:/resources/orchestration/state-machine#can-i-customize-the-underlying-cloudformation-resources",
-        "page:/resources/orchestration/state-machine#what-permissions-does-the-state-machine-execution-role-have",
+        "page:/resources/orchestration/state-machine#how-do-i-inspect-or-modify-the-iam-permissions-for-a-state-machine",
         "page:/resources/orchestration/state-machine#how-much-do-aws-step-functions-cost",
         "page:/resources/orchestration/state-machine#what-is-amazon-states-language",
         "page:/resources/orchestration/state-machine#how-long-can-a-step-functions-execution-run",
@@ -7650,6 +7588,7 @@
         "page:/resources/storage/efs-filesystem#mounting-to-workloads",
         "page:/resources/storage/efs-filesystem#api-reference",
         "page:/resources/storage/efs-filesystem#api-reference-efsfilesystemprops",
+        "page:/resources/storage/efs-filesystem#referenceable-parameters",
         "page:/resources/storage/efs-filesystem#faq",
         "page:/resources/storage/efs-filesystem#how-do-i-mount-an-efs-volume-to-a-workload",
         "page:/resources/storage/efs-filesystem#how-much-does-amazon-efs-cost",
@@ -7713,19 +7652,43 @@
       ]
     },
     {
-      "id": "page:/stacktape-console/ai-config-generation",
-      "title": "AI Config Generation",
-      "route": "/stacktape-console/ai-config-generation",
-      "sourcePath": "docs/docs/stacktape-console/ai-config-generation.mdx",
-      "outputPath": "pages/stacktape-console/ai-config-generation.md",
+      "id": "page:/stacktape-console/account-settings",
+      "title": "Account Settings",
+      "route": "/stacktape-console/account-settings",
+      "sourcePath": "docs/docs/stacktape-console/account-settings.mdx",
+      "outputPath": "pages/stacktape-console/account-settings.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "stacktape-console",
-        "ai-config-generation"
+        "account-settings"
       ],
       "chunks": [
-        "page:/stacktape-console/ai-config-generation#ai-config-generation"
+        "page:/stacktape-console/account-settings#account-settings",
+        "page:/stacktape-console/account-settings#overview",
+        "page:/stacktape-console/account-settings#full-name",
+        "page:/stacktape-console/account-settings#password",
+        "page:/stacktape-console/account-settings#changing-your-password",
+        "page:/stacktape-console/account-settings#password-requirements",
+        "page:/stacktape-console/account-settings#multi-factor-authentication",
+        "page:/stacktape-console/account-settings#enable-mfa",
+        "page:/stacktape-console/account-settings#disable-mfa",
+        "page:/stacktape-console/account-settings#account-deletion",
+        "page:/stacktape-console/account-settings#troubleshooting",
+        "page:/stacktape-console/account-settings#password-change-fails",
+        "page:/stacktape-console/account-settings#mfa-setup-qr-code-does-not-appear",
+        "page:/stacktape-console/account-settings#mfa-code-is-rejected",
+        "page:/stacktape-console/account-settings#google-login-shows-limited-options",
+        "page:/stacktape-console/account-settings#related-features",
+        "page:/stacktape-console/account-settings#faq",
+        "page:/stacktape-console/account-settings#how-do-i-change-my-email-address",
+        "page:/stacktape-console/account-settings#which-authenticator-apps-work-with-stacktape-mfa",
+        "page:/stacktape-console/account-settings#what-happens-if-i-lose-access-to-my-authenticator-app",
+        "page:/stacktape-console/account-settings#does-changing-my-password-log-me-out",
+        "page:/stacktape-console/account-settings#can-i-be-logged-in-with-both-google-and-email-password",
+        "page:/stacktape-console/account-settings#is-mfa-configured-per-user-or-per-organization",
+        "page:/stacktape-console/account-settings#what-are-the-password-requirements",
+        "page:/stacktape-console/account-settings#how-do-i-navigate-to-account-settings"
       ]
     },
     {
@@ -7746,8 +7709,8 @@
         "page:/stacktape-console/api-keys#creating-an-api-key",
         "page:/stacktape-console/api-keys#key-status-and-lifecycle",
         "page:/stacktape-console/api-keys#revoking-an-api-key",
-        "page:/stacktape-console/api-keys#revealing-and-copying-a-key-value",
-        "page:/stacktape-console/api-keys#using-an-api-key-with-the-cli",
+        "page:/stacktape-console/api-keys#copying-a-key-value",
+        "page:/stacktape-console/api-keys#using-an-api-key",
         "page:/stacktape-console/api-keys#permissions",
         "page:/stacktape-console/api-keys#best-practices",
         "page:/stacktape-console/api-keys#faq",
@@ -7781,7 +7744,6 @@
         "page:/stacktape-console/aws-permissions#what-stacktape-does-in-your-account",
         "page:/stacktape-console/aws-permissions#connection-mode",
         "page:/stacktape-console/aws-permissions#security-model",
-        "page:/stacktape-console/aws-permissions#temporary-credentials",
         "page:/stacktape-console/aws-permissions#cross-account-role-assumption",
         "page:/stacktape-console/aws-permissions#cloudformation-managed-lifecycle",
         "page:/stacktape-console/aws-permissions#restricting-permissions",
@@ -7792,7 +7754,7 @@
         "page:/stacktape-console/aws-permissions#auditing-stacktape-activity",
         "page:/stacktape-console/aws-permissions#related-features",
         "page:/stacktape-console/aws-permissions#faq",
-        "page:/stacktape-console/aws-permissions#does-stacktape-store-my-aws-credentials",
+        "page:/stacktape-console/aws-permissions#how-does-stacktape-access-my-aws-account",
         "page:/stacktape-console/aws-permissions#why-does-stacktape-need-broad-aws-permissions",
         "page:/stacktape-console/aws-permissions#is-connecting-my-aws-account-free",
         "page:/stacktape-console/aws-permissions#can-i-restrict-what-stacktape-can-do-in-my-account",
@@ -7827,14 +7789,14 @@
         "page:/stacktape-console/billing-and-subscription#walkthrough-upgrading-to-the-flexible-plan",
         "page:/stacktape-console/billing-and-subscription#common-tasks",
         "page:/stacktape-console/billing-and-subscription#viewing-invoices",
-        "page:/stacktape-console/billing-and-subscription#updating-payment-details",
+        "page:/stacktape-console/billing-and-subscription#reviewing-billing-details",
         "page:/stacktape-console/billing-and-subscription#downgrading-to-the-free-plan",
         "page:/stacktape-console/billing-and-subscription#viewing-current-plan-status",
         "page:/stacktape-console/billing-and-subscription#permissions",
         "page:/stacktape-console/billing-and-subscription#troubleshooting",
         "page:/stacktape-console/billing-and-subscription#cannot-see-the-upgrade-or-downgrade-button",
         "page:/stacktape-console/billing-and-subscription#plan-not-updating-after-payment",
-        "page:/stacktape-console/billing-and-subscription#no-active-subscription-on-the-billing-page",
+        "page:/stacktape-console/billing-and-subscription#free-plan-shows-as-current-but-no-subscription-exists",
         "page:/stacktape-console/billing-and-subscription#related-features",
         "page:/stacktape-console/billing-and-subscription#faq",
         "page:/stacktape-console/billing-and-subscription#how-does-stacktape-pricing-work",
@@ -7842,7 +7804,7 @@
         "page:/stacktape-console/billing-and-subscription#what-counts-as-managed-aws-costs",
         "page:/stacktape-console/billing-and-subscription#can-i-use-stacktape-without-a-credit-card",
         "page:/stacktape-console/billing-and-subscription#who-can-manage-billing-in-my-organization",
-        "page:/stacktape-console/billing-and-subscription#what-payment-methods-does-stacktape-accept",
+        "page:/stacktape-console/billing-and-subscription#who-processes-stacktape-subscription-payments",
         "page:/stacktape-console/billing-and-subscription#what-happens-if-i-exceed-the-free-plan-s-100-month-limit",
         "page:/stacktape-console/billing-and-subscription#can-i-downgrade-from-flexible-to-free",
         "page:/stacktape-console/billing-and-subscription#how-do-i-get-enterprise-pricing",
@@ -7863,11 +7825,9 @@
       ],
       "chunks": [
         "page:/stacktape-console/connecting-your-aws-account#connecting-your-aws-account",
-        "page:/stacktape-console/connecting-your-aws-account#what-this-part-of-the-console-does",
+        "page:/stacktape-console/connecting-your-aws-account#overview",
         "page:/stacktape-console/connecting-your-aws-account#walkthrough",
-        "page:/stacktape-console/connecting-your-aws-account#flow",
         "page:/stacktape-console/connecting-your-aws-account#connection-states",
-        "page:/stacktape-console/connecting-your-aws-account#how-the-connection-works",
         "page:/stacktape-console/connecting-your-aws-account#common-tasks",
         "page:/stacktape-console/connecting-your-aws-account#connecting-multiple-aws-accounts",
         "page:/stacktape-console/connecting-your-aws-account#revoking-access",
@@ -7882,7 +7842,7 @@
         "page:/stacktape-console/connecting-your-aws-account#do-i-need-to-create-aws-access-keys-for-stacktape",
         "page:/stacktape-console/connecting-your-aws-account#can-i-deploy-to-any-aws-region-after-connecting",
         "page:/stacktape-console/connecting-your-aws-account#is-connecting-my-aws-account-free",
-        "page:/stacktape-console/connecting-your-aws-account#can-i-connect-the-same-aws-account-to-multiple-stacktape-organizations",
+        "page:/stacktape-console/connecting-your-aws-account#how-should-i-organize-aws-accounts-across-stacktape-organizations",
         "page:/stacktape-console/connecting-your-aws-account#what-happens-if-i-delete-the-cloudformation-connection-stack-in-aws",
         "page:/stacktape-console/connecting-your-aws-account#how-do-i-revoke-stacktape-s-access-to-my-aws-account",
         "page:/stacktape-console/connecting-your-aws-account#what-is-the-org-manage-aws-accounts-permission",
@@ -7908,7 +7868,7 @@
         "page:/stacktape-console/console-overview#what-the-console-does",
         "page:/stacktape-console/console-overview#console-navigation",
         "page:/stacktape-console/console-overview#the-overview-route",
-        "page:/stacktape-console/console-overview#walkthrough-first-login-to-deployed-stage",
+        "page:/stacktape-console/console-overview#getting-started",
         "page:/stacktape-console/console-overview#common-tasks",
         "page:/stacktape-console/console-overview#viewing-deployment-activity",
         "page:/stacktape-console/console-overview#managing-secrets",
@@ -7953,11 +7913,10 @@
       "chunks": [
         "page:/stacktape-console/organizations-projects-and-stages#organizations-projects-and-stages",
         "page:/stacktape-console/organizations-projects-and-stages#how-the-hierarchy-works",
-        "page:/stacktape-console/organizations-projects-and-stages#flow",
         "page:/stacktape-console/organizations-projects-and-stages#organizations",
         "page:/stacktape-console/organizations-projects-and-stages#projects",
         "page:/stacktape-console/organizations-projects-and-stages#stages",
-        "page:/stacktape-console/organizations-projects-and-stages#walkthrough-creating-a-project-and-deploying-a-stage",
+        "page:/stacktape-console/organizations-projects-and-stages#getting-started",
         "page:/stacktape-console/organizations-projects-and-stages#step-1-create-a-project",
         "page:/stacktape-console/organizations-projects-and-stages#step-2-create-a-stage",
         "page:/stacktape-console/organizations-projects-and-stages#step-3-deploy",
@@ -7970,10 +7929,10 @@
         "page:/stacktape-console/organizations-projects-and-stages#deleting-a-stage-or-project",
         "page:/stacktape-console/organizations-projects-and-stages#access-control",
         "page:/stacktape-console/organizations-projects-and-stages#troubleshooting",
-        "page:/stacktape-console/organizations-projects-and-stages#failed-stage-appears-in-the-sidebar",
-        "page:/stacktape-console/organizations-projects-and-stages#non-deployed-stages-clutter-the-sidebar",
-        "page:/stacktape-console/organizations-projects-and-stages#project-card-shows-0-mo-despite-active-resources",
-        "page:/stacktape-console/organizations-projects-and-stages#git-repository-not-connected-message-on-a-project-card",
+        "page:/stacktape-console/organizations-projects-and-stages#failed-stage-in-the-sidebar",
+        "page:/stacktape-console/organizations-projects-and-stages#non-deployed-stages-in-the-sidebar",
+        "page:/stacktape-console/organizations-projects-and-stages#cost-shows-0-for-active-stage",
+        "page:/stacktape-console/organizations-projects-and-stages#git-repository-not-connected",
         "page:/stacktape-console/organizations-projects-and-stages#faq",
         "page:/stacktape-console/organizations-projects-and-stages#what-is-the-difference-between-a-project-and-a-stage-in-stacktape",
         "page:/stacktape-console/organizations-projects-and-stages#do-stages-share-resources-with-each-other",
@@ -7982,7 +7941,7 @@
         "page:/stacktape-console/organizations-projects-and-stages#what-happens-to-aws-resources-when-i-delete-a-stage",
         "page:/stacktape-console/organizations-projects-and-stages#how-long-does-cost-data-take-to-appear-in-the-console",
         "page:/stacktape-console/organizations-projects-and-stages#how-do-i-set-up-a-branch-per-stage-workflow",
-        "page:/stacktape-console/organizations-projects-and-stages#how-does-stage-naming-affect-aws-resources",
+        "page:/stacktape-console/organizations-projects-and-stages#how-is-the-stage-name-used-by-the-console",
         "page:/stacktape-console/organizations-projects-and-stages#what-is-the-difference-between-a-stacktape-organization-and-an-aws-account",
         "page:/stacktape-console/organizations-projects-and-stages#when-should-i-create-multiple-organizations",
         "page:/stacktape-console/organizations-projects-and-stages#related-features"
@@ -8002,7 +7961,7 @@
       ],
       "chunks": [
         "page:/stacktape-console/team-and-access-control#team-and-access-control",
-        "page:/stacktape-console/team-and-access-control#what-this-part-of-the-console-does",
+        "page:/stacktape-console/team-and-access-control#overview",
         "page:/stacktape-console/team-and-access-control#roles-and-permissions",
         "page:/stacktape-console/team-and-access-control#walkthrough-inviting-a-team-member",
         "page:/stacktape-console/team-and-access-control#common-tasks",
@@ -8013,21 +7972,22 @@
         "page:/stacktape-console/team-and-access-control#member-limits",
         "page:/stacktape-console/team-and-access-control#troubleshooting",
         "page:/stacktape-console/team-and-access-control#you-do-not-have-permission-to-invite-members",
-        "page:/stacktape-console/team-and-access-control#invite-button-disabled-on-a-non-personal-organization",
-        "page:/stacktape-console/team-and-access-control#member-shows-invited-status-indefinitely",
+        "page:/stacktape-console/team-and-access-control#invite-button-disabled-on-a-named-organization",
         "page:/stacktape-console/team-and-access-control#no-action-buttons-visible-for-a-member",
+        "page:/stacktape-console/team-and-access-control#member-shows-invited-status-indefinitely",
         "page:/stacktape-console/team-and-access-control#member-shows-external-provider-status",
         "page:/stacktape-console/team-and-access-control#related-features",
         "page:/stacktape-console/team-and-access-control#faq",
-        "page:/stacktape-console/team-and-access-control#what-roles-are-available-in-stacktape",
-        "page:/stacktape-console/team-and-access-control#how-do-i-invite-someone-to-my-organization",
-        "page:/stacktape-console/team-and-access-control#can-an-admin-remove-an-owner",
-        "page:/stacktape-console/team-and-access-control#what-happens-when-i-revoke-someone-s-api-keys",
+        "page:/stacktape-console/team-and-access-control#how-do-roles-affect-the-users-page",
+        "page:/stacktape-console/team-and-access-control#can-an-admin-remove-or-edit-an-owner",
         "page:/stacktape-console/team-and-access-control#is-removing-a-member-the-same-as-revoking-their-api-keys",
         "page:/stacktape-console/team-and-access-control#how-many-members-can-i-add-to-my-organization",
-        "page:/stacktape-console/team-and-access-control#does-stacktape-support-external-identity-providers",
         "page:/stacktape-console/team-and-access-control#can-i-enforce-mfa-for-all-organization-members",
-        "page:/stacktape-console/team-and-access-control#where-can-i-see-who-deployed-what"
+        "page:/stacktape-console/team-and-access-control#what-happens-when-i-invite-someone",
+        "page:/stacktape-console/team-and-access-control#does-stacktape-support-external-identity-providers-for-team-login",
+        "page:/stacktape-console/team-and-access-control#where-can-i-see-who-deployed-what",
+        "page:/stacktape-console/team-and-access-control#what-is-a-personal-organization",
+        "page:/stacktape-console/team-and-access-control#how-do-i-choose-the-right-role-for-a-team-member"
       ]
     },
     {
@@ -8046,7 +8006,6 @@
         "page:/stacktape-console/visual-config-editor#visual-config-editor",
         "page:/stacktape-console/visual-config-editor#when-to-use-the-config-editor",
         "page:/stacktape-console/visual-config-editor#when-not-to-use-the-config-editor",
-        "page:/stacktape-console/visual-config-editor#what-the-config-editor-does",
         "page:/stacktape-console/visual-config-editor#editor-views",
         "page:/stacktape-console/visual-config-editor#editor",
         "page:/stacktape-console/visual-config-editor#cloudformation-template",
@@ -8055,14 +8014,11 @@
         "page:/stacktape-console/visual-config-editor#ai-config-generation",
         "page:/stacktape-console/visual-config-editor#starting-a-generation",
         "page:/stacktape-console/visual-config-editor#common-tasks",
-        "page:/stacktape-console/visual-config-editor#using-intellisense",
         "page:/stacktape-console/visual-config-editor#saving-changes",
-        "page:/stacktape-console/visual-config-editor#starting-from-a-preset",
-        "page:/stacktape-console/visual-config-editor#copying-your-config-to-a-project",
-        "page:/stacktape-console/visual-config-editor#editing-a-stage-linked-config",
+        "page:/stacktape-console/visual-config-editor#using-the-config-in-a-project",
         "page:/stacktape-console/visual-config-editor#troubleshooting",
-        "page:/stacktape-console/visual-config-editor#intellisense-not-appearing",
-        "page:/stacktape-console/visual-config-editor#cloudformation-preview-shows-placeholder-values",
+        "page:/stacktape-console/visual-config-editor#autocompletion-not-appearing",
+        "page:/stacktape-console/visual-config-editor#cloudformation-preview-shows-approximate-values",
         "page:/stacktape-console/visual-config-editor#config-linked-to-a-stage-is-read-only",
         "page:/stacktape-console/visual-config-editor#ai-generation-button-is-disabled",
         "page:/stacktape-console/visual-config-editor#no-repositories-available-for-ai-generation",
@@ -8075,7 +8031,7 @@
         "page:/stacktape-console/visual-config-editor#is-the-cloudformation-preview-the-exact-template-that-gets-deployed",
         "page:/stacktape-console/visual-config-editor#can-i-edit-a-stage-linked-config-in-the-editor",
         "page:/stacktape-console/visual-config-editor#what-happens-if-ai-config-generation-fails",
-        "page:/stacktape-console/visual-config-editor#does-the-editor-work-with-both-typescript-and-yaml",
+        "page:/stacktape-console/visual-config-editor#can-the-resulting-config-be-saved-as-typescript-or-yaml",
         "page:/stacktape-console/visual-config-editor#what-is-the-cloudformation-template-view-useful-for",
         "page:/stacktape-console/visual-config-editor#config-editor-vs-stacktape-init-when-to-use-which"
       ]
@@ -8093,7 +8049,43 @@
         "agent-mode-in-dev"
       ],
       "chunks": [
-        "page:/using-with-ai/agent-mode-in-dev#agent-mode-in-dev"
+        "page:/using-with-ai/agent-mode-in-dev#agent-mode-in-dev",
+        "page:/using-with-ai/agent-mode-in-dev#when-to-use",
+        "page:/using-with-ai/agent-mode-in-dev#when-not-to-use",
+        "page:/using-with-ai/agent-mode-in-dev#starting-agent-mode",
+        "page:/using-with-ai/agent-mode-in-dev#response-format",
+        "page:/using-with-ai/agent-mode-in-dev#core-endpoints",
+        "page:/using-with-ai/agent-mode-in-dev#status",
+        "page:/using-with-ai/agent-mode-in-dev#logs",
+        "page:/using-with-ai/agent-mode-in-dev#environment-variables",
+        "page:/using-with-ai/agent-mode-in-dev#rebuild",
+        "page:/using-with-ai/agent-mode-in-dev#liveness-check",
+        "page:/using-with-ai/agent-mode-in-dev#resource-health-checks",
+        "page:/using-with-ai/agent-mode-in-dev#stop",
+        "page:/using-with-ai/agent-mode-in-dev#database-endpoints",
+        "page:/using-with-ai/agent-mode-in-dev#postgresql",
+        "page:/using-with-ai/agent-mode-in-dev#mysql",
+        "page:/using-with-ai/agent-mode-in-dev#redis",
+        "page:/using-with-ai/agent-mode-in-dev#dynamodb",
+        "page:/using-with-ai/agent-mode-in-dev#opensearch",
+        "page:/using-with-ai/agent-mode-in-dev#aws-sdk-access",
+        "page:/using-with-ai/agent-mode-in-dev#typical-ai-agent-workflow",
+        "page:/using-with-ai/agent-mode-in-dev#flow",
+        "page:/using-with-ai/agent-mode-in-dev#example-session",
+        "page:/using-with-ai/agent-mode-in-dev#tips-for-ai-agent-integrations",
+        "page:/using-with-ai/agent-mode-in-dev#mcp-server-integration",
+        "page:/using-with-ai/agent-mode-in-dev#security",
+        "page:/using-with-ai/agent-mode-in-dev#faq",
+        "page:/using-with-ai/agent-mode-in-dev#can-i-use-agent-mode-with-claude-code-cursor-or-windsurf",
+        "page:/using-with-ai/agent-mode-in-dev#how-is-agent-mode-different-from-the-stacktape-mcp-server",
+        "page:/using-with-ai/agent-mode-in-dev#what-databases-can-i-query-through-the-agent-api",
+        "page:/using-with-ai/agent-mode-in-dev#is-my-data-persisted-between-agent-mode-sessions",
+        "page:/using-with-ai/agent-mode-in-dev#are-destructive-database-operations-safe-during-ai-sessions",
+        "page:/using-with-ai/agent-mode-in-dev#what-happens-if-a-workload-fails-to-start",
+        "page:/using-with-ai/agent-mode-in-dev#can-i-use-the-aws-sdk-endpoint-to-access-any-aws-service",
+        "page:/using-with-ai/agent-mode-in-dev#what-is-the-status-endpoint-s-ready-field",
+        "page:/using-with-ai/agent-mode-in-dev#what-happens-if-the-agent-port-is-already-in-use",
+        "page:/using-with-ai/agent-mode-in-dev#how-do-i-stop-agent-mode"
       ]
     },
     {
@@ -8109,7 +8101,35 @@
         "ai-coding-assistant-integrations"
       ],
       "chunks": [
-        "page:/using-with-ai/ai-coding-assistant-integrations#ai-coding-assistant-integrations"
+        "page:/using-with-ai/ai-coding-assistant-integrations#ai-coding-assistant-integrations",
+        "page:/using-with-ai/ai-coding-assistant-integrations#when-to-use",
+        "page:/using-with-ai/ai-coding-assistant-integrations#when-not-to-use",
+        "page:/using-with-ai/ai-coding-assistant-integrations#supported-assistants",
+        "page:/using-with-ai/ai-coding-assistant-integrations#one-command-setup",
+        "page:/using-with-ai/ai-coding-assistant-integrations#non-interactive-mode",
+        "page:/using-with-ai/ai-coding-assistant-integrations#how-detection-works",
+        "page:/using-with-ai/ai-coding-assistant-integrations#local-vs-global-stacktape-command",
+        "page:/using-with-ai/ai-coding-assistant-integrations#project-local-vs-global-config",
+        "page:/using-with-ai/ai-coding-assistant-integrations#what-the-mcp-server-provides",
+        "page:/using-with-ai/ai-coding-assistant-integrations#manual-setup",
+        "page:/using-with-ai/ai-coding-assistant-integrations#tab-claude-code",
+        "page:/using-with-ai/ai-coding-assistant-integrations#tab-cursor",
+        "page:/using-with-ai/ai-coding-assistant-integrations#tab-vs-code-copilot",
+        "page:/using-with-ai/ai-coding-assistant-integrations#tab-windsurf",
+        "page:/using-with-ai/ai-coding-assistant-integrations#tab-openai-codex",
+        "page:/using-with-ai/ai-coding-assistant-integrations#tab-opencode",
+        "page:/using-with-ai/ai-coding-assistant-integrations#verifying-the-integration",
+        "page:/using-with-ai/ai-coding-assistant-integrations#keeping-the-integration-up-to-date",
+        "page:/using-with-ai/ai-coding-assistant-integrations#faq",
+        "page:/using-with-ai/ai-coding-assistant-integrations#what-is-mcp-and-why-does-stacktape-use-it",
+        "page:/using-with-ai/ai-coding-assistant-integrations#which-ai-coding-assistants-work-with-stacktape",
+        "page:/using-with-ai/ai-coding-assistant-integrations#should-i-use-project-local-or-global-config",
+        "page:/using-with-ai/ai-coding-assistant-integrations#does-mcp-add-modify-my-existing-config-files",
+        "page:/using-with-ai/ai-coding-assistant-integrations#what-does-stacktape-mcp-client-name-do",
+        "page:/using-with-ai/ai-coding-assistant-integrations#what-if-my-ai-client-is-not-in-the-supported-list",
+        "page:/using-with-ai/ai-coding-assistant-integrations#can-i-use-the-mcp-integration-alongside-normal-cli-usage",
+        "page:/using-with-ai/ai-coding-assistant-integrations#how-do-i-remove-the-mcp-configuration",
+        "page:/using-with-ai/ai-coding-assistant-integrations#how-does-mcp-compare-to-using-the-stacktape-cli-directly"
       ]
     },
     {
@@ -8125,7 +8145,29 @@
         "config-generation-from-repository"
       ],
       "chunks": [
-        "page:/using-with-ai/config-generation-from-repository#ai-config-generation"
+        "page:/using-with-ai/config-generation-from-repository#ai-config-generation",
+        "page:/using-with-ai/config-generation-from-repository#when-to-use",
+        "page:/using-with-ai/config-generation-from-repository#when-not-to-use",
+        "page:/using-with-ai/config-generation-from-repository#how-it-works",
+        "page:/using-with-ai/config-generation-from-repository#using-the-generator",
+        "page:/using-with-ai/config-generation-from-repository#open-the-generation-modal",
+        "page:/using-with-ai/config-generation-from-repository#select-a-repository-type",
+        "page:/using-with-ai/config-generation-from-repository#select-a-branch",
+        "page:/using-with-ai/config-generation-from-repository#start-generation",
+        "page:/using-with-ai/config-generation-from-repository#review-and-save",
+        "page:/using-with-ai/config-generation-from-repository#after-generation",
+        "page:/using-with-ai/config-generation-from-repository#tips-for-better-results",
+        "page:/using-with-ai/config-generation-from-repository#faq",
+        "page:/using-with-ai/config-generation-from-repository#how-is-this-different-from-stacktape-init",
+        "page:/using-with-ai/config-generation-from-repository#do-i-need-to-connect-a-git-provider-for-public-repositories",
+        "page:/using-with-ai/config-generation-from-repository#can-i-edit-the-generated-config-before-deploying",
+        "page:/using-with-ai/config-generation-from-repository#can-i-re-run-generation-on-the-same-repository",
+        "page:/using-with-ai/config-generation-from-repository#what-does-the-generator-produce",
+        "page:/using-with-ai/config-generation-from-repository#what-if-generation-fails",
+        "page:/using-with-ai/config-generation-from-repository#is-my-repository-data-safe",
+        "page:/using-with-ai/config-generation-from-repository#how-does-this-compare-to-the-mcp-server",
+        "page:/using-with-ai/config-generation-from-repository#does-the-generator-produce-a-production-ready-config",
+        "page:/using-with-ai/config-generation-from-repository#when-should-i-write-a-config-manually-instead"
       ]
     },
     {
@@ -8154,30 +8196,34 @@
         "page:/using-with-ai/mcp-server-setup#tab-openai-codex",
         "page:/using-with-ai/mcp-server-setup#tab-opencode",
         "page:/using-with-ai/mcp-server-setup#available-tools",
-        "page:/using-with-ai/mcp-server-setup#stacktape-docs-search-documentation",
-        "page:/using-with-ai/mcp-server-setup#stacktape-ops-deploy-delete-and-manage-secrets",
-        "page:/using-with-ai/mcp-server-setup#stacktape-diagnose-inspect-and-interact-with-deployed-infrastructure",
-        "page:/using-with-ai/mcp-server-setup#stacktape-dev-control-dev-mode",
+        "page:/using-with-ai/mcp-server-setup#docs-tool",
+        "page:/using-with-ai/mcp-server-setup#project-tool",
+        "page:/using-with-ai/mcp-server-setup#cli-tool",
+        "page:/using-with-ai/mcp-server-setup#dev-tool",
+        "page:/using-with-ai/mcp-server-setup#safety-model",
+        "page:/using-with-ai/mcp-server-setup#authentication",
         "page:/using-with-ai/mcp-server-setup#how-it-works",
         "page:/using-with-ai/mcp-server-setup#verifying-the-setup",
         "page:/using-with-ai/mcp-server-setup#upgrading",
         "page:/using-with-ai/mcp-server-setup#troubleshooting",
         "page:/using-with-ai/mcp-server-setup#server-fails-to-start",
+        "page:/using-with-ai/mcp-server-setup#config-file-parse-errors",
         "page:/using-with-ai/mcp-server-setup#operations-require-authentication",
-        "page:/using-with-ai/mcp-server-setup#config-file-conflicts",
         "page:/using-with-ai/mcp-server-setup#client-not-detected",
         "page:/using-with-ai/mcp-server-setup#dev-session-not-found",
+        "page:/using-with-ai/mcp-server-setup#concurrent-deployment-conflicts",
         "page:/using-with-ai/mcp-server-setup#faq",
         "page:/using-with-ai/mcp-server-setup#what-is-the-model-context-protocol-mcp",
-        "page:/using-with-ai/mcp-server-setup#which-ai-assistants-support-the-stacktape-mcp-server",
+        "page:/using-with-ai/mcp-server-setup#which-ai-assistants-work-with-the-stacktape-mcp-server",
         "page:/using-with-ai/mcp-server-setup#does-the-mcp-server-store-or-transmit-my-credentials",
         "page:/using-with-ai/mcp-server-setup#can-i-use-the-mcp-server-without-an-aws-account",
-        "page:/using-with-ai/mcp-server-setup#is-the-mcp-server-safe-to-use-in-production-workflows",
-        "page:/using-with-ai/mcp-server-setup#can-i-run-the-mcp-server-alongside-normal-cli-usage",
+        "page:/using-with-ai/mcp-server-setup#is-the-mcp-server-safe-for-production-workflows",
         "page:/using-with-ai/mcp-server-setup#what-happens-if-a-deployment-times-out-through-mcp",
-        "page:/using-with-ai/mcp-server-setup#can-i-scope-the-mcp-server-to-specific-tools",
-        "page:/using-with-ai/mcp-server-setup#what-is-the-difference-between-stacktape-ops-and-stacktape-diagnose",
-        "page:/using-with-ai/mcp-server-setup#how-does-argument-normalization-work"
+        "page:/using-with-ai/mcp-server-setup#can-i-run-the-mcp-server-alongside-normal-cli-usage",
+        "page:/using-with-ai/mcp-server-setup#what-is-the-difference-between-plan-and-run-in-stacktape-cli",
+        "page:/using-with-ai/mcp-server-setup#can-i-scope-the-mcp-server-to-specific-tools-or-commands",
+        "page:/using-with-ai/mcp-server-setup#how-does-the-mcp-server-handle-sensitive-command-output",
+        "page:/using-with-ai/mcp-server-setup#does-the-mcp-server-need-network-access"
       ]
     },
     {
@@ -8193,7 +8239,31 @@
         "overview"
       ],
       "chunks": [
-        "page:/using-with-ai/overview#using-stacktape-with-ai"
+        "page:/using-with-ai/overview#using-stacktape-with-ai",
+        "page:/using-with-ai/overview#the-ai-assisted-development-workflow",
+        "page:/using-with-ai/overview#flow",
+        "page:/using-with-ai/overview#mcp-server",
+        "page:/using-with-ai/overview#how-assistants-use-the-mcp-server",
+        "page:/using-with-ai/overview#safety-model",
+        "page:/using-with-ai/overview#credential-handling",
+        "page:/using-with-ai/overview#agent-mode",
+        "page:/using-with-ai/overview#when-to-use-agent-mode",
+        "page:/using-with-ai/overview#when-not-to-use-agent-mode",
+        "page:/using-with-ai/overview#ai-config-generation",
+        "page:/using-with-ai/overview#coding-assistant-setup",
+        "page:/using-with-ai/overview#choosing-the-right-approach",
+        "page:/using-with-ai/overview#feature-comparison",
+        "page:/using-with-ai/overview#faq",
+        "page:/using-with-ai/overview#what-is-the-stacktape-mcp-server",
+        "page:/using-with-ai/overview#which-ai-coding-assistants-work-with-stacktape",
+        "page:/using-with-ai/overview#can-an-ai-assistant-deploy-to-production-through-the-mcp-server",
+        "page:/using-with-ai/overview#how-does-agent-mode-differ-from-standard-dev-mode",
+        "page:/using-with-ai/overview#does-the-mcp-server-require-separate-authentication",
+        "page:/using-with-ai/overview#can-i-use-stacktape-with-an-ai-assistant-that-isn-t-officially-supported",
+        "page:/using-with-ai/overview#what-databases-can-ai-assistants-query-through-agent-mode",
+        "page:/using-with-ai/overview#is-the-mcp-server-safe-to-use-with-production-stacks",
+        "page:/using-with-ai/overview#mcp-server-vs-running-stacktape-cli-in-a-terminal-what-s-the-difference",
+        "page:/using-with-ai/overview#how-do-i-get-started-with-ai-assisted-stacktape-development"
       ]
     }
   ]

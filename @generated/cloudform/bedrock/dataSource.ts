@@ -68,8 +68,8 @@ export class ContextEnrichmentConfiguration {
 }
 
 export class CrawlFilterConfiguration {
-  Type!: Value<string>;
   PatternObjectFilter?: PatternObjectFilterConfiguration;
+  Type!: Value<string>;
   constructor(properties: CrawlFilterConfiguration) {
     Object.assign(this, properties);
   }

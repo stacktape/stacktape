@@ -15,6 +15,14 @@ export class DestinationDetails {
   }
 }
 
+export class Endpoint {
+  Address?: Value<string>;
+  Port?: Value<string>;
+  constructor(properties: Endpoint) {
+    Object.assign(this, properties);
+  }
+}
+
 export class KinesisFirehoseDestinationDetails {
   DeliveryStream!: Value<string>;
   constructor(properties: KinesisFirehoseDestinationDetails) {
@@ -23,44 +31,44 @@ export class KinesisFirehoseDestinationDetails {
 }
 
 export class LogDeliveryConfigurationRequest {
-  DestinationDetails!: DestinationDetails;
-  DestinationType!: Value<string>;
   LogFormat!: Value<string>;
   LogType!: Value<string>;
+  DestinationType!: Value<string>;
+  DestinationDetails!: DestinationDetails;
   constructor(properties: LogDeliveryConfigurationRequest) {
     Object.assign(this, properties);
   }
 }
 export interface CacheClusterProperties {
-  AZMode?: Value<string>;
-  AutoMinorVersionUpgrade?: Value<boolean>;
-  CacheNodeType: Value<string>;
-  CacheParameterGroupName?: Value<string>;
-  CacheSecurityGroupNames?: List<Value<string>>;
-  CacheSubnetGroupName?: Value<string>;
-  ClusterName?: Value<string>;
-  Engine: Value<string>;
   EngineVersion?: Value<string>;
-  IpDiscovery?: Value<string>;
-  LogDeliveryConfigurations?: List<LogDeliveryConfigurationRequest>;
-  NetworkType?: Value<string>;
+  SnapshotArns?: List<Value<string>>;
+  CacheSubnetGroupName?: Value<string>;
+  Port?: Value<number>;
+  CacheParameterGroupName?: Value<string>;
+  PreferredMaintenanceWindow?: Value<string>;
+  AutoMinorVersionUpgrade?: Value<boolean>;
   NotificationTopicArn?: Value<string>;
   NumCacheNodes: Value<number>;
-  Port?: Value<number>;
-  PreferredAvailabilityZone?: Value<string>;
-  PreferredAvailabilityZones?: List<Value<string>>;
-  PreferredMaintenanceWindow?: Value<string>;
-  SnapshotArns?: List<Value<string>>;
   SnapshotName?: Value<string>;
-  SnapshotRetentionLimit?: Value<number>;
+  PreferredAvailabilityZone?: Value<string>;
   SnapshotWindow?: Value<string>;
-  Tags?: List<ResourceTag>;
+  CacheNodeType: Value<string>;
+  SnapshotRetentionLimit?: Value<number>;
   TransitEncryptionEnabled?: Value<boolean>;
+  PreferredAvailabilityZones?: List<Value<string>>;
   VpcSecurityGroupIds?: List<Value<string>>;
+  NetworkType?: Value<string>;
+  IpDiscovery?: Value<string>;
+  ClusterName?: Value<string>;
+  LogDeliveryConfigurations?: List<LogDeliveryConfigurationRequest>;
+  Engine: Value<string>;
+  Tags?: List<ResourceTag>;
+  AZMode?: Value<string>;
 }
 export default class CacheCluster extends ResourceBase<CacheClusterProperties> {
   static CloudWatchLogsDestinationDetails = CloudWatchLogsDestinationDetails;
   static DestinationDetails = DestinationDetails;
+  static Endpoint = Endpoint;
   static KinesisFirehoseDestinationDetails = KinesisFirehoseDestinationDetails;
   static LogDeliveryConfigurationRequest = LogDeliveryConfigurationRequest;
   constructor(properties: CacheClusterProperties) {

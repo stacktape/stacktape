@@ -45,6 +45,13 @@ export class FilterCriteria {
   }
 }
 
+export class LoggingConfig {
+  SystemLogLevel?: Value<string>;
+  constructor(properties: LoggingConfig) {
+    Object.assign(this, properties);
+  }
+}
+
 export class MetricsConfig {
   Metrics?: List<Value<string>>;
   constructor(properties: MetricsConfig) {
@@ -60,6 +67,7 @@ export class OnFailure {
 }
 
 export class ProvisionedPollerConfig {
+  PollerGroupName?: Value<string>;
   MinimumPollers?: Value<number>;
   MaximumPollers?: Value<number>;
   constructor(properties: ProvisionedPollerConfig) {
@@ -147,6 +155,7 @@ export interface EventSourceMappingProperties {
   BisectBatchOnFunctionError?: Value<boolean>;
   MaximumRecordAgeInSeconds?: Value<number>;
   StartingPositionTimestamp?: Value<number>;
+  LoggingConfig?: LoggingConfig;
   Queues?: List<Value<string>>;
   FunctionResponseTypes?: List<Value<string>>;
 }
@@ -157,6 +166,7 @@ export default class EventSourceMapping extends ResourceBase<EventSourceMappingP
   static Endpoints = Endpoints;
   static Filter = Filter;
   static FilterCriteria = FilterCriteria;
+  static LoggingConfig = LoggingConfig;
   static MetricsConfig = MetricsConfig;
   static OnFailure = OnFailure;
   static ProvisionedPollerConfig = ProvisionedPollerConfig;

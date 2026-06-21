@@ -53,13 +53,69 @@ export default defineConfig(() => {
 
 The `connectTo: ['myDatabase', 'uploads']` line gives the Lambda function access to both the database and the bucket. Stacktape injects connection details as `STP_MY_DATABASE_*` and `STP_UPLOADS_*` environment variables, grants IAM permissions for the bucket, and opens security group access to the database.
 
+## Complete Lambda and DynamoDB API example
+
+This minimal TypeScript config wires a Hono-style Lambda API to a DynamoDB table. The `connectTo: ['usersTable']` line grants the function DynamoDB read/write access and injects `STP_USERS_TABLE_NAME`, which your handler can use as the table name for AWS SDK calls.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  DynamoDbTable,
+  HttpApiGateway,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const usersTable = new DynamoDbTable({
+    primaryKey: {
+      partitionKey: { name: 'userId', type: 'string' }
+    }
+  });
+
+  const apiGateway = new HttpApiGateway({});
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    connectTo: ['usersTable'],
+    events: [
+      {
+        type: 'http-api-gateway',
+        properties: {
+          httpApiGatewayName: 'apiGateway',
+          method: 'ANY',
+          path: '/{proxy+}'
+        }
+      },
+      {
+        type: 'http-api-gateway',
+        properties: {
+          httpApiGatewayName: 'apiGateway',
+          method: 'ANY',
+          path: '/'
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { usersTable, apiGateway, api }
+  };
+});
+```
+
+
 ## What connectTo does
 
 When you add a resource name to `connectTo`, Stacktape performs up to three actions depending on the target resource type:
 
 1. **Grants IAM permissions** — the consuming resource's execution role gets a policy allowing it to interact with the target (e.g., read/write objects for buckets, send/receive messages for queues). Network-bound resources like relational databases and Redis clusters don't use IAM for data-plane access.
 
-2. **Opens security group access** — for [relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis), Stacktape creates security group rules allowing the consuming resource to reach the target on the correct port. [Lambda functions](/resources/compute/lambda-function) are automatically placed in the VPC when they connect to these resources.
+2. **Opens security group access** — for [relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis), Stacktape creates security group rules allowing the consuming resource to reach the target on the correct port. See the [Lambda function](/resources/compute/lambda-function) and [relational database](/resources/databases/relational-database) pages for VPC placement details.
 
 3. **Injects environment variables** — Stacktape injects connection parameters as `STP_[RESOURCE_NAME]_[PARAM]` environment variables into the consuming resource. The exact set of injected variables depends on the target resource type, documented in the tables below.
 
@@ -92,6 +148,50 @@ Assuming a resource named `myDatabase`:
 
 > **Tip:** Use [`$Secret()`](/configuration/secrets) for the database password in your config to keep credentials out of source control. Additional database parameters like `dbName` and `masterUserName` are available via [`$ResourceParam()`](/configuration/directives).
 
+
+### Lambda to Postgres example
+
+Use `connectTo` on the Lambda function to inject database connection variables. For a database resource named `mainDatabase`, the Lambda reads `process.env.STP_MAIN_DATABASE_CONNECTION_STRING`.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: "$Secret('database.password')"
+    },
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: {
+        instanceSize: 'db.t4g.micro'
+      }
+    })
+  });
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    connectTo: ['mainDatabase']
+  });
+
+  return {
+    resources: { mainDatabase, api }
+  };
+});
+```
+
+
+For databases that restrict access to VPC-only modes, the consuming Lambda function may need VPC placement. See the [Lambda function](/resources/compute/lambda-function) and [relational database](/resources/databases/relational-database) pages for VPC and accessibility mode configuration.
 
 ### Bucket
 
@@ -153,7 +253,7 @@ Assuming a resource named `events`:
 |---|---|---|
 | `arn` | `STP_EVENTS_ARN` | Event bus ARN |
 
-The `archiveArn` parameter is also available as a [referenceable parameter](/configuration/referenceable-parameters) when archivation is enabled on the event bus.
+The `archiveArn` parameter is also available via [`$ResourceParam()`](/configuration/directives) — see the [referenceable parameters](/configuration/referenceable-parameters) page for all event bus parameters.
 
 ### User auth pool
 
@@ -213,11 +313,11 @@ Assuming a resource named `backend`:
 
 ### Additional connectTo targets
 
-[State machines](/resources/orchestration/state-machine), [OpenSearch domains](/resources/databases/opensearch), and [Kinesis streams](/resources/messaging/kinesis-stream) can also be used as `connectTo` targets. Connecting to these resources adds role-scoped IAM permissions to the consuming workload, but the source does not document specific environment variable injection for them. Use [`$ResourceParam()`](/configuration/directives) to access their parameters as environment variables, and use [`stacktape compile-template`](/cli/compile-template) to inspect the exact IAM policy statements generated for your stack.
+The `connectTo` property also accepts additional resource types as targets beyond those listed above — including [multi-container workloads](/resources/compute/multi-container-workload), [event buses](/resources/messaging/event-bus), [state machines](/resources/orchestration/state-machine), [OpenSearch domains](/resources/databases/opensearch), and [Kinesis streams](/resources/messaging/kinesis-stream). For these targets, `connectTo` adds the required IAM permissions to the consuming workload's execution role, but the injected environment variables are not documented in the tables above. Use [`$ResourceParam()`](/configuration/directives) to pass specific parameters as environment variables. In the type definitions, `connectTo` targets either affect the consuming workload's IAM role or security-group access. The role-affecting set includes Lambda functions, container workloads, batch jobs, state machines, event buses, buckets, DynamoDB tables, OpenSearch domains, user auth pools, SQS queues, SNS topics, and Kinesis streams. Relational databases and Redis clusters affect security-group access. `connectTo` also accepts supported AWS service macros such as `aws:ses`.
 
 ### Script-only variables
 
-[Scripts](/configuration/hooks-and-scripts) have their own `connectTo` environment-variable set. The following parameters are injected exclusively in scripts, in addition to any variables from the tables above:
+[Scripts](/configuration/hooks-and-scripts) have their own `connectTo` environment-variable set. For scripts, a [web service](/resources/compute/web-service) additionally injects `STP_[RESOURCE_NAME]_URL`. The following parameters are injected exclusively in scripts, in addition to any variables from the tables above:
 
 | Resource type | Script-only parameters |
 |---|---|
@@ -278,7 +378,7 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | [Bucket](/resources/storage/s3-bucket) | Read, write, and delete objects; list bucket contents |
 | [DynamoDB table](/resources/databases/dynamodb) | CRUD operations (get, put, update, delete) + query and scan |
 | [SQS queue](/resources/messaging/sqs-queue) | Send, receive, and delete messages |
-| [SNS topic](/resources/messaging/sns-topic) | Publish messages |
+| [SNS topic](/resources/messaging/sns-topic) | Publish and subscribe |
 | [Event bus](/resources/messaging/event-bus) | Publish events |
 | [Lambda function](/resources/compute/lambda-function) | Invoke the function |
 | [Batch job](/resources/compute/batch-job) | Submit, list, and terminate jobs |
@@ -289,10 +389,10 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 
 [Relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis) are network-bound resources — data-plane access is controlled through VPC security groups rather than IAM policies. Stacktape opens the correct port between the consuming resource and the target automatically.
 
-[State machines](/resources/orchestration/state-machine), [OpenSearch domains](/resources/databases/opensearch), and [Kinesis streams](/resources/messaging/kinesis-stream) are also valid `connectTo` targets and receive role-scoped IAM permissions. The exact IAM actions for these targets are not enumerated in the source — use [`stacktape compile-template`](/cli/compile-template) to inspect the generated policy statements for your specific stack.
+[Multi-container workloads](/resources/compute/multi-container-workload), [state machines](/resources/orchestration/state-machine), [OpenSearch domains](/resources/databases/opensearch), [Kinesis streams](/resources/messaging/kinesis-stream), and [event buses](/resources/messaging/event-bus) are also valid `connectTo` targets that affect the consuming workload's IAM role. For the final deployed policy, inspect the generated CloudFormation template, for example with [`stacktape compile-template`](/cli/compile-template).
 
 
-> **Info:** The exact IAM policy statements generated at deploy time may include additional supporting actions (e.g., listing, describing). To inspect the authoritative policy for your stack, use [`stacktape compile-template`](/cli/compile-template).
+> **Info:** The exact IAM policy statements generated at deploy time may include additional supporting actions (e.g., listing, describing). For the authoritative policy, inspect the generated CloudFormation template or the deployed stack's IAM roles in the AWS Console.
 
 
 ## AWS service macros
@@ -319,7 +419,7 @@ export default defineConfig(() => {
 ```
 
 
-The `aws:ses` macro grants SES email sending permissions to the consuming resource. No environment variables are injected — you call the SES API directly via the AWS SDK.
+The `aws:ses` macro grants SES email sending permissions to the consuming resource. You call the SES API directly via the AWS SDK using methods like `SendEmailCommand`.
 
 ## Custom permissions with iamRoleStatements
 
@@ -353,7 +453,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, the reader function gets read-only access to the bucket via `iamRoleStatements` instead of the broad read/write/delete access that `connectTo` would grant. The bucket name is injected manually via `$ResourceParam()`.
+In this example, the reader function gets read-only access to the bucket via `iamRoleStatements` instead of the broad read/write/delete access that `connectTo` would grant. The `$ResourceParam('uploads', 'arn')` directive resolves to the bucket's ARN at deploy time. The `/*` suffix targets objects inside the bucket — `s3:GetObject` acts on individual objects, so the IAM resource must be `arn:aws:s3:::bucket-name/*` rather than the bucket ARN alone. The bucket name is injected manually via `$ResourceParam()`. Verify the exact parameter key for each resource type on the [referenceable parameters](/configuration/referenceable-parameters) page before using `$ResourceParam` in IAM resource ARNs.
 
 The `iamRoleStatements` property adds a separate IAM policy alongside any auto-generated policies. If you use both `connectTo` and `iamRoleStatements` targeting the same resource, both policies apply — `iamRoleStatements` does not override or narrow `connectTo` permissions.
 
@@ -365,7 +465,7 @@ The `iamRoleStatements` property adds a separate IAM policy alongside any auto-g
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+import { defineConfig, RelationalDatabase, RdsEnginePostgres, Bastion } from 'stacktape';
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
@@ -377,12 +477,15 @@ export default defineConfig(() => {
     })
   });
 
+  const bastion = new Bastion({});
+
   return {
-    resources: { myDatabase },
+    resources: { myDatabase, bastion },
     scripts: {
       migrate: {
         type: 'local-script-with-bastion-tunneling',
         properties: {
+          bastionResource: 'bastion',
           executeCommand: 'npx prisma migrate deploy',
           connectTo: ['myDatabase']
         }
@@ -399,9 +502,11 @@ Run the script with [`stacktape script:run`](/cli/script-run):
 stacktape script:run --scriptName migrate --stage production --region eu-west-1
 ```
 
-The `local-script-with-bastion-tunneling` type tunnels connections through a [bastion host](/resources/security/bastion-host), giving your local machine secure access to VPC-only databases. The injected environment variables are automatically adjusted to route through the tunnel. For databases accessible over the internet, a plain `local-script` type works without tunneling. Three script types support `connectTo`: `local-script`, `local-script-with-bastion-tunneling`, and `bastion-script`.
+The `local-script-with-bastion-tunneling` type tunnels connections through a [bastion host](/resources/security/bastion-host), giving your local machine secure access to VPC-only databases. The injected environment variables are automatically adjusted to route through the tunnel. Use `local-script` for commands that can reach their targets from the machine running Stacktape; use `local-script-with-bastion-tunneling` when the target must be reached through a bastion tunnel. Three script types support `connectTo`: `local-script`, `local-script-with-bastion-tunneling`, and `bastion-script`. The example uses `executeCommand`; local scripts can also use `executeCommands`, `executeScript`, or `executeScripts`, while bastion scripts support `executeCommand` and `executeCommands`.
 
-Use `connectTo` when the script needs connection variables for specific targets. Use `assumeRoleOfResource` when the script should run with the same IAM permissions as a deployed workload — such as a function, batch job, web service, private service, worker service, multi-container workload, or SSR frontend.
+For `local-script-with-bastion-tunneling` and `bastion-script`, `properties.bastionResource` can name the [bastion host](/resources/security/bastion-host) resource to use for tunneling.
+
+Scripts can also define `properties.environment` for static values, secrets, custom directives, or `$ResourceParam()` values when a tool expects a specific variable name that differs from the `STP_*` convention. Use `connectTo` when the script needs connection variables for specific targets. Use `assumeRoleOfResource` when the script should run with the same IAM permissions as a deployed workload — such as a function, batch job, web service, private service, worker service, multi-container workload, or SSR frontend.
 
 ## Resources that use connectTo
 
@@ -413,19 +518,15 @@ The following list covers resources where the `connectTo` property is available 
 - [Worker service](/resources/compute/worker-service)
 - [Multi-container workload](/resources/compute/multi-container-workload)
 - [Batch job](/resources/compute/batch-job)
-- SSR frontends: [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)
+- SSR frontends — see each resource's page for `connectTo` on the server workload: [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)
 - [Deployment scripts](/resources/advanced/deployment-scripts)
 - Scripts (`local-script`, `local-script-with-bastion-tunneling`, `bastion-script`)
 
-[Edge Lambda functions](/resources/compute/edge-function) also have a `connectTo` property, but it only grants IAM permissions. Edge Lambda functions cannot use environment variables or connect to VPC resources due to Lambda@Edge runtime constraints. See the [edge function](/resources/compute/edge-function) page for details.
+For [edge Lambda functions](/resources/compute/edge-function), check the [edge function page](/resources/compute/edge-function) for `connectTo` support and any limitations specific to CloudFront edge runtimes.
 
 ## VPC and networking
 
-When you connect to [relational databases](/resources/databases/relational-database) or [Redis clusters](/resources/databases/redis), Stacktape handles VPC placement and security group configuration automatically:
-
-- **Lambda functions** are placed inside the VPC so they can reach the database or Redis cluster
-- **Container workloads** are placed in the VPC
-- **Security group rules** are created to allow traffic on the correct port
+When you connect to [relational databases](/resources/databases/relational-database) or [Redis clusters](/resources/databases/redis), Stacktape creates security group rules that allow the consuming resource to reach the target on the correct port. Workloads that need to reach VPC-bound databases or Redis clusters must be placed in the same VPC — see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [relational database](/resources/databases/relational-database) pages for VPC placement configuration.
 
 
 > **Warning:** Lambda functions placed in a VPC lose direct internet access. If your function needs to call external APIs while also connecting to a VPC database, you can configure NAT Gateways (see `stackConfig.vpc.nat`) or use a database with internet-accessible settings for development stages.
@@ -451,11 +552,11 @@ Every AWS Lambda function and ECS task runs with an IAM execution role — a set
 
 ### Can I connect to resources in a different stack?
 
-Not directly through `connectTo` — it only references resources within the same stack. To access resources from another stack, use [`$CfStackOutput()`](/configuration/directives) to import exported outputs, set environment variables manually, and configure `iamRoleStatements` for permissions. You can also share a VPC between stacks using `stackConfig.vpc.reuseVpc` so resources can reach each other over the network.
+Not directly through `connectTo` — it takes names of resources defined within the same Stacktape configuration. To access resources from another stack, set environment variables manually with the target's endpoint or ARN and configure `iamRoleStatements` for the required IAM permissions. For network-bound resources like databases, consult the relevant [networking](/resources/networking/custom-domains) and resource pages for cross-stack access patterns.
 
 ### What happens if I remove a resource from connectTo?
 
-On the next deployment, Stacktape removes the IAM permissions, security group rules, and environment variables for that resource. Your application code will no longer have the `STP_*` variables available, and AWS SDK calls to that resource will fail with permission errors. The target resource itself is not affected.
+After you remove a target from `connectTo` and redeploy, your application code should no longer rely on the automatically managed permissions, network access, or `STP_*` variables for that target. If the code still needs access, configure it explicitly with `environment` variables and `iamRoleStatements`. The target resource itself is not affected — only the consuming workload's access to it changes.
 
 ### Can I limit which actions connectTo grants?
 
@@ -471,4 +572,4 @@ No. `connectTo` is a deploy-time configuration mechanism — it sets IAM policie
 
 ### What is the aws:ses macro and when should I use it?
 
-The `aws:ses` macro is a special `connectTo` target that grants AWS SES (Simple Email Service) permissions without requiring you to define an SES resource in your stack. Use it when your function or service needs to send transactional emails. Unlike regular `connectTo` targets, the macro only grants IAM permissions — no environment variables are injected. You call the SES API directly through the AWS SDK using standard methods like `SendEmailCommand`.
+The `aws:ses` macro is a special `connectTo` target that grants AWS SES (Simple Email Service) permissions without requiring you to define an SES resource in your stack. Use it when your function or service needs to send transactional emails. The macro grants IAM permissions for SES email sending. You call the SES API directly through the AWS SDK using standard methods like `SendEmailCommand`.

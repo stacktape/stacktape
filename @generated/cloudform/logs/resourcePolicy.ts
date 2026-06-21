@@ -3,7 +3,7 @@ import { Value, List } from '../dataTypes';
 
 export interface ResourcePolicyProperties {
   PolicyName: Value<string>;
-  PolicyDocument: Value<string>;
+  PolicyDocument: { [key: string]: any };
 }
 export default class ResourcePolicy extends ResourceBase<ResourcePolicyProperties> {
   constructor(properties: ResourcePolicyProperties) {

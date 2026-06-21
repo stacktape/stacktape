@@ -1,12 +1,13 @@
-import { ResourceBase } from '../resource';
-import { Value, List } from '../dataTypes';
+import {ResourceBase} from '../resource'
+import { Value, List } from '../dataTypes'
 
 export interface ApplicationFleetAssociationProperties {
-  FleetName: Value<string>;
-  ApplicationArn: Value<string>;
+    FleetName: Value<string>
+    ApplicationArn: Value<string>
 }
 export default class ApplicationFleetAssociation extends ResourceBase<ApplicationFleetAssociationProperties> {
-  constructor(properties: ApplicationFleetAssociationProperties) {
-    super('AWS::AppStream::ApplicationFleetAssociation', properties);
-  }
+
+    constructor(properties: ApplicationFleetAssociationProperties) {
+        super('AWS::AppStream::ApplicationFleetAssociation', properties)
+    }
 }

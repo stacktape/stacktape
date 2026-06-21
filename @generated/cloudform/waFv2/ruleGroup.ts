@@ -144,6 +144,7 @@ export class FieldToMatch {
   UriPath?: { [key: string]: any };
   Cookies?: Cookies;
   JA4Fingerprint?: JA4Fingerprint;
+  HeaderOrder?: HeaderOrder;
   Body?: Body;
   SingleHeader?: SingleHeader;
   constructor(properties: FieldToMatch) {
@@ -172,6 +173,13 @@ export class HeaderMatchPattern {
   IncludedHeaders?: List<Value<string>>;
   ExcludedHeaders?: List<Value<string>>;
   constructor(properties: HeaderMatchPattern) {
+    Object.assign(this, properties);
+  }
+}
+
+export class HeaderOrder {
+  OversizeHandling!: Value<string>;
+  constructor(properties: HeaderOrder) {
     Object.assign(this, properties);
   }
 }
@@ -478,8 +486,8 @@ export class UriFragment {
 }
 
 export class VisibilityConfig {
-  MetricName!: Value<string>;
   SampledRequestsEnabled!: Value<boolean>;
+  MetricName!: Value<string>;
   CloudWatchMetricsEnabled!: Value<boolean>;
   constructor(properties: VisibilityConfig) {
     Object.assign(this, properties);
@@ -527,6 +535,7 @@ export default class RuleGroup extends ResourceBase<RuleGroupProperties> {
   static ForwardedIPConfiguration = ForwardedIPConfiguration;
   static GeoMatchStatement = GeoMatchStatement;
   static HeaderMatchPattern = HeaderMatchPattern;
+  static HeaderOrder = HeaderOrder;
   static Headers = Headers;
   static IPSetForwardedIPConfiguration = IPSetForwardedIPConfiguration;
   static IPSetReferenceStatement = IPSetReferenceStatement;

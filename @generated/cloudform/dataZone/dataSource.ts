@@ -84,9 +84,9 @@ export class RedshiftStorage {
 }
 
 export class RelationalFilterConfiguration {
-  FilterExpressions?: List<FilterExpression>;
   DatabaseName!: Value<string>;
   SchemaName?: Value<string>;
+  FilterExpressions?: List<FilterExpression>;
   constructor(properties: RelationalFilterConfiguration) {
     Object.assign(this, properties);
   }

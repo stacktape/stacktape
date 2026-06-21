@@ -24,26 +24,30 @@ stp help --command dev
 
 ## The `--command` flag
 
-When you pass `--command` (alias `--cmd`), Stacktape prints the full option reference for that command — each flag's name, whether it's required, and a description. This is the fastest way to check which flags a command accepts without leaving the terminal.
+When you pass `--command`, Stacktape prints the command usage and available options, including each argument's name, whether it is required, and its description. This is the fastest way to check which flags a command accepts without leaving the terminal.
 
 ```bash
 stacktape help --command delete
 ```
 
-Without `--command`, the output lists every CLI command with a short description, followed by hints linking to the full [CLI documentation](/cli/deploy) and the Stacktape docs site.
+Without `--command`, the output lists every CLI command with its configured description, followed by hints linking to the CLI documentation and the Stacktape docs site.
 
 ## Options reference
 
+The `help` command accepts a single optional flag. The reference below lists its name, alias, type, and whether it is required.
 
-## CLI Options: `stacktape help`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--command (-cmd)` | no | `string` | Command This argument has different meanings depending on the command:
-
-With `stacktape help`, it specifies a command to show detailed help for.
-With `stacktape container:session`, it specifies a command to run inside the container to start the interactive session. | - |
-
+<CliCommandsApiReference command="help" sortedArgs={[
+  {
+    "name": "command",
+    "required": false,
+    "alias": "cmd",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Command</p>\n",
+    "longDescription": "<p>This argument has different meanings depending on the command:</p>\n<ul>\n<li>With <code>stacktape help</code>, it specifies a command to show detailed help for.</li>\n<li>With <code>stacktape container:session</code>, it specifies a command to run inside the container to start the interactive session.</li>\n</ul>\n"
+  }
+]} />
 
 ## Examples
 
@@ -70,4 +74,3 @@ stacktape help
 - [version](/cli/version) — print the installed Stacktape version.
 - [init](/cli/init) — scaffold a new Stacktape project with an interactive wizard.
 - [defaults:configure](/cli/defaults-configure) — set system-wide default values for common flags like `region` and `stage`.
-- [info:whoami](/cli/info-whoami) — verify your current API key, organization, and connected AWS accounts.

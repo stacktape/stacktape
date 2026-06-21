@@ -5,6 +5,7 @@ export interface ResourceGatewayProperties {
   IpAddressType?: Value<string>;
   VpcIdentifier: Value<string>;
   Ipv4AddressesPerEni?: Value<number>;
+  ResourceConfigDnsResolution?: Value<string>;
   SubnetIds: List<Value<string>>;
   SecurityGroupIds?: List<Value<string>>;
   Tags?: List<ResourceTag>;

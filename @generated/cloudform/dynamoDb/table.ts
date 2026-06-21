@@ -9,8 +9,8 @@ export class AttributeDefinition {
 }
 
 export class ContributorInsightsSpecification {
-  Mode?: Value<string>;
   Enabled!: Value<boolean>;
+  Mode?: Value<string>;
   constructor(properties: ContributorInsightsSpecification) {
     Object.assign(this, properties);
   }
@@ -96,8 +96,8 @@ export class PointInTimeRecoverySpecification {
 }
 
 export class Projection {
-  NonKeyAttributes?: List<Value<string>>;
   ProjectionType?: Value<string>;
+  NonKeyAttributes?: List<Value<string>>;
   constructor(properties: Projection) {
     Object.assign(this, properties);
   }

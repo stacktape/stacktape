@@ -1,2 +1,2 @@
-import { Amplify } from './index.namespace';
-export default Amplify;
+import {Amplify} from './index.namespace'
+export default Amplify

@@ -19,8 +19,8 @@ export class DataType {
   Type!: Value<string>;
   AllowedValues?: List<DataValue>;
   UnitOfMeasure?: Value<string>;
-  Relationship?: Relationship;
   NestedType?: DataType;
+  Relationship?: Relationship;
   constructor(properties: DataType) {
     Object.assign(this, properties);
   }

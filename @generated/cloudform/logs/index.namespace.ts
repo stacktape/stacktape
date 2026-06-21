@@ -10,6 +10,7 @@ import LogStream_ from './logStream';
 import MetricFilter_ from './metricFilter';
 import QueryDefinition_ from './queryDefinition';
 import ResourcePolicy_ from './resourcePolicy';
+import ScheduledQuery_ from './scheduledQuery';
 import SubscriptionFilter_ from './subscriptionFilter';
 import Transformer_ from './transformer';
 export namespace Logs {
@@ -25,6 +26,7 @@ export namespace Logs {
   export const MetricFilter = MetricFilter_;
   export const QueryDefinition = QueryDefinition_;
   export const ResourcePolicy = ResourcePolicy_;
+  export const ScheduledQuery = ScheduledQuery_;
   export const SubscriptionFilter = SubscriptionFilter_;
   export const Transformer = Transformer_;
   export type AccountPolicy = AccountPolicy_;
@@ -39,6 +41,7 @@ export namespace Logs {
   export type MetricFilter = MetricFilter_;
   export type QueryDefinition = QueryDefinition_;
   export type ResourcePolicy = ResourcePolicy_;
+  export type ScheduledQuery = ScheduledQuery_;
   export type SubscriptionFilter = SubscriptionFilter_;
   export type Transformer = Transformer_;
 }

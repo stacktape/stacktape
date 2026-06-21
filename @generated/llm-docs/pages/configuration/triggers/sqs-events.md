@@ -9,7 +9,7 @@ SQS event triggers fit when you need reliable, at-least-once message processing 
 - **Work queues** — an API enqueues tasks (image processing, email sending, report generation) and a worker Lambda processes them at its own pace.
 - **Traffic smoothing** — a high-throughput producer writes messages faster than your downstream can handle. The queue buffers the backlog and delivers in controlled batches.
 - **Service decoupling** — services communicate through queues instead of direct calls, so a failure in one service does not cascade.
-- **Delayed processing** — AWS SQS supports delivery delays up to 15 minutes, useful for retry backoff or scheduled follow-ups.
+- **Delayed processing** — SQS queues support configurable delivery delays, useful for retry backoff or scheduled follow-ups.
 
 ## When NOT to use
 
@@ -54,7 +54,7 @@ export default defineConfig(() => {
 ```
 
 
-The `sqsQueueName` value must match the key you use for the queue in the `resources` object — here, `orderQueue`. When you reference a queue by `sqsQueueName`, Stacktape wires up the connection between the Lambda function and the queue, including the required IAM permissions.
+The `sqsQueueName` value must match the key you use for the queue in the `resources` object — here, `orderQueue`. Use `sqsQueueName` when the SQS queue is defined in your stack's resources.
 
 `batchSize` controls how many messages are delivered per invocation (default: 10, maximum: 10,000). With `batchSize: 5`, the function receives up to 5 messages at a time. For low-volume queues the default is fine; increase it for high-throughput scenarios to amortize invocation overhead.
 
@@ -111,12 +111,12 @@ export default defineConfig(() => {
 This configuration waits up to 30 seconds to fill a batch of 100 messages before invoking the function. If 100 messages arrive in 5 seconds, the function fires immediately without waiting the remaining 25 seconds.
 
 
-> **Tip:** For high-throughput queues (hundreds or thousands of messages per second), set `batchSize` to 100–1,000 and `maxBatchWindowSeconds` to 5–30 seconds. This amortizes Lambda invocation overhead across more messages and reduces per-message cost. Start with `batchSize: 100` and `maxBatchWindowSeconds: 10` and adjust based on your processing latency requirements.
+> **Tip:** For high-throughput queues, increase `batchSize` and add a `maxBatchWindowSeconds` value to amortize Lambda invocation overhead across more messages. Larger batches reduce per-message cost at the expense of higher processing latency. Tune both values based on your throughput and latency requirements.
 
 
 ## Using an external queue
 
-To consume messages from an SQS queue not managed by your Stacktape stack — for example, a queue in another AWS account or created by a different deployment tool — use `sqsQueueArn` instead of `sqsQueueName`.
+To consume messages from an existing SQS queue not managed by this stack — for example, a queue created by a different deployment tool — use `sqsQueueArn` instead of `sqsQueueName`.
 
 
 Example (TypeScript):
@@ -152,17 +152,17 @@ export default defineConfig(() => {
 You must specify exactly one of `sqsQueueName` or `sqsQueueArn` — not both. Use `sqsQueueName` when the queue is defined in the same Stacktape configuration. Use `sqsQueueArn` when consuming from a queue managed outside your stack.
 
 
-> **Warning:** When using an external queue, ensure the queue's resource policy grants your Lambda function's execution role the permissions needed to receive and delete messages. Stacktape handles this automatically for queues defined within the same stack using `sqsQueueName`.
+> **Warning:** Use `sqsQueueArn` for an existing queue that is not managed by your stack. The source type definition only documents the ARN attachment — verify any required cross-account or resource-policy permissions for your specific AWS setup.
 
 
 ## Handling failures
 
-Unlike [Kinesis](/configuration/triggers/kinesis-events) and [DynamoDB stream](/configuration/triggers/dynamodb-streams) triggers — which expose `maximumRetryAttempts` and `onFailure` properties directly on the integration — the SQS integration has no retry or dead-letter configuration on the trigger itself. Instead, retry and dead-letter behavior for SQS is configured on the [SQS queue resource](/resources/messaging/sqs-queue).
+Unlike [Kinesis](/configuration/triggers/kinesis-events) and [DynamoDB stream](/configuration/triggers/dynamodb-streams) triggers — which expose `maximumRetryAttempts` and `onFailure` properties directly on the integration — `SqsIntegration` does not expose retry, `onFailure`, or dead-letter properties.
 
-When your Lambda function throws an error while processing an SQS batch, AWS returns the entire batch of messages to the queue for reprocessing. The queue's visibility timeout controls how long messages stay hidden from consumers after delivery. The queue's redrive policy determines when failed messages are moved to a dead-letter queue for investigation. See the [SQS queue resource page](/resources/messaging/sqs-queue) for details on configuring these properties.
+When your Lambda function throws an error while processing an SQS batch, AWS returns the entire batch of messages to the queue for reprocessing. The queue's visibility timeout controls how long messages stay hidden from consumers after delivery. AWS dead-letter behavior for SQS is configured on the queue through a redrive policy, not on the event source mapping. See the [SQS queue resource page](/resources/messaging/sqs-queue) for queue-level configuration options.
 
 
-> **Info:** Because the entire batch is retried on failure, make your handler idempotent — processing the same message twice should produce the same result. Use the `messageId` from each record for deduplication when needed.
+> **Info:** Because the entire batch is retried on failure, make your handler idempotent — processing the same message twice should produce the same result. AWS SQS records include identifiers like `messageId` that you can use for deduplication if your processing semantics require it.
 
 
 ## Processing SQS messages
@@ -174,12 +174,12 @@ export const handler = async (event: { Records: Array<{ messageId: string; body:
   for (const record of event.Records) {
     const order = JSON.parse(record.body);
     console.info(`Processing order ${record.messageId}:`, order);
-    // your processing logic here
+    await saveOrder(order);
   }
 };
 ```
 
-If your producer sends JSON, parse `record.body` in the handler. If it sends plain text, use the string directly. The number of records in `event.Records` is bounded by your `batchSize` setting. For full details on the SQS event structure, see the [AWS Lambda with SQS documentation](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html).
+If your producer sends JSON, parse `record.body` in the handler. If it sends plain text, use the string directly. The number of records in `event.Records` is up to `batchSize`, and a batch may contain fewer records when the batching window expires or the 6 MB payload limit is reached. For full details on the SQS event structure, see the [AWS Lambda with SQS documentation](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html).
 
 ## API reference
 
@@ -209,9 +209,9 @@ You must specify either `sqsQueueName` or `sqsQueueArn`. | - |
 
 ## FAQ
 
-### Can I consume messages from an SQS queue in another AWS account?
+### Can I consume messages from an SQS queue not managed by this stack?
 
-Yes. Use the `sqsQueueArn` property to reference any SQS queue by its ARN, regardless of which account or stack owns it. The external queue's resource policy must grant your Lambda's execution role the AWS IAM permissions needed to poll and delete messages. See [using an external queue](#using-an-external-queue) above.
+Yes. Use the `sqsQueueArn` property to reference an existing SQS queue by its ARN. For cross-account queues, verify that your AWS setup grants the necessary permissions. See [using an external queue](#using-an-external-queue) above.
 
 ### Can I attach multiple Lambda functions to the same SQS queue?
 
@@ -219,19 +219,15 @@ No. Each standard SQS queue should have exactly one consumer. When a message is 
 
 ### What happens when my Lambda function fails to process a message?
 
-AWS returns the entire batch to the queue. After the visibility timeout expires, the messages become available for redelivery. Configure retry limits and a dead-letter queue on the [SQS queue resource](/resources/messaging/sqs-queue) to prevent infinite retries. Because the whole batch is replayed, make your handler idempotent.
+AWS returns the entire batch to the queue. After the visibility timeout expires, the messages become available for redelivery. `SqsIntegration` does not expose retry or dead-letter properties. AWS dead-letter behavior is configured on the queue through a redrive policy, not on the event source mapping. See the [SQS queue resource page](/resources/messaging/sqs-queue) for queue-level configuration options. Because the whole batch is replayed, make your handler idempotent.
 
 ### How do FIFO queues work with Lambda triggers?
 
-FIFO (First-In-First-Out) SQS queues guarantee ordering and exactly-once delivery. Reference a FIFO queue by `sqsQueueName` or `sqsQueueArn` the same way as a standard queue. With FIFO queues, Lambda processes messages in order within each message group ID. Concurrency scales with the number of active message group IDs rather than queue depth. See the [SQS queue resource page](/resources/messaging/sqs-queue) for FIFO configuration options including high-throughput mode.
-
-### Can I use SQS triggers with batch jobs?
-
-Yes. [Batch jobs](/resources/compute/batch-job) accept `SqsIntegration` events alongside Lambda functions. This is useful for long-running or resource-intensive tasks that exceed Lambda's 15-minute timeout or need GPU access. See the [batch job resource page](/resources/compute/batch-job) for configuration details and examples.
+If the referenced queue is FIFO, `SqsIntegration` still references it through `sqsQueueName` or `sqsQueueArn` the same way as a standard queue. FIFO ordering and deduplication are SQS queue-level settings — the `SqsIntegration` configuration is identical for both queue types. Lambda handlers should still be idempotent because SQS event processing can redeliver messages. See the [SQS queue resource page](/resources/messaging/sqs-queue) for queue configuration.
 
 ### How much does SQS cost?
 
-AWS SQS pricing is request-based. The first 1 million requests per month are included in the AWS Free Tier. After that, standard queues cost roughly $0.40 per million requests, and FIFO queues cost roughly $0.50 per million requests (varies by region). Message payloads up to 256 KB count as one request; larger payloads are billed as multiple requests in 64 KB chunks. For most Lambda-triggered workloads, SQS costs are negligible compared to Lambda execution costs.
+AWS SQS uses a request-based pricing model, with standard queues priced lower than FIFO queues and rates varying by region. AWS includes a free tier for SQS. For current rates and free-tier details, see [AWS SQS pricing](https://aws.amazon.com/sqs/pricing/). For most Lambda-triggered workloads, SQS costs are negligible compared to Lambda execution costs.
 
 ### SQS vs SNS — when should I use each?
 
@@ -239,7 +235,7 @@ Use SQS when you need a durable work queue with one consumer that processes mess
 
 ### SQS vs EventBridge — which is better for event routing?
 
-[EventBridge](/configuration/triggers/event-bus-events) excels at content-based routing — it filters events by field values and routes them to different targets without code. SQS is better for simple point-to-point message queuing where you want buffering, backpressure, and straightforward retries. EventBridge also has per-bus throughput limits; standard SQS queues scale to nearly unlimited throughput. Use EventBridge for routing decisions, SQS for reliable task processing.
+[EventBridge](/configuration/triggers/event-bus-events) excels at content-based routing — it filters events by field values and routes them to different targets without code. SQS is better for simple point-to-point message queuing where you want buffering, backpressure, and straightforward retries. Use EventBridge for routing decisions, SQS for reliable task processing.
 
 ### What is the maximum message size for SQS?
 

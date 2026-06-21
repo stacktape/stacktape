@@ -64,6 +64,8 @@ export class AthenaTableReference {
   WorkGroup!: Value<string>;
   TableName!: Value<string>;
   DatabaseName!: Value<string>;
+  Region?: Value<string>;
+  CatalogName?: Value<string>;
   OutputLocation?: Value<string>;
   constructor(properties: AthenaTableReference) {
     Object.assign(this, properties);
@@ -103,6 +105,7 @@ export class DifferentialPrivacyColumn {
 export class GlueTableReference {
   TableName!: Value<string>;
   DatabaseName!: Value<string>;
+  Region?: Value<string>;
   constructor(properties: GlueTableReference) {
     Object.assign(this, properties);
   }

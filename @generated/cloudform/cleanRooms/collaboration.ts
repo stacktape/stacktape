@@ -26,6 +26,7 @@ export class MLMemberAbilities {
 
 export class MLPaymentConfig {
   ModelInference?: ModelInferencePaymentConfig;
+  SyntheticDataGeneration?: SyntheticDataGenerationPaymentConfig;
   ModelTraining?: ModelTrainingPaymentConfig;
   constructor(properties: MLPaymentConfig) {
     Object.assign(this, properties);
@@ -59,8 +60,8 @@ export class ModelTrainingPaymentConfig {
 
 export class PaymentConfiguration {
   JobCompute?: JobComputePaymentConfig;
-  QueryCompute!: QueryComputePaymentConfig;
   MachineLearning?: MLPaymentConfig;
+  QueryCompute!: QueryComputePaymentConfig;
   constructor(properties: PaymentConfiguration) {
     Object.assign(this, properties);
   }
@@ -72,11 +73,19 @@ export class QueryComputePaymentConfig {
     Object.assign(this, properties);
   }
 }
+
+export class SyntheticDataGenerationPaymentConfig {
+  IsResponsible!: Value<boolean>;
+  constructor(properties: SyntheticDataGenerationPaymentConfig) {
+    Object.assign(this, properties);
+  }
+}
 export interface CollaborationProperties {
   AnalyticsEngine?: Value<string>;
   CreatorDisplayName: Value<string>;
   CreatorMemberAbilities?: List<Value<string>>;
   Description: Value<string>;
+  IsMetricsEnabled?: Value<boolean>;
   CreatorMLMemberAbilities?: MLMemberAbilities;
   Name: Value<string>;
   JobLogStatus?: Value<string>;
@@ -86,6 +95,7 @@ export interface CollaborationProperties {
   DataEncryptionMetadata?: DataEncryptionMetadata;
   Tags?: List<ResourceTag>;
   Members?: List<MemberSpecification>;
+  AllowedResultRegions?: List<Value<string>>;
 }
 export default class Collaboration extends ResourceBase<CollaborationProperties> {
   static DataEncryptionMetadata = DataEncryptionMetadata;
@@ -97,6 +107,7 @@ export default class Collaboration extends ResourceBase<CollaborationProperties>
   static ModelTrainingPaymentConfig = ModelTrainingPaymentConfig;
   static PaymentConfiguration = PaymentConfiguration;
   static QueryComputePaymentConfig = QueryComputePaymentConfig;
+  static SyntheticDataGenerationPaymentConfig = SyntheticDataGenerationPaymentConfig;
   constructor(properties: CollaborationProperties) {
     super('AWS::CleanRooms::Collaboration', properties);
   }

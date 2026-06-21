@@ -1,15 +1,17 @@
 # Self-Hosted GitHub Actions Runners
 
-Stacktape can manage self-hosted GitHub Actions runners on EC2 instances in your connected AWS account. You keep full GitHub Actions flexibility — custom steps, matrix builds, reusable workflows — while running jobs on persistent infrastructure with more compute, pre-installed tools, and automatic hibernation to reduce idle costs.
+Stacktape can manage self-hosted GitHub Actions runners on EC2 instances in your connected AWS account. You keep full GitHub Actions flexibility — custom steps, matrix builds, reusable workflows — while running jobs on a managed EC2 instance with more compute, pre-installed tools, and automatic hibernation to reduce idle costs.
+
+This page covers the EC2-based GitHub Actions runner configured through the Stacktape Console. For CodeBuild-based build runners used with GitOps deployments, see [Build runners](/ci-cd-and-gitops/build-runners).
 
 ## When to use
 
 Self-hosted runners make sense in two main scenarios:
 
-- **Slow builds on hosted runners.** Large `node_modules`, Docker image builds, or compiled-language builds are bottlenecked by GitHub-hosted runner CPU and network. An EC2 `c7a.2xlarge` (8 vCPU, 16 GB RAM) or larger instance finishes these builds significantly faster, and the instance persists between jobs so caches survive across runs.
-- **Cost optimization for high-volume workflows.** GitHub-hosted runner minutes add up at scale. With Stacktape-managed runners, you pay EC2 per-second pricing and the instance hibernates after 15 minutes of idle — you are not paying for a running instance between pushes.
+- **Slow builds on hosted runners.** Large `node_modules`, Docker image builds, or compiled-language builds are bottlenecked by GitHub-hosted runner CPU and network. An EC2 `c7a.2xlarge` gives the runner 8 vCPU and 16 GB RAM, and larger supported instance types are available for CPU-heavy builds. The instance can hibernate after idle time and resume for later jobs, avoiding full cold-start provisioning on each run.
+- **Cost optimization for high-volume workflows.** GitHub-hosted runner minutes add up at scale. With Stacktape-managed runners, you pay EC2 per-second pricing for the time the instance is running. The Console describes the runner as hibernating after 15 minutes of idle.
 
-Self-hosted runners also share an EC2 instance with Stacktape deployments, so your workflow and deploy steps run on the same infrastructure. The runner launches in your connected AWS account and the AWS region you select.
+The Console describes the runner as using the same EC2 instance as Stacktape deployments. The runner launches in your connected AWS account and the AWS region you select.
 
 ## When NOT to use
 
@@ -24,19 +26,19 @@ For most teams, GitHub-hosted runners or [GitOps with Console](/ci-cd-and-gitops
 The Stacktape GitHub App listens for `workflow_job` webhook events from your repository. When a job is queued with the `stacktape` label, the handler:
 
 1. **Identifies the project** — matches the repository URL to a Stacktape project in your organization. If multiple projects point to the same repo, a project with an explicit runner configuration takes priority.
-2. **Ensures the EC2 runner is available** — resumes a hibernated instance (~15 seconds) or provisions a fresh one (~30 seconds cold start).
-3. **Registers a JIT (Just-In-Time) ephemeral runner** — requests a single-use runner configuration from the GitHub API, scoped to this job. The runner is registered with labels `self-hosted`, `linux`, `x64`, and `stacktape`.
-4. **Dispatches the job via SSM** — sends the runner agent startup command to the EC2 instance using AWS Systems Manager. The GitHub Actions runner agent picks up the job, executes your workflow steps, and exits when done.
+2. **Ensures the EC2 runner is available** — calls `ensureRunner` for the project, AWS account, region, and instance type. The Console tooltip describes resume as ~15s and cold start as ~30s.
+3. **Registers a JIT runner configuration** — requests a JIT (Just-In-Time) runner configuration from the GitHub API with labels `self-hosted`, `linux`, `x64`, and `stacktape`, then starts that runner on the EC2 instance for the queued event.
+4. **Dispatches the job via SSM** — sends the runner agent startup command to the EC2 instance using AWS Systems Manager. The runner agent is started on the EC2 instance with the JIT config so GitHub can assign the queued job to it.
 
-After 15 minutes of idle, the instance automatically hibernates. Hibernation preserves the instance's memory state, so the next resume is fast. The handler also guards against duplicate webhook deliveries — if GitHub retries a webhook (e.g. on a 504 timeout), the duplicate is detected and skipped.
+The Console describes the runner as hibernating after 15 minutes of idle, resuming in approximately 15 seconds, and cold-starting in approximately 30 seconds. The handler also guards against duplicate webhook deliveries — if GitHub retries a webhook (e.g. on a 504 timeout), the duplicate is detected and skipped.
 
 
 ## Flow
 1. **Workflow queued**: GitHub sends a workflow_job webhook with the 'stacktape' label to the Stacktape GitHub App.
-2. **Runner ensured**: The handler resumes a hibernated EC2 instance (~15s) or provisions a new one (~30s cold start).
+2. **Runner ensured**: The handler calls ensureRunner for the project, AWS account, region, and instance type.
 3. **JIT runner registered**: A single-use runner is registered with GitHub via the JIT config API. Labels: self-hosted, linux, x64, stacktape.
 4. **Job dispatched**: SSM sends the runner agent script to the EC2 instance. Your workflow steps execute.
-5. **Auto-hibernate**: After 15 minutes with no new jobs, the instance hibernates to stop compute billing.
+5. **Hibernation**: After 15 minutes of idle, the instance hibernates per the Console tooltip.
 
 
 ## Setting up
@@ -57,10 +59,10 @@ Open your project in the Stacktape Console and open the GitHub Actions runner co
 |---------|-------------|---------|
 | **Status** | Enable or disable the runner for this project | Enabled |
 | **AWS account** | Which connected AWS account to launch the EC2 instance in | First active connected account |
-| **AWS region** | The region for the runner instance | Auto-detected from project deployments or account's primary region |
-| **Instance type** | EC2 instance size for the runner | `c7a.2xlarge` (8 vCPU, 16 GB RAM) |
+| **AWS region** | The region for the runner instance | Console form preselects the first active account's primary region |
+| **Instance type** | EC2 instance size for the runner | Console form preselects `c7a.2xlarge` (8 vCPU, 16 GB RAM) |
 
-If you do not explicitly set a region, Stacktape auto-detects it from your project's existing deployments. If no deployments exist yet, it falls back to the project's default region or the connected account's primary region. Similarly, if you do not select an AWS account, the first active connected account is used.
+The Console form requires both an AWS account and region when the runner is enabled. The AWS region default applies in two distinct contexts. In the Console form, opening the modal for a new configuration preselects the first active account's primary region. At runtime, if no region is saved on the runner configuration, the handler checks the project's deployment-region flags (the regions where this project has active stages) and picks the first match, then falls back to the project's default region. If no region can be determined at runtime, the handler logs an error and does not dispatch the job. Configure a region explicitly or deploy a stage first to avoid this. At runtime, if no `connectedAwsAccountId` is saved in the runner config (e.g. when no explicit runner config exists for the project), the handler falls back to the first active connected AWS account.
 
 ### Using the runner in a workflow
 
@@ -77,7 +79,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Deploy to production
-        run: npx stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+        run: npx stacktape deploy --stage production --region us-east-1
 ```
 
 The `stacktape` label is what makes Stacktape handle the job. Stacktape only processes jobs whose labels include `stacktape`. Jobs without that label are ignored by the Stacktape GitHub App and are scheduled according to the rest of your GitHub Actions `runs-on` configuration.
@@ -95,14 +97,14 @@ Choose an instance type based on your workflow's compute needs. Stacktape suppor
 | `m6a.large` | 2 | 8 GB | Light workflows, simple deploys |
 | `m6a.xlarge` | 4 | 16 GB | Medium builds with moderate dependencies |
 | `c7a.xlarge` | 4 | 8 GB | CPU-bound builds (Go, Rust compilation) |
-| `c7a.2xlarge` | 8 | 16 GB | **Default.** Good balance for most teams — fast Docker builds, large Node.js projects |
+| `c7a.2xlarge` | 8 | 16 GB | **Console default.** Good balance for most teams — fast Docker builds, large Node.js projects |
 | `c7a.4xlarge` | 16 | 32 GB | Large monorepos, parallel test suites, heavy Docker multi-stage builds |
 | `c7a.8xlarge` | 32 | 64 GB | Extreme workloads — ML model packaging, very large compilations |
 
 The `c7a` instances are compute-optimized (higher CPU-to-memory ratio), while `m6a` instances are general-purpose (balanced). For most CI workloads — building containers, running tests, packaging Lambda functions — `c7a.2xlarge` is the right starting point.
 
 
-> **Tip:** Start with the default `c7a.2xlarge`. If your workflows consistently finish quickly and don't use much memory, downsize to `c7a.xlarge` or `m6a.large`. If Docker builds or test suites are the bottleneck, try `c7a.4xlarge`.
+> **Tip:** Start with `c7a.2xlarge`. If your workflows consistently finish quickly and don't use much memory, downsize to `c7a.xlarge` or `m6a.large`. If Docker builds or test suites are the bottleneck, try `c7a.4xlarge`.
 
 
 ## Pre-installed tools
@@ -111,59 +113,46 @@ The runner comes with a development environment ready to use. Your workflow step
 
 | Tool | Notes |
 |------|-------|
-| **Node.js** | With npm bundled |
-| **Bun** | JavaScript/TypeScript runtime and package manager |
-| **Go** | Go compiler and toolchain |
-| **Java** | JDK runtime |
-| **Python 3** | System Python |
-| **Docker** | Available for container builds |
-| **AWS CLI** | Pre-configured with instance profile credentials |
-| **Git** | For repository operations |
+| **Node.js** | Pre-installed with npm |
+| **Bun** | Pre-installed |
+| **Go** | Pre-installed |
+| **Java** | Pre-installed |
+| **Python 3** | Pre-installed |
+| **Docker** | Available on the runner |
+| **AWS CLI** | Pre-installed |
+| **Git** | Pre-installed |
 
-If your workflow needs a tool not on this list, install it as a workflow step. The instance persists between jobs (until hibernation), so caches and installed packages survive across runs within the same active session.
+If your workflow needs a tool not on this list, install it as a workflow step.
 
 ## Hibernation and lifecycle
 
-Stacktape manages the runner lifecycle automatically to balance cost and responsiveness:
+Stacktape manages the runner lifecycle automatically to balance cost and responsiveness. The states described by the Console tooltip are:
 
 - **Active** — the instance runs your workflow steps.
-- **Idle** — after the last job completes, a 15-minute countdown starts.
-- **Hibernated** — after 15 minutes with no new jobs, the instance hibernates. Hibernation preserves the instance's memory to disk, so resume is fast (~15 seconds). You pay only for EBS storage while hibernated, not for compute.
-- **Resumed** — when a new `workflow_job` event arrives with the `stacktape` label, the handler resumes the hibernated instance. The runner agent is ready in ~15 seconds.
-- **Cold provisioned** — if no instance exists yet (first job ever, or the previous instance was terminated), a new EC2 instance is provisioned. Cold start takes approximately 30 seconds.
-
-The idle timeout is enforced automatically by a scheduled Lambda. An instance with in-progress work is not hibernated.
-
-
-> **Warning:** Hibernation preserves filesystem state (caches, installed tools, build artifacts). If you need a clean environment for every job, add cleanup steps to your workflow. For most teams, the warm cache is a benefit — subsequent builds are faster because `node_modules`, Docker layers, and compiled artifacts persist.
-
+- **Hibernated** — the Console describes the runner as hibernating after 15 minutes of idle.
+- **Resumed** — when a new `workflow_job` event arrives with the `stacktape` label, the handler calls `ensureRunner`. The Console tooltip describes resume as approximately 15 seconds.
+- **Cold provisioned** — the Console tooltip describes cold start as approximately 30 seconds when no existing instance is available.
 
 ## Cost
 
-You pay standard AWS EC2 pricing for the time the instance is running, plus EBS storage costs while hibernated. Check current EC2 pricing on the AWS pricing page for the exact rate for your region and instance type.
+You pay standard AWS EC2 pricing for the time the instance is running, plus the usual EBS storage costs for the instance's volumes. AWS EC2 hibernation is a documented AWS feature that suspends the instance and preserves state on EBS — refer to the AWS EC2 hibernation pricing page for the current rates in your region.
 
-| State | What you pay |
-|-------|-------------|
-| Running | EC2 per-second pricing for the instance type + EBS storage |
-| Hibernated | EBS storage only |
-| No instance | Nothing |
-
-Self-hosted runners can save money compared to GitHub-hosted runners when your builds are long (faster hardware finishes sooner) or when you run many builds per day (the hibernated instance resumes quickly and avoids re-provisioning). For short, infrequent builds, hosted runners may be simpler.
+Self-hosted runners are worth evaluating for long or frequent builds — EC2 runtime costs, EBS storage, and your current GitHub-hosted runner spend all factor into the comparison. For short, infrequent builds, hosted runners may be simpler.
 
 ## Self-hosted runners vs other CI/CD options
+
+For full details on the other options, see [GitOps with Console](/ci-cd-and-gitops/gitops-with-console), [Build runners](/ci-cd-and-gitops/build-runners), and [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd).
 
 
 ## Feature Comparison
 
-| Feature | Self-hosted runners | GitOps with Console | Custom CI/CD (hosted runners) |
+| Feature | Self-hosted runners | GitOps with Console | Custom CI/CD |
 | --- | --- | --- | --- |
 | Pipeline customization | Full GitHub Actions | None — git event triggers deploy | Full — any CI system |
 | Pre-deploy testing | yes | no | yes |
-| Runs in your AWS account | yes | yes | no |
 | Setup effort | Enable in Console + modify workflow YAML | Configure in Console only | Write workflow file |
-| Runner maintenance | Managed by Stacktape (hibernation, provisioning) | Managed by Stacktape | Managed by CI provider |
-| Build speed | Up to 32 vCPU, warm cache | Depends on build runner type | 2 vCPU on GitHub free tier |
-| Cost model | EC2 per-second + EBS | CodeBuild or EC2 runner | CI provider minutes |
+| Compute options | Up to 32 vCPU | See Build runners page | Varies by CI provider |
+| Cost model | EC2 per-second + EBS | See Build runners page | CI provider minutes |
 
 
 ## Example workflows
@@ -182,7 +171,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: bun install
       - run: bun run test
-      - run: npx stacktape deploy --stage prod --region us-east-1 --autoConfirmOperation
+      - run: npx stacktape deploy --stage prod --region us-east-1
 ```
 
 ### PR preview stages
@@ -199,7 +188,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: bun install
       - run: bun run test
-      - run: npx stacktape deploy --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --autoConfirmOperation
+      - run: npx stacktape deploy --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1
 ```
 
 Pair this with a cleanup workflow that runs on PR close:
@@ -214,7 +203,7 @@ jobs:
     runs-on: [self-hosted, stacktape]
     steps:
       - uses: actions/checkout@v4
-      - run: npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --autoConfirmOperation
+      - run: npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1
 ```
 
 See [Stacks per Git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for naming conventions and cleanup strategies.
@@ -242,7 +231,7 @@ jobs:
     runs-on: [self-hosted, stacktape]
     steps:
       - uses: actions/checkout@v4
-      - run: npx stacktape deploy --stage prod --region us-east-1 --autoConfirmOperation
+      - run: npx stacktape deploy --stage prod --region us-east-1
 ```
 
 ## Mixing with hosted runners
@@ -262,36 +251,34 @@ jobs:
     runs-on: [self-hosted, stacktape]
     steps:
       - uses: actions/checkout@v4
-      - run: npx stacktape deploy --stage prod --region us-east-1 --autoConfirmOperation
+      - run: npx stacktape deploy --stage prod --region us-east-1
 ```
 
 Run lightweight checks (lint, type-check) on free hosted runners and reserve the self-hosted runner for the resource-intensive deploy step. Since Stacktape only handles jobs whose `runs-on` labels include `stacktape`, the other jobs route to GitHub-hosted infrastructure normally.
 
 ## Disabling the runner
 
-To stop using the self-hosted runner for a project, set the status to **Disabled** in the Console runner configuration, or remove the configuration entirely. When disabled, `workflow_job` events with the `stacktape` label are ignored — your workflows will stall with "no matching runner" unless you update `runs-on` to use a hosted runner instead.
+To stop the self-hosted runner from processing jobs, set the status to **Disabled** in the Console runner configuration. When disabled, the handler returns early for `workflow_job` events with the `stacktape` label, so Stacktape will not dispatch those jobs to an EC2 runner. Change `runs-on` from `[self-hosted, stacktape]` to a GitHub-hosted label such as `ubuntu-latest` before disabling if those jobs should run elsewhere.
 
-
-> **Warning:** Disabling the runner configuration does not terminate the EC2 instance immediately. The instance hibernates after the idle timeout as usual. If you want to stop the instance right away, terminate it from the AWS EC2 console or wait for the idle timeout to trigger hibernation.
-
+The Console also offers a **Remove config** option, which deletes the saved runner settings (AWS account, region, and instance type). Removing the config is not the same as disabling: without a saved config, the handler still processes `stacktape`-labeled jobs using fallback resolution — first active connected AWS account for the account, and the project's deployment regions or default region for the region. At dispatch time, the handler passes the saved runner instance type when present, then the project-level instance type, then no explicit instance type. Use **Disabled** to explicitly stop processing `stacktape`-labeled jobs for a project.
 
 ## FAQ
 
 ### How do I set up a self-hosted GitHub Actions runner with Stacktape?
 
-Install the Stacktape GitHub App on your repository, connect an AWS account in the Stacktape Console, then enable the GitHub Actions runner configuration for your project. In your GitHub Actions workflow, set `runs-on: [self-hosted, stacktape]`. The runner infrastructure is provisioned automatically on the first job — no manual EC2 setup required.
+Install the Stacktape GitHub App on your repository, connect an AWS account in the Stacktape Console, then enable the GitHub Actions runner configuration for your project. In your GitHub Actions workflow, set `runs-on: [self-hosted, stacktape]`. When a queued job with the `stacktape` label arrives, the handler calls `ensureRunner` for the project, AWS account, region, and instance type — no manual EC2 setup required.
 
 ### Do I need to store AWS credentials or API keys in GitHub Secrets?
 
-No. `STACKTAPE_API_KEY` is automatically injected into the runner environment by the Stacktape handler when dispatching the job. The EC2 instance uses an IAM instance profile for AWS access, so you do not need IAM access keys as GitHub Secrets either.
+You do not need to store `STACKTAPE_API_KEY` as a GitHub secret — the handler automatically injects it when dispatching the job to the EC2 instance. The source only documents automatic `STACKTAPE_API_KEY` injection. If a workflow step needs other credentials, configure them according to your team's GitHub Actions credential policy.
 
 ### How fast does the runner start?
 
-If the instance is hibernated (the common case after 15+ minutes of idle), it resumes in approximately 15 seconds. A cold start — provisioning a brand-new instance — takes approximately 30 seconds. Once the instance is running, it picks up new jobs without additional startup delay until the idle timeout triggers hibernation again.
+The Console tooltip describes resume as ~15s and cold start as ~30s. A running instance avoids resume or cold-provisioning time, but each queued job still requires a JIT runner configuration and SSM dispatch before execution begins.
 
 ### When should I use self-hosted runners vs GitHub-hosted runners?
 
-Self-hosted runners are better when you need more compute (up to 32 vCPU), want warm caches between builds, or run enough CI minutes that EC2 per-second pricing is cheaper than GitHub's per-minute billing. GitHub-hosted runners are simpler for teams with short, infrequent workflows — no EC2 instance to manage and no idle cost. Most teams start on hosted runners and switch to self-hosted when build speed or cost becomes a bottleneck.
+Self-hosted runners are better when you need more compute (up to 32 vCPU) or run enough CI minutes that EC2 per-second pricing is cheaper than GitHub's per-minute billing. GitHub-hosted runners are simpler for teams with short, infrequent workflows — no EC2 instance to manage and no idle cost. Most teams start on hosted runners and switch to self-hosted when build speed or cost becomes a bottleneck.
 
 ### Can I use self-hosted runners together with GitOps?
 
@@ -299,15 +286,15 @@ These are separate features. [GitOps with Console](/ci-cd-and-gitops/gitops-with
 
 ### Can I use self-hosted runners for non-Stacktape workflows?
 
-Yes. The runner is a standard GitHub Actions self-hosted runner with pre-installed development tools. Any workflow step that runs on a Linux x64 runner works — you can use it for tests, builds, deployments to other platforms, or any other automation. `STACKTAPE_API_KEY` is injected automatically, but you are not required to use it.
+The runner executes GitHub Actions jobs that include the `stacktape` label on a Linux x64 JIT runner. Use it for Stacktape deployment workflows and other GitHub Actions steps where that operational model fits. `STACKTAPE_API_KEY` is injected automatically, but you are not required to use it.
 
 ### What operating system and architecture does the runner use?
 
-The runner uses Linux on x86_64 (amd64) architecture. It registers with GitHub using the labels `self-hosted`, `linux`, `x64`, and `stacktape`. ARM/Graviton-based runners are not currently available.
+Stacktape registers the JIT runner with GitHub labels `self-hosted`, `linux`, `x64`, and `stacktape`. The Console instance selector currently lists `m6a` and `c7a` instance types (both AMD x86_64).
 
 ### How does Stacktape decide which AWS region to use?
 
-If you set a region in the runner configuration, that region is used. Otherwise, Stacktape auto-detects the region from your project's existing deployments — it checks which regions have active stages and picks the first match. If no deployments exist, it falls back to the project's default region or the connected account's primary region. You can always override this by explicitly selecting a region in the configuration.
+If you set a region in the runner configuration, that region is used. Otherwise, at runtime the handler checks the project's deployment-region flags — the regions where the project has active stages — and picks the first match. If no deployment region is found, it falls back to the project's default region. If no region can be determined, the handler logs an error and does not dispatch the job. Configure a region explicitly or deploy a stage first.
 
 ### What happens if the Stacktape GitHub App receives duplicate webhooks?
 
@@ -315,4 +302,4 @@ GitHub may retry webhook deliveries on timeout or 504 responses. The handler gua
 
 ### How do I troubleshoot a failed runner job?
 
-Check the GitHub Actions job log first — it shows the workflow step output including any errors. If the runner itself failed to start, check the Stacktape Console for the project's runner status. Common issues: the connected AWS account was disconnected, no region could be determined (configure one explicitly or deploy a stage first), or the runner was disabled in the configuration.
+Check the GitHub Actions job log first — it shows the workflow step output including any errors. If the runner itself failed to start, verify the runner configuration in the Stacktape Console: confirm the connected AWS account is active, a region is set (or a stage is deployed so the region can be auto-detected), and the runner status is not set to Disabled. Common issues: the connected AWS account was disconnected, no region could be determined, or the runner was disabled.

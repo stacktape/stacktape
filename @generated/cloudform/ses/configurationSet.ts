@@ -1,5 +1,20 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
+export class ArchivingOptions {
+  ArchiveArn?: Value<string>;
+  constructor(properties: ArchivingOptions) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ConditionThreshold {
+  OverallConfidenceThreshold?: OverallConfidenceThreshold;
+  ConditionThresholdEnabled!: Value<string>;
+  constructor(properties: ConditionThreshold) {
+    Object.assign(this, properties);
+  }
+}
+
 export class DashboardOptions {
   EngagementMetrics!: Value<string>;
   constructor(properties: DashboardOptions) {
@@ -23,6 +38,13 @@ export class GuardianOptions {
   }
 }
 
+export class OverallConfidenceThreshold {
+  ConfidenceVerdictThreshold!: Value<string>;
+  constructor(properties: OverallConfidenceThreshold) {
+    Object.assign(this, properties);
+  }
+}
+
 export class ReputationOptions {
   ReputationMetricsEnabled?: Value<boolean>;
   constructor(properties: ReputationOptions) {
@@ -39,6 +61,7 @@ export class SendingOptions {
 
 export class SuppressionOptions {
   SuppressedReasons?: List<Value<string>>;
+  ValidationOptions?: ValidationOptions;
   constructor(properties: SuppressionOptions) {
     Object.assign(this, properties);
   }
@@ -48,6 +71,13 @@ export class TrackingOptions {
   HttpsPolicy?: Value<string>;
   CustomRedirectDomain?: Value<string>;
   constructor(properties: TrackingOptions) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ValidationOptions {
+  ConditionThreshold!: ConditionThreshold;
+  constructor(properties: ValidationOptions) {
     Object.assign(this, properties);
   }
 }
@@ -65,18 +95,23 @@ export interface ConfigurationSetProperties {
   TrackingOptions?: TrackingOptions;
   ReputationOptions?: ReputationOptions;
   VdmOptions?: VdmOptions;
+  ArchivingOptions?: ArchivingOptions;
   DeliveryOptions?: DeliveryOptions;
   Tags?: List<ResourceTag>;
   Name?: Value<string>;
 }
 export default class ConfigurationSet extends ResourceBase<ConfigurationSetProperties> {
+  static ArchivingOptions = ArchivingOptions;
+  static ConditionThreshold = ConditionThreshold;
   static DashboardOptions = DashboardOptions;
   static DeliveryOptions = DeliveryOptions;
   static GuardianOptions = GuardianOptions;
+  static OverallConfidenceThreshold = OverallConfidenceThreshold;
   static ReputationOptions = ReputationOptions;
   static SendingOptions = SendingOptions;
   static SuppressionOptions = SuppressionOptions;
   static TrackingOptions = TrackingOptions;
+  static ValidationOptions = ValidationOptions;
   static VdmOptions = VdmOptions;
   constructor(properties?: ConfigurationSetProperties) {
     super('AWS::SES::ConfigurationSet', properties || {});

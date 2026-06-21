@@ -75,8 +75,8 @@ export class AuthenticationConfiguration {
 }
 
 export class BufferingHints {
-  IntervalInSeconds?: Value<number>;
   SizeInMBs?: Value<number>;
+  IntervalInSeconds?: Value<number>;
   constructor(properties: BufferingHints) {
     Object.assign(this, properties);
   }
@@ -91,8 +91,8 @@ export class CatalogConfiguration {
 }
 
 export class CloudWatchLoggingOptions {
-  LogStreamName?: Value<string>;
   Enabled?: Value<boolean>;
+  LogStreamName?: Value<string>;
   LogGroupName?: Value<string>;
   constructor(properties: CloudWatchLoggingOptions) {
     Object.assign(this, properties);
@@ -260,8 +260,8 @@ export class ElasticsearchRetryOptions {
 }
 
 export class EncryptionConfiguration {
-  KMSEncryptionConfig?: KMSEncryptionConfig;
   NoEncryptionConfig?: Value<string>;
+  KMSEncryptionConfig?: KMSEncryptionConfig;
   constructor(properties: EncryptionConfiguration) {
     Object.assign(this, properties);
   }

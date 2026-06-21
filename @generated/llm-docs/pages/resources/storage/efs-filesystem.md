@@ -6,7 +6,7 @@ EFS Standard storage costs ~$0.30/GB/month with no minimum commitment — you pa
 
 ## When to use
 
-Use an EfsFilesystem when multiple workloads need to read and write the same files through a standard POSIX filesystem interface — a mounted directory where `fs.readFile`, `open()`, and other standard file I/O calls work without changes. EFS handles concurrent access across containers and availability zones.
+Use an EfsFilesystem when multiple workloads need to read and write the same files through a standard filesystem interface — a mounted directory where `fs.readFile`, `open()`, and other standard file I/O calls work without changes. EFS handles concurrent access across containers in your stack.
 
 Common EFS use cases:
 
@@ -26,7 +26,7 @@ EFS is not the right fit for every storage need. Consider these alternatives:
 | Hosting a static website or SPA | [HostingBucket](/resources/frontend/static-hosting) — includes CDN, routing, and caching |
 | Structured or queryable data | [RelationalDatabase](/resources/databases/relational-database) or [DynamoDbTable](/resources/databases/dynamodb) |
 
-**Cost comparison:** EFS at ~$0.30/GB/month is roughly 10x more expensive than S3 Standard (~$0.023/GB/month). Use EFS only when you need a mounted filesystem — for object storage patterns (upload, download, list via SDK), an [S3 Bucket](/resources/storage/s3-bucket) is more cost-effective.
+**Cost comparison:** EFS at ~$0.30/GB/month is roughly an order of magnitude more expensive than S3 Standard storage. Use EFS only when you need a mounted filesystem — for object storage patterns (upload, download, list via SDK), an [S3 Bucket](/resources/storage/s3-bucket) is more cost-effective.
 
 ## Basic example
 
@@ -87,7 +87,7 @@ export default defineConfig(() => {
 ```
 
 
-The `provisionedThroughputInMibps` value sets guaranteed throughput — `100` means 100 MiB/s. You can adjust this value on subsequent deployments without replacing the filesystem. Additional per-MiB/s fees apply on top of storage costs.
+The `provisionedThroughputInMibps` value sets guaranteed throughput — `100` means 100 MiB/s. This value can be changed anytime. Additional per-MiB/s fees apply on top of storage costs.
 
 
 > **Warning:** Provisioned throughput incurs additional fees based on the amount provisioned, regardless of actual usage. Only use this mode when elastic throughput cannot meet your performance requirements.
@@ -122,69 +122,15 @@ export default defineConfig(() => {
 
 **When to enable:** Enable backups for any EFS filesystem storing data you cannot regenerate — user uploads, CMS media, application state. **When to skip:** Skip backups for ephemeral data like temporary processing files or ML model weights that can be re-downloaded from their source. **Tradeoff:** AWS Backup charges for the storage consumed by backup copies, but incremental backups keep this cost low for filesystems that don't change rapidly.
 
-`EfsFilesystemProps` does not expose schedule or retention controls beyond the daily/35-day default. If you need custom backup policies (different schedules, longer retention, or cross-region replication), configure AWS Backup separately outside of the EFS resource configuration.
+`EfsFilesystemProps` only exposes `backupEnabled`; schedule, retention, and cross-region backup settings are not modeled on this resource.
 
 ## Mounting to workloads
 
-EFS filesystems are accessible from any container in your stack through the `volumeMounts` property. The volume appears as a standard directory — your application reads and writes files using normal filesystem calls. Data stored in EFS volumes persists even when containers are replaced, and all data is encrypted in transit automatically.
+EFS filesystems are accessible from containers in your stack through the `volumeMounts` property on container workloads. The volume appears as a standard directory — your application reads and writes files using normal filesystem calls. Data stored in EFS volumes persists even when containers are replaced.
 
-Container workload types such as [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), and [multi-container workload](/resources/compute/multi-container-workload) expose the `volumeMounts` property. Consult each resource's API reference for the full set of volume mount options.
+This page defines the EFS filesystem resource itself. The mount object shape (`volumeMounts` entries) is defined on each workload type — see the API references for [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), and [multi-container workload](/resources/compute/multi-container-workload) for the exact configuration.
 
-Each `volumeMounts` entry specifies the EFS resource name and a mount path inside the container:
-
-- **`efsFilesystemName`** — the name of the EfsFilesystem resource in your config (must match the key in `resources`)
-- **`mountPath`** — the absolute path inside the container where the volume appears (e.g., `/data`, `/mnt/uploads`)
-- **`rootDirectory`** — (optional) a subdirectory within the EFS filesystem to mount, restricting the container's view to that directory (defaults to `/`, the entire filesystem)
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  EfsFilesystem,
-  WebService,
-  StacktapeImageBuildpackPackaging
-} from 'stacktape';
-export default defineConfig(() => {
-  const sharedStorage = new EfsFilesystem({
-    backupEnabled: true
-  });
-
-  const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
-      entryfilePath: './src/server.ts'
-    }),
-    resources: {
-      cpu: 0.25,
-      memory: 512
-    },
-    volumeMounts: [
-      {
-        type: 'efs',
-        properties: {
-          efsFilesystemName: 'sharedStorage',
-          mountPath: '/mnt/uploads'
-        }
-      }
-    ]
-  });
-
-  return {
-    resources: { sharedStorage, api }
-  };
-});
-```
-
-
-The `api` web service mounts the `sharedStorage` EFS filesystem at `/mnt/uploads`. The application can then read and write files to that path using standard filesystem operations. Multiple containers can mount the same EFS volume and share files through it — EFS handles concurrent reads and writes using standard POSIX file-locking semantics.
-
-
-> **Tip:** Use `rootDirectory` to isolate workloads that share a single EFS filesystem. For example, one service can mount `/uploads` while another mounts `/cache`, each seeing only its own subdirectory.
-
-
-> **Info:** [Lambda functions](/resources/compute/lambda-function) also support EFS mounts through a separate `LambdaEfsMount` configuration. Lambda EFS mounts require the function to join a VPC (`joinDefaultVpc: true`) and mount paths must start with `/mnt/` (e.g., `/mnt/data`). See the [Lambda function page](/resources/compute/lambda-function) for details.
-
+Multiple containers can mount the same EFS volume and share files through it, making EFS practical for shared upload directories, CMS media, and similar workloads.
 
 ## API Reference
 
@@ -210,11 +156,19 @@ type EfsFilesystemProps = {
 **`bursting`**: Throughput scales with storage size (50 KiB/s per GiB). Can run out of burst credits. | `elastic` |
 
 
+## Referenceable parameters
+
+EFS filesystems expose the following parameter for use with [`$ResourceParam`](/configuration/referenceable-parameters):
+
+| Parameter | Description | Usage |
+|---|---|---|
+| `arn` | ARN of the EFS filesystem | `$ResourceParam('myEfs', 'arn')` |
+
 ## FAQ
 
 ### How do I mount an EFS volume to a workload?
 
-Define an `EfsFilesystem` resource in your config, then add it to the `volumeMounts` array on a container workload. Each mount entry specifies the EFS resource name and a `mountPath`. Your application accesses the mounted volume using standard file I/O — no SDK required. All data is encrypted in transit automatically.
+Define an `EfsFilesystem` resource in your config, then add it to the `volumeMounts` array on a container workload. Consult the workload's API reference for the exact mount entry shape. Your application accesses the mounted volume using standard file I/O — no SDK required, and all data is encrypted in transit automatically.
 
 ### How much does Amazon EFS cost?
 
@@ -222,7 +176,7 @@ EFS Standard storage costs ~$0.30/GB/month with no upfront commitment. You pay o
 
 ### Can multiple containers access the same EFS filesystem?
 
-Yes. EFS is designed for shared access — multiple container replicas, and even containers from different workloads in the same stack, can mount the same filesystem simultaneously. EFS uses standard POSIX file-locking semantics to handle concurrent reads and writes. This makes it practical for CMS platforms, shared upload directories, and any workload where multiple containers need access to the same files.
+Yes. Multiple container replicas, and even containers from different workloads in the same stack, can mount the same EFS filesystem simultaneously. Underneath, Amazon EFS is a shared network filesystem designed for concurrent access. This makes it practical for CMS platforms, shared upload directories, and any workload where multiple containers need access to the same files.
 
 ### EFS vs S3 — when should I use each?
 
@@ -234,20 +188,20 @@ Start with `elastic` (the default) — it auto-scales with demand and requires n
 
 ### Does EFS have a storage limit?
 
-Amazon EFS has no practical storage limit — filesystems can scale to petabytes automatically. You don't need to provision capacity in advance; the filesystem grows as you write data and shrinks as you delete it. There are no minimum storage charges beyond what you actually use.
+Underneath, Amazon EFS has no pre-set storage limit — AWS documentation states filesystems grow and shrink automatically with usage. You don't need to provision capacity in advance; the filesystem expands as you write data and contracts as you delete it. There are no minimum storage charges beyond what you actually use.
 
 ### How do I back up an EFS filesystem?
 
-Set `backupEnabled: true` in your EfsFilesystem config to enable daily automatic backups through AWS Backup with 35-day retention. Backups are incremental, so only changes since the last backup are copied. `EfsFilesystemProps` does not expose schedule or retention controls; for custom backup policies, configure AWS Backup separately.
+Set `backupEnabled: true` in your EfsFilesystem config to enable daily automatic backups through AWS Backup with 35-day retention. Backups are incremental, so only changes since the last backup are copied. `EfsFilesystemProps` only exposes `backupEnabled`; schedule, retention, and cross-region backup settings are not modeled on this resource.
 
 ### Can I use EFS with Lambda functions?
 
-Yes. Stacktape Lambda functions support EFS mounts through the `LambdaEfsMount` type. Lambda EFS mounts require the function to join a VPC (`joinDefaultVpc: true`) and mount paths must start with `/mnt/`. This is useful for functions that need access to large datasets or shared files that exceed Lambda's `/tmp` storage. See the [Lambda function page](/resources/compute/lambda-function) for configuration details.
+AWS Lambda supports mounting EFS filesystems at the AWS level. The Stacktape `EfsFilesystemProps` type does not model Lambda-specific mount configuration — the `volumeMounts` property is available on container workloads. See the [Lambda function page](/resources/compute/lambda-function) for details on what Stacktape exposes for Lambda functions.
 
 ### Does EFS encrypt data?
 
-EFS encrypts all data in transit between your workloads and the filesystem automatically — no configuration needed. For at-rest encryption, `EfsFilesystemProps` does not expose a dedicated setting. AWS EFS supports at-rest encryption using AWS KMS keys at the service level — consult [overrides](/configuration/overrides-and-escape-hatches) if you need to configure the underlying CloudFormation encryption properties.
+Data in transit between container workloads and EFS volumes is encrypted automatically, as noted in the `volumeMounts` property documentation. `EfsFilesystemProps` does not expose a dedicated at-rest encryption setting. Underneath, AWS EFS supports at-rest encryption using AWS KMS keys — use [overrides](/configuration/overrides-and-escape-hatches) to configure this after verifying the generated CloudFormation resource.
 
 ### EFS vs EBS — what's the difference?
 
-Amazon EFS is a shared network filesystem — multiple containers across availability zones can mount it simultaneously. Amazon EBS is block storage attached to a single compute instance with lower latency and higher IOPS, but accessible by only one instance at a time. In Stacktape, EFS is the built-in shared storage option via `EfsFilesystem` and `volumeMounts`. EBS is not listed as a Stacktape resource type — for single-instance, high-IOPS workloads, consider whether EFS in provisioned throughput mode meets your requirements.
+Amazon EFS is a shared network filesystem — multiple containers can mount it simultaneously. Amazon EBS is block storage attached to a single compute instance, accessible by only one instance at a time. The Stacktape resource union includes `EfsFilesystem`; it does not include a dedicated EBS resource type. If your workload requires single-instance block storage, EFS with provisioned throughput mode or [overrides](/configuration/overrides-and-escape-hatches) may be worth investigating.

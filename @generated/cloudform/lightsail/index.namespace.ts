@@ -3,6 +3,7 @@ import Bucket_ from './bucket';
 import Certificate_ from './certificate';
 import Container_ from './container';
 import Database_ from './database';
+import DatabaseSnapshot_ from './databaseSnapshot';
 import Disk_ from './disk';
 import DiskSnapshot_ from './diskSnapshot';
 import Instance_ from './instance';
@@ -18,6 +19,7 @@ export namespace Lightsail {
   export const Certificate = Certificate_;
   export const Container = Container_;
   export const Database = Database_;
+  export const DatabaseSnapshot = DatabaseSnapshot_;
   export const Disk = Disk_;
   export const DiskSnapshot = DiskSnapshot_;
   export const Instance = Instance_;
@@ -32,6 +34,7 @@ export namespace Lightsail {
   export type Certificate = Certificate_;
   export type Container = Container_;
   export type Database = Database_;
+  export type DatabaseSnapshot = DatabaseSnapshot_;
   export type Disk = Disk_;
   export type DiskSnapshot = DiskSnapshot_;
   export type Instance = Instance_;

@@ -1,2 +1,2 @@
-import { ACMPCA } from './index.namespace';
-export default ACMPCA;
+import {ACMPCA} from './index.namespace'
+export default ACMPCA

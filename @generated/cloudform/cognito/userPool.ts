@@ -58,6 +58,14 @@ export class EmailConfiguration {
   }
 }
 
+export class InboundFederation {
+  LambdaArn?: Value<string>;
+  LambdaVersion?: Value<string>;
+  constructor(properties: InboundFederation) {
+    Object.assign(this, properties);
+  }
+}
+
 export class InviteMessageTemplate {
   EmailMessage?: Value<string>;
   SMSMessage?: Value<string>;
@@ -77,6 +85,7 @@ export class LambdaConfig {
   PreAuthentication?: Value<string>;
   DefineAuthChallenge?: Value<string>;
   PreTokenGeneration?: Value<string>;
+  InboundFederation?: InboundFederation;
   CustomSMSSender?: CustomSMSSender;
   PostConfirmation?: Value<string>;
   CustomMessage?: Value<string>;
@@ -221,6 +230,7 @@ export interface UserPoolProperties {
   VerificationMessageTemplate?: VerificationMessageTemplate;
   MfaConfiguration?: Value<string>;
   DeletionProtection?: Value<string>;
+  WebAuthnFactorConfiguration?: Value<string>;
   SmsAuthenticationMessage?: Value<string>;
   WebAuthnUserVerification?: Value<string>;
   UserPoolAddOns?: UserPoolAddOns;
@@ -241,6 +251,7 @@ export default class UserPool extends ResourceBase<UserPoolProperties> {
   static CustomSMSSender = CustomSMSSender;
   static DeviceConfiguration = DeviceConfiguration;
   static EmailConfiguration = EmailConfiguration;
+  static InboundFederation = InboundFederation;
   static InviteMessageTemplate = InviteMessageTemplate;
   static LambdaConfig = LambdaConfig;
   static NumberAttributeConstraints = NumberAttributeConstraints;

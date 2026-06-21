@@ -1,10 +1,11 @@
-import { Value } from './dataTypes';
+import type { Value } from './dataTypes';
 
-export default interface Output {
+type Output = {
   Description?: Value<string>;
   Value: any;
   Export?: {
     Name: Value<string>;
   };
   Condition?: Value<string>;
-}
+};
+export default Output;

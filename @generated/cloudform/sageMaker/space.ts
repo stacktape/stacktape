@@ -71,9 +71,9 @@ export class OwnershipSettings {
 }
 
 export class ResourceSpec {
-  LifecycleConfigArn?: Value<string>;
   SageMakerImageArn?: Value<string>;
   InstanceType?: Value<string>;
+  LifecycleConfigArn?: Value<string>;
   SageMakerImageVersionArn?: Value<string>;
   constructor(properties: ResourceSpec) {
     Object.assign(this, properties);

@@ -7,6 +7,9 @@ import FlowOutput_ from './flowOutput';
 import FlowSource_ from './flowSource';
 import FlowVpcInterface_ from './flowVpcInterface';
 import Gateway_ from './gateway';
+import RouterInput_ from './routerInput';
+import RouterNetworkInterface_ from './routerNetworkInterface';
+import RouterOutput_ from './routerOutput';
 export namespace MediaConnect {
   export const Bridge = Bridge_;
   export const BridgeOutput = BridgeOutput_;
@@ -17,6 +20,9 @@ export namespace MediaConnect {
   export const FlowSource = FlowSource_;
   export const FlowVpcInterface = FlowVpcInterface_;
   export const Gateway = Gateway_;
+  export const RouterInput = RouterInput_;
+  export const RouterNetworkInterface = RouterNetworkInterface_;
+  export const RouterOutput = RouterOutput_;
   export type Bridge = Bridge_;
   export type BridgeOutput = BridgeOutput_;
   export type BridgeSource = BridgeSource_;
@@ -26,4 +32,7 @@ export namespace MediaConnect {
   export type FlowSource = FlowSource_;
   export type FlowVpcInterface = FlowVpcInterface_;
   export type Gateway = Gateway_;
+  export type RouterInput = RouterInput_;
+  export type RouterNetworkInterface = RouterNetworkInterface_;
+  export type RouterOutput = RouterOutput_;
 }

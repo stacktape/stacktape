@@ -35,6 +35,14 @@ export class Consolidation {
   }
 }
 
+export class DataStore {
+  Readiness?: Readiness;
+  Enabled?: Value<boolean>;
+  constructor(properties: DataStore) {
+    Object.assign(this, properties);
+  }
+}
+
 export class DomainStats {
   MeteringProfileCount?: Value<number>;
   ProfileCount?: Value<number>;
@@ -77,6 +85,14 @@ export class MatchingRule {
   }
 }
 
+export class Readiness {
+  Message?: Value<string>;
+  ProgressPercentage?: Value<number>;
+  constructor(properties: Readiness) {
+    Object.assign(this, properties);
+  }
+}
+
 export class RuleBasedMatching {
   Status?: Value<string>;
   MaxAllowedRuleLevelForMerging?: Value<number>;
@@ -103,6 +119,7 @@ export interface DomainProperties {
   DefaultExpirationDays: Value<number>;
   DomainName: Value<string>;
   DeadLetterQueueUrl?: Value<string>;
+  DataStore?: DataStore;
   DefaultEncryptionKey?: Value<string>;
   RuleBasedMatching?: RuleBasedMatching;
   Tags?: List<ResourceTag>;
@@ -112,11 +129,13 @@ export default class Domain extends ResourceBase<DomainProperties> {
   static AutoMerging = AutoMerging;
   static ConflictResolution = ConflictResolution;
   static Consolidation = Consolidation;
+  static DataStore = DataStore;
   static DomainStats = DomainStats;
   static ExportingConfig = ExportingConfig;
   static JobSchedule = JobSchedule;
   static Matching = Matching;
   static MatchingRule = MatchingRule;
+  static Readiness = Readiness;
   static RuleBasedMatching = RuleBasedMatching;
   static S3ExportingConfig = S3ExportingConfig;
   constructor(properties: DomainProperties) {

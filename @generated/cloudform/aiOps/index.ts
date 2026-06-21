@@ -1,2 +1,2 @@
-import { AIOps } from './index.namespace';
-export default AIOps;
+import {AIOps} from './index.namespace'
+export default AIOps

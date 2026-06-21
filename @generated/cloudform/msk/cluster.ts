@@ -47,6 +47,7 @@ export class ConfigurationInfo {
 }
 
 export class ConnectivityInfo {
+  NetworkType?: Value<string>;
   VpcConnectivity?: VpcConnectivity;
   PublicAccess?: PublicAccess;
   constructor(properties: ConnectivityInfo) {
@@ -151,6 +152,13 @@ export class PublicAccess {
   }
 }
 
+export class Rebalancing {
+  Status!: Value<string>;
+  constructor(properties: Rebalancing) {
+    Object.assign(this, properties);
+  }
+}
+
 export class S3 {
   Bucket?: Value<string>;
   Enabled!: Value<boolean>;
@@ -240,17 +248,25 @@ export class VpcConnectivityTls {
     Object.assign(this, properties);
   }
 }
+
+export class ZookeeperAccess {
+  Enabled?: Value<boolean>;
+  constructor(properties: ZookeeperAccess) {
+    Object.assign(this, properties);
+  }
+}
 export interface ClusterProperties {
   KafkaVersion: Value<string>;
   NumberOfBrokerNodes: Value<number>;
+  Rebalancing?: Rebalancing;
   EncryptionInfo?: EncryptionInfo;
   OpenMonitoring?: OpenMonitoring;
-  CurrentVersion?: Value<string>;
   StorageMode?: Value<string>;
   ConfigurationInfo?: ConfigurationInfo;
   BrokerNodeGroupInfo: BrokerNodeGroupInfo;
   EnhancedMonitoring?: Value<string>;
   ClusterName: Value<string>;
+  ZookeeperAccess?: ZookeeperAccess;
   ClientAuthentication?: ClientAuthentication;
   LoggingInfo?: LoggingInfo;
   Tags?: { [key: string]: Value<string> };
@@ -275,6 +291,7 @@ export default class Cluster extends ResourceBase<ClusterProperties> {
   static Prometheus = Prometheus;
   static ProvisionedThroughput = ProvisionedThroughput;
   static PublicAccess = PublicAccess;
+  static Rebalancing = Rebalancing;
   static S3 = S3;
   static Sasl = Sasl;
   static Scram = Scram;
@@ -287,6 +304,7 @@ export default class Cluster extends ResourceBase<ClusterProperties> {
   static VpcConnectivitySasl = VpcConnectivitySasl;
   static VpcConnectivityScram = VpcConnectivityScram;
   static VpcConnectivityTls = VpcConnectivityTls;
+  static ZookeeperAccess = ZookeeperAccess;
   constructor(properties: ClusterProperties) {
     super('AWS::MSK::Cluster', properties);
   }

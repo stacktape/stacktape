@@ -1,4 +1,5 @@
-import { Value, List, IntrinsicFunction, ConditionIntrinsicFunction, Condition } from './dataTypes';
+import type { Condition, List, Value } from './dataTypes';
+import { ConditionIntrinsicFunction, IntrinsicFunction } from './dataTypes';
 
 export function Base64(value: Value<string>) {
   return new IntrinsicFunction('Fn::Base64', value);

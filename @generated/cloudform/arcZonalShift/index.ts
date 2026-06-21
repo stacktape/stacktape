@@ -1,2 +1,2 @@
-import { ARCZonalShift } from './index.namespace';
-export default ARCZonalShift;
+import {ARCZonalShift} from './index.namespace'
+export default ARCZonalShift

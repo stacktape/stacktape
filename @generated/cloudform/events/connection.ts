@@ -36,9 +36,9 @@ export class ClientParameters {
 }
 
 export class ConnectionHttpParameters {
+  BodyParameters?: List<Parameter>;
   HeaderParameters?: List<Parameter>;
   QueryStringParameters?: List<Parameter>;
-  BodyParameters?: List<Parameter>;
   constructor(properties: ConnectionHttpParameters) {
     Object.assign(this, properties);
   }
@@ -78,8 +78,8 @@ export class Parameter {
 }
 
 export class ResourceParameters {
-  ResourceAssociationArn?: Value<string>;
   ResourceConfigurationArn!: Value<string>;
+  ResourceAssociationArn?: Value<string>;
   constructor(properties: ResourceParameters) {
     Object.assign(this, properties);
   }

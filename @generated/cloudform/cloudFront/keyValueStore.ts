@@ -1,4 +1,4 @@
-import { ResourceBase } from '../resource';
+import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class ImportSource {
   SourceArn!: Value<string>;
@@ -10,6 +10,7 @@ export class ImportSource {
 export interface KeyValueStoreProperties {
   Comment?: Value<string>;
   ImportSource?: ImportSource;
+  Tags?: List<ResourceTag>;
   Name: Value<string>;
 }
 export default class KeyValueStore extends ResourceBase<KeyValueStoreProperties> {

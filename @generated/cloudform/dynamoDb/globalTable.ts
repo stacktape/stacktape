@@ -19,9 +19,16 @@ export class CapacityAutoScalingSettings {
 }
 
 export class ContributorInsightsSpecification {
-  Mode?: Value<string>;
   Enabled!: Value<boolean>;
+  Mode?: Value<string>;
   constructor(properties: ContributorInsightsSpecification) {
+    Object.assign(this, properties);
+  }
+}
+
+export class GlobalReadProvisionedThroughputSettings {
+  ReadCapacityUnits?: Value<number>;
+  constructor(properties: GlobalReadProvisionedThroughputSettings) {
     Object.assign(this, properties);
   }
 }
@@ -31,7 +38,9 @@ export class GlobalSecondaryIndex {
   Projection!: Projection;
   KeySchema!: List<KeySchema>;
   WarmThroughput?: WarmThroughput;
+  ReadProvisionedThroughputSettings?: GlobalReadProvisionedThroughputSettings;
   WriteProvisionedThroughputSettings?: WriteProvisionedThroughputSettings;
+  ReadOnDemandThroughputSettings?: ReadOnDemandThroughputSettings;
   WriteOnDemandThroughputSettings?: WriteOnDemandThroughputSettings;
   constructor(properties: GlobalSecondaryIndex) {
     Object.assign(this, properties);
@@ -94,8 +103,8 @@ export class ReadOnDemandThroughputSettings {
 }
 
 export class ReadProvisionedThroughputSettings {
-  ReadCapacityUnits?: Value<number>;
   ReadCapacityAutoScalingSettings?: CapacityAutoScalingSettings;
+  ReadCapacityUnits?: Value<number>;
   constructor(properties: ReadProvisionedThroughputSettings) {
     Object.assign(this, properties);
   }
@@ -122,6 +131,7 @@ export class ReplicaSpecification {
   SSESpecification?: ReplicaSSESpecification;
   KinesisStreamSpecification?: KinesisStreamSpecification;
   ContributorInsightsSpecification?: ContributorInsightsSpecification;
+  GlobalTableSettingsReplicationMode?: Value<string>;
   PointInTimeRecoverySpecification?: PointInTimeRecoverySpecification;
   ReplicaStreamSpecification?: ReplicaStreamSpecification;
   GlobalSecondaryIndexes?: List<ReplicaGlobalSecondaryIndexSpecification>;
@@ -212,20 +222,24 @@ export interface GlobalTableProperties {
   WarmThroughput?: WarmThroughput;
   Replicas: List<ReplicaSpecification>;
   WriteProvisionedThroughputSettings?: WriteProvisionedThroughputSettings;
+  GlobalTableSourceArn?: Value<string>;
   WriteOnDemandThroughputSettings?: WriteOnDemandThroughputSettings;
   GlobalTableWitnesses?: List<GlobalTableWitness>;
   TableName?: Value<string>;
-  AttributeDefinitions: List<AttributeDefinition>;
+  AttributeDefinitions?: List<AttributeDefinition>;
   BillingMode?: Value<string>;
   GlobalSecondaryIndexes?: List<GlobalSecondaryIndex>;
-  KeySchema: List<KeySchema>;
+  KeySchema?: List<KeySchema>;
   LocalSecondaryIndexes?: List<LocalSecondaryIndex>;
+  ReadProvisionedThroughputSettings?: GlobalReadProvisionedThroughputSettings;
+  ReadOnDemandThroughputSettings?: ReadOnDemandThroughputSettings;
   TimeToLiveSpecification?: TimeToLiveSpecification;
 }
 export default class GlobalTable extends ResourceBase<GlobalTableProperties> {
   static AttributeDefinition = AttributeDefinition;
   static CapacityAutoScalingSettings = CapacityAutoScalingSettings;
   static ContributorInsightsSpecification = ContributorInsightsSpecification;
+  static GlobalReadProvisionedThroughputSettings = GlobalReadProvisionedThroughputSettings;
   static GlobalSecondaryIndex = GlobalSecondaryIndex;
   static GlobalTableWitness = GlobalTableWitness;
   static KeySchema = KeySchema;

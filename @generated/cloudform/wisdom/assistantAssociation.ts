@@ -1,8 +1,17 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AssociationData {
-  KnowledgeBaseId!: Value<string>;
+  ExternalBedrockKnowledgeBaseConfig?: ExternalBedrockKnowledgeBaseConfig;
+  KnowledgeBaseId?: Value<string>;
   constructor(properties: AssociationData) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ExternalBedrockKnowledgeBaseConfig {
+  AccessRoleArn!: Value<string>;
+  BedrockKnowledgeBaseArn!: Value<string>;
+  constructor(properties: ExternalBedrockKnowledgeBaseConfig) {
     Object.assign(this, properties);
   }
 }
@@ -14,6 +23,7 @@ export interface AssistantAssociationProperties {
 }
 export default class AssistantAssociation extends ResourceBase<AssistantAssociationProperties> {
   static AssociationData = AssociationData;
+  static ExternalBedrockKnowledgeBaseConfig = ExternalBedrockKnowledgeBaseConfig;
   constructor(properties: AssistantAssociationProperties) {
     super('AWS::Wisdom::AssistantAssociation', properties);
   }

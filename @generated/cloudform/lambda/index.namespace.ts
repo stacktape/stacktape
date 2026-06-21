@@ -1,4 +1,5 @@
 import Alias_ from './alias';
+import CapacityProvider_ from './capacityProvider';
 import CodeSigningConfig_ from './codeSigningConfig';
 import EventInvokeConfig_ from './eventInvokeConfig';
 import EventSourceMapping_ from './eventSourceMapping';
@@ -11,6 +12,7 @@ import Version_ from './version';
 import ResourcePolicy_ from './resourcePolicy';
 export namespace Lambda {
   export const Alias = Alias_;
+  export const CapacityProvider = CapacityProvider_;
   export const CodeSigningConfig = CodeSigningConfig_;
   export const EventInvokeConfig = EventInvokeConfig_;
   export const EventSourceMapping = EventSourceMapping_;
@@ -22,6 +24,7 @@ export namespace Lambda {
   export const Version = Version_;
   export const ResourcePolicy = ResourcePolicy_;
   export type Alias = Alias_;
+  export type CapacityProvider = CapacityProvider_;
   export type CodeSigningConfig = CodeSigningConfig_;
   export type EventInvokeConfig = EventInvokeConfig_;
   export type EventSourceMapping = EventSourceMapping_;

@@ -24,9 +24,18 @@ export class KeyModesOfUse {
     Object.assign(this, properties);
   }
 }
+
+export class ReplicationStatusType {
+  Status!: Value<string>;
+  StatusMessage?: Value<string>;
+  constructor(properties: ReplicationStatusType) {
+    Object.assign(this, properties);
+  }
+}
 export interface KeyProperties {
   DeriveKeyUsage?: Value<string>;
   Exportable: Value<boolean>;
+  ReplicationRegions?: List<Value<string>>;
   KeyAttributes: KeyAttributes;
   Enabled?: Value<boolean>;
   KeyCheckValueAlgorithm?: Value<string>;
@@ -35,6 +44,7 @@ export interface KeyProperties {
 export default class Key extends ResourceBase<KeyProperties> {
   static KeyAttributes = KeyAttributes;
   static KeyModesOfUse = KeyModesOfUse;
+  static ReplicationStatusType = ReplicationStatusType;
   constructor(properties: KeyProperties) {
     super('AWS::PaymentCryptography::Key', properties);
   }

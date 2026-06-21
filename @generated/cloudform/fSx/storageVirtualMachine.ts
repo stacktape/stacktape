@@ -13,6 +13,7 @@ export class SelfManagedActiveDirectoryConfiguration {
   UserName?: Value<string>;
   DomainName?: Value<string>;
   OrganizationalUnitDistinguishedName?: Value<string>;
+  DomainJoinServiceAccountSecret?: Value<string>;
   DnsIps?: List<Value<string>>;
   Password?: Value<string>;
   constructor(properties: SelfManagedActiveDirectoryConfiguration) {

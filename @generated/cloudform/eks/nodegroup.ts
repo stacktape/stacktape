@@ -10,13 +10,23 @@ export class LaunchTemplateSpecification {
 }
 
 export class NodeRepairConfig {
-  Enabled?: Value<boolean>;
   NodeRepairConfigOverrides?: List<NodeRepairConfigOverrides>;
   MaxParallelNodesRepairedCount?: Value<number>;
+  Enabled?: Value<boolean>;
   MaxUnhealthyNodeThresholdPercentage?: Value<number>;
   MaxParallelNodesRepairedPercentage?: Value<number>;
   MaxUnhealthyNodeThresholdCount?: Value<number>;
   constructor(properties: NodeRepairConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class NodeRepairConfigOverrides {
+  NodeUnhealthyReason?: Value<string>;
+  RepairAction?: Value<string>;
+  MinRepairWaitTimeMins?: Value<number>;
+  NodeMonitoringCondition?: Value<string>;
+  constructor(properties: NodeRepairConfigOverrides) {
     Object.assign(this, properties);
   }
 }
@@ -56,12 +66,13 @@ export class UpdateConfig {
   }
 }
 
-export class NodeRepairConfigOverrides {
-  NodeUnhealthyReason?: Value<string>;
-  RepairAction?: Value<string>;
-  MinRepairWaitTimeMins?: Value<number>;
-  NodeMonitoringCondition?: Value<string>;
-  constructor(properties: NodeRepairConfigOverrides) {
+export class WarmPoolConfig {
+  MinSize?: Value<number>;
+  MaxGroupPreparedCapacity?: Value<number>;
+  Enabled?: Value<boolean>;
+  PoolState?: Value<string>;
+  ReuseOnScaleIn?: Value<boolean>;
+  constructor(properties: WarmPoolConfig) {
     Object.assign(this, properties);
   }
 }
@@ -69,6 +80,7 @@ export interface NodegroupProperties {
   UpdateConfig?: UpdateConfig;
   ScalingConfig?: ScalingConfig;
   Labels?: { [key: string]: Value<string> };
+  WarmPoolConfig?: WarmPoolConfig;
   Taints?: List<Taint>;
   CapacityType?: Value<string>;
   ReleaseVersion?: Value<string>;
@@ -89,11 +101,12 @@ export interface NodegroupProperties {
 export default class Nodegroup extends ResourceBase<NodegroupProperties> {
   static LaunchTemplateSpecification = LaunchTemplateSpecification;
   static NodeRepairConfig = NodeRepairConfig;
+  static NodeRepairConfigOverrides = NodeRepairConfigOverrides;
   static RemoteAccess = RemoteAccess;
   static ScalingConfig = ScalingConfig;
   static Taint = Taint;
   static UpdateConfig = UpdateConfig;
-  static NodeRepairConfigOverrides = NodeRepairConfigOverrides;
+  static WarmPoolConfig = WarmPoolConfig;
   constructor(properties: NodegroupProperties) {
     super('AWS::EKS::Nodegroup', properties);
   }

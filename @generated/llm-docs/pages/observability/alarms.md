@@ -26,7 +26,7 @@ Alarms are not the right tool for every monitoring need:
 
 ## Supported resources
 
-Stacktape supports inline alarms on six resource types. Each resource accepts a specific set of trigger types:
+Stacktape supports inline alarms on five resource types. Each resource accepts a specific set of trigger types:
 
 | Resource | Config property | Accepted alarm triggers |
 |---|---|---|
@@ -35,11 +35,8 @@ Stacktape supports inline alarms on six resource types. Each resource accepts a 
 | [HTTP API Gateway](/resources/networking/http-api-gateway) | `alarms` | `http-api-gateway-error-rate`, `http-api-gateway-latency` |
 | [Application Load Balancer](/resources/networking/application-load-balancer) | `alarms` | `application-load-balancer-error-rate`, `application-load-balancer-unhealthy-targets`, `application-load-balancer-custom` |
 | [SQS queue](/resources/messaging/sqs-queue) | `alarms` | `sqs-queue-received-messages-count`, `sqs-queue-not-empty` |
-| [Web service](/resources/compute/web-service) | `alarms` | HTTP API Gateway triggers OR Application Load Balancer triggers (depends on which networking mode the web service uses) |
 
-
-> **Info:** Web services accept alarm triggers from their underlying networking resource. If you configure your web service with `loadBalancing: 'application-load-balancer'`, use ALB trigger types. Otherwise, HTTP API Gateway triggers apply. Global alarm rules target the underlying resource types (HTTP API Gateway, Application Load Balancer) — not web services directly.
-
+Global alarm rules target these five resource types.
 
 ## Trigger types
 
@@ -62,7 +59,7 @@ Stacktape supports inline alarms on six resource types. Each resource accepts a 
 | `database-free-memory` | `thresholdMB` | MB | `avg` | `LessThanThreshold` |
 
 
-> **Info:** The `database-free-storage` and `database-free-memory` triggers default to `LessThanThreshold` — the alarm fires when the metric drops *below* the threshold. All other triggers default to `GreaterThanThreshold`.
+> **Info:** For threshold-based triggers that expose `comparisonOperator`, the default is `GreaterThanThreshold`, except `database-free-storage` and `database-free-memory`, which default to `LessThanThreshold` — the alarm fires when the metric drops *below* the threshold.
 
 
 ### HTTP API Gateway triggers
@@ -80,7 +77,7 @@ Stacktape supports inline alarms on six resource types. Each resource accepts a 
 | `application-load-balancer-unhealthy-targets` | `thresholdPercent` | % | n/a | `GreaterThanThreshold` |
 | `application-load-balancer-custom` | `threshold` (+ `metric`) | varies | `avg` | `GreaterThanThreshold` |
 
-The `application-load-balancer-custom` trigger lets you alarm on any of 52 CloudWatch ALB metrics. You specify the `metric` name (e.g. `ActiveConnectionCount`, `TargetResponseTime`, `RequestCount`, `HTTPCode_Target_5XX_Count`) and a numeric `threshold`. Use it when the built-in error-rate and unhealthy-targets triggers don't cover your use case — for example, to alert on connection errors, LCU consumption, or specific HTTP status code counts.
+The `application-load-balancer-custom` trigger lets you alarm on additional ALB CloudWatch metrics beyond the built-in error-rate and unhealthy-targets triggers. See the API reference for supported properties.
 
 The `application-load-balancer-unhealthy-targets` trigger also accepts an optional `onlyIncludeTargets` array to scope monitoring to specific container services behind the load balancer.
 
@@ -102,7 +99,7 @@ Most triggers accept two optional overrides:
 
 ## Defining alarms on resources
 
-Alarms are defined inline on individual resources using the `alarms` property. Each alarm specifies a `trigger` (what to monitor and the threshold) and optionally an `evaluation` window and `notificationTargets`.
+Stacktape alarms are defined inline on individual resources using the `alarms` property. Each alarm specifies a `trigger` (what to monitor and the threshold) and optionally an `evaluation` window and `notificationTargets`.
 
 ### Lambda function alarms
 
@@ -146,8 +143,12 @@ Example (TypeScript):
 import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: '$Secret(db-password)'
+    },
     engine: new RdsEnginePostgres({
-      primaryInstance: { instanceClass: 'db.t4g.micro' }
+      version: '16.6',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
     }),
     alarms: [
       {
@@ -175,7 +176,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, the CPU alarm evaluates three 5-minute periods and only fires if at least two of them breach 80%. The free-storage alarm uses the defaults (one 60-second period, fires immediately) — appropriate for storage pressure that you want to catch right away.
+In this example, the CPU alarm evaluates three 5-minute periods and only fires if at least two of them breach 80%. The free-storage alarm uses the defaults (one 60-second period, fires after a single breached period) — appropriate for storage pressure that you want to catch right away.
 
 ### Multiple alarms with notifications
 
@@ -235,7 +236,7 @@ The `description` property adds context to notification messages. The `statistic
 
 ## Evaluation windows
 
-The `evaluation` property controls how CloudWatch evaluates the metric before firing the alarm. It prevents short-lived spikes from triggering false alerts while still catching sustained problems.
+Stacktape alarm evaluation windows control how CloudWatch evaluates the metric before firing the alarm. The `evaluation` property prevents short-lived spikes from triggering false alerts while still catching sustained problems.
 
 Three settings control the evaluation:
 
@@ -257,37 +258,27 @@ For database storage alarms, the defaults (`period: 60`, `evaluationPeriods: 1`,
 
 ## Notification targets
 
-Each alarm can send notifications to one or more targets when it fires. Stacktape supports five notification integration types:
+Stacktape alarms can send notifications to one or more targets when they fire. Configure the `notificationTargets` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
 
-| Type | Key property | Notes |
-|---|---|---|
-| `slack` | `conversationId` + `accessToken` | Requires a Slack app with `chat:write` scope |
-| `ms-teams` | `webhookUrl` | Uses an Incoming Webhook connector |
-| `email` | `sender` + `recipient` | Both addresses required |
-| `discord` | `webhookUrl` | Uses a channel webhook |
-| `webhook` | `url` | Optional HMAC-SHA256 signing via `secret` |
-
-Notification targets are configured via the `notificationTargets` array on each alarm. For Slack, Teams, Discord, and webhook integrations, store credentials using [`$Secret()`](/configuration/directives) references.
-
-For a detailed guide on setting up each integration type, see [alert channels](/observability/alert-channels).
+For the full setup guide on each integration type, see [alert channels](/observability/alert-channels).
 
 ### Alarm description
 
-Use the optional `description` property on an alarm to include a custom message in notifications. This is helpful when you have multiple alarms on the same resource — the description appears in Slack messages, emails, and the AWS CloudWatch console, making it clear what the alarm means without looking up the config.
+Use the optional `description` property on an alarm to include a custom message in notification messages and the AWS console. This is helpful when you have multiple alarms on the same resource — the description makes it clear what the alarm means without looking up the config.
 
 ### History tracking
 
-Alarm state changes appear in [alert history](/observability/alert-history) by default. Set `includeInHistory: false` on an alarm to exclude it — useful for noisy development-stage alarms that would clutter the history view.
+The `includeInHistory` property controls whether alarm state changes should appear in monitoring history. It defaults to `true`. Set it to `false` on noisy development-stage alarms that would clutter the history view.
 
 ## Global alarm rules
 
-Global alarm rules are created in the Stacktape Console and apply across your organization. They enforce monitoring standards without requiring each project to define its own alarms — deploy any matching resource and it automatically gets the alarm attached.
+Stacktape global alarm rules are organization-level alarm rules managed in the Stacktape Console, with optional project and stage filters. When filters are empty, the Console labels the scope as "All projects" or "All stages".
 
 
 > Screenshot: Stacktape Console alarm rules page showing a table of alarm rules with columns for name, creation date, targeted projects, targeted stages, and trigger type Caption: The alarm rules page in the Console lets you create, view, and delete organization-wide alarms.
 
 
-Global alarm rules target resource types from the `StpAlarmEnabledResource` set: Lambda functions, relational databases, HTTP API Gateways, Application Load Balancers, and SQS queues. Each rule specifies a trigger type and threshold, and Stacktape applies it to all matching resources at deploy time.
+Global alarm rules target resource types from the `StpAlarmEnabledResource` set: Lambda functions, relational databases, HTTP API Gateways, Application Load Balancers, and SQS queues. Each rule specifies a trigger type and optional project/stage scope. Most trigger types also require threshold properties; the `sqs-queue-not-empty` trigger has no configurable threshold.
 
 ### Scoping rules to projects and stages
 
@@ -301,11 +292,11 @@ Common scoping patterns:
 
 ### How global and inline alarms interact
 
-At deploy time, Stacktape combines global alarm rules with inline alarms defined on the resource. Global alarms are filtered by project name, stage, resource type, and `disabledGlobalAlarms`. Both global and inline alarms produce independent CloudWatch alarms — a resource can have both types active simultaneously.
+Inline alarms are defined per-resource in your config. Global alarm rules are scoped to matching projects (via `forServices`) and stages (via `forStages`), applying to resources within those filters. You can exclude specific global alarm rules from a resource using `disabledGlobalAlarms`.
 
 ### Disabling global alarms on specific resources
 
-If a global alarm rule doesn't make sense for a particular resource, use `disabledGlobalAlarms` to opt out by alarm name. This property is available on Lambda functions, relational databases, HTTP API Gateways, Application Load Balancers, SQS queues, and web services.
+If a global alarm rule doesn't make sense for a particular resource, use `disabledGlobalAlarms` to opt out by alarm name. This property is available on alarm-enabled resource types ([Lambda functions](/resources/compute/lambda-function), [relational databases](/resources/databases/relational-database), [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), and [SQS queues](/resources/messaging/sqs-queue)) and accepts an array of global alarm names to exclude from the resource.
 
 This is useful when a resource has unusual characteristics — for example, a scheduled Lambda that runs long by design and would constantly trip a duration alarm:
 
@@ -328,30 +319,16 @@ export default defineConfig(() => {
 ```
 
 
-The `disabledGlobalAlarms` array takes the alarm names as configured in the Console. It does not affect inline alarms defined on the same resource.
+The `disabledGlobalAlarms` array takes the alarm names as configured in the Console.
 
 ## Viewing alarm states
 
 ### CLI
 
-Use [`stacktape debug:alarms`](/cli/debug-alarms) to view the current state of all CloudWatch alarms for a deployed stack. The command shows each alarm's state (`OK`, `ALARM`, or `INSUFFICIENT_DATA`), the associated resource, metric name, threshold, comparison operator, and last update time.
-
-List all alarms for a stage:
+Use [`stacktape debug:alarms`](/cli/debug-alarms) to inspect alarms from the CLI. See the [CLI reference](/cli/debug-alarms) for flags and output details.
 
 ```bash
 stacktape debug:alarms --stage production --region eu-west-1
-```
-
-Filter by resource name to see alarms for a specific resource:
-
-```bash
-stacktape debug:alarms --stage production --region eu-west-1 --resourceName mainDb
-```
-
-Filter by alarm state to see only alarms currently firing:
-
-```bash
-stacktape debug:alarms --stage production --region eu-west-1 --state ALARM
 ```
 
 
@@ -360,44 +337,41 @@ stacktape debug:alarms --stage production --region eu-west-1 --state ALARM
 
 ### Console
 
-The Stacktape Console provides an alarm rules page where you can view all global alarm rules, see which projects and stages each rule targets, inspect trigger details and evaluation settings, and delete rules you no longer need. For real-time alarm state of a specific stage's resources, use the [`stacktape debug:alarms`](/cli/debug-alarms) CLI command.
+The Console alarm rules page lists alarm rules by name, created date, targeted projects, targeted stages, and trigger type. The details modal shows alert-channel summary, trigger properties, and evaluation settings. The table includes delete controls for each rule. For real-time alarm state of a specific stage's resources, use the [`stacktape debug:alarms`](/cli/debug-alarms) CLI command.
 
 ## Alarms as event triggers
 
-Alarm state changes can be used as event sources for [Lambda functions](/resources/compute/lambda-function). This enables automated remediation workflows. See [alarms as triggers](/configuration/triggers/alarms-as-triggers) for configuration details.
+Stacktape alarm state changes can be used as event sources for [Lambda functions](/resources/compute/lambda-function), enabling automated remediation workflows. See [alarms as triggers](/configuration/triggers/alarms-as-triggers) for configuration details.
 
 ## API reference
 
 
-## API Reference: `AlarmDefinitionBase`
+## API Reference: `AlarmDefinition`
 
 Source: `types/stacktape-config/alarms.d.ts`
 
 ```typescript
-interface AlarmDefinitionBase {
+interface AlarmDefinition extends AlarmDefinitionBase {
   /**
-   * #### How long and how often to evaluate the metric before triggering.
+   * #### A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`).
+   */
+  name: string;
+  /**
+   * #### The metric and threshold that fires this alarm.
    *
    * ---
    *
-   * Controls the evaluation window (period), how many periods to look at, and how many must breach
-   * the threshold to fire the alarm. Useful for filtering out short spikes.
+   * `type` selects what to monitor (error rate, CPU, latency, etc.) and `properties` set the threshold.
    */
-  evaluation?: AlarmEvaluation;
+  trigger: AlarmTrigger;
   /**
-   * #### Where to send notifications when the alarm fires — Slack, MS Teams, or email.
+   * #### Only activate this alarm for these services. If omitted, applies to all services.
    */
-  notificationTargets?: AlarmUserIntegration[];
+  forServices?: string[];
   /**
-   * #### Whether alarm state changes should appear in monitoring history.
-   *
-   * @default true
+   * #### Only activate this alarm for these stages (e.g., `production`). If omitted, applies to all stages.
    */
-  includeInHistory?: boolean;
-  /**
-   * #### Custom alarm description used in notification messages and the AWS console.
-   */
-  description?: string;
+  forStages?: string[];
 }
 ```
 
@@ -406,11 +380,11 @@ interface AlarmDefinitionBase {
 
 ### Which resources support inline alarms?
 
-Stacktape supports inline alarms on [Lambda functions](/resources/compute/lambda-function), [relational databases](/resources/databases/relational-database), [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [SQS queues](/resources/messaging/sqs-queue), and [web services](/resources/compute/web-service). Web services accept the trigger types of their underlying networking resource (API Gateway or ALB). Global alarm rules target the five core resource types listed in the [supported resources](#supported-resources) table.
+Stacktape supports inline alarms on [Lambda functions](/resources/compute/lambda-function), [relational databases](/resources/databases/relational-database), [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), and [SQS queues](/resources/messaging/sqs-queue). Global alarm rules target these same five resource types.
 
 ### How much do CloudWatch alarms cost?
 
-AWS CloudWatch charges per alarm-metric per month. Standard-resolution alarms (60-second period) cost approximately $0.10/alarm/month. High-resolution alarms (periods under 60 seconds) cost more but are not used by Stacktape — all alarm periods must be multiples of 60 seconds. At typical scale (10-50 alarms), the cost is negligible relative to compute and database spend.
+AWS CloudWatch charges per alarm-metric per month. Stacktape alarms use standard resolution (periods must be multiples of 60 seconds). For most stacks, alarm costs are a small fraction of overall compute and database spend. See [managing costs](/managing-costs/overview) for broader cost guidance.
 
 ### Can I set different alarm thresholds for production vs development?
 
@@ -418,7 +392,7 @@ Yes. Global alarm rules in the Console can be scoped to specific stages using `f
 
 ### What happens when an alarm fires?
 
-When the threshold is breached for the required number of evaluation periods, the alarm transitions to `ALARM` state. Stacktape sends notifications to all configured `notificationTargets` (Slack, email, Discord, MS Teams, webhook). The state change is also recorded in [alert history](/observability/alert-history) unless `includeInHistory` is set to `false`.
+When the threshold is breached for the required number of evaluation periods, the alarm transitions to `ALARM` state. Notifications are sent to all configured `notificationTargets` (Slack, email, Discord, MS Teams, webhook). The `includeInHistory` property defaults to `true` and controls whether alarm state changes appear in monitoring history.
 
 ### How do I avoid false alarms from short traffic spikes?
 
@@ -426,11 +400,11 @@ Tune the `evaluation` property. Increase `evaluationPeriods` (how many periods t
 
 ### What is the difference between inline alarms and global alarm rules?
 
-Inline alarms are defined in your `stacktape.ts` config on individual resources and deploy as part of that stack. Global alarm rules are created in the Console at the organization level and automatically apply to all matching resources across projects and stages. Both types produce CloudWatch alarms and send notifications the same way. A resource can have both global and inline alarms active simultaneously.
+Inline alarms are defined in your `stacktape.ts` config on individual resources and deploy as part of that stack. Global alarm rules are created in the Console at the organization level and scoped to matching projects and stages via `forServices` and `forStages` filters. Both produce CloudWatch alarms and use the same notification target configuration. Individual resources can opt out of specific global rules using `disabledGlobalAlarms`.
 
 ### Can I alarm on custom CloudWatch metrics from my application?
 
-The `application-load-balancer-custom` trigger type lets you specify any of the 52 built-in ALB CloudWatch metrics (connection counts, HTTP status codes, response times, TLS errors, and more). For other resource types, Stacktape provides a fixed set of trigger types covering the most critical metrics. Custom application-level metrics emitted via the CloudWatch SDK are not directly supported as alarm triggers in the Stacktape config.
+The `application-load-balancer-custom` trigger type lets you alarm on any supported ALB CloudWatch metric by specifying the metric name and a threshold. For other resource types, Stacktape provides a fixed set of trigger types covering the most critical metrics. Custom application-level metrics emitted via the CloudWatch SDK are not directly supported as alarm triggers in the Stacktape config.
 
 ### How do I test that my alarms work?
 
@@ -442,4 +416,4 @@ Deploy a stage with alarms configured and use [`stacktape debug:alarms`](/cli/de
 
 ### What does the `application-load-balancer-custom` trigger support?
 
-The custom trigger exposes 52 CloudWatch ALB metrics covering connection counts (`ActiveConnectionCount`, `NewConnectionCount`), HTTP status codes from both the load balancer and targets (`HTTPCode_ELB_5XX_Count`, `HTTPCode_Target_5XX_Count`), response times (`TargetResponseTime`), health checks (`HealthyHostCount`, `UnHealthyHostCount`), TLS errors, authentication metrics, and more. You specify a `metric` name and a numeric `threshold`. The `statistic` and `comparisonOperator` can be customized like other triggers.
+The `application-load-balancer-custom` trigger lets you alarm on additional ALB CloudWatch metrics beyond the built-in error-rate and unhealthy-targets triggers. See the [API reference](#api-reference) for supported properties, and refer to the [AWS ALB CloudWatch metrics documentation](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-cloudwatch-metrics.html) for metric descriptions.

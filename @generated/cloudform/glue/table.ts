@@ -10,9 +10,78 @@ export class Column {
 }
 
 export class IcebergInput {
+  IcebergTableInput?: IcebergTableInput;
   MetadataOperation?: MetadataOperation;
   Version?: Value<string>;
   constructor(properties: IcebergInput) {
+    Object.assign(this, properties);
+  }
+}
+
+export class IcebergPartitionField {
+  SourceId!: Value<number>;
+  FieldId?: Value<number>;
+  Transform!: Value<string>;
+  Name!: Value<string>;
+  constructor(properties: IcebergPartitionField) {
+    Object.assign(this, properties);
+  }
+}
+
+export class IcebergPartitionSpec {
+  Fields!: List<IcebergPartitionField>;
+  SpecId?: Value<number>;
+  constructor(properties: IcebergPartitionSpec) {
+    Object.assign(this, properties);
+  }
+}
+
+export class IcebergSchema {
+  Type?: Value<string>;
+  Fields!: List<IcebergStructField>;
+  SchemaId?: Value<number>;
+  IdentifierFieldIds?: List<Value<number>>;
+  constructor(properties: IcebergSchema) {
+    Object.assign(this, properties);
+  }
+}
+
+export class IcebergSortField {
+  SourceId!: Value<number>;
+  NullOrder!: Value<string>;
+  Transform!: Value<string>;
+  Direction!: Value<string>;
+  constructor(properties: IcebergSortField) {
+    Object.assign(this, properties);
+  }
+}
+
+export class IcebergSortOrder {
+  Fields!: List<IcebergSortField>;
+  OrderId!: Value<number>;
+  constructor(properties: IcebergSortOrder) {
+    Object.assign(this, properties);
+  }
+}
+
+export class IcebergStructField {
+  Type!: Value<string>;
+  Required!: Value<boolean>;
+  Doc?: Value<string>;
+  Id!: Value<number>;
+  Name!: Value<string>;
+  constructor(properties: IcebergStructField) {
+    Object.assign(this, properties);
+  }
+}
+
+export class IcebergTableInput {
+  Schema!: IcebergSchema;
+  WriteOrder?: IcebergSortOrder;
+  Properties?: { [key: string]: any };
+  PartitionSpec?: IcebergPartitionSpec;
+  Location!: Value<string>;
+  constructor(properties: IcebergTableInput) {
     Object.assign(this, properties);
   }
 }
@@ -111,19 +180,49 @@ export class TableInput {
   PartitionKeys?: List<Column>;
   Retention?: Value<number>;
   Name?: Value<string>;
+  ViewDefinition?: ViewDefinition;
   constructor(properties: TableInput) {
     Object.assign(this, properties);
   }
 }
+
+export class ViewDefinition {
+  SubObjects?: List<Value<string>>;
+  IsProtected?: Value<boolean>;
+  Definer?: Value<string>;
+  Representations?: List<ViewRepresentation>;
+  constructor(properties: ViewDefinition) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ViewRepresentation {
+  ViewOriginalText?: Value<string>;
+  ViewExpandedText?: Value<string>;
+  ValidationConnection?: Value<string>;
+  Dialect?: Value<string>;
+  DialectVersion?: Value<string>;
+  constructor(properties: ViewRepresentation) {
+    Object.assign(this, properties);
+  }
+}
 export interface TableProperties {
-  TableInput: TableInput;
+  TableInput?: TableInput;
   OpenTableFormatInput?: OpenTableFormatInput;
   DatabaseName: Value<string>;
   CatalogId: Value<string>;
+  Name?: Value<string>;
 }
 export default class Table extends ResourceBase<TableProperties> {
   static Column = Column;
   static IcebergInput = IcebergInput;
+  static IcebergPartitionField = IcebergPartitionField;
+  static IcebergPartitionSpec = IcebergPartitionSpec;
+  static IcebergSchema = IcebergSchema;
+  static IcebergSortField = IcebergSortField;
+  static IcebergSortOrder = IcebergSortOrder;
+  static IcebergStructField = IcebergStructField;
+  static IcebergTableInput = IcebergTableInput;
   static OpenTableFormatInput = OpenTableFormatInput;
   static Order = Order;
   static SchemaId = SchemaId;
@@ -133,6 +232,8 @@ export default class Table extends ResourceBase<TableProperties> {
   static StorageDescriptor = StorageDescriptor;
   static TableIdentifier = TableIdentifier;
   static TableInput = TableInput;
+  static ViewDefinition = ViewDefinition;
+  static ViewRepresentation = ViewRepresentation;
   constructor(properties: TableProperties) {
     super('AWS::Glue::Table', properties);
   }

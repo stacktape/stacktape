@@ -38,6 +38,13 @@ export class ControlPlanePlacement {
   }
 }
 
+export class ControlPlaneScalingConfig {
+  Tier?: Value<string>;
+  constructor(properties: ControlPlaneScalingConfig) {
+    Object.assign(this, properties);
+  }
+}
+
 export class ElasticLoadBalancing {
   Enabled?: Value<boolean>;
   constructor(properties: ElasticLoadBalancing) {
@@ -94,7 +101,7 @@ export class Provider {
 }
 
 export class RemoteNetworkConfig {
-  RemoteNodeNetworks!: List<RemoteNodeNetwork>;
+  RemoteNodeNetworks?: List<RemoteNodeNetwork>;
   RemotePodNetworks?: List<RemotePodNetwork>;
   constructor(properties: RemoteNetworkConfig) {
     Object.assign(this, properties);
@@ -162,6 +169,7 @@ export interface ClusterProperties {
   UpgradePolicy?: UpgradePolicy;
   RemoteNetworkConfig?: RemoteNetworkConfig;
   Version?: Value<string>;
+  ControlPlaneScalingConfig?: ControlPlaneScalingConfig;
   OutpostConfig?: OutpostConfig;
   Tags?: List<ResourceTag>;
   ResourcesVpcConfig: ResourcesVpcConfig;
@@ -172,6 +180,7 @@ export default class Cluster extends ResourceBase<ClusterProperties> {
   static ClusterLogging = ClusterLogging;
   static ComputeConfig = ComputeConfig;
   static ControlPlanePlacement = ControlPlanePlacement;
+  static ControlPlaneScalingConfig = ControlPlaneScalingConfig;
   static ElasticLoadBalancing = ElasticLoadBalancing;
   static EncryptionConfig = EncryptionConfig;
   static KubernetesNetworkConfig = KubernetesNetworkConfig;

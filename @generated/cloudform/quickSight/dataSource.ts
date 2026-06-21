@@ -54,6 +54,7 @@ export class DataSourceCredentials {
   SecretArn?: Value<string>;
   CopySourceArn?: Value<string>;
   CredentialPair?: CredentialPair;
+  KeyPairCredentials?: KeyPairCredentials;
   constructor(properties: DataSourceCredentials) {
     Object.assign(this, properties);
   }
@@ -68,6 +69,7 @@ export class DataSourceErrorInfo {
 }
 
 export class DataSourceParameters {
+  S3TablesParameters?: S3TablesParameters;
   AuroraPostgreSqlParameters?: AuroraPostgreSqlParameters;
   TeradataParameters?: TeradataParameters;
   RdsParameters?: RdsParameters;
@@ -105,6 +107,15 @@ export class DatabricksParameters {
 export class IdentityCenterConfiguration {
   EnableIdentityPropagation?: Value<boolean>;
   constructor(properties: IdentityCenterConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class KeyPairCredentials {
+  KeyPairUsername!: Value<string>;
+  PrivateKey!: Value<string>;
+  PrivateKeyPassphrase?: Value<string>;
+  constructor(properties: KeyPairCredentials) {
     Object.assign(this, properties);
   }
 }
@@ -220,6 +231,13 @@ export class S3Parameters {
   }
 }
 
+export class S3TablesParameters {
+  TableBucketArn?: Value<string>;
+  constructor(properties: S3TablesParameters) {
+    Object.assign(this, properties);
+  }
+}
+
 export class SnowflakeParameters {
   Warehouse!: Value<string>;
   DatabaseAccessControlRole?: Value<string>;
@@ -320,6 +338,7 @@ export default class DataSource extends ResourceBase<DataSourceProperties> {
   static DataSourceParameters = DataSourceParameters;
   static DatabricksParameters = DatabricksParameters;
   static IdentityCenterConfiguration = IdentityCenterConfiguration;
+  static KeyPairCredentials = KeyPairCredentials;
   static ManifestFileLocation = ManifestFileLocation;
   static MariaDbParameters = MariaDbParameters;
   static MySqlParameters = MySqlParameters;
@@ -332,6 +351,7 @@ export default class DataSource extends ResourceBase<DataSourceProperties> {
   static RedshiftParameters = RedshiftParameters;
   static ResourcePermission = ResourcePermission;
   static S3Parameters = S3Parameters;
+  static S3TablesParameters = S3TablesParameters;
   static SnowflakeParameters = SnowflakeParameters;
   static SparkParameters = SparkParameters;
   static SqlServerParameters = SqlServerParameters;

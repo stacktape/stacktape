@@ -218,9 +218,9 @@ export class TrainingMetric {
 }
 
 export class UserContext {
-  DomainId?: Value<string>;
   UserProfileArn?: Value<string>;
   UserProfileName?: Value<string>;
+  DomainId?: Value<string>;
   constructor(properties: UserContext) {
     Object.assign(this, properties);
   }

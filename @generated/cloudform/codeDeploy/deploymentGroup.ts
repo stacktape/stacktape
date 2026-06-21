@@ -8,17 +8,17 @@ export class Alarm {
 }
 
 export class AlarmConfiguration {
+  IgnorePollAlarmFailure?: Value<boolean>;
   Alarms?: List<Alarm>;
   Enabled?: Value<boolean>;
-  IgnorePollAlarmFailure?: Value<boolean>;
   constructor(properties: AlarmConfiguration) {
     Object.assign(this, properties);
   }
 }
 
 export class AutoRollbackConfiguration {
-  Enabled?: Value<boolean>;
   Events?: List<Value<string>>;
+  Enabled?: Value<boolean>;
   constructor(properties: AutoRollbackConfiguration) {
     Object.assign(this, properties);
   }
@@ -26,8 +26,8 @@ export class AutoRollbackConfiguration {
 
 export class BlueGreenDeploymentConfiguration {
   DeploymentReadyOption?: DeploymentReadyOption;
-  GreenFleetProvisioningOption?: GreenFleetProvisioningOption;
   TerminateBlueInstancesOnDeploymentSuccess?: BlueInstanceTerminationOption;
+  GreenFleetProvisioningOption?: GreenFleetProvisioningOption;
   constructor(properties: BlueGreenDeploymentConfiguration) {
     Object.assign(this, properties);
   }
@@ -43,33 +43,33 @@ export class BlueInstanceTerminationOption {
 
 export class Deployment {
   Description?: Value<string>;
-  IgnoreApplicationStopFailures?: Value<boolean>;
   Revision!: RevisionLocation;
+  IgnoreApplicationStopFailures?: Value<boolean>;
   constructor(properties: Deployment) {
     Object.assign(this, properties);
   }
 }
 
 export class DeploymentReadyOption {
-  ActionOnTimeout?: Value<string>;
   WaitTimeInMinutes?: Value<number>;
+  ActionOnTimeout?: Value<string>;
   constructor(properties: DeploymentReadyOption) {
     Object.assign(this, properties);
   }
 }
 
 export class DeploymentStyle {
-  DeploymentOption?: Value<string>;
   DeploymentType?: Value<string>;
+  DeploymentOption?: Value<string>;
   constructor(properties: DeploymentStyle) {
     Object.assign(this, properties);
   }
 }
 
 export class EC2TagFilter {
-  Key?: Value<string>;
-  Type?: Value<string>;
   Value?: Value<string>;
+  Type?: Value<string>;
+  Key?: Value<string>;
   constructor(properties: EC2TagFilter) {
     Object.assign(this, properties);
   }
@@ -90,8 +90,8 @@ export class EC2TagSetListObject {
 }
 
 export class ECSService {
-  ClusterName!: Value<string>;
   ServiceName!: Value<string>;
+  ClusterName!: Value<string>;
   constructor(properties: ECSService) {
     Object.assign(this, properties);
   }
@@ -105,8 +105,8 @@ export class ELBInfo {
 }
 
 export class GitHubLocation {
-  CommitId!: Value<string>;
   Repository!: Value<string>;
+  CommitId!: Value<string>;
   constructor(properties: GitHubLocation) {
     Object.assign(this, properties);
   }
@@ -152,20 +152,20 @@ export class RevisionLocation {
 }
 
 export class S3Location {
-  Bucket!: Value<string>;
   BundleType?: Value<string>;
+  Bucket!: Value<string>;
   ETag?: Value<string>;
-  Key!: Value<string>;
   Version?: Value<string>;
+  Key!: Value<string>;
   constructor(properties: S3Location) {
     Object.assign(this, properties);
   }
 }
 
 export class TagFilter {
-  Key?: Value<string>;
-  Type?: Value<string>;
   Value?: Value<string>;
+  Type?: Value<string>;
+  Key?: Value<string>;
   constructor(properties: TagFilter) {
     Object.assign(this, properties);
   }
@@ -180,8 +180,8 @@ export class TargetGroupInfo {
 
 export class TargetGroupPairInfo {
   ProdTrafficRoute?: TrafficRoute;
-  TargetGroups?: List<TargetGroupInfo>;
   TestTrafficRoute?: TrafficRoute;
+  TargetGroups?: List<TargetGroupInfo>;
   constructor(properties: TargetGroupPairInfo) {
     Object.assign(this, properties);
   }
@@ -195,34 +195,34 @@ export class TrafficRoute {
 }
 
 export class TriggerConfig {
-  TriggerEvents?: List<Value<string>>;
   TriggerName?: Value<string>;
+  TriggerEvents?: List<Value<string>>;
   TriggerTargetArn?: Value<string>;
   constructor(properties: TriggerConfig) {
     Object.assign(this, properties);
   }
 }
 export interface DeploymentGroupProperties {
-  AlarmConfiguration?: AlarmConfiguration;
+  OnPremisesTagSet?: OnPremisesTagSet;
   ApplicationName: Value<string>;
-  AutoRollbackConfiguration?: AutoRollbackConfiguration;
-  AutoScalingGroups?: List<Value<string>>;
+  DeploymentStyle?: DeploymentStyle;
+  ServiceRoleArn: Value<string>;
   BlueGreenDeploymentConfiguration?: BlueGreenDeploymentConfiguration;
+  AutoScalingGroups?: List<Value<string>>;
+  Ec2TagSet?: EC2TagSet;
+  OutdatedInstancesStrategy?: Value<string>;
+  TriggerConfigurations?: List<TriggerConfig>;
   Deployment?: Deployment;
   DeploymentConfigName?: Value<string>;
-  DeploymentGroupName?: Value<string>;
-  DeploymentStyle?: DeploymentStyle;
-  ECSServices?: List<ECSService>;
+  AlarmConfiguration?: AlarmConfiguration;
   Ec2TagFilters?: List<EC2TagFilter>;
-  Ec2TagSet?: EC2TagSet;
-  LoadBalancerInfo?: LoadBalancerInfo;
-  OnPremisesInstanceTagFilters?: List<TagFilter>;
-  OnPremisesTagSet?: OnPremisesTagSet;
-  OutdatedInstancesStrategy?: Value<string>;
-  ServiceRoleArn: Value<string>;
-  Tags?: List<ResourceTag>;
   TerminationHookEnabled?: Value<boolean>;
-  TriggerConfigurations?: List<TriggerConfig>;
+  ECSServices?: List<ECSService>;
+  AutoRollbackConfiguration?: AutoRollbackConfiguration;
+  LoadBalancerInfo?: LoadBalancerInfo;
+  DeploymentGroupName?: Value<string>;
+  Tags?: List<ResourceTag>;
+  OnPremisesInstanceTagFilters?: List<TagFilter>;
 }
 export default class DeploymentGroup extends ResourceBase<DeploymentGroupProperties> {
   static Alarm = Alarm;

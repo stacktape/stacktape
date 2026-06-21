@@ -1,5 +1,13 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
+export class EnvironmentVariable {
+  Value!: Value<string>;
+  Name!: Value<string>;
+  constructor(properties: EnvironmentVariable) {
+    Object.assign(this, properties);
+  }
+}
+
 export class VpcConfig {
   VpcId!: Value<string>;
   SecurityGroupIds!: List<Value<string>>;
@@ -9,12 +17,15 @@ export class VpcConfig {
   }
 }
 export interface ProjectProperties {
+  ExecutionRoleArn?: Value<string>;
+  EnvironmentVariables?: List<EnvironmentVariable>;
   DefaultJobTimeoutMinutes?: Value<number>;
   VpcConfig?: VpcConfig;
   Tags?: List<ResourceTag>;
   Name: Value<string>;
 }
 export default class Project extends ResourceBase<ProjectProperties> {
+  static EnvironmentVariable = EnvironmentVariable;
   static VpcConfig = VpcConfig;
   constructor(properties: ProjectProperties) {
     super('AWS::DeviceFarm::Project', properties);

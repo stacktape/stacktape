@@ -1,8 +1,8 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class CountryRule {
-  ProtectStatus!: Value<string>;
   CountryCode!: Value<string>;
+  ProtectStatus!: Value<string>;
   constructor(properties: CountryRule) {
     Object.assign(this, properties);
   }

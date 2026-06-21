@@ -1,10 +1,10 @@
 # Kafka Topics
 
-A Kafka topic trigger invokes a [Lambda function](/resources/compute/lambda-function) whenever new messages arrive on an Apache Kafka topic. Stacktape configures an AWS Lambda event-source mapping that polls your Kafka brokers, batches records, and delivers them to your function. Authentication is required — the trigger supports SASL and mutual TLS via AWS Secrets Manager.
+A Kafka topic trigger invokes a function when new messages are available in an Apache Kafka topic. Configure this trigger on a [Lambda function](/resources/compute/lambda-function) to batch records and deliver them to your handler. The supported authentication methods are SASL and mutual TLS (MTLS), with credentials stored in AWS Secrets Manager.
 
 ## When to use
 
-Use a Kafka topic trigger when you run Apache Kafka (on EC2, EKS, Confluent Cloud, Aiven, or any broker reachable over the network) and want a serverless consumer that scales automatically without managing consumer group infrastructure.
+Use a Kafka topic trigger when you have Kafka brokers reachable from Lambda and want a Lambda-based consumer for a topic. AWS Lambda handles polling and invocation for the event source mapping, so you do not run a separate consumer process yourself.
 
 Common scenarios:
 
@@ -63,13 +63,13 @@ export default defineConfig(() => {
 ```
 
 
-The `bootstrapServers` array must contain at least one `host:port` endpoint for your Kafka cluster. These endpoints are used to establish the initial connection and discover the full broker topology. The `topicName` identifies which Kafka topic to consume from.
+The `bootstrapServers` array contains `host:port` addresses for your Kafka brokers. The `topicName` identifies which Kafka topic to consume from.
 
-`batchSize` controls how many records are delivered per invocation (default 100, maximum 10,000). `maxBatchWindowSeconds` sets the maximum wait time before invoking with whatever records are available (default 0.5 seconds, maximum 300 seconds). Your function is invoked when either threshold is reached — whichever comes first.
+`batchSize` controls how many records are delivered per invocation (default 100, maximum 10,000). `maxBatchWindowSeconds` sets the maximum wait time before invoking with whatever records are available (default 0.5 seconds, maximum 300 seconds). The function is triggered when either `batchSize` is reached or `maxBatchWindowSeconds` expires.
 
 ## Authentication
 
-Kafka topic triggers require authentication — there is no unauthenticated mode. The trigger configuration references Secrets Manager secret ARNs for SASL or MTLS authentication credentials.
+The Kafka cluster configuration includes an authentication block. The supported authentication variants are SASL and MTLS, both referencing Secrets Manager secret ARNs for credentials.
 
 ### SASL authentication
 
@@ -77,13 +77,13 @@ SASL (Simple Authentication and Security Layer) authenticates with a username an
 
 | Type value | Protocol | When to use |
 |---|---|---|
-| `BASIC_AUTH` | SASL/PLAIN | Development or clusters that only support plaintext SASL |
+| `BASIC_AUTH` | SASL/PLAIN | Clusters configured for the SASL/PLAIN mechanism |
 | `SASL_SCRAM_256_AUTH` | SCRAM-SHA-256 | Production clusters with SCRAM-256 enabled |
-| `SASL_SCRAM_512_AUTH` | SCRAM-SHA-512 | Production clusters with SCRAM-512 (strongest, recommended) |
+| `SASL_SCRAM_512_AUTH` | SCRAM-SHA-512 | Production clusters with SCRAM-512 enabled |
 
 The referenced Secrets Manager secret must be a JSON object with `username` and `password` keys. You can create it using the [`stacktape secret:create`](/cli/secret-create) CLI command. Set `authenticationSecretArn` to the ARN of the Secrets Manager secret that contains the Kafka credentials.
 
-Most teams should use `SASL_SCRAM_512_AUTH` — it offers the strongest security of the three SASL variants and is broadly supported by managed Kafka providers (Confluent Cloud, Aiven) and self-hosted clusters. Use `BASIC_AUTH` only when your cluster does not support SCRAM.
+Stacktape exposes `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, and `SASL_SCRAM_512_AUTH`. Choose the variant that matches your Kafka cluster's configured SASL mechanism. Use `BASIC_AUTH` only when the broker requires SASL/PLAIN.
 
 
 Example (TypeScript):
@@ -179,17 +179,17 @@ Kafka topic triggers deliver messages in batches. Two properties on `KafkaTopicI
 | `batchSize` | 100 | 10,000 | Maximum records delivered per invocation |
 | `maxBatchWindowSeconds` | 0.5 | 300 | Maximum seconds to wait before invoking with available records |
 
-Your function is invoked when either threshold is reached — whichever comes first. A larger `batchSize` reduces the number of invocations (lower cost) but increases per-invocation latency and memory usage. A longer `maxBatchWindowSeconds` accumulates more records into each batch, which is useful for low-throughput topics where you want to avoid many small invocations.
+The function is triggered when either `batchSize` is reached or `maxBatchWindowSeconds` expires — whichever comes first. A larger `batchSize` reduces the number of invocations (lower cost) but increases per-invocation latency and memory usage. A longer `maxBatchWindowSeconds` accumulates more records into each batch, which is useful for low-throughput topics where you want to avoid many small invocations.
 
-For high-throughput topics (thousands of messages per second), increase `batchSize` toward 1,000–5,000 and set `maxBatchWindowSeconds` to 5–10 seconds. For low-latency requirements, keep the defaults — 0.5 seconds ensures messages are processed quickly even on quiet topics.
+Increase `batchSize` or `maxBatchWindowSeconds` when you want larger batches and can tolerate more waiting. Keep the default batch window when latency matters more than invocation count.
 
 
-> **Warning:** Kafka batches can contain multiple records, and the batch is the unit of delivery. Design your handler to be idempotent — duplicate processing of the same record should produce the same result.
+> **Warning:** Kafka records are delivered in batches, so design handlers so that repeated processing of the same record is safe when your broader pipeline can retry or replay messages.
 
 
 ## Handler example
 
-Your Lambda function receives a batch of Kafka records as an event object. The event follows the standard AWS Lambda event format for Kafka triggers. Record values and keys are base64-encoded.
+Your Lambda function receives a batch of Kafka records as an event object. The event follows the standard AWS Lambda event format for Kafka triggers. AWS Lambda's self-managed Kafka event format encodes record keys and values as base64 strings.
 
 ```typescript
 export const handler = async (event: any) => {
@@ -207,7 +207,7 @@ Stacktape does not redefine the AWS Lambda Kafka event payload. Refer to the [AW
 
 ## Network connectivity
 
-Your Kafka bootstrap servers must be reachable from the AWS Lambda execution environment. For public Kafka endpoints (Confluent Cloud, Aiven, or brokers with public-facing listeners), no additional networking configuration is needed — Lambda connects over the public internet.
+The Kafka brokers specified in `bootstrapServers` must be reachable from the AWS Lambda execution environment. Public broker endpoints are usually reachable without VPC configuration, while private brokers require Lambda VPC access and matching routing/security-group rules.
 
 For private Kafka clusters (running inside a VPC, on-premises, or behind a VPN), configure your Lambda function with VPC access so it can reach the broker endpoints. See the [Lambda function](/resources/compute/lambda-function) page for VPC configuration options. Ensure security groups and routing allow outbound connectivity to your broker endpoints on the configured ports.
 
@@ -244,7 +244,7 @@ Yes. The Lambda function `events` property accepts an array, so you can add mult
 
 ### How does scaling work for Kafka consumers?
 
-AWS Lambda automatically scales the number of concurrent invocations based on the number of partitions in your topic. Each partition is processed by at most one concurrent invocation at a time. To increase parallelism, increase the number of partitions on your Kafka topic. This is a property of the AWS Lambda Kafka event-source mapping, not a Stacktape-specific behavior.
+AWS Lambda Kafka event-source mappings generally scale with the number of available topic partitions, so partition count affects maximum parallelism. This is AWS Lambda behavior, not a Stacktape-specific mechanism. Refer to the [AWS Lambda documentation on self-managed Kafka](https://docs.aws.amazon.com/lambda/latest/dg/with-kafka.html) for details on scaling and concurrency when sizing high-throughput consumers.
 
 ### What happens if my function fails?
 
@@ -252,29 +252,23 @@ Unlike [Kinesis stream](/configuration/triggers/kinesis-events) or [DynamoDB str
 
 ### How do I create the Secrets Manager secret for authentication?
 
-Use the Stacktape CLI to create a secret containing your Kafka credentials.
-
-```bash
-stacktape secret:create --name kafka-creds --value '{"username":"my-user","password":"my-password"}' --region eu-west-1
-```
-
-Set `authenticationSecretArn` to the ARN of the Secrets Manager secret in your trigger configuration.
+Create a Secrets Manager secret with the [`stacktape secret:create`](/cli/secret-create) command. For SASL, the secret value must be a JSON object with `username` and `password` keys — set the resulting ARN as `authenticationSecretArn`. For MTLS, the `clientCertificate` property (required) references a secret containing the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password. The `serverRootCaCertificate` property (optional) references a separate secret containing the server's root CA certificate for clusters using a private or self-signed CA.
 
 ### What's the difference between SASL and MTLS authentication?
 
-SASL authenticates with a username and password — simpler to set up, widely supported by managed Kafka providers (Confluent Cloud, Aiven). MTLS authenticates with a client TLS certificate — stronger identity guarantees, typically used in enterprise or zero-trust environments. Choose based on what your Kafka cluster supports and your security requirements. Most teams start with SASL and move to MTLS only when certificate-based auth is mandated.
+SASL authenticates with a username and password — simpler to set up and widely supported across Kafka deployments. MTLS authenticates with a client TLS certificate — typically used in enterprise or zero-trust environments that mandate certificate-based identity. Stacktape exposes `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`. Choose based on what your Kafka cluster supports and your security requirements.
 
 ### Is there a cost for the Kafka event-source mapping?
 
-The AWS Lambda event-source mapping itself has no additional AWS charge beyond the Lambda invocation cost. You pay for the compute time of each invocation (duration multiplied by memory) and for Secrets Manager API calls to retrieve credentials. Secrets Manager charges per secret per month plus per 10,000 API calls.
+There is no Stacktape-specific surcharge for Kafka topic triggers. Costs come from the underlying AWS services — primarily Lambda invocation and duration, plus Secrets Manager for credential retrieval. Refer to the AWS Lambda and AWS Secrets Manager pricing pages for current rates.
 
 ### Can I filter messages before they reach my function?
 
-`KafkaTopicIntegrationProps` does not expose a filter property. Unlike [SQS](/configuration/triggers/sqs-events) or [SNS](/configuration/triggers/sns-events) triggers that support filter policies, all messages on the subscribed topic are delivered to your function. Implement filtering logic inside your handler if you need to skip certain records.
+`KafkaTopicIntegrationProps` exposes `customKafkaConfiguration`, `batchSize`, and `maxBatchWindowSeconds`; it does not expose a Stacktape-level filter property for Kafka triggers. If you need filtering, implement it in your handler or route records into narrower Kafka topics before attaching the trigger.
 
 ### How do I monitor my Kafka consumer?
 
-Use [`stacktape debug:logs`](/cli/debug-logs) to tail your function's CloudWatch logs in real time. Use Lambda and event-source mapping metrics in AWS observability tooling or [`stacktape debug:metrics`](/cli/debug-metrics) to monitor invocation rates and consumer lag.
+Use [`stacktape debug:logs`](/cli/debug-logs) to inspect your function's CloudWatch logs. For Lambda invocation metrics and broader monitoring, see the [observability overview](/observability/overview).
 
 ### What authentication types are supported?
 

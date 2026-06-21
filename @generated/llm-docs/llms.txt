@@ -9,6 +9,8 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [CI/CD and GitOps Overview](/ci-cd-and-gitops/overview) - source: docs/docs/ci-cd-and-gitops/overview.mdx
 - [Self-Hosted GitHub Actions Runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) - source: docs/docs/ci-cd-and-gitops/self-hosted-github-actions-runners.mdx
 - [Stacks per Git Branch Pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) - source: docs/docs/ci-cd-and-gitops/stacks-per-git-branch-pattern.mdx
+- [alarms](/cli/alarms) - source: docs/docs/cli/alarms.mdx
+- [aws:call](/cli/aws-call) - source: docs/docs/cli/aws-call.mdx
 - [aws-profile:create](/cli/aws-profile-create) - source: docs/docs/cli/aws-profile-create.mdx
 - [aws-profile:delete](/cli/aws-profile-delete) - source: docs/docs/cli/aws-profile-delete.mdx
 - [aws-profile:list](/cli/aws-profile-list) - source: docs/docs/cli/aws-profile-list.mdx
@@ -18,18 +20,8 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [bucket:sync](/cli/bucket-sync) - source: docs/docs/cli/bucket-sync.mdx
 - [cf-module:update](/cli/cf-module-update) - source: docs/docs/cli/cf-module-update.mdx
 - [cf:rollback](/cli/cf-rollback) - source: docs/docs/cli/cf-rollback.mdx
-- [codebuild:deploy](/cli/codebuild-deploy) - source: docs/docs/cli/codebuild-deploy.mdx
-- [compile-template](/cli/compile-template) - source: docs/docs/cli/compile-template.mdx
+- [container:exec](/cli/container-exec) - source: docs/docs/cli/container-exec.mdx
 - [container:session](/cli/container-session) - source: docs/docs/cli/container-session.mdx
-- [debug:alarms](/cli/debug-alarms) - source: docs/docs/cli/debug-alarms.mdx
-- [debug:aws-sdk](/cli/debug-aws-sdk) - source: docs/docs/cli/debug-aws-sdk.mdx
-- [debug:container-exec](/cli/debug-container-exec) - source: docs/docs/cli/debug-container-exec.mdx
-- [debug:dynamodb](/cli/debug-dynamodb) - source: docs/docs/cli/debug-dynamodb.mdx
-- [debug:logs](/cli/debug-logs) - source: docs/docs/cli/debug-logs.mdx
-- [debug:metrics](/cli/debug-metrics) - source: docs/docs/cli/debug-metrics.mdx
-- [debug:opensearch](/cli/debug-opensearch) - source: docs/docs/cli/debug-opensearch.mdx
-- [debug:redis](/cli/debug-redis) - source: docs/docs/cli/debug-redis.mdx
-- [debug:sql](/cli/debug-sql) - source: docs/docs/cli/debug-sql.mdx
 - [defaults:configure](/cli/defaults-configure) - source: docs/docs/cli/defaults-configure.mdx
 - [defaults:list](/cli/defaults-list) - source: docs/docs/cli/defaults-list.mdx
 - [delete](/cli/delete) - source: docs/docs/cli/delete.mdx
@@ -37,6 +29,7 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [deployment-script:run](/cli/deployment-script-run) - source: docs/docs/cli/deployment-script-run.mdx
 - [dev:stop](/cli/dev-stop) - source: docs/docs/cli/dev-stop.mdx
 - [dev](/cli/dev) - source: docs/docs/cli/dev.mdx
+- [diff](/cli/diff) - source: docs/docs/cli/diff.mdx
 - [domain:add](/cli/domain-add) - source: docs/docs/cli/domain-add.mdx
 - [help](/cli/help) - source: docs/docs/cli/help.mdx
 - [info:operations](/cli/info-operations) - source: docs/docs/cli/info-operations.mdx
@@ -50,22 +43,29 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [issues:resolve](/cli/issues-resolve) - source: docs/docs/cli/issues-resolve.mdx
 - [login](/cli/login) - source: docs/docs/cli/login.mdx
 - [logout](/cli/logout) - source: docs/docs/cli/logout.mdx
+- [logs](/cli/logs) - source: docs/docs/cli/logs.mdx
 - [mcp:add](/cli/mcp-add) - source: docs/docs/cli/mcp-add.mdx
 - [mcp](/cli/mcp) - source: docs/docs/cli/mcp.mdx
+- [metrics](/cli/metrics) - source: docs/docs/cli/metrics.mdx
 - [org:create](/cli/org-create) - source: docs/docs/cli/org-create.mdx
 - [org:delete](/cli/org-delete) - source: docs/docs/cli/org-delete.mdx
 - [org:list](/cli/org-list) - source: docs/docs/cli/org-list.mdx
-- [package-workloads](/cli/package-workloads) - source: docs/docs/cli/package-workloads.mdx
+- [package](/cli/package) - source: docs/docs/cli/package.mdx
 - [param:get](/cli/param-get) - source: docs/docs/cli/param-get.mdx
-- [preview-changes](/cli/preview-changes) - source: docs/docs/cli/preview-changes.mdx
 - [project:create](/cli/project-create) - source: docs/docs/cli/project-create.mdx
-- [projects:list](/cli/projects-list) - source: docs/docs/cli/projects-list.mdx
+- [project:list](/cli/project-list) - source: docs/docs/cli/project-list.mdx
+- [query:dynamodb](/cli/query-dynamodb) - source: docs/docs/cli/query-dynamodb.mdx
+- [query:opensearch](/cli/query-opensearch) - source: docs/docs/cli/query-opensearch.mdx
+- [query:redis](/cli/query-redis) - source: docs/docs/cli/query-redis.mdx
+- [query:sql](/cli/query-sql) - source: docs/docs/cli/query-sql.mdx
 - [rollback](/cli/rollback) - source: docs/docs/cli/rollback.mdx
 - [script:run](/cli/script-run) - source: docs/docs/cli/script-run.mdx
-- [secret:create](/cli/secret-create) - source: docs/docs/cli/secret-create.mdx
 - [secret:delete](/cli/secret-delete) - source: docs/docs/cli/secret-delete.mdx
 - [secret:get](/cli/secret-get) - source: docs/docs/cli/secret-get.mdx
+- [secret:set](/cli/secret-set) - source: docs/docs/cli/secret-set.mdx
+- [synth](/cli/synth) - source: docs/docs/cli/synth.mdx
 - [upgrade](/cli/upgrade) - source: docs/docs/cli/upgrade.mdx
+- [validate](/cli/validate) - source: docs/docs/cli/validate.mdx
 - [version](/cli/version) - source: docs/docs/cli/version.mdx
 - [Configuration Files](/configuration/configuration-files) - source: docs/docs/configuration/configuration-files.mdx
 - [Connecting Resources](/configuration/connecting-resources) - source: docs/docs/configuration/connecting-resources.mdx
@@ -113,7 +113,6 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [Debugging Containers](/local-development/debugging-containers) - source: docs/docs/local-development/debugging-containers.mdx
 - [Debugging Lambda Functions](/local-development/debugging-lambda-functions) - source: docs/docs/local-development/debugging-lambda-functions.mdx
 - [Dev Mode Overview](/local-development/dev-mode-overview) - source: docs/docs/local-development/dev-mode-overview.mdx
-- [Dev Mode with AI](/local-development/dev-mode-with-ai) - source: docs/docs/local-development/dev-mode-with-ai.mdx
 - [Local Databases](/local-development/local-databases) - source: docs/docs/local-development/local-databases.mdx
 - [Budgets](/managing-costs/budgets) - source: docs/docs/managing-costs/budgets.mdx
 - [Cost Dashboards](/managing-costs/dashboards) - source: docs/docs/managing-costs/dashboards.mdx
@@ -141,7 +140,13 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [Custom Resources](/resources/advanced/custom-resources) - source: docs/docs/resources/advanced/custom-resources.mdx
 - [Deployment Scripts](/resources/advanced/deployment-scripts) - source: docs/docs/resources/advanced/deployment-scripts.mdx
 - [Raw CloudFormation Resources](/resources/advanced/raw-cloudformation-resources) - source: docs/docs/resources/advanced/raw-cloudformation-resources.mdx
+- [AgentCore Browser](/resources/ai/agentcore-browser) - source: docs/docs/resources/ai/agentcore-browser.mdx
+- [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) - source: docs/docs/resources/ai/agentcore-code-interpreter.mdx
+- [AgentCore Gateway](/resources/ai/agentcore-gateway) - source: docs/docs/resources/ai/agentcore-gateway.mdx
+- [AgentCore Memory](/resources/ai/agentcore-memory) - source: docs/docs/resources/ai/agentcore-memory.mdx
+- [AgentCore Runtime](/resources/ai/agentcore-runtime) - source: docs/docs/resources/ai/agentcore-runtime.mdx
 - [Batch Job](/resources/compute/batch-job) - source: docs/docs/resources/compute/batch-job.mdx
+- [Convex](/resources/compute/convex) - source: docs/docs/resources/compute/convex.mdx
 - [Edge Function](/resources/compute/edge-function) - source: docs/docs/resources/compute/edge-function.mdx
 - [Lambda Function](/resources/compute/lambda-function) - source: docs/docs/resources/compute/lambda-function.mdx
 - [Multi-Container Workload](/resources/compute/multi-container-workload) - source: docs/docs/resources/compute/multi-container-workload.mdx
@@ -177,7 +182,7 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [Web Application Firewall](/resources/security/web-application-firewall) - source: docs/docs/resources/security/web-application-firewall.mdx
 - [EFS Filesystem](/resources/storage/efs-filesystem) - source: docs/docs/resources/storage/efs-filesystem.mdx
 - [S3 Bucket](/resources/storage/s3-bucket) - source: docs/docs/resources/storage/s3-bucket.mdx
-- [AI Config Generation](/stacktape-console/ai-config-generation) - source: docs/docs/stacktape-console/ai-config-generation.mdx
+- [Account Settings](/stacktape-console/account-settings) - source: docs/docs/stacktape-console/account-settings.mdx
 - [API Keys](/stacktape-console/api-keys) - source: docs/docs/stacktape-console/api-keys.mdx
 - [AWS Permissions Needed](/stacktape-console/aws-permissions) - source: docs/docs/stacktape-console/aws-permissions.mdx
 - [Billing and Subscription](/stacktape-console/billing-and-subscription) - source: docs/docs/stacktape-console/billing-and-subscription.mdx
@@ -193,6 +198,7 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [Using Stacktape with AI](/using-with-ai/overview) - source: docs/docs/using-with-ai/overview.mdx
 
 ## Config Reference
+- [Agent Core Runtime](/config-reference/agentcore)
 - [Alarm Definition Base](/config-reference/alarms)
 - [Application Load Balancer](/config-reference/application-load-balancer) - resource type: application-load-balancer
 - [Astro Web](/config-reference/astro-web) - resource type: astro-web

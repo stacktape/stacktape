@@ -2,6 +2,7 @@ import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 
 export interface PodIdentityAssociationProperties {
+  Policy?: Value<string>;
   ServiceAccount: Value<string>;
   TargetRoleArn?: Value<string>;
   ClusterName: Value<string>;

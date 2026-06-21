@@ -1,5 +1,6 @@
 import AccessLogSubscription_ from './accessLogSubscription';
 import AuthPolicy_ from './authPolicy';
+import DomainVerification_ from './domainVerification';
 import Listener_ from './listener';
 import ResourceConfiguration_ from './resourceConfiguration';
 import ResourceGateway_ from './resourceGateway';
@@ -14,6 +15,7 @@ import TargetGroup_ from './targetGroup';
 export namespace VpcLattice {
   export const AccessLogSubscription = AccessLogSubscription_;
   export const AuthPolicy = AuthPolicy_;
+  export const DomainVerification = DomainVerification_;
   export const Listener = Listener_;
   export const ResourceConfiguration = ResourceConfiguration_;
   export const ResourceGateway = ResourceGateway_;
@@ -27,6 +29,7 @@ export namespace VpcLattice {
   export const TargetGroup = TargetGroup_;
   export type AccessLogSubscription = AccessLogSubscription_;
   export type AuthPolicy = AuthPolicy_;
+  export type DomainVerification = DomainVerification_;
   export type Listener = Listener_;
   export type ResourceConfiguration = ResourceConfiguration_;
   export type ResourceGateway = ResourceGateway_;

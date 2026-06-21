@@ -1,8 +1,24 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
+export class AudioConfiguration {
+  SegmentationConfiguration!: AudioSegmentationConfiguration;
+  constructor(properties: AudioConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class AudioSegmentationConfiguration {
+  FixedLengthDuration!: Value<number>;
+  constructor(properties: AudioSegmentationConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class BedrockEmbeddingModelConfiguration {
   EmbeddingDataType?: Value<string>;
+  Video?: List<VideoConfiguration>;
   Dimensions?: Value<number>;
+  Audio?: List<AudioConfiguration>;
   constructor(properties: BedrockEmbeddingModelConfiguration) {
     Object.assign(this, properties);
   }
@@ -272,6 +288,15 @@ export class S3Location {
   }
 }
 
+export class S3VectorsConfiguration {
+  IndexName?: Value<string>;
+  VectorBucketArn?: Value<string>;
+  IndexArn?: Value<string>;
+  constructor(properties: S3VectorsConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class SqlKnowledgeBaseConfiguration {
   Type!: Value<string>;
   RedshiftConfiguration?: RedshiftConfiguration;
@@ -281,6 +306,7 @@ export class SqlKnowledgeBaseConfiguration {
 }
 
 export class StorageConfiguration {
+  S3VectorsConfiguration?: S3VectorsConfiguration;
   OpensearchManagedClusterConfiguration?: OpenSearchManagedClusterConfiguration;
   OpensearchServerlessConfiguration?: OpenSearchServerlessConfiguration;
   NeptuneAnalyticsConfiguration?: NeptuneAnalyticsConfiguration;
@@ -316,6 +342,20 @@ export class VectorKnowledgeBaseConfiguration {
     Object.assign(this, properties);
   }
 }
+
+export class VideoConfiguration {
+  SegmentationConfiguration!: VideoSegmentationConfiguration;
+  constructor(properties: VideoConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class VideoSegmentationConfiguration {
+  FixedLengthDuration!: Value<number>;
+  constructor(properties: VideoSegmentationConfiguration) {
+    Object.assign(this, properties);
+  }
+}
 export interface KnowledgeBaseProperties {
   Description?: Value<string>;
   KnowledgeBaseConfiguration: KnowledgeBaseConfiguration;
@@ -325,6 +365,8 @@ export interface KnowledgeBaseProperties {
   Name: Value<string>;
 }
 export default class KnowledgeBase extends ResourceBase<KnowledgeBaseProperties> {
+  static AudioConfiguration = AudioConfiguration;
+  static AudioSegmentationConfiguration = AudioSegmentationConfiguration;
   static BedrockEmbeddingModelConfiguration = BedrockEmbeddingModelConfiguration;
   static CuratedQuery = CuratedQuery;
   static EmbeddingModelConfiguration = EmbeddingModelConfiguration;
@@ -356,11 +398,14 @@ export default class KnowledgeBase extends ResourceBase<KnowledgeBaseProperties>
   static RedshiftServerlessAuthConfiguration = RedshiftServerlessAuthConfiguration;
   static RedshiftServerlessConfiguration = RedshiftServerlessConfiguration;
   static S3Location = S3Location;
+  static S3VectorsConfiguration = S3VectorsConfiguration;
   static SqlKnowledgeBaseConfiguration = SqlKnowledgeBaseConfiguration;
   static StorageConfiguration = StorageConfiguration;
   static SupplementalDataStorageConfiguration = SupplementalDataStorageConfiguration;
   static SupplementalDataStorageLocation = SupplementalDataStorageLocation;
   static VectorKnowledgeBaseConfiguration = VectorKnowledgeBaseConfiguration;
+  static VideoConfiguration = VideoConfiguration;
+  static VideoSegmentationConfiguration = VideoSegmentationConfiguration;
   constructor(properties: KnowledgeBaseProperties) {
     super('AWS::Bedrock::KnowledgeBase', properties);
   }

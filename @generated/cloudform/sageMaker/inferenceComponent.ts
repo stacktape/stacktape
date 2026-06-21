@@ -24,8 +24,8 @@ export class DeployedImage {
 }
 
 export class InferenceComponentCapacitySize {
-  Type!: Value<string>;
   Value!: Value<number>;
+  Type!: Value<string>;
   constructor(properties: InferenceComponentCapacitySize) {
     Object.assign(this, properties);
   }

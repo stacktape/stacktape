@@ -12,6 +12,8 @@ The tradeoff is cost: at least one running container task bills continuously. If
 
 ## When NOT to use
 
+A Stacktape worker service is not the right fit when the workload needs inbound traffic routing, has a finite execution lifecycle, or benefits from scale-to-zero billing. Choose a more targeted resource type in those cases.
+
 | Scenario | Use instead |
 |----------|-------------|
 | Container needs a public HTTPS URL, TLS, custom domain, or CDN | [Web service](/resources/compute/web-service) |
@@ -94,7 +96,7 @@ Start with Fargate for most workers and adjust the task size after observing rea
 
 ### EC2
 
-EC2 mode uses `instanceTypes` instead of `cpu`/`memory`. The first instance type in the list is preferred. Instances are auto-scaled and refreshed weekly for patching. Set `enableWarmPool: true` to keep pre-initialized instances ready for faster scaling — this only works with a single instance type.
+EC2 mode uses `instanceTypes` instead of `cpu`/`memory`. The first instance type in the list is preferred and instances are auto-managed. Set `enableWarmPool: true` to keep pre-initialized instances ready for faster scaling.
 
 
 Example (TypeScript):
@@ -132,7 +134,7 @@ Use EC2 when you need a specific instance family (for example, compute-optimized
 
 ## Scaling
 
-A worker service scales horizontally by adding or removing container instances. By default, both `minInstances` and `maxInstances` are `1`, meaning a single container runs at all times. Set `maxInstances` higher and configure a `scalingPolicy` to auto-scale based on CPU or memory utilization.
+A worker service scales horizontally by running multiple parallel container instances for background processing. By default, both `minInstances` and `maxInstances` are `1`, meaning a single container runs at all times. Set `maxInstances` higher and configure a `scalingPolicy` to auto-scale based on CPU or memory utilization.
 
 
 Example (TypeScript):
@@ -192,14 +194,18 @@ import {
   WorkerService,
   StacktapeImageBuildpackPackaging,
   SqsQueue,
-  RelationalDatabase
+  RelationalDatabase,
+  RdsEnginePostgres
 } from 'stacktape';
 
 export default defineConfig(() => {
   const jobsQueue = new SqsQueue({});
   const mainDatabase = new RelationalDatabase({
-    engine: { type: 'postgres', properties: { version: '16' } },
-    instanceSize: 'db.t4g.micro'
+    credentials: { masterUserPassword: "$Secret('my-db-password')" },
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    })
   });
 
   const worker = new WorkerService({
@@ -370,7 +376,7 @@ export default defineConfig(() => {
 
 ## Private subnets with NAT
 
-By default, a worker service runs in public subnets within your VPC. Set `usePrivateSubnetsWithNAT: true` to place the container in private subnets instead. All outbound internet traffic then routes through a NAT Gateway, which provides a static Elastic IP per availability zone — useful when an external service requires IP whitelisting.
+Set `usePrivateSubnetsWithNAT: true` to deploy the worker service in private subnets and route all outbound internet traffic through a NAT Gateway. The NAT Gateway provides a static Elastic IP per availability zone — useful when an external service requires IP whitelisting. When `usePrivateSubnetsWithNAT` is `false` (the default), the container has direct outbound internet access without NAT.
 
 
 Example (TypeScript):
@@ -394,7 +400,7 @@ export default defineConfig(() => {
 
 **When to enable:** Only when you need fixed outbound IPs for allowlisting with external APIs or payment providers, or when your security policy requires that containers never have public IPs.
 
-**When the default is fine:** Most workers communicate only with AWS services and other stack resources, which don't require NAT. The default public subnet placement handles outbound traffic without the extra NAT Gateway cost.
+**When the default is fine:** Most workers communicate only with AWS services and other stack resources, which don't require NAT. The default (`usePrivateSubnetsWithNAT: false`) handles outbound traffic without the extra NAT Gateway cost.
 
 ## Logging
 

@@ -9,6 +9,7 @@ import Template_ from './template';
 import Theme_ from './theme';
 import Topic_ from './topic';
 import VPCConnection_ from './vpcConnection';
+import ActionConnector_ from './actionConnector';
 export namespace QuickSight {
   export const Analysis = Analysis_;
   export const CustomPermissions = CustomPermissions_;
@@ -21,6 +22,7 @@ export namespace QuickSight {
   export const Theme = Theme_;
   export const Topic = Topic_;
   export const VPCConnection = VPCConnection_;
+  export const ActionConnector = ActionConnector_;
   export type Analysis = Analysis_;
   export type CustomPermissions = CustomPermissions_;
   export type Dashboard = Dashboard_;
@@ -32,4 +34,5 @@ export namespace QuickSight {
   export type Theme = Theme_;
   export type Topic = Topic_;
   export type VPCConnection = VPCConnection_;
+  export type ActionConnector = ActionConnector_;
 }

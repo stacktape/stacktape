@@ -8,7 +8,7 @@ The `mcp:add` command installs the Stacktape MCP server configuration into codin
 stacktape mcp:add
 ```
 
-In interactive mode, `mcp:add` presents a multi-select prompt listing detected clients and asks for confirmation before writing. With `--autoConfirmOperation`, the command skips prompts and installs to the default target set: detected clients, or all supported clients when none are detected. The `--agent` flag uses agent-mode CLI output (JSONL format, no interactive UI) and also implies auto-confirm behavior.
+In interactive mode, `mcp:add` presents a multi-select prompt listing all supported clients, marks detected ones, and preselects the default target set before asking for confirmation. With `--autoConfirmOperation`, the command skips prompts and installs to the default target set: detected clients, or all supported clients when none are detected. The `--agent` flag disables the interactive UI and uses the same default target selection as `--autoConfirmOperation`.
 
 ## Supported clients
 
@@ -21,12 +21,12 @@ The `mcp:add` command detects and configures the following coding-agent clients:
 | Cursor | JSON | `.cursor/mcp.json` (project), `~/.cursor/mcp.json` (user) |
 | VS Code / Copilot | JSON | `.vscode/mcp.json` (project), platform-specific user path |
 | OpenCode | JSON/JSONC | `opencode.jsonc` (project), `.opencode/config.json` (project), platform-specific user paths |
-| Windsurf | JSON | `.codeium/windsurf/mcp_config.json` (project), `~/.codeium/windsurf/mcp_config.json` (user) |
+| Windsurf | JSON | `./.codeium/windsurf/mcp_config.json` (project), `~/.codeium/windsurf/mcp_config.json` (user) |
 
-For each client, Stacktape checks the configured candidate paths in order and uses the first existing file. If none exist, it creates the first configured path for that client. For most clients, this means the project-local path is created by default.
+For each client, Stacktape checks the configured candidate paths in order and uses the first existing file. If no candidate file exists for a selected client, Stacktape creates that client's first configured path, which is project-local for all supported clients.
 
 
-> **Info:** **OpenCode paths in detail:** On Windows, the user-level paths are `%APPDATA%/opencode/opencode.jsonc` and `%APPDATA%/opencode/config.json`. On macOS/Linux, the user-level paths include `~/.config/opencode/opencode.jsonc`, `~/.config/opencode/config.json`, and `~/.opencode/config.json`.
+> **Info:** **OpenCode paths in detail:** On Windows, the user-level paths are `%APPDATA%/opencode/opencode.jsonc` and `%APPDATA%/opencode/config.json`. On macOS/Linux, the user-level paths include `~/.config/opencode/opencode.jsonc`, `~/.config/opencode/config.json`, and `~/.opencode/config.json`. Stacktape can read existing JSONC-style files, but it rewrites modified files as formatted JSON, so comments are not preserved in the output.
 
 
 ## Behavior details
@@ -37,6 +37,8 @@ For each client, Stacktape checks the configured candidate paths in order and us
 
 **Idempotency** — If the `stacktape` entry already exists with identical configuration, the file is reported as `unchanged` and no backup is created.
 
+**Invalid config files** — For JSON-based clients, if an existing config file contains invalid JSON or JSONC, `mcp:add` reports that client as `failed` and leaves the file unchanged.
+
 ## Examples
 
 Install to all detected clients without interactive prompts:
@@ -45,7 +47,7 @@ Install to all detected clients without interactive prompts:
 stacktape mcp:add --autoConfirmOperation
 ```
 
-Run in agent mode, which disables interactive UI and uses the JSONL output format:
+Run in agent mode, which disables the interactive UI and auto-confirms the operation:
 
 ```bash
 stacktape mcp:add --agent
@@ -53,30 +55,49 @@ stacktape mcp:add --agent
 
 ## Flags reference
 
-
-## CLI Options: `stacktape mcp:add`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption:
-
-Uses strict JSONL/NDJSON output (one JSON object per line)
-Disables interactive terminal UI
-Automatically confirms operations (equivalent to --autoConfirmOperation)
-For dev command: also enables HTTP server for programmatic control. | - |
-| `--autoConfirmOperation (-aco)` | no | `boolean` | Auto-Confirm Operation If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console.
-
-`info`: Basic information about the operation.
-`error`: Only errors.
-`debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format:
-
-`jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.
-`plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.
-`tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
-If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-
+<CliCommandsApiReference
+  command="mcp:add"
+  sortedArgs={[
+    {
+      name: 'agent',
+      required: false,
+      alias: 'ag',
+      allowedTypes: ['boolean'],
+      shortDescription: '<p> Agent Mode</p>\n',
+      longDescription:
+        '<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n'
+    },
+    {
+      name: 'autoConfirmOperation',
+      required: false,
+      alias: 'aco',
+      allowedTypes: ['boolean'],
+      shortDescription: '<p> Auto-Confirm Operation</p>\n',
+      longDescription:
+        '<p>If <code>true</code>, automatically confirms prompts during <code>deploy</code> or <code>delete</code> operations, skipping the manual confirmation step.</p>\n'
+    },
+    {
+      name: 'logLevel',
+      required: false,
+      alias: 'll',
+      allowedTypes: ['string'],
+      allowedValues: ['info', 'debug', 'error'],
+      shortDescription: '<p> Log Level</p>\n',
+      longDescription:
+        '<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n'
+    },
+    {
+      name: 'outputFormat',
+      required: false,
+      alias: 'ofmt',
+      allowedTypes: ['string'],
+      allowedValues: ['jsonl', 'plain', 'tty'],
+      shortDescription: '<p> Output Format</p>\n',
+      longDescription:
+        '<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n'
+    }
+  ]}
+/>
 
 ## Related commands
 

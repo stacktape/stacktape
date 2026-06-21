@@ -1,4 +1,4 @@
-import { ResourceBase } from '../resource';
+import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class VpcSettings {
   VpcId!: Value<string>;
@@ -14,6 +14,7 @@ export interface SimpleADProperties {
   CreateAlias?: Value<boolean>;
   EnableSso?: Value<boolean>;
   ShortName?: Value<string>;
+  Tags?: List<ResourceTag>;
   Name: Value<string>;
   Password?: Value<string>;
 }

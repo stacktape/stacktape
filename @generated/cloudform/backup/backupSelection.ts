@@ -13,8 +13,8 @@ export class BackupSelectionResourceType {
 }
 
 export class ConditionParameter {
-  ConditionValue?: Value<string>;
   ConditionKey?: Value<string>;
+  ConditionValue?: Value<string>;
   constructor(properties: ConditionParameter) {
     Object.assign(this, properties);
   }

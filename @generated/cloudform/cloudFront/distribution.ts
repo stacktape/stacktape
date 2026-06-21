@@ -27,6 +27,20 @@ export class CacheBehavior {
   }
 }
 
+export class CacheTagConfig {
+  HeaderName!: Value<string>;
+  constructor(properties: CacheTagConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ConnectionFunctionAssociation {
+  Id!: Value<string>;
+  constructor(properties: ConnectionFunctionAssociation) {
+    Object.assign(this, properties);
+  }
+}
+
 export class Cookies {
   WhitelistedNames?: List<Value<string>>;
   Forward!: Value<string>;
@@ -49,6 +63,7 @@ export class CustomOriginConfig {
   IpAddressType?: Value<string>;
   OriginReadTimeout?: Value<number>;
   HTTPSPort?: Value<number>;
+  OriginMtlsConfig?: OriginMtlsConfig;
   OriginKeepaliveTimeout?: Value<number>;
   OriginSSLProtocols?: List<Value<string>>;
   HTTPPort?: Value<number>;
@@ -92,40 +107,43 @@ export class Definition {
 }
 
 export class DistributionConfig {
+  PriceClass?: Value<string>;
+  Staging?: Value<boolean>;
+  CustomErrorResponses?: List<CustomErrorResponse>;
+  ContinuousDeploymentPolicyId?: Value<string>;
+  OriginGroups?: OriginGroups;
+  ConnectionFunctionAssociation?: ConnectionFunctionAssociation;
+  IPV6Enabled?: Value<boolean>;
+  TenantConfig?: TenantConfig;
+  CNAMEs?: List<Value<string>>;
+  ViewerMtlsConfig?: ViewerMtlsConfig;
+  HttpVersion?: Value<string>;
+  Restrictions?: Restrictions;
+  CacheBehaviors?: List<CacheBehavior>;
   Logging?: Logging;
   Comment?: Value<string>;
   DefaultRootObject?: Value<string>;
   Origins?: List<Origin>;
   ViewerCertificate?: ViewerCertificate;
   AnycastIpListId?: Value<string>;
-  PriceClass?: Value<string>;
   CustomOrigin?: LegacyCustomOrigin;
   S3Origin?: LegacyS3Origin;
   DefaultCacheBehavior!: DefaultCacheBehavior;
-  Staging?: Value<boolean>;
-  CustomErrorResponses?: List<CustomErrorResponse>;
-  ContinuousDeploymentPolicyId?: Value<string>;
-  OriginGroups?: OriginGroups;
   Enabled!: Value<boolean>;
+  CacheTagConfig?: CacheTagConfig;
   Aliases?: List<Value<string>>;
-  IPV6Enabled?: Value<boolean>;
-  TenantConfig?: TenantConfig;
   ConnectionMode?: Value<string>;
-  CNAMEs?: List<Value<string>>;
   WebACLId?: Value<string>;
-  HttpVersion?: Value<string>;
-  Restrictions?: Restrictions;
-  CacheBehaviors?: List<CacheBehavior>;
   constructor(properties: DistributionConfig) {
     Object.assign(this, properties);
   }
 }
 
 export class ForwardedValues {
+  QueryStringCacheKeys?: List<Value<string>>;
   Cookies?: Cookies;
   Headers?: List<Value<string>>;
   QueryString!: Value<boolean>;
-  QueryStringCacheKeys?: List<Value<string>>;
   constructor(properties: ForwardedValues) {
     Object.assign(this, properties);
   }
@@ -155,8 +173,8 @@ export class GrpcConfig {
 }
 
 export class LambdaFunctionAssociation {
-  IncludeBody?: Value<boolean>;
   EventType?: Value<string>;
+  IncludeBody?: Value<boolean>;
   LambdaFunctionARN?: Value<string>;
   constructor(properties: LambdaFunctionAssociation) {
     Object.assign(this, properties);
@@ -257,6 +275,13 @@ export class OriginGroups {
   }
 }
 
+export class OriginMtlsConfig {
+  ClientCertificateArn!: Value<string>;
+  constructor(properties: OriginMtlsConfig) {
+    Object.assign(this, properties);
+  }
+}
+
 export class OriginShield {
   OriginShieldRegion?: Value<string>;
   Enabled?: Value<boolean>;
@@ -312,6 +337,15 @@ export class TenantConfig {
   }
 }
 
+export class TrustStoreConfig {
+  TrustStoreId!: Value<string>;
+  IgnoreCertificateExpiry?: Value<boolean>;
+  AdvertiseTrustStoreCaNames?: Value<boolean>;
+  constructor(properties: TrustStoreConfig) {
+    Object.assign(this, properties);
+  }
+}
+
 export class ViewerCertificate {
   IamCertificateId?: Value<string>;
   SslSupportMethod?: Value<string>;
@@ -319,6 +353,14 @@ export class ViewerCertificate {
   CloudFrontDefaultCertificate?: Value<boolean>;
   AcmCertificateArn?: Value<string>;
   constructor(properties: ViewerCertificate) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ViewerMtlsConfig {
+  Mode?: Value<string>;
+  TrustStoreConfig?: TrustStoreConfig;
+  constructor(properties: ViewerMtlsConfig) {
     Object.assign(this, properties);
   }
 }
@@ -338,6 +380,8 @@ export interface DistributionProperties {
 }
 export default class Distribution extends ResourceBase<DistributionProperties> {
   static CacheBehavior = CacheBehavior;
+  static CacheTagConfig = CacheTagConfig;
+  static ConnectionFunctionAssociation = ConnectionFunctionAssociation;
   static Cookies = Cookies;
   static CustomErrorResponse = CustomErrorResponse;
   static CustomOriginConfig = CustomOriginConfig;
@@ -359,6 +403,7 @@ export default class Distribution extends ResourceBase<DistributionProperties> {
   static OriginGroupMember = OriginGroupMember;
   static OriginGroupMembers = OriginGroupMembers;
   static OriginGroups = OriginGroups;
+  static OriginMtlsConfig = OriginMtlsConfig;
   static OriginShield = OriginShield;
   static ParameterDefinition = ParameterDefinition;
   static Restrictions = Restrictions;
@@ -366,7 +411,9 @@ export default class Distribution extends ResourceBase<DistributionProperties> {
   static StatusCodes = StatusCodes;
   static StringSchema = StringSchema;
   static TenantConfig = TenantConfig;
+  static TrustStoreConfig = TrustStoreConfig;
   static ViewerCertificate = ViewerCertificate;
+  static ViewerMtlsConfig = ViewerMtlsConfig;
   static VpcOriginConfig = VpcOriginConfig;
   constructor(properties: DistributionProperties) {
     super('AWS::CloudFront::Distribution', properties);

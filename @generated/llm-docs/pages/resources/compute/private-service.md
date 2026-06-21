@@ -22,7 +22,7 @@ A Stacktape private service is the right choice when your stack has internal com
 
 ## Basic example
 
-This example deploys an internal API using the [Stacktape image buildpack](/packaging/containers/stacktape-buildpack), which builds a container image from your source code automatically. The service listens on port `3000` by default (injected as the `PORT` environment variable). Use `connectTo` on any calling resource to have Stacktape inject the service address automatically.
+This example deploys an internal API using the [Stacktape image buildpack](/packaging/containers/stacktape-buildpack), which builds a container image from your source code automatically. The service listens on port `3000` by default (injected as the `PORT` environment variable). Other resources that need to call this service add it to their `connectTo` array — see [Connecting to other resources](#connecting-to-other-resources) for a complete wiring example.
 
 
 Example (TypeScript):
@@ -53,7 +53,7 @@ Every private service task runs with a fixed CPU and memory allocation. Stacktap
 
 ### Fargate
 
-**Fargate** is the default — serverless containers where you specify `cpu` and `memory` and AWS manages the underlying instances. Valid `cpu` values are `0.25`, `0.5`, `1`, `2`, `4`, `8`, and `16` vCPU. Memory is specified in MB. Set `architecture` to `arm64` to use Graviton processors at ~20% lower cost than the default `x86_64`.
+**Fargate** is the default — serverless containers where you specify `cpu` and `memory` and AWS manages the underlying instances. AWS Fargate supports `cpu` values from `0.25` to `16` vCPU, with memory ranges that depend on the CPU tier (see the [API reference](#api-reference) for allowed combinations). Set `architecture` to `arm64` to use AWS Graviton processors at ~20% lower cost than the default `x86_64`. The `architecture` option applies only to Fargate — it has no effect when `instanceTypes` is set.
 
 
 Example (TypeScript):
@@ -86,7 +86,7 @@ Fargate bills per vCPU-hour and per GB-hour of memory. As a rough reference, com
 
 ### EC2
 
-**EC2** gives you more control over instance type and can lower cost at sustained scale. Specify `instanceTypes` (e.g., `t3.medium`, `c6g.large`) instead of `cpu`/`memory`. For most internal services, Fargate is the simpler and recommended starting point. Switch to EC2 only when you have concrete cost or capability requirements that Fargate can't meet.
+**EC2** gives you more control over instance type and can lower cost at sustained scale. Specify `instanceTypes` (e.g., `t3.medium` for a general-purpose burstable instance, or `c6g.large` for a compute-optimized Graviton instance) instead of `cpu`/`memory`. For most internal services, Fargate is the simpler and recommended starting point. Switch to EC2 only when you have concrete cost or capability requirements that Fargate can't meet.
 
 
 Example (TypeScript):
@@ -111,7 +111,7 @@ export default defineConfig(() => {
 
 ## Scaling
 
-Stacktape private services auto-scale horizontally — adding or removing container instances based on CPU and memory utilization. Traffic is automatically distributed across all running instances.
+Stacktape private service scaling adds or removes container instances horizontally based on CPU and memory utilization. Traffic is automatically distributed across all running instances.
 
 
 Example (TypeScript):
@@ -140,7 +140,7 @@ export default defineConfig(() => {
 ```
 
 
-`minInstances` sets the always-running floor — because Fargate cannot scale to zero, you pay for at least this many tasks at all times. `maxInstances` caps burst capacity. `keepAvgCpuUtilizationUnder` and `keepAvgMemoryUtilizationUnder` set the average utilization targets that trigger scale-out events.
+`minInstances` sets the always-running floor — because Fargate cannot scale to zero, you pay for at least this many tasks at all times. `maxInstances` caps burst capacity. `keepAvgCpuUtilizationUnder` and `keepAvgMemoryUtilizationUnder` set the average utilization percentage targets that trigger scale-out events — 70% CPU and 80% memory are common starting thresholds that leave headroom for traffic spikes. Adjust these based on your service's actual utilization patterns.
 
 
 > **Warning:** Setting `minInstances` and `maxInstances` to the same value disables auto-scaling. You pay for all running instances even during low traffic.
@@ -148,7 +148,7 @@ export default defineConfig(() => {
 
 ## Load balancing
 
-The `loadBalancing` property controls how other resources in your stack reach the private service. Two modes are available, with different cost and reachability tradeoffs.
+Private service load balancing controls how other resources in your stack reach the service. Two modes are available — `service-connect` (default) and `application-load-balancer` — with different cost and reachability tradeoffs.
 
 
 ## Feature Comparison
@@ -216,7 +216,7 @@ export default defineConfig(() => {
 ```
 
 
-With an ALB, the private service gets a stable internal DNS hostname reachable from any resource in the same VPC. Any resource that `connectTo`s this service receives the `ADDRESS` parameter injected as `STP_[RESOURCE_NAME]_ADDRESS`.
+With an ALB, the private service gets a stable internal DNS hostname reachable from any resource in the same VPC. Any workload or script that `connectTo`s this service receives the `ADDRESS` parameter injected as `STP_[RESOURCE_NAME]_ADDRESS`. See [connecting resources](/configuration/connecting-resources) for the full list of resource types that support `connectTo`.
 
 ## Packaging
 
@@ -224,7 +224,7 @@ Stacktape supports five container packaging modes. Choose the one that fits your
 
 | Mode | When to use |
 |------|-------------|
-| [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) | Zero-config, works with JS/TS, Python, Java, Go |
+| [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) | Zero-config, works with JS/TS, Python, Java, Go, PHP, Ruby, and .NET |
 | [Custom Dockerfile](/packaging/containers/custom-dockerfile) | Full control over the container environment |
 | [Prebuilt image](/packaging/containers/prebuilt-image) | Use an existing image from Docker Hub or a private registry |
 | [Nixpacks](/packaging/containers/nixpacks) | Auto-detects language and builds an optimized image |
@@ -252,35 +252,50 @@ export default defineConfig(() => {
 ```
 
 
-The `dockerfilePath` is relative to `buildContextPath`. If omitted, Stacktape looks for a `Dockerfile` in the build context directory.
+The `dockerfilePath` is relative to `buildContextPath`. Set it when the Dockerfile is not at the root of the build context directory.
 
 ## Connecting to other resources
 
 Use `connectTo` to give your private service access to other resources in your stack. Stacktape automatically grants IAM permissions, opens network access (security groups for databases and Redis), and injects environment variables with connection details. For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
 
+The following example shows a complete wiring pattern: the private service connects to a bucket, and a public-facing [web service](/resources/compute/web-service) connects to the private service.
+
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
-
+import {
+  defineConfig,
+  PrivateService,
+  WebService,
+  StacktapeImageBuildpackPackaging,
+  Bucket
+} from 'stacktape';
 export default defineConfig(() => {
+  const dataBucket = new Bucket({});
+
   const internalApi = new PrivateService({
     packaging: new StacktapeImageBuildpackPackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
-    connectTo: ['myDatabase', 'myBucket']
+    connectTo: ['dataBucket']
   });
 
-  return { resources: { internalApi } };
+  const publicApi = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/public-api.ts'
+    }),
+    resources: { cpu: 0.25, memory: 512 },
+    connectTo: ['internalApi']
+  });
+
+  return { resources: { dataBucket, internalApi, publicApi } };
 });
 ```
 
 
-When you connect to a relational database, the private service receives variables like `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_DATABASE_HOST`, and `STP_MY_DATABASE_PORT`. For a bucket, it receives `STP_MY_BUCKET_NAME` and `STP_MY_BUCKET_ARN`.
-
-Other resources that call this private service can reference it the same way. A resource with `connectTo: ['internalApi']` receives the service's `ADDRESS` parameter injected as `STP_INTERNAL_API_ADDRESS`. For permissions not covered by `connectTo` (e.g., accessing AWS Bedrock), add raw IAM statements via `iamRoleStatements`.
+In this example, `internalApi` receives `STP_DATA_BUCKET_NAME` and `STP_DATA_BUCKET_ARN` as environment variables from connecting to `dataBucket`. The `publicApi` web service receives `STP_INTERNAL_API_ADDRESS` from connecting to `internalApi`, which it can use as the base URL for HTTP or gRPC calls. For permissions not covered by `connectTo` (e.g., accessing AWS Bedrock), add raw IAM statements via `iamRoleStatements`.
 
 ## Health checks
 
@@ -312,13 +327,15 @@ export default defineConfig(() => {
 ```
 
 
-`startPeriodSeconds` gives the container a grace period before health check failures start counting against the retry limit — useful for services with slow initialization. See the [API reference](#api-reference) for the full set of supported properties and their defaults.
+`intervalSeconds` controls how often the check runs (30 seconds here), `timeoutSeconds` is how long to wait for a response before marking the check as failed, and `retries` is the number of consecutive failures before ECS replaces the container. `startPeriodSeconds` gives the container a grace period before health check failures start counting against the retry limit — set it long enough for your service's initialization (60 seconds in this example). See the [API reference](#api-reference) for the full set of supported properties and their defaults.
+
+When `loadBalancing.type` is `application-load-balancer`, the ALB also performs its own HTTP health checks against the container targets — separate from the ECS-level `internalHealthCheck` above. ALB health check path, interval, and timeout can be customized via [overrides](/configuration/overrides-and-escape-hatches) on the target group's CloudFormation resource.
 
 ## Side containers
 
-Side containers run alongside your main container within the same task. Two modes are available, each with distinct lifecycle behavior.
+A Stacktape private service can include side containers that run alongside the main container within the same ECS task. Two modes are available, each with distinct lifecycle behavior.
 
-### run-on-init
+### Using run-on-init sidecars
 
 A `run-on-init` sidecar runs to completion before the main container starts. Use this for database migrations, cache warming, or any setup that must succeed before your service handles traffic. The container must exit with code 0; a non-zero exit aborts the entire task.
 
@@ -350,9 +367,9 @@ export default defineConfig(() => {
 ```
 
 
-### always-running
+### Using always-running sidecars
 
-An `always-running` sidecar runs for the entire lifetime of the task alongside the main container. Use this for log forwarders, monitoring agents, or sidecar proxies. The sidecar can communicate with the main container via `localhost`.
+An `always-running` sidecar runs for the entire lifetime of the task alongside the main container. Use this for log forwarders, monitoring agents, or sidecar proxies. The sidecar can communicate with the main container via `localhost`. The example below uses the OpenTelemetry Collector (`otel/opentelemetry-collector`) as a prebuilt image — a common choice for forwarding traces and metrics from your service to observability backends.
 
 
 > **Warning:** If an always-running sidecar crashes, ECS terminates the entire task — including the main container. Ensure always-running sidecars are stable; use a resilient base image or process supervisor for anything that could exit unexpectedly.
@@ -398,11 +415,13 @@ By default, private service containers run in public subnets with direct interne
 > **Warning:** NAT Gateways add approximately ~$32/month per availability zone plus data processing fees. Configure the number of NAT Gateways (1–3 AZs) in `stackConfig.vpc.nat`.
 
 
+Leave `usePrivateSubnetsWithNAT` unset for ordinary services that only need outbound internet access. Enable it when an external API, partner, or compliance rule requires a fixed egress IP for whitelisting.
+
 ## Logging
 
 Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the [Stacktape Console](/stacktape-console/console-overview). You can also set up [log forwarding](/observability/log-forwarding) to external services like Datadog.
 
-Set `protocol` to `http`, `http2`, or `grpc` to enable protocol-specific CloudWatch metrics — for example, HTTP 5xx error rate tracking for HTTP services or request count metrics for gRPC servers.
+Set the top-level `protocol` property on the private service (not nested inside `logging`) to `http`, `http2`, or `grpc` to enable protocol-specific CloudWatch metrics — for example, HTTP 5xx error rate tracking for HTTP services.
 
 ## Remote sessions
 
@@ -428,11 +447,11 @@ The main costs are Fargate compute and networking. Compute runs approximately ~$
 
 ### Can I run a gRPC server as a private service?
 
-Yes. Set `port` to your gRPC server's listening port (e.g., `50051`) and set `protocol: 'grpc'` to enable gRPC-specific CloudWatch metrics such as request count. Other containers in the stack connect using `connectTo` to receive the injected `ADDRESS` environment variable. The Stacktape image buildpack supports Node.js, Python, Java, and Go gRPC servers.
+Yes. Set `port` to your gRPC server's listening port (e.g., `50051`) and set `protocol: 'grpc'` to enable protocol-specific CloudWatch metrics. Other containers in the stack connect using `connectTo` to receive the injected `ADDRESS` environment variable. The Stacktape image buildpack supports Node.js, Python, Java, Go, PHP, Ruby, and .NET.
 
 ### How fast does a Fargate private service cold-start?
 
-Cold-start typically takes 30–90 seconds from scaling event to task healthy. Image size and ECR pull time are the main factors. To eliminate cold-start impact entirely, keep `minInstances` at 1 or higher so a warm instance is always available. New instances launched during scale-out take the same time, so set auto-scaling thresholds conservatively for latency-sensitive internal services.
+AWS Fargate cold-start — the time from a scaling event to a task becoming healthy — is primarily determined by container image size and ECR pull time. To minimize cold-start impact, keep `minInstances` at 1 or higher so a warm instance is always available. New instances launched during scale-out incur the same startup time, so set auto-scaling thresholds conservatively for latency-sensitive internal services.
 
 ### Private service vs worker service — which should I use?
 

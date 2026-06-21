@@ -15,8 +15,8 @@ export class Destination {
 }
 
 export class FilterRule {
-  FilterType?: Value<string>;
   Value?: Value<string>;
+  FilterType?: Value<string>;
   constructor(properties: FilterRule) {
     Object.assign(this, properties);
   }

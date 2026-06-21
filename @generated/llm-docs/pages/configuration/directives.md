@@ -30,7 +30,7 @@ The distinction matters because **runtime directives can only appear in the `res
 
 ## Using directives in TypeScript
 
-In TypeScript configuration, runtime directives are imported as functions from the `stacktape` package. For local operations like variable access, string interpolation, and file loading, you can use native JavaScript instead — template literals, `import`, and `fs.readFileSync` cover most of what `$Var`, `$Format`, and `$File` do in YAML configs.
+In TypeScript configuration, Stacktape exposes runtime directive helpers as functions you import from the `stacktape` package. For local operations like variable access, string interpolation, and file loading, you can use native JavaScript instead — template literals, `import`, and `fs.readFileSync` cover most of what `$Var`, `$Format`, and `$File` do in YAML configs.
 
 
 Example (TypeScript):
@@ -41,7 +41,7 @@ import {
   LambdaFunction,
   StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
-  RdsEnginePostgresql,
+  RdsEnginePostgres,
   $Secret,
   $ResourceParam,
   $Stage,
@@ -49,8 +49,9 @@ import {
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const database = new RelationalDatabase({
-    engine: new RdsEnginePostgresql({
-      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    engine: new RdsEnginePostgres({
+      primaryInstance: { instanceSize: 'db.t4g.micro' },
+      version: '16.6'
     }),
     credentials: {
       masterUserPassword: $Secret('db-password')
@@ -59,11 +60,11 @@ export default defineConfig(({ stage }) => {
 
   const api = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
-    environment: [
-      { name: 'DB_CONNECTION_STRING', value: $ResourceParam('database', 'connectionString') },
-      { name: 'STAGE', value: $Stage() },
-      { name: 'REGION', value: $Region() }
-    ],
+    environment: {
+      DB_CONNECTION_STRING: $ResourceParam('database', 'connectionString'),
+      STAGE: $Stage(),
+      REGION: $Region()
+    },
     connectTo: [database]
   });
 
@@ -72,32 +73,31 @@ export default defineConfig(({ stage }) => {
 ```
 
 
-The following directive functions are importable from the `stacktape` package: `$Secret`, `$SsmParam`, `$ResourceParam`, `$CfResourceParam`, `$CfFormat`, `$CfStackOutput`, `$GitInfo`, `$Stage`, `$Region`.
+The examples below import runtime directive helpers like `$Secret`, `$ResourceParam`, `$CfFormat`, `$GitInfo`, `$Stage`, and `$Region` from the `stacktape` package. For most local operations in TypeScript configs, prefer native JavaScript: template literals instead of `$Format`, variables instead of `$Var`, and `fs`/`import` instead of `$File`.
 
 ## Local directives reference
 
 ### $Stage()
 
-Returns the current stage name passed to the CLI via `--stage`. Use it to differentiate resource naming, domain prefixes, or feature flags across stages.
+Returns the current target stage name. Use it to differentiate resource naming, domain prefixes, or feature flags across stages.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, HttpApiGateway, $Stage } from 'stacktape';
-export default defineConfig(({ stage }) => {
-  const api = new HttpApiGateway({
-    customDomains: [
-      { domainName: `${stage}-api.example.com` }
-    ]
+import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, $Stage } from 'stacktape';
+export default defineConfig(() => {
+  const handler = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    environment: { STAGE: $Stage() }
   });
 
-  return { resources: { api } };
+  return { resources: { handler } };
 });
 ```
 
 
-In TypeScript, the `stage` value is also available directly from the `defineConfig` callback parameter — `defineConfig(({ stage }) => { ... })`. Both approaches are equivalent.
+In TypeScript, the `stage` value is also available directly from the `defineConfig` callback parameter — `defineConfig(({ stage }) => { ... })`. Use the callback parameter when you need native JavaScript operations like template literals for domain names (e.g., `` `${stage}-api.example.com` ``).
 
 ### $Region()
 
@@ -116,7 +116,7 @@ import {
 export default defineConfig(() => {
   const handler = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
-    environment: [{ name: 'DEPLOY_REGION', value: $Region() }]
+    environment: { DEPLOY_REGION: $Region() }
   });
 
   return { resources: { handler } };
@@ -126,37 +126,19 @@ export default defineConfig(() => {
 
 ### $Format()
 
-Performs string interpolation using `{}` placeholders. Each `{}` is replaced with the corresponding positional argument. The number of `{}` placeholders must match the number of additional arguments. Use it in YAML configs for dynamic string composition — in TypeScript, prefer template literals instead.
+In YAML configs, `$Format()` is the directive-based way to interpolate strings using `{}` placeholders. Each `{}` is replaced with the corresponding positional argument. The number of `{}` placeholders must match the number of additional arguments. Example: `$Format('{}-api.example.com', $Stage())` produces `dev-api.example.com` when the stage is `dev`.
 
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, HttpApiGateway } from 'stacktape';
-export default defineConfig(({ stage, region }) => {
-  const api = new HttpApiGateway({
-    customDomains: [
-      { domainName: `${stage}.${region}.api.example.com` }
-    ]
-  });
-
-  return { resources: { api } };
-});
-```
-
-
-> **Info:** In TypeScript configs, native template literals replace `$Format()`. In YAML configs, use `$Format('{}-api.example.com', $Stage())` for the same result.
-
+In TypeScript configs, prefer template literals for ordinary local string composition. For example, `` `${stage}-api.example.com` `` achieves the same result. The `stage` value is available from the `defineConfig` callback parameter: `defineConfig(({ stage }) => { ... })`.
 
 ### $Var()
 
-References a value from the `variables` section of your config. Access nested properties with dot notation: `$Var().myProperty.nested`.
+`$Var()` references the `variables` section in directive-based (YAML) config. In YAML, access nested properties with dot notation: `$Var().myProperty.nested`.
 
-In TypeScript, this directive isn't needed — define a regular JavaScript variable and reference it directly. `$Var()` exists primarily for YAML configs where native variables aren't available.
+In TypeScript config, use regular JavaScript variables instead — that is clearer and keeps values type-checkable. For example, `const instanceSize = 'db.t4g.micro';` and use `instanceSize` wherever needed.
 
 ### $File()
 
-Loads and parses a file relative to your working directory. Supported formats:
+Loads and parses a file in one of the supported formats, resolved using Stacktape's configured working directory. Supported formats:
 
 | Format | Returns |
 |--------|---------|
@@ -174,12 +156,13 @@ Example (TypeScript):
 import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 import { readFileSync } from 'fs';
 export default defineConfig(() => {
-  const envVars = readFileSync('.env', 'utf-8')
+  const envVars: Record<string, string> = {};
+  readFileSync('.env', 'utf-8')
     .split('\n')
     .filter(line => line.includes('='))
-    .map(line => {
+    .forEach(line => {
       const [name, ...rest] = line.split('=');
-      return { name: name.trim(), value: rest.join('=').trim() };
+      envVars[name.trim()] = rest.join('=').trim();
     });
 
   const handler = new LambdaFunction({
@@ -192,7 +175,7 @@ export default defineConfig(() => {
 ```
 
 
-> **Tip:** In TypeScript configs, use native `import` or `readFileSync` for file loading. The `$File()` directive is most useful in YAML configs where file loading isn't built in.
+> **Tip:** In TypeScript configs, use native `import` or `readFileSync` for file loading. The example above parses `.env` into a `Record<string, string>` for the `environment` property's object form. In YAML configs, `$File('.env')` returns an array of `{ name, value }` objects matching the `environment` array form. The `$File()` directive is most useful in YAML configs where file loading isn't built in.
 
 
 ### $FileRaw()
@@ -201,7 +184,7 @@ Reads a file as a raw UTF-8 string without parsing. Use it when you need the lit
 
 ### $GitInfo()
 
-Returns information about the current git repository. Pass the property name as a string argument: `$GitInfo('branch')`.
+Returns information about the current git repository. Pass the property name as a required string argument: `$GitInfo('commit')`, `$GitInfo('branch')`, `$GitInfo('username')`, or `$GitInfo('gitUrl')`.
 
 Available properties:
 
@@ -225,18 +208,16 @@ import {
 export default defineConfig(() => {
   const handler = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
-    environment: [
-      { name: 'GIT_COMMIT', value: $GitInfo('commit') },
-      { name: 'GIT_BRANCH', value: $GitInfo('branch') }
-    ]
+    environment: {
+      GIT_COMMIT: $GitInfo('commit'),
+      GIT_BRANCH: $GitInfo('branch')
+    }
   });
 
   return { resources: { handler } };
 });
 ```
 
-
-When git commands are unavailable (such as in some CI environments), Stacktape's git info manager can fall back to CI-specific environment variables for properties like commit SHA and branch name.
 
 ### $CliArgs()
 
@@ -254,9 +235,9 @@ In your config, reference them with `$CliArgs('featureFlag')`. The optional seco
 
 References an exported output from another deployed CloudFormation stack. The referenced stack must already be deployed. This is a **local** directive — it fetches the value at config-parse time by querying CloudFormation.
 
-Arguments: `$StackOutput('stackName', 'outputKey')` with an optional third argument for `region` when importing from a stack in another AWS region.
+Arguments: `$StackOutput('stackName', 'outputName')` with an optional third argument for `region` when importing from a stack in another AWS region.
 
-The `stackName` is the full CloudFormation stack name (formatted as `projectName-stage`). The `outputKey` must match the key as it appears in the CloudFormation stack outputs. Use [`stacktape info:stack`](/cli/info-stack) to discover available output keys for a deployed stack.
+The `stackName` is the full CloudFormation stack name. The `outputName` must match the CloudFormation output key of the referenced stack. Use [`stacktape info:stack`](/cli/info-stack) to discover available output keys for a deployed stack.
 
 
 > **Warning:** The referenced output must be exported from its stack. Unexported outputs cannot be referenced and will cause a deployment error. The referenced stack must also be deployed before the stack that uses the directive.
@@ -272,25 +253,26 @@ Returns the AWS account ID of the target account. Use it when you need the accou
 
 ### $This()
 
-Returns the raw configuration object. Access nested properties with dot notation: `$This().resources.myApi`. This is primarily useful in YAML configs for self-referencing parts of the config.
+`$This()` is a YAML-only directive that returns the raw configuration object. In YAML, access nested properties with dot notation: `$This().resources.myApi`. In TypeScript, this directive has no import — reference variables and resource objects directly since they are already in scope.
 
 ## Runtime directives reference
 
-Runtime directives resolve during CloudFormation deployment. They produce CloudFormation intrinsic functions under the hood, which means the actual values are only available when AWS provisions your resources.
+Runtime directives resolve during CloudFormation deployment. Depending on the directive, Stacktape emits CloudFormation-time values such as dynamic references (`$Secret`, `$SsmParam`) or intrinsic functions (`$CfFormat`, `$CfStackOutput`). The actual values are only available when AWS provisions your resources.
 
 ### $Secret()
 
-References a secret stored in AWS Secrets Manager. The secret must exist in the same region you're deploying to. Create secrets using [`stacktape secret:create`](/cli/secret-create) or through the [Stacktape Console](/configuration/secrets).
+References a secret stored in AWS Secrets Manager. The named secret must be readable by Stacktape during deployment. Create secrets using [`stacktape secret:create`](/cli/secret-create) or through the [Stacktape Console](/configuration/secrets).
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgresql, $Secret } from 'stacktape';
+import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    engine: new RdsEnginePostgresql({
-      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    engine: new RdsEnginePostgres({
+      primaryInstance: { instanceSize: 'db.t4g.micro' },
+      version: '16.6'
     }),
     credentials: {
       masterUserPassword: $Secret('db-password')
@@ -304,7 +286,11 @@ export default defineConfig(() => {
 
 Deployment fails with an error if Stacktape cannot fetch the named secret, with a hint to create it using [`stacktape secret:create`](/cli/secret-create).
 
-For JSON-formatted secrets, use dot notation to extract specific keys:
+
+> **Warning:** The secret's `VersionId` is baked into the CloudFormation template at deploy time. If you update a secret in AWS Secrets Manager after deployment, the running stack continues using the old version until you redeploy. This means secret rotation requires a redeployment to take effect.
+
+
+For JSON-formatted secrets, use dot notation to extract a single top-level key — `$Secret('secret-name.key')` splits on the first `.` to determine the secret name and the JSON key:
 
 
 Example (TypeScript):
@@ -319,10 +305,10 @@ import {
 export default defineConfig(() => {
   const handler = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
-    environment: [
-      { name: 'STRIPE_KEY', value: $Secret('api-keys.stripe') },
-      { name: 'SENDGRID_KEY', value: $Secret('api-keys.sendgrid') }
-    ]
+    environment: {
+      STRIPE_KEY: $Secret('api-keys.stripe'),
+      SENDGRID_KEY: $Secret('api-keys.sendgrid')
+    }
   });
 
   return { resources: { handler } };
@@ -340,7 +326,7 @@ When prompted, provide a name (e.g., `api-keys`) and a JSON value (e.g., `{"stri
 
 ### $SsmParam()
 
-References a parameter from AWS Systems Manager Parameter Store. `$SsmParam()` reads the parameter and uses the secure dynamic reference form (`ssm-secure`) when AWS reports the parameter type as `SecureString`; otherwise it uses the standard SSM dynamic reference form (`ssm`). Use SSM parameters when you need values that change without redeployment or when integrating with other AWS tools that write to Parameter Store.
+References a parameter from AWS Systems Manager Parameter Store. `$SsmParam()` reads the parameter and uses the secure dynamic reference form (`ssm-secure`) when AWS reports the parameter type as `SecureString`; otherwise it uses the standard SSM dynamic reference form (`ssm`). During deployment, `$SsmParam()` reads the current parameter version and injects a CloudFormation dynamic reference pinned to that version — updating the SSM parameter requires a redeployment to pick up the new value. Use SSM parameters when integrating with other AWS tools that write to Parameter Store or when managing configuration values outside your Stacktape config.
 
 
 Example (TypeScript):
@@ -355,10 +341,10 @@ import {
 export default defineConfig(() => {
   const handler = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
-    environment: [
-      { name: 'FEATURE_FLAGS', value: $SsmParam('/myapp/feature-flags') },
-      { name: 'DB_HOST', value: $SsmParam('/prod/database/host') }
-    ]
+    environment: {
+      FEATURE_FLAGS: $SsmParam('/myapp/feature-flags'),
+      DB_HOST: $SsmParam('/prod/database/host')
+    }
   });
 
   return { resources: { handler } };
@@ -392,7 +378,7 @@ export default defineConfig(() => {
 
   const handler = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
-    environment: [{ name: 'API_URL', value: $ResourceParam('api', 'url') }]
+    environment: { API_URL: $ResourceParam('api', 'url') }
   });
 
   return { resources: { api, handler } };
@@ -423,7 +409,7 @@ import {
 export default defineConfig(() => {
   const handler = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
-    environment: [{ name: 'TOPIC_ARN', value: $CfResourceParam('mySnsTopic', 'TopicArn') }]
+    environment: { TOPIC_ARN: $CfResourceParam('mySnsTopic', 'TopicArn') }
   });
 
   return {
@@ -454,15 +440,16 @@ import {
   LambdaFunction,
   StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
-  RdsEnginePostgresql,
+  RdsEnginePostgres,
   $Secret,
   $CfFormat,
   $ResourceParam
 } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    engine: new RdsEnginePostgresql({
-      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    engine: new RdsEnginePostgres({
+      primaryInstance: { instanceSize: 'db.t4g.micro' },
+      version: '16.6'
     }),
     credentials: {
       masterUserPassword: $Secret('db-password')
@@ -471,17 +458,14 @@ export default defineConfig(() => {
 
   const handler = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
-    environment: [
-      {
-        name: 'JDBC_URL',
-        value: $CfFormat(
-          'jdbc:postgresql://{}:{}/{}',
-          $ResourceParam('database', 'host'),
-          $ResourceParam('database', 'port'),
-          $ResourceParam('database', 'dbName')
-        )
-      }
-    ]
+    environment: {
+      JDBC_URL: $CfFormat(
+        'jdbc:postgresql://{}:{}/{}',
+        $ResourceParam('database', 'host'),
+        $ResourceParam('database', 'port'),
+        $ResourceParam('database', 'dbName')
+      )
+    }
   });
 
   return { resources: { database, handler } };
@@ -508,12 +492,9 @@ import {
 export default defineConfig(() => {
   const handler = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
-    environment: [
-      {
-        name: 'SHARED_QUEUE_URL',
-        value: $CfStackOutput('shared-infra-production', 'QueueQueueUrl')
-      }
-    ]
+    environment: {
+      SHARED_QUEUE_URL: $CfStackOutput('shared-infra-production', 'QueueQueueUrl')
+    }
   });
 
   return { resources: { handler } };
@@ -521,7 +502,7 @@ export default defineConfig(() => {
 ```
 
 
-Arguments: `$CfStackOutput('stackName', 'outputKey', region?)`. The stack name is the full CloudFormation stack name (formatted as `projectName-stage`). The optional `region` argument allows importing outputs from a stack deployed in a different AWS region.
+Arguments: `$CfStackOutput('stackName', 'outputName', region?)`. The `stackName` is the full CloudFormation stack name. The `outputName` must match the CloudFormation output key of the referenced stack. Both `$StackOutput` and `$CfStackOutput` accept an optional `region` argument — Stacktape uses it to look up the referenced stack and validate the export exists. The key difference: `$StackOutput` returns the resolved value at config-parse time, so cross-region lookups work directly. `$CfStackOutput` returns a CloudFormation `ImportValue` intrinsic, which only resolves within the deployment region. Use `$StackOutput` when you need a value from a stack in another region.
 
 
 > **Warning:** The referenced output must be exported from its stack. Unexported outputs cannot be referenced and will cause a deployment error.
@@ -534,9 +515,11 @@ Arguments: `$CfStackOutput('stackName', 'outputKey', region?)`. The stack name i
 
 ## Directive nesting
 
-Directives can be nested, but only runtime directives can be nested inside other runtime directives. A local directive cannot depend on a runtime directive's result because local directives resolve before deployment begins.
+Directives can be nested up to two levels deep. A valid 2-level nesting is a directive inside another directive — for example, `$CfFormat('{}/api', $ResourceParam('api', 'url'))`. Three levels of nesting (a directive inside a directive inside a directive) causes an error. In YAML configs, nesting a runtime directive inside a local directive is also not possible because local directives resolve before deployment begins.
 
-Valid nesting — a runtime directive inside another runtime directive:
+If you need what would be three levels, break the innermost level into a `variables` entry so it resolves first. In YAML, define a variable like `stagePrefix: $Format('{}-', $Stage())` and then reference it as `$Var().stagePrefix` inside the outer directive — this reduces the effective nesting depth to two. In TypeScript, this limit rarely matters because you use plain JavaScript variables for local operations, avoiding the YAML directive nesting chain entirely.
+
+Example — valid 2-level nesting of `$ResourceParam` inside `$CfFormat`:
 
 
 Example (TypeScript):
@@ -552,12 +535,9 @@ import {
 export default defineConfig(() => {
   const handler = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
-    environment: [
-      {
-        name: 'API_ENDPOINT',
-        value: $CfFormat('{}/v1', $ResourceParam('api', 'url'))
-      }
-    ]
+    environment: {
+      API_ENDPOINT: $CfFormat('{}/v1', $ResourceParam('api', 'url'))
+    }
   });
 
   return { resources: { handler } };
@@ -582,13 +562,13 @@ In TypeScript configs, nesting constraints rarely apply because you use native J
 | `$FileRaw()` | Local | `(filePath)` | Read file as raw string |
 | `$GitInfo()` | Local | `(property)` | Git repository information |
 | `$CliArgs()` | Local | `(argName, defaultValue?)` | CLI arguments passed after `--` |
-| `$StackOutput()` | Local | `(stackName, outputKey, region?)` | Exported output from another deployed stack |
+| `$StackOutput()` | Local | `(stackName, outputName, region?)` | Exported output from another deployed stack |
 | `$Secret()` | Runtime | `(secretName)` | AWS Secrets Manager value |
 | `$SsmParam()` | Runtime | `(paramName)` | SSM Parameter Store value |
 | `$ResourceParam()` | Runtime | `(resourceName, param)` | Parameter from a Stacktape resource |
 | `$CfResourceParam()` | Runtime | `(logicalId, attribute)` | Parameter from a raw CF resource |
 | `$CfFormat()` | Runtime | `(template, ...values)` | Runtime string interpolation via `Fn::Sub` |
-| `$CfStackOutput()` | Runtime | `(stackName, outputKey, region?)` | Cross-stack import with deletion lock |
+| `$CfStackOutput()` | Runtime | `(stackName, outputName, region?)` | Cross-stack import with deletion lock |
 
 ## When to use directives vs alternatives
 
@@ -596,7 +576,7 @@ Not every dynamic value needs a directive. Consider the alternatives:
 
 | Need | Best approach |
 |------|--------------|
-| Pass a database URL to your code | Use [`connectTo`](/configuration/connecting-resources) — it injects env vars and grants permissions automatically |
+| Pass a database URL to your code | Use [`connectTo`](/configuration/connecting-resources) — it grants required IAM permissions and injects commonly needed environment variables |
 | Compose strings from stage/region | In TypeScript: use template literals. In YAML: use `$Format()` |
 | Share values across resources | In TypeScript: use a variable. In YAML: use `variables` + `$Var()` |
 | Read config from a file | In TypeScript: use `import` or `readFileSync`. In YAML: use `$File()` |
@@ -624,11 +604,11 @@ Use `$CliArgs()` to read arguments passed after `--` in the deploy command. For 
 
 ### Can I use directives in TypeScript configs?
 
-Yes. Runtime directives (`$Secret`, `$ResourceParam`, `$CfFormat`, `$CfStackOutput`, `$SsmParam`, `$CfResourceParam`, `$GitInfo`, `$Stage`, `$Region`) are imported as functions from the `stacktape` package. For local operations like string formatting, file reading, and variable access, you can use native JavaScript instead of the corresponding YAML directives.
+Yes. Directive helpers like `$Secret`, `$ResourceParam`, `$CfFormat`, `$GitInfo`, `$Stage`, and `$Region` are imported as functions from the `stacktape` package. For local operations like string formatting, file reading, and variable access, you can use native JavaScript instead of the corresponding YAML directives.
 
 ### What happens if a referenced secret doesn't exist?
 
-Deployment fails with an error identifying the missing secret and suggesting you create it with [`stacktape secret:create`](/cli/secret-create). The same applies to `$SsmParam` — if the referenced SSM parameter doesn't exist, Stacktape reports the error before the deployment can proceed. Always create secrets and parameters before deploying stacks that reference them.
+Deployment fails with an error identifying the missing secret and suggesting you create it with [`stacktape secret:create`](/cli/secret-create). Similarly, if Stacktape cannot read the SSM parameter while resolving the `$SsmParam` directive, it raises a directive error with a hint to create the parameter in the Stacktape Console. Always create secrets and parameters before deploying stacks that reference them.
 
 ### How does $CfStackOutput prevent accidental deletion?
 
@@ -636,7 +616,7 @@ Deployment fails with an error identifying the missing secret and suggesting you
 
 ### How do I find the output key for $StackOutput or $CfStackOutput?
 
-Use [`stacktape info:stack`](/cli/info-stack) to list the available output keys for a deployed stack. The output key name passed to `$StackOutput` or `$CfStackOutput` must exactly match the key as it appears in the CloudFormation stack outputs. Both directives also accept an optional `region` argument for referencing stacks deployed in a different AWS region.
+Use [`stacktape info:stack`](/cli/info-stack) to list the available CloudFormation output keys for a deployed stack. The `outputName` argument passed to `$StackOutput` or `$CfStackOutput` must exactly match the CloudFormation `OutputKey` of the referenced stack. Both directives accept an optional `region` argument for the lookup. `$StackOutput` returns the resolved value directly, so cross-region lookups work. `$CfStackOutput` returns a CloudFormation `ImportValue` intrinsic that only resolves within the deployment region.
 
 ### Can I nest $ResourceParam inside $Format?
 
@@ -644,4 +624,4 @@ No. `$Format` is a local directive and cannot accept runtime directives as argum
 
 ### How do I access JSON properties from $Secret?
 
-Use dot notation after the secret name: `$Secret('my-secret.apiKey')` where `my-secret` is the secret name and `apiKey` is a key in the JSON object. The secret value must be valid JSON — if it isn't, Stacktape reports a parsing error. The same dot-notation pattern works with `$File()` in YAML configs for accessing nested properties: `$File('config.json').database.host`.
+Use dot notation to extract a single top-level key from a JSON-formatted secret: `$Secret('my-secret.apiKey')` where `my-secret` is the secret name and `apiKey` is a top-level key in the JSON object. Nested key traversal is not supported. The secret value must be valid JSON — if it isn't, Stacktape reports a parsing error. The same dot-notation pattern works with `$File()` in YAML configs for accessing nested properties: `$File('config.json').database.host`.

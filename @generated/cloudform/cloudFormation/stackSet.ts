@@ -1,6 +1,7 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AutoDeployment {
+  DependsOn?: List<Value<string>>;
   Enabled?: Value<boolean>;
   RetainStacksOnAccountRemoval?: Value<boolean>;
   constructor(properties: AutoDeployment) {

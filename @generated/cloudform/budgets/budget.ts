@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AutoAdjustData {

@@ -25,6 +25,49 @@ export class PosixUser {
   }
 }
 
+export class PriorityBalancedSchedulingConfiguration {
+  RenderingTaskBuffer?: Value<number>;
+  constructor(properties: PriorityBalancedSchedulingConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SchedulingConfiguration {
+  PriorityBalanced?: PriorityBalancedSchedulingConfiguration;
+  PriorityFifo?: { [key: string]: any };
+  WeightedBalanced?: WeightedBalancedSchedulingConfiguration;
+  constructor(properties: SchedulingConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SchedulingMaxPriorityOverride {
+  AlwaysScheduleFirst!: { [key: string]: any };
+  constructor(properties: SchedulingMaxPriorityOverride) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SchedulingMinPriorityOverride {
+  AlwaysScheduleLast!: { [key: string]: any };
+  constructor(properties: SchedulingMinPriorityOverride) {
+    Object.assign(this, properties);
+  }
+}
+
+export class WeightedBalancedSchedulingConfiguration {
+  ErrorWeight?: Value<number>;
+  MaxPriorityOverride?: SchedulingMaxPriorityOverride;
+  PriorityWeight?: Value<number>;
+  SubmissionTimeWeight?: Value<number>;
+  MinPriorityOverride?: SchedulingMinPriorityOverride;
+  RenderingTaskWeight?: Value<number>;
+  RenderingTaskBuffer?: Value<number>;
+  constructor(properties: WeightedBalancedSchedulingConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
 export class WindowsUser {
   User!: Value<string>;
   PasswordArn!: Value<string>;
@@ -37,9 +80,10 @@ export interface QueueProperties {
   AllowedStorageProfileIds?: List<Value<string>>;
   Description?: Value<string>;
   JobAttachmentSettings?: JobAttachmentSettings;
+  SchedulingConfiguration?: SchedulingConfiguration;
+  RequiredFileSystemLocationNames?: List<Value<string>>;
   DefaultBudgetAction?: Value<string>;
   DisplayName: Value<string>;
-  RequiredFileSystemLocationNames?: List<Value<string>>;
   FarmId: Value<string>;
   RoleArn?: Value<string>;
   Tags?: List<ResourceTag>;
@@ -48,6 +92,11 @@ export default class Queue extends ResourceBase<QueueProperties> {
   static JobAttachmentSettings = JobAttachmentSettings;
   static JobRunAsUser = JobRunAsUser;
   static PosixUser = PosixUser;
+  static PriorityBalancedSchedulingConfiguration = PriorityBalancedSchedulingConfiguration;
+  static SchedulingConfiguration = SchedulingConfiguration;
+  static SchedulingMaxPriorityOverride = SchedulingMaxPriorityOverride;
+  static SchedulingMinPriorityOverride = SchedulingMinPriorityOverride;
+  static WeightedBalancedSchedulingConfiguration = WeightedBalancedSchedulingConfiguration;
   static WindowsUser = WindowsUser;
   constructor(properties: QueueProperties) {
     super('AWS::Deadline::Queue', properties);

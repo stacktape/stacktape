@@ -76,10 +76,11 @@ export class DeploymentController {
 }
 
 export class DeploymentLifecycleHook {
+  TimeoutConfiguration?: { [key: string]: any };
   LifecycleStages!: List<Value<string>>;
-  HookTargetArn!: Value<string>;
+  HookTargetArn?: Value<string>;
   HookDetails?: { [key: string]: any };
-  RoleArn!: Value<string>;
+  RoleArn?: Value<string>;
   constructor(properties: DeploymentLifecycleHook) {
     Object.assign(this, properties);
   }

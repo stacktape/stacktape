@@ -2,6 +2,7 @@ import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AutoScalingGroupsConfiguration {
   AutoScalingGroupNameList!: List<Value<string>>;
+  HealthCheckConfig?: HealthCheckConfig;
   RoleArn!: Value<string>;
   constructor(properties: AutoScalingGroupsConfiguration) {
     Object.assign(this, properties);
@@ -16,6 +17,20 @@ export class EksEndpointsConfiguration {
   EndpointsResourceNamespace!: Value<string>;
   RoleArn!: Value<string>;
   constructor(properties: EksEndpointsConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class HealthCheckConfig {
+  Path!: Value<string>;
+  TimeoutMs?: Value<number>;
+  HealthyThresholdCount?: Value<number>;
+  Port!: Value<number>;
+  StatusCodeMatcher?: Value<string>;
+  Protocol?: Value<string>;
+  UnhealthyThresholdCount?: Value<number>;
+  IntervalSeconds?: Value<number>;
+  constructor(properties: HealthCheckConfig) {
     Object.assign(this, properties);
   }
 }
@@ -49,6 +64,7 @@ export interface ResponderGatewayProperties {
 export default class ResponderGateway extends ResourceBase<ResponderGatewayProperties> {
   static AutoScalingGroupsConfiguration = AutoScalingGroupsConfiguration;
   static EksEndpointsConfiguration = EksEndpointsConfiguration;
+  static HealthCheckConfig = HealthCheckConfig;
   static ManagedEndpointConfiguration = ManagedEndpointConfiguration;
   static TrustStoreConfiguration = TrustStoreConfiguration;
   constructor(properties: ResponderGatewayProperties) {

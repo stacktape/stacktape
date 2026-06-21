@@ -3,7 +3,9 @@ import { Value, List } from '../dataTypes';
 
 export interface ClientVpnTargetNetworkAssociationProperties {
   ClientVpnEndpointId: Value<string>;
-  SubnetId: Value<string>;
+  AvailabilityZoneId?: Value<string>;
+  AvailabilityZone?: Value<string>;
+  SubnetId?: Value<string>;
 }
 export default class ClientVpnTargetNetworkAssociation extends ResourceBase<ClientVpnTargetNetworkAssociationProperties> {
   constructor(properties: ClientVpnTargetNetworkAssociationProperties) {

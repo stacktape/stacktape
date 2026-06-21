@@ -24,6 +24,7 @@ export class ReplicaRegion {
   }
 }
 export interface SecretProperties {
+  Type?: Value<string>;
   Description?: Value<string>;
   KmsKeyId?: Value<string>;
   SecretString?: Value<string>;

@@ -5,6 +5,7 @@ export interface VPCPeeringConnectionProperties {
   PeerRoleArn?: Value<string>;
   VpcId: Value<string>;
   PeerVpcId: Value<string>;
+  AssumeRoleRegion?: Value<string>;
   PeerRegion?: Value<string>;
   PeerOwnerId?: Value<string>;
   Tags?: List<ResourceTag>;

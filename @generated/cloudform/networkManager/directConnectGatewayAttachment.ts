@@ -23,6 +23,7 @@ export interface DirectConnectGatewayAttachmentProperties {
   ProposedNetworkFunctionGroupChange?: ProposedNetworkFunctionGroupChange;
   EdgeLocations: List<Value<string>>;
   DirectConnectGatewayArn: Value<string>;
+  RoutingPolicyLabel?: Value<string>;
   Tags?: List<ResourceTag>;
 }
 export default class DirectConnectGatewayAttachment extends ResourceBase<DirectConnectGatewayAttachmentProperties> {

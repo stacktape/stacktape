@@ -1,2 +1,2 @@
-import { AppIntegrations } from './index.namespace';
-export default AppIntegrations;
+import {AppIntegrations} from './index.namespace'
+export default AppIntegrations

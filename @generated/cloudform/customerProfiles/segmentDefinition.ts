@@ -1,11 +1,11 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AddressDimension {
-  State?: ProfileDimension;
   Country?: ProfileDimension;
   PostalCode?: ProfileDimension;
   City?: ProfileDimension;
   County?: ProfileDimension;
+  State?: ProfileDimension;
   Province?: ProfileDimension;
   constructor(properties: AddressDimension) {
     Object.assign(this, properties);
@@ -99,8 +99,8 @@ export class ProfileAttributes {
 }
 
 export class ProfileDimension {
-  DimensionType!: Value<string>;
   Values!: List<Value<string>>;
+  DimensionType!: Value<string>;
   constructor(properties: ProfileDimension) {
     Object.assign(this, properties);
   }
@@ -131,6 +131,23 @@ export class SegmentGroup {
   }
 }
 
+export class SegmentSort {
+  Attributes!: List<SortAttribute>;
+  constructor(properties: SegmentSort) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SortAttribute {
+  Order!: Value<string>;
+  Type?: Value<string>;
+  DataType?: Value<string>;
+  Name!: Value<string>;
+  constructor(properties: SortAttribute) {
+    Object.assign(this, properties);
+  }
+}
+
 export class SourceSegment {
   SegmentDefinitionName?: Value<string>;
   constructor(properties: SourceSegment) {
@@ -140,9 +157,11 @@ export class SourceSegment {
 export interface SegmentDefinitionProperties {
   Description?: Value<string>;
   DomainName: Value<string>;
-  SegmentGroups: SegmentGroup;
+  SegmentGroups?: SegmentGroup;
   DisplayName: Value<string>;
   SegmentDefinitionName: Value<string>;
+  SegmentSort?: SegmentSort;
+  SegmentSqlQuery?: Value<string>;
   Tags?: List<ResourceTag>;
 }
 export default class SegmentDefinition extends ResourceBase<SegmentDefinitionProperties> {
@@ -159,6 +178,8 @@ export default class SegmentDefinition extends ResourceBase<SegmentDefinitionPro
   static ProfileTypeDimension = ProfileTypeDimension;
   static RangeOverride = RangeOverride;
   static SegmentGroup = SegmentGroup;
+  static SegmentSort = SegmentSort;
+  static SortAttribute = SortAttribute;
   static SourceSegment = SourceSegment;
   constructor(properties: SegmentDefinitionProperties) {
     super('AWS::CustomerProfiles::SegmentDefinition', properties);

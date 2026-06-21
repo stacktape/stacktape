@@ -1,4 +1,4 @@
-import { ResourceBase } from '../resource';
+import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class TemplateInner {
   HtmlPart?: Value<string>;
@@ -10,6 +10,7 @@ export class TemplateInner {
   }
 }
 export interface TemplateProperties {
+  Tags?: List<ResourceTag>;
   Template?: Template;
 }
 export default class Template extends ResourceBase<TemplateProperties> {

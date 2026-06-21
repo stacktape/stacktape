@@ -4,6 +4,7 @@ import { Value, List } from '../dataTypes';
 export interface ProvisioningProfileProperties {
   ProvisioningType: Value<string>;
   CaCertificate?: Value<string>;
+  ClaimCertificate?: Value<string>;
   Tags?: { [key: string]: Value<string> };
   Name?: Value<string>;
 }

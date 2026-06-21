@@ -33,6 +33,7 @@ export interface VpcAttachmentProperties {
   Options?: VpcOptions;
   CoreNetworkId: Value<string>;
   ProposedNetworkFunctionGroupChange?: ProposedNetworkFunctionGroupChange;
+  RoutingPolicyLabel?: Value<string>;
   VpcArn: Value<string>;
   Tags?: List<ResourceTag>;
 }

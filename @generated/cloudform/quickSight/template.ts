@@ -1,10 +1,10 @@
 import { ResourceBase, ResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AggregationFunction {
-  AttributeAggregationFunction?: AttributeAggregationFunction;
-  DateAggregationFunction?: Value<string>;
   NumericalAggregationFunction?: NumericalAggregationFunction;
+  AttributeAggregationFunction?: AttributeAggregationFunction;
   CategoricalAggregationFunction?: Value<string>;
+  DateAggregationFunction?: Value<string>;
   constructor(properties: AggregationFunction) {
     Object.assign(this, properties);
   }
@@ -99,10 +99,10 @@ export class AxisDisplayMinMaxRange {
 
 export class AxisDisplayOptions {
   DataOptions?: AxisDataOptions;
-  TickLabelOptions?: AxisTickLabelOptions;
   AxisOffset?: Value<string>;
-  AxisLineVisibility?: { [key: string]: any };
-  GridLineVisibility?: { [key: string]: any };
+  TickLabelOptions?: AxisTickLabelOptions;
+  AxisLineVisibility?: Value<string>;
+  GridLineVisibility?: Value<string>;
   ScrollbarOptions?: ScrollBarOptions;
   constructor(properties: AxisDisplayOptions) {
     Object.assign(this, properties);
@@ -188,12 +188,22 @@ export class BarChartConfiguration {
   VisualPalette?: VisualPalette;
   ValueLabelOptions?: ChartAxisLabelOptions;
   BarsArrangement?: Value<string>;
+  DefaultSeriesSettings?: BarChartDefaultSeriesSettings;
+  Series?: List<{ [key: string]: any }>;
   CategoryAxis?: AxisDisplayOptions;
   ContributionAnalysisDefaults?: List<ContributionAnalysisDefault>;
   FieldWells?: BarChartFieldWells;
   ValueAxis?: AxisDisplayOptions;
   Interactions?: VisualInteractionOptions;
   constructor(properties: BarChartConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class BarChartDefaultSeriesSettings {
+  BorderSettings?: BorderSettings;
+  DecalSettings?: DecalSettings;
+  constructor(properties: BarChartDefaultSeriesSettings) {
     Object.assign(this, properties);
   }
 }
@@ -305,6 +315,15 @@ export class BodySectionRepeatPageBreakConfiguration {
   }
 }
 
+export class BorderSettings {
+  BorderVisibility?: Value<string>;
+  BorderColor?: Value<string>;
+  BorderWidth?: Value<string>;
+  constructor(properties: BorderSettings) {
+    Object.assign(this, properties);
+  }
+}
+
 export class BoxPlotAggregatedFieldWells {
   GroupBy?: List<DimensionField>;
   Values?: List<MeasureField>;
@@ -340,8 +359,8 @@ export class BoxPlotFieldWells {
 
 export class BoxPlotOptions {
   StyleOptions?: BoxPlotStyleOptions;
-  OutlierVisibility?: { [key: string]: any };
-  AllDataPointsVisibility?: { [key: string]: any };
+  OutlierVisibility?: Value<string>;
+  AllDataPointsVisibility?: Value<string>;
   constructor(properties: BoxPlotOptions) {
     Object.assign(this, properties);
   }
@@ -464,9 +483,9 @@ export class CategoryInnerFilter {
 }
 
 export class ChartAxisLabelOptions {
-  Visibility?: { [key: string]: any };
-  SortIconVisibility?: { [key: string]: any };
   AxisLabelOptions?: List<AxisLabelOptions>;
+  Visibility?: Value<string>;
+  SortIconVisibility?: Value<string>;
   constructor(properties: ChartAxisLabelOptions) {
     Object.assign(this, properties);
   }
@@ -487,8 +506,8 @@ export class ClusterMarkerConfiguration {
 }
 
 export class ColorScale {
-  Colors!: List<DataColor>;
   ColorFillType!: Value<string>;
+  Colors!: List<DataColor>;
   NullValueColor?: DataColor;
   constructor(properties: ColorScale) {
     Object.assign(this, properties);
@@ -506,6 +525,7 @@ export class ColumnConfiguration {
   Role?: Value<string>;
   FormatConfiguration?: FormatConfiguration;
   Column!: ColumnIdentifier;
+  DecalSettingsConfiguration?: DecalSettingsConfiguration;
   ColorsConfiguration?: ColorsConfiguration;
   constructor(properties: ColumnConfiguration) {
     Object.assign(this, properties);
@@ -529,8 +549,8 @@ export class ColumnGroupSchema {
 
 export class ColumnHierarchy {
   DateTimeHierarchy?: DateTimeHierarchy;
-  ExplicitHierarchy?: ExplicitHierarchy;
   PredefinedHierarchy?: PredefinedHierarchy;
+  ExplicitHierarchy?: ExplicitHierarchy;
   constructor(properties: ColumnHierarchy) {
     Object.assign(this, properties);
   }
@@ -555,8 +575,8 @@ export class ColumnSchema {
 
 export class ColumnSort {
   AggregationFunction?: AggregationFunction;
-  SortBy!: ColumnIdentifier;
   Direction!: Value<string>;
+  SortBy!: ColumnIdentifier;
   constructor(properties: ColumnSort) {
     Object.assign(this, properties);
   }
@@ -567,7 +587,7 @@ export class ColumnTooltipItem {
   TooltipTarget?: Value<string>;
   Column!: ColumnIdentifier;
   Label?: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: ColumnTooltipItem) {
     Object.assign(this, properties);
   }
@@ -595,7 +615,9 @@ export class ComboChartConfiguration {
   PrimaryYAxisDisplayOptions?: AxisDisplayOptions;
   VisualPalette?: VisualPalette;
   BarsArrangement?: Value<string>;
+  DefaultSeriesSettings?: ComboChartDefaultSeriesSettings;
   SecondaryYAxisLabelOptions?: ChartAxisLabelOptions;
+  Series?: List<{ [key: string]: any }>;
   LineDataLabels?: DataLabelOptions;
   CategoryAxis?: AxisDisplayOptions;
   PrimaryYAxisLabelOptions?: ChartAxisLabelOptions;
@@ -603,6 +625,16 @@ export class ComboChartConfiguration {
   SecondaryYAxisDisplayOptions?: AxisDisplayOptions;
   Interactions?: VisualInteractionOptions;
   constructor(properties: ComboChartConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ComboChartDefaultSeriesSettings {
+  BorderSettings?: BorderSettings;
+  DecalSettings?: DecalSettings;
+  LineStyleSettings?: LineChartLineStyleSettings;
+  MarkerStyleSettings?: LineChartMarkerStyleSettings;
+  constructor(properties: ComboChartDefaultSeriesSettings) {
     Object.assign(this, properties);
   }
 }
@@ -900,13 +932,13 @@ export class DataFieldSeriesItem {
 
 export class DataLabelOptions {
   DataLabelTypes?: List<DataLabelType>;
-  MeasureLabelVisibility?: { [key: string]: any };
+  MeasureLabelVisibility?: Value<string>;
   Position?: Value<string>;
   LabelContent?: Value<string>;
-  Visibility?: { [key: string]: any };
-  TotalsVisibility?: { [key: string]: any };
+  Visibility?: Value<string>;
+  TotalsVisibility?: Value<string>;
   Overlap?: Value<string>;
-  CategoryLabelVisibility?: { [key: string]: any };
+  CategoryLabelVisibility?: Value<string>;
   LabelColor?: Value<string>;
   LabelFontConfiguration?: FontConfiguration;
   constructor(properties: DataLabelOptions) {
@@ -936,7 +968,7 @@ export class DataPathColor {
 
 export class DataPathLabelType {
   FieldId?: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   FieldValue?: Value<string>;
   constructor(properties: DataPathLabelType) {
     Object.assign(this, properties);
@@ -968,9 +1000,9 @@ export class DataPathValue {
 }
 
 export class DataSetConfiguration {
-  Placeholder?: Value<string>;
   DataSetSchema?: DataSetSchema;
   ColumnGroupSchemaList?: List<ColumnGroupSchema>;
+  Placeholder?: Value<string>;
   constructor(properties: DataSetConfiguration) {
     Object.assign(this, properties);
   }
@@ -992,7 +1024,7 @@ export class DataSetSchema {
 }
 
 export class DateAxisOptions {
-  MissingDateVisibility?: { [key: string]: any };
+  MissingDateVisibility?: Value<string>;
   constructor(properties: DateAxisOptions) {
     Object.assign(this, properties);
   }
@@ -1057,10 +1089,10 @@ export class DateTimeParameterDeclaration {
 }
 
 export class DateTimePickerControlDisplayOptions {
-  TitleOptions?: LabelOptions;
   InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
-  HelperTextVisibility?: { [key: string]: any };
-  DateIconVisibility?: { [key: string]: any };
+  HelperTextVisibility?: Value<string>;
+  TitleOptions?: LabelOptions;
+  DateIconVisibility?: Value<string>;
   DateTimeFormat?: Value<string>;
   constructor(properties: DateTimePickerControlDisplayOptions) {
     Object.assign(this, properties);
@@ -1071,6 +1103,24 @@ export class DateTimeValueWhenUnsetConfiguration {
   ValueWhenUnsetOption?: Value<string>;
   CustomValue?: Value<string>;
   constructor(properties: DateTimeValueWhenUnsetConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DecalSettings {
+  DecalStyleType?: Value<string>;
+  DecalVisibility?: Value<string>;
+  DecalPatternType?: Value<string>;
+  DecalColor?: Value<string>;
+  ElementValue?: Value<string>;
+  constructor(properties: DecalSettings) {
+    Object.assign(this, properties);
+  }
+}
+
+export class DecalSettingsConfiguration {
+  CustomDecalSettings?: List<DecalSettings>;
+  constructor(properties: DecalSettingsConfiguration) {
     Object.assign(this, properties);
   }
 }
@@ -1258,7 +1308,7 @@ export class DimensionField {
 }
 
 export class DonutCenterOptions {
-  LabelVisibility?: { [key: string]: any };
+  LabelVisibility?: Value<string>;
   constructor(properties: DonutCenterOptions) {
     Object.assign(this, properties);
   }
@@ -1282,9 +1332,9 @@ export class DrillDownFilter {
 }
 
 export class DropDownControlDisplayOptions {
-  TitleOptions?: LabelOptions;
   SelectAllOptions?: ListControlSelectAllOptions;
   InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
+  TitleOptions?: LabelOptions;
   constructor(properties: DropDownControlDisplayOptions) {
     Object.assign(this, properties);
   }
@@ -1317,8 +1367,8 @@ export class Entity {
 
 export class ExcludePeriodConfiguration {
   Status?: Value<string>;
-  Amount!: Value<number>;
   Granularity!: Value<string>;
+  Amount!: Value<number>;
   constructor(properties: ExcludePeriodConfiguration) {
     Object.assign(this, properties);
   }
@@ -1335,7 +1385,7 @@ export class ExplicitHierarchy {
 
 export class FieldBasedTooltip {
   TooltipFields?: List<TooltipItem>;
-  AggregationVisibility?: { [key: string]: any };
+  AggregationVisibility?: Value<string>;
   TooltipTitleType?: Value<string>;
   constructor(properties: FieldBasedTooltip) {
     Object.assign(this, properties);
@@ -1344,7 +1394,7 @@ export class FieldBasedTooltip {
 
 export class FieldLabelType {
   FieldId?: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: FieldLabelType) {
     Object.assign(this, properties);
   }
@@ -1360,16 +1410,16 @@ export class FieldSeriesItem {
 }
 
 export class FieldSort {
-  FieldId!: Value<string>;
   Direction!: Value<string>;
+  FieldId!: Value<string>;
   constructor(properties: FieldSort) {
     Object.assign(this, properties);
   }
 }
 
 export class FieldSortOptions {
-  FieldSort?: FieldSort;
   ColumnSort?: ColumnSort;
+  FieldSort?: FieldSort;
   constructor(properties: FieldSortOptions) {
     Object.assign(this, properties);
   }
@@ -1379,7 +1429,7 @@ export class FieldTooltipItem {
   TooltipTarget?: Value<string>;
   FieldId!: Value<string>;
   Label?: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: FieldTooltipItem) {
     Object.assign(this, properties);
   }
@@ -1631,12 +1681,12 @@ export class FilterTextFieldControl {
 }
 
 export class FontConfiguration {
+  FontColor?: Value<string>;
   FontFamily?: Value<string>;
   FontStyle?: Value<string>;
+  FontWeight?: FontWeight;
   FontSize?: FontSize;
   FontDecoration?: Value<string>;
-  FontColor?: Value<string>;
-  FontWeight?: FontWeight;
   constructor(properties: FontConfiguration) {
     Object.assign(this, properties);
   }
@@ -1691,8 +1741,8 @@ export class ForecastScenario {
 }
 
 export class FormatConfiguration {
-  NumberFormatConfiguration?: NumberFormatConfiguration;
   DateTimeFormatConfiguration?: DateTimeFormatConfiguration;
+  NumberFormatConfiguration?: NumberFormatConfiguration;
   StringFormatConfiguration?: StringFormatConfiguration;
   constructor(properties: FormatConfiguration) {
     Object.assign(this, properties);
@@ -1718,14 +1768,14 @@ export class FreeFormLayoutElement {
   ElementType!: Value<string>;
   BorderStyle?: FreeFormLayoutElementBorderStyle;
   Height!: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   RenderingRules?: List<SheetElementRenderingRule>;
   YAxisLocation!: Value<string>;
   LoadingAnimation?: LoadingAnimation;
-  Width!: Value<string>;
   BackgroundStyle?: FreeFormLayoutElementBackgroundStyle;
-  ElementId!: Value<string>;
+  Width!: Value<string>;
   XAxisLocation!: Value<string>;
+  ElementId!: Value<string>;
   SelectedBorderStyle?: FreeFormLayoutElementBorderStyle;
   constructor(properties: FreeFormLayoutElement) {
     Object.assign(this, properties);
@@ -1734,15 +1784,15 @@ export class FreeFormLayoutElement {
 
 export class FreeFormLayoutElementBackgroundStyle {
   Color?: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: FreeFormLayoutElementBackgroundStyle) {
     Object.assign(this, properties);
   }
 }
 
 export class FreeFormLayoutElementBorderStyle {
+  Visibility?: Value<string>;
   Color?: Value<string>;
-  Visibility?: { [key: string]: any };
   constructor(properties: FreeFormLayoutElementBorderStyle) {
     Object.assign(this, properties);
   }
@@ -1785,10 +1835,10 @@ export class FunnelChartConfiguration {
 }
 
 export class FunnelChartDataLabelOptions {
-  MeasureLabelVisibility?: { [key: string]: any };
+  MeasureLabelVisibility?: Value<string>;
   Position?: Value<string>;
-  Visibility?: { [key: string]: any };
-  CategoryLabelVisibility?: { [key: string]: any };
+  Visibility?: Value<string>;
+  CategoryLabelVisibility?: Value<string>;
   LabelColor?: Value<string>;
   MeasureDataLabelStyle?: Value<string>;
   LabelFontConfiguration?: FontConfiguration;
@@ -1998,8 +2048,8 @@ export class GeospatialPointStyleOptions {
 }
 
 export class GeospatialWindowOptions {
-  Bounds?: GeospatialCoordinateBounds;
   MapZoomMode?: Value<string>;
+  Bounds?: GeospatialCoordinateBounds;
   constructor(properties: GeospatialWindowOptions) {
     Object.assign(this, properties);
   }
@@ -2037,8 +2087,8 @@ export class GridLayoutCanvasSizeOptions {
 }
 
 export class GridLayoutConfiguration {
-  CanvasSizeOptions?: GridLayoutCanvasSizeOptions;
   Elements!: List<GridLayoutElement>;
+  CanvasSizeOptions?: GridLayoutCanvasSizeOptions;
   constructor(properties: GridLayoutConfiguration) {
     Object.assign(this, properties);
   }
@@ -2379,8 +2429,8 @@ export class KPISortConfiguration {
 export class KPISparklineOptions {
   Type!: Value<string>;
   Color?: Value<string>;
-  TooltipVisibility?: { [key: string]: any };
-  Visibility?: { [key: string]: any };
+  TooltipVisibility?: Value<string>;
+  Visibility?: Value<string>;
   constructor(properties: KPISparklineOptions) {
     Object.assign(this, properties);
   }
@@ -2415,9 +2465,9 @@ export class KPIVisualStandardLayout {
 }
 
 export class LabelOptions {
-  CustomLabel?: Value<string>;
-  Visibility?: { [key: string]: any };
   FontConfiguration?: FontConfiguration;
+  CustomLabel?: Value<string>;
+  Visibility?: Value<string>;
   constructor(properties: LabelOptions) {
     Object.assign(this, properties);
   }
@@ -2440,12 +2490,12 @@ export class LayoutConfiguration {
 }
 
 export class LegendOptions {
-  Position?: Value<string>;
-  ValueFontConfiguration?: FontConfiguration;
   Title?: LabelOptions;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   Height?: Value<string>;
+  Position?: Value<string>;
   Width?: Value<string>;
+  ValueFontConfiguration?: FontConfiguration;
   constructor(properties: LegendOptions) {
     Object.assign(this, properties);
   }
@@ -2489,6 +2539,7 @@ export class LineChartConfiguration {
 }
 
 export class LineChartDefaultSeriesSettings {
+  DecalSettings?: DecalSettings;
   LineStyleSettings?: LineChartLineStyleSettings;
   AxisBinding?: Value<string>;
   MarkerStyleSettings?: LineChartMarkerStyleSettings;
@@ -2506,9 +2557,9 @@ export class LineChartFieldWells {
 
 export class LineChartLineStyleSettings {
   LineInterpolation?: Value<string>;
-  LineStyle?: Value<string>;
-  LineVisibility?: { [key: string]: any };
+  LineVisibility?: Value<string>;
   LineWidth?: Value<string>;
+  LineStyle?: Value<string>;
   constructor(properties: LineChartLineStyleSettings) {
     Object.assign(this, properties);
   }
@@ -2516,8 +2567,8 @@ export class LineChartLineStyleSettings {
 
 export class LineChartMarkerStyleSettings {
   MarkerShape?: Value<string>;
+  MarkerVisibility?: Value<string>;
   MarkerSize?: Value<string>;
-  MarkerVisibility?: { [key: string]: any };
   MarkerColor?: Value<string>;
   constructor(properties: LineChartMarkerStyleSettings) {
     Object.assign(this, properties);
@@ -2525,8 +2576,9 @@ export class LineChartMarkerStyleSettings {
 }
 
 export class LineChartSeriesSettings {
-  LineStyleSettings?: LineChartLineStyleSettings;
+  DecalSettings?: DecalSettings;
   MarkerStyleSettings?: LineChartMarkerStyleSettings;
+  LineStyleSettings?: LineChartLineStyleSettings;
   constructor(properties: LineChartSeriesSettings) {
     Object.assign(this, properties);
   }
@@ -2565,31 +2617,31 @@ export class LineSeriesAxisDisplayOptions {
 }
 
 export class ListControlDisplayOptions {
-  TitleOptions?: LabelOptions;
   SearchOptions?: ListControlSearchOptions;
   SelectAllOptions?: ListControlSelectAllOptions;
   InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
+  TitleOptions?: LabelOptions;
   constructor(properties: ListControlDisplayOptions) {
     Object.assign(this, properties);
   }
 }
 
 export class ListControlSearchOptions {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: ListControlSearchOptions) {
     Object.assign(this, properties);
   }
 }
 
 export class ListControlSelectAllOptions {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: ListControlSelectAllOptions) {
     Object.assign(this, properties);
   }
 }
 
 export class LoadingAnimation {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: LoadingAnimation) {
     Object.assign(this, properties);
   }
@@ -2619,7 +2671,7 @@ export class MappedDataSetParameter {
 }
 
 export class MaximumLabelType {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: MaximumLabelType) {
     Object.assign(this, properties);
   }
@@ -2658,7 +2710,7 @@ export class MetricComparisonComputation {
 }
 
 export class MinimumLabelType {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: MinimumLabelType) {
     Object.assign(this, properties);
   }
@@ -2748,8 +2800,8 @@ export class NumericEqualityFilter {
 
 export class NumericFormatConfiguration {
   NumberDisplayFormatConfiguration?: NumberDisplayFormatConfiguration;
-  CurrencyDisplayFormatConfiguration?: CurrencyDisplayFormatConfiguration;
   PercentageDisplayFormatConfiguration?: PercentageDisplayFormatConfiguration;
+  CurrencyDisplayFormatConfiguration?: CurrencyDisplayFormatConfiguration;
   constructor(properties: NumericFormatConfiguration) {
     Object.assign(this, properties);
   }
@@ -2827,11 +2879,11 @@ export class PanelConfiguration {
   BorderThickness?: Value<string>;
   BorderStyle?: Value<string>;
   GutterSpacing?: Value<string>;
-  BackgroundVisibility?: { [key: string]: any };
-  BorderVisibility?: { [key: string]: any };
+  BackgroundVisibility?: Value<string>;
+  BorderVisibility?: Value<string>;
   BorderColor?: Value<string>;
   Title?: PanelTitleOptions;
-  GutterVisibility?: { [key: string]: any };
+  GutterVisibility?: Value<string>;
   BackgroundColor?: Value<string>;
   constructor(properties: PanelConfiguration) {
     Object.assign(this, properties);
@@ -2839,7 +2891,7 @@ export class PanelConfiguration {
 }
 
 export class PanelTitleOptions {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   FontConfiguration?: FontConfiguration;
   HorizontalTextAlignment?: Value<string>;
   constructor(properties: PanelTitleOptions) {
@@ -2907,8 +2959,8 @@ export class ParameterListControl {
 }
 
 export class ParameterSelectableValues {
-  LinkToDataSetColumn?: ColumnIdentifier;
   Values?: List<Value<string>>;
+  LinkToDataSetColumn?: ColumnIdentifier;
   constructor(properties: ParameterSelectableValues) {
     Object.assign(this, properties);
   }
@@ -2961,8 +3013,8 @@ export class PercentageDisplayFormatConfiguration {
   DecimalPlacesConfiguration?: DecimalPlacesConfiguration;
   NullValueFormatConfiguration?: NullValueFormatConfiguration;
   Suffix?: Value<string>;
-  SeparatorConfiguration?: NumericSeparatorConfiguration;
   Prefix?: Value<string>;
+  SeparatorConfiguration?: NumericSeparatorConfiguration;
   constructor(properties: PercentageDisplayFormatConfiguration) {
     Object.assign(this, properties);
   }
@@ -3141,7 +3193,7 @@ export class PivotTableFieldCollapseStateTarget {
 export class PivotTableFieldOption {
   CustomLabel?: Value<string>;
   FieldId!: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: PivotTableFieldOption) {
     Object.assign(this, properties);
   }
@@ -3173,15 +3225,15 @@ export class PivotTableFieldWells {
 export class PivotTableOptions {
   RowFieldNamesStyle?: TableCellStyle;
   RowHeaderStyle?: TableCellStyle;
-  CollapsedRowDimensionsVisibility?: { [key: string]: any };
+  CollapsedRowDimensionsVisibility?: Value<string>;
   RowsLayout?: Value<string>;
   MetricPlacement?: Value<string>;
   DefaultCellWidth?: Value<string>;
-  ColumnNamesVisibility?: { [key: string]: any };
+  ColumnNamesVisibility?: Value<string>;
   RowsLabelOptions?: PivotTableRowsLabelOptions;
-  SingleMetricVisibility?: { [key: string]: any };
+  SingleMetricVisibility?: Value<string>;
   ColumnHeaderStyle?: TableCellStyle;
-  ToggleButtonsVisibility?: { [key: string]: any };
+  ToggleButtonsVisibility?: Value<string>;
   CellStyle?: TableCellStyle;
   RowAlternateColorOptions?: RowAlternateColorOptions;
   constructor(properties: PivotTableOptions) {
@@ -3190,8 +3242,8 @@ export class PivotTableOptions {
 }
 
 export class PivotTablePaginatedReportOptions {
-  OverflowColumnHeaderVisibility?: { [key: string]: any };
-  VerticalOverflowVisibility?: { [key: string]: any };
+  OverflowColumnHeaderVisibility?: Value<string>;
+  VerticalOverflowVisibility?: Value<string>;
   constructor(properties: PivotTablePaginatedReportOptions) {
     Object.assign(this, properties);
   }
@@ -3199,7 +3251,7 @@ export class PivotTablePaginatedReportOptions {
 
 export class PivotTableRowsLabelOptions {
   CustomLabel?: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: PivotTableRowsLabelOptions) {
     Object.assign(this, properties);
   }
@@ -3251,7 +3303,7 @@ export class PivotTotalOptions {
   ScrollStatus?: Value<string>;
   Placement?: Value<string>;
   TotalCellStyle?: TableCellStyle;
-  TotalsVisibility?: { [key: string]: any };
+  TotalsVisibility?: Value<string>;
   MetricHeaderCellStyle?: TableCellStyle;
   constructor(properties: PivotTotalOptions) {
     Object.assign(this, properties);
@@ -3336,7 +3388,7 @@ export class PredefinedHierarchy {
 }
 
 export class ProgressBarOptions {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: ProgressBarOptions) {
     Object.assign(this, properties);
   }
@@ -3359,7 +3411,7 @@ export class RadarChartAggregatedFieldWells {
 }
 
 export class RadarChartAreaStyleSettings {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: RadarChartAreaStyleSettings) {
     Object.assign(this, properties);
   }
@@ -3374,7 +3426,7 @@ export class RadarChartConfiguration {
   CategoryLabelOptions?: ChartAxisLabelOptions;
   AxesRangeScale?: Value<string>;
   VisualPalette?: VisualPalette;
-  AlternateBandColorsVisibility?: { [key: string]: any };
+  AlternateBandColorsVisibility?: Value<string>;
   StartAngle?: Value<number>;
   CategoryAxis?: AxisDisplayOptions;
   FieldWells?: RadarChartFieldWells;
@@ -3425,7 +3477,7 @@ export class RadarChartVisual {
 }
 
 export class RangeEndsLabelType {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: RangeEndsLabelType) {
     Object.assign(this, properties);
   }
@@ -3503,8 +3555,8 @@ export class ReferenceLineValueLabelConfiguration {
 }
 
 export class RelativeDateTimeControlDisplayOptions {
-  TitleOptions?: LabelOptions;
   InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
+  TitleOptions?: LabelOptions;
   DateTimeFormat?: Value<string>;
   constructor(properties: RelativeDateTimeControlDisplayOptions) {
     Object.assign(this, properties);
@@ -3677,14 +3729,14 @@ export class ScatterPlotVisual {
 
 export class ScrollBarOptions {
   VisibleRange?: VisibleRangeOptions;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: ScrollBarOptions) {
     Object.assign(this, properties);
   }
 }
 
 export class SecondaryValueOptions {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: SecondaryValueOptions) {
     Object.assign(this, properties);
   }
@@ -3784,7 +3836,7 @@ export class Sheet {
 }
 
 export class SheetControlInfoIconLabelOptions {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   InfoIconText?: Value<string>;
   constructor(properties: SheetControlInfoIconLabelOptions) {
     Object.assign(this, properties);
@@ -3824,7 +3876,7 @@ export class SheetDefinition {
 }
 
 export class SheetElementConfigurationOverrides {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: SheetElementConfigurationOverrides) {
     Object.assign(this, properties);
   }
@@ -3873,7 +3925,7 @@ export class SheetImageStaticFileSource {
 }
 
 export class SheetImageTooltipConfiguration {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   TooltipText?: SheetImageTooltipText;
   constructor(properties: SheetImageTooltipConfiguration) {
     Object.assign(this, properties);
@@ -3927,8 +3979,8 @@ export class SingleAxisOptions {
 }
 
 export class SliderControlDisplayOptions {
-  TitleOptions?: LabelOptions;
   InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
+  TitleOptions?: LabelOptions;
   constructor(properties: SliderControlDisplayOptions) {
     Object.assign(this, properties);
   }
@@ -3943,10 +3995,10 @@ export class SmallMultiplesAxisProperties {
 }
 
 export class SmallMultiplesOptions {
-  MaxVisibleRows?: Value<number>;
-  PanelConfiguration?: PanelConfiguration;
   MaxVisibleColumns?: Value<number>;
+  MaxVisibleRows?: Value<number>;
   XAxis?: SmallMultiplesAxisProperties;
+  PanelConfiguration?: PanelConfiguration;
   YAxis?: SmallMultiplesAxisProperties;
   constructor(properties: SmallMultiplesOptions) {
     Object.assign(this, properties);
@@ -3954,10 +4006,10 @@ export class SmallMultiplesOptions {
 }
 
 export class Spacing {
-  Left?: Value<string>;
-  Top?: Value<string>;
   Right?: Value<string>;
   Bottom?: Value<string>;
+  Left?: Value<string>;
+  Top?: Value<string>;
   constructor(properties: Spacing) {
     Object.assign(this, properties);
   }
@@ -4003,7 +4055,7 @@ export class SubtotalOptions {
   FieldLevelOptions?: List<PivotTableFieldSubtotalOptions>;
   ValueCellStyle?: TableCellStyle;
   TotalCellStyle?: TableCellStyle;
-  TotalsVisibility?: { [key: string]: any };
+  TotalsVisibility?: Value<string>;
   FieldLevel?: Value<string>;
   MetricHeaderCellStyle?: TableCellStyle;
   StyleTargets?: List<TableStyleTarget>;
@@ -4022,8 +4074,8 @@ export class TableAggregatedFieldWells {
 
 export class TableBorderOptions {
   Thickness?: Value<number>;
-  Color?: Value<string>;
   Style?: Value<string>;
+  Color?: Value<string>;
   constructor(properties: TableBorderOptions) {
     Object.assign(this, properties);
   }
@@ -4046,7 +4098,7 @@ export class TableCellImageSizingConfiguration {
 
 export class TableCellStyle {
   VerticalTextAlignment?: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   Height?: Value<number>;
   FontConfiguration?: FontConfiguration;
   Border?: GlobalTableBorderOptions;
@@ -4129,7 +4181,7 @@ export class TableFieldOption {
   CustomLabel?: Value<string>;
   URLStyling?: TableFieldURLConfiguration;
   FieldId!: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   Width?: Value<string>;
   constructor(properties: TableFieldOption) {
     Object.assign(this, properties);
@@ -4180,8 +4232,8 @@ export class TableOptions {
 }
 
 export class TablePaginatedReportOptions {
-  OverflowColumnHeaderVisibility?: { [key: string]: any };
-  VerticalOverflowVisibility?: { [key: string]: any };
+  OverflowColumnHeaderVisibility?: Value<string>;
+  VerticalOverflowVisibility?: Value<string>;
   constructor(properties: TablePaginatedReportOptions) {
     Object.assign(this, properties);
   }
@@ -4312,9 +4364,9 @@ export class TemplateVersionDefinition {
 }
 
 export class TextAreaControlDisplayOptions {
+  InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
   TitleOptions?: LabelOptions;
   PlaceholderOptions?: TextControlPlaceholderOptions;
-  InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
   constructor(properties: TextAreaControlDisplayOptions) {
     Object.assign(this, properties);
   }
@@ -4330,16 +4382,16 @@ export class TextConditionalFormat {
 }
 
 export class TextControlPlaceholderOptions {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: TextControlPlaceholderOptions) {
     Object.assign(this, properties);
   }
 }
 
 export class TextFieldControlDisplayOptions {
+  InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
   TitleOptions?: LabelOptions;
   PlaceholderOptions?: TextControlPlaceholderOptions;
-  InfoIconLabelOptions?: SheetControlInfoIconLabelOptions;
   constructor(properties: TextFieldControlDisplayOptions) {
     Object.assign(this, properties);
   }
@@ -4347,7 +4399,7 @@ export class TextFieldControlDisplayOptions {
 
 export class ThousandSeparatorOptions {
   Symbol?: Value<string>;
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   GroupingStyle?: Value<string>;
   constructor(properties: ThousandSeparatorOptions) {
     Object.assign(this, properties);
@@ -4406,8 +4458,8 @@ export class TimeRangeFilter {
 }
 
 export class TimeRangeFilterValue {
-  RollingDate?: RollingDateConfiguration;
   StaticValue?: Value<string>;
+  RollingDate?: RollingDateConfiguration;
   Parameter?: Value<string>;
   constructor(properties: TimeRangeFilterValue) {
     Object.assign(this, properties);
@@ -4423,9 +4475,9 @@ export class TooltipItem {
 }
 
 export class TooltipOptions {
-  SelectedTooltipType?: Value<string>;
-  TooltipVisibility?: { [key: string]: any };
   FieldBasedTooltip?: FieldBasedTooltip;
+  SelectedTooltipType?: Value<string>;
+  TooltipVisibility?: Value<string>;
   constructor(properties: TooltipOptions) {
     Object.assign(this, properties);
   }
@@ -4500,7 +4552,7 @@ export class TotalOptions {
   ScrollStatus?: Value<string>;
   Placement?: Value<string>;
   TotalCellStyle?: TableCellStyle;
-  TotalsVisibility?: { [key: string]: any };
+  TotalsVisibility?: Value<string>;
   constructor(properties: TotalOptions) {
     Object.assign(this, properties);
   }
@@ -4569,15 +4621,15 @@ export class TreeMapVisual {
 }
 
 export class TrendArrowOptions {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   constructor(properties: TrendArrowOptions) {
     Object.assign(this, properties);
   }
 }
 
 export class UnaggregatedField {
-  FormatConfiguration?: FormatConfiguration;
   Column!: ColumnIdentifier;
+  FormatConfiguration?: FormatConfiguration;
   FieldId!: Value<string>;
   constructor(properties: UnaggregatedField) {
     Object.assign(this, properties);
@@ -4639,8 +4691,8 @@ export class Visual {
 
 export class VisualCustomAction {
   Status?: Value<string>;
-  Trigger!: Value<string>;
   CustomActionId!: Value<string>;
+  Trigger!: Value<string>;
   Name!: Value<string>;
   ActionOperations!: List<VisualCustomActionOperation>;
   constructor(properties: VisualCustomAction) {
@@ -4659,8 +4711,8 @@ export class VisualCustomActionOperation {
 }
 
 export class VisualInteractionOptions {
-  ContextMenuOption?: ContextMenuOption;
   VisualMenuOption?: VisualMenuOption;
+  ContextMenuOption?: ContextMenuOption;
   constructor(properties: VisualInteractionOptions) {
     Object.assign(this, properties);
   }
@@ -4682,7 +4734,7 @@ export class VisualPalette {
 }
 
 export class VisualSubtitleLabelOptions {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   FormatText?: LongFormatText;
   constructor(properties: VisualSubtitleLabelOptions) {
     Object.assign(this, properties);
@@ -4690,7 +4742,7 @@ export class VisualSubtitleLabelOptions {
 }
 
 export class VisualTitleLabelOptions {
-  Visibility?: { [key: string]: any };
+  Visibility?: Value<string>;
   FormatText?: ShortFormatText;
   constructor(properties: VisualTitleLabelOptions) {
     Object.assign(this, properties);
@@ -4891,6 +4943,7 @@ export default class Template extends ResourceBase<TemplateProperties> {
   static AxisTickLabelOptions = AxisTickLabelOptions;
   static BarChartAggregatedFieldWells = BarChartAggregatedFieldWells;
   static BarChartConfiguration = BarChartConfiguration;
+  static BarChartDefaultSeriesSettings = BarChartDefaultSeriesSettings;
   static BarChartFieldWells = BarChartFieldWells;
   static BarChartSortConfiguration = BarChartSortConfiguration;
   static BarChartVisual = BarChartVisual;
@@ -4903,6 +4956,7 @@ export default class Template extends ResourceBase<TemplateProperties> {
   static BodySectionRepeatConfiguration = BodySectionRepeatConfiguration;
   static BodySectionRepeatDimensionConfiguration = BodySectionRepeatDimensionConfiguration;
   static BodySectionRepeatPageBreakConfiguration = BodySectionRepeatPageBreakConfiguration;
+  static BorderSettings = BorderSettings;
   static BoxPlotAggregatedFieldWells = BoxPlotAggregatedFieldWells;
   static BoxPlotChartConfiguration = BoxPlotChartConfiguration;
   static BoxPlotFieldWells = BoxPlotFieldWells;
@@ -4935,6 +4989,7 @@ export default class Template extends ResourceBase<TemplateProperties> {
   static ColumnTooltipItem = ColumnTooltipItem;
   static ComboChartAggregatedFieldWells = ComboChartAggregatedFieldWells;
   static ComboChartConfiguration = ComboChartConfiguration;
+  static ComboChartDefaultSeriesSettings = ComboChartDefaultSeriesSettings;
   static ComboChartFieldWells = ComboChartFieldWells;
   static ComboChartSortConfiguration = ComboChartSortConfiguration;
   static ComboChartVisual = ComboChartVisual;
@@ -4986,6 +5041,8 @@ export default class Template extends ResourceBase<TemplateProperties> {
   static DateTimeParameterDeclaration = DateTimeParameterDeclaration;
   static DateTimePickerControlDisplayOptions = DateTimePickerControlDisplayOptions;
   static DateTimeValueWhenUnsetConfiguration = DateTimeValueWhenUnsetConfiguration;
+  static DecalSettings = DecalSettings;
+  static DecalSettingsConfiguration = DecalSettingsConfiguration;
   static DecimalDefaultValues = DecimalDefaultValues;
   static DecimalParameterDeclaration = DecimalParameterDeclaration;
   static DecimalPlacesConfiguration = DecimalPlacesConfiguration;

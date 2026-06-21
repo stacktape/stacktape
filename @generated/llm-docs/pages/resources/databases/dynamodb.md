@@ -21,8 +21,8 @@ DynamoDB is a poor fit when you need relational queries, ad-hoc reporting, or fu
 |---|---|
 | Access patterns are known upfront | You need ad-hoc queries or JOINs |
 | Single-digit ms latency is critical | Query flexibility matters more than latency |
-| Traffic is spiky or unpredictable | You need ACID transactions across tables |
-| You want zero operational overhead | You need full-text search |
+| Traffic is spiky or unpredictable | You need full-text search |
+| You want zero operational overhead | You need complex aggregations or reporting |
 
 ## Basic example
 
@@ -97,7 +97,7 @@ DynamoDB offers two billing modes that control how you pay for reads and writes.
 
 ### On-demand mode
 
-On-demand is the default when you omit `provisionedThroughput`. DynamoDB automatically scales to handle any traffic level and you pay per request. This is the right choice for most teams — it requires zero capacity planning and handles traffic spikes without throttling.
+On-demand is the default when you omit `provisionedThroughput`. DynamoDB manages capacity for you and you pay per request. This is the safest default for variable or unpredictable traffic — it requires zero capacity planning. Very large or sudden traffic changes can still run into AWS service limits, but for most teams this is the right starting point.
 
 On-demand pricing is higher per-request than provisioned mode, but you avoid paying for unused capacity. Start here and switch to provisioned only after your traffic patterns stabilize and you can predict capacity needs.
 
@@ -142,7 +142,7 @@ The `readUnits` and `writeUnits` values set the initial (seed) capacity. Without
 
 ### Auto-scaling
 
-Add `readScaling` and `writeScaling` to let DynamoDB adjust capacity automatically between `minUnits` and `maxUnits`. The `keepUtilizationUnder` property sets the target utilization percentage — DynamoDB scales up when utilization exceeds this target and scales down when it drops. If not specified, the target defaults to 90%. Scale-in and scale-out cooldown periods are 60 seconds each.
+Add `readScaling` and `writeScaling` to let DynamoDB adjust capacity automatically between `minUnits` and `maxUnits`. The `keepUtilizationUnder` property is required when configuring scaling — it sets the target utilization percentage that DynamoDB uses to decide when to scale. DynamoDB scales up when utilization exceeds this target and scales down when it drops below. Setting a lower target (e.g., 70) gives more headroom before throttling; higher values maximize utilization but leave less margin for traffic spikes. The source types define `keepUtilizationUnder` as a number — 70 is a common starting point, but the types do not document a specific allowed range.
 
 For most provisioned-mode workloads, enable auto-scaling. Without it, a traffic spike throttles requests immediately.
 
@@ -154,7 +154,7 @@ For most provisioned-mode workloads, enable auto-scaling. Without it, a traffic 
 
 ## Secondary indexes
 
-Without secondary indexes, you can only query items by their primary key. A global secondary index (GSI) lets you query by any other attribute — for example, looking up users by `email` when the primary key is `userId`.
+Without secondary indexes, you can only query items by their primary key. A global secondary index (GSI) lets you query by any other attribute — for example, looking up users by `email` when the primary key is `userId`. In the Stacktape DynamoDB table resource, `secondaryIndexes` configures global secondary indexes; the type does not expose a local secondary index property.
 
 
 Example (TypeScript):
@@ -187,13 +187,13 @@ export default defineConfig(() => {
 ```
 
 
-Each GSI has its own partition key and optional sort key. The `projections` array controls which additional attributes are copied into the index — only projected attributes are available when querying through the index. The table's primary key attributes are always projected automatically. When `projections` is omitted, only key attributes are stored in the index (`KEYS_ONLY` projection).
+Each GSI has its own partition key and optional sort key. The `projections` array lists additional attributes to copy into the index beyond the table's primary key, which is always projected automatically. Only projected attributes are available when querying through the index — if you need an attribute in query results, include it in `projections`.
 
 GSIs consume their own read/write capacity (or request units in on-demand mode) and add to storage costs because data is duplicated. Add indexes based on actual query needs rather than speculatively.
 
 ## Streams
 
-DynamoDB Streams capture item-level changes (inserts, updates, deletes) in near-real-time. Enable streams to build event-driven architectures — trigger a [Lambda function](/resources/compute/lambda-function) whenever data changes, for use cases like auditing, analytics, cache invalidation, or downstream synchronization.
+DynamoDB Streams capture item-level changes. Stacktape exposes a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) for [Lambda functions](/resources/compute/lambda-function) and [batch jobs](/resources/compute/batch-job), invoking them when items change. Enable streams for use cases like auditing, analytics, cache invalidation, or downstream synchronization.
 
 
 Example (TypeScript):
@@ -224,11 +224,11 @@ The `streamType` controls what data each stream record contains:
 | `OLD_IMAGE` | Full item before the change | Undo/restore workflows |
 | `NEW_AND_OLD_IMAGES` | Both before and after | Audit trails, change tracking, diff computation |
 
-Once streams are enabled, you can set up a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) on a Lambda function to process changes. The `streamArn` referenceable parameter becomes available and is needed when configuring the trigger.
+Once streams are enabled, you can set up a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) on a Lambda function or batch job to process changes. Use the table's `streamArn` referenceable parameter when configuring the trigger; it is meaningful when streams are enabled with `streamType`.
 
 ## Backups
 
-Enable `enablePointInTimeRecovery` for continuous backups that let you restore the table to any second within the last 35 days. Restores always create a new table — they do not overwrite the existing one.
+Enable `enablePointInTimeRecovery` for continuous backups that let you restore the table to any second within the last 35 days. Underneath, AWS DynamoDB creates continuous backups automatically — restores always create a new table rather than overwriting the existing one. This adds approximately 20% to storage costs.
 
 
 Example (TypeScript):
@@ -250,11 +250,11 @@ export default defineConfig(() => {
 ```
 
 
-Point-in-time recovery adds approximately 20% to storage costs. Enable it for production tables where data loss would be costly. For development or staging tables, skip it to save money.
+Enable point-in-time recovery for production tables where data loss would be costly. For development or staging tables, skip it to save money.
 
 ## Connecting to other resources
 
-Use [connectTo](/configuration/connecting-resources) to give compute resources (Lambda functions, container workloads, batch jobs) access to a DynamoDB table. Stacktape automatically grants IAM permissions for CRUD, scan, and query operations and injects environment variables with the table's connection details.
+Use [connectTo](/configuration/connecting-resources) on workloads or scripts that need access to a DynamoDB table. For DynamoDB tables, `connectTo` grants CRUD plus scan/query IAM permissions and injects environment variables with the table's connection details.
 
 
 Example (TypeScript):
@@ -293,9 +293,11 @@ The `connectTo` injects these environment variables into the consuming workload:
 |---|---|
 | `STP_ITEMS_TABLE_NAME` | The DynamoDB table name |
 | `STP_ITEMS_TABLE_ARN` | The table's ARN |
-| `STP_ITEMS_TABLE_STREAM_ARN` | The stream ARN (only if `streamType` is set) |
+| `STP_ITEMS_TABLE_STREAM_ARN` | The table's stream ARN |
 
-Use `STP_ITEMS_TABLE_NAME` in your application code when creating a DynamoDB client:
+`connectTo` documents DynamoDB access as CRUD plus scan/query. If your workload needs additional DynamoDB APIs, use [`iamRoleStatements`](/configuration/connecting-resources) on the consuming workload for explicit AWS permissions.
+
+Use `STP_ITEMS_TABLE_NAME` as the `TableName` value in DynamoDB SDK operations:
 
 ```typescript
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -323,35 +325,30 @@ You can also reference table parameters directly using the [`$ResourceParam` dir
 
 ## Dev mode
 
-During [`stacktape dev`](/local-development/dev-mode-overview), DynamoDB tables run locally in Docker using DynamoDB Local by default. The local emulator starts automatically, creates the table based on your configuration, and persists data across dev mode restarts in `.stacktape/dev-data/`.
+During [`stacktape dev`](/local-development/dev-mode-overview), DynamoDB tables run locally in Docker by default. The local emulator gives you isolated development and fast iteration without deploying to AWS — ideal for testing CRUD logic, running integration tests, and iterating on data models without incurring costs or affecting shared data.
 
-Set `dev.remote` to `true` to connect to the deployed AWS table instead of the local emulator — useful when you need to work with real data or when local emulation doesn't match production behavior closely enough. The table must be deployed first.
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, DynamoDbTable } from 'stacktape';
-export default defineConfig(() => {
-  const postsTable = new DynamoDbTable({
-    primaryKey: {
-      partitionKey: { name: 'id', type: 'string' }
-    },
-    dev: {
-      remote: true
-    }
-  });
-
-  return {
-    resources: { postsTable }
-  };
-});
-```
-
+Set `dev.remote: true` to connect to the real deployed AWS table instead. The deployed resource must exist first. Use remote mode when local emulation diverges from AWS behavior in ways that matter to your application, or when you intentionally need to work against real production or staging data. Be careful with remote mode — your local code operates directly against the deployed table, so writes affect real data.
 
 ## Overrides
 
-DynamoDB tables support [CloudFormation overrides](/configuration/overrides-and-escape-hatches) for advanced configuration not exposed through the Stacktape API. Use `overrides` on the `DynamoDbTable` resource to modify the underlying CloudFormation resources directly.
+DynamoDB tables expose `overrides` as an escape hatch to modify the underlying CloudFormation resources that Stacktape creates. Use overrides when you need properties not directly exposed by `DynamoDbTableProps` — for example, setting a time-to-live (TTL) attribute so items expire automatically, or enabling server-side encryption with a customer-managed KMS key.
+
+The example below enables TTL on an attribute named `expiresAt`. Replace `DynamoDbTableResource` with the actual logical resource name from your stack. The `Properties.TimeToLiveSpecification` path uses dot-notation to target a specific CloudFormation property on that resource:
+
+```json
+{
+  "DynamoDbTableResource": {
+    "Properties.TimeToLiveSpecification": {
+      "Enabled": true,
+      "AttributeName": "expiresAt"
+    }
+  }
+}
+```
+
+TTL is useful for session stores, cache entries, or any data with a natural expiration. AWS DynamoDB automatically deletes expired items at no additional write cost, though deletions may lag behind the expiration time by up to 48 hours. To enable server-side encryption with a customer-managed KMS key instead, override `Properties.SSESpecification` with `{ "SSEEnabled": true, "KMSMasterKeyId": "<your-key-arn>", "SSEType": "KMS" }`.
+
+Use [`stacktape info:stack --detailed`](/cli/info-stack) to inspect CloudFormation logical IDs before writing overrides. See [overrides and escape hatches](/configuration/overrides-and-escape-hatches) for the full workflow.
 
 ## Referenceable parameters
 
@@ -424,7 +421,7 @@ No. The primary key (partition key and sort key) is immutable after table creati
 
 ### How do DynamoDB Streams work with Stacktape?
 
-Enable streams by setting `streamType` on your DynamoDB table, then configure a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) on a Lambda function. Stream records are processed in batches. Each record contains the change data (new image, old image, or both, depending on your `streamType`). The function must be idempotent because failed batches are retried in full.
+Enable streams by setting `streamType` on your DynamoDB table, then configure a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) on a Lambda function. Stream records are processed in batches. Each record contains the change data (new image, old image, or both, depending on your `streamType`). If you configure retry behavior with `maximumRetryAttempts`, the source notes that an error retries the entire batch, so handlers should be idempotent.
 
 ### What is the difference between on-demand and provisioned capacity?
 
@@ -436,16 +433,16 @@ Create a global secondary index (GSI) with the desired attribute as its partitio
 
 ### Does DynamoDB support transactions?
 
-AWS DynamoDB supports ACID transactions across multiple items within the same table or across tables, using `TransactWriteItems` and `TransactGetItems` operations. Transactions consume twice the normal read/write capacity. Stacktape grants full DynamoDB permissions through `connectTo`, so you can use transactions directly from the AWS SDK.
+AWS DynamoDB supports ACID transactions across multiple items within the same table or across tables, using `TransactWriteItems` and `TransactGetItems` operations. Transactions consume twice the normal read/write capacity. `connectTo` documents DynamoDB access as CRUD plus scan/query. If your workload needs additional DynamoDB APIs (such as transactions), use `iamRoleStatements` on the consuming workload for explicit AWS permissions.
 
 ### How does the local DynamoDB emulator work in dev mode?
 
-When you run `stacktape dev`, DynamoDB Local starts automatically in Docker on port 8000. Stacktape creates your tables based on the configuration and persists data in `.stacktape/dev-data/`. The emulator supports most DynamoDB operations but may differ from production on some edge cases — set `dev.remote: true` to use the real deployed table when precise production parity matters.
+During `stacktape dev`, DynamoDB runs locally in Docker by default, unless you set `dev.remote: true` to use the deployed table. The local emulator lets you develop and test without deploying to AWS. Use remote mode when you need precise production parity or access to real data. See [dev mode overview](/local-development/dev-mode-overview) for more details on local development.
 
 ### Can I use DynamoDB with container workloads?
 
-Yes. Add the DynamoDB table name to the `connectTo` list on any compute resource — [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), or [batch jobs](/resources/compute/batch-job). Stacktape injects the table name and ARN as environment variables and grants the necessary IAM permissions automatically.
+Yes. Add the DynamoDB table resource name (e.g., `itemsTable`) to the `connectTo` list on a consuming workload — [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), or [batch jobs](/resources/compute/batch-job). Stacktape injects the table name, ARN, and stream ARN as environment variables and grants the necessary IAM permissions automatically.
 
 ### What are the size and throughput limits of DynamoDB?
 
-Each DynamoDB item can be up to 400 KB. There is no limit on the number of items or total table size. On-demand mode scales to handle any request rate automatically. Provisioned mode scales up to 40,000 RCU and 40,000 WCU per table by default (higher limits available via AWS support). GSIs have their own throughput limits independent of the base table.
+Each DynamoDB item can be up to 400 KB. There is no limit on the number of items or total table size. On-demand mode is the safest default for variable traffic because DynamoDB manages capacity for you; very large or sudden traffic changes can still run into AWS service limits. Provisioned mode scales up to 40,000 RCU and 40,000 WCU per table by default (higher limits available via AWS support). GSIs have their own throughput limits independent of the base table.

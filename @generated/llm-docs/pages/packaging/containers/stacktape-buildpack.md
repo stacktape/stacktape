@@ -1,6 +1,6 @@
 # Stacktape Buildpack for Containers
 
-The Stacktape container buildpack (`StacktapeImageBuildpackPackaging`) builds an optimized OCI container image directly from your source code — no Dockerfile required. It applies to [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), and [batch jobs](/resources/compute/batch-job). Stacktape handles bundling, dependency installation, and image creation for JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. The resulting image is uploaded to a managed ECR repository.
+The Stacktape container buildpack (`StacktapeImageBuildpackPackaging`) builds an optimized container image directly from your source code — no Dockerfile required. It applies to [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), and [batch jobs](/resources/compute/batch-job). The container buildpack explicitly supports JavaScript, TypeScript, Python, Java, and Go. The `languageSpecificConfig` property also accepts configuration for Ruby, PHP, and .NET. The resulting image is uploaded to a managed ECR repository.
 
 ## When to use
 
@@ -11,21 +11,21 @@ Concrete scenarios where the buildpack fits well:
 - **Standard web APIs** — Express, Hono, Fastify, Flask, FastAPI, Django, or Spring Boot apps where the default Alpine-based image works.
 - **Background workers** — [worker services](/resources/compute/worker-service) and [batch jobs](/resources/compute/batch-job) that process messages from queues or run scheduled tasks.
 - **Rapid prototyping** — get a working container deployment with just an entry file path.
-- **Teams without Docker expertise** — the buildpack handles base images, dependency installation, and image layering automatically.
+- **Teams without Docker expertise** — the buildpack handles image creation and dependency installation automatically.
 
 ## When NOT to use
 
 The buildpack is not the right choice when you need full control over the container image or when your project has requirements outside the buildpack's scope:
 
-- **Custom start commands** — the `StacktapeImageBuildpackPackaging` properties do not expose a container start-command or entry-point override. The buildpack determines how your application starts from the `entryfilePath` and `languageSpecificConfig`. If you need explicit control over how the container starts (a custom entrypoint script, a specific binary invocation), use a [custom Dockerfile](/packaging/containers/custom-dockerfile), [prebuilt image](/packaging/containers/prebuilt-image), [Nixpacks](/packaging/containers/nixpacks), or [external buildpack](/packaging/containers/external-buildpack) — all of which expose `command`, `entryPoint`, or `startCmd` properties.
+- **Custom start commands** — `StacktapeImageBuildpackPackaging` does not expose `command`, `entryPoint`, or `startCmd` properties. If you need explicit control over how the container starts (a custom entrypoint script, a specific binary invocation), use a [custom Dockerfile](/packaging/containers/custom-dockerfile), [prebuilt image](/packaging/containers/prebuilt-image), [Nixpacks](/packaging/containers/nixpacks), or [external buildpack](/packaging/containers/external-buildpack) — each of which exposes a start-command property (`command`, `entryPoint`, or `startCmd` depending on the mode).
 - **Complex multi-stage builds** — if you need build-time caching across stages, intermediate build layers, or non-standard build toolchains, use a [custom Dockerfile](/packaging/containers/custom-dockerfile).
 - **Existing container images** — if your CI pipeline already produces container images, use a [prebuilt image](/packaging/containers/prebuilt-image) to skip the build step entirely.
-- **Unsupported languages** — Rust, Elixir, and other languages not in the supported list require a [custom Dockerfile](/packaging/containers/custom-dockerfile) or [Nixpacks](/packaging/containers/nixpacks).
+- **Unsupported languages** — for languages outside the documented buildpack list (Rust, Elixir, etc.), use a [custom Dockerfile](/packaging/containers/custom-dockerfile), [Nixpacks](/packaging/containers/nixpacks), or an [external buildpack](/packaging/containers/external-buildpack) depending on how much build control you need.
 - **Specialized base images** — if you need a specific OS distribution, GPU drivers, or compliance-certified base images, a custom Dockerfile gives you that control.
 
 ## Basic example
 
-The smallest valid configuration points the buildpack at your entry file. Stacktape detects the language, bundles your code, installs dependencies, and builds the container image. The resulting image is uploaded to a managed ECR repository.
+The smallest valid configuration points the buildpack at your entry file. Stacktape uses the `entryfilePath` and any `languageSpecificConfig` you provide to bundle your code and dependencies into a container image. The resulting image is uploaded to a managed ECR repository.
 
 
 Example (TypeScript):
@@ -54,11 +54,13 @@ export default defineConfig(() => {
 ```
 
 
-The `entryfilePath` is the only required property. It points to your application's entry file, relative to your Stacktape configuration file. For JavaScript and TypeScript, the buildpack bundles your code into a single file. Dependencies with native binaries are detected and installed separately in the container. For Python, Java, Go, and other supported languages, it packages the source with its dependencies.
+The `cpu` and `memory` values shown are example sizing — see [web service](/resources/compute/web-service) or [multi-container workload](/resources/compute/multi-container-workload) docs for valid ranges and sizing guidance.
+
+The `entryfilePath` is the only required property. It points to your application's entry file, relative to your Stacktape configuration file. For JavaScript and TypeScript, the buildpack bundles your code into a single file. Dependencies with native binaries are detected and installed separately in the container. For other supported language configurations, Stacktape builds the container image from the entry file and language-specific settings.
 
 ## Supported languages
 
-The buildpack supports eight languages. The optional `languageSpecificConfig` property lets you tune behavior per language. When `languageSpecificConfig` is omitted, each language-specific option uses its documented defaults.
+The container buildpack explicitly documents support for JavaScript, TypeScript, Python, Java, and Go. The `languageSpecificConfig` type union also exposes Ruby, PHP, and .NET version and project options. The optional `languageSpecificConfig` property lets you tune behavior per language. Several language-specific properties have documented defaults: Node.js 18, Python 3.9, Java 11, Ruby 3.3, PHP 8.3, .NET 8, and `outputModuleFormat: 'cjs'`.
 
 | Language | Default version | Key options |
 |---|---|---|
@@ -72,7 +74,7 @@ The buildpack supports eight languages. The optional `languageSpecificConfig` pr
 
 ## JavaScript and TypeScript
 
-For JavaScript and TypeScript projects, the buildpack bundles your code into a single file. Dependencies with native binaries (like `bcrypt` or `sharp`) are detected and installed separately in the container rather than bundled. The buildpack generates source maps for JS/TS unless you set `disableSourceMaps: true`.
+For JavaScript and TypeScript projects, the buildpack bundles your code into a single file. Dependencies with native binaries are installed separately in the container rather than bundled. The buildpack generates source maps for JS/TS unless you set `disableSourceMaps: true`.
 
 
 Example (TypeScript):
@@ -108,13 +110,15 @@ export default defineConfig(() => {
 ```
 
 
+The `dependenciesToExcludeFromBundle: ['@prisma/client']` shown above is just an example — replace it with packages your application cannot bundle (ORMs, native add-ons), or omit the property entirely if all your dependencies can be bundled.
+
 ### Module format
 
 The `outputModuleFormat` property controls whether the bundle output is CommonJS (`'cjs'`, the default) or ES Modules (`'esm'`). ESM enables top-level `await`, but some npm packages don't support ESM and error stack traces may be less readable. Stick with `'cjs'` unless you specifically need ESM features.
 
 ### Node.js version
 
-Set `nodeVersion` to choose the Node.js major version used in the container. Supported values: `16`, `17`, `18`, `19`, `20`, `21`, `22`, `23`, `24`. The default is `18`. For new projects, use `20` or `22` (the current LTS versions).
+Set `nodeVersion` to choose the Node.js major version used in the container. Supported values: `16`, `17`, `18`, `19`, `20`, `21`, `22`, `23`, `24`. The default is `18`. For new projects, choose a currently supported Node.js LTS version that your application and dependencies support.
 
 ### TypeScript decorator metadata
 
@@ -132,11 +136,11 @@ Set `tsConfigPath` to point to your `tsconfig.json` file. The buildpack reads it
 
 ### Source maps
 
-The buildpack generates source maps for JS/TS unless you set `disableSourceMaps: true`. Disabling source maps reduces image size but makes production errors harder to debug. Alternatively, use `outputSourceMapsTo` to save source maps to a local directory for uploading to external error tracking services (Sentry, Datadog). When using `outputSourceMapsTo`, CloudWatch stack traces won't be source-mapped, but the source maps are available for your external tooling without being included in the container image.
+The buildpack generates source maps for JS/TS unless you set `disableSourceMaps: true`. Disabling source maps reduces image size but makes production errors harder to debug. Alternatively, `outputSourceMapsTo` saves source maps to a local directory for external error tracking (Sentry, Datadog); CloudWatch stack traces will not be mapped.
 
 ## Python
 
-For Python containers, the buildpack installs dependencies and optionally configures a production web server. Set `entryfilePath` to the `module/file.py:app` format when using `runAppAs` for web applications.
+For Python containers, use `packageManagerFile` to point to your `requirements.txt`, `Pipfile`, or `pyproject.toml` for dependency installation. Set `entryfilePath` to the `module/file.py:app` format when using `runAppAs` for web applications.
 
 
 Example (TypeScript):
@@ -178,11 +182,13 @@ The `entryfilePath` must use the `module/file.py:app` format when `runAppAs` is 
 
 ### Python version
 
-Supported Python versions: `2.7`, `3.6`, `3.7`, `3.8`, `3.9`, `3.11`, `3.12`, `3.13`, `3.14`. The default is `3.9`. For new projects, use `3.12` or later.
+Supported Python versions: `2.7`, `3.6`, `3.7`, `3.8`, `3.9`, `3.11`, `3.12`, `3.13`, `3.14`. The default is `3.9`. For new projects, pick a currently supported Python version that your framework and dependencies support.
 
 ### Dependency management
 
-Set `packageManagerFile` to point to your `requirements.txt`, `Pipfile`, or `pyproject.toml`. Stacktape uses `uv` for dependency resolution and installation.
+Set `packageManagerFile` to point to your `requirements.txt`, `Pipfile`, or `pyproject.toml`. Stacktape uses `uv` for Python dependency resolution and installation. The optional `packageManager` property is kept for compatibility and, if provided, must be set to `uv`.
+
+When using `pyproject.toml`, use `uvOptionalDependencies` for extras, and `uvWithGroups`, `uvWithoutGroups`, or `uvOnlyGroups` to control dependency groups. Stacktape passes these through to `uv pip compile` as `--extra`, `--group`, `--no-group`, and `--only-group`.
 
 ### Minification
 
@@ -227,11 +233,11 @@ export default defineConfig(() => {
 
 Supported Java versions: `8`, `11`, `17`, `19`. The default is `11`. Java containers typically need more memory than Node.js or Python apps — 2048 MB is a reasonable starting point for Spring Boot applications.
 
-## Other supported languages
+## Additional language-specific options
 
 ### Go
 
-Go requires no language-specific configuration options. Point `entryfilePath` to your `main.go` file and the buildpack handles the rest.
+Go has no documented language-specific configuration options. Set `entryfilePath` to your Go application entry point and the buildpack handles the rest.
 
 ### Ruby
 
@@ -245,7 +251,9 @@ The `phpVersion` property sets the PHP version used in the container. Supported 
 
 The `dotnetVersion` property sets the .NET version. Supported values: `6`, `8`. The default is `8`. Use `projectFile` to point to your `.csproj` file path.
 
-## Customizing the container image
+## Image customization
+
+The Stacktape container buildpack exposes two escape hatches for system-level customization: custom shell commands injected into the Docker build via `customDockerBuildCommands`, and a base image switch from Alpine (musl) to a glibc-based image via `requiresGlibcBinaries`. Use these when the generated image needs OS packages or native library compatibility not handled by the language-specific build.
 
 ### Installing system dependencies
 
@@ -280,12 +288,12 @@ export default defineConfig(() => {
 ```
 
 
-> **Info:** The default base image uses Alpine Linux, so use `apk` for package installation. If you enable `requiresGlibcBinaries`, the base switches to a Debian-based image — use `apt-get` instead.
+> **Info:** The default uses Alpine/musl. The `apk add` commands shown above are Alpine-specific. If you enable `requiresGlibcBinaries`, Stacktape uses glibc instead of the Alpine default musl libc — verify that your package-install commands match the glibc-based image before relying on Alpine-specific `apk` commands.
 
 
 ### Using glibc instead of Alpine musl
 
-By default, the buildpack uses Alpine Linux with musl libc, producing smaller container images. Some native dependencies require glibc to work correctly. Set `requiresGlibcBinaries: true` to switch to a glibc-based (Debian) image. Common packages that require glibc: `sharp`, `canvas`, `bcrypt`, `puppeteer`.
+The default uses Alpine/musl. `requiresGlibcBinaries: true` switches to glibc instead, resulting in a larger image. Some native dependencies require glibc to work correctly — common packages that need this include `sharp`, `canvas`, `bcrypt`, and `puppeteer`.
 
 
 Example (TypeScript):
@@ -318,9 +326,9 @@ export default defineConfig(() => {
 
 The tradeoff is image size: glibc-based images are noticeably larger than Alpine images. Only enable this when your dependencies specifically require glibc — if you're unsure, start without it and switch if you see runtime errors like `Error loading shared library` or `GLIBC_X.XX not found`.
 
-## Controlling packaged files
+## File inclusion and exclusion
 
-Use `includeFiles` and `excludeFiles` to control which files end up in the container image. Both accept glob patterns relative to your Stacktape configuration file. Use `excludeDependencies` to remove specific packages from the container entirely.
+Use `includeFiles` and `excludeFiles` to control which files and dependencies are included in the deployment package used to create the container image. Both accept glob patterns relative to your Stacktape configuration file. Use `excludeDependencies` to remove specific packages from the deployment package.
 
 
 Example (TypeScript):
@@ -353,11 +361,11 @@ export default defineConfig(() => {
 ```
 
 
-- **`includeFiles`** — explicitly include files that aren't automatically picked up by the bundler, such as config files, templates, or static assets your app loads at runtime. Paths are relative to the Stacktape configuration file.
+- **`includeFiles`** — explicitly include files in the deployment package, using glob patterns relative to the Stacktape configuration file. Use it for runtime files such as templates or static assets.
 - **`excludeFiles`** — exclude files you don't need in production: tests, documentation, development configs. Reduces image size and attack surface.
-- **`excludeDependencies`** — remove specific packages from the deployment package. Useful for stripping dev-only dependencies that shouldn't ship to production.
+- **`excludeDependencies`** — remove specific packages from the deployment package when they are not needed at runtime.
 
-## Comparing container packaging modes
+## Mode comparison
 
 The Stacktape container buildpack is one of five container packaging modes. Each applies to the same resource types ([web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), [multi-container workload](/resources/compute/multi-container-workload), [batch job](/resources/compute/batch-job)) — they differ in how the container image is produced and how much control you get.
 
@@ -369,21 +377,21 @@ The Stacktape container buildpack is one of five container packaging modes. Each
 | Image customization | Moderate | Full | N/A | Moderate | Moderate |
 | Best for | Most apps | Complex setups | Existing CI images | Broad auto-detection | Cloud Native Buildpacks |
 
-**Use the Stacktape buildpack** when the generated start behavior is enough for your application — it covers the common 80% of containerized workloads with minimal configuration. **Use a [custom Dockerfile](/packaging/containers/custom-dockerfile)** when you need full control over every layer — multi-stage builds, precise base image selection, custom entrypoints, or non-standard toolchains. **Use a [prebuilt image](/packaging/containers/prebuilt-image)** when your CI already produces images and you want Stacktape to deploy them as-is. **Use [Nixpacks](/packaging/containers/nixpacks)** for broad language auto-detection beyond the eight languages the Stacktape buildpack supports. **Use an [external buildpack](/packaging/containers/external-buildpack)** if your team already uses Cloud Native Buildpacks (e.g. Paketo).
+**Use the Stacktape buildpack** when the generated start behavior is enough for your application — it covers the common 80% of containerized workloads with minimal configuration. **Use a [custom Dockerfile](/packaging/containers/custom-dockerfile)** when you need full control over every layer — multi-stage builds, precise base image selection, custom entrypoints, or non-standard toolchains. **Use a [prebuilt image](/packaging/containers/prebuilt-image)** when your CI already produces images and you want Stacktape to deploy them as-is. **Use [Nixpacks](/packaging/containers/nixpacks)** for broad language auto-detection beyond the languages the Stacktape buildpack covers. **Use an [external buildpack](/packaging/containers/external-buildpack)** if your team already uses Cloud Native Buildpacks (e.g. Paketo).
 
 
-> **Tip:** The key difference between the Stacktape buildpack and the other four modes: the buildpack does not expose a container start-command or entry-point override. It determines how the application starts based on the language, `entryfilePath`, and `languageSpecificConfig`. If you need explicit start-command control, use one of the other packaging modes.
+> **Tip:** The key difference between the Stacktape buildpack and the other four modes: `StacktapeImageBuildpackPackaging` does not expose `command`, `entryPoint`, or `startCmd` properties. If you need explicit start-command control, use one of the other packaging modes.
 
 
 ## FAQ
 
 ### Which languages does the Stacktape container buildpack support?
 
-The Stacktape container buildpack supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. JavaScript and TypeScript get the deepest integration — bundling into a single file, source maps, module format selection, and decorator metadata support. Python includes built-in WSGI/ASGI server binding. Java supports both Gradle and Maven build systems. See the [JavaScript and TypeScript](#javascript-and-typescript), [Python](#python), [Java](#java), and [Other supported languages](#other-supported-languages) sections above for per-language tuning options.
+The container buildpack explicitly documents support for JavaScript, TypeScript, Python, Java, and Go. The `languageSpecificConfig` type union also exposes Ruby, PHP, and .NET version and project options. JavaScript and TypeScript get the deepest integration — bundling into a single file, source maps, module format selection, and decorator metadata support. Python includes built-in WSGI/ASGI server binding. Java supports both Gradle and Maven build systems. See the [JavaScript and TypeScript](#javascript-and-typescript), [Python](#python), [Java](#java), and [Additional language-specific options](#additional-language-specific-options) sections above for per-language tuning options.
 
-### Do I need to write a Dockerfile to use the Stacktape buildpack?
+### How much does AWS ECR storage cost for container images?
 
-No. The buildpack creates the container image for you — you only provide an `entryfilePath` pointing to your application's entry point. If you need to run custom shell commands during the build (for example, installing system packages), use `customDockerBuildCommands`. Stacktape executes each command during the Docker build using `RUN` directives, so you get system-level customization without maintaining a full Dockerfile.
+AWS ECR pricing is based on image storage (per GB per month) and data transfer out. The Stacktape buildpack uploads each image to a managed ECR repository — you don't create or configure it. For cost control, consider using the default Alpine-based images (which produce smaller images) and stripping unnecessary files with `excludeFiles`.
 
 ### When should I use the Stacktape buildpack instead of a custom Dockerfile?
 
@@ -395,15 +403,15 @@ Set `runAppAs` to `'ASGI'` (for FastAPI, Starlette) or `'WSGI'` (for Flask, Djan
 
 ### What base image does the Stacktape container buildpack use?
 
-By default, the buildpack uses an Alpine Linux base image, which keeps containers small thanks to the musl libc library. If your native dependencies require glibc (common for packages like `sharp`, `canvas`, `bcrypt`, or `puppeteer`), set `requiresGlibcBinaries: true` to switch to a glibc-based (Debian) image. The tradeoff is a larger image footprint — only switch when you see glibc-specific runtime errors.
+By default, the buildpack uses an Alpine Linux base image, which keeps containers small thanks to the musl libc library. If your native dependencies require glibc (common for packages like `sharp`, `canvas`, `bcrypt`, or `puppeteer`), set `requiresGlibcBinaries: true` to switch to a glibc-based image. The tradeoff is a larger image footprint — only switch when you see glibc-specific runtime errors.
 
 ### How do I install system-level packages in the container?
 
-Use the `customDockerBuildCommands` property to run shell commands during the Docker build. Each command is executed using a `RUN` directive. On the default Alpine image, use `apk add --no-cache <package>`. If `requiresGlibcBinaries` is enabled (Debian-based), use `apt-get update && apt-get install -y <package>`. This covers cases like installing `ffmpeg`, native crypto libraries, or database client tools.
+Use the `customDockerBuildCommands` property to run shell commands during the Docker build. Each command is executed using a `RUN` directive. On the default Alpine image, use `apk add --no-cache <package>`. If `requiresGlibcBinaries` is enabled, confirm the glibc-based image's package manager before adding install commands. This covers cases like installing `ffmpeg`, native crypto libraries, or database client tools.
 
 ### What is the difference between the Stacktape buildpack and Nixpacks?
 
-Both build container images from source without a Dockerfile. The Stacktape buildpack supports eight languages with deeper integration — JS/TS bundling, source maps, WSGI/ASGI binding for Python, and fine-grained dependency exclusion controls. [Nixpacks](/packaging/containers/nixpacks) is a general-purpose tool that auto-detects a broader set of languages and frameworks and exposes a `startCmd` property for explicit start-command control. Choose the Stacktape buildpack for tighter control over bundling and language-specific tuning. Choose Nixpacks when your language or framework isn't in the buildpack's supported list or you need start-command overrides.
+Both build container images from source without a Dockerfile. The Stacktape buildpack provides deeper integration for its documented languages — JS/TS bundling, source maps, WSGI/ASGI binding for Python, and fine-grained dependency exclusion controls. [Nixpacks](/packaging/containers/nixpacks) is a general-purpose tool that auto-detects a broader set of languages and frameworks and exposes a `startCmd` property for explicit start-command control. Choose the Stacktape buildpack for tighter control over bundling and language-specific tuning. Choose Nixpacks when your language or framework isn't in the buildpack's supported list or you need start-command overrides.
 
 ### Where are built container images stored?
 
@@ -413,9 +421,13 @@ The resulting image is uploaded to a managed ECR repository. AWS ECR is a contai
 
 Yes. Each container in a [multi-container workload](/resources/compute/multi-container-workload) has its own `packaging` property. You can use the Stacktape buildpack for some containers and other packaging modes for others in the same workload. A common pattern is using the buildpack for the main application container while using a [prebuilt image](/packaging/containers/prebuilt-image) for sidecars like metrics exporters or log agents.
 
-### How do I keep my container images small?
+### What container image size limits apply on ECS Fargate?
 
-Start with the default Alpine base — don't enable `requiresGlibcBinaries` unless you hit glibc-specific runtime errors. Use `excludeFiles` to strip tests, docs, and dev configs from the image. For JavaScript/TypeScript, let the buildpack bundle as much as possible — bundled dependencies are tree-shaken, producing smaller output than separately installed `node_modules`. Use `excludeDependencies` to drop dev-only packages. Avoid adding unnecessary system packages via `customDockerBuildCommands`. For Python, the default minification (`minify: true`) also reduces image size.
+Smaller container images generally deploy and start faster on AWS ECS Fargate, since the image is pulled when a task launches. The Stacktape buildpack's default Alpine base produces compact images. Use `excludeFiles` to strip tests and dev assets, and avoid enabling `requiresGlibcBinaries` unless your dependencies require it.
+
+### How does Docker layer caching affect build times with the Stacktape buildpack?
+
+Build times depend on your CI environment's Docker layer cache. When the cache is warm, unchanged layers (like dependency installation) are reused, making subsequent builds faster. For the fastest iteration loop during development, use [dev mode](/local-development/dev-mode-overview) instead of full deploys. When deploying via CI, ensure the build runner preserves the Docker layer cache between runs; see [build runners](/ci-cd-and-gitops/build-runners) for details.
 
 ## API reference
 

@@ -1,12 +1,12 @@
 # Triggers Overview
 
-Triggers define what causes a Stacktape compute resource to execute. A [Lambda function](/resources/compute/lambda-function) sitting idle costs nothing — a trigger connects it to an event source (an HTTP request, a file upload, a queue message, a cron schedule) so it runs when work arrives. Stacktape supports trigger integrations across Lambda functions, batch jobs, and container workloads.
+Triggers define what causes a Stacktape compute resource to execute. A [Lambda function](/resources/compute/lambda-function) sitting idle costs nothing — a trigger connects it to an event source (an HTTP request, a file upload, a queue message, a cron schedule) so it runs when work arrives. Stacktape trigger integrations primarily attach events to Lambda functions and container workloads; EventBridge event bus integrations can also trigger [batch jobs](/resources/compute/batch-job).
 
 ## Why triggers exist
 
-Every compute resource in Stacktape needs at least one reason to run. Without a trigger, a Lambda function has no way to receive traffic, and a [batch job](/resources/compute/batch-job) has no way to start. Trigger integrations — such as `HttpApiIntegration`, `ScheduleIntegration`, or `SqsIntegration` — declare the binding between an event source and your compute resource. Stacktape provisions the underlying AWS constructs (API Gateway routes, event-source mappings, S3 notification configurations, EventBridge rules) and auto-configures permissions for each trigger.
+Lambda functions and batch jobs need an integration when external events should start work. Without an event integration, a Lambda function does not receive event-source traffic from the integrations documented here, and an EventBridge event bus integration is the documented trigger path for [batch jobs](/resources/compute/batch-job). Container workloads can also use integrations for HTTP traffic or internal networking, but those integrations do not make the workload run — the containers are already running. Trigger integrations — such as `HttpApiIntegration`, `ScheduleIntegration`, or `SqsIntegration` — declare the binding between an event source and your compute resource. Stacktape uses the integration object to configure the corresponding route, rule, subscription, notification, or event-source mapping.
 
-You declare triggers in the `events` array of your compute resource. Each entry is a typed integration object that specifies the event source and its configuration. A single resource can have multiple triggers of different types — Stacktape configures separate AWS integrations and permissions for each one.
+You declare triggers in the `events` array of your compute resource. Each entry is a typed integration object that specifies the event source and its configuration. A Lambda function can have multiple entries in its `events` array when those integration types are supported by the Lambda function resource — Stacktape configures the corresponding AWS integration for each entry.
 
 ## Trigger categories
 
@@ -18,31 +18,34 @@ Synchronous triggers deliver a request and wait for a response. The caller block
 
 | Trigger | Type value | Works with | Dedicated page |
 |---------|-----------|------------|----------------|
-| HTTP API Gateway | `http-api-gateway` | Lambda, batch jobs, containers | [HTTP triggers](/configuration/triggers/http-triggers) |
-| Application Load Balancer | `application-load-balancer` | Lambda, batch jobs, containers | [HTTP triggers](/configuration/triggers/http-triggers) |
-| Network Load Balancer | `network-load-balancer` | Containers only | [HTTP triggers](/configuration/triggers/http-triggers) |
+| HTTP API Gateway | `http-api-gateway` | Lambda functions, container workloads | [HTTP triggers](/configuration/triggers/http-triggers) |
+| Application Load Balancer | `application-load-balancer` | Lambda functions, container workloads | [HTTP triggers](/configuration/triggers/http-triggers) |
+| Network Load Balancer | `network-load-balancer` | Container workloads only | [HTTP triggers](/configuration/triggers/http-triggers) |
 
 [HTTP API Gateway](/resources/networking/http-api-gateway) is the simplest option for serverless APIs — per-request pricing, no idle cost, automatic path and method routing. An [Application Load Balancer](/resources/networking/application-load-balancer) adds advanced routing (header matching, query parameters, source IP filtering) and is the natural choice when you already have an ALB for container workloads. A [Network Load Balancer](/resources/networking/network-load-balancer) operates at Layer 4 (TCP/TLS) and is container-only.
 
 ### Asynchronous triggers
 
-Asynchronous triggers fire-and-forget: the event source delivers a payload and moves on without waiting for your function to finish. Use these for background processing, reactions to state changes, and scheduled jobs.
+Asynchronous triggers fall into two delivery patterns. **Push-based** sources — S3, SNS, schedules, EventBridge, CloudWatch Logs, and alarms — push events directly to your function when they occur. **Poll-based** sources — SQS, Kinesis, DynamoDB streams, and Kafka — are consumed through AWS Lambda event-source mappings that continuously poll the source and invoke your function with batches of records. Use either pattern for background processing, reactions to state changes, and scheduled jobs.
 
-| Trigger | Type value | Works with | Dedicated page |
-|---------|-----------|------------|----------------|
-| Schedule (cron/rate) | `schedule` | Lambda, batch jobs | [Schedule triggers](/configuration/triggers/schedule-triggers) |
-| S3 bucket events | `s3` | Lambda, batch jobs | [S3 events](/configuration/triggers/s3-events) |
-| SQS queue | `sqs` | Lambda, batch jobs | [SQS events](/configuration/triggers/sqs-events) |
-| SNS topic | `sns` | Lambda, batch jobs | [SNS events](/configuration/triggers/sns-events) |
-| DynamoDB stream | `dynamo-db-stream` | Lambda, batch jobs | [DynamoDB streams](/configuration/triggers/dynamodb-streams) |
-| Kinesis stream | `kinesis-stream` | Lambda, batch jobs | [Kinesis events](/configuration/triggers/kinesis-events) |
-| EventBridge event bus | `event-bus` | Lambda, batch jobs | [Event bus events](/configuration/triggers/event-bus-events) |
-| CloudWatch Logs | `cloudwatch-log` | Lambda, batch jobs | [CloudWatch logs](/configuration/triggers/cloudwatch-logs) |
-| CloudWatch Alarm | `cloudwatch-alarm` | Lambda only | [Alarms as triggers](/configuration/triggers/alarms-as-triggers) |
-| Kafka topic | `kafka-topic` | Lambda only | [Kafka topics](/configuration/triggers/kafka-topics) |
+| Trigger | Type value | Delivery | Dedicated page |
+|---------|-----------|----------|----------------|
+| Schedule (cron/rate) | `schedule` | Push | [Schedule triggers](/configuration/triggers/schedule-triggers) |
+| S3 bucket events | `s3` | Push | [S3 events](/configuration/triggers/s3-events) |
+| SNS topic | `sns` | Push | [SNS events](/configuration/triggers/sns-events) |
+| EventBridge event bus | `event-bus` | Push (batch jobs) | [Event bus events](/configuration/triggers/event-bus-events) |
+| CloudWatch Logs | `cloudwatch-log` | Push | [CloudWatch logs](/configuration/triggers/cloudwatch-logs) |
+| CloudWatch Alarm | `cloudwatch-alarm` | Push | [Alarms as triggers](/configuration/triggers/alarms-as-triggers) |
+| SQS queue | `sqs` | Poll | [SQS events](/configuration/triggers/sqs-events) |
+| Kinesis stream | `kinesis-stream` | Poll | [Kinesis events](/configuration/triggers/kinesis-events) |
+| DynamoDB stream | `dynamo-db-stream` | Poll | [DynamoDB streams](/configuration/triggers/dynamodb-streams) |
+| Kafka topic | `kafka-topic` | Poll | [Kafka topics](/configuration/triggers/kafka-topics) |
 
 
-> **Info:** The Stacktape type system also defines an `iot` integration type (with `sql` and `sqlVersion` properties) for AWS IoT topic rules. This integration type is not currently included in the `events` property of any compute resource.
+> **Warning:** **S3 triggers** require the `s3EventType` property to specify which event fires the function — for example, `s3:ObjectCreated:*` or `s3:ObjectRemoved:*`. **DynamoDB stream triggers** require streaming to be enabled on the DynamoDB table (via the `streaming` property in your `dynamoDbTables` config) before the trigger can be configured. **Kafka triggers** require an `authentication` field on `customKafkaConfiguration` — either SASL (`BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`) or mTLS.
+
+
+> **Info:** The source also defines an `iot` integration type (with `sql` and `sqlVersion` properties) for AWS IoT topic rules, but this overview does not document it as a supported trigger.
 
 
 ## Container networking integrations
@@ -60,35 +63,35 @@ Use `workload-internal` when containers in the same task need to talk to each ot
 
 ## Which resources support which triggers
 
-Not every trigger type works with every compute resource. The table below summarizes compatibility as defined in the Stacktape resource type definitions (`functions.d.ts`, `batch-jobs.d.ts`, `multi-container-workloads.d.ts`).
+Not every trigger type works with every compute resource. The table below summarizes the trigger integrations defined in `events.d.ts` for Lambda functions and container workloads. See the [batch job](/resources/compute/batch-job) page for batch-job-specific trigger support.
 
 
 ## Feature Comparison
 
-| Feature | Lambda function | Batch job | Container workloads |
-| --- | --- | --- | --- |
-| HTTP API Gateway | yes | yes | yes |
-| Application Load Balancer | yes | yes | yes |
-| Network Load Balancer | no | no | yes |
-| Schedule | yes | yes | no |
-| S3 events | yes | yes | no |
-| SQS queue | yes | yes | no |
-| SNS topic | yes | yes | no |
-| DynamoDB stream | yes | yes | no |
-| Kinesis stream | yes | yes | no |
-| EventBridge event bus | yes | yes | no |
-| CloudWatch Logs | yes | yes | no |
-| CloudWatch Alarm | yes | no | no |
-| Kafka topic | yes | no | no |
-| Workload Internal | no | no | yes |
-| Service Connect | no | no | yes |
+| Feature | Lambda function | Container workloads |
+| --- | --- | --- |
+| HTTP API Gateway | yes | yes |
+| Application Load Balancer | yes | yes |
+| Network Load Balancer | no | yes |
+| Schedule | yes | no |
+| S3 events | yes | no |
+| SQS queue | yes | no |
+| SNS topic | yes | no |
+| DynamoDB stream | yes | no |
+| Kinesis stream | yes | no |
+| EventBridge event bus | no | no |
+| CloudWatch Logs | yes | no |
+| CloudWatch Alarm | yes | no |
+| Kafka topic | yes | no |
+| Workload Internal | no | yes |
+| Service Connect | no | yes |
 
 
-Batch jobs use a helper Lambda function behind the scenes to receive events and start the job container. This is transparent — you configure the trigger the same way as for a Lambda function.
+`EventBusIntegration` is defined in the source as triggering a batch job — see the [batch job](/resources/compute/batch-job) page for EventBridge trigger support. Batch jobs also have other trigger types; see that page for details.
 
 ## Basic example
 
-A Lambda function with an HTTP API Gateway trigger and a schedule trigger. The function handles both web requests and a periodic cleanup task:
+The `events` array can contain typed integration objects. This example shows an HTTP API Gateway integration and a schedule integration on one Lambda function:
 
 
 Example (TypeScript):
@@ -128,32 +131,29 @@ export default defineConfig(() => {
 ```
 
 
-The `processOrders` function has two triggers: it handles `POST /orders` requests through the HTTP API Gateway, and it runs every hour via the schedule trigger. Stacktape configures the API Gateway route, the EventBridge schedule rule, and the required IAM permissions for both.
+The `processOrders` function has two triggers: it handles `POST /orders` requests through the HTTP API Gateway, and it runs every hour via the schedule trigger. Stacktape configures the API Gateway route and the EventBridge schedule rule based on the integration objects.
 
 ## How triggers work
 
 When you add a trigger to the `events` array, Stacktape translates it into the appropriate AWS construct during deployment. The mechanism differs by trigger type:
 
-**HTTP triggers** create API Gateway routes or load balancer listener rules that forward matching requests to your function or container. For API Gateway, routes are matched by path specificity — exact paths take priority over wildcard paths. For load balancers, rules are evaluated by priority number (lowest first).
+**HTTP triggers** — HTTP API Gateway integrations route matching methods and paths to your function or container. For API Gateway, routes are matched by path specificity — exact paths take priority over wildcard paths. Application Load Balancer integrations route matching requests by listener rule conditions (paths, methods, headers, query parameters, source IPs), evaluated by priority number (lowest first).
 
-**Poll-based triggers** (SQS, Kinesis, DynamoDB streams, Kafka) create AWS Lambda event-source mappings that continuously poll the source and invoke your function with batches of records. You control batch size and timing through `batchSize` and `maxBatchWindowSeconds`. The function fires when either threshold is reached, whichever comes first. This lets you trade latency for efficiency — smaller batches react faster, larger batches reduce invocation count.
+**Poll-based triggers** (SQS, Kinesis, DynamoDB streams, Kafka) create AWS Lambda event-source mappings that continuously poll the source and invoke your function with batches of records. You control batch size and timing through `batchSize` and `maxBatchWindowSeconds`. For Kafka, the function fires when `batchSize` is reached or `maxBatchWindowSeconds` expires. For SQS, the function fires when `batchSize` is reached, `maxBatchWindowSeconds` expires, or the 6 MB payload limit is hit. For Kinesis and DynamoDB streams, `batchSize` and `maxBatchWindowSeconds` define the maximum batch size and wait time. This lets you trade latency for efficiency — smaller batches react faster, larger batches reduce invocation count.
 
-**Push-based triggers** (S3, SNS, CloudWatch Logs, schedules, EventBridge, alarms) configure the source service to invoke your function directly when an event occurs. There is no polling — the source pushes the event payload to your function. This means latency is determined by the source service, not by a polling interval.
+**Push-based triggers** — S3, SNS, CloudWatch Logs, and schedule integrations invoke Lambda functions when matching events occur. Event bus integrations target batch jobs. Alarm integrations bind a function to an alarm defined in the `alarms` section. There is no polling — the source pushes the event payload to the target. Latency is determined by the source service, not by a polling interval.
 
 ## Choosing the right trigger
 
-
-## Decision Tree
-
-- What starts the work?
-  - An HTTP request from a client -> Use an [HTTP API Gateway](/configuration/triggers/http-triggers) trigger (simplest, per-request pricing) or an [Application Load Balancer](/configuration/triggers/http-triggers) (advanced routing, header/query matching).
-  - A recurring schedule -> Use a [schedule trigger](/configuration/triggers/schedule-triggers) with a `rate()` or `cron()` expression.
-  - A file upload or change in S3 -> Use an [S3 event trigger](/configuration/triggers/s3-events). Filter by key prefix or suffix to target specific files.
-  - A message from another service -> Use [SQS](/configuration/triggers/sqs-events) for point-to-point queuing, [SNS](/configuration/triggers/sns-events) for fan-out to multiple consumers, or [EventBridge](/configuration/triggers/event-bus-events) for content-based routing.
-  - A database change -> Use a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) to react to item creates, updates, and deletes.
-  - A real-time data stream -> Use a [Kinesis trigger](/configuration/triggers/kinesis-events) for high-throughput ordered data.
-  - A log event or alarm state change -> Use a [CloudWatch Logs trigger](/configuration/triggers/cloudwatch-logs) with a filter pattern, or a [CloudWatch Alarm trigger](/configuration/triggers/alarms-as-triggers) to react to metric thresholds.
-
+| When this starts the work | Use this trigger | Dedicated page |
+|---------------------------|-----------------|----------------|
+| An HTTP request from a client | [HTTP API Gateway](/configuration/triggers/http-triggers) (simplest, per-request pricing) or [Application Load Balancer](/configuration/triggers/http-triggers) (advanced routing, header/query matching) | [HTTP triggers](/configuration/triggers/http-triggers) |
+| A recurring schedule | [Schedule trigger](/configuration/triggers/schedule-triggers) with a `rate()` or `cron()` expression | [Schedule triggers](/configuration/triggers/schedule-triggers) |
+| A file upload or change in S3 | [S3 event trigger](/configuration/triggers/s3-events) — filter by key prefix or suffix to target specific files | [S3 events](/configuration/triggers/s3-events) |
+| A message from another service | [SQS](/configuration/triggers/sqs-events) for point-to-point queuing, [SNS](/configuration/triggers/sns-events) for fan-out, or [EventBridge](/configuration/triggers/event-bus-events) for content-based routing | — |
+| A database change | [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) to react to item creates, updates, and deletes | [DynamoDB streams](/configuration/triggers/dynamodb-streams) |
+| A real-time data stream | [Kinesis trigger](/configuration/triggers/kinesis-events) for high-throughput ordered data | [Kinesis events](/configuration/triggers/kinesis-events) |
+| A log event or alarm state change | [CloudWatch Logs trigger](/configuration/triggers/cloudwatch-logs) with a filter pattern, or [CloudWatch Alarm trigger](/configuration/triggers/alarms-as-triggers) for metric thresholds | — |
 
 ## Batching and throughput
 
@@ -164,7 +164,9 @@ Poll-based triggers (SQS, Kinesis, DynamoDB streams, Kafka) deliver records in b
 
 Default batch sizes differ by trigger type: **10 for SQS and Kinesis, 100 for DynamoDB streams and Kafka.**
 
-Your function receives the full batch as a single event. For stream-based sources (Kinesis, DynamoDB), if processing fails, the entire batch — including successfully processed records — is retried. Design your handlers to be idempotent.
+Your function receives the full batch as a single event. For Kinesis and DynamoDB stream integrations, if an error occurs the entire batch is retried, including records that were processed successfully. Design your handlers to be idempotent.
+
+Kinesis integrations support two consumption modes. Without `autoCreateConsumer`, the default direct mode polls each shard approximately once per second and shares read throughput with other consumers of the same stream. With **`autoCreateConsumer`** enabled, a dedicated stream consumer is created for higher throughput and lower latency — this cannot be combined with `consumerArn`.
 
 
 > **Tip:** Start with the default batch size and increase it only if you observe excessive Lambda invocations. Larger batches are more cost-efficient but increase the blast radius of failures — a single bad record can force retries of the entire batch.
@@ -172,17 +174,17 @@ Your function receives the full batch as a single event. For stream-based source
 
 ## Error handling and retries
 
-Stream-based triggers (Kinesis, DynamoDB streams) retry failed batches automatically because they maintain a cursor position in the stream. You control retry behavior with these properties on the integration:
+Kinesis and DynamoDB stream integrations expose retry controls for failed batches, including `maximumRetryAttempts`, `onFailure`, `bisectBatchOnFunctionError`, and `parallelizationFactor`. You control retry behavior with these properties on the integration:
 
-- **`maximumRetryAttempts`** — how many times to retry a failed batch before giving up. Without this, retries continue indefinitely and block the shard.
-- **`onFailure`** — a destination (SQS queue or SNS topic, specified by ARN and type) that receives batches that exhaust all retries. Use this as a dead-letter destination to inspect and replay failed records.
+- **`maximumRetryAttempts`** — the number of times to retry a failed batch of records before giving up.
+- **`onFailure`** — a destination (SQS queue or SNS topic, specified by ARN and type) that receives batches that fail after all retry attempts. Use this as a dead-letter destination to inspect and replay failed records.
 - **`bisectBatchOnFunctionError`** — splits a failed batch in half before retrying. Useful when a single bad record poisons a large batch — the halving narrows down which record is at fault.
 - **`parallelizationFactor`** — process multiple batches from the same shard concurrently. Increases throughput at the cost of ordering guarantees within the shard.
 
-SNS and EventBus integrations support `onDeliveryFailure`, which can route undeliverable events to an SQS queue. This covers rare cases where the source service cannot deliver an event to your function — for example, if the function cannot scale fast enough to keep up.
+Kinesis and DynamoDB stream `onFailure` accepts a destination with `arn` and `type` (`'sns'` or `'sqs'`), so failed batches can route to either an SQS queue or an SNS topic. By contrast, SNS `onDeliveryFailure` and EventBus `onDeliveryFailure` accept only SQS queue destinations — specified via `sqsQueueArn` or `sqsQueueName`. These delivery-failure properties cover rare cases where the source service cannot deliver an event — for example, if the target cannot scale fast enough to keep up.
 
 
-> **Warning:** For stream-based triggers (Kinesis, DynamoDB), a failed batch blocks the shard until retries are exhausted or the batch succeeds. Always set `maximumRetryAttempts` and `onFailure` to avoid stalled processing.
+> **Warning:** For Kinesis and DynamoDB stream integrations, the source warns that if an error occurs, the entire batch is retried, including records that were processed successfully — handlers must be idempotent. Use `maximumRetryAttempts` to bound retries and `onFailure` to route batches that fail after all retry attempts to an SQS queue or SNS topic for later inspection.
 
 
 ## Event filtering
@@ -198,31 +200,31 @@ Some trigger types support server-side filtering so your function only receives 
 
 S3 filtering is the most common: set `prefix: 'uploads/'` and `suffix: '.jpg'` to react only to JPEG uploads in a specific folder. SNS filtering works on message attributes, not body content — for content-based routing, use EventBridge instead. EventBridge patterns support nested matching, prefix/suffix comparisons, and numeric ranges on any event field.
 
-For trigger types without built-in filtering (SQS, Kinesis, DynamoDB streams, Kafka), implement filtering logic in your handler code.
+The trigger types listed above (S3, SNS, EventBridge, CloudWatch Logs) expose Stacktape-level filter properties. Other integration types in the source do not define a dedicated filter property — for those, handle filtering in your handler code.
 
 ## Multiple triggers on one resource
 
-A single Lambda function or batch job can have multiple triggers of any supported type in its `events` array. Common patterns:
+A Lambda function can have multiple entries in its `events` array when those integration types are supported by the Lambda function resource. Common patterns:
 
 - **API + schedule**: An API handler that also runs hourly for warm-keeping or periodic maintenance tasks.
 - **Multiple S3 sources**: A function that processes uploads from multiple S3 buckets with different `filterRule` settings.
-- **Queue + event bus**: A function that consumes from both an SQS queue for direct messages and an EventBridge rule for cross-service events.
+- **Queue + SNS**: A function that consumes from both an SQS queue for direct messages and an SNS topic for fan-out events.
 
-Each trigger operates independently — Stacktape configures separate event-source mappings and permissions for each entry. Your handler code can inspect the event payload to determine which trigger fired and route logic accordingly.
+Stacktape declares each `events` entry as its own integration object. When a function has multiple trigger types, the handler receives the event shape from the underlying AWS source — keep routing explicit in your handler and test each event shape.
 
 ## FAQ
 
 ### Can a single function have multiple triggers?
 
-Yes. The `events` property accepts an array, and you can mix trigger types freely. A Lambda function can simultaneously serve HTTP requests via API Gateway, process SQS messages, and run on a schedule. Each trigger gets its own event-source mapping and permissions configured by Stacktape. Your handler receives different event payload shapes depending on which trigger fired.
+Yes. The `events` property accepts an array, and a Lambda function can include multiple supported integration types — for example, simultaneously serving HTTP requests via API Gateway, processing SQS messages, and running on a schedule. Each entry creates the corresponding AWS binding for that integration type — a route, listener rule, event-source mapping, subscription, notification, or schedule rule. Your handler receives different event payload shapes depending on which trigger fired.
 
 ### What is the difference between SQS, SNS, and EventBridge triggers?
 
-[SQS](/configuration/triggers/sqs-events) is point-to-point: one message, one consumer. Use it for work queues and decoupling producers from consumers. [SNS](/configuration/triggers/sns-events) is fan-out: one message delivered to multiple subscribers simultaneously. [EventBridge](/configuration/triggers/event-bus-events) adds content-based routing with pattern matching on event fields — use it when you need to route different event types to different targets based on payload content. SQS and SNS are simpler to set up; EventBridge is more flexible but requires defining event patterns.
+[SQS](/configuration/triggers/sqs-events) is point-to-point: one message, one consumer. A single SQS queue should only have one consumer function — for fan-out (multiple consumers for the same message), use SNS or EventBridge instead. Use SQS for work queues and decoupling producers from consumers. [SNS](/configuration/triggers/sns-events) is fan-out: one message delivered to multiple subscribers simultaneously. [EventBridge](/configuration/triggers/event-bus-events) adds content-based routing with pattern matching on event fields — use it when you need to route different event types to different targets based on payload content. SQS and SNS are simpler to set up; EventBridge is more flexible but requires defining event patterns.
 
 ### Why can't container workloads use queue or stream triggers?
 
-Container workloads ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload)) are always-on processes that manage their own event loop. Their integrations are limited to HTTP traffic (API Gateway, load balancers) and internal networking (workload-internal, service-connect). If you need a container to process queue messages, have the container poll the queue directly using the AWS SDK and [connect to the queue](/configuration/connecting-resources) for permissions. For event-driven processing without managing a polling loop, use a Lambda function instead.
+Container workloads ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload)) are always-on processes that manage their own event loop. Their integrations are limited to HTTP traffic (API Gateway, load balancers) and internal networking (workload-internal, service-connect). For a container-based worker that processes queue messages, poll SQS from application code instead of using a Stacktape SQS trigger. For event-driven processing without managing a polling loop, use a Lambda function instead.
 
 ### When should I use HTTP API Gateway versus an Application Load Balancer?
 
@@ -230,24 +232,16 @@ Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for most serve
 
 ### What happens if my function fails while processing a batch?
 
-Behavior depends on the trigger type. For stream-based sources (Kinesis, DynamoDB), the entire batch — including successfully processed records — is retried until `maximumRetryAttempts` is exhausted. Set `onFailure` to route exhausted batches to a dead-letter queue, and use `bisectBatchOnFunctionError` to isolate bad records by splitting failed batches. For SQS, individual failed messages return to the queue after the visibility timeout; successfully processed messages are deleted. Your function must be idempotent for all poll-based triggers.
+Behavior depends on the trigger type. For Kinesis and DynamoDB stream integrations, the source warns that if an error occurs, the entire batch is retried, including records that were processed successfully — bound retries with `maximumRetryAttempts`, route exhausted batches to an SQS queue or SNS topic via `onFailure`, and use `bisectBatchOnFunctionError` to isolate bad records by splitting failed batches. SQS records are processed in batches and the function fires when `batchSize`, `maxBatchWindowSeconds`, or the 6 MB payload limit is reached. For Kinesis and DynamoDB stream integrations, failed batches can be retried as a whole, so handlers should be idempotent.
 
 ### What is the default batch size for event-source triggers?
 
 Default batch size is 10 for SQS and Kinesis, and 100 for DynamoDB streams and Kafka. Maximum batch sizes also vary: SQS, Kinesis, and Kafka support up to 10,000 records per batch, while DynamoDB streams support up to 1,000. Choose based on your function's processing time and memory — larger batches are more efficient but require more resources and increase the blast radius of failures.
 
-### Can I trigger a batch job on a schedule?
-
-Yes. Batch jobs support the `schedule` trigger type with the same `rate()` and `cron()` expressions available to Lambda functions. Stacktape creates a helper Lambda function behind the scenes that starts the batch job container when the schedule fires. This is transparent — you configure the trigger identically to how you would on a Lambda function. See [Schedule triggers](/configuration/triggers/schedule-triggers).
-
 ### How do I filter which events trigger my function?
 
-Several trigger types support server-side filtering. S3 triggers accept `prefix` and `suffix` filters on object keys via `filterRule`. SNS supports `filterPolicy` for attribute-based message filtering. EventBridge uses `eventPattern` for content-based routing on any event field. CloudWatch Logs accepts a `filter` pattern. For trigger types without built-in server-side filtering, implement filtering logic in your handler code.
-
-### How do batch job triggers work internally?
-
-When you add triggers to a [batch job](/resources/compute/batch-job), Stacktape provisions a helper Lambda function that receives the events and starts the batch job container. This is transparent — you configure the trigger the same way as for a Lambda function, and the helper Lambda handles the translation from event to job submission. Batch jobs support most of the same trigger types as Lambda functions, except for Kafka topics and CloudWatch alarms.
+Several trigger types support server-side filtering. S3 triggers accept `prefix` and `suffix` filters on object keys via `filterRule`. SNS supports `filterPolicy` for attribute-based message filtering. EventBridge uses `eventPattern` for content-based routing on any event field. CloudWatch Logs accepts a `filter` pattern. Other integration types do not define a dedicated filter property — for those, handle filtering in your handler code.
 
 ### What is Service Connect and when should I use it?
 
-Service Connect is a container networking integration (type `service-connect`) that opens a container port and registers a service-discovery alias. Other resources in the same stack can reach the container using a URL like `http://alias:port`. Use it when you have multiple container workloads that need to communicate directly — for example, a frontend container calling a backend API container. It supports `http`, `http2`, and `grpc` protocols with protocol-aware metrics. Use `workload-internal` instead when containers only need to communicate within the same task (same workload). See [multi-container workloads](/resources/compute/multi-container-workload) for details.
+Service Connect is a container networking integration (type `service-connect`) that opens a container port and registers a service-discovery alias. Other resources in the stack can connect using `protocol://alias:port`, for example `http://my-service:8080`. The protocol can be `http`, `http2`, or `grpc`. Use Service Connect when you have multiple container workloads that need to communicate directly — for example, a frontend container calling a backend API container. It captures protocol-aware metrics such as HTTP 5xx error counts. Use `workload-internal` instead when containers only need to communicate within the same task (same workload). See [multi-container workloads](/resources/compute/multi-container-workload) for details.
