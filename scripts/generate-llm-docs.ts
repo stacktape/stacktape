@@ -3,6 +3,12 @@ import { basename, dirname, join, relative } from 'node:path';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { emptyDir, ensureDir, pathExists, readFile, readdir, writeFile } from 'fs-extra';
 import { LLM_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { generateCommandSchemaInfo } from '../src/config/cli/utils';
+import {
+  LEXICAL_INDEX_FILE_NAME,
+  buildIndexFromChunks,
+  serializeLexicalIndex
+} from '../src/commands/mcp/lexical-index';
 
 type DocKind = 'docs-page' | 'config-reference';
 
@@ -43,6 +49,10 @@ const SNIPPETS_DIR = join(process.cwd(), 'docs', 'code-snippets');
 const DIST_DIR = LLM_DOCS_FOLDER_PATH;
 const API_REFERENCE_DATA_PATH = join(process.cwd(), 'docs', 'src', 'generated', 'api-reference-data.ts');
 const RESOURCES_JSON_PATH = join(process.cwd(), 'docs', '.resources.json');
+
+const normalizePath = (filePath: string): string => filePath.replace(/\\/g, '/');
+
+const relativeSourcePath = (filePath: string): string => normalizePath(relative(process.cwd(), filePath));
 
 const loadApiReferenceData = (): Record<string, any> => {
   const raw = readFileSync(API_REFERENCE_DATA_PATH, 'utf-8');
@@ -152,6 +162,10 @@ const RESOURCE_TYPE_BY_DOC_BASENAME: Record<string, string> = {
   'custom-resources': 'custom-resource'
 };
 
+const REFERENCEABLE_PARAM_TYPE_BY_RESOURCE_TYPE: Record<string, string> = {
+  'agentcore-gateway': 'AgentCoreGatewayReferencableParam'
+};
+
 const log = (message: string) => {
   // Keep this script usable in CI and local runs without pulling in app logging.
   console.info(`[llm-docs] ${message}`);
@@ -245,7 +259,7 @@ const findTypeDeclaration = (definitionName: string): { sourcePath: string; decl
       content.match(new RegExp(`type\\s+${escaped}\\s*=\\s*[\\s\\S]*?(?=\\n(?:interface|type)\\s+\\w|$)`, 'm'));
     if (match) {
       return {
-        sourcePath: relative(process.cwd(), filePath),
+        sourcePath: relativeSourcePath(filePath),
         declaration: match[0].trim()
       };
     }
@@ -297,7 +311,8 @@ const apiReferenceToMarkdown = (definitionName: string): string => {
 
 const referenceableParamsToMarkdown = (resourceType: string): string => {
   const resource = (resources as any[]).find((item) => item.resourceType === resourceType);
-  if (!resource?.referenceableParams) {
+  const referenceableParams = resource?.referenceableParams || referenceableParamsFromTypeDeclaration(resourceType);
+  if (!referenceableParams) {
     throw new Error(`Referenceable params for "${resourceType}" were not found`);
   }
 
@@ -308,13 +323,31 @@ const referenceableParamsToMarkdown = (resourceType: string): string => {
     '| Parameter | Description | Usage |',
     '| --- | --- | --- |'
   );
-  for (const [paramName, description] of Object.entries(resource.referenceableParams)) {
+  for (const [paramName, description] of Object.entries(referenceableParams)) {
     if (paramName === '_hasCdn') continue;
     lines.push(
       `| \`${paramName}\` | ${stripHtml(String(description)).replace(/\n/g, '<br>') || '-'} | \`$ResourceParam("<<resource-name>>", "${paramName}")\` |`
     );
   }
   return `${lines.join('\n')}\n\n`;
+};
+
+const referenceableParamsFromTypeDeclaration = (resourceType: string): Record<string, string> | undefined => {
+  const typeName = REFERENCEABLE_PARAM_TYPE_BY_RESOURCE_TYPE[resourceType];
+  if (!typeName || !existsSync(TYPES_DIR)) return undefined;
+
+  for (const file of readdirSync(TYPES_DIR)) {
+    if (!file.endsWith('.d.ts')) continue;
+    const content = readFileSync(join(TYPES_DIR, file), 'utf-8');
+    const escaped = typeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = content.match(new RegExp(`type\\s+${escaped}\\s*=\\s*([^;]+);`));
+    if (!match?.[1]) continue;
+    const params = [...match[1].matchAll(/'([^']+)'/g)].map((paramMatch) => paramMatch[1]);
+    if (params.length === 0) continue;
+    return Object.fromEntries(params.map((param) => [param, `Referenceable ${param} value.`]));
+  }
+
+  return undefined;
 };
 
 const inferLanguageFromPath = (filePath: string): string => {
@@ -414,6 +447,48 @@ const flowDiagramToMarkdown = (stepsRaw: string): string | undefined => {
   return `${lines.join('\n')}\n\n`;
 };
 
+const propStringValue = (propsRaw: string, propName: string): string | undefined => {
+  const match = propsRaw.match(new RegExp(`\\b${propName}="([^"]*)"`));
+  return match?.[1];
+};
+
+const navBoxToMarkdown = (propsRaw: string): string => {
+  const text = propStringValue(propsRaw, 'text');
+  const url = propStringValue(propsRaw, 'url');
+  const description = propStringValue(propsRaw, 'description');
+  const label = text || url || 'Related page';
+  const link = url ? `[${label}](${url})` : label;
+  return `\n- ${description ? `${link}: ${description}` : link}`;
+};
+
+const cliCommandReferenceToMarkdown = (command: string, args: any[]): string => {
+  if (args.length === 0) return `\n\n## CLI Options: \`stacktape ${command}\`\n\nNo available options.\n\n`;
+  const lines = [
+    `\n\n## CLI Options: \`stacktape ${command}\``,
+    '',
+    '| Option | Required | Type | Description | Values |',
+    '| --- | --- | --- | --- | --- |'
+  ];
+  for (const arg of args) {
+    const option = `--${arg.name}${arg.alias ? ` (-${arg.alias})` : ''}`;
+    const description = [stripHtml(arg.shortDescription || arg.description), stripHtml(arg.longDescription)]
+      .filter(Boolean)
+      .join(' ');
+    lines.push(
+      `| \`${option}\` | ${arg.required ? 'yes' : 'no'} | \`${(arg.allowedTypes || []).join(' | ') || 'unknown'}\` | ${description.replace(/\n/g, '<br>') || '-'} | ${(arg.allowedValues || []).map((value: string) => `\`${value}\``).join(', ') || '-'} |`
+    );
+  }
+  return `${lines.join('\n')}\n\n`;
+};
+
+const generatedCommandSchemaInfo = generateCommandSchemaInfo();
+
+const getGeneratedCliArgs = (command: string): any[] => {
+  const info = generatedCommandSchemaInfo[command];
+  if (!info) throw new Error(`CLI command "${command}" was not found`);
+  return Object.entries(info.args).map(([name, arg]) => ({ name, ...(arg as Record<string, unknown>) }));
+};
+
 const transformComponents = (body: string): string => {
   let result = body;
 
@@ -425,28 +500,14 @@ const transformComponents = (body: string): string => {
     referenceableParamsToMarkdown(resourceType)
   );
 
-  result = result.replace(
-    /<CliCommandsApiReference\s+command="([^"]+)"\s+sortedArgs=\{(\[[\s\S]*?\])\}\s*\/>/g,
-    (_, command, argsRaw) => {
-      const args = parseJsLiteral<Array<any>>(argsRaw);
-      if (!args) throw new Error(`CLI args for "${command}" could not be parsed`);
-      if (args.length === 0) return `\n\n## CLI Options: \`stacktape ${command}\`\n\nNo available options.\n\n`;
-      const lines = [
-        `\n\n## CLI Options: \`stacktape ${command}\``,
-        '',
-        '| Option | Required | Type | Description | Values |',
-        '| --- | --- | --- | --- | --- |'
-      ];
-      for (const arg of args) {
-        const option = `--${arg.name}${arg.alias ? ` (-${arg.alias})` : ''}`;
-        const description = [stripHtml(arg.shortDescription), stripHtml(arg.longDescription)].filter(Boolean).join(' ');
-        lines.push(
-          `| \`${option}\` | ${arg.required ? 'yes' : 'no'} | \`${(arg.allowedTypes || []).join(' | ') || 'unknown'}\` | ${description.replace(/\n/g, '<br>') || '-'} | ${(arg.allowedValues || []).map((v: string) => `\`${v}\``).join(', ') || '-'} |`
-        );
-      }
-      return `${lines.join('\n')}\n\n`;
-    }
-  );
+  result = result.replace(/<CliCommandsApiReference\b([^>]*)\/>/g, (fullMatch, propsRaw) => {
+    const command = propsRaw.match(/\bcommand="([^"]+)"/)?.[1];
+    if (!command) throw new Error(`CliCommandsApiReference is missing command: ${fullMatch.slice(0, 120)}`);
+    const sortedArgsMatch = propsRaw.match(/\bsortedArgs=\{(\[[\s\S]*?\])\}/);
+    const args = sortedArgsMatch ? parseJsLiteral<Array<any>>(sortedArgsMatch[1]) : getGeneratedCliArgs(command);
+    if (!args) throw new Error(`CLI args for "${command}" could not be parsed`);
+    return cliCommandReferenceToMarkdown(command, args);
+  });
 
   result = result.replace(/<CodeBlock\b[\s\S]*?tabs=\{(\[[\s\S]*?\])\}\s*\/>/g, (fullMatch, tabsRaw) => {
     const markdown = codeBlockToMarkdown(tabsRaw);
@@ -469,6 +530,13 @@ const transformComponents = (body: string): string => {
     return markdown;
   });
 
+  result = result.replace(/<NavBoxGrid\b[^>]*>([\s\S]*?)<\/NavBoxGrid>/g, (_, children) => {
+    const items = children.replace(/<NavBox\b([^>]*)\/>/g, (_navBoxMatch: string, propsRaw: string) =>
+      navBoxToMarkdown(propsRaw)
+    );
+    return `\n\n## Related Pages\n${items.trim()}\n\n`;
+  });
+
   result = result.replace(/<ConsoleScreenshot\s+([^>]*?)\/>/g, (_, props) => {
     const alt = props.match(/alt="([^"]*)"/)?.[1];
     const caption = props.match(/caption="([^"]*)"/)?.[1];
@@ -480,10 +548,12 @@ const transformComponents = (body: string): string => {
   );
 
   for (const tag of ['Warning', 'Info', 'Tip', 'Error']) {
-    const block = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'g');
-    const inline = new RegExp(`<${tag}>(.*?)<\\/${tag}>`, 'g');
-    result = result.replace(block, (_, content) => `\n\n> **${tag}:** ${content.trim()}\n\n`);
-    result = result.replace(inline, (_, content) => `> **${tag}:** ${content.trim()}`);
+    const block = new RegExp(`<${tag}\\b([^>]*)>([\\s\\S]*?)<\\/${tag}>`, 'g');
+    result = result.replace(block, (_, props, content) => {
+      const title = propStringValue(props, 'title');
+      const label = [tag, title].filter(Boolean).join(' - ');
+      return `\n\n> **${label}:** ${content.trim()}\n\n`;
+    });
   }
 
   result = result.replace(/<ProjectStructure\s+(?:structure|files)=\{(\[[\s\S]*?\])\}\s*\/>/g, (_, structureRaw) => {
@@ -621,7 +691,7 @@ const buildDocsPages = async (): Promise<LlmDocPage[]> => {
     const raw = await readFile(filePath, 'utf-8');
     const { frontmatter, body } = parseFrontmatter(raw);
     const route = routeFromDocPath(filePath);
-    const sourcePath = relative(process.cwd(), filePath);
+    const sourcePath = relativeSourcePath(filePath);
     const definitionNames = extractDefinitionNames(body);
     const resourceType = inferResourceType(filePath, body);
     const title = frontmatter.title || body.match(/^#\s+(.+)$/m)?.[1] || basename(filePath, '.mdx');
@@ -664,7 +734,7 @@ const buildConfigReferencePages = async (): Promise<LlmDocPage[]> => {
     const title = interfaceName.replace(/([a-z])([A-Z])/g, '$1 $2');
     const outputSlug = resourceType || stem;
     const route = `/config-reference/${outputSlug}`;
-    const sourcePath = relative(process.cwd(), filePath);
+    const sourcePath = relativeSourcePath(filePath);
     const content = [
       `# ${title}`,
       '',
@@ -710,9 +780,11 @@ const writePagesAndChunks = async (pages: LlmDocPage[]) => {
   }
 
   await ensureDir(join(DIST_DIR, 'chunks'));
+  const chunksJsonl = chunks.map((chunk) => JSON.stringify(chunk)).join('\n');
+  await writeFile(join(DIST_DIR, 'chunks', 'chunks.jsonl'), chunksJsonl, 'utf-8');
   await writeFile(
-    join(DIST_DIR, 'chunks', 'chunks.jsonl'),
-    chunks.map((chunk) => JSON.stringify(chunk)).join('\n'),
+    join(DIST_DIR, LEXICAL_INDEX_FILE_NAME),
+    JSON.stringify(serializeLexicalIndex(buildIndexFromChunks(chunksJsonl))),
     'utf-8'
   );
 

@@ -27,6 +27,10 @@ type InstallResult = {
   error?: string;
 };
 
+const getMcpClientEnv = (clientName: string) => ({
+  STACKTAPE_MCP_CLIENT_NAME: clientName
+});
+
 const getAppDataPath = (): string => {
   if (process.env.APPDATA) return process.env.APPDATA;
   return join(homedir(), 'AppData', 'Roaming');
@@ -84,7 +88,8 @@ const getTargets = ({ stacktapeCommand }: { stacktapeCommand: string }): ClientI
       serverConfig: {
         type: 'stdio',
         command: stacktapeCommand,
-        args: ['mcp']
+        args: ['mcp'],
+        env: getMcpClientEnv('claude-code')
       }
     },
     {
@@ -104,7 +109,8 @@ const getTargets = ({ stacktapeCommand }: { stacktapeCommand: string }): ClientI
       serverConfig: {
         type: 'stdio',
         command: stacktapeCommand,
-        args: ['mcp']
+        args: ['mcp'],
+        env: getMcpClientEnv('cursor')
       }
     },
     {
@@ -124,7 +130,8 @@ const getTargets = ({ stacktapeCommand }: { stacktapeCommand: string }): ClientI
       serverConfig: {
         type: 'stdio',
         command: stacktapeCommand,
-        args: ['mcp']
+        args: ['mcp'],
+        env: getMcpClientEnv('vscode')
       }
     },
     {
@@ -150,7 +157,8 @@ const getTargets = ({ stacktapeCommand }: { stacktapeCommand: string }): ClientI
       serverConfig: {
         type: 'local',
         command: [stacktapeCommand, 'mcp'],
-        enabled: true
+        enabled: true,
+        env: getMcpClientEnv('opencode')
       }
     },
     {
@@ -168,7 +176,7 @@ const getTargets = ({ stacktapeCommand }: { stacktapeCommand: string }): ClientI
       serverConfig: {
         command: stacktapeCommand,
         args: ['mcp'],
-        env: {}
+        env: getMcpClientEnv('windsurf')
       }
     }
   ];
@@ -286,7 +294,10 @@ const renderCodexBlock = ({ stacktapeCommand }: { stacktapeCommand: string }): s
     '[mcp_servers.stacktape]',
     `command = ${JSON.stringify(stacktapeCommand)}`,
     'args = ["mcp"]',
-    'enabled = true'
+    'enabled = true',
+    '',
+    '[mcp_servers.stacktape.env]',
+    `STACKTAPE_MCP_CLIENT_NAME = ${JSON.stringify('codex')}`
   ];
 };
 
@@ -318,7 +329,9 @@ const installCodexTarget = async ({
       let endIndex = startIndex + 1;
       while (endIndex < lines.length) {
         const trimmed = lines[endIndex].trim();
-        if (trimmed.startsWith('[') && trimmed.endsWith(']')) break;
+        if (trimmed.startsWith('[') && trimmed.endsWith(']') && !trimmed.startsWith('[mcp_servers.stacktape.')) {
+          break;
+        }
         endIndex += 1;
       }
       nextLines = [...lines.slice(0, startIndex), ...blockLines, ...lines.slice(endIndex)];

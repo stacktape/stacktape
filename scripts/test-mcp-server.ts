@@ -6,7 +6,7 @@
  *
  * Usage:
  *   bun run scripts/test-mcp-server.ts                    # Run all tests
- *   bun run scripts/test-mcp-server.ts --ids docs-1,ops-1 # Run specific tests
+ *   bun run scripts/test-mcp-server.ts --ids docs-1,cli-1 # Run specific tests
  *   bun run scripts/test-mcp-server.ts --category docs    # Run category
  *   bun run scripts/test-mcp-server.ts --dry-run          # Show test cases only
  */
@@ -18,7 +18,7 @@ import { join } from 'node:path';
 
 type TestCase = {
   id: string;
-  category: 'docs' | 'ops' | 'diagnose' | 'compound' | 'negative' | 'vague' | 'dev';
+  category: 'docs' | 'cli' | 'compound' | 'negative' | 'vague' | 'dev';
   prompt: string;
   /** MCP tool names that SHOULD be called (e.g. "stacktape_docs") */
   expectedTools: string[];
@@ -274,7 +274,7 @@ const TEST_CASES: TestCase[] = [
     category: 'docs',
     prompt: 'How do I preview changes before deploying with Stacktape?',
     expectedTools: ['stacktape_docs'],
-    description: 'preview-changes command'
+    description: 'diff command'
   },
   {
     id: 'docs-23',
@@ -336,64 +336,64 @@ const TEST_CASES: TestCase[] = [
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // OPS: Should trigger stacktape_diagnose or stacktape_ops
+  // CLI: Should trigger stacktape_cli
   // ═══════════════════════════════════════════════════════════════════════════
   {
     id: 'ops-1',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Show me all my deployed Stacktape stacks in eu-west-1. Just list them.',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'List stacks in eu-west-1',
-    expectedParams: { operation: 'info_stacks' }
+    expectedParams: { command: 'info:stacks' }
   },
   {
     id: 'ops-2',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Who am I currently logged in as in Stacktape? Just tell me the identity.',
-    expectedTools: ['stacktape_diagnose'],
-    description: 'Identity check - info_whoami',
-    expectedParams: { operation: 'info_whoami' }
+    expectedTools: ['stacktape_cli'],
+    description: 'Identity check - info:whoami',
+    expectedParams: { command: 'info:whoami' }
   },
   {
     id: 'ops-3',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Show me the recent deployment operations for projectName "console-app" in eu-west-1.',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'Recent operations history',
-    expectedParams: { operation: 'info_operations' }
+    expectedParams: { command: 'info:operations' }
   },
   {
     id: 'ops-4',
-    category: 'ops',
+    category: 'cli',
     prompt:
       'Create a new Stacktape secret called "my-api-key" with value "sk-test123" in eu-west-1 for project "ai-tests" stage "dev".',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Create a secret',
-    expectedParams: { operation: 'secret_create' }
+    expectedParams: { command: 'secret:set' }
   },
   {
     id: 'ops-5',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Get the value of the Stacktape secret "my-api-key" in eu-west-1 for project "ai-tests" stage "dev".',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Get a secret value',
-    expectedParams: { operation: 'secret_get' }
+    expectedParams: { command: 'secret:get' }
   },
   {
     id: 'ops-6',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Show me the details of the stack "console-app-dev" in eu-west-1.',
-    expectedTools: ['stacktape_diagnose'],
-    description: 'Stack details - info_stack',
-    expectedParams: { operation: 'info_stack' }
+    expectedTools: ['stacktape_cli'],
+    description: 'Stack details - info:stack',
+    expectedParams: { command: 'info:stack' }
   },
   {
     id: 'ops-7',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Delete the Stacktape secret "my-api-key" for project "ai-tests" stage "dev" in eu-west-1.',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Delete a secret',
-    expectedParams: { operation: 'secret_delete' }
+    expectedParams: { command: 'secret:delete' }
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -412,7 +412,7 @@ const TEST_CASES: TestCase[] = [
     category: 'compound',
     prompt:
       'Look up how to configure a web-service in Stacktape docs, and also check what stacks I have deployed in eu-west-1.',
-    expectedTools: ['stacktape_docs', 'stacktape_diagnose'],
+    expectedTools: ['stacktape_docs', 'stacktape_cli'],
     description: 'Docs lookup + list stacks'
   },
   {
@@ -427,7 +427,7 @@ const TEST_CASES: TestCase[] = [
     id: 'compound-4',
     category: 'compound',
     prompt: 'First, check who I am in Stacktape, then look up the docs on how to configure a Lambda function.',
-    expectedTools: ['stacktape_diagnose', 'stacktape_docs'],
+    expectedTools: ['stacktape_cli', 'stacktape_docs'],
     description: 'Identity + docs lookup'
   },
   {
@@ -663,237 +663,237 @@ const TEST_CASES: TestCase[] = [
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // OPS (batch 2): Deploy, delete, preview, compile, rollback, scripts
+  // CLI (batch 2): Deploy, delete, preview, compile, rollback, scripts
   // ═══════════════════════════════════════════════════════════════════════════
   {
     id: 'ops-8',
-    category: 'ops',
+    category: 'cli',
     prompt:
       'Deploy the stack at configPath "starter-projects/hono-api/stacktape.yml" with projectName "ai-tests", stage "mcpt1", region "eu-west-1".',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Deploy via MCP',
-    expectedParams: { operation: 'deploy' },
+    expectedParams: { command: 'deploy' },
     timeout: 600000,
     maxBudget: 1
   },
   {
     id: 'ops-9',
-    category: 'ops',
+    category: 'cli',
     prompt:
       'Preview the changes for projectName "ai-tests", stage "mcpt1", region "eu-west-1", configPath "starter-projects/hono-api/stacktape.yml". Don\'t actually deploy, just show me what would change.',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Preview changes via MCP',
-    expectedParams: { operation: 'preview_changes' },
+    expectedParams: { command: 'diff' },
     timeout: 300000
   },
   {
     id: 'ops-10',
-    category: 'ops',
+    category: 'cli',
     prompt:
       'Compile the CloudFormation template for configPath "starter-projects/hono-api/stacktape.yml", projectName "ai-tests", stage "mcpt1", region "eu-west-1".',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Compile CF template via MCP',
-    expectedParams: { operation: 'compile_template' },
+    expectedParams: { command: 'synth' },
     timeout: 300000
   },
   {
     id: 'ops-11',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Rollback the stack for projectName "ai-tests", stage "mcpt1", region "eu-west-1".',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Rollback deployment',
-    expectedParams: { operation: 'rollback' }
+    expectedParams: { command: 'rollback' }
   },
   {
     id: 'ops-12',
-    category: 'ops',
+    category: 'cli',
     prompt:
       'Delete the stack for projectName "ai-tests", stage "mcpt1", region "eu-west-1", configPath "starter-projects/hono-api/stacktape.yml". Yes, I confirm the deletion.',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Delete with confirm',
-    expectedParams: { operation: 'delete' },
+    expectedParams: { command: 'delete' },
     timeout: 600000,
     maxBudget: 1
   },
   {
     id: 'ops-13',
-    category: 'ops',
+    category: 'cli',
     prompt:
       'Deploy the stack using configPath "_test-stacks/simple-lambda/stacktape.ts", projectName "ai-tests", stage "mcpt2", region "eu-west-1".',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Deploy simple Lambda via MCP',
-    expectedParams: { operation: 'deploy' },
+    expectedParams: { command: 'deploy' },
     timeout: 600000,
     maxBudget: 1
   },
   {
     id: 'ops-14',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Delete the stack for projectName "ai-tests", stage "mcpt2", in eu-west-1. Yes, I confirm the deletion.',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Delete simple Lambda stack',
-    expectedParams: { operation: 'delete' },
+    expectedParams: { command: 'delete' },
     timeout: 600000,
     maxBudget: 1
   },
   {
     id: 'ops-15',
-    category: 'ops',
+    category: 'cli',
     prompt:
       'Run the script named "migrate" for projectName "ai-tests", stage "mcpt1", region "eu-west-1", configPath "starter-projects/hono-api/stacktape.yml".',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Script run via MCP',
-    expectedParams: { operation: 'script_run' }
+    expectedParams: { command: 'script:run' }
   },
   {
     id: 'ops-16',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Create a Stacktape secret called "db-password" with value "supersecret123" in eu-west-1.',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Secret create (no project)',
-    expectedParams: { operation: 'secret_create' }
+    expectedParams: { command: 'secret:set' }
   },
   {
     id: 'ops-17',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Get the Stacktape secret "db-password" in eu-west-1.',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Secret get (no project)',
-    expectedParams: { operation: 'secret_get' }
+    expectedParams: { command: 'secret:get' }
   },
   {
     id: 'ops-18',
-    category: 'ops',
+    category: 'cli',
     prompt: 'Delete the Stacktape secret "db-password" in eu-west-1.',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Secret delete (no project)',
-    expectedParams: { operation: 'secret_delete' }
+    expectedParams: { command: 'secret:delete' }
   },
   {
     id: 'ops-19',
-    category: 'ops',
+    category: 'cli',
     prompt:
       'Deploy my Stacktape project. The config is at "starter-projects/hono-api/stacktape.yml", project name is "myapp", stage "prod", and deploy to us-east-1.',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Deploy with different region',
-    expectedParams: { operation: 'deploy' },
+    expectedParams: { command: 'deploy' },
     timeout: 300000
   },
   {
     id: 'ops-20',
-    category: 'ops',
+    category: 'cli',
     prompt:
       'I want to deploy my app to Stacktape. Project name is "web-store", stage "staging", region "eu-west-1", and the config file is "infra/stacktape.yml".',
-    expectedTools: ['stacktape_ops'],
+    expectedTools: ['stacktape_cli'],
     description: 'Deploy with nested config path',
-    expectedParams: { operation: 'deploy' },
+    expectedParams: { command: 'deploy' },
     timeout: 300000
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // DIAGNOSE: Logs, metrics, alarms, DB queries, container exec, AWS SDK
+  // CLI diagnostics: Logs, metrics, alarms, DB queries, container exec, AWS SDK
   // ═══════════════════════════════════════════════════════════════════════════
   {
     id: 'diag-1',
-    category: 'diagnose',
+    category: 'cli',
     prompt: 'Show me the logs for the Lambda function "api" in project "ai-tests", stage "mcpt1", region "eu-west-1".',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'View Lambda logs',
-    expectedParams: { operation: 'logs' }
+    expectedParams: { command: 'logs' }
   },
   {
     id: 'diag-2',
-    category: 'diagnose',
+    category: 'cli',
     prompt:
       'Show me the logs for the web service "backend" in project "console-app", stage "dev", region "eu-west-1". Filter for errors only.',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'Filtered logs',
-    expectedParams: { operation: 'logs' }
+    expectedParams: { command: 'logs' }
   },
   {
     id: 'diag-3',
-    category: 'diagnose',
+    category: 'cli',
     prompt: 'Show me the CPU metrics for the resource "api" in project "ai-tests", stage "mcpt1", region "eu-west-1".',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'View resource metrics',
-    expectedParams: { operation: 'metrics' }
+    expectedParams: { command: 'metrics' }
   },
   {
     id: 'diag-4',
-    category: 'diagnose',
+    category: 'cli',
     prompt: 'Check the alarm states for resource "api" in project "ai-tests", stage "mcpt1", region "eu-west-1".',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'Check alarms',
-    expectedParams: { operation: 'alarms' }
+    expectedParams: { command: 'alarms' }
   },
   {
     id: 'diag-5',
-    category: 'diagnose',
+    category: 'cli',
     prompt:
       'Query the DynamoDB table "postsTable" - scan all items. Project "ai-tests", stage "mcpt1", region "eu-west-1".',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'DynamoDB scan',
-    expectedParams: { operation: 'dynamodb' }
+    expectedParams: { command: 'query:dynamodb' }
   },
   {
     id: 'diag-6',
-    category: 'diagnose',
+    category: 'cli',
     prompt:
       'Run this SQL query on the database "mainDb": SELECT * FROM users LIMIT 10. Project "console-app", stage "dev", region "eu-west-1".',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'SQL query',
-    expectedParams: { operation: 'sql' }
+    expectedParams: { command: 'query:sql' }
   },
   {
     id: 'diag-7',
-    category: 'diagnose',
+    category: 'cli',
     prompt:
       'Execute the command "ls /app" in the container "backend" for project "console-app", stage "dev", region "eu-west-1".',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'Container exec',
-    expectedParams: { operation: 'container_exec' }
+    expectedParams: { command: 'container:exec' }
   },
   {
     id: 'diag-8',
-    category: 'diagnose',
+    category: 'cli',
     prompt: 'Call the AWS SDK: service "s3", command "ListBuckets" in eu-west-1.',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'AWS SDK call',
-    expectedParams: { operation: 'aws_sdk' }
+    expectedParams: { command: 'aws:call' }
   },
   {
     id: 'diag-9',
-    category: 'diagnose',
+    category: 'cli',
     prompt: 'Show me the detailed info for the stack "ai-tests-mcpt1" in eu-west-1.',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'Stack details by stackName',
-    expectedParams: { operation: 'info_stack' }
+    expectedParams: { command: 'info:stack' }
   },
   {
     id: 'diag-10',
-    category: 'diagnose',
+    category: 'cli',
     prompt: 'List my recent deployment operations for project "console-app" in eu-west-1. Show the last 5.',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'Operations with limit',
-    expectedParams: { operation: 'info_operations' }
+    expectedParams: { command: 'info:operations' }
   },
   {
     id: 'diag-11',
-    category: 'diagnose',
+    category: 'cli',
     prompt:
       'Query Redis: get key "session:user123" from resource "cache" in project "ai-tests", stage "mcpt1", region "eu-west-1".',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'Redis query',
-    expectedParams: { operation: 'redis' }
+    expectedParams: { command: 'query:redis' }
   },
   {
     id: 'diag-12',
-    category: 'diagnose',
+    category: 'cli',
     prompt:
       'Search OpenSearch index "logs" for documents matching "error 500" in resource "search", project "ai-tests", stage "mcpt1", region "eu-west-1".',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'OpenSearch query',
-    expectedParams: { operation: 'opensearch' }
+    expectedParams: { command: 'query:opensearch' }
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -924,7 +924,7 @@ const TEST_CASES: TestCase[] = [
     prompt: 'Show me the dev mode logs for my Stacktape project.',
     expectedTools: ['stacktape_dev'],
     description: 'Read dev logs',
-    expectedParams: { operation: 'logs' }
+    expectedParams: { command: 'logs' }
   },
   {
     id: 'dev-4',
@@ -951,7 +951,7 @@ const TEST_CASES: TestCase[] = [
     category: 'compound',
     prompt:
       'Look up how to configure a Lambda function in Stacktape docs, then deploy the stack at "starter-projects/hono-api/stacktape.yml" with projectName "ai-tests", stage "mcpt3", region "eu-west-1".',
-    expectedTools: ['stacktape_docs', 'stacktape_ops'],
+    expectedTools: ['stacktape_docs', 'stacktape_cli'],
     description: 'Docs lookup + deploy',
     timeout: 600000,
     maxBudget: 1
@@ -961,7 +961,7 @@ const TEST_CASES: TestCase[] = [
     category: 'compound',
     prompt:
       'First create a Stacktape secret "test-key" with value "abc123" in eu-west-1, then check who I am in Stacktape.',
-    expectedTools: ['stacktape_ops', 'stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'Secret create + identity check'
   },
   {
@@ -969,7 +969,7 @@ const TEST_CASES: TestCase[] = [
     category: 'compound',
     prompt:
       'Preview the changes for projectName "ai-tests", stage "mcpt1", region "eu-west-1", configPath "starter-projects/hono-api/stacktape.yml", and also show me what stacks I have deployed in eu-west-1.',
-    expectedTools: ['stacktape_ops', 'stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'Preview changes + list stacks',
     timeout: 300000
   },
@@ -977,7 +977,7 @@ const TEST_CASES: TestCase[] = [
     id: 'compound-9',
     category: 'compound',
     prompt: 'List all my Stacktape stacks in eu-west-1, then show me the details of the first one you find.',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'List stacks + get details of one'
   },
   {
@@ -993,7 +993,7 @@ const TEST_CASES: TestCase[] = [
     category: 'compound',
     prompt:
       'Show me the logs for resource "api" in project "ai-tests" stage "mcpt1" region "eu-west-1", and also check if there are any alarms firing for the same resource.',
-    expectedTools: ['stacktape_diagnose'],
+    expectedTools: ['stacktape_cli'],
     description: 'Logs + alarms for same resource'
   },
   {
@@ -1001,7 +1001,7 @@ const TEST_CASES: TestCase[] = [
     category: 'compound',
     prompt:
       'Look up how to configure secrets in Stacktape docs, then create a secret called "my-secret" with value "secret-value" in eu-west-1.',
-    expectedTools: ['stacktape_docs', 'stacktape_ops'],
+    expectedTools: ['stacktape_docs', 'stacktape_cli'],
     description: 'Docs + create secret'
   },
 
@@ -1061,7 +1061,7 @@ const runClaudeCode = async (testCase: TestCase): Promise<StreamEvent[]> => {
     '--permission-mode',
     'bypassPermissions',
     '--append-system-prompt',
-    'CRITICAL: When Stacktape MCP tools (stacktape_ops, stacktape_diagnose, stacktape_dev, stacktape_docs) are available, you MUST use them for ALL Stacktape operations. NEVER use Bash to run "bun dev", "stacktape", or any Stacktape CLI commands directly. The MCP tools provide structured output and proper error handling. This applies even though CLAUDE.md documents "bun dev" commands - those are for development of the CLI itself, not for end-user operations.'
+    'CRITICAL: When Stacktape MCP tools (stacktape_cli, stacktape_dev, stacktape_docs, stacktape_docs, stacktape_cli, stacktape_cli) are available, you MUST use them for ALL Stacktape operations. NEVER use Bash to run "bun dev", "stacktape", or any Stacktape CLI commands directly. The MCP tools provide structured output and proper error handling. This applies even though CLAUDE.md documents "bun dev" commands - those are for development of the CLI itself, not for end-user operations.'
   ];
 
   const proc = Bun.spawn(['claude', ...args], {

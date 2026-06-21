@@ -20,6 +20,11 @@ describe('generated LLM docs corpus', () => {
     const manifest = JSON.parse(await readFile(join(LLM_DOCS_FOLDER_PATH, 'index.json'), 'utf-8')) as {
       pages: Array<{ outputPath: string }>;
     };
+    const lexicalIndex = JSON.parse(await readFile(join(LLM_DOCS_FOLDER_PATH, 'lexical-index.json'), 'utf-8')) as {
+      docs: unknown[];
+      totalDocs: number;
+      schemaVersion: number;
+    };
     const chunks = (await readFile(join(LLM_DOCS_FOLDER_PATH, 'chunks', 'chunks.jsonl'), 'utf-8'))
       .trim()
       .split('\n')
@@ -27,6 +32,9 @@ describe('generated LLM docs corpus', () => {
 
     expect(manifest.pages.length).toBeGreaterThan(100);
     expect(chunks.length).toBeGreaterThan(1000);
+    expect(lexicalIndex.schemaVersion).toBe(1);
+    expect(lexicalIndex.totalDocs).toBe(chunks.length);
+    expect(lexicalIndex.docs.length).toBe(chunks.length);
   });
 
   test('does not contain duplicate output paths or chunk ids', async () => {
@@ -49,6 +57,21 @@ describe('generated LLM docs corpus', () => {
     for (const file of files) {
       const content = await readFile(file, 'utf-8');
       expect(stalePatterns.some((pattern) => pattern.test(content))).toBe(false);
+    }
+  });
+
+  test('does not contain obsolete object-style resource type examples', async () => {
+    const files = await listFiles(join(LLM_DOCS_FOLDER_PATH, 'pages'));
+    const obsoleteResourceTypePatterns = [
+      /type:\s*['"]lambda-function['"]/,
+      /type:\s*['"]dynamo-db-table['"]/,
+      /type:\s*['"]web-service['"]/,
+      /type:\s*['"]relational-database['"]/
+    ];
+
+    for (const file of files) {
+      const content = await readFile(file, 'utf-8');
+      expect(obsoleteResourceTypePatterns.some((pattern) => pattern.test(content))).toBe(false);
     }
   });
 });

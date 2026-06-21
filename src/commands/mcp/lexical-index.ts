@@ -42,6 +42,20 @@ type LexicalIndex = {
   totalDocs: number;
 };
 
+type SerializedPostingList = [string, Array<[number, number]>];
+
+type SerializedLexicalIndex = {
+  schemaVersion: 1;
+  docs: IndexedDoc[];
+  titleIndex: SerializedPostingList[];
+  tagIndex: SerializedPostingList[];
+  contentIndex: SerializedPostingList[];
+  avgTitleLen: number;
+  avgTagLen: number;
+  avgContentLen: number;
+  totalDocs: number;
+};
+
 type QueryOptions = {
   query: string;
   resourceType?: string;
@@ -61,6 +75,7 @@ type DocsResponse = {
   snippets?: {
     language: string;
     code: string;
+    context?: string;
   }[];
 };
 
@@ -214,8 +229,11 @@ const SYNONYM_MAP: Record<string, string[]> = {
   'aws-cdk-construct': ['cdk', 'construct']
 };
 
+const expandIdentifierWords = (text: string): string =>
+  text.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+
 const tokenize = (text: string): string[] =>
-  text
+  `${text} ${expandIdentifierWords(text)}`
     .toLowerCase()
     .replace(/[^a-z0-9\-_.]/g, ' ')
     .split(/\s+/)
@@ -267,20 +285,76 @@ const WORKFLOW_INTENT_TERMS = new Set([
   'create',
   'debug',
   'deploy',
+  'diagnose',
   'example',
   'fix',
   'guide',
   'how',
+  'inspect',
+  'log',
+  'logs',
   'migrate',
+  'query',
   'run',
   'setup',
   'start',
   'troubleshoot',
   'use',
+  'view',
   'using'
 ]);
 
+const CLI_INTENT_TERMS = new Set(['cli', 'command', 'commands', 'flag', 'flags', 'option', 'options']);
+
+const OBSERVABILITY_INTENT_TERMS = new Set(['alarm', 'alarms', 'debug', 'inspect', 'log', 'logs', 'metric', 'metrics']);
+
+const CONNECTION_INTENT_TERMS = new Set([
+  'connect',
+  'connecting',
+  'connection',
+  'connections',
+  'connectto',
+  'environment',
+  'variable',
+  'variables'
+]);
+
+const PREVIEW_INTENT_TERMS = new Set(['preview', 'changes', 'diff']);
+const SQL_DEBUG_INTENT_TERMS = new Set([
+  'sql',
+  'query',
+  'queries',
+  'querying',
+  'select',
+  'row',
+  'rows',
+  'rds',
+  'database',
+  'databases',
+  'db',
+  'postgres',
+  'postgresql',
+  'mysql'
+]);
+const SQL_DEBUG_DATABASE_TERMS = new Set([
+  'sql',
+  'rds',
+  'database',
+  'databases',
+  'db',
+  'postgres',
+  'postgresql',
+  'mysql'
+]);
+const SQL_DEBUG_QUERY_TERMS = new Set(['query', 'queries', 'querying', 'select', 'row', 'rows', 'check']);
+const SQL_DEBUG_CLI_TERMS = new Set(['cli', 'command', 'line', 'terminal', 'shell', 'psql']);
+const DYNAMODB_DEBUG_TERMS = new Set(['dynamodb', 'dynamo-db', 'dynamo', 'ddb']);
+const SCHEDULE_TRIGGER_INTENT_TERMS = new Set(['cron', 'schedule', 'scheduled', 'timer']);
+const STREAM_TRIGGER_INTENT_TERMS = new Set(['stream', 'streams', 'dynamodb']);
+
 // ─── Lexical Index ───────────────────────────────────────────────────────────
+
+const LEXICAL_INDEX_FILE_NAME = 'lexical-index.json';
 
 const buildInvertedIndex = (docs: IndexedDoc[], field: 'titleTokens' | 'tagTokens' | 'contentTokens') => {
   const index = new Map<string, Map<number, number>>();
@@ -330,10 +404,7 @@ const parseChunks = (content: string): LlmDocChunk[] =>
     .filter(Boolean)
     .map((line) => JSON.parse(line) as LlmDocChunk);
 
-const buildIndex = async (): Promise<LexicalIndex> => {
-  const llmDocsFolderPath = await resolveLlmDocsFolderPath();
-  const chunksContent = await readFile(join(llmDocsFolderPath, 'chunks', 'chunks.jsonl'), 'utf-8');
-
+const buildIndexFromChunks = (chunksContent: string): LexicalIndex => {
   const docs: IndexedDoc[] = parseChunks(chunksContent).map((entry) => ({
     ...entry,
     titleTokens: tokenize([...entry.headingPath, entry.title, entry.route].join(' ')),
@@ -361,6 +432,53 @@ const buildIndex = async (): Promise<LexicalIndex> => {
     avgContentLen,
     totalDocs: docs.length
   };
+};
+
+const serializeInvertedIndex = (index: Map<string, Map<number, number>>): SerializedPostingList[] =>
+  [...index.entries()].map(([term, postings]) => [term, [...postings.entries()]]);
+
+const deserializeInvertedIndex = (index: SerializedPostingList[]): Map<string, Map<number, number>> =>
+  new Map(index.map(([term, postings]) => [term, new Map(postings)]));
+
+const serializeLexicalIndex = (index: LexicalIndex): SerializedLexicalIndex => ({
+  schemaVersion: 1,
+  docs: index.docs,
+  titleIndex: serializeInvertedIndex(index.titleIndex),
+  tagIndex: serializeInvertedIndex(index.tagIndex),
+  contentIndex: serializeInvertedIndex(index.contentIndex),
+  avgTitleLen: index.avgTitleLen,
+  avgTagLen: index.avgTagLen,
+  avgContentLen: index.avgContentLen,
+  totalDocs: index.totalDocs
+});
+
+const deserializeLexicalIndex = (serialized: SerializedLexicalIndex): LexicalIndex => {
+  if (serialized.schemaVersion !== 1) {
+    throw new Error(`Unsupported lexical index schema version: ${serialized.schemaVersion}`);
+  }
+
+  return {
+    docs: serialized.docs,
+    titleIndex: deserializeInvertedIndex(serialized.titleIndex),
+    tagIndex: deserializeInvertedIndex(serialized.tagIndex),
+    contentIndex: deserializeInvertedIndex(serialized.contentIndex),
+    avgTitleLen: serialized.avgTitleLen,
+    avgTagLen: serialized.avgTagLen,
+    avgContentLen: serialized.avgContentLen,
+    totalDocs: serialized.totalDocs
+  };
+};
+
+const buildIndex = async (): Promise<LexicalIndex> => {
+  const llmDocsFolderPath = await resolveLlmDocsFolderPath();
+  const lexicalIndexPath = join(llmDocsFolderPath, LEXICAL_INDEX_FILE_NAME);
+
+  if (await pathExists(lexicalIndexPath)) {
+    return deserializeLexicalIndex(JSON.parse(await readFile(lexicalIndexPath, 'utf-8')) as SerializedLexicalIndex);
+  }
+
+  const chunksContent = await readFile(join(llmDocsFolderPath, 'chunks', 'chunks.jsonl'), 'utf-8');
+  return buildIndexFromChunks(chunksContent);
 };
 
 // ─── BM25 Scoring ────────────────────────────────────────────────────────────
@@ -455,18 +573,54 @@ const diversifyResults = (results: SearchResult[], maxItems: number): SearchResu
 const search = (index: LexicalIndex, options: QueryOptions): SearchResult[] => {
   const { query, resourceType, docKind, maxItems = 3 } = options;
 
+  const normalizedQuery = query.toLowerCase();
   const rawTokens = tokenize(query);
   if (rawTokens.length === 0) return [];
+  if (resourceType && !index.docs.some((doc) => doc.resourceType === resourceType)) return [];
 
   const queryTokens = expandQuery(rawTokens, SYNONYM_MAP);
   const intent = inferQueryIntent(rawTokens);
+  const hasCliIntent = rawTokens.some((token) => CLI_INTENT_TERMS.has(token));
+  const hasObservabilityIntent = rawTokens.some((token) => OBSERVABILITY_INTENT_TERMS.has(token));
+  const hasConnectionIntent = rawTokens.some((token) => CONNECTION_INTENT_TERMS.has(token));
+  const hasPreviewIntent = rawTokens.some((token) => PREVIEW_INTENT_TERMS.has(token));
+  const hasSqlDebugIntent =
+    (rawTokens.includes('debug') && rawTokens.some((token) => SQL_DEBUG_INTENT_TERMS.has(token))) ||
+    (rawTokens.some((token) => SQL_DEBUG_DATABASE_TERMS.has(token)) &&
+      rawTokens.some((token) => SQL_DEBUG_QUERY_TERMS.has(token))) ||
+    (rawTokens.some((token) => SQL_DEBUG_DATABASE_TERMS.has(token)) &&
+      rawTokens.some((token) => SQL_DEBUG_CLI_TERMS.has(token))) ||
+    /check (?:a )?rows?/.test(normalizedQuery) ||
+    /select\s+\*/.test(normalizedQuery) ||
+    /(?:query|queries|querying|select).*(?:postgres|postgresql|mysql|rds|database|db)/.test(normalizedQuery) ||
+    /(?:postgres|postgresql|mysql|rds|database|db).*(?:query|queries|querying|select)/.test(normalizedQuery);
+  const hasDynamoDbCliQueryIntent =
+    rawTokens.some((token) => DYNAMODB_DEBUG_TERMS.has(token)) &&
+    rawTokens.some((token) => token === 'query' || token === 'queries' || token === 'querying') &&
+    (hasCliIntent || rawTokens.some((token) => SQL_DEBUG_CLI_TERMS.has(token)));
+  const hasScheduleTriggerIntent = rawTokens.some((token) => SCHEDULE_TRIGGER_INTENT_TERMS.has(token));
+  const hasStreamTriggerIntent =
+    rawTokens.some((token) => STREAM_TRIGGER_INTENT_TERMS.has(token)) &&
+    rawTokens.some(
+      (token) =>
+        token === 'trigger' ||
+        token === 'triggers' ||
+        token === 'lambda' ||
+        token === 'function' ||
+        token === 'integration' ||
+        token === 'streamarn'
+    );
+  const hasDynamoDbIntegrationIntent =
+    rawTokens.includes('dynamodbintegration') ||
+    (rawTokens.includes('dynamo') && rawTokens.includes('db') && rawTokens.includes('integration'));
+  const hasJoinDefaultVpcIntent = rawTokens.includes('joindefaultvpc');
   const scores = new Float64Array(index.totalDocs);
 
   for (let docIdx = 0; docIdx < index.totalDocs; docIdx++) {
     const doc = index.docs[docIdx];
 
-    if (resourceType && doc.resourceType !== resourceType) continue;
     if (docKind && doc.docKind !== docKind) continue;
+    if (resourceType && docKind === 'config-reference' && doc.resourceType !== resourceType) continue;
 
     let score = 0;
     for (const token of queryTokens) {
@@ -487,6 +641,12 @@ const search = (index: LexicalIndex, options: QueryOptions): SearchResult[] => {
       score *= 1.3;
     }
 
+    if (resourceType && doc.resourceType === resourceType) {
+      score *= 1.4;
+    } else if (resourceType && doc.docKind === 'config-reference') {
+      score *= 0.65;
+    }
+
     if (doc.resourceType && queryTokens.some((token) => doc.tagTokens.includes(token))) {
       score *= 1.15;
     }
@@ -495,6 +655,76 @@ const search = (index: LexicalIndex, options: QueryOptions): SearchResult[] => {
       score *= doc.docKind === 'config-reference' ? 1.7 : 0.75;
     } else if (intent === 'workflow') {
       score *= doc.docKind === 'docs-page' ? 1.2 : 0.85;
+    }
+
+    if (hasCliIntent && doc.route.startsWith('/cli/')) {
+      score *= 1.25;
+    }
+
+    if (
+      hasObservabilityIntent &&
+      (doc.route.startsWith('/observability/') ||
+        doc.route.startsWith('/local-development/debug') ||
+        doc.route.startsWith('/cli/debug-') ||
+        ['/cli/logs', '/cli/metrics', '/cli/alarms'].includes(doc.route))
+    ) {
+      score *= 1.25;
+    }
+
+    if (hasConnectionIntent && doc.route === '/configuration/connecting-resources') {
+      score *= 4;
+    }
+
+    if (hasConnectionIntent && doc.route === '/configuration/referenceable-parameters') {
+      score *= 1.35;
+    }
+
+    if (hasPreviewIntent && (doc.route === '/cli/diff' || doc.route === '/cli/preview-changes')) {
+      score *= 4;
+    }
+
+    if (hasPreviewIntent && doc.route === '/deployment-and-lifecycle/previewing-changes') {
+      score *= 1.6;
+    }
+
+    if (hasPreviewIntent && doc.route === '/cli/deploy') {
+      score *= 0.7;
+    }
+
+    if (hasSqlDebugIntent && (doc.route === '/cli/query-sql' || doc.route === '/cli/debug-sql')) {
+      score *= 6;
+    }
+
+    if (hasSqlDebugIntent && (doc.route === '/cli/bastion-tunnel' || doc.route === '/cli/param-get')) {
+      score *= 0.45;
+    }
+
+    if (hasDynamoDbCliQueryIntent && (doc.route === '/cli/query-dynamodb' || doc.route === '/cli/debug-dynamodb')) {
+      score *= 8;
+    }
+
+    if (hasDynamoDbCliQueryIntent && doc.route === '/resources/databases/dynamodb') {
+      score *= 2.2;
+    }
+
+    if (hasDynamoDbCliQueryIntent && (doc.route === '/cli/query-sql' || doc.route === '/cli/debug-sql')) {
+      score *= 0.35;
+    }
+
+    if (hasScheduleTriggerIntent && doc.route === '/configuration/triggers/schedule-triggers') {
+      score *= 2.1;
+    }
+
+    if (hasStreamTriggerIntent && doc.route === '/configuration/triggers/dynamodb-streams') {
+      score *= 2.4;
+    }
+
+    if (hasDynamoDbIntegrationIntent && doc.route === '/configuration/triggers/dynamodb-streams') {
+      score *= 4;
+    }
+
+    if (hasJoinDefaultVpcIntent) {
+      score *= doc.content.includes('joinDefaultVpc') ? 2.4 : 0.45;
     }
 
     scores[docIdx] = score;
@@ -535,6 +765,9 @@ const extractCodeBlocks = (content: string): { language: string; code: string }[
   return blocks;
 };
 
+const truncateSnippetCode = (code: string, maxChars = 1800): string =>
+  code.length <= maxChars ? code : `${code.slice(0, maxChars).trimEnd()}\n... [snippet truncated]`;
+
 const formatAnswer = (results: SearchResult[], mode: 'answer' | 'reference' | 'snippet'): DocsResponse => {
   if (results.length === 0) {
     return {
@@ -559,18 +792,26 @@ const formatAnswer = (results: SearchResult[], mode: 'answer' | 'reference' | 's
   }
 
   if (mode === 'snippet') {
-    const snippets: { language: string; code: string }[] = [];
+    const snippets: { language: string; code: string; context?: string }[] = [];
     for (const result of results) {
       const blocks = extractCodeBlocks(result.doc.content);
-      if (blocks.length > 0) snippets.push(blocks[0]);
+      if (blocks.length > 0) {
+        snippets.push({
+          ...blocks[0],
+          code: truncateSnippetCode(blocks[0].code),
+          context: truncateSnippetCode(result.doc.content.trim(), 2200)
+        });
+      } else {
+        snippets.push({
+          language: 'markdown',
+          code: truncateSnippetCode(result.doc.content.trim(), 1200)
+        });
+      }
     }
     return {
-      answer:
-        snippets.length > 0
-          ? `Found ${snippets.length} code snippet(s).`
-          : 'No code snippets found in matched documents.',
+      answer: `Found ${snippets.length} snippet(s).`,
       references,
-      snippets: snippets.length > 0 ? snippets : undefined
+      snippets
     };
   }
 
@@ -597,5 +838,14 @@ const formatAnswer = (results: SearchResult[], mode: 'answer' | 'reference' | 's
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
-export type { DocKind, DocsResponse, IndexedDoc, LexicalIndex, QueryOptions, SearchResult };
-export { buildIndex, expandQuery, formatAnswer, search, tokenize };
+export type { DocKind, DocsResponse, IndexedDoc, LexicalIndex, QueryOptions, SearchResult, SerializedLexicalIndex };
+export {
+  buildIndex,
+  buildIndexFromChunks,
+  expandQuery,
+  formatAnswer,
+  LEXICAL_INDEX_FILE_NAME,
+  search,
+  serializeLexicalIndex,
+  tokenize
+};

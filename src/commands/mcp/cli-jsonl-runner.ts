@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
-import { basename, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { existsSync } from 'node:fs';
+import { getMcpOperationInvocationEnv } from '@shared/utils/operation-invocation-context';
 
 type JsonlEventEvent = {
   type: 'event';
@@ -78,6 +79,11 @@ const parseJsonlLine = (line: string): JsonlEvent | undefined => {
   }
 };
 
+const normalizeSpawnCommandPath = (command: string): string => {
+  if (process.platform !== 'win32') return command;
+  return /^[a-z]:\\/i.test(command) ? command.replace(/\\/g, '/') : command;
+};
+
 const inferFailureFromTail = (rawTail?: string): { code: string; message: string } | null => {
   if (!rawTail) return null;
   const lower = rawTail.toLowerCase();
@@ -107,10 +113,10 @@ const inferFailureFromTail = (rawTail?: string): { code: string; message: string
   };
 };
 
-const getStacktapeSpawnBase = (): { command: string; prefixArgs: string[] } => {
+const getStacktapeSpawnBase = (): { command: string; prefixArgs: string[]; cwd?: string } => {
   const commandFromEnv = process.env.STACKTAPE_MCP_CLI_COMMAND;
   if (commandFromEnv) {
-    return { command: commandFromEnv, prefixArgs: [] };
+    return { command: normalizeSpawnCommandPath(commandFromEnv), prefixArgs: [] };
   }
 
   const scriptArg = process.argv[1] ? resolve(process.argv[1]) : undefined;
@@ -118,8 +124,9 @@ const getStacktapeSpawnBase = (): { command: string; prefixArgs: string[] } => {
 
   if (looksLikeScriptPath) {
     return {
-      command: process.execPath,
-      prefixArgs: [scriptArg!]
+      command: normalizeSpawnCommandPath(process.execPath),
+      prefixArgs: [scriptArg!],
+      cwd: resolve(dirname(scriptArg!), '..')
     };
   }
 
@@ -140,7 +147,7 @@ const getStacktapeSpawnBase = (): { command: string; prefixArgs: string[] } => {
   }
 
   return {
-    command: process.execPath,
+    command: normalizeSpawnCommandPath(process.execPath),
     prefixArgs: []
   };
 };
@@ -174,6 +181,24 @@ const normalizeCliArgs = (args: Record<string, unknown> = {}): string[] => {
   return cliArgs;
 };
 
+const resolveUserProjectArgs = ({
+  args,
+  spawnCwd
+}: {
+  args: Record<string, unknown>;
+  spawnCwd?: string;
+}): Record<string, unknown> => {
+  if (!spawnCwd || spawnCwd === process.cwd()) return args;
+  const currentWorkingDirectory = args.currentWorkingDirectory;
+  if (typeof currentWorkingDirectory !== 'string') return args;
+  if (isAbsolute(currentWorkingDirectory)) return args;
+
+  return {
+    ...args,
+    currentWorkingDirectory: resolve(process.cwd(), currentWorkingDirectory)
+  };
+};
+
 export const runStacktapeCommandJsonl = async ({
   command,
   args,
@@ -183,13 +208,21 @@ export const runStacktapeCommandJsonl = async ({
   args?: Record<string, unknown>;
   timeoutMs?: number;
 }): Promise<RunStacktapeResult> => {
-  const { command: spawnCommand, prefixArgs } = getStacktapeSpawnBase();
-  const cliArgs = normalizeCliArgs(args || {});
+  const { command: spawnCommand, prefixArgs, cwd: spawnCwd } = getStacktapeSpawnBase();
+  const resolvedArgs = resolveUserProjectArgs({ args: args || {}, spawnCwd });
+  const cliArgs = normalizeCliArgs(resolvedArgs);
   const spawnArgs = [...prefixArgs, command, '--agent', ...cliArgs];
+  const operationInvocationEnv = getMcpOperationInvocationEnv({
+    client: process.env.STACKTAPE_MCP_CLIENT_NAME || process.env.STACKTAPE_MCP_CLIENT,
+    tool: 'stacktape_cli'
+  });
 
   const child = spawn(spawnCommand, spawnArgs, {
-    cwd: process.cwd(),
-    env: process.env,
+    cwd: spawnCwd || process.cwd(),
+    env: {
+      ...process.env,
+      ...operationInvocationEnv
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
     ...(process.platform === 'win32' && spawnCommand === 'stacktape' ? { shell: true } : {})
   });
@@ -234,9 +267,9 @@ export const runStacktapeCommandJsonl = async ({
     });
   });
 
-  const errorPromise = new Promise<never>((_, reject) => {
+  const errorPromise = new Promise<{ spawnError: Error }>((resolveError) => {
     child.on('error', (error) => {
-      reject(error);
+      resolveError({ spawnError: error });
     });
   });
 
@@ -255,7 +288,22 @@ export const runStacktapeCommandJsonl = async ({
     });
   });
 
-  const { exitCode, signal } = await Promise.race([closePromise, timeoutPromise, errorPromise]);
+  const closeOrError = await Promise.race([closePromise, timeoutPromise, errorPromise]);
+
+  if ('spawnError' in closeOrError) {
+    const message = closeOrError.spawnError.message || `Failed to start Stacktape CLI subprocess for ${command}.`;
+    return {
+      ok: false,
+      code: 'SPAWN_FAILED',
+      message,
+      rawTail: message,
+      events,
+      logEvents,
+      outputEvents
+    };
+  }
+
+  const { exitCode, signal } = closeOrError;
 
   if (resultEvent) {
     return {
