@@ -5,7 +5,19 @@
  * @example import { StacktapeLambdaBuildpackPackaging } from 'stacktape/classes';
  */
 
-export type ResourceClassName = Omit<KebabToPascalCase<StpResourceType>, 'Function'> | 'LambdaFunction';
+export type ResourceClassName =
+  | KebabToPascalCase<StpResourceType>
+  | 'Function'
+  | 'Script'
+  | 'LambdaFunction'
+  | 'SvelteKitWeb'
+  | 'SolidStartWeb'
+  | 'TanStackWeb'
+  | 'AgentCoreRuntime'
+  | 'AgentCoreMemory'
+  | 'AgentCoreGateway'
+  | 'AgentCoreBrowser'
+  | 'AgentCoreCodeInterpreter';
 
 export type ResourceDefinition = {
   /** Class name for the resource (e.g., 'LambdaFunction') */
@@ -155,7 +167,6 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'SnsTopic',
       'KinesisStream',
       'OpenSearchDomain',
-      'EfsFilesystem',
       'PrivateService',
       'WebService',
       'LambdaFunction',
@@ -394,6 +405,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     propsType: 'NuxtWebProps',
     interfaceName: 'NuxtWeb',
     sourceFile: 'nuxt-web.d.ts',
+    hasAugmentedProps: true,
     canConnectTo: [
       'RelationalDatabase',
       'Bucket',
@@ -529,6 +541,66 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     propsType: 'BastionProps',
     interfaceName: 'Bastion',
     sourceFile: 'bastion.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'AgentCoreRuntime',
+    resourceType: 'agentcore-runtime',
+    propsType: 'AgentCoreRuntimeProps',
+    interfaceName: 'AgentCoreRuntime',
+    sourceFile: 'agentcore.d.ts',
+    hasAugmentedProps: true,
+    canConnectTo: [
+      'RelationalDatabase',
+      'Bucket',
+      'HostingBucket',
+      'DynamoDbTable',
+      'EventBus',
+      'RedisCluster',
+      'MongoDbAtlasCluster',
+      'UpstashRedis',
+      'SqsQueue',
+      'SnsTopic',
+      'KinesisStream',
+      'OpenSearchDomain',
+      'EfsFilesystem',
+      'PrivateService',
+      'WebService',
+      'LambdaFunction',
+      'BatchJob',
+      'UserAuthPool'
+    ]
+  },
+  {
+    className: 'AgentCoreMemory',
+    resourceType: 'agentcore-memory',
+    propsType: 'AgentCoreMemoryProps',
+    interfaceName: 'AgentCoreMemory',
+    sourceFile: 'agentcore.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'AgentCoreGateway',
+    resourceType: 'agentcore-gateway',
+    propsType: 'AgentCoreGatewayProps',
+    interfaceName: 'AgentCoreGateway',
+    sourceFile: 'agentcore.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'AgentCoreBrowser',
+    resourceType: 'agentcore-browser',
+    propsType: 'AgentCoreBrowserProps',
+    interfaceName: 'AgentCoreBrowser',
+    sourceFile: 'agentcore.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'AgentCoreCodeInterpreter',
+    resourceType: 'agentcore-code-interpreter',
+    propsType: 'AgentCoreCodeInterpreterProps',
+    interfaceName: 'AgentCoreCodeInterpreter',
+    sourceFile: 'agentcore.d.ts',
     canConnectTo: []
   }
 ];
@@ -744,21 +816,21 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
   },
   {
     className: 'KinesisIntegration',
-    typeValue: 'kinesis',
+    typeValue: 'kinesis-stream',
     propsType: 'KinesisIntegrationProps',
     interfaceName: 'KinesisIntegration',
     sourceFile: 'events.d.ts'
   },
   {
     className: 'DynamoDbIntegration',
-    typeValue: 'dynamodb',
+    typeValue: 'dynamo-db-stream',
     propsType: 'DynamoDbIntegrationProps',
     interfaceName: 'DynamoDbIntegration',
     sourceFile: 'events.d.ts'
   },
   {
     className: 'CloudwatchLogIntegration',
-    typeValue: 'cloudwatch-logs',
+    typeValue: 'cloudwatch-log',
     propsType: 'CloudwatchLogIntegrationProps',
     interfaceName: 'CloudwatchLogIntegration',
     sourceFile: 'events.d.ts'
@@ -786,7 +858,7 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
   },
   {
     className: 'AlarmIntegration',
-    typeValue: 'alarm',
+    typeValue: 'cloudwatch-alarm',
     propsType: 'AlarmIntegrationProps',
     interfaceName: 'AlarmIntegration',
     sourceFile: 'events.d.ts'
@@ -959,7 +1031,7 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     interfaceName: 'NonCurrentVersionExpirationLifecycleRule',
     sourceFile: 'buckets.d.ts'
   },
-  // EFS Mounts
+  // Volume Mounts
   {
     className: 'ContainerEfsMount',
     typeValue: 'efs',
@@ -972,6 +1044,13 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     typeValue: 'efs',
     propsType: 'LambdaEfsMountProps',
     interfaceName: 'LambdaEfsMount',
+    sourceFile: 'functions.d.ts'
+  },
+  {
+    className: 'LambdaS3FilesMount',
+    typeValue: 's3files',
+    propsType: 'LambdaS3FilesMountProps',
+    interfaceName: 'LambdaS3FilesMount',
     sourceFile: 'functions.d.ts'
   },
   // Authorizers

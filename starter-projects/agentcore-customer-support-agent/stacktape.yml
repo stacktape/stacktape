@@ -1,0 +1,105 @@
+resources:
+  supportAgent:
+    type: agentcore-runtime
+    properties:
+      description: Customer support agent with persistent memory and governed business tools.
+      packaging:
+        type: custom-dockerfile
+        properties:
+          buildContextPath: ./
+      useMemory: supportMemory
+      useGateway: supportGateway
+      endpoints:
+        - name: production
+          description: Main customer support endpoint.
+      lifecycle:
+        idleRuntimeSessionTimeout: 1800
+        maxLifetime: 14400
+      environment:
+        - name: AI_MODEL
+          value: eu.amazon.nova-micro-v1:0
+        - name: AGENT_NAME
+          value: customer-support
+
+  supportMemory:
+    type: agentcore-memory
+    properties:
+      description: Stores support preferences, prior issues, and handoff summaries.
+      expirationDays: 60
+
+  supportGateway:
+    type: agentcore-gateway
+    properties:
+      description: Governed tool gateway for customer support operations.
+      instructions: Use these tools only for customer support lookup and ticket workflows.
+      supportedVersions:
+        - '2025-03-26'
+      tools:
+        - name: customerProfile
+          description: Looks up a customer's support tier and account status.
+          function: getCustomerProfile
+          toolSchema:
+            - name: get_customer_profile
+              description: Get customer status, plan, support tier, and recent cases.
+              inputSchema:
+                type: object
+                properties:
+                  customerId:
+                    type: string
+                    description: Customer account identifier.
+                required:
+                  - customerId
+        - name: supportTicket
+          description: Creates a support ticket for follow-up.
+          function: createSupportTicket
+          toolSchema:
+            - name: create_support_ticket
+              description: Create a customer support ticket with priority and summary.
+              inputSchema:
+                type: object
+                properties:
+                  customerId:
+                    type: string
+                  priority:
+                    type: string
+                    enum:
+                      - low
+                      - normal
+                      - high
+                      - urgent
+                  summary:
+                    type: string
+                required:
+                  - customerId
+                  - priority
+                  - summary
+
+  tickets:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: ticketId
+          type: string
+
+  getCustomerProfile:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/get-customer-profile.ts
+      memory: 512
+      timeout: 30
+
+  createSupportTicket:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/create-support-ticket.ts
+      memory: 512
+      timeout: 30
+      connectTo:
+        - tickets

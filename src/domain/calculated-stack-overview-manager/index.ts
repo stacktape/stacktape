@@ -15,6 +15,7 @@ import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorator
 import { UnexpectedError } from '@utils/errors';
 import { kebabCase } from 'change-case';
 import get from 'lodash/get';
+import { resolveAgentCoreResources } from './resource-resolvers/agentcore';
 import { resolveApplicationLoadBalancers } from './resource-resolvers/application-load-balancers';
 import { resolveAwsCdkConstructs } from './resource-resolvers/aws-cdk-construct';
 import { resolveAcceptVpcPeeringCustomResource } from './resource-resolvers/background-resources/accept-vpc-peerings-custom-resource';
@@ -106,6 +107,7 @@ export class CalculatedStackOverviewManager {
       resolveDefaultEdgeLambdaBucket(),
       resolveStacktapeServiceLambda(),
       resolveFunctions(),
+      resolveAgentCoreResources(),
       resolveS3EventsCustomResource(),
       resolveSensitiveDataCustomResource(),
       resolveAcceptVpcPeeringCustomResource(),

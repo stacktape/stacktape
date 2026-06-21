@@ -153,6 +153,56 @@ export const awsResourceNames = {
       lengthLimit: 64
     });
   },
+  agentCoreRuntime(stackName: string, stpResourceName: string) {
+    return buildResourceName({
+      proposedResourceName: `stp_${stackName}_${stpResourceName}`.replace(/[^A-Za-z0-9_]/g, '_'),
+      lengthLimit: 48
+    }).replace(/-/g, '_');
+  },
+  agentCoreRuntimeEndpoint(stackName: string, stpResourceName: string, endpointName: string) {
+    return buildResourceName({
+      proposedResourceName: `stp_${stackName}_${stpResourceName}_${endpointName}`.replace(/[^A-Za-z0-9_]/g, '_'),
+      lengthLimit: 48
+    }).replace(/-/g, '_');
+  },
+  agentCoreGateway(stackName: string, stpResourceName: string) {
+    return buildResourceName({
+      proposedResourceName: `stp-${stackName}-${stpResourceName}`.replace(/[^A-Za-z0-9-]/g, '-').replace(/-+/g, '-'),
+      lengthLimit: 48
+    }).replace(/-+/g, '-');
+  },
+  agentCoreGatewayTarget(stackName: string, stpResourceName: string, targetName: string) {
+    return buildResourceName({
+      proposedResourceName: `stp-${stackName}-${stpResourceName}-${targetName}`
+        .replace(/[^A-Za-z0-9-]/g, '-')
+        .replace(/-+/g, '-'),
+      lengthLimit: 100
+    }).replace(/-+/g, '-');
+  },
+  agentCoreMemory(stackName: string, stpResourceName: string) {
+    return buildResourceName({
+      proposedResourceName: `stp_${stackName}_${stpResourceName}`.replace(/[^A-Za-z0-9_]/g, '_'),
+      lengthLimit: 48
+    }).replace(/-/g, '_');
+  },
+  agentCoreBrowser(stackName: string, stpResourceName: string) {
+    return buildResourceName({
+      proposedResourceName: `stp_${stackName}_${stpResourceName}`.replace(/[^A-Za-z0-9_]/g, '_'),
+      lengthLimit: 48
+    }).replace(/-/g, '_');
+  },
+  agentCoreCodeInterpreter(stackName: string, stpResourceName: string) {
+    return buildResourceName({
+      proposedResourceName: `stp_${stackName}_${stpResourceName}`.replace(/[^A-Za-z0-9_]/g, '_'),
+      lengthLimit: 48
+    }).replace(/-/g, '_');
+  },
+  agentCoreRole(stackName: string, region: string, stpResourceName: string, suffix: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${stpResourceName}-${suffix}-${region}`,
+      lengthLimit: 64
+    });
+  },
   // max 256 chars
   // https://docs.aws.amazon.com/eventbridge/latest/APIReference/API_CreateEventBus.html
   eventBus(stackName: string, stpResourceName: string) {

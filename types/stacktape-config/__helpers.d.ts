@@ -31,7 +31,12 @@ type StacktapeResourceDefinition =
   | OpenSearchDomain
   | EfsFilesystem
   | KinesisStream
-  | Convex;
+  | Convex
+  | AgentCoreRuntime
+  | AgentCoreMemory
+  | AgentCoreGateway
+  | AgentCoreBrowser
+  | AgentCoreCodeInterpreter;
 
 type StpResource = (
   | StpWorkloadDefinition
@@ -69,13 +74,18 @@ type StpResource = (
   | StpEfsFilesystem
   | StpKinesisStream
   | StpConvex
+  | StpAgentCoreRuntime
+  | StpAgentCoreMemory
+  | StpAgentCoreGateway
+  | StpAgentCoreBrowser
+  | StpAgentCoreCodeInterpreter
 ) & {
   _nestedResources?: {
     [nestedStpResourceIdentifier: string]: StpResource;
   };
 };
 
-type StpWorkloadType = StacktapeWorkloadDefinition['type'] | Convex['type'];
+type StpWorkloadType = StacktapeWorkloadDefinition['type'] | Convex['type'] | AgentCoreRuntime['type'];
 type StpResourceType = StpResource['type'];
 
 type Tracing = 'Active' | 'PassThrough';
@@ -1192,4 +1202,9 @@ type StacktapeResourceReferenceableParam =
   | WebAppFirewallReferencableParams
   | OpenSearchDomainReferencableParams
   | KinesisStreamReferencableParam
-  | ConvexReferencableParam;
+  | ConvexReferencableParam
+  | AgentCoreRuntimeReferencableParam
+  | AgentCoreMemoryReferencableParam
+  | AgentCoreGatewayReferencableParam
+  | AgentCoreBrowserReferencableParam
+  | AgentCoreCodeInterpreterReferencableParam;

@@ -14,6 +14,10 @@ export const INSTALL_SCRIPTS_PREVIEW_BUCKET_NAME =
 export const DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY = 'stacktape-project';
 
 export const IS_TELEMETRY_DISABLED = process.env.STP_DISABLE_TELEMETRY === '1';
+/** Disables the desktop notification fired when a long command finishes while the terminal is unfocused. */
+export const ARE_NOTIFICATIONS_DISABLED = process.env.STP_DISABLE_NOTIFICATIONS === '1';
+/** A command must run at least this long before a completion notification fires. */
+export const NOTIFICATION_MIN_DURATION_MS = 20_000;
 export const possiblySupportedLangExtensions = [
   'js',
   'ts',
@@ -215,7 +219,12 @@ export const RESOURCE_DEFAULTS: { [_resourceType in StpResourceType]: Partial<St
   'open-search-domain': {},
   'efs-filesystem': {},
   'network-load-balancer': {},
-  convex: {}
+  convex: {},
+  'agentcore-runtime': {},
+  'agentcore-memory': {},
+  'agentcore-gateway': {},
+  'agentcore-browser': {},
+  'agentcore-code-interpreter': {}
 };
 
 export const configurableGlobalDefaultCliArgs = {
@@ -318,7 +327,6 @@ export const HELPER_LAMBDAS: HelperLambdaName[] = [
 // CloudFormation stack.
 export const RECORDED_STACKTAPE_COMMANDS: StacktapeRecordedCommand[] = [
   'deploy',
-  'codebuild:deploy',
   'delete',
   'deployment-script:run',
   'bucket:sync',

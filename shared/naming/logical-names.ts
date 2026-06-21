@@ -372,6 +372,78 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
     });
   },
+  agentCoreRuntime(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      suffix: { cloudformationResourceType: 'AWS::BedrockAgentCore::Runtime' }
+    });
+  },
+  agentCoreRuntimeEndpoint(stpResourceName: string, endpointName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: endpointName },
+      suffix: { cloudformationResourceType: 'AWS::BedrockAgentCore::RuntimeEndpoint' }
+    });
+  },
+  agentCoreRuntimeRole(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'AgentCoreRuntime' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
+    });
+  },
+  agentCoreMemory(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      suffix: { cloudformationResourceType: 'AWS::BedrockAgentCore::Memory' }
+    });
+  },
+  agentCoreGateway(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      suffix: { cloudformationResourceType: 'AWS::BedrockAgentCore::Gateway' }
+    });
+  },
+  agentCoreGatewayRole(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'AgentCoreGateway' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
+    });
+  },
+  agentCoreGatewayTarget(stpResourceName: string, targetName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: targetName },
+      suffix: { cloudformationResourceType: 'AWS::BedrockAgentCore::GatewayTarget' }
+    });
+  },
+  agentCoreBrowser(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      suffix: { cloudformationResourceType: 'AWS::BedrockAgentCore::BrowserCustom' }
+    });
+  },
+  agentCoreBrowserRole(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'AgentCoreBrowser' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
+    });
+  },
+  agentCoreCodeInterpreter(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      suffix: { cloudformationResourceType: 'AWS::BedrockAgentCore::CodeInterpreterCustom' }
+    });
+  },
+  agentCoreCodeInterpreterRole(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'AgentCoreCodeInterpreter' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
+    });
+  },
   batchComputeEnvironment(spot: boolean, gpu: boolean) {
     return buildCfLogicalName({
       specifier: {

@@ -1,0 +1,7 @@
+{
+  "name": "agentcore-all-linked-resources",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js"
+  }
+}

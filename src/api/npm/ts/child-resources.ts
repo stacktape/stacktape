@@ -1366,6 +1366,41 @@ export const CHILD_RESOURCES: Record<
   // TODO(convex): populate with backend service, dashboard service, ALB, RDS, 5 buckets, admin-key custom resource.
   convex: [],
 
+  // ===== AGENTCORE =====
+  'agentcore-runtime': [
+    { logicalName: cfLogicalNames.agentCoreRuntimeRole, resourceType: 'AWS::IAM::Role' },
+    { logicalName: cfLogicalNames.workloadSecurityGroup, resourceType: 'AWS::EC2::SecurityGroup', conditional: true },
+    { logicalName: cfLogicalNames.agentCoreRuntime, resourceType: 'AWS::BedrockAgentCore::Runtime' },
+    {
+      logicalName: cfLogicalNames.agentCoreRuntimeEndpoint,
+      resourceType: 'AWS::BedrockAgentCore::RuntimeEndpoint',
+      conditional: true,
+      unresolvable: true
+    }
+  ],
+  'agentcore-memory': [{ logicalName: cfLogicalNames.agentCoreMemory, resourceType: 'AWS::BedrockAgentCore::Memory' }],
+  'agentcore-gateway': [
+    { logicalName: cfLogicalNames.agentCoreGatewayRole, resourceType: 'AWS::IAM::Role' },
+    { logicalName: cfLogicalNames.agentCoreGateway, resourceType: 'AWS::BedrockAgentCore::Gateway' },
+    {
+      logicalName: cfLogicalNames.agentCoreGatewayTarget,
+      resourceType: 'AWS::BedrockAgentCore::GatewayTarget',
+      conditional: true,
+      unresolvable: true
+    }
+  ],
+  'agentcore-browser': [
+    { logicalName: cfLogicalNames.agentCoreBrowserRole, resourceType: 'AWS::IAM::Role' },
+    { logicalName: cfLogicalNames.agentCoreBrowser, resourceType: 'AWS::BedrockAgentCore::BrowserCustom' }
+  ],
+  'agentcore-code-interpreter': [
+    { logicalName: cfLogicalNames.agentCoreCodeInterpreterRole, resourceType: 'AWS::IAM::Role' },
+    {
+      logicalName: cfLogicalNames.agentCoreCodeInterpreter,
+      resourceType: 'AWS::BedrockAgentCore::CodeInterpreterCustom'
+    }
+  ],
+
   // ===== OTHER RESOURCES =====
   'custom-resource-instance': [],
   'custom-resource-definition': [],

@@ -1,0 +1,3 @@
+- Production-style customer support agent running on [AWS Bedrock AgentCore Runtime](https://aws.amazon.com/bedrock/agentcore/).
+- Uses [AgentCore Memory](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html) for persistent customer context and [AgentCore Gateway](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/harness-tools.html) for governed access to support tools.
+- Exposes Lambda-backed tools for looking up customer status and creating support tickets, with tickets stored in DynamoDB.

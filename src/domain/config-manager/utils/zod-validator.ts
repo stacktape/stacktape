@@ -199,6 +199,11 @@ const RESOURCE_TYPES = [
   'remix-web',
   'open-search-domain',
   'efs-filesystem',
+  'agentcore-runtime',
+  'agentcore-memory',
+  'agentcore-gateway',
+  'agentcore-browser',
+  'agentcore-code-interpreter',
   'function',
   'edge-lambda-function'
 ];

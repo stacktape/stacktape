@@ -1,0 +1,3 @@
+- Research assistant for competitive analysis, vendor due diligence, and market scans.
+- Runs on [AWS Bedrock AgentCore Runtime](https://aws.amazon.com/bedrock/agentcore/) with [AgentCore Browser](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/harness-tools.html) for managed web automation.
+- Uses [AgentCore Memory](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html) so follow-up research questions can build on prior findings.

@@ -698,6 +698,22 @@ export class PackagingManager {
               });
           });
 
+    const agentCoreRuntimePackagingJobs = skipContainersAndHosting
+      ? []
+      : configManager.agentCoreRuntimesRequiringPackaging
+          .filter(({ name }) => shouldPackageWorkload(name))
+          .map(({ name, jobName, packaging }) => {
+            return () =>
+              this.packageWorkload({
+                commandCanUseCache,
+                jobName,
+                packaging,
+                workloadName: name,
+                workloadType: 'agentcore-runtime',
+                dockerBuildOutputArchitecture: 'linux/arm64'
+              });
+          });
+
     // NextJS packaging jobs (skip in dev mode, filter by onlyWorkloads)
     const nextjsPackagingJobs = skipContainersAndHosting
       ? []
@@ -756,6 +772,7 @@ export class PackagingManager {
           });
       }),
       ...containerPackagingJobs,
+      ...agentCoreRuntimePackagingJobs,
       ...nextjsPackagingJobs,
       ...ssrWebPackagingJobs,
       ...hostingBucketBuildJobs

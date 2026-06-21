@@ -1,0 +1,10 @@
+{
+  "name": "agentcore-research-assistant",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.946.0"
+  }
+}

@@ -1,5 +1,139 @@
 [
   {
+    "name": "AgentCore Customer Support Agent",
+    "tags": ["Javascript", "Docker", "AI", "AgentCore"],
+    "icon": "docker.svg",
+    "priority": 0,
+    "starterProjectId": "agentcore-customer-support-agent",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "supportGateway",
+        "type": "agentcore-gateway",
+        "containerNames": []
+      },
+      {
+        "name": "supportMemory",
+        "type": "agentcore-memory",
+        "containerNames": []
+      },
+      {
+        "name": "supportAgent",
+        "type": "agentcore-runtime",
+        "containerNames": []
+      },
+      {
+        "name": "tickets",
+        "type": "dynamo-db-table",
+        "containerNames": []
+      },
+      {
+        "name": "getCustomerProfile",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "createSupportTicket",
+        "type": "function",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["agentcore-gateway", "agentcore-memory", "agentcore-runtime", "dynamo-db-table", "function"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-agentcore-customer-support-agent",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": false,
+    "hasCognito": false,
+    "description": "Production-style customer support agent running on AWS Bedrock AgentCore Runtime.\nUses AgentCore Memory for persistent customer context and AgentCore Gateway for governed access to support tools.\nExposes Lambda-backed tools for looking up customer status and creating support tickets, with tickets stored in DynamoDB.\n"
+  },
+  {
+    "name": "AgentCore Research Assistant",
+    "tags": ["Javascript", "Docker", "AI", "AgentCore"],
+    "icon": "docker.svg",
+    "priority": 0,
+    "starterProjectId": "agentcore-research-assistant",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "researchBrowser",
+        "type": "agentcore-browser",
+        "containerNames": []
+      },
+      {
+        "name": "researchMemory",
+        "type": "agentcore-memory",
+        "containerNames": []
+      },
+      {
+        "name": "researchAgent",
+        "type": "agentcore-runtime",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["agentcore-browser", "agentcore-memory", "agentcore-runtime"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-agentcore-research-assistant",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": false,
+    "hasCognito": false,
+    "description": "Research assistant for competitive analysis, vendor due diligence, and market scans.\nRuns on AWS Bedrock AgentCore Runtime with AgentCore Browser for managed web automation.\nUses AgentCore Memory so follow-up research questions can build on prior findings.\n"
+  },
+  {
+    "name": "AgentCore Data Analyst",
+    "tags": ["Javascript", "Docker", "AI", "AgentCore"],
+    "icon": "docker.svg",
+    "priority": 0,
+    "starterProjectId": "agentcore-data-analyst",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "analysisCodeInterpreter",
+        "type": "agentcore-code-interpreter",
+        "containerNames": []
+      },
+      {
+        "name": "analysisMemory",
+        "type": "agentcore-memory",
+        "containerNames": []
+      },
+      {
+        "name": "analystAgent",
+        "type": "agentcore-runtime",
+        "containerNames": []
+      },
+      {
+        "name": "reportsBucket",
+        "type": "bucket",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["agentcore-code-interpreter", "agentcore-memory", "agentcore-runtime", "bucket"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-agentcore-data-analyst",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": false,
+    "hasCognito": false,
+    "description": "Data analysis agent for billing reviews, CSV exploration, KPI summaries, and report generation.\nRuns on AWS Bedrock AgentCore Runtime and connects to AgentCore Code Interpreter for sandboxed Python/JavaScript analysis.\nUses AgentCore Memory for analysis context and an S3 bucket for durable report outputs.\n"
+  },
+  {
     "name": "AI Agent API",
     "tags": ["Typescript", "Lambda", "AI"],
     "icon": "typescript.svg",

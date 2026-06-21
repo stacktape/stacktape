@@ -101,24 +101,27 @@ export const getConnectToReferencesForResource = ({
 }): { scopingResource: StpResource; scopingCfLogicalNameOfSecurityGroup?: string }[] => {
   const resourceReferenceableName = typeof nameChain === 'string' ? nameChain : nameChain.join('.');
   const result: { scopingResource: StpResource; scopingCfLogicalNameOfSecurityGroup?: string }[] = [];
-  [...configManager.allLambdasToUpload, ...configManager.allContainerWorkloads, ...configManager.batchJobs].forEach(
-    (scopingResource) => {
-      const { name, connectTo, type } = scopingResource;
-      if (connectTo) {
-        connectTo.forEach((scopedStpResource) => {
-          if (scopedStpResource === resourceReferenceableName) {
-            result.push({
-              scopingResource,
-              scopingCfLogicalNameOfSecurityGroup:
-                type === 'batch-job'
-                  ? cfLogicalNames.batchInstanceDefaultSecurityGroup()
-                  : cfLogicalNames.workloadSecurityGroup(name)
-            });
-          }
-        });
-      }
+  [
+    ...configManager.allLambdasToUpload,
+    ...configManager.allContainerWorkloads,
+    ...configManager.batchJobs,
+    ...configManager.agentCoreRuntimes
+  ].forEach((scopingResource) => {
+    const { name, connectTo, type } = scopingResource;
+    if (connectTo) {
+      connectTo.forEach((scopedStpResource) => {
+        if (scopedStpResource === resourceReferenceableName) {
+          result.push({
+            scopingResource,
+            scopingCfLogicalNameOfSecurityGroup:
+              type === 'batch-job'
+                ? cfLogicalNames.batchInstanceDefaultSecurityGroup()
+                : cfLogicalNames.workloadSecurityGroup(name)
+          });
+        }
+      });
     }
-  );
+  });
   return result;
 };
 export const ConnectToAwsServiceMacros = ['aws:ses'] as const;

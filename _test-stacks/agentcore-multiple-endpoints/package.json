@@ -1,0 +1,7 @@
+{
+  "name": "agentcore-multiple-endpoints",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js"
+  }
+}

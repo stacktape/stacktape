@@ -125,5 +125,28 @@ export const REFERENCEABLE_PARAMS: Record<string, Array<{ name: string; descript
   'sns-topic': [
     { name: 'arn', description: 'Topic ARN' },
     { name: 'name', description: 'Topic name' }
+  ],
+  'agentcore-runtime': [
+    { name: 'id', description: 'AgentCore runtime ID' },
+    { name: 'arn', description: 'AgentCore runtime ARN' },
+    { name: 'endpointName', description: 'Default runtime endpoint name' },
+    { name: 'endpointArn', description: 'Default runtime endpoint ARN' }
+  ],
+  'agentcore-memory': [
+    { name: 'id', description: 'AgentCore memory ID' },
+    { name: 'arn', description: 'AgentCore memory ARN' }
+  ],
+  'agentcore-gateway': [
+    { name: 'id', description: 'AgentCore gateway ID' },
+    { name: 'arn', description: 'AgentCore gateway ARN' },
+    { name: 'url', description: 'AgentCore gateway URL' }
+  ],
+  'agentcore-browser': [
+    { name: 'id', description: 'AgentCore browser ID' },
+    { name: 'arn', description: 'AgentCore browser ARN' }
+  ],
+  'agentcore-code-interpreter': [
+    { name: 'id', description: 'AgentCore code interpreter ID' },
+    { name: 'arn', description: 'AgentCore code interpreter ARN' }
   ]
 };

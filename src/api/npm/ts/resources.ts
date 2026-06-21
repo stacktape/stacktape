@@ -79,5 +79,10 @@ export const {
   OpenSearchDomain,
   EfsFilesystem,
   NextjsWeb,
-  Bastion
+  Bastion,
+  AgentCoreRuntime,
+  AgentCoreMemory,
+  AgentCoreGateway,
+  AgentCoreBrowser,
+  AgentCoreCodeInterpreter
 } = RESOURCE_CLASSES;

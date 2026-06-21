@@ -78,7 +78,7 @@ export class DeploymentArtifactManager {
   }
 
   getImagesToUpload({ hotSwapDeploy }: { hotSwapDeploy: boolean }) {
-    return configManager.allContainersRequiringPackaging
+    return [...configManager.allContainersRequiringPackaging, ...configManager.agentCoreRuntimesRequiringPackaging]
       .map((container) => {
         const imageUploadInfo = this.getImageUploadInfoForJob({ jobName: container.jobName, hotSwapDeploy });
         // In dev mode, containers are not packaged so imageUploadInfo will be null
