@@ -216,6 +216,8 @@ type StpDomainStatus = {
   ownershipVerified: boolean;
   regionalCert: CertificateDetail;
   usEast1Cert: CertificateDetail;
+  regionalCerts?: CertificateDetail[];
+  usEast1Certs?: CertificateDetail[];
   hostedZoneInfo: HostedZoneInfo;
   // currentNameServers?: string[];
 };

@@ -18,7 +18,7 @@ import { shortHash } from '@shared/utils/short-hash';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { getApexDomain } from '@utils/domains';
+import { certificateCoversDomain, getApexDomain, normalizeDomainName } from '@utils/domains';
 import { validateDomain } from '@utils/validator';
 import { parse as tldtsParse } from 'tldts';
 import whoiser from 'whoiser';
@@ -129,6 +129,8 @@ export class DomainManager {
         const domainName = parseDomainNameFromSmmParamName({ paramName: Name, region: globalStateManager.region });
         validateDomain(domainName);
         const status = JSON.parse(Value) as StpDomainStatus;
+        const certificateStatusSignatureBeforeRefresh = this.#getCertificateStatusSignature(status);
+        await this.#refreshCachedCertificates(status);
         const lookupNameServers = await this.resolveCurrentNameServersForDomain(domainName);
         // refreshing few properties that are quick to verify
         status.registered = !!lookupNameServers;
@@ -137,6 +139,9 @@ export class DomainManager {
           lookupNameServers
         );
         this.domainStatuses[domainName] = status;
+        if (certificateStatusSignatureBeforeRefresh !== this.#getCertificateStatusSignature(status)) {
+          await this.storeDomainStatusIntoParameterStore({ domainName, status });
+        }
       })
     );
   };
@@ -151,13 +156,25 @@ export class DomainManager {
     // parameter size is limited to 4096 chars
     // therefore we do not preserve all details about domain status(particularly details about certs)
     // in case of need, this information can be fetched directly through AWS API (see #getCertificatesRecordedInHostedZone)
-    const cleanedStatus = status;
+    const cleanedStatus = {
+      ...status,
+      regionalCert: status.regionalCert && { ...status.regionalCert },
+      usEast1Cert: status.usEast1Cert && { ...status.usEast1Cert },
+      regionalCerts: status.regionalCerts?.map((cert) => ({ ...cert })),
+      usEast1Certs: status.usEast1Certs?.map((cert) => ({ ...cert }))
+    };
     delete cleanedStatus.regionalCert?.DomainValidationOptions;
     delete cleanedStatus.usEast1Cert?.DomainValidationOptions;
+    cleanedStatus.regionalCerts?.forEach((cert) => delete cert.DomainValidationOptions);
+    cleanedStatus.usEast1Certs?.forEach((cert) => delete cert.DomainValidationOptions);
     delete cleanedStatus.regionalCert?.InUseBy;
     delete cleanedStatus.usEast1Cert?.InUseBy;
+    cleanedStatus.regionalCerts?.forEach((cert) => delete cert.InUseBy);
+    cleanedStatus.usEast1Certs?.forEach((cert) => delete cert.InUseBy);
     delete cleanedStatus.regionalCert?.RenewalSummary;
     delete cleanedStatus.usEast1Cert?.RenewalSummary;
+    cleanedStatus.regionalCerts?.forEach((cert) => delete cert.RenewalSummary);
+    cleanedStatus.usEast1Certs?.forEach((cert) => delete cert.RenewalSummary);
     await awsSdkManager.putSsmParameterValue({
       ssmParameterName: getSsmParameterNameForDomainInfo({ domainName, region: globalStateManager.region }),
       value: JSON.stringify(cleanedStatus)
@@ -198,6 +215,8 @@ export class DomainManager {
         ownershipVerified: true,
         regionalCert: certificatesInfo?.regionalCert,
         usEast1Cert: certificatesInfo?.usEast1Cert,
+        regionalCerts: certificatesInfo?.regionalCerts,
+        usEast1Certs: certificatesInfo?.usEast1Certs,
         hostedZoneInfo: zone
       };
     }
@@ -228,12 +247,13 @@ export class DomainManager {
     attachingTo: StpDomainAttachableResourceType
   ): CertificateDetail => {
     const domainStatus = this.getDomainStatus(fullDomainName);
-    const domainLevelSplit = fullDomainName.split('.');
-    if (domainLevelSplit.length > 3) {
-      throw stpErrors.e41({ fullDomainName, region: globalStateManager.region, attachingTo });
-    }
-    return (
-      (attachingTo !== 'cdn' && domainStatus?.regionalCert) || (attachingTo === 'cdn' && domainStatus?.usEast1Cert)
+    const certs =
+      attachingTo === 'cdn'
+        ? [domainStatus?.usEast1Cert, ...(domainStatus?.usEast1Certs || [])]
+        : [domainStatus?.regionalCert, ...(domainStatus?.regionalCerts || [])];
+    return this.#findCertificateCoveringDomain(
+      certs.filter((cert): cert is CertificateDetail => Boolean(cert)),
+      fullDomainName
     );
   };
 
@@ -289,6 +309,42 @@ export class DomainManager {
     return nameServers.map((nameServer: string) => nameServer.toLowerCase());
   };
 
+  #refreshCachedCertificates = async (status: StpDomainStatus) => {
+    const refreshedCertificates = new Map<string, Promise<CertificateDetail>>();
+    const getRefreshedCertificate = (cert: CertificateDetail | undefined) => {
+      if (!cert?.CertificateArn) {
+        return Promise.resolve(cert);
+      }
+      const useUsEast1Acm = cert.CertificateArn.includes(':us-east-1:');
+      const cacheKey = `${useUsEast1Acm}:${cert.CertificateArn}`;
+      if (!refreshedCertificates.has(cacheKey)) {
+        refreshedCertificates.set(cacheKey, awsSdkManager.getCertificateInfo(cert.CertificateArn, useUsEast1Acm));
+      }
+      return refreshedCertificates.get(cacheKey);
+    };
+
+    const [regionalCert, usEast1Cert] = await Promise.all([
+      getRefreshedCertificate(status.regionalCert),
+      getRefreshedCertificate(status.usEast1Cert)
+    ]);
+    status.regionalCert = regionalCert;
+    status.usEast1Cert = usEast1Cert;
+    if (status.regionalCerts) {
+      status.regionalCerts = await Promise.all(status.regionalCerts.map(getRefreshedCertificate));
+    }
+    if (status.usEast1Certs) {
+      status.usEast1Certs = await Promise.all(status.usEast1Certs.map(getRefreshedCertificate));
+    }
+  };
+
+  #getCertificateStatusSignature = (status: StpDomainStatus) => {
+    return [status.regionalCert, status.usEast1Cert, ...(status.regionalCerts || []), ...(status.usEast1Certs || [])]
+      .filter((cert): cert is CertificateDetail => Boolean(cert?.CertificateArn))
+      .map((cert) => `${cert.CertificateArn}:${cert.Status}`)
+      .sort()
+      .join('|');
+  };
+
   #listAllPublicHostedZones = async () => {
     return (await awsSdkManager.listAllHostedZones()).filter(({ Config: { PrivateZone } }) => !PrivateZone);
   };
@@ -319,6 +375,45 @@ export class DomainManager {
     };
   };
 
+  #findCertificateCoveringDomain = (certs: CertificateDetail[], domainName: string) => {
+    return certs
+      .filter((cert) => certificateCoversDomain(cert, domainName))
+      .sort(
+        (cert1, cert2) =>
+          this.#getCertificateSpecificity(cert2, domainName) - this.#getCertificateSpecificity(cert1, domainName)
+      )
+      .at(0);
+  };
+
+  #getCertificateSpecificity = (cert: CertificateDetail, domainName: string) => {
+    const normalizedDomainName = normalizeDomainName(domainName);
+    const subjectNames = cert.SubjectAlternativeNames?.length
+      ? cert.SubjectAlternativeNames
+      : [cert.DomainName].filter(Boolean);
+    if (subjectNames.some((subjectName) => normalizeDomainName(subjectName) === normalizedDomainName)) {
+      return 2;
+    }
+    if (subjectNames.some((subjectName) => normalizeDomainName(subjectName).startsWith('*.'))) {
+      return 1;
+    }
+    return 0;
+  };
+
+  #certificateMayCoverApexDomain = (certSummary: { DomainName?: string }, apexDomain: string) => {
+    const certDomainName = certSummary.DomainName && normalizeDomainName(certSummary.DomainName);
+    const normalizedApexDomain = normalizeDomainName(apexDomain);
+    return certDomainName === normalizedApexDomain || certDomainName?.endsWith(`.${normalizedApexDomain}`);
+  };
+
+  #certificateHasValidationRecordInHostedZone = (
+    certInfo: CertificateDetail,
+    recordsForHostedZone: { Name?: string }[]
+  ) => {
+    return certInfo.DomainValidationOptions?.some(({ ResourceRecord }) =>
+      recordsForHostedZone.some(({ Name }) => Name === ResourceRecord?.Name)
+    );
+  };
+
   // returns object StacktapeCertInfo
   // if object contains information about certificate, it means suitable certificate was found which also has record within hostedZone
   #getCertificatesRecordedInHostedZone = async (
@@ -333,7 +428,7 @@ export class DomainManager {
             false
           )
         )
-          .filter(({ DomainName }) => DomainName === domainName)
+          .filter((certSummary) => this.#certificateMayCoverApexDomain(certSummary, domainName))
           .map(({ CertificateArn }) => awsSdkManager.getCertificateInfo(CertificateArn))
       ),
       Promise.all(
@@ -343,35 +438,32 @@ export class DomainManager {
             true
           )
         )
-          .filter(({ DomainName }) => DomainName === domainName)
+          .filter((certSummary) => this.#certificateMayCoverApexDomain(certSummary, domainName))
           .map(({ CertificateArn }) => awsSdkManager.getCertificateInfo(CertificateArn, true))
       )
     ]).then((certificateLists) =>
       certificateLists.map((certList) =>
-        certList
-          .filter(({ SubjectAlternativeNames }) =>
-            SubjectAlternativeNames.find((alternativeDomainName) => alternativeDomainName === `*.${domainName}`)
-          )
-          .sort(({ CertificateArn: certArn1 }, { CertificateArn: certArn2 }) => certArn1.localeCompare(certArn2))
+        certList.sort(({ CertificateArn: certArn1 }, { CertificateArn: certArn2 }) => certArn1.localeCompare(certArn2))
       )
     );
 
-    if (!certsForDomain?.length) {
+    if (!certsForDomain?.length && !usEast1CertsForDomain?.length) {
       return {};
     }
     const recordsForHostedZone = await awsSdkManager.getRecordsForHostedZone(hostedZoneId);
 
-    const regionalCert = certsForDomain.find((certInfo) => {
-      const { ResourceRecord } = certInfo.DomainValidationOptions[0];
-      const validationRecord = recordsForHostedZone.find(({ Name }) => Name === ResourceRecord.Name);
-      return validationRecord;
-    });
-    const usEast1Cert = usEast1CertsForDomain.find((certInfo) => {
-      const { ResourceRecord } = certInfo.DomainValidationOptions[0];
-      const validationRecord = recordsForHostedZone.find(({ Name }) => Name === ResourceRecord.Name);
-      return validationRecord;
-    });
-    return { regionalCert, usEast1Cert };
+    const regionalCerts = certsForDomain.filter((certInfo) =>
+      this.#certificateHasValidationRecordInHostedZone(certInfo, recordsForHostedZone)
+    );
+    const usEast1Certs = usEast1CertsForDomain.filter((certInfo) =>
+      this.#certificateHasValidationRecordInHostedZone(certInfo, recordsForHostedZone)
+    );
+    return {
+      regionalCert: this.#findCertificateCoveringDomain(regionalCerts, domainName),
+      usEast1Cert: this.#findCertificateCoveringDomain(usEast1Certs, domainName),
+      regionalCerts,
+      usEast1Certs
+    };
   };
 }
 

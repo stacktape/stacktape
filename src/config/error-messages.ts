@@ -412,16 +412,12 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e38({ domainName }: { domainName: string }): ReturnedError {
     return {
       type: 'DOMAIN_MANAGEMENT',
-      message: `Domain ${tuiManager.makeBold(domainName)} is not a valid apex (root) domain name.`,
+      message: `Domain ${tuiManager.makeBold(domainName)} is not a valid domain name.`,
       hint: [
-        `Enter only the root domain, for example ${tuiManager.colorize('blue', 'example.com')} or ${tuiManager.colorize(
+        `Enter a bare domain without a protocol, for example ${tuiManager.colorize(
           'blue',
-          'mydomain.net'
-        )}.`,
-        `After the root domain is configured in Stacktape, you can use subdomains such as ${tuiManager.colorize(
-          'blue',
-          'api.example.com'
-        )}.`,
+          'example.com'
+        )} or ${tuiManager.colorize('blue', 'api.internal.example.com')}.`,
         `Manage and verify your domains in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`
       ]
     };

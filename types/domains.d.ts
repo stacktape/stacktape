@@ -9,4 +9,6 @@ type HostedZoneInfo = import('@aws-sdk/client-route-53').GetHostedZoneResponse;
 type StacktapeCertInfo = {
   regionalCert?: CertificateDetail;
   usEast1Cert?: CertificateDetail;
+  regionalCerts?: CertificateDetail[];
+  usEast1Certs?: CertificateDetail[];
 };

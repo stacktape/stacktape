@@ -1,3 +1,5 @@
+import { normalizeDomainName } from '@utils/domains';
+
 export const normalizeCustomDomains = ({
   customDomains
 }: {
@@ -11,6 +13,8 @@ export const normalizeCustomDomains = ({
   }
 
   return customDomains.map<DomainConfiguration>((customDomain) =>
-    typeof customDomain === 'string' ? { domainName: customDomain } : customDomain
+    typeof customDomain === 'string'
+      ? { domainName: normalizeDomainName(customDomain) }
+      : { ...customDomain, domainName: normalizeDomainName(customDomain.domainName) }
   );
 };

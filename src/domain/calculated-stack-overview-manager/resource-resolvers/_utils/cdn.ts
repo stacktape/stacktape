@@ -36,7 +36,6 @@ import { cfLogicalNames } from '@shared/naming/logical-names';
 import { stacktapeCloudfrontHeaders } from '@shared/naming/stacktape-cloudfront-headers';
 import { shortHash } from '@shared/utils/short-hash';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
-import { getApexDomain } from '@utils/domains';
 import { ExpectedError, UnexpectedError } from '@utils/errors';
 import objectHash from 'object-hash';
 import { getStpServiceCustomResource } from './custom-resource';
@@ -848,17 +847,18 @@ export const getCloudfrontOriginAccessIdentityResource = (stpResourceNameName: s
 
 export const getCloudfrontDistributionConfigs = (cdnCompatibleResource: StpCdnCompatibleResource) => {
   const cloudfrontDistributions: {
-    [apexDomain: string]: { domains: Set<string>; certificateArn: string; disableDns: boolean };
+    [distributionKey: string]: { domains: Set<string>; certificateArn: string; disableDns: boolean };
   } = {};
   cdnCompatibleResource.cdn.customDomains.forEach((domainConfig) => {
-    const apexDomain = getApexDomain(domainConfig.domainName);
-    if (apexDomain in cloudfrontDistributions) {
-      cloudfrontDistributions[apexDomain].domains.add(domainConfig.domainName);
+    const certificateArn =
+      domainConfig.customCertificateArn || domainManager.getCertificateForDomain(domainConfig.domainName, 'cdn');
+    const distributionKey = `${certificateArn}-${domainConfig.disableDnsRecordCreation ? 'disable-dns' : 'create-dns'}`;
+    if (distributionKey in cloudfrontDistributions) {
+      cloudfrontDistributions[distributionKey].domains.add(domainConfig.domainName);
     } else {
-      cloudfrontDistributions[apexDomain] = {
+      cloudfrontDistributions[distributionKey] = {
         disableDns: domainConfig.disableDnsRecordCreation,
-        certificateArn:
-          domainConfig.customCertificateArn || domainManager.getCertificateForDomain(domainConfig.domainName, 'cdn'),
+        certificateArn,
         domains: new Set([domainConfig.domainName])
       };
     }
