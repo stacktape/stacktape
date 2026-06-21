@@ -31,6 +31,7 @@ import { TransformsResolver } from './transforms-resolver';
 import { getAlarmsToBeAppliedToResource, isGlobalAlarmEligibleForStack } from './utils/alarms';
 import { DEFAULT_TEST_LISTENER_PORT } from './utils/application-load-balancers';
 import { normalizeCustomDomains } from './utils/custom-domains';
+import { DEFAULT_CONVEX_BACKEND_IMAGE, DEFAULT_CONVEX_DASHBOARD_IMAGE, getConvexSecretName } from './utils/convex';
 import { getStacktapeOriginRequestLambdaIamStatement } from './utils/iam';
 import {
   getBatchJobTriggerLambdaAccessControl,
@@ -291,6 +292,30 @@ export class ConfigManager {
     };
   }
 
+  get agentCoreRuntimes() {
+    return this.getResourcesFromConfig<StpAgentCoreRuntime>('agentcore-runtime').map((runtime) => ({
+      ...runtime,
+      jobName: getJobName({ workloadName: runtime.name, workloadType: runtime.type }),
+      configParentResourceType: 'agentcore-runtime' as const
+    }));
+  }
+
+  get agentCoreMemories() {
+    return this.getResourcesFromConfig<StpAgentCoreMemory>('agentcore-memory');
+  }
+
+  get agentCoreGateways() {
+    return this.getResourcesFromConfig<StpAgentCoreGateway>('agentcore-gateway');
+  }
+
+  get agentCoreBrowsers() {
+    return this.getResourcesFromConfig<StpAgentCoreBrowser>('agentcore-browser');
+  }
+
+  get agentCoreCodeInterpreters() {
+    return this.getResourcesFromConfig<StpAgentCoreCodeInterpreter>('agentcore-code-interpreter');
+  }
+
   get functions() {
     return this.getResourcesFromConfig<StpLambdaFunction>('function').map(({ name, packaging, ...definition }) => {
       return {
@@ -441,7 +466,7 @@ export class ConfigManager {
 
   get convexes() {
     return this.getResourcesFromConfig<StpConvex>('convex').map((convex) => {
-      const { name, nameChain, type, configParentResourceType } = convex;
+      const { name, nameChain, type } = convex;
 
       // helper: build a child name chain + resolved Stp name
       const child = (suffix: string) => {
@@ -471,6 +496,7 @@ export class ConfigManager {
       const snapshotImportsBucketChild = child('snapshotImportsBucket');
       const snapshotImportsBucketRef = childRef('snapshotImportsBucket');
       const databaseRef = childRef('database');
+      const convexSecretName = getConvexSecretName({ nameChain });
 
       const mkBucket = (c: { nameChain: string[]; name: string }): StpBucket => ({
         type: 'bucket',
@@ -491,11 +517,11 @@ export class ConfigManager {
         } as unknown as StpBucket['cors']
       });
 
-      // TODO(convex): pin to a specific digest after testing each upgrade. `:latest`
-      // is fine for development but unsafe for production — Convex's in-place migrate
-      // path needs known-good versions.
-      const backendImage = convex.backend.image || 'ghcr.io/get-convex/convex-backend:latest';
-      const dashboardImage = convex.dashboard?.image || 'ghcr.io/get-convex/convex-dashboard:latest';
+      const backendImage = convex.backend?.image || DEFAULT_CONVEX_BACKEND_IMAGE;
+      const dashboardImage = convex.dashboard?.image || DEFAULT_CONVEX_DASHBOARD_IMAGE;
+      const usesCustomDomains = Boolean(
+        convex.customDomains?.cloud || convex.customDomains?.site || convex.customDomains?.dashboard
+      );
 
       // Build the backend container workload. Convex exposes 3210 (cloud) + 3211 (site)
       // — both routed through the same ALB on different listener ports.
@@ -504,11 +530,13 @@ export class ConfigManager {
         name: backendChild.name,
         nameChain: backendChild.nameChain,
         configParentResourceType: type,
-        resources: convex.backend.resources,
+        resources: convex.backend?.resources ?? { cpu: 0.5 as const, memory: 1024 },
         // Single-instance correctness invariant: convex-backend OSS does not support
         // horizontal scaling. Hard-coded to 1/1.
         scaling: { minInstances: 1, maxInstances: 1 },
-        enableRemoteSessions: convex.backend.enableRemoteSessions,
+        // Required for Stacktape's post-deploy admin-key generation. The generated
+        // key is used to run `npx convex deploy` against the new self-hosted backend.
+        enableRemoteSessions: true,
         usePrivateSubnetsWithNAT: false,
         connectTo: [
           databaseRef,
@@ -526,7 +554,7 @@ export class ConfigManager {
               type: 'prebuilt-image' as const,
               properties: { image: backendImage }
             },
-            logging: convex.backend.logging,
+            logging: convex.backend?.logging,
             // Both convex ports listen but only the cloud port (3210) returns
             // 200 on `/`. The site port (3211) returns 404 because that origin
             // only serves user-defined HTTP actions. The convex resolver patches
@@ -540,19 +568,19 @@ export class ConfigManager {
               { name: 'INSTANCE_NAME', value: name },
               {
                 name: 'INSTANCE_SECRET',
-                // Stacktape's $Secret directive auto-creates the secret on first deploy.
-                value: `$Secret('${name}.instanceSecret')` as unknown as string | boolean | number
+                value: `{{resolve:secretsmanager:${convexSecretName}:SecretString:instanceSecret}}`
               },
               {
                 name: 'CONVEX_CLOUD_ORIGIN',
                 value:
                   (convex.customDomains?.cloud?.domainName && `https://${convex.customDomains.cloud.domainName}`) ||
-                  ''
+                  '__resolver_overrides_this__'
               },
               {
                 name: 'CONVEX_SITE_ORIGIN',
                 value:
-                  (convex.customDomains?.site?.domainName && `https://${convex.customDomains.site.domainName}`) || ''
+                  (convex.customDomains?.site?.domainName && `https://${convex.customDomains.site.domainName}`) ||
+                  '__resolver_overrides_this__'
               },
               { name: 'AWS_REGION', value: globalStateManager.region },
               // Convex skips its own TLS init when this is set. Combined with the
@@ -595,11 +623,10 @@ export class ConfigManager {
                 properties: {
                   priority: 10,
                   containerPort: 3210,
+                  listenerPort: usesCustomDomains ? undefined : 3210,
                   loadBalancerName: albRef,
                   paths: ['*'],
-                  hostnames: convex.customDomains?.cloud?.domainName
-                    ? [convex.customDomains.cloud.domainName]
-                    : undefined
+                  hosts: convex.customDomains?.cloud?.domainName ? [convex.customDomains.cloud.domainName] : undefined
                 }
               },
               {
@@ -607,9 +634,10 @@ export class ConfigManager {
                 properties: {
                   priority: 20,
                   containerPort: 3211,
+                  listenerPort: usesCustomDomains ? undefined : 3211,
                   loadBalancerName: albRef,
                   paths: ['*'],
-                  hostnames: convex.customDomains?.site?.domainName ? [convex.customDomains.site.domainName] : undefined
+                  hosts: convex.customDomains?.site?.domainName ? [convex.customDomains.site.domainName] : undefined
                 }
               }
             ],
@@ -641,9 +669,8 @@ export class ConfigManager {
                   {
                     name: 'NEXT_PUBLIC_DEPLOYMENT_URL',
                     value:
-                      (convex.customDomains?.cloud?.domainName &&
-                        `https://${convex.customDomains.cloud.domainName}`) ||
-                      ''
+                      (convex.customDomains?.cloud?.domainName && `https://${convex.customDomains.cloud.domainName}`) ||
+                      '__resolver_overrides_this__'
                   },
                   { name: 'PORT', value: 6791 }
                 ],
@@ -653,11 +680,13 @@ export class ConfigManager {
                     properties: {
                       priority: 30,
                       containerPort: 6791,
+                      listenerPort: usesCustomDomains ? undefined : 6791,
                       loadBalancerName: albRef,
                       paths: ['*'],
-                      hostnames: convex.customDomains?.dashboard?.domainName
+                      hosts: convex.customDomains?.dashboard?.domainName
                         ? [convex.customDomains.dashboard.domainName]
-                        : undefined
+                        : undefined,
+                      sourceIps: convex.dashboard?.allowedIpRanges
                     }
                   }
                 ],
@@ -675,7 +704,7 @@ export class ConfigManager {
         configParentResourceType: type,
         credentials: {
           masterUserName: 'convex',
-          masterUserPassword: `$Secret('${name}.dbPassword')` as unknown as string
+          masterUserPassword: `{{resolve:secretsmanager:${convexSecretName}:SecretString:dbPassword}}`
         },
         engine: convex.database?.engine ?? {
           type: 'postgres',
@@ -692,7 +721,9 @@ export class ConfigManager {
         automatedBackupRetentionDays: convex.database?.automatedBackupRetentionDays ?? 1,
         preferredMaintenanceWindow: convex.database?.preferredMaintenanceWindow,
         logging: convex.database?.logging,
-        deletionProtection: convex.deletionProtection ?? false
+        deletionProtection: convex.deletionProtection ?? false,
+        alarms: convex.alarms?.filter((alarm) => alarm.trigger.type.startsWith('database-')),
+        disabledGlobalAlarms: convex.disabledGlobalAlarms
       } as unknown as StpRelationalDatabase;
 
       const collectedCustomDomains: DomainConfiguration[] = [];
@@ -705,7 +736,16 @@ export class ConfigManager {
         name: albChild.name,
         nameChain: albChild.nameChain,
         configParentResourceType: type,
-        customDomains: collectedCustomDomains.length ? collectedCustomDomains : undefined
+        customDomains: collectedCustomDomains.length ? collectedCustomDomains : undefined,
+        listeners: collectedCustomDomains.length
+          ? undefined
+          : [
+              { protocol: 'HTTPS' as const, port: 3210 },
+              { protocol: 'HTTPS' as const, port: 3211 },
+              ...(dashboardEnabled ? [{ protocol: 'HTTPS' as const, port: 6791 }] : [])
+            ],
+        alarms: convex.alarms?.filter((alarm) => alarm.trigger.type.startsWith('application-load-balancer-')),
+        disabledGlobalAlarms: convex.disabledGlobalAlarms
       } as unknown as StpApplicationLoadBalancer;
 
       return {
@@ -3242,6 +3282,10 @@ export class ConfigManager {
     return this.allContainers.filter((job) => job.packaging.type !== 'prebuilt-image');
   }
 
+  get agentCoreRuntimesRequiringPackaging() {
+    return this.agentCoreRuntimes.filter((runtime) => runtime.packaging.type !== 'prebuilt-image');
+  }
+
   get helperLambdas(): StpHelperLambdaFunction[] {
     const res = [];
     res.push(this.stacktapeServiceLambdaProps);
@@ -3474,7 +3518,7 @@ export class ConfigManager {
   }
 
   get allImagesCount(): number {
-    return this.allContainersRequiringPackaging.length;
+    return this.allContainersRequiringPackaging.length + this.agentCoreRuntimesRequiringPackaging.length;
   }
 
   get allLambdaResourcesCount(): number {
@@ -3520,6 +3564,14 @@ export class ConfigManager {
     // `convex` resource expands into during preprocessing) so secret-preflight can
     // auto-create those secrets.
     processAllNodesSync(this.convexes, visit);
+    for (const convex of this.convexes) {
+      const secretName = getConvexSecretName({ nameChain: convex.nameChain });
+      if (!secretRefs.has(secretName)) {
+        secretRefs.set(secretName, new Set());
+      }
+      secretRefs.get(secretName).add('instanceSecret');
+      secretRefs.get(secretName).add('dbPassword');
+    }
     return secretRefs;
   }
 
@@ -3551,7 +3603,7 @@ export class ConfigManager {
       if (dbName) names.add(dbName);
       // INSTANCE_SECRET is referenced from the backend container env, which is keyed
       // by the same secret name. Adding it explicitly is harmless (Set dedups).
-      names.add(convex.name);
+      names.add(getConvexSecretName({ nameChain: convex.nameChain }));
     }
     return names;
   }
@@ -3638,7 +3690,12 @@ export class ConfigManager {
       ...this.remixWebs,
       ...this.openSearchDomains,
       ...this.efsFilesystems,
-      ...this.convexes
+      ...this.convexes,
+      ...this.agentCoreRuntimes,
+      ...this.agentCoreMemories,
+      ...this.agentCoreGateways,
+      ...this.agentCoreBrowsers,
+      ...this.agentCoreCodeInterpreters
     ];
   }
 

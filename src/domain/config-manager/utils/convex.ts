@@ -1,50 +1,86 @@
 /**
  * Convex config preprocessing.
  *
- * ====================================================================================
- * IMPLEMENTATION STATUS: VALIDATION SKELETON.
- * ====================================================================================
- *
- * Mirrors `nextjs-webs.ts`: per-resource validation called during config-manager
- * preprocessing. Concrete `StpConvex` graph construction (the `_nestedResources`
- * fan-out: backend + dashboard container workloads, RDS, five buckets, ALB) belongs
- * in `src/domain/config-manager/index.ts` as a `convexes` getter — see the
- * `nextjsWebs` getter (~lines 594–700) for the structural pattern.
+ * Validation for the synthesized self-hosted Convex resource.
  */
 
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { dirExists, isFileAccessible } from '@shared/utils/fs-utils';
+import { ExpectedError } from '@utils/errors';
+
+// Default pinned Convex images. Bump deliberately after testing Convex's
+// self-hosted migration path against a real Stacktape deployment.
+export const DEFAULT_CONVEX_BACKEND_IMAGE =
+  'ghcr.io/get-convex/convex-backend@sha256:122da352b12b216a017a1fb45c6a467f41a5b746158b47aecd1fe12f9f74edb0';
+
+export const DEFAULT_CONVEX_DASHBOARD_IMAGE =
+  'ghcr.io/get-convex/convex-dashboard@sha256:26bd4a89b097c5dd89e78d194a6b79c5c1b8cb1d02801b9946a9eb7b716e18dd';
+
+export const getConvexSecretName = ({ nameChain }: { nameChain: string[] }) =>
+  `stp/${globalStateManager.region}/${globalStateManager.targetStack.stackName}/${nameChain.join('.')}`;
 
 export const validateConvexConfig = ({ resource }: { resource: StpConvex }) => {
-  const absoluteAppDirectory = join(globalStateManager.workingDir, resource.appDirectory);
+  const absoluteAppDirectory = isAbsolute(resource.appDirectory)
+    ? resource.appDirectory
+    : join(globalStateManager.workingDir, resource.appDirectory);
 
   if (!dirExists(absoluteAppDirectory)) {
-    // TODO(convex): register a real error code in src/config/error-messages.ts
-    // (e.g., e200 — "Convex appDirectory does not exist") and throw via stpErrors.
-    throw new Error(
+    throw new ExpectedError(
+      'CONFIG',
       `Convex resource '${resource.name}': appDirectory '${resource.appDirectory}' does not exist ` +
         `(resolved to '${absoluteAppDirectory}'). Create a 'convex/' directory in your project root ` +
-        `containing your schema.ts and function files.`
+        `containing your Convex function files.`
     );
   }
 
   if (!isFileAccessible(join(absoluteAppDirectory, 'schema.ts'))) {
-    // TODO(convex): register e201 — "Convex appDirectory missing schema.ts"
-    throw new Error(
-      `Convex resource '${resource.name}': appDirectory '${resource.appDirectory}' must contain a ` +
-        `'schema.ts' file. See the Convex starter project for an example.`
+    tuiManager.warn(
+      `Convex resource '${resource.name}' has no schema.ts in '${resource.appDirectory}'. This is valid for schema-less apps, but make sure the directory contains your Convex functions.`
     );
   }
 
-  // Single-instance correctness invariant (see Q6 design discussion). The type system
-  // prevents `replicas` from being set, but if a user pokes via `overrides`, surface a
-  // clear error. Left as a runtime check to be added in the resolver template-override
-  // phase, where the final task-definition desiredCount is observable.
+  const customDomains = resource.customDomains;
+  if (customDomains) {
+    const missingRequiredOrigins = [
+      !customDomains.cloud && 'customDomains.cloud',
+      !customDomains.site && 'customDomains.site',
+      resource.dashboard?.enabled !== false && !customDomains.dashboard && 'customDomains.dashboard'
+    ].filter(Boolean);
+    if (missingRequiredOrigins.length) {
+      throw new ExpectedError(
+        'CONFIG',
+        `Convex resource '${resource.name}' is missing ${missingRequiredOrigins.join(', ')}.`,
+        'When using Convex custom domains, provide separate cloud and site domains, and a dashboard domain when the dashboard is enabled.'
+      );
+    }
+    if (resource.dashboard?.enabled === false && customDomains.dashboard) {
+      throw new ExpectedError(
+        'CONFIG',
+        `Convex resource '${resource.name}' has customDomains.dashboard, but dashboard.enabled is false.`,
+        'Remove customDomains.dashboard or enable the Convex dashboard.'
+      );
+    }
+  }
 
-  // Custom domains are required for production. If omitted, warn (not error) — the ALB
-  // DNS fallback works for staging but is unstable across stack recreations.
-  if (!resource.customDomains) {
-    // TODO(convex): wire into tuiManager.warn once the resolver runs.
+  if (resource.functionsDeployment?.workingDirectory) {
+    const absoluteWorkingDirectory = isAbsolute(resource.functionsDeployment.workingDirectory)
+      ? resource.functionsDeployment.workingDirectory
+      : join(globalStateManager.workingDir, resource.functionsDeployment.workingDirectory);
+    if (!dirExists(absoluteWorkingDirectory)) {
+      throw new ExpectedError(
+        'CONFIG',
+        `Convex resource '${resource.name}': functionsDeployment.workingDirectory '${resource.functionsDeployment.workingDirectory}' does not exist ` +
+          `(resolved to '${absoluteWorkingDirectory}').`,
+        'Create the directory or remove functionsDeployment.workingDirectory.'
+      );
+    }
+  }
+
+  if (resource.dashboard?.enabled !== false && !resource.dashboard?.allowedIpRanges?.length) {
+    tuiManager.warn(
+      `Convex dashboard for '${resource.name}' is internet-reachable. Set dashboard.allowedIpRanges to restrict access in production.`
+    );
   }
 };

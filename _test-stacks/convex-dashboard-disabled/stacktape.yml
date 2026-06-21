@@ -1,0 +1,17 @@
+resources:
+  convex:
+    type: convex
+    properties:
+      appDirectory: ./convex
+      functionsDeployment:
+        command: npx convex deploy --codegen disable --typecheck disable
+      backend:
+        resources:
+          cpu: 0.5
+          memory: 1024
+      dashboard:
+        enabled: false
+      database:
+        automatedBackupRetentionDays: 2
+      storage:
+        versioning: true

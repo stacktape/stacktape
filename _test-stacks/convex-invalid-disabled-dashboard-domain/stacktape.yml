@@ -1,0 +1,18 @@
+resources:
+  convex:
+    type: convex
+    properties:
+      appDirectory: convex
+      backend:
+        resources:
+          cpu: 0.5
+          memory: 1024
+      dashboard:
+        enabled: false
+      customDomains:
+        cloud:
+          domainName: convex-cloud.example.com
+        site:
+          domainName: convex-site.example.com
+        dashboard:
+          domainName: convex-dashboard.example.com

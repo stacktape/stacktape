@@ -1,0 +1,33 @@
+resources:
+  convex:
+    type: convex
+    properties:
+      appDirectory: ./convex
+      functionsDeployment:
+        enabled: false
+      backend:
+        resources:
+          cpu: 1
+          memory: 2048
+      dashboard:
+        enabled: true
+        allowedIpRanges:
+          - 203.0.113.0/24
+        resources:
+          cpu: 0.25
+          memory: 512
+      database:
+        automatedBackupRetentionDays: 7
+        preferredMaintenanceWindow: Sun:02:00-Sun:04:00
+      storage:
+        versioning: true
+      deletionProtection: true
+      alarms:
+        - trigger:
+            type: application-load-balancer-error-rate
+            properties:
+              thresholdPercent: 10
+        - trigger:
+            type: database-cpu-utilization
+            properties:
+              thresholdPercent: 80

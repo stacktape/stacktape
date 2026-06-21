@@ -16,6 +16,7 @@ import { configManager } from '../index';
 import { validateApplicationLoadBalancerConfig } from './application-load-balancers';
 import { resolveReferenceToBastion } from './bastion';
 import { validateBucketConfig, validateHostingBucketConfig } from './buckets';
+import { validateConvexConfig } from './convex';
 import { validateHttpApiGatewayConfig } from './http-api-gateways';
 import { validateLambdaConfig } from './lambdas';
 import { validateMultiContainerWorkloadConfig } from './multi-container-workloads';
@@ -571,6 +572,9 @@ export const runInitialValidations = () => {
   );
   configManager.awsCdkConstructs.forEach((construct) => {
     validateAwsCdkConstructProps({ construct });
+  });
+  configManager.convexes.forEach((resource) => {
+    validateConvexConfig({ resource });
   });
   // http-api-gateway
   configManager.allHttpApiGateways.forEach((resource) => {

@@ -87,9 +87,7 @@ export const convexAdminKey = async (
     // alone — rotating it would invalidate every issued token.
     let instanceSecretArn: string | undefined;
     try {
-      const desc = await client.send(
-        new DescribeSecretCommand({ SecretId: currentProps.instanceSecretSecretName })
-      );
+      const desc = await client.send(new DescribeSecretCommand({ SecretId: currentProps.instanceSecretSecretName }));
       instanceSecretArn = desc.ARN;
       console.info(`INSTANCE_SECRET already exists at ${desc.ARN} — leaving unchanged`);
     } catch (err) {

@@ -1,11 +1,18 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api';
 
+type Message = {
+  _id: string;
+  author: string;
+  body: string;
+};
+
 export default function Home() {
-  const messages = useQuery(api.messages.list);
+  const messages = useQuery(api.messages.list) as Message[] | undefined;
   const send = useMutation(api.messages.send);
   const [body, setBody] = useState('');
   const [author, setAuthor] = useState('');

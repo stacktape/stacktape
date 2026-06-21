@@ -1,17 +1,5 @@
-# For the first deploy we keep the post-deploy `convex codegen` hook off — it
-# depends on the admin key, which is generated inside the backend container by
-# `./generate_key` and surfaced via a follow-up plumbing step. Workflow today:
-#
-#   1. `stacktape deploy` — provisions backend, DB, buckets, ALB, dashboard.
-#   2. SSH-equivalent into the container (`stacktape container:session`) and run
-#      `./generate_key <instance_name> $INSTANCE_SECRET` to mint an admin key.
-#   3. Run `npx convex codegen` and `npx convex deploy` locally with
-#      `CONVEX_SELF_HOSTED_URL=<deployed url>` and `CONVEX_SELF_HOSTED_ADMIN_KEY=<key>`
-#      to push your function code.
-#
-# TODO(convex): wire admin-key generation as a CF custom resource so this becomes
-# automatic. The Lambda handler skeleton is already in place at
-# `helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/convex-admin-key.ts`.
+# `stacktape deploy` provisions the self-hosted Convex infrastructure, generates the
+# managed admin key, and runs `npx convex deploy` against the deployed backend.
 
 resources:
   convex:

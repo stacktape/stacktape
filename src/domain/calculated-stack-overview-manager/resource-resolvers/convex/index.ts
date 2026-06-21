@@ -1,10 +1,16 @@
-import { GetAtt, Sub } from '@cloudform/functions';
+import { GetAtt, Ref, Sub } from '@cloudform/functions';
+import { DeletionPolicy } from '@cloudform/resource';
+import Secret from '@cloudform/secretsManager/secret';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
+import { getConvexSecretName } from '@domain-services/config-manager/utils/convex';
 import { domainManager } from '@domain-services/domain-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { cfLogicalNames } from '@shared/naming/logical-names';
+import { pascalCase } from 'change-case';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+
+const getConvexRuntimeSecretLogicalName = (convexName: string) => `${pascalCase(convexName)}RuntimeSecret`;
 
 /**
  * Convex resource resolver.
@@ -28,16 +34,19 @@ export const resolveConvexes = async () => {
     const lb = convex._nestedResources.loadBalancer;
     const backend = convex._nestedResources.backendContainerWorkload;
     const database = convex._nestedResources.database;
+    const convexSecretName = getConvexSecretName({ nameChain });
+    const runtimeSecretLogicalName = getConvexRuntimeSecretLogicalName(convex.name);
 
+    const defaultDomain = domainManager.getDefaultDomainForResource({ stpResourceName: lb.name });
     const cloudUrl = customDomains?.cloud?.domainName
       ? `https://${customDomains.cloud.domainName}`
-      : `https://${domainManager.getDefaultDomainForResource({ stpResourceName: lb.name })}`;
+      : `https://${defaultDomain}:3210`;
     const siteUrl = customDomains?.site?.domainName
       ? `https://${customDomains.site.domainName}`
-      : cloudUrl;
+      : `https://${defaultDomain}:3211`;
     const dashboardUrl = customDomains?.dashboard?.domainName
       ? `https://${customDomains.dashboard.domainName}`
-      : cloudUrl;
+      : `https://${defaultDomain}:6791`;
 
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
@@ -59,6 +68,46 @@ export const resolveConvexes = async () => {
         showDuringPrint: true
       });
     }
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      nameChain,
+      paramName: 'adminKey',
+      paramValue: '__pending_post_deploy_generation__',
+      sensitive: true,
+      showDuringPrint: false
+    });
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      nameChain,
+      paramName: 'instanceSecret',
+      paramValue: '__pending_post_deploy_generation__',
+      sensitive: true,
+      showDuringPrint: false
+    });
+
+    const dbInstanceLogicalName = cfLogicalNames.dbInstance(database.name);
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: runtimeSecretLogicalName,
+      nameChain,
+      resource: new Secret({
+        Description: `Runtime secrets for Convex resource ${convex.name}`,
+        SecretString: Sub(
+          [
+            '{"instanceSecret":"{{resolve:secretsmanager:',
+            convexSecretName,
+            ':SecretString:instanceSecret}}","postgresUrl":"postgresql://convex:{{resolve:secretsmanager:',
+            convexSecretName,
+            ':SecretString:dbPassword}}@',
+            '$',
+            '{dbHost}:',
+            '$',
+            '{dbPort}?sslmode=disable"}'
+          ].join(''),
+          {
+            dbHost: GetAtt(dbInstanceLogicalName, 'Endpoint.Address'),
+            dbPort: GetAtt(dbInstanceLogicalName, 'Endpoint.Port')
+          }
+        )
+      })
+    });
 
     // Patch POSTGRES_URL on the convex-backend task definition. Convex's URL parser
     // rejects connection strings with a database name path; Stacktape's standard
@@ -99,7 +148,6 @@ export const resolveConvexes = async () => {
       const taskDef: any = template.Resources[taskDefLogicalName];
       if (!taskDef) return;
 
-      const dbInstanceLogicalName = cfLogicalNames.dbInstance(database.name);
       const dbInstance = template.Resources[dbInstanceLogicalName];
       if (!dbInstance) return;
 
@@ -107,27 +155,38 @@ export const resolveConvexes = async () => {
       const backendContainer = containers.find((c) => c.Name === 'convex-backend');
       if (!backendContainer) return;
       const env = backendContainer.Environment as Array<{ Name: string; Value: any }>;
-
-      // {{resolve:secretsmanager:<secretName>:SecretString:dbPassword}}
-      const secretRef = `{{resolve:secretsmanager:${convex.name}:SecretString:dbPassword}}`;
-
-      // Plaintext connection — RDS is in private subnets, force_ssl is disabled
-      // above. Convex's rustls-based pg client doesn't trust AWS's RDS CA chain so
-      // TLS-enabled paths fail with `UnknownIssuer`.
-      const postgresUrl = Sub(
-        `postgresql://convex:${secretRef}@\${dbHost}:\${dbPort}?sslmode=disable`,
-        {
-          dbHost: GetAtt(dbInstanceLogicalName, 'Endpoint.Address'),
-          dbPort: GetAtt(dbInstanceLogicalName, 'Endpoint.Port')
+      const setEnv = (name: string, value: any) => {
+        const idx = env.findIndex((e) => e.Name === name);
+        if (idx >= 0) {
+          env[idx].Value = value;
+        } else {
+          env.push({ Name: name, Value: value });
         }
-      );
+      };
 
-      const postgresUrlIdx = env.findIndex((e) => e.Name === 'POSTGRES_URL');
-      if (postgresUrlIdx >= 0) {
-        env[postgresUrlIdx].Value = postgresUrl;
-      } else {
-        env.push({ Name: 'POSTGRES_URL', Value: postgresUrl });
-      }
+      setEnv('CONVEX_CLOUD_ORIGIN', cloudUrl);
+      setEnv('CONVEX_SITE_ORIGIN', siteUrl);
+      ['INSTANCE_SECRET', 'POSTGRES_URL'].forEach((n) => {
+        const idx = env.findIndex((e) => e.Name === n);
+        if (idx >= 0) env.splice(idx, 1);
+      });
+      backendContainer.Secrets = [
+        ...(backendContainer.Secrets || []).filter(
+          (secret: any) => !['INSTANCE_SECRET', 'POSTGRES_URL'].includes(secret.Name)
+        ),
+        {
+          Name: 'INSTANCE_SECRET',
+          ValueFrom: Sub(`${'$'}{runtimeSecretArn}:instanceSecret::`, {
+            runtimeSecretArn: Ref(runtimeSecretLogicalName)
+          })
+        },
+        {
+          Name: 'POSTGRES_URL',
+          ValueFrom: Sub(`${'$'}{runtimeSecretArn}:postgresUrl::`, {
+            runtimeSecretArn: Ref(runtimeSecretLogicalName)
+          })
+        }
+      ];
 
       // Also clean up the redundant placeholders we set in the config-manager
       // (they had directive strings that won't compose inline — kept as a hint to
@@ -136,6 +195,56 @@ export const resolveConvexes = async () => {
         const idx = env.findIndex((e) => e.Name === n);
         if (idx >= 0) env.splice(idx, 1);
       });
+
+      const ecsExecutionRole: any = template.Resources[cfLogicalNames.ecsExecutionRole()];
+      if (ecsExecutionRole) {
+        ecsExecutionRole.Properties.Policies = [
+          ...(ecsExecutionRole.Properties.Policies || []),
+          {
+            PolicyName: `${runtimeSecretLogicalName}-access`,
+            PolicyDocument: {
+              Version: '2012-10-17',
+              Statement: [
+                {
+                  Effect: 'Allow',
+                  Action: ['secretsmanager:GetSecretValue'],
+                  Resource: [Ref(runtimeSecretLogicalName)]
+                }
+              ]
+            }
+          }
+        ];
+      }
+
+      const dashboard = convex._nestedResources.dashboardContainerWorkload;
+      if (dashboard) {
+        const dashboardTaskDefLogicalName = cfLogicalNames.ecsTaskDefinition(dashboard.name);
+        const dashboardTaskDef: any = template.Resources[dashboardTaskDefLogicalName];
+        const dashboardContainer = dashboardTaskDef?.Properties?.ContainerDefinitions?.find(
+          (c: any) => c.Name === 'convex-dashboard'
+        );
+        const dashboardEnv = dashboardContainer?.Environment as Array<{ Name: string; Value: any }> | undefined;
+        const deploymentUrl = dashboardEnv?.find((e) => e.Name === 'NEXT_PUBLIC_DEPLOYMENT_URL');
+        if (deploymentUrl) {
+          deploymentUrl.Value = cloudUrl;
+        }
+      }
+
+      if (convex.deletionProtection) {
+        [
+          convex._nestedResources.modulesBucket,
+          convex._nestedResources.filesBucket,
+          convex._nestedResources.searchBucket,
+          convex._nestedResources.exportsBucket,
+          convex._nestedResources.snapshotImportsBucket
+        ].forEach((bucket) => {
+          const bucketResource: any = template.Resources[cfLogicalNames.bucket(bucket.name)];
+          if (bucketResource) {
+            bucketResource.DeletionPolicy = DeletionPolicy.Retain;
+            bucketResource.UpdateReplacePolicy = DeletionPolicy.Retain;
+          }
+        });
+      }
     });
   });
 };

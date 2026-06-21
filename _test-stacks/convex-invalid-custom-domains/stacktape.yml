@@ -1,0 +1,14 @@
+resources:
+  convex:
+    type: convex
+    properties:
+      appDirectory: ./convex
+      customDomains:
+        cloud:
+          domainName: api.example.com
+        site:
+          domainName: site.example.com
+      backend:
+        resources:
+          cpu: 0.5
+          memory: 1024

@@ -1,0 +1,9 @@
+resources:
+  convex:
+    type: convex
+    properties:
+      appDirectory: convex
+      functionsDeployment:
+        enabled: false
+      dashboard:
+        enabled: false
