@@ -31,7 +31,12 @@ __platform-packages
 stacktape-project
 compiled-template.yaml
 scripts/simon
+scripts/e2e-mcp/results/
 docs/node_modules
+docs/.docs-gen/artifacts/
+docs/.docs-gen/logs/
+docs/.docs-gen/state.sqlite*
+docs/.docs-gen/.migration-lock/
 docs/.next
 docs/public/_timestamps.json
 docs/out
