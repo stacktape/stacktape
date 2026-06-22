@@ -25,7 +25,7 @@ Provisioned concurrency can reduce cold starts, but it adds idle compute cost �
 
 ### Container services: always-on cost
 
-A Stacktape [web service](/resources/compute/web-service) is a container running 24/7 with a public HTTPS URL, so treat it as always-on compute that bills continuously. [Private services](/resources/compute/private-service) and [worker services](/resources/compute/worker-service) are also container-based resources — see their resource pages for runtime and scaling behavior. Before deploying a container service, confirm your workload genuinely needs an always-on process. If traffic is sporadic, a Lambda function with an [HTTP trigger](/configuration/triggers/http-triggers) is usually cheaper.
+A Stacktape [web service](/resources/compute/web-service) is a container running 24/7 with a public HTTPS URL, so treat it as always-on compute that bills continuously. [Private services](/resources/compute/private-service) and [worker services](/resources/compute/worker-service) are also container-based resources — see their resource pages for runtime and scaling behavior. Before deploying a container service, confirm your workload genuinely needs an always-on process. If traffic is sporadic, a Lambda function with an [HTTP trigger](/resources/triggers/http-triggers) is usually cheaper.
 
 Right-size the `resources` block. For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory, so right-sizing is the first optimization. Start at the smallest combination that keeps your application responsive and scale up only when metrics show resource pressure.
 

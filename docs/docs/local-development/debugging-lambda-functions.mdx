@@ -278,11 +278,11 @@ Use descriptive `action` fields so you can later filter with `--filter "request_
 
 ### Testing HTTP-triggered functions
 
-For Lambda functions with [HTTP API Gateway triggers](/configuration/triggers/http-triggers), invoke the function's endpoint directly with curl, a browser, or any HTTP client while watching logs stream in the dev TUI. For HTTP-triggered Lambda functions, use the URL shown by dev mode when one is available, or inspect the deployed stack outputs for the endpoint.
+For Lambda functions with [HTTP API Gateway triggers](/resources/triggers/http-triggers), invoke the function's endpoint directly with curl, a browser, or any HTTP client while watching logs stream in the dev TUI. For HTTP-triggered Lambda functions, use the URL shown by dev mode when one is available, or inspect the deployed stack outputs for the endpoint.
 
 ### Narrowing the feedback loop
 
-When debugging a specific function, use `--resources <name>` to start only that function in dev mode. This reduces startup time and log noise from other workloads. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/configuration/triggers/sqs-events), or wait for [schedules](/configuration/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
+When debugging a specific function, use `--resources <name>` to start only that function in dev mode. This reduces startup time and log noise from other workloads. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
 
 ## Dev mode vs deployed-stack debugging
 
@@ -308,7 +308,7 @@ Lambda functions in dev mode run on AWS Lambda infrastructure, not on your local
 
 ### Do my Lambda function's event sources work in dev mode?
 
-Lambda functions are included as dev-compatible workloads, and normal dev mode deploys a dev stack that includes selected functions. To verify a trigger during dev mode, invoke the function's configured entry point — call the HTTP endpoint directly, send a message to a connected queue, or wait for a scheduled trigger — and watch the dev TUI logs for output. See [triggers overview](/configuration/triggers/overview) for the available event source types.
+Lambda functions are included as dev-compatible workloads, and normal dev mode deploys a dev stack that includes selected functions. To verify a trigger during dev mode, invoke the function's configured entry point — call the HTTP endpoint directly, send a message to a connected queue, or wait for a scheduled trigger — and watch the dev TUI logs for output. See [triggers overview](/resources/triggers/overview) for the available event source types.
 
 ### Can I debug only some functions while keeping others untouched?
 

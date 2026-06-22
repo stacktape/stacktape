@@ -29,7 +29,7 @@ Use an SNS topic when a single event needs to trigger multiple independent actio
 
 ## Basic example
 
-An SNS topic has no required properties. Because `fifoEnabled` defaults to `false`, omitting all properties creates a standard topic. In Stacktape, Lambda subscriptions are the documented integration path, configured using the `SnsIntegration` trigger (`type: 'sns'`) on the [Lambda function](/resources/compute/lambda-function) — see [SNS triggers](/configuration/triggers/sns-events). For other subscription protocols not modeled by Stacktape, you can use [`cloudformationResources`](/resources/advanced/raw-cloudformation-resources) as a raw CloudFormation escape hatch.
+An SNS topic has no required properties. Because `fifoEnabled` defaults to `false`, omitting all properties creates a standard topic. In Stacktape, Lambda subscriptions are the documented integration path, configured using the `SnsIntegration` trigger (`type: 'sns'`) on the [Lambda function](/resources/compute/lambda-function) — see [SNS triggers](/resources/triggers/sns-events). For other subscription protocols not modeled by Stacktape, you can use [`cloudformationResources`](/resources/advanced/raw-cloudformation-resources) as a raw CloudFormation escape hatch.
 
 <CodeBlock
   intellisense
@@ -125,7 +125,7 @@ export default defineConfig(() => {
 
 ## Fan-out pattern
 
-SNS fan-out delivers each published message to every subscriber independently. In Stacktape, the most direct fan-out uses multiple [Lambda functions](/resources/compute/lambda-function), each subscribing to the same topic via an [SNS trigger](/configuration/triggers/sns-events). Each function receives its own copy of every message and processes it independently — the publisher does not need to know how many subscribers exist.
+SNS fan-out delivers each published message to every subscriber independently. In Stacktape, the most direct fan-out uses multiple [Lambda functions](/resources/compute/lambda-function), each subscribing to the same topic via an [SNS trigger](/resources/triggers/sns-events). Each function receives its own copy of every message and processes it independently — the publisher does not need to know how many subscribers exist.
 
 This example shows a single `orderEvents` topic with two independent subscribers: one sends email confirmations, the other records analytics. Publishing one message triggers both functions simultaneously.
 
@@ -191,7 +191,7 @@ export default defineConfig(() => {
 
 ## Subscribing a Lambda function
 
-A [Lambda function](/resources/compute/lambda-function) can subscribe to an SNS topic using an [SNS trigger](/configuration/triggers/sns-events). When a message is published, AWS invokes the function with the message payload. Configure this using an SNS event on the Lambda function — not on the topic itself.
+A [Lambda function](/resources/compute/lambda-function) can subscribe to an SNS topic using an [SNS trigger](/resources/triggers/sns-events). When a message is published, AWS invokes the function with the message payload. Configure this using an SNS event on the Lambda function — not on the topic itself.
 
 Key settings on the trigger:
 
@@ -468,7 +468,7 @@ The maximum SNS message size is 256 KB. For larger payloads, store the data in a
 
 ### How do I filter messages so subscribers only receive relevant ones?
 
-Use `filterPolicy` on the [SNS trigger](/configuration/triggers/sns-events) to filter messages by their attributes. Only messages whose attributes match the filter policy are delivered to that subscriber. This reduces unnecessary Lambda invocations and processing costs. For richer content-based routing with nested pattern matching, consider an [EventBridge event bus](/resources/messaging/event-bus).
+Use `filterPolicy` on the [SNS trigger](/resources/triggers/sns-events) to filter messages by their attributes. Only messages whose attributes match the filter policy are delivered to that subscriber. This reduces unnecessary Lambda invocations and processing costs. For richer content-based routing with nested pattern matching, consider an [EventBridge event bus](/resources/messaging/event-bus).
 
 ### Can I use SNS with container services?
 

@@ -1,6 +1,6 @@
 ---
 title: 'Kafka Topics'
-order: 29
+order: 71
 seoTitle: 'Kafka Topic Triggers for Lambda Functions | Stacktape Docs'
 seoDescription: 'Trigger AWS Lambda functions from Apache Kafka topics using Stacktape. Configure SASL or MTLS authentication, batch size, and polling for serverless Kafka consumers.'
 ---
@@ -21,9 +21,9 @@ Common scenarios:
 
 ## When NOT to use
 
-- **Simple message queuing** — if you don't already run Kafka, an [SQS queue trigger](/configuration/triggers/sqs-events) is simpler and cheaper for standard async processing.
-- **Fan-out to multiple consumers** — Kafka handles fan-out natively via consumer groups, but if your architecture is AWS-native, [SNS](/configuration/triggers/sns-events) or [EventBridge](/configuration/triggers/event-bus-events) is typically easier to operate.
-- **Ordered stream processing with retry controls** — if you need `maximumRetryAttempts`, `onFailure` destinations, or `bisectBatchOnFunctionError`, consider a [Kinesis stream trigger](/configuration/triggers/kinesis-events) or [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) instead. The Kafka topic trigger does not expose these properties.
+- **Simple message queuing** — if you don't already run Kafka, an [SQS queue trigger](/resources/triggers/sqs-events) is simpler and cheaper for standard async processing.
+- **Fan-out to multiple consumers** — Kafka handles fan-out natively via consumer groups, but if your architecture is AWS-native, [SNS](/resources/triggers/sns-events) or [EventBridge](/resources/triggers/event-bus-events) is typically easier to operate.
+- **Ordered stream processing with retry controls** — if you need `maximumRetryAttempts`, `onFailure` destinations, or `bisectBatchOnFunctionError`, consider a [Kinesis stream trigger](/resources/triggers/kinesis-events) or [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) instead. The Kafka topic trigger does not expose these properties.
 
 ## Basic example
 
@@ -252,7 +252,7 @@ Yes. The Lambda function `events` property accepts an array, so you can add mult
 
 ### What happens if my function fails?
 
-Unlike [Kinesis stream](/configuration/triggers/kinesis-events) or [DynamoDB stream](/configuration/triggers/dynamodb-streams) triggers, which expose `maximumRetryAttempts` and `onFailure` destination properties, the Kafka topic trigger does not expose these controls. Design your handler to be idempotent, and consider implementing dead-letter logic within your function code if you need to capture persistently failing records.
+Unlike [Kinesis stream](/resources/triggers/kinesis-events) or [DynamoDB stream](/resources/triggers/dynamodb-streams) triggers, which expose `maximumRetryAttempts` and `onFailure` destination properties, the Kafka topic trigger does not expose these controls. Design your handler to be idempotent, and consider implementing dead-letter logic within your function code if you need to capture persistently failing records.
 
 ### How do I create the Secrets Manager secret for authentication?
 

@@ -71,7 +71,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The schedule expression uses AWS cron syntax and runs in UTC. Use `rate(...)` for simple intervals such as `rate(2 hours)`, and use `cron(...)` when the job must run at a specific time or day. See [schedule triggers](/configuration/triggers/schedule-triggers) for trigger details.
+The schedule expression uses AWS cron syntax and runs in UTC. Use `rate(...)` for simple intervals such as `rate(2 hours)`, and use `cron(...)` when the job must run at a specific time or day. See [schedule triggers](/resources/triggers/schedule-triggers) for trigger details.
 
 ## Compute resources
 
@@ -140,7 +140,7 @@ A batch job can start from several event sources: HTTP API Gateway, Application 
 | `cloudwatch-log` | Matching CloudWatch log records start the job |
 | `event-bus` | EventBridge events matching a pattern start the job |
 
-The API reference carries the full property shape for each integration. For a broader decision guide across trigger families, see [triggers overview](/configuration/triggers/overview).
+The API reference carries the full property shape for each integration. For a broader decision guide across trigger families, see [triggers overview](/resources/triggers/overview).
 
 ## Retries and timeout
 

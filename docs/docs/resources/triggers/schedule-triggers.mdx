@@ -1,6 +1,6 @@
 ---
 title: 'Schedule Triggers'
-order: 20
+order: 62
 seoTitle: 'Schedule Triggers — Cron & Rate Schedules | Stacktape Docs'
 seoDescription: 'Run Lambda functions on cron or rate schedules with Stacktape. Configure recurring tasks, customize event payloads, and monitor invocations.'
 ---
@@ -18,8 +18,8 @@ A schedule trigger invokes a Stacktape [Lambda function](/resources/compute/lamb
 
 ## When NOT to use
 
-- **Real-time event processing** — if the trigger is an incoming message, file upload, or database change, use [SQS](/configuration/triggers/sqs-events), [S3](/configuration/triggers/s3-events), or [DynamoDB Streams](/configuration/triggers/dynamodb-streams) triggers instead.
-- **Sub-minute granularity** — the minimum interval is one minute. For higher-frequency processing, use a stream-based trigger like [Kinesis](/configuration/triggers/kinesis-events) or a long-running container with an internal timer.
+- **Real-time event processing** — if the trigger is an incoming message, file upload, or database change, use [SQS](/resources/triggers/sqs-events), [S3](/resources/triggers/s3-events), or [DynamoDB Streams](/resources/triggers/dynamodb-streams) triggers instead.
+- **Sub-minute granularity** — the minimum interval is one minute. For higher-frequency processing, use a stream-based trigger like [Kinesis](/resources/triggers/kinesis-events) or a long-running container with an internal timer.
 - **Complex multi-step orchestration** — for branching, retries, or parallel steps, use a [state machine](/resources/orchestration/state-machine). This page only documents schedule triggers for Lambda functions.
 
 ## Basic example
@@ -387,7 +387,7 @@ Set up [alarms](/observability/alarms) on your scheduled functions to catch fail
 
 ### What is the minimum schedule interval?
 
-One minute — `rate(1 minute)` is the smallest interval, and cron expressions cannot fire more often than once per minute either. There is no sub-minute scheduling; if you need higher frequency, use a stream-based trigger like [Kinesis](/configuration/triggers/kinesis-events) or run a long-lived container with an internal loop.
+One minute — `rate(1 minute)` is the smallest interval, and cron expressions cannot fire more often than once per minute either. There is no sub-minute scheduling; if you need higher frequency, use a stream-based trigger like [Kinesis](/resources/triggers/kinesis-events) or run a long-lived container with an internal loop.
 
 ### Are schedule times in UTC or local time?
 

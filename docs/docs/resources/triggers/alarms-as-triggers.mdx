@@ -1,6 +1,6 @@
 ---
 title: 'Alarms as Triggers'
-order: 28
+order: 70
 seoTitle: 'Alarms as Lambda Triggers | Stacktape Docs'
 seoDescription: 'Trigger Lambda functions when CloudWatch alarms fire. Build automated remediation, custom notifications, and incident workflows with Stacktape alarm triggers.'
 ---
@@ -114,7 +114,7 @@ Most trigger types compare a CloudWatch metric against a configured threshold. T
 
 ### Can I trigger multiple Lambda functions from the same alarm?
 
-`AlarmIntegrationProps` exposes only `alarmName`, so for reliable fan-out — for example, one handler for remediation and another for custom notifications — publish alarm state changes to an [EventBridge event bus](/resources/messaging/event-bus) and subscribe each consumer with an [event bus trigger](/configuration/triggers/event-bus-events). That gives each function its own independent subscription to the same alarm event.
+`AlarmIntegrationProps` exposes only `alarmName`, so for reliable fan-out — for example, one handler for remediation and another for custom notifications — publish alarm state changes to an [EventBridge event bus](/resources/messaging/event-bus) and subscribe each consumer with an [event bus trigger](/resources/triggers/event-bus-events). That gives each function its own independent subscription to the same alarm event.
 
 ### How is an alarm trigger different from notification targets?
 
@@ -130,4 +130,4 @@ Not currently. The `input`, `inputPath`, and `inputTransformer` options are not 
 
 ### Can I reference alarms from a different Stacktape stack or AWS account?
 
-No. `alarmName` must name an alarm defined in the same configuration's `alarms` section — `AlarmIntegrationProps` exposes no ARN, external-account, or external-stack field. To react to alarms from another stack or account, route them through an [EventBridge event bus](/resources/messaging/event-bus) and consume them with an [event bus trigger](/configuration/triggers/event-bus-events).
+No. `alarmName` must name an alarm defined in the same configuration's `alarms` section — `AlarmIntegrationProps` exposes no ARN, external-account, or external-stack field. To react to alarms from another stack or account, route them through an [EventBridge event bus](/resources/messaging/event-bus) and consume them with an [event bus trigger](/resources/triggers/event-bus-events).

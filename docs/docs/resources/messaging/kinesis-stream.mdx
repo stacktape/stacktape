@@ -253,7 +253,7 @@ By default, all consumers reading from a Kinesis stream share the same 2 MB/s re
 
 Enable enhanced fan-out when you have multiple independent consumers reading from the same stream and latency matters. If you have a single consumer or can tolerate shared throughput, skip it — enhanced fan-out adds per-consumer, per-shard-hour cost.
 
-Set `enableEnhancedFanOut: true` on the stream. On the consuming [Lambda function's](/resources/compute/lambda-function) [Kinesis trigger](/configuration/triggers/kinesis-events), set `autoCreateConsumer: true` to create a dedicated stream consumer for that integration.
+Set `enableEnhancedFanOut: true` on the stream. On the consuming [Lambda function's](/resources/compute/lambda-function) [Kinesis trigger](/resources/triggers/kinesis-events), set `autoCreateConsumer: true` to create a dedicated stream consumer for that integration.
 
 <CodeBlock
   intellisense
@@ -337,7 +337,7 @@ export default defineConfig(() => {
 
 ## Triggering a Lambda function
 
-A Kinesis stream is a common event source for [Lambda functions](/resources/compute/lambda-function). A [Kinesis trigger](/configuration/triggers/kinesis-events) invokes the Lambda with batches of records from the stream. In direct mode, AWS polls each shard approximately once per second; when `autoCreateConsumer` is enabled, a dedicated stream consumer pushes records instead for lower latency. Configure this using a Kinesis trigger on the Lambda function — not on the stream itself. Use `kinesisStreamName` to reference a Kinesis stream defined in your stack's resources, or `streamArn` to consume a stream not managed by your stack.
+A Kinesis stream is a common event source for [Lambda functions](/resources/compute/lambda-function). A [Kinesis trigger](/resources/triggers/kinesis-events) invokes the Lambda with batches of records from the stream. In direct mode, AWS polls each shard approximately once per second; when `autoCreateConsumer` is enabled, a dedicated stream consumer pushes records instead for lower latency. Configure this using a Kinesis trigger on the Lambda function — not on the stream itself. Use `kinesisStreamName` to reference a Kinesis stream defined in your stack's resources, or `streamArn` to consume a stream not managed by your stack.
 
 Key trigger settings:
 
@@ -512,8 +512,8 @@ Enhanced fan-out gives each consumer its own dedicated 2 MB/s read throughput pe
 
 ### How do I handle failed records in a Kinesis Lambda consumer?
 
-Configure `maximumRetryAttempts` on the [Kinesis trigger](/configuration/triggers/kinesis-events) to limit retries. Use `bisectBatchOnFunctionError: true` to split failed batches in half, isolating poison records faster. Use `onFailure` to configure an SQS or SNS destination for batches that fail after all retry attempts. Always make your handler idempotent — AWS Lambda retries the entire batch on error, including already-processed records.
+Configure `maximumRetryAttempts` on the [Kinesis trigger](/resources/triggers/kinesis-events) to limit retries. Use `bisectBatchOnFunctionError: true` to split failed batches in half, isolating poison records faster. Use `onFailure` to configure an SQS or SNS destination for batches that fail after all retry attempts. Always make your handler idempotent — AWS Lambda retries the entire batch on error, including already-processed records.
 
 ### Why do my consumers keep falling behind the stream?
 
-Watch the `GetRecords.IteratorAgeMilliseconds` CloudWatch metric — a growing iterator age means consumers can't keep up with the incoming records. To catch up, add shards (provisioned mode) so reads parallelize, raise `parallelizationFactor` on the [Kinesis trigger](/configuration/triggers/kinesis-events) to process more batches per shard concurrently, or enable [enhanced fan-out](#enhanced-fan-out) so each consumer gets its own 2 MB/s pipe. Stacktape's provided alarm trigger types do not include a Kinesis-specific alarm, so set up lag alarms on this metric directly in CloudWatch via [overrides](/configuration/overrides-and-escape-hatches).
+Watch the `GetRecords.IteratorAgeMilliseconds` CloudWatch metric — a growing iterator age means consumers can't keep up with the incoming records. To catch up, add shards (provisioned mode) so reads parallelize, raise `parallelizationFactor` on the [Kinesis trigger](/resources/triggers/kinesis-events) to process more batches per shard concurrently, or enable [enhanced fan-out](#enhanced-fan-out) so each consumer gets its own 2 MB/s pipe. Stacktape's provided alarm trigger types do not include a Kinesis-specific alarm, so set up lag alarms on this metric directly in CloudWatch via [overrides](/configuration/overrides-and-escape-hatches).

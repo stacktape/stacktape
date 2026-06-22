@@ -1,6 +1,6 @@
 ---
 title: 'Kinesis Events'
-order: 25
+order: 67
 seoTitle: 'Kinesis Event Triggers for Lambda Functions | Stacktape Docs'
 seoDescription: 'Configure Kinesis Data Stream triggers for Lambda functions in Stacktape. Covers batching, enhanced fan-out, consumption modes, retry strategies, and dead-letter routing.'
 ---
@@ -24,8 +24,8 @@ Underneath, Stacktape Kinesis triggers use AWS Kinesis Data Streams, which prese
 
 Kinesis shards carry a base hourly cost and add shard-management complexity. Skip Kinesis triggers when:
 
-- **Simple task decoupling without ordering** — an [SQS trigger](/configuration/triggers/sqs-events) is simpler to operate and auto-scales consumers without shard management.
-- **Fan-out from a single event to multiple targets** — an [SNS trigger](/configuration/triggers/sns-events) or [EventBridge event bus trigger](/configuration/triggers/event-bus-events) is a better fit when each event should invoke multiple independent handlers simultaneously.
+- **Simple task decoupling without ordering** — an [SQS trigger](/resources/triggers/sqs-events) is simpler to operate and auto-scales consumers without shard management.
+- **Fan-out from a single event to multiple targets** — an [SNS trigger](/resources/triggers/sns-events) or [EventBridge event bus trigger](/resources/triggers/event-bus-events) is a better fit when each event should invoke multiple independent handlers simultaneously.
 - **Low-volume, irregular workloads** — if you process fewer than a few hundred events per second, SQS (pay-per-message) or EventBridge (pay-per-event) is more cost-effective than provisioning shards.
 
 ## Basic example
@@ -227,7 +227,7 @@ AWS Kinesis charges per shard-hour for provisioned mode, plus per-PUT-payload-un
 
 ### When should I use Kinesis vs SQS vs EventBridge?
 
-Use **Kinesis** when you need ordered, replayable, high-throughput streaming where multiple consumers can independently read the same data. Use **[SQS](/configuration/triggers/sqs-events)** for simple decoupled task processing where each message is consumed once and ordering doesn't matter. Use **[EventBridge](/configuration/triggers/event-bus-events)** for content-based event routing — matching events by patterns and fanning out to different targets based on event type or payload. SQS is the simplest and cheapest for most workloads; Kinesis is the right tool when ordering, replay, or multi-consumer access matters.
+Use **Kinesis** when you need ordered, replayable, high-throughput streaming where multiple consumers can independently read the same data. Use **[SQS](/resources/triggers/sqs-events)** for simple decoupled task processing where each message is consumed once and ordering doesn't matter. Use **[EventBridge](/resources/triggers/event-bus-events)** for content-based event routing — matching events by patterns and fanning out to different targets based on event type or payload. SQS is the simplest and cheapest for most workloads; Kinesis is the right tool when ordering, replay, or multi-consumer access matters.
 
 ### Can I use Kinesis triggers with container workloads?
 

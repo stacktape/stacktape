@@ -209,7 +209,7 @@ export default defineConfig(() => {
 
 The `cognito` authorizer type validates JWTs issued by the referenced user pool. Stacktape uses `userPoolName` to set the expected audience to the user pool client ID and build the issuer URL from the user pool and AWS region. By default, the token is read from the `Authorization` header. You can customize this with the `identitySources` property on the authorizer to read from a different header, query parameter, or stage variable using the `$request.*` syntax.
 
-Stacktape also supports a `lambda` authorizer type, where a [Lambda function](/resources/compute/lambda-function) runs custom authorization logic for each request. Use this when your auth needs go beyond simple JWT validation — for example, checking API keys, looking up permissions in a database, or integrating with a non-Cognito identity system. See [HTTP triggers](/configuration/triggers/http-triggers) for details on both authorizer types.
+Stacktape also supports a `lambda` authorizer type, where a [Lambda function](/resources/compute/lambda-function) runs custom authorization logic for each request. Use this when your auth needs go beyond simple JWT validation — for example, checking API keys, looking up permissions in a database, or integrating with a non-Cognito identity system. See [HTTP triggers](/resources/triggers/http-triggers) for details on both authorizer types.
 
 ## Verification
 
@@ -669,7 +669,7 @@ Amazon Cognito uses a pay-per-monthly-active-user (MAU) pricing model, and Stack
 
 ### How do I protect API routes with the user pool?
 
-Add a `cognito` authorizer to your [HTTP API Gateway](/resources/networking/http-api-gateway) trigger integration and set `authorizer.properties.userPoolName` to your user pool resource name. API Gateway then validates the JWT on every request with no middleware needed — unauthorized requests receive a `401` before your code runs. For auth logic beyond JWT validation (API keys, database permission lookups), use the `lambda` authorizer type instead. See [HTTP triggers](/configuration/triggers/http-triggers) for the full reference.
+Add a `cognito` authorizer to your [HTTP API Gateway](/resources/networking/http-api-gateway) trigger integration and set `authorizer.properties.userPoolName` to your user pool resource name. API Gateway then validates the JWT on every request with no middleware needed — unauthorized requests receive a `401` before your code runs. For auth logic beyond JWT validation (API keys, database permission lookups), use the `lambda` authorizer type instead. See [HTTP triggers](/resources/triggers/http-triggers) for the full reference.
 
 ### Which social and enterprise identity providers are supported?
 

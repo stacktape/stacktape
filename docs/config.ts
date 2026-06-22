@@ -24,7 +24,8 @@ import {
   LuWorkflow,
   LuKeyRound,
   LuWrench,
-  LuContainer
+  LuContainer,
+  LuBrainCircuit
 } from 'react-icons/lu';
 
 export type SidebarSubgroup = {
@@ -76,13 +77,7 @@ export default {
     ],
     groups: [
       { order: 1, path: '/getting-started', title: 'Getting Started', icon: LuRocket, defaultOpen: true },
-      {
-        order: 2,
-        path: '/configuration',
-        title: 'Configuration',
-        icon: LuFileCog,
-        subgroups: [{ path: '/configuration/triggers', icon: LuZap }]
-      },
+      { order: 2, path: '/configuration', title: 'Configuration', icon: LuFileCog },
       {
         order: 3,
         path: '/resources',
@@ -96,9 +91,11 @@ export default {
           { path: '/resources/storage', icon: LuHardDrive },
           { path: '/resources/networking', icon: LuNetwork },
           { path: '/resources/messaging', icon: LuMessageSquare },
+          { path: '/resources/triggers', icon: LuZap },
           { path: '/resources/orchestration', icon: LuWorkflow },
           { path: '/resources/security', icon: LuKeyRound },
-          { path: '/resources/advanced', icon: LuWrench }
+          { path: '/resources/advanced', icon: LuWrench },
+          { path: '/resources/ai', icon: LuBrainCircuit }
         ]
       },
       {

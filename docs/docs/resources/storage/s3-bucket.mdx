@@ -356,7 +356,7 @@ When versioning is enabled, pair it with a `non-current-version-expiration` rule
 
 Stacktape buckets support two approaches for reacting to object changes:
 
-**S3 event triggers** invoke a [Lambda function](/resources/compute/lambda-function) directly for configured S3 event types — commonly object-created, object-removed, and object-restore events. The trigger type also supports replication-related and reduced-redundancy lost-object events through the [S3 trigger configuration](/configuration/triggers/s3-events). This is the simplest approach for processing uploads — for example, resizing images or parsing CSV files. Configure S3 triggers on the Lambda function side.
+**S3 event triggers** invoke a [Lambda function](/resources/compute/lambda-function) directly for configured S3 event types — commonly object-created, object-removed, and object-restore events. The trigger type also supports replication-related and reduced-redundancy lost-object events through the [S3 trigger configuration](/resources/triggers/s3-events). This is the simplest approach for processing uploads — for example, resizing images or parsing CSV files. Configure S3 triggers on the Lambda function side.
 
 **EventBridge notifications** send bucket events to [EventBridge](/resources/messaging/event-bus), where multiple consumers can react to the same event independently. Enable with `enableEventBusNotifications: true` (defaults to `false`). Use EventBridge notifications when bucket events should be available on EventBridge for other parts of your architecture. For direct upload processing, an S3 trigger on a Lambda function is usually simpler.
 
@@ -472,7 +472,7 @@ Use a [HostingBucket](/resources/frontend/static-hosting) when you're deploying 
 
 ### How do I trigger a Lambda function when a file is uploaded?
 
-Configure an [S3 event trigger](/configuration/triggers/s3-events) on your [Lambda function](/resources/compute/lambda-function). The trigger fires for the configured S3 event type — commonly object-created, object-removed, or object-restore events. You can filter by key prefix and suffix to trigger only for specific file types or paths. For fan-out to multiple consumers from the same event, enable `enableEventBusNotifications` and use [EventBridge](/resources/messaging/event-bus) rules instead.
+Configure an [S3 event trigger](/resources/triggers/s3-events) on your [Lambda function](/resources/compute/lambda-function). The trigger fires for the configured S3 event type — commonly object-created, object-removed, or object-restore events. You can filter by key prefix and suffix to trigger only for specific file types or paths. For fan-out to multiple consumers from the same event, enable `enableEventBusNotifications` and use [EventBridge](/resources/messaging/event-bus) rules instead.
 
 ### S3 vs EFS — when should I use each?
 

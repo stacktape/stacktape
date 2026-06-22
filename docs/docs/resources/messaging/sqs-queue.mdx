@@ -192,7 +192,7 @@ export default defineConfig(() => {
 
 ## Triggering a Lambda function
 
-An SQS queue is one of the most common event sources for [Lambda functions](/resources/compute/lambda-function). When messages arrive, AWS invokes the function with a batch of messages. Your handler should process messages idempotently, because failed batches can be retried. Configure this using an [SQS trigger](/configuration/triggers/sqs-events) on the Lambda function — not on the queue itself.
+An SQS queue is one of the most common event sources for [Lambda functions](/resources/compute/lambda-function). When messages arrive, AWS invokes the function with a batch of messages. Your handler should process messages idempotently, because failed batches can be retried. Configure this using an [SQS trigger](/resources/triggers/sqs-events) on the Lambda function — not on the queue itself.
 
 Key settings on the trigger:
 

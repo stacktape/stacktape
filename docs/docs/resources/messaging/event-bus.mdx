@@ -115,7 +115,7 @@ export default defineConfig(() => {
 
 ## Subscribing to events
 
-[Lambda functions](/resources/compute/lambda-function), [batch jobs](/resources/compute/batch-job), and [SQS queues](/resources/messaging/sqs-queue) subscribe to an event bus by adding an [event bus trigger](/configuration/triggers/event-bus-events) to their `events` configuration. The trigger specifies an `eventPattern` that filters which events reach the target — only matching events invoke the consumer. You configure the subscription on the consumer resource, not on the bus itself.
+[Lambda functions](/resources/compute/lambda-function), [batch jobs](/resources/compute/batch-job), and [SQS queues](/resources/messaging/sqs-queue) subscribe to an event bus by adding an [event bus trigger](/resources/triggers/event-bus-events) to their `events` configuration. The trigger specifies an `eventPattern` that filters which events reach the target — only matching events invoke the consumer. You configure the subscription on the consumer resource, not on the bus itself.
 
 Three resource types can subscribe to event bus events:
 
@@ -123,9 +123,9 @@ Three resource types can subscribe to event bus events:
 - [Batch jobs](/resources/compute/batch-job) — started per matching event
 - [SQS queues](/resources/messaging/sqs-queue) — matching events are delivered as messages
 
-The `EventBusIntegrationProps` shape includes `eventPattern`, `onDeliveryFailure`, `input`, `inputPath`, and `inputTransformer`. See the [event bus trigger reference](/configuration/triggers/event-bus-events) for full details on each subscriber type.
+The `EventBusIntegrationProps` shape includes `eventPattern`, `onDeliveryFailure`, `input`, `inputPath`, and `inputTransformer`. See the [event bus trigger reference](/resources/triggers/event-bus-events) for full details on each subscriber type.
 
-Specify the bus using exactly one of three options: `eventBusName` for a Stacktape-managed bus in the same stack, `eventBusArn` for an external bus, or `useDefaultBus` for the default AWS event bus. The `eventPattern` property filters events by `source`, `detail-type`, `detail`, and other fields — see the [event bus trigger reference](/configuration/triggers/event-bus-events) for the full pattern syntax.
+Specify the bus using exactly one of three options: `eventBusName` for a Stacktape-managed bus in the same stack, `eventBusArn` for an external bus, or `useDefaultBus` for the default AWS event bus. The `eventPattern` property filters events by `source`, `detail-type`, `detail`, and other fields — see the [event bus trigger reference](/resources/triggers/event-bus-events) for the full pattern syntax.
 
 <CodeBlock
   intellisense
@@ -193,7 +193,7 @@ export const handler = async (event: {
 
 In rare delivery-failure cases, `onDeliveryFailure` can route failed events to an [SQS queue](/resources/messaging/sqs-queue). Use either `sqsQueueName` for a queue in the same stack or `sqsQueueArn` for an external queue. For critical workflows, configure `onDeliveryFailure` with an SQS queue so failed deliveries have a destination you can inspect and retry from.
 
-The trigger also supports payload shaping with `input`, `inputPath`, and `inputTransformer` to customize the event before it reaches the target. See the [event bus trigger reference](/configuration/triggers/event-bus-events) and the API reference below for those options.
+The trigger also supports payload shaping with `input`, `inputPath`, and `inputTransformer` to customize the event before it reaches the target. See the [event bus trigger reference](/resources/triggers/event-bus-events) and the API reference below for those options.
 
 ## Connecting to other resources
 
@@ -291,11 +291,11 @@ Amazon EventBridge accepts events up to 256 KB. For larger payloads, store the d
 
 ### How do I subscribe to events on the default AWS event bus?
 
-AWS provides a default event bus in every region that receives events from AWS services (EC2 state changes, CodePipeline events, etc.). On an [event bus trigger](/configuration/triggers/event-bus-events), set `useDefaultBus: true` instead of `eventBusName` to subscribe to those events — you do not need to create a Stacktape EventBus resource. Combine this with an `eventPattern` that does deep matching on the `detail` field (exact values, prefixes, numeric ranges, existence checks) to route only the AWS events you care about.
+AWS provides a default event bus in every region that receives events from AWS services (EC2 state changes, CodePipeline events, etc.). On an [event bus trigger](/resources/triggers/event-bus-events), set `useDefaultBus: true` instead of `eventBusName` to subscribe to those events — you do not need to create a Stacktape EventBus resource. Combine this with an `eventPattern` that does deep matching on the `detail` field (exact values, prefixes, numeric ranges, existence checks) to route only the AWS events you care about.
 
 ### What happens if an event fails to reach a target?
 
-By default a failed delivery is eventually dropped. Configure `onDeliveryFailure` on the [event bus trigger](/configuration/triggers/event-bus-events) to route failed events to an [SQS queue](/resources/messaging/sqs-queue) — use `sqsQueueName` for a queue in the same stack or `sqsQueueArn` for an external one. For critical workflows always configure this so undeliverable events have a destination you can inspect and retry from.
+By default a failed delivery is eventually dropped. Configure `onDeliveryFailure` on the [event bus trigger](/resources/triggers/event-bus-events) to route failed events to an [SQS queue](/resources/messaging/sqs-queue) — use `sqsQueueName` for a queue in the same stack or `sqsQueueArn` for an external one. For critical workflows always configure this so undeliverable events have a destination you can inspect and retry from.
 
 ### Can container services subscribe to event bus events?
 

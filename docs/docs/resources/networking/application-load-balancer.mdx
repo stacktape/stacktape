@@ -93,7 +93,7 @@ When multiple conditions are specified on a single integration, all conditions m
 
 <Tip>Leave gaps between priority values — e.g., 10, 20, 30 — so you can insert rules later without reassigning all priorities.</Tip>
 
-For container workloads, the integration also requires `containerPort` to specify which container port receives the traffic. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API.
+For container workloads, the integration also requires `containerPort` to specify which container port receives the traffic. See [HTTP triggers](/resources/triggers/http-triggers) for the full integration API.
 
 ### Multi-service routing
 
@@ -420,7 +420,7 @@ AWS ALB has a flat base charge of roughly $18/month plus a variable component ba
 
 ### How do I route traffic to multiple services through one ALB?
 
-Routes live on the compute resources, not on the ALB. Give each Lambda function or container workload its own `ApplicationLoadBalancerIntegration` event referencing the same ALB by name, with a `priority` (rules are evaluated lowest-first, first match wins) and matching conditions like `paths`, `methods`, or `hosts`. Leave gaps between priority values (10, 20, 30) so you can insert rules later without renumbering. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API.
+Routes live on the compute resources, not on the ALB. Give each Lambda function or container workload its own `ApplicationLoadBalancerIntegration` event referencing the same ALB by name, with a `priority` (rules are evaluated lowest-first, first match wins) and matching conditions like `paths`, `methods`, or `hosts`. Leave gaps between priority values (10, 20, 30) so you can insert rules later without renumbering. See [HTTP triggers](/resources/triggers/http-triggers) for the full integration API.
 
 ### What's the difference between an Application Load Balancer and a Network Load Balancer?
 

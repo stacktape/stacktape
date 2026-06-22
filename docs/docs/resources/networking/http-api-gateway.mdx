@@ -41,7 +41,7 @@ Common patterns that fit well:
 
 ## Basic example
 
-An HTTP API Gateway resource on its own is just the entry point — it does not define routes. Routes are defined on the compute resources (Lambda functions or container workloads) that reference the gateway by name. The simplest setup is a gateway plus one or more Lambda functions with [HTTP triggers](/configuration/triggers/http-triggers).
+An HTTP API Gateway resource on its own is just the entry point — it does not define routes. Routes are defined on the compute resources (Lambda functions or container workloads) that reference the gateway by name. The simplest setup is a gateway plus one or more Lambda functions with [HTTP triggers](/resources/triggers/http-triggers).
 
 <CodeBlock
   intellisense
@@ -99,7 +99,7 @@ A single gateway can serve routes from many Lambda functions and container workl
 | Path parameter | `/users/{id}` | Matches `/users/123`; `id` available in `event.pathParameters` |
 | Greedy (catch-all) | `/api/{proxy+}` | Matches any path starting with `/api/` |
 
-Routes are matched by specificity — exact paths take priority over wildcard paths. For container workloads, the HTTP API integration also requires `containerPort`, because API Gateway must know which container port receives the request. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API, including the container workload integration shape.
+Routes are matched by specificity — exact paths take priority over wildcard paths. For container workloads, the HTTP API integration also requires `containerPort`, because API Gateway must know which container port receives the request. See [HTTP triggers](/resources/triggers/http-triggers) for the full integration API, including the container workload integration shape.
 
 ### Catch-all pattern
 
@@ -149,7 +149,7 @@ This routes every request to a single Lambda. The framework inside the Lambda ha
 
 ### Route authorization
 
-Each HTTP API integration can optionally define an authorizer. Unauthorized requests are rejected with `401 Unauthorized` before your function code runs. Authorization is configured per-route on the integration, not on the gateway itself. See [HTTP triggers](/configuration/triggers/http-triggers) for the supported authorizer types and configuration details.
+Each HTTP API integration can optionally define an authorizer. Unauthorized requests are rejected with `401 Unauthorized` before your function code runs. Authorization is configured per-route on the integration, not on the gateway itself. See [HTTP triggers](/resources/triggers/http-triggers) for the supported authorizer types and configuration details.
 
 ## CORS
 
@@ -397,7 +397,7 @@ AWS API Gateway V2 (HTTP API) costs ~$1 per million requests with no minimum fee
 
 ### How do I add routes to my HTTP API Gateway?
 
-Routes are not defined on the gateway resource. Instead, attach `HttpApiIntegration` events to your [Lambda functions](/resources/compute/lambda-function) or container workloads, referencing the gateway by its resource name. Each integration specifies an HTTP method and URL path. For container workloads, the integration also requires a `containerPort`. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API.
+Routes are not defined on the gateway resource. Instead, attach `HttpApiIntegration` events to your [Lambda functions](/resources/compute/lambda-function) or container workloads, referencing the gateway by its resource name. Each integration specifies an HTTP method and URL path. For container workloads, the integration also requires a `containerPort`. See [HTTP triggers](/resources/triggers/http-triggers) for the full integration API.
 
 ### When should I use HTTP API Gateway vs an Application Load Balancer?
 

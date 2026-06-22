@@ -25,7 +25,7 @@ Not every deploy-time task needs a deployment script. Consider alternatives:
 
 - **Local build steps** (compiling, linting, generating assets) — use [lifecycle hooks](/configuration/hooks-and-scripts) with a `local-script`. These run on your machine or CI runner and don't need AWS access.
 - **Tasks longer than 15 minutes or needing more than 10,240 MB memory** — deployment scripts are Lambda functions with a 900-second maximum timeout and 10,240 MB memory cap. For long ETL jobs, data backfills, or heavy processing, use a [batch job](/resources/compute/batch-job).
-- **Recurring tasks** — if the task should run on a schedule (nightly reports, periodic cleanup), use a [Lambda function](/resources/compute/lambda-function) with a [schedule trigger](/configuration/triggers/schedule-triggers) instead.
+- **Recurring tasks** — if the task should run on a schedule (nightly reports, periodic cleanup), use a [Lambda function](/resources/compute/lambda-function) with a [schedule trigger](/resources/triggers/schedule-triggers) instead.
 - **Tasks needing local files or interactive prompts** — deployment scripts run in AWS Lambda, not on your machine. Use a lifecycle hook with a [local script](/configuration/hooks-and-scripts) for anything that reads local files or needs user input.
 
 <FeatureComparisonTable

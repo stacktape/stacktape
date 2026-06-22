@@ -17,7 +17,7 @@ DynamoDB is the right choice when your access patterns are well-defined and key-
 - User profiles, session stores, shopping carts — single-key lookups at scale
 - IoT telemetry and time-series data (partition by device ID, sort by timestamp)
 - Leaderboards, counters, and real-time analytics where you need fast writes
-- Event sourcing with [DynamoDB Streams](/configuration/triggers/dynamodb-streams) to trigger downstream processing
+- Event sourcing with [DynamoDB Streams](/resources/triggers/dynamodb-streams) to trigger downstream processing
 - Any workload where the access pattern is known upfront and read/write latency matters more than query flexibility
 
 ## When NOT to use
@@ -224,7 +224,7 @@ GSIs consume their own read/write capacity (or request units in on-demand mode) 
 
 ## Streams
 
-DynamoDB Streams capture item-level changes. Stacktape exposes a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) for [Lambda functions](/resources/compute/lambda-function) and [batch jobs](/resources/compute/batch-job), invoking them when items change. Enable streams for use cases like auditing, analytics, cache invalidation, or downstream synchronization.
+DynamoDB Streams capture item-level changes. Stacktape exposes a [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) for [Lambda functions](/resources/compute/lambda-function) and [batch jobs](/resources/compute/batch-job), invoking them when items change. Enable streams for use cases like auditing, analytics, cache invalidation, or downstream synchronization.
 
 <CodeBlock
   intellisense
@@ -261,7 +261,7 @@ The `streamType` controls what data each stream record contains:
 | `OLD_IMAGE` | Full item before the change | Undo/restore workflows |
 | `NEW_AND_OLD_IMAGES` | Both before and after | Audit trails, change tracking, diff computation |
 
-Once streams are enabled, you can set up a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) on a Lambda function or batch job to process changes. Use the table's `streamArn` referenceable parameter when configuring the trigger; it is meaningful when streams are enabled with `streamType`.
+Once streams are enabled, you can set up a [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) on a Lambda function or batch job to process changes. Use the table's `streamArn` referenceable parameter when configuring the trigger; it is meaningful when streams are enabled with `streamType`.
 
 ## Backups
 
@@ -423,7 +423,7 @@ No. The primary key (partition key and sort key) is immutable after table creati
 
 ### How do DynamoDB Streams work with Stacktape?
 
-Enable streams by setting `streamType` on your DynamoDB table, then configure a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) on a [Lambda function](/resources/compute/lambda-function) or [batch job](/resources/compute/batch-job). The `streamType` controls what each record contains — `KEYS_ONLY`, `NEW_IMAGE`, `OLD_IMAGE`, or `NEW_AND_OLD_IMAGES`. Use the table's `streamArn` referenceable parameter when wiring up the trigger.
+Enable streams by setting `streamType` on your DynamoDB table, then configure a [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) on a [Lambda function](/resources/compute/lambda-function) or [batch job](/resources/compute/batch-job). The `streamType` controls what each record contains — `KEYS_ONLY`, `NEW_IMAGE`, `OLD_IMAGE`, or `NEW_AND_OLD_IMAGES`. Use the table's `streamArn` referenceable parameter when wiring up the trigger.
 
 ### Does `connectTo` grant permission for DynamoDB transactions?
 

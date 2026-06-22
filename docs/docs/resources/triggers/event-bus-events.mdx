@@ -1,6 +1,6 @@
 ---
 title: 'Event Bus Events'
-order: 26
+order: 68
 seoTitle: 'Event Bus Events — EventBridge Triggers | Stacktape Docs'
 seoDescription: 'Trigger functions from EventBridge events. Configure pattern-based routing, payload transformation, and dead-letter queues in Stacktape.'
 ---
@@ -25,9 +25,9 @@ Event bus triggers add a pattern-matching routing layer. If your use case doesn'
 
 | Scenario | Better alternative |
 |---|---|
-| Point-to-point messaging with batching and retries | [SQS queue trigger](/configuration/triggers/sqs-events) — point-to-point queue consumption with configurable batch sizes and batch windows |
-| Fan-out where every subscriber gets every message | [SNS trigger](/configuration/triggers/sns-events) — simpler pub/sub without pattern syntax |
-| High-throughput ordered streaming with replay | [Kinesis trigger](/configuration/triggers/kinesis-events) — per-shard ordering and built-in replay |
+| Point-to-point messaging with batching and retries | [SQS queue trigger](/resources/triggers/sqs-events) — point-to-point queue consumption with configurable batch sizes and batch windows |
+| Fan-out where every subscriber gets every message | [SNS trigger](/resources/triggers/sns-events) — simpler pub/sub without pattern syntax |
+| High-throughput ordered streaming with replay | [Kinesis trigger](/resources/triggers/kinesis-events) — per-shard ordering and built-in replay |
 | Payloads exceeding the EventBridge size limit | Store data in [S3](/resources/storage/s3-bucket) and pass a reference through any event source |
 
 ## Basic example
@@ -410,7 +410,7 @@ Yes. Three mutually exclusive payload options are available: `input` (a static J
 
 ### When should I use EventBridge vs SQS or SNS?
 
-Reach for EventBridge when **content-based routing** is the point — multiple targets each react to a different subset of events from the same bus, filtered by pattern. Use [SQS](/configuration/triggers/sqs-events) for **point-to-point** workflows where a single consumer needs configurable batch sizes, visibility timeouts, and message-level retry. Use [SNS](/configuration/triggers/sns-events) for **fan-out** where every subscriber should receive every message. SQS and SNS are simpler and cheaper when you don't need pattern matching; EventBridge earns its routing layer when consumers only care about specific event types or payload values.
+Reach for EventBridge when **content-based routing** is the point — multiple targets each react to a different subset of events from the same bus, filtered by pattern. Use [SQS](/resources/triggers/sqs-events) for **point-to-point** workflows where a single consumer needs configurable batch sizes, visibility timeouts, and message-level retry. Use [SNS](/resources/triggers/sns-events) for **fan-out** where every subscriber should receive every message. SQS and SNS are simpler and cheaper when you don't need pattern matching; EventBridge earns its routing layer when consumers only care about specific event types or payload values.
 
 ### How do I handle large payloads with EventBridge?
 

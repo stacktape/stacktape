@@ -1,6 +1,6 @@
 ---
 title: 'DynamoDB Streams'
-order: 24
+order: 66
 seoTitle: 'DynamoDB Stream Triggers for Lambda | Stacktape Docs'
 seoDescription: 'Trigger Lambda functions on DynamoDB item changes with Stacktape. Configure batch size, retry handling, parallelization, and dead-letter queues for stream processing.'
 ---
@@ -22,9 +22,9 @@ DynamoDB stream triggers fit scenarios where you need to react to data changes a
 
 DynamoDB stream triggers are not the right fit for every event-driven pattern. Several common scenarios are better served by other Stacktape trigger types.
 
-- **High-throughput, multi-consumer streaming** — AWS DynamoDB Streams supports at most 2 simultaneous readers per shard and is limited to 5 `GetRecords` calls per second per shard. For fan-out to many consumers or longer retention, pipe changes into a [Kinesis stream](/configuration/triggers/kinesis-events) instead.
-- **Request-response patterns** — stream processing is asynchronous. If the caller needs an immediate result, use an [HTTP trigger](/configuration/triggers/http-triggers).
-- **Complex event routing** — if you need content-based filtering across many consumers, use an [EventBridge event bus](/configuration/triggers/event-bus-events) rather than writing routing logic inside the stream consumer.
+- **High-throughput, multi-consumer streaming** — AWS DynamoDB Streams supports at most 2 simultaneous readers per shard and is limited to 5 `GetRecords` calls per second per shard. For fan-out to many consumers or longer retention, pipe changes into a [Kinesis stream](/resources/triggers/kinesis-events) instead.
+- **Request-response patterns** — stream processing is asynchronous. If the caller needs an immediate result, use an [HTTP trigger](/resources/triggers/http-triggers).
+- **Complex event routing** — if you need content-based filtering across many consumers, use an [EventBridge event bus](/resources/triggers/event-bus-events) rather than writing routing logic inside the stream consumer.
 
 ## Enabling streams on the table
 
@@ -314,7 +314,7 @@ AWS DynamoDB Streams retains records for 24 hours. If your Lambda function canno
 
 ### When should I use a Kinesis stream instead of a DynamoDB stream?
 
-AWS limits DynamoDB Streams to 2 simultaneous readers per shard and 5 `GetRecords` calls per second per shard, with 24-hour retention — and one Lambda trigger consumes one reader slot. DynamoDB Streams is free and sufficient for most cases (audit logs, denormalization, single-consumer processing). Switch to a [Kinesis stream](/configuration/triggers/kinesis-events) or [EventBridge event bus](/configuration/triggers/event-bus-events) when you need fan-out to many consumers, higher throughput, or retention beyond 24 hours — at the cost of extra charges.
+AWS limits DynamoDB Streams to 2 simultaneous readers per shard and 5 `GetRecords` calls per second per shard, with 24-hour retention — and one Lambda trigger consumes one reader slot. DynamoDB Streams is free and sufficient for most cases (audit logs, denormalization, single-consumer processing). Switch to a [Kinesis stream](/resources/triggers/kinesis-events) or [EventBridge event bus](/resources/triggers/event-bus-events) when you need fan-out to many consumers, higher throughput, or retention beyond 24 hours — at the cost of extra charges.
 
 ### Why must my stream handler be idempotent?
 

@@ -16,8 +16,8 @@ A Stacktape Lambda function is a serverless compute resource that runs code in r
 A Lambda function is the right default for event-driven code that finishes within minutes, does not need a continuously running process, and can tolerate statelessness between invocations.
 
 - **HTTP APIs with variable traffic** — pair with an [HTTP API Gateway](/resources/networking/http-api-gateway) or enable a function URL for a single-function HTTPS endpoint. Cost approaches zero during quiet periods.
-- **Background event handlers** — react to [SQS](/configuration/triggers/sqs-events), [SNS](/configuration/triggers/sns-events), [S3](/configuration/triggers/s3-events), [DynamoDB stream](/configuration/triggers/dynamodb-streams), [Kinesis](/configuration/triggers/kinesis-events), [EventBridge](/configuration/triggers/event-bus-events), [CloudWatch log](/configuration/triggers/cloudwatch-logs), [Kafka topic](/configuration/triggers/kafka-topics), or [alarm](/configuration/triggers/alarms-as-triggers) events.
-- **Scheduled tasks** — run cron-like cleanup, reporting, or polling with a [schedule trigger](/configuration/triggers/schedule-triggers).
+- **Background event handlers** — react to [SQS](/resources/triggers/sqs-events), [SNS](/resources/triggers/sns-events), [S3](/resources/triggers/s3-events), [DynamoDB stream](/resources/triggers/dynamodb-streams), [Kinesis](/resources/triggers/kinesis-events), [EventBridge](/resources/triggers/event-bus-events), [CloudWatch log](/resources/triggers/cloudwatch-logs), [Kafka topic](/resources/triggers/kafka-topics), or [alarm](/resources/triggers/alarms-as-triggers) events.
+- **Scheduled tasks** — run cron-like cleanup, reporting, or polling with a [schedule trigger](/resources/triggers/schedule-triggers).
 - **Pay-per-use workloads** — functions that sit idle most of the time cost nothing until invoked.
 
 ## When NOT to use
@@ -178,7 +178,7 @@ export const handler = handle(app);
 
 ### Scheduled cleanup task
 
-A Lambda function that runs every hour to delete expired records. The [schedule trigger](/configuration/triggers/schedule-triggers) accepts rate expressions and AWS cron expressions (6-field, UTC).
+A Lambda function that runs every hour to delete expired records. The [schedule trigger](/resources/triggers/schedule-triggers) accepts rate expressions and AWS cron expressions (6-field, UTC).
 
 <CodeBlock
   intellisense
@@ -326,18 +326,18 @@ A Lambda function receives work through its `events` array. Stacktape supports 1
 
 | Trigger type | Event discriminator | Docs |
 |---|---|---|
-| HTTP API Gateway | `http-api-gateway` | [HTTP triggers](/configuration/triggers/http-triggers) |
-| Application Load Balancer | `application-load-balancer` | [HTTP triggers](/configuration/triggers/http-triggers) |
-| Schedule | `schedule` | [Schedule triggers](/configuration/triggers/schedule-triggers) |
-| S3 | `s3` | [S3 events](/configuration/triggers/s3-events) |
-| SQS | `sqs` | [SQS events](/configuration/triggers/sqs-events) |
-| SNS | `sns` | [SNS events](/configuration/triggers/sns-events) |
-| DynamoDB stream | `dynamo-db-stream` | [DynamoDB streams](/configuration/triggers/dynamodb-streams) |
-| Kinesis stream | `kinesis-stream` | [Kinesis events](/configuration/triggers/kinesis-events) |
-| EventBridge | `event-bus` | [EventBridge events](/configuration/triggers/event-bus-events) |
-| CloudWatch log | `cloudwatch-log` | [CloudWatch logs](/configuration/triggers/cloudwatch-logs) |
-| CloudWatch alarm | `cloudwatch-alarm` | [Alarms as triggers](/configuration/triggers/alarms-as-triggers) |
-| Kafka topic | `kafka-topic` | [Kafka topics](/configuration/triggers/kafka-topics) |
+| HTTP API Gateway | `http-api-gateway` | [HTTP triggers](/resources/triggers/http-triggers) |
+| Application Load Balancer | `application-load-balancer` | [HTTP triggers](/resources/triggers/http-triggers) |
+| Schedule | `schedule` | [Schedule triggers](/resources/triggers/schedule-triggers) |
+| S3 | `s3` | [S3 events](/resources/triggers/s3-events) |
+| SQS | `sqs` | [SQS events](/resources/triggers/sqs-events) |
+| SNS | `sns` | [SNS events](/resources/triggers/sns-events) |
+| DynamoDB stream | `dynamo-db-stream` | [DynamoDB streams](/resources/triggers/dynamodb-streams) |
+| Kinesis stream | `kinesis-stream` | [Kinesis events](/resources/triggers/kinesis-events) |
+| EventBridge | `event-bus` | [EventBridge events](/resources/triggers/event-bus-events) |
+| CloudWatch log | `cloudwatch-log` | [CloudWatch logs](/resources/triggers/cloudwatch-logs) |
+| CloudWatch alarm | `cloudwatch-alarm` | [Alarms as triggers](/resources/triggers/alarms-as-triggers) |
+| Kafka topic | `kafka-topic` | [Kafka topics](/resources/triggers/kafka-topics) |
 
 For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), `batchSize` and `maxBatchWindowSeconds` control how many records the function receives per invocation. Keep handlers idempotent: failed batches are retried including records that already processed successfully.
 
@@ -381,7 +381,7 @@ export default defineConfig(() => {
 
 `batchSize` controls the maximum number of records delivered to one invocation and defaults to `10`. The maximum `batchSize` varies by trigger type (for example, DynamoDB streams cap at `1,000` while SQS and Kinesis accept up to `10,000`). `maxBatchWindowSeconds` waits up to the configured seconds before invoking with a partial batch (maximum `300`). The function is also invoked when the batch reaches the 6 MB payload limit.
 
-A schedule trigger runs the function on a cron expression or fixed rate. `scheduleRate` accepts rate expressions like `rate(5 minutes)` and cron expressions like `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, UTC). See [schedule triggers](/configuration/triggers/schedule-triggers) for full syntax.
+A schedule trigger runs the function on a cron expression or fixed rate. `scheduleRate` accepts rate expressions like `rate(5 minutes)` and cron expressions like `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, UTC). See [schedule triggers](/resources/triggers/schedule-triggers) for full syntax.
 
 ## Function URLs
 
