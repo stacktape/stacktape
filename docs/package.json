@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun enhance:config:schema && bun gen:api-ref && concurrently -k -n next,watch -c cyan,yellow \"next dev --port 9001\" \"bun scripts/watch-content.ts\"",
     "dev:next": "next dev --port 9001",
-    "build": "bun enhance:config:schema && bun gen:api-ref && next build && next-sitemap --config next-sitemap.config.js",
+    "build": "bun enhance:config:schema && bun gen:api-ref && bun publish:llms && next build && next-sitemap --config next-sitemap.config.js && bun sync:seo",
     "start": "next start",
     "lint": "next lint",
     "serve": "bun run build && bunx serve@latest out",
@@ -15,6 +15,8 @@
     "upg": "bun taze",
     "check:links": "bunx check-html-links public",
     "enhance:config:schema": "bun scripts/enhance-config-schema.ts",
+    "publish:llms": "bun scripts/publish-llms.ts",
+    "sync:seo": "bun scripts/sync-seo-to-out.ts",
     "gen:docs": "bun ../../docs-gen/src/cli.ts --projectPath .",
     "gen:api-ref": "bun scripts/generate-api-reference-data.ts"
   },

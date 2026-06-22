@@ -39,6 +39,11 @@ docs/.docs-gen/state.sqlite*
 docs/.docs-gen/.migration-lock/
 docs/.next
 docs/public/_timestamps.json
+docs/public/llms.txt
+docs/public/llms-full.txt
+docs/public/robots.txt
+docs/public/sitemap.xml
+docs/public/sitemap-0.xml
 docs/out
 __dist
 .next
