@@ -48,10 +48,10 @@ The MCP server categorizes every CLI command by safety level and enforces approp
 
 | Safety level | Behavior | Examples |
 |---|---|---|
-| `readOnly` | Runs without confirmation | `info:stack`, `info:stacks`, `debug:metrics` |
-| `diagnostic` | Runs without confirmation | `debug:logs`, `debug:sql`, `debug:redis` |
-| `local` | Runs without confirmation | `compile-template`, `package-workloads` |
-| `mutating` | Requires explicit user approval (`confirm: true`) | `deploy`, `secret:create`, `domain:add` |
+| `readOnly` | Runs without confirmation | `info:stack`, `info:stacks`, `metrics` |
+| `diagnostic` | Runs without confirmation | `logs`, `query:sql`, `query:redis` |
+| `local` | Runs without confirmation | `synth`, `package` |
+| `mutating` | Requires explicit user approval (`confirm: true`) | `deploy`, `secret:set`, `domain:add` |
 | `destructive` | Requires direct user confirmation through MCP form elicitation | `delete`, `secret:delete` |
 | `interactive` | Rejected — must use user's terminal or `stacktape_dev` | `dev`, `init` |
 
@@ -76,7 +76,7 @@ Agent mode controls Stacktape dev mode through HTTP endpoints for status, logs, 
 - **Workload rebuilds** — trigger rebuilds of specific workloads or all workloads after code changes
 - **Database queries** — execute SQL, Redis commands, and DynamoDB operations against locally emulated PostgreSQL, MySQL, Redis, and DynamoDB databases
 
-The `stacktape_dev` MCP tool controls the session lifecycle (plan, start, status, logs, rebuild, stop). Database query endpoints are part of the agent mode HTTP API and are accessed directly by the assistant via HTTP requests to the agent port. For querying deployed (remote) databases in production or staging stacks, use [`stacktape debug:sql`](/cli/debug-sql), [`stacktape debug:redis`](/cli/debug-redis), [`stacktape debug:dynamodb`](/cli/debug-dynamodb), or [`stacktape debug:opensearch`](/cli/debug-opensearch) through the MCP server's `stacktape_cli` tool.
+The `stacktape_dev` MCP tool controls the session lifecycle: plan, start, status, logs, rebuild a specific workload, rebuild all workloads, and stop. Agent mode also exposes HTTP endpoints for querying local PostgreSQL, MySQL, Redis, and DynamoDB databases — see [Agent mode in dev](/using-with-ai/agent-mode-in-dev) for the endpoint reference. For querying deployed (remote) databases in production or staging stacks, use [`stacktape query:sql`](/cli/query-sql), [`stacktape query:redis`](/cli/query-redis), [`stacktape query:dynamodb`](/cli/query-dynamodb), or [`stacktape query:opensearch`](/cli/query-opensearch) through the MCP server's `stacktape_cli` tool.
 
 ## When to use agent mode
 
@@ -102,7 +102,7 @@ The [`stacktape mcp:add`](/cli/mcp-add) command automates MCP server registratio
 stacktape mcp:add
 ```
 
-Any MCP-compatible client can also connect to the server manually by running `stacktape mcp` as a stdio process.
+The [`stacktape mcp`](/cli/mcp) command starts a local stdio MCP server that any MCP-compatible client can connect to.
 
 For per-assistant setup walkthroughs, see [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations).
 
@@ -124,17 +124,13 @@ For per-assistant setup walkthroughs, see [AI coding assistant integrations](/us
 
 ## FAQ
 
-### What is the Stacktape MCP server?
-
-The Stacktape MCP server is a [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI coding assistants structured access to Stacktape operations. It exposes four tools for documentation search, project inspection, CLI command planning and execution, and dev mode control. The server runs locally via stdio transport and reuses the Stacktape CLI authentication state — no separate API keys are needed. See the [MCP server setup guide](/using-with-ai/mcp-server-setup) for details.
-
 ### Which AI coding assistants work with Stacktape?
 
-Stacktape works with any MCP-compatible coding assistant. Run [`stacktape mcp:add`](/cli/mcp-add) to register the MCP server with supported editors — the current client list depends on the installed CLI version. Any MCP-compatible client can also connect manually by running `stacktape mcp` as a stdio process. See [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations) for per-assistant setup walkthroughs.
+Stacktape works with any MCP-compatible coding assistant. Run [`stacktape mcp:add`](/cli/mcp-add) to register the MCP server with supported editors — the current client list depends on the installed CLI version. For an assistant that isn't on that list, start the server with [`stacktape mcp`](/cli/mcp) on stdio and point the assistant at the command `stacktape` with argument `mcp`. See [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations) for per-assistant setup walkthroughs.
 
 ### Can an AI assistant deploy to production through the MCP server?
 
-Yes, with safety gates. The MCP server categorizes deployment as a `mutating` operation that requires explicit user approval. Destructive operations like [`stacktape delete`](/cli/delete) additionally require direct user confirmation through MCP form elicitation — the AI assistant cannot bypass this on its own. Sensitive outputs like secret values are automatically masked in MCP responses.
+Yes, with safety gates — though the MCP server is still in preview and under active development. Mutating commands that change AWS resources require explicit user approval (`confirm: true`) and run through `stacktape_cli` only after planning. Destructive operations like [`stacktape delete`](/cli/delete) go further: they require direct user confirmation through MCP form elicitation that the AI assistant cannot supply on its own, and if the client doesn't support elicitation they are refused entirely. Sensitive outputs like secret values and connection strings are automatically masked in MCP responses.
 
 ### How does agent mode differ from standard dev mode?
 
@@ -144,22 +140,10 @@ Standard [dev mode](/local-development/dev-mode-overview) runs an interactive te
 
 No. The MCP server reuses the Stacktape CLI authentication state. If execution fails with an auth error, run [`stacktape login`](/cli/login) in your own terminal. For CI, configure a dedicated `STACKTAPE_API_KEY` secret outside the conversation rather than passing credentials through chat. The MCP server rejects raw credential arguments passed through the AI assistant and instructs assistants not to ask for API keys in chat.
 
-### Can I use Stacktape with an AI assistant that isn't officially supported?
-
-Any AI assistant that supports the Model Context Protocol can connect to the Stacktape MCP server. Start the server with `stacktape mcp` on stdio, then configure your assistant to use it as an MCP server with the command `stacktape` and argument `mcp`. The [`stacktape mcp:add`](/cli/mcp-add) command automates this for supported editors.
-
 ### What databases can AI assistants query through agent mode?
 
-Agent mode exposes HTTP endpoints for querying locally emulated PostgreSQL, MySQL, Redis, and DynamoDB databases. The agent-mode HTTP API includes database endpoints for these services, documented in the [agent mode guide](/using-with-ai/agent-mode-in-dev). For querying deployed (remote) databases, use [`stacktape debug:sql`](/cli/debug-sql), [`stacktape debug:redis`](/cli/debug-redis), [`stacktape debug:dynamodb`](/cli/debug-dynamodb), or [`stacktape debug:opensearch`](/cli/debug-opensearch) through the MCP server's `stacktape_cli` tool.
-
-### Is the MCP server safe to use with production stacks?
-
-The MCP server's safety model is designed for production use. Read-only and diagnostic commands run without confirmation. Mutating commands require explicit user approval. Destructive commands require direct user confirmation through MCP form elicitation that the AI assistant cannot bypass. Sensitive values (secrets, passwords, connection strings) are automatically masked in all responses. The server rejects raw credential arguments and instructs assistants not to read credential files.
+Agent mode exposes HTTP endpoints for querying locally emulated PostgreSQL, MySQL, Redis, and DynamoDB databases. See the [agent mode guide](/using-with-ai/agent-mode-in-dev) for the endpoint reference. For querying deployed (remote) databases, use [`stacktape query:sql`](/cli/query-sql), [`stacktape query:redis`](/cli/query-redis), [`stacktape query:dynamodb`](/cli/query-dynamodb), or [`stacktape query:opensearch`](/cli/query-opensearch) through the MCP server's `stacktape_cli` tool.
 
 ### MCP server vs running Stacktape CLI in a terminal — what's the difference?
 
 The MCP server adds structured safety gates, argument validation, project scanning, sensitive-value masking, and documentation context on top of the same CLI operations. When an AI assistant uses the MCP server, it gets validated argument schemas, automatic config file discovery, safety-appropriate confirmation flows, and masked output — none of which are available when the assistant runs raw shell commands. The MCP server also prevents the assistant from running interactive commands or accepting raw credential arguments.
-
-### How do I get started with AI-assisted Stacktape development?
-
-Run [`stacktape mcp:add`](/cli/mcp-add) to register the MCP server with your coding assistant. Once configured, the assistant can search Stacktape documentation, generate configs, plan and execute deployments, read logs, and query databases — all from your editor. For iterative local development, the assistant can start agent mode through the MCP server's `stacktape_dev` tool. See [MCP server setup](/using-with-ai/mcp-server-setup) for the full walkthrough.

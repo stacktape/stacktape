@@ -367,10 +367,6 @@ When you omit the `rules` property, Stacktape uses two AWS-managed rule groups: 
 
 AWS WAF charges a monthly fee per web ACL (firewall), plus per-rule-group fees and a per-request inspection charge. Baseline cost is ~$5/month + ~$1 per million requests inspected. Advanced features like Bot Control and Account Takeover Prevention carry additional per-request pricing. See the [AWS WAF pricing page](https://aws.amazon.com/waf/pricing/) for current rates. For broader cost guidance, see [managing costs](/managing-costs/overview).
 
-### Can I attach one firewall to multiple resources?
-
-A `WebAppFirewall` is configured as a standalone resource and then referenced from a supported target resource's firewall configuration property. The WAF source does not document sharing a single firewall across multiple targets; check each target resource's documentation page for the attachment property and any constraints.
-
 ### What's the difference between regional and cdn scope?
 
 A `regional` firewall inspects requests at the AWS region level — after they arrive at an ALB, user auth pool, or HTTP API Gateway. A `cdn` firewall inspects requests at CloudFront edge locations worldwide — before they reach your origin. A `cdn` firewall can block malicious traffic closer to the attacker, reducing origin load for legitimate users. Use `regional` for ALBs, user auth pools, and HTTP API Gateways; use `cdn` for CloudFront-attached resources (buckets, ALBs, HTTP API Gateways, and Lambda functions with CDN enabled).
@@ -383,18 +379,10 @@ Use `overrideAction: 'Count'` on managed or custom rule groups. In count mode, m
 
 Yes. AWS Marketplace vendors publish managed rule groups for specific threat categories — GeoIP blocking, advanced bot detection, API abuse prevention, and more. Subscribe to the rule group in the AWS Marketplace, then reference it with the vendor's name in `vendorName` and the rule group name in `name`. Third-party rule groups carry additional subscription pricing set by the vendor.
 
-### Can I protect an HTTP API Gateway with a WAF?
-
-Yes. The WAF `scope` property lists HTTP API Gateways as a `regional` target, so you can attach a `regional`-scoped firewall directly to an [HTTP API Gateway](/resources/networking/http-api-gateway). For gateways with CDN enabled, use a `cdn`-scoped firewall for edge-level filtering — see the [HTTP API Gateway docs](/resources/networking/http-api-gateway) for CDN firewall attachment details. Use a WAF when API Gateway's built-in throttling isn't sufficient — for example, when you need HTTP request inspection for SQL injection, XSS, or bot detection.
-
-### WAF vs security groups — when do I need each?
-
-Security groups operate at Layer 3/4 (IP addresses and ports) and control which network connections can reach your resources. AWS WAF operates at Layer 7 (HTTP) and inspects request content — headers, query strings, body, and URI paths. They serve different purposes and are complementary. Security groups block unauthorized network access; WAF blocks malicious HTTP requests from authorized network sources. Most production stacks benefit from both.
-
 ### How do I handle false positives from managed rule groups?
 
 Use the `excludedRules` property on a managed rule group to disable specific rules by name without removing the entire group. First, enable `sampledRequestsEnabled` to identify which rule is triggering on legitimate requests. Then add that rule's name to `excludedRules`. Find rule names in the AWS WAF documentation for each managed rule group, or in the sampled request details in the AWS WAF console.
 
-### How does the default action interact with rules?
+### Why is my CloudFront-attached firewall failing to deploy?
 
-The `defaultAction` is a catch-all for requests that don't match any rule. With `'Allow'` (default), unmatched requests pass through — your rules function as a blocklist. With `'Block'`, unmatched requests get a 403 — your rules must explicitly allow legitimate traffic. Most applications use `'Allow'` because writing a complete allowlist is error-prone. Use `'Block'` only in high-security contexts where you can precisely define every valid request pattern.
+A `cdn`-scoped firewall protects a CloudFront distribution, and AWS WAF for CloudFront only exists in `us-east-1`. If you create a `cdn` firewall outside that region, deployment fails. Use `scope: 'cdn'` for CloudFront-attached resources and make sure the scope matches the target — a `regional` firewall cannot protect a CloudFront distribution, and a `cdn` firewall cannot protect a regional ALB, user auth pool, or HTTP API Gateway directly.

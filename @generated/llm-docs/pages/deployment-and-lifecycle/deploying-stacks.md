@@ -119,14 +119,14 @@ For Lambda functions, hot-swap updates the deployed function code. Eligible Lamb
 For large container builds, monorepos, or machines with limited resources, offload the entire build and deploy process to [AWS CodeBuild](/ci-cd-and-gitops/build-runners):
 
 ```bash
-stacktape codebuild:deploy --stage production --region eu-west-1
+stacktape deploy --runner codebuild --stage production --region eu-west-1
 ```
 
 CodeBuild deployment uploads your project to S3 and starts a CodeBuild build that runs the full deployment inside your AWS account. This is useful when local Docker builds are slow or your CI runner is underpowered.
 
 For simple Lambda-based stacks, local deploy is usually faster because it avoids the overhead of uploading your project and starting a CodeBuild environment. CodeBuild deployment shines for container-heavy stacks and monorepos with multiple images to build.
 
-See the [`codebuild:deploy` CLI reference](/cli/codebuild-deploy) for available options.
+See the [`deploy --runner codebuild` CLI reference](/cli/deploy) for available options.
 
 ## Automatic rollback
 
@@ -162,10 +162,10 @@ stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
 
 ## Previewing changes
 
-The [`stacktape preview-changes`](/cli/preview-changes) command generates the CloudFormation template and computes the diff against the currently deployed stack without modifying anything. Use it to verify that your config changes produce the expected infrastructure changes before committing to a deploy.
+The [`stacktape diff`](/cli/diff) command generates the CloudFormation template and computes the diff against the currently deployed stack without modifying anything. Use it to verify that your config changes produce the expected infrastructure changes before committing to a deploy.
 
 ```bash
-stacktape preview-changes --stage dev --region eu-west-1
+stacktape diff --stage dev --region eu-west-1
 ```
 
 See [Previewing changes](/deployment-and-lifecycle/previewing-changes) for details.
@@ -236,17 +236,17 @@ Common causes of slow Stacktape deployments:
 
 - **Large container images** — Use multi-stage Docker builds or [Stacktape buildpack packaging](/packaging/containers/stacktape-buildpack) to reduce image size.
 - **Many resources** — CloudFormation serializes dependent resources. This is expected for complex stacks.
-- **Slow local builds** — Consider [`codebuild:deploy`](/cli/codebuild-deploy) to offload builds to AWS.
+- **Slow local builds** — Consider [`deploy --runner codebuild`](/cli/deploy) to offload builds to AWS.
 - **First deploy to a new region** — Initial infrastructure setup (S3 deployment bucket, ECR repositories) adds one-time overhead.
 
 Run with `--logLevel debug` to see detailed timing for each phase.
 
 ### Secrets prompt blocking CI/CD
 
-If your config references `$Secret()` values that don't exist, the CLI prompts you to create them interactively. In CI/CD, this causes the deploy to hang. Create secrets before deploying using [`secret:create`](/cli/secret-create) or the [Stacktape Console](/configuration/secrets):
+If your config references `$Secret()` values that don't exist, the CLI prompts you to create them interactively. In CI/CD, this causes the deploy to hang. Create secrets before deploying using [`secret:set`](/cli/secret-set) or the [Stacktape Console](/configuration/secrets):
 
 ```bash
-stacktape secret:create --name mySecret --stage production --region eu-west-1
+stacktape secret:set --name mySecret --stage production --region eu-west-1
 ```
 
 ## FAQ
@@ -263,30 +263,14 @@ When auto-rollback is enabled (the default), CloudFormation reverts the entire s
 
 Yes. The same `stacktape.ts` config produces independent stacks per stage. Deploy with `--stage dev` and `--stage production` from the same config, and they create separate AWS resources with no shared state. Use [directives](/configuration/directives) like `$Stage()` inside your config to vary behavior per stage — for example, smaller instances in dev and larger ones in production.
 
-### What is the difference between first deploy and subsequent deploys?
-
-The first deployment creates the CloudFormation stack and all resources defined in your configuration, along with internal resources Stacktape needs for artifact management. Subsequent deployments submit the updated template — CloudFormation computes the diff and creates, updates, or deletes resources as needed. First deploys are typically slower than updates.
-
 ### Should I use hot-swap or full deployment?
 
 Use hot-swap (`--hotSwap`) when iterating on Lambda or container code during development. It bypasses CloudFormation and pushes changes directly, completing in seconds instead of minutes. Use full deployment for any infrastructure changes (new resources, permission updates, config changes) and always for production. Hot-swap creates drift between your CloudFormation state and actual resources, which is acceptable in dev but risky in production.
 
 ### When should I use CodeBuild deployment?
 
-Use [`codebuild:deploy`](/cli/codebuild-deploy) when your local machine is slow for Docker builds, when building large container images, or when your CI runner has limited CPU/memory. CodeBuild runs the entire deployment in an AWS-hosted build environment, which can be useful when local or CI resources are constrained. For simple Lambda-based stacks, local deploy is usually faster because it avoids the overhead of uploading your project and starting a CodeBuild environment.
+Use [`deploy --runner codebuild`](/cli/deploy) when your local machine is slow for Docker builds, when building large container images, or when your CI runner has limited CPU/memory. CodeBuild runs the entire deployment in an AWS-hosted build environment, which can be useful when local or CI resources are constrained. For simple Lambda-based stacks, local deploy is usually faster because it avoids the overhead of uploading your project and starting a CodeBuild environment.
 
-### What is CloudFormation drift and should I worry about it?
+### Does hot-swap cause CloudFormation drift, and should I worry about it?
 
-CloudFormation drift occurs when the actual state of AWS resources differs from what the CloudFormation template expects. Hot-swap deployments intentionally create drift by updating resources directly. Manual changes in the AWS console also cause drift. Drift doesn't break anything immediately, but the next full deploy may produce unexpected changes as CloudFormation reconciles the difference. Avoid drift in production by using only full deployments.
-
-### Stacktape deploy vs raw CloudFormation — what's the difference?
-
-Stacktape generates a CloudFormation template from your config but adds a complete deployment pipeline around it: code packaging, artifact management, container builds, secret management, automatic CDN invalidation, and hosting bucket syncing. With raw CloudFormation, you manage all of these yourself. Stacktape also provides hot-swap for fast code iteration and [CodeBuild offloading](/cli/codebuild-deploy) for remote builds.
-
-### How do I deploy from a CI/CD pipeline?
-
-Install Stacktape in your pipeline, authenticate with a Stacktape API key, and pass `--autoConfirmOperation` to skip interactive prompts. See [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) for authentication setup and integration examples with common CI providers. For push-to-deploy without maintaining your own pipeline, use [GitOps with Console](/ci-cd-and-gitops/gitops-with-console).
-
-### Does AWS CloudFormation charge for deployments?
-
-AWS CloudFormation itself has no additional charge for managing standard AWS resources — you pay only for the underlying resources your stack creates (Lambda invocations, ECS tasks, RDS instances, etc.). CloudFormation charges apply only when using third-party resource types or certain advanced features like Hook operations. For most Stacktape deployments, the CloudFormation management layer adds no extra cost.
+Yes. Because hot-swap updates Lambda code and container definitions directly through the AWS APIs instead of CloudFormation, the deployed resources no longer match what the template expects — this is drift. It's harmless in development, but the next full deploy reconciles the difference and may produce unexpected changes. That's why hot-swap is for dev stages only; always use full deployment for production.

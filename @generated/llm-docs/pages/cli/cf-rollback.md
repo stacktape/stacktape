@@ -259,7 +259,7 @@ stacktape cf:rollback --region eu-west-1 --stage production --logLevel debug
 
 - [`rollback`](/cli/rollback) — revert to a specific previous deployment version.
 - [`deploy`](/cli/deploy) — deploy your stack. After a successful `cf:rollback`, redeploy to bring resources to your desired configuration.
-- [`preview-changes`](/cli/preview-changes) — preview what a deployment would change before running it.
+- [`diff`](/cli/diff) — preview what a deployment would change before running it.
 
 ## FAQ
 
@@ -267,30 +267,10 @@ stacktape cf:rollback --region eu-west-1 --stage production --logLevel debug
 
 Use `cf:rollback` when your stack is stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` and cannot accept any new updates. The [`rollback`](/cli/rollback) command downloads a previous deployment's template and redeploys it, but it requires the stack to be in an updatable state. When a stack is in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`, `cf:rollback` unblocks it so you can deploy again.
 
-### What does UPDATE_FAILED mean?
+### What's the difference between UPDATE_FAILED and UPDATE_ROLLBACK_FAILED?
 
-`UPDATE_FAILED` means a CloudFormation stack update started but failed before completion. The stack is left in a state where it cannot accept further updates until the failed change is rolled back. Running `cf:rollback` triggers CloudFormation's native mechanism to return the stack to its last known good state.
+`UPDATE_FAILED` means a stack update failed partway through and the stack can't accept further updates until it's rolled back — `cf:rollback` returns it to the last known good state. `UPDATE_ROLLBACK_FAILED` means CloudFormation already attempted that rollback and the rollback itself failed; in this case, retry with `--resourcesToSkip` to bypass the resources blocking it.
 
-### What does UPDATE_ROLLBACK_FAILED mean?
+### My rollback keeps failing on a specific resource. What do I do?
 
-`UPDATE_ROLLBACK_FAILED` means that CloudFormation attempted to roll back a failed update, but the rollback itself failed. Use `cf:rollback` with `--resourcesToSkip` to bypass the problematic resources and allow the rollback to complete.
-
-### Can I use cf:rollback to undo a successful deployment?
-
-`cf:rollback` is intended for stacks in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`. To undo a successful deployment, use [`rollback`](/cli/rollback) to deploy a previous version's template instead.
-
-### What are logical resource IDs in --resourcesToSkip?
-
-Logical resource IDs are the names CloudFormation assigns to each resource in your stack template. You can find them in the error messages that appear when a rollback fails. They look like `MyLambdaFunction`, `ApiGatewayRestApi`, or `VpcSubnet1`.
-
-### Does cf:rollback require a Stacktape config file?
-
-`cf:rollback` can run without a Stacktape configuration file — `--region` is the only required argument. Use `--stage` and `--projectName` to identify the target stack when defaults are not enough, or rely on defaults configured via [`defaults:configure`](/cli/defaults-configure).
-
-### What happens to deployment artifacts after cf:rollback?
-
-After the rollback succeeds, Stacktape attempts to clean up rolled-back deployment artifacts.
-
-### How long does cf:rollback take?
-
-Rollback duration depends on the number and type of resources CloudFormation needs to roll back. Use `--logLevel debug` if you need more detailed command output.
+Pass that resource's logical ID to `--resourcesToSkip` so CloudFormation skips it during the rollback retry. This is common when a resource was deleted outside of CloudFormation or depends on an external service whose state changed. After the rollback completes, inspect the skipped resources before deploying again, since they were left in their failed state.

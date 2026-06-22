@@ -35,7 +35,7 @@ Common patterns that fit well:
 
 ## Basic example
 
-An HTTP API Gateway resource on its own is just the entry point — it does not define routes. Routes are defined on the compute resources (Lambda functions or container workloads) that reference the gateway by name. The simplest setup is a gateway plus one or more Lambda functions with [HTTP triggers](/configuration/triggers/http-triggers).
+An HTTP API Gateway resource on its own is just the entry point — it does not define routes. Routes are defined on the compute resources (Lambda functions or container workloads) that reference the gateway by name. The simplest setup is a gateway plus one or more Lambda functions with [HTTP triggers](/resources/triggers/http-triggers).
 
 
 Example (TypeScript):
@@ -87,7 +87,7 @@ A single gateway can serve routes from many Lambda functions and container workl
 | Path parameter | `/users/{id}` | Matches `/users/123`; `id` available in `event.pathParameters` |
 | Greedy (catch-all) | `/api/{proxy+}` | Matches any path starting with `/api/` |
 
-Routes are matched by specificity — exact paths take priority over wildcard paths. For container workloads, the HTTP API integration also requires `containerPort`, because API Gateway must know which container port receives the request. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API, including the container workload integration shape.
+Routes are matched by specificity — exact paths take priority over wildcard paths. For container workloads, the HTTP API integration also requires `containerPort`, because API Gateway must know which container port receives the request. See [HTTP triggers](/resources/triggers/http-triggers) for the full integration API, including the container workload integration shape.
 
 ### Catch-all pattern
 
@@ -131,7 +131,7 @@ This routes every request to a single Lambda. The framework inside the Lambda ha
 
 ### Route authorization
 
-Each HTTP API integration can optionally define an authorizer. Unauthorized requests are rejected with `401 Unauthorized` before your function code runs. Authorization is configured per-route on the integration, not on the gateway itself. See [HTTP triggers](/configuration/triggers/http-triggers) for the supported authorizer types and configuration details.
+Each HTTP API integration can optionally define an authorizer. Unauthorized requests are rejected with `401 Unauthorized` before your function code runs. Authorization is configured per-route on the integration, not on the gateway itself. See [HTTP triggers](/resources/triggers/http-triggers) for the supported authorizer types and configuration details.
 
 ## CORS
 
@@ -226,7 +226,7 @@ See [CDN](/resources/networking/cdn) for the full CDN configuration surface, inc
 
 ## Access logging
 
-HTTP API Gateway logs every request by default. Logs include request ID, client IP, HTTP method, status code, protocol, and response length. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the Stacktape Console.
+HTTP API Gateway logs every request by default. Logs include request ID, client IP, HTTP method, status code, protocol, and response length. View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
 
 Example (TypeScript):
@@ -395,15 +395,7 @@ AWS API Gateway V2 (HTTP API) costs ~$1 per million requests with no minimum fee
 
 ### How do I add routes to my HTTP API Gateway?
 
-Routes are not defined on the gateway resource. Instead, attach `HttpApiIntegration` events to your [Lambda functions](/resources/compute/lambda-function) or container workloads, referencing the gateway by its resource name. Each integration specifies an HTTP method and URL path. For container workloads, the integration also requires a `containerPort`. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API.
-
-### Can I use a custom domain with HTTP API Gateway?
-
-Yes. Add a `customDomains` array to your gateway configuration with your domain name. Stacktape provisions a free TLS certificate and creates a DNS record in Route53 automatically. Your domain must have a Route53 hosted zone in your AWS account — set one up with [`stacktape domain:add`](/cli/domain-add). See [Custom domains](/resources/networking/custom-domains) for details.
-
-### What's the difference between HTTP API and REST API on AWS?
-
-AWS offers two API Gateway products: HTTP API (V2) and REST API (V1). HTTP API is cheaper (~$1/M vs ~$3.50/M requests), has lower latency, and supports JWT authorizers natively. REST API offers more features (API keys, usage plans, request validation, WAF integration, private endpoints). Stacktape uses HTTP API because it covers the majority of use cases at lower cost.
+Routes are not defined on the gateway resource. Instead, attach `HttpApiIntegration` events to your [Lambda functions](/resources/compute/lambda-function) or container workloads, referencing the gateway by its resource name. Each integration specifies an HTTP method and URL path. For container workloads, the integration also requires a `containerPort`. See [HTTP triggers](/resources/triggers/http-triggers) for the full integration API.
 
 ### When should I use HTTP API Gateway vs an Application Load Balancer?
 
@@ -413,10 +405,6 @@ Use HTTP API Gateway for Lambda-based APIs with variable traffic — you pay per
 
 No. HTTP API Gateway routes request-response HTTP traffic by method and path. It does not support WebSocket connections or other persistent bidirectional communication. If you need real-time bidirectional messaging, a container-based architecture running a WebSocket server (e.g., Socket.io, ws) behind an [Application Load Balancer](/resources/networking/application-load-balancer) is a common alternative.
 
-### How do I enable CORS on my API Gateway?
-
-Set `cors: { enabled: true }` on the gateway resource. With no other options, this uses permissive defaults (`*` origins, auto-detected methods). To restrict origins, provide `allowedOrigins` with specific domain URLs. CORS is handled at the gateway level and overrides any CORS headers your application code sets.
-
 ### What is the maximum payload size for HTTP API Gateway?
 
 AWS API Gateway V2 (HTTP API) has a maximum payload size of 10 MB for both requests and responses. For larger payloads, use S3 presigned URLs to upload/download files directly, or use an [Application Load Balancer](/resources/networking/application-load-balancer) which does not have this limit.
@@ -424,7 +412,3 @@ AWS API Gateway V2 (HTTP API) has a maximum payload size of 10 MB for both reque
 ### Can I protect my API Gateway with a firewall?
 
 The `HttpApiGateway` resource does not expose a top-level `useFirewall` property. To add WAF protection, enable `cdn` on the gateway and attach a [WebAppFirewall](/resources/security/web-application-firewall) resource to the CDN distribution. This provides rate limiting, IP filtering, geo-blocking, and bot protection at the edge layer in front of your API. See the [CDN](/resources/networking/cdn) and [Web Application Firewall](/resources/security/web-application-firewall) pages for configuration details.
-
-### How fast does API Gateway respond?
-
-API Gateway itself adds roughly 10–30ms of overhead per request for routing, authorization, and TLS termination — it is always ready to accept requests and does not cold-start. The latency your users observe comes primarily from your Lambda function's cold start (typically 100–500ms for Node.js/Python, longer for Java/.NET). To reduce end-to-end latency, optimize your Lambda's cold start time or use provisioned concurrency.

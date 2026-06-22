@@ -97,7 +97,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['auth'],
+    connectTo: [auth],
     events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'gateway',
@@ -153,7 +153,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['auth'],
+    connectTo: [auth],
     events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'gateway',
@@ -178,7 +178,7 @@ export default defineConfig(() => {
 
 The `cognito` authorizer type validates JWTs issued by the referenced user pool. Stacktape uses `userPoolName` to set the expected audience to the user pool client ID and build the issuer URL from the user pool and AWS region. By default, the token is read from the `Authorization` header. You can customize this with the `identitySources` property on the authorizer to read from a different header, query parameter, or stage variable using the `$request.*` syntax.
 
-Stacktape also supports a `lambda` authorizer type, where a [Lambda function](/resources/compute/lambda-function) runs custom authorization logic for each request. Use this when your auth needs go beyond simple JWT validation — for example, checking API keys, looking up permissions in a database, or integrating with a non-Cognito identity system. See [HTTP triggers](/configuration/triggers/http-triggers) for details on both authorizer types.
+Stacktape also supports a `lambda` authorizer type, where a [Lambda function](/resources/compute/lambda-function) runs custom authorization logic for each request. Use this when your auth needs go beyond simple JWT validation — for example, checking API keys, looking up permissions in a database, or integrating with a non-Cognito identity system. See [HTTP triggers](/resources/triggers/http-triggers) for details on both authorizer types.
 
 ## Verification
 
@@ -212,7 +212,7 @@ A Stacktape user authentication pool supports six types of external identity pro
 | `OIDC` | Any OpenID Connect provider (Okta, Azure AD, etc.) |
 | `SAML` | Enterprise SSO (Active Directory, Ping Identity, etc.) |
 
-Each identity provider requires a `clientId` and `clientSecret`. These are required fields in the Stacktape type for all provider types. For social and OIDC providers, obtain them from the provider's developer console. For SAML and OIDC providers, advanced provider-specific options can be passed through `providerDetails` as Cognito `ProviderDetails` values. Store secrets using the [`$Secret` directive](/configuration/directives) to avoid exposing them in your config. See [secrets](/configuration/secrets) or [`stacktape secret:create`](/cli/secret-create) for setup.
+Each identity provider requires a `clientId` and `clientSecret`. These are required fields in the Stacktape type for all provider types. For social and OIDC providers, obtain them from the provider's developer console. For SAML and OIDC providers, advanced provider-specific options can be passed through `providerDetails` as Cognito `ProviderDetails` values. Store secrets using the [`$Secret` directive](/configuration/directives) to avoid exposing them in your config. See [secrets](/configuration/secrets) or [`stacktape secret:set`](/cli/secret-set) for setup.
 
 
 Example (TypeScript):
@@ -781,42 +781,30 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 ## FAQ
 
-### Can I use Google, Facebook, or Apple login with a Stacktape user auth pool?
+### When should I use a user auth pool vs a third-party auth service like Auth0?
 
-Yes. The `identityProviders` property supports Google, Facebook, SignInWithApple, LoginWithAmazon, OIDC, and SAML providers. Each provider requires a `clientId` and `clientSecret`. Store secrets securely using the [`$Secret` directive](/configuration/directives). Stacktape creates the necessary `AWS::Cognito::UserPoolIdentityProvider` resources and registers them in the user pool client's `SupportedIdentityProviders` automatically.
-
-### How do I protect API routes with the user pool?
-
-Add a `cognito` authorizer to your [HTTP API Gateway](/resources/networking/http-api-gateway) trigger integration. Set `authorizer.properties.userPoolName` to your user pool resource name. API Gateway validates the JWT on every request — no middleware needed. Unauthorized requests receive a `401` response before your code runs. See [HTTP triggers](/configuration/triggers/http-triggers) for the full authorizer configuration reference.
-
-### What environment variables does connectTo inject for a user auth pool?
-
-When you add a user auth pool to a resource's [`connectTo`](/configuration/connecting-resources) list, Stacktape injects three environment variables: `STP_[RESOURCE_NAME]_ID` (pool ID), `STP_[RESOURCE_NAME]_CLIENT_ID` (client ID), and `STP_[RESOURCE_NAME]_ARN` (pool ARN). The connecting resource also receives full-control IAM permissions for the user pool. Additional parameters like `domain` and `providerUrl` are available via [`$ResourceParam`](/configuration/referenceable-parameters).
+Use a Stacktape user auth pool when you want authentication integrated with your AWS infrastructure (IAM permissions, API Gateway JWT validation, Lambda hooks) without managing another vendor. Use Auth0 or Clerk when you need advanced features like passwordless login with passkeys, pre-built UI components for multiple frameworks, or want to stay cloud-agnostic. Cognito's MAU-based pricing makes it cost-effective for most apps.
 
 ### How much does Amazon Cognito cost?
 
-Amazon Cognito uses a pay-per-monthly-active-user (MAU) pricing model. Direct sign-in (username/password) includes a free tier, with pricing that decreases at higher volume tiers. Social login and SAML/OIDC federation have separate, higher per-MAU rates with no free tier. There are no upfront costs or minimum commitments. Check the AWS Cognito pricing page for current regional rates.
+Amazon Cognito uses a pay-per-monthly-active-user (MAU) pricing model, and Stacktape adds no markup on top. Native sign-in users (username/password) and federated identities (social login, SAML/OIDC) are billed at different rates. Check the AWS Cognito pricing page for current regional rates.
+
+### How do I protect API routes with the user pool?
+
+Add a `cognito` authorizer to your [HTTP API Gateway](/resources/networking/http-api-gateway) trigger integration and set `authorizer.properties.userPoolName` to your user pool resource name. API Gateway then validates the JWT on every request with no middleware needed — unauthorized requests receive a `401` before your code runs. For auth logic beyond JWT validation (API keys, database permission lookups), use the `lambda` authorizer type instead. See [HTTP triggers](/resources/triggers/http-triggers) for the full reference.
+
+### Which social and enterprise identity providers are supported?
+
+The `identityProviders` property supports `Google`, `Facebook`, `SignInWithApple`, `LoginWithAmazon`, `OIDC`, and `SAML` — covering both consumer social login and enterprise SSO (Active Directory, Okta, Ping Identity via SAML or OIDC). Each provider requires a `clientId` and `clientSecret`; store them with the [`$Secret` directive](/configuration/directives). Set `allowOnlyExternalIdentityProviders: true` (after configuring at least one provider) to disable password-based login entirely for a fully federated experience.
 
 ### Can I migrate users from another auth system?
 
 Yes. Configure the `userMigration` Lambda hook with a function that looks up users in your legacy system. When a user tries to sign in but does not exist in Cognito, the hook fires — your function validates credentials against the old system and returns the user profile. Cognito then creates the user transparently. This lets you migrate incrementally without a big-bang cutover or requiring users to re-register.
 
-### What is the difference between email-link and email-code verification?
+### How do I add custom claims (roles, tenant IDs) to JWT tokens?
 
-Both verify email ownership. `email-code` sends a numeric code the user types into your app — simpler to implement and works in any context. `email-link` sends a clickable URL that confirms the email in one step — smoother UX but requires the user to check email in the same browser or device where they started sign-up. Choose based on your UX requirements; `email-code` is the more common default.
+Use the `preTokenGeneration` Lambda hook. Your function receives the user's attributes and can add, modify, or suppress claims in the access and ID tokens before Cognito issues them. This is how you include roles, permissions, tenant IDs, or feature flags in the JWT without a separate lookup. Pair it with the `schema` property to store those values as custom attributes on each user. See the [Lambda hooks](#lambda-hooks) section for all available trigger points.
 
-### When should I use a user auth pool vs a third-party auth service like Auth0?
+### Why does my Hosted UI custom domain fail to deploy?
 
-Use a Stacktape user auth pool when you want authentication integrated with your AWS infrastructure (IAM permissions, API Gateway JWT validation, Lambda hooks) without managing another vendor. Use Auth0 or Clerk when you need advanced features like passwordless login with passkeys, pre-built UI components for multiple frameworks, or need to stay cloud-agnostic. Cognito's MAU-based pricing with a free tier makes it cost-effective for most apps.
-
-### Does the user pool support SAML for enterprise SSO?
-
-Yes. Add an identity provider with `type: 'SAML'` and configure `providerDetails` with the appropriate Cognito `ProviderDetails` values for your SAML identity provider. This lets enterprise customers sign in with their existing Active Directory, Okta, or Ping Identity accounts. Combine with `allowOnlyExternalIdentityProviders: true` to disable password-based login entirely for a fully federated experience.
-
-### How do I add custom claims to JWT tokens?
-
-Use the `preTokenGeneration` Lambda hook. Your function receives the user's attributes and can add, modify, or suppress claims in the access and ID tokens before Cognito issues them. This is how you include roles, permissions, tenant IDs, or feature flags in the JWT without storing them in a separate system. See the [Lambda hooks](#lambda-hooks) section for all available trigger points.
-
-### Can I restrict sign-ups to admin-created accounts only?
-
-Yes. Set `allowOnlyAdminsToCreateAccount: true` on the user pool properties. New users cannot self-register — accounts must be created through the Cognito `AdminCreateUser` API from your backend or the AWS Console. Use `unusedAccountValidityDays` to control how long the unused account stays valid if the user never signs in. This is the recommended pattern for internal tools, B2B dashboards, and invite-only applications.
+A `customDomain` for the Hosted UI requires an ACM certificate in **us-east-1**, because Cognito serves custom domains through CloudFront, which only accepts certificates from that region. The domain must also be registered and verified in your Stacktape account. If you manage DNS outside Stacktape (e.g., Cloudflare), set `customDomain.disableDnsRecordCreation: true` so Stacktape does not try to create the record itself.

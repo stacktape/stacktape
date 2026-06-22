@@ -97,6 +97,9 @@ export default defineConfig(({ stage }) => {
   const isProduction = stage === 'production';
 
   const database = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: "$Secret('database.password')"
+    },
     engine: new RdsEnginePostgres({
       version: '16',
       primaryInstance: {
@@ -113,7 +116,7 @@ export default defineConfig(({ stage }) => {
     }),
     memory: isProduction ? 1024 : 512,
     timeout: 30,
-    connectTo: ['database'],
+    connectTo: [database],
     events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'api',
@@ -187,5 +190,3 @@ The `resources` section is the only required part of a Stacktape config, but sev
 ## Next step
 
 You have a config that defines what to deploy. Next, use dev mode to iterate locally — edit your code and see changes without waiting for full deployments.
-
-**Next →** [Use the dev mode](/getting-started/use-the-dev-mode)

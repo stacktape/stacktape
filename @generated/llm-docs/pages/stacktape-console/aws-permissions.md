@@ -15,7 +15,7 @@ Although the connection stack is created in eu-west-1, your projects and stacks 
 Stacktape uses the assumed role to interact with your AWS account. Based on the Console source, the role is used to:
 
 - **Perform deployments** — deploy and manage infrastructure in your AWS account, including resources such as [Lambda functions](/resources/compute/lambda-function), [containers](/resources/compute/web-service), [databases](/resources/databases/relational-database), and others
-- **List logs and metrics** — fetch CloudWatch data for display in the Stacktape Console and CLI ([`stacktape debug:logs`](/cli/debug-logs), [`stacktape debug:metrics`](/cli/debug-metrics))
+- **List logs and metrics** — fetch CloudWatch data for display in the Stacktape Console and CLI ([`stacktape logs`](/cli/logs), [`stacktape metrics`](/cli/metrics))
 
 The connection role is intended to let Stacktape perform deployments and list logs and metrics through the connected AWS account. The exact AWS actions used depend on the Stacktape features and resources you deploy.
 
@@ -93,10 +93,6 @@ Use AWS CloudTrail to audit AWS API activity for the IAM role created by the con
 
 ## FAQ
 
-### How does Stacktape access my AWS account?
-
-Stacktape uses cross-account AssumeRole access through an IAM role created by the CloudFormation stack in your AWS account. Cross-account role assumption is the standard AWS-recommended pattern for granting third-party services deployment access. The IAM role lives in your account, and you control its lifecycle.
-
 ### Why does Stacktape need broad AWS permissions?
 
 Stacktape deploys infrastructure-as-code through CloudFormation. A typical deployment creates and manages resources across many AWS services — Lambda, ECS, RDS, S3, CloudFront, API Gateway, IAM, VPC, and others. The exact services depend on your configuration. A narrow, service-specific policy would break unpredictably depending on which resources you define. Broad permissions ensure any valid Stacktape configuration deploys without permission errors.
@@ -109,25 +105,17 @@ Yes. The CloudFormation stack creates an IAM role and supporting resources at no
 
 Yes. Apply AWS Service Control Policies (SCPs) at the AWS Organizations level to set a permissions ceiling. SCPs restrict what any principal — including Stacktape's role — can do in the account, regardless of the role's own policy. Be aware that overly restrictive SCPs may cause deployment failures if they block actions Stacktape needs.
 
-### What happens to my resources if I revoke access?
+### Do my deployed resources get deleted if I revoke access?
 
-Revoking the connection removes Stacktape's ability to assume the connection role. Deployed AWS resources are managed through their own CloudFormation stacks, which are separate from the connection stack. To remove deployed resources, delete the application stacks before or after revoking the connection. Without a valid connection, you can still manage CloudFormation stacks directly in the AWS Console.
+No. Revoking the connection only removes Stacktape's ability to assume the connection role. Your deployed resources are managed through their own CloudFormation stacks, which are separate from the connection stack and are left untouched. Without a valid connection you can still manage those stacks directly in the AWS Console; to remove the resources, delete the application stacks yourself.
 
 ### Can Stacktape access other AWS accounts I own?
 
 No. The cross-account role is scoped to the specific AWS account where the connection stack was created. Stacktape can only assume the role in that one account. Each additional AWS account requires its own separate connection setup through the Console.
 
-### How do I audit what Stacktape does in my account?
-
-Enable AWS CloudTrail in your account. You can filter CloudTrail events by the role ARN to see what actions were performed and when. CloudTrail event shape and coverage are standard AWS behavior; refer to AWS CloudTrail documentation for details on audit trail configuration and retention in your account.
-
 ### Why is the connection stack created in eu-west-1?
 
 The connection stack provisions global AWS resources (primarily an IAM role). IAM roles are global — once created in any region, they work across all regions. The eu-west-1 requirement is a deployment convention for the connection infrastructure. After the connection is established, your projects deploy to whichever region you specify in your Stacktape configuration.
-
-### Is this the same approach other IaC tools use?
-
-Yes. Cross-account IAM role assumption is the standard AWS-recommended pattern for granting third-party services access to your account. AWS documents this pattern for any service that needs to perform actions in your account on your behalf. The IAM role lives in your account, you control its lifecycle, and you can delete it at any time.
 
 ### What permission do I need to connect an AWS account?
 

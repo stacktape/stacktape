@@ -261,7 +261,7 @@ Runtime directives resolve during CloudFormation deployment. Depending on the di
 
 ### $Secret()
 
-References a secret stored in AWS Secrets Manager. The named secret must be readable by Stacktape during deployment. Create secrets using [`stacktape secret:create`](/cli/secret-create) or through the [Stacktape Console](/configuration/secrets).
+References a secret stored in AWS Secrets Manager. The named secret must be readable by Stacktape during deployment. Create secrets using [`stacktape secret:set`](/cli/secret-set) or through the [Stacktape Console](/configuration/secrets).
 
 
 Example (TypeScript):
@@ -284,7 +284,7 @@ export default defineConfig(() => {
 ```
 
 
-Deployment fails with an error if Stacktape cannot fetch the named secret, with a hint to create it using [`stacktape secret:create`](/cli/secret-create).
+Deployment fails with an error if Stacktape cannot fetch the named secret, with a hint to create it using [`stacktape secret:set`](/cli/secret-set).
 
 
 > **Warning:** The secret's `VersionId` is baked into the CloudFormation template at deploy time. If you update a secret in AWS Secrets Manager after deployment, the running stack continues using the old version until you redeploy. This means secret rotation requires a redeployment to take effect.
@@ -319,7 +319,7 @@ export default defineConfig(() => {
 Create a JSON secret with the CLI:
 
 ```bash
-stacktape secret:create --region us-east-1
+stacktape secret:set --region us-east-1
 ```
 
 When prompted, provide a name (e.g., `api-keys`) and a JSON value (e.g., `{"stripe": "sk_...", "sendgrid": "SG..."}`).
@@ -600,27 +600,19 @@ Runtime directives like `$Secret` produce CloudFormation intrinsic functions tha
 
 ### How do I pass custom values at deploy time without changing the config?
 
-Use `$CliArgs()` to read arguments passed after `--` in the deploy command. For example, `stacktape deploy --stage prod -- --dbSize=db.r6g.large` lets your config read `$CliArgs('dbSize')`. You can also pass an optional second argument as a default value: `$CliArgs('dbSize', 'db.t4g.micro')`. This is useful for values that change per-deploy but shouldn't be committed.
-
-### Can I use directives in TypeScript configs?
-
-Yes. Directive helpers like `$Secret`, `$ResourceParam`, `$CfFormat`, `$GitInfo`, `$Stage`, and `$Region` are imported as functions from the `stacktape` package. For local operations like string formatting, file reading, and variable access, you can use native JavaScript instead of the corresponding YAML directives.
+Use `$CliArgs()` to read arguments passed after `--` in the deploy command. For example, `stacktape deploy --stage prod -- --dbSize=db.r6g.large` lets your config read `$CliArgs('dbSize')`. The optional second argument is a fallback used when the flag isn't passed: `$CliArgs('dbSize', 'db.t4g.micro')`. This is useful for values that change per-deploy but shouldn't be committed.
 
 ### What happens if a referenced secret doesn't exist?
 
-Deployment fails with an error identifying the missing secret and suggesting you create it with [`stacktape secret:create`](/cli/secret-create). Similarly, if Stacktape cannot read the SSM parameter while resolving the `$SsmParam` directive, it raises a directive error with a hint to create the parameter in the Stacktape Console. Always create secrets and parameters before deploying stacks that reference them.
+Deployment fails with an error identifying the missing secret and suggesting you create it with [`stacktape secret:set`](/cli/secret-set). Similarly, a missing `$SsmParam` parameter fails deployment with a directive error. Always create secrets and parameters before deploying stacks that reference them.
 
 ### How does $CfStackOutput prevent accidental deletion?
 
 `$CfStackOutput` produces a CloudFormation `ImportValue` intrinsic function. AWS CloudFormation prevents any stack whose outputs are imported by another stack from being deleted. You must delete the consuming stack first (or remove the `$CfStackOutput` reference) before the shared stack can be removed. Use `$StackOutput` instead if you don't need this deletion protection.
 
-### How do I find the output key for $StackOutput or $CfStackOutput?
+### Can I import an output from a stack in another region?
 
-Use [`stacktape info:stack`](/cli/info-stack) to list the available CloudFormation output keys for a deployed stack. The `outputName` argument passed to `$StackOutput` or `$CfStackOutput` must exactly match the CloudFormation `OutputKey` of the referenced stack. Both directives accept an optional `region` argument for the lookup. `$StackOutput` returns the resolved value directly, so cross-region lookups work. `$CfStackOutput` returns a CloudFormation `ImportValue` intrinsic that only resolves within the deployment region.
-
-### Can I nest $ResourceParam inside $Format?
-
-No. `$Format` is a local directive and cannot accept runtime directives as arguments. Use `$CfFormat` instead — it resolves at deployment time and accepts runtime directives like `$ResourceParam` and `$Secret` as arguments. Example: `$CfFormat('{}/api', $ResourceParam('gateway', 'url'))`.
+Use `$StackOutput`, not `$CfStackOutput`. `$StackOutput` fetches the value at config-parse time, so its optional `region` argument lets it read an export from a stack in a different region. `$CfStackOutput` produces a CloudFormation `ImportValue`, which only resolves within the deployment region — cross-region imports don't work with it. Use [`stacktape info:stack`](/cli/info-stack) to find the exact `outputName` (it must match the stack's CloudFormation `OutputKey`).
 
 ### How do I access JSON properties from $Secret?
 

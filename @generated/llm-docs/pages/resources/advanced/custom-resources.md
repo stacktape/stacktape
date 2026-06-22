@@ -320,7 +320,7 @@ The `handler` property specifies the entry point in `filepath:functionName` form
 
 ## Runtime
 
-The `runtime` property sets the Lambda runtime to a supported AWS Lambda runtime identifier. When using the [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack), the runtime is auto-detected from the entry file extension, so you rarely need to set this explicitly. Set `runtime` manually when using [custom artifact](/packaging/function/custom-artifact) packaging (since there is no entry file for Stacktape to detect from) or when you need to pin a specific runtime version. See the API reference below for the full list of supported runtime values, and the [function packaging docs](/packaging/function/language-specific-config) for runtime-specific configuration.
+The `runtime` property sets the Lambda runtime to a supported AWS Lambda runtime identifier. When using the [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack), the runtime is auto-detected from the entry file extension, so you rarely need to set this explicitly. Set `runtime` manually when using [custom artifact](/packaging/function/custom-artifact) packaging (since there is no entry file for Stacktape to detect from) or when you need to pin a specific runtime version. See the API reference below for the full list of supported runtime values, and the [function packaging docs](/packaging/function/stacktape-buildpack#language-specific-configuration) for runtime-specific configuration.
 
 ## Connecting to resources
 
@@ -452,17 +452,13 @@ accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
 
 ## FAQ
 
-### What is a CloudFormation custom resource?
-
-A CloudFormation custom resource is a stack resource backed by a Lambda function instead of a built-in AWS resource type. CloudFormation invokes the backing function during stack Create, Update, and Delete operations. The function manages the actual resource lifecycle and reports success or failure back to CloudFormation via a pre-signed S3 URL. Stacktape wraps this mechanism with the `CustomResourceDefinition` and `CustomResourceInstance` classes, adding automatic Lambda packaging, `connectTo` access, and environment variable injection.
-
 ### Can I use connectTo with custom resources?
 
-Yes. `CustomResourceDefinitionProps` extends `ResourceAccessProps`, so a custom resource definition can use `connectTo` to grant IAM permissions, open network access for VPC-bound resources like databases and Redis, and inject `STP_[RESOURCE_NAME]_[PARAM]` environment variables into the backing Lambda. Your custom resource handler can then interact with databases, buckets, queues, and other stack resources during provisioning. See [connecting resources](/configuration/connecting-resources) for the full list of injected variables per resource type.
+Yes. `CustomResourceDefinitionProps` extends `ResourceAccessProps`, so a custom resource definition can use `connectTo` to grant IAM permissions, security-group access where applicable, and inject `STP_[RESOURCE_NAME]_[PARAM]` environment variables into the backing Lambda. Your custom resource handler can then interact with databases, buckets, queues, and other stack resources during provisioning. See [connecting resources](/configuration/connecting-resources) for the full list of injected variables per resource type.
 
-### What happens if my custom resource Lambda fails during deployment?
+### What happens if my custom resource Lambda fails or the stack rolls back?
 
-If the Lambda sends a `FAILED` response or fails to respond before the timeout, CloudFormation marks the resource as failed and initiates rollback. Because custom resources participate in CloudFormation stack operations, design your Delete handler to be idempotent — it should tolerate being called for partially-created resources and succeed silently if the external resource doesn't exist.
+If the Lambda sends a `FAILED` response or fails to respond before the timeout, CloudFormation marks the resource as failed and initiates rollback. During rollback, your Delete handler may run against a resource that was never fully created — so write it defensively: check whether the external resource exists before deleting it, and succeed silently if it's already gone. A Delete handler that throws here can leave the resource in a `DELETE_FAILED` state that requires manual cleanup.
 
 ### How long can a custom resource Lambda run?
 
@@ -476,10 +472,6 @@ Use a **custom resource** when the external resource's lifecycle should be tied 
 
 Yes. The `CustomResourceDefinition` defines the Lambda code once. You can create multiple `CustomResourceInstance` resources that reference the same definition by name, each passing different `resourceProperties`. Each instance is an independent CloudFormation resource with its own Create/Update/Delete lifecycle. This avoids duplicating Lambda code when provisioning multiple similar external resources — like DNS records for different subdomains or webhook registrations for different endpoints.
 
-### What happens to custom resources during a stack rollback?
-
-Because custom resources participate in CloudFormation stack operations, design Create, Update, and Delete handlers to be idempotent and rollback-tolerant. Write your Delete handler defensively: check whether the external resource exists before attempting to delete it, and succeed silently if it's already gone. If a Delete handler fails during rollback, the resource may enter a `DELETE_FAILED` state requiring manual cleanup.
-
 ### Can custom resources return values for use elsewhere in the stack?
 
 Custom resources can return data in the `Data` field of their CloudFormation response. However, custom resources are not listed among Stacktape [referenceable parameters](/configuration/referenceable-parameters), so you cannot use `$ResourceParam()` to reference their outputs. For CloudFormation-level output wiring, use the [overrides escape hatch](/configuration/overrides-and-escape-hatches) if you are comfortable working at the CloudFormation layer.
@@ -487,7 +479,3 @@ Custom resources can return data in the `Data` field of their CloudFormation res
 ### Does AWS charge for custom resource Lambda invocations?
 
 Custom resource Lambda invocations follow standard AWS Lambda pricing: per-request fee plus duration-based charges proportional to memory allocation. Since the Lambda only runs during stack operations (deploy, update, delete), costs are negligible for most teams — typically a few invocations per deployment. The Lambda is not invoked between deployments, so there is no ongoing compute cost.
-
-### Can I use AWS CDK constructs instead of custom resources?
-
-They solve different problems. [CDK constructs](/resources/advanced/aws-cdk-constructs) generate CloudFormation templates at build time — they compose AWS resources declaratively without runtime Lambda code. Custom resources run Lambda code during stack operations to manage resources that don't exist in CloudFormation's resource catalog. If the resource you need is a standard AWS service, prefer a CDK construct or [raw CloudFormation](/resources/advanced/raw-cloudformation-resources). Use a custom resource only when you need to call external APIs or run imperative provisioning logic during deployment.

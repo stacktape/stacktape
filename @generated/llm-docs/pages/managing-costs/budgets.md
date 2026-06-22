@@ -87,14 +87,6 @@ Budget alerts are also not a substitute for right-sizing resources. If baseline 
 
 No. AWS Budgets is an alerting mechanism, not a spending cap. When a threshold is crossed, you receive a notification — AWS does not automatically shut down or throttle resources. You need to respond to the alert by scaling down, removing unused resources, or adjusting your configuration. For preventive cost controls, combine budgets with [guardrails](/guardrails/overview) that restrict what can be deployed.
 
-### How quickly do budget alerts fire after a threshold is crossed?
-
-Budget alerts are not real-time — AWS Budgets evaluates spend periodically, so there can be a delay between crossing a threshold and receiving an alert. A fast-burning workload could overshoot between evaluation cycles. For more cost context, check the [cost dashboards](/managing-costs/dashboards) in the Console alongside your budget alerts.
-
-### What is the difference between threshold-exceeded and forecasted-overspend alerts?
-
-Threshold-exceeded alerts fire when cumulative spend has already passed a configured percentage of your limit. Forecasted-overspend alerts fire when AWS predicts you will exceed the threshold, even though actual spend has not reached it yet. Enable both on production budgets for maximum lead time — the forecast alert often fires earlier than the actual threshold is crossed.
-
 ### Can I set a budget alert for a single resource like one database?
 
 Stacktape budget alerts scope to projects and stages (stacks), not individual resources within a stack. For per-resource cost visibility, use the [per-resource breakdown](/managing-costs/per-resource-breakdown) in the Console.
@@ -102,10 +94,6 @@ Stacktape budget alerts scope to projects and stages (stacks), not individual re
 ### How much do AWS Budgets cost?
 
 AWS may charge for AWS Budgets depending on your account and usage — check the [AWS Budgets pricing page](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/) for current rates.
-
-### Can I send budget alerts to Slack, email, or a webhook?
-
-Yes. Alert channels — such as a Slack channel, an email address, or a webhook — are destinations used by notification rules, alarm rules, and budget alerts. Configure them on the [alert channels](/observability/alert-channels) page, then select the channels you need when creating a budget alert.
 
 ### Why isn't my forecast alert firing?
 
@@ -115,6 +103,6 @@ AWS Budgets forecasts rely on historical usage data. For newly created AWS accou
 
 Use both — they serve different purposes. Budget alerts are reactive: they notify you when spend crosses a threshold so you can investigate. [Guardrails](/guardrails/overview) are preventive: they block deployments that violate your rules (e.g. oversized instances, unauthorized regions, restricted resource types). Start with budget alerts for cost visibility, then layer in guardrails once you know which constraints protect your team from common mistakes.
 
-### Where can I see how much each stack is costing me?
+### Why isn't my stack-scoped budget tracking any spend?
 
-The [cost dashboards](/managing-costs/dashboards) in the Console show spend over time, and the [per-resource breakdown](/managing-costs/per-resource-breakdown) attributes costs to individual projects, stages, and resources. Budget alerts complement these views by adding proactive notification — dashboards show what happened, budget alerts tell you when it is happening.
+Stack-scoped budget alerts depend on Stacktape deployment metadata to attribute spend to matching stacks. If you create or change a stack-scoped alert but haven't deployed matching stacks since, the Console has nothing to track. Deploy (or redeploy) the stacks whose projects and stages match the budget's filters, and confirm the filters actually match your project and stage names.

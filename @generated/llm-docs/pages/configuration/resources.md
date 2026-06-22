@@ -142,7 +142,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/worker.ts'
     }),
-    environment: [{ name: 'QUEUE_URL', value: "$ResourceParam('orderQueue', 'url')" }]
+    environment: { QUEUE_URL: "$ResourceParam('orderQueue', 'url')" }
   });
 
   return {
@@ -160,7 +160,7 @@ See [Directives](/configuration/directives) for all built-in directives and [Ref
 
 Each Stacktape resource produces one or more CloudFormation resources. When you run [`stacktape deploy`](/cli/deploy), Stacktape resolves your configuration (variables, directives, secrets), translates each resource into CloudFormation definitions with the necessary IAM roles and security groups, and submits the resulting template to AWS for provisioning.
 
-You can inspect the generated template with [`stacktape compile-template`](/cli/compile-template) before deploying. After deploying, use [`stacktape info:stack`](/cli/info-stack) to see deployed resource details.
+You can inspect the generated template with [`stacktape synth`](/cli/synth) before deploying. After deploying, use [`stacktape info:stack`](/cli/info-stack) to see deployed resource details.
 
 
 > **Info:** Stacktape automatically adds `projectName`, `stage`, and `stackName` tags to every AWS resource in your stack. Custom tags defined in `stackConfig.tags` are merged on top — useful for cost tracking and access control in AWS Cost Explorer.
@@ -197,9 +197,9 @@ Raw CloudFormation resources don't participate in `connectTo`. If you need to ex
 
 ## FAQ
 
-### How many resources can I put in one stack?
+### How many resources can I put in one stack, and when should I split?
 
-Each Stacktape resource produces multiple CloudFormation resources underneath (IAM roles, security groups, log groups, etc.), so there is a practical ceiling on how many Stacktape resources fit in one stack. A typical web application with a handful of compute resources, databases, and queues stays well within limits. If you find yourself hitting CloudFormation limits, split by domain boundary into separate projects.
+Each Stacktape resource produces multiple CloudFormation resources underneath (IAM roles, security groups, log groups, etc.), so there is a practical ceiling on how many fit in one stack. A typical web application (API + database + queue + bucket) stays well within limits, so start with one stack per service boundary. Split into separate projects when you hit CloudFormation limits, when teams need independent deploy cycles, or when blast-radius concerns justify isolation.
 
 ### Do resources cost money when idle?
 
@@ -209,30 +209,10 @@ It depends on the resource type. Serverless resources like Lambda functions and 
 
 Yes. Use `stackConfig.outputs` with `export: true` to expose values from one stack, then reference them from another stack using the `$CfStackOutput` directive. This pattern is common for shared infrastructure like VPCs or databases used by multiple services.
 
-### What happens if a deployment fails?
-
-By default, AWS CloudFormation automatically rolls back all changes to the last successful state. You can disable this with `deploymentConfig.disableAutoRollback` for debugging, then manually roll back with [`stacktape cf:rollback`](/cli/cf-rollback).
-
 ### Can I use AWS services that Stacktape doesn't have a built-in resource for?
 
 Yes. Use [raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) via the `cloudformationResources` section, or embed [CDK constructs](/resources/advanced/aws-cdk-constructs) for higher-level abstractions. Both approaches let you add any AWS resource while keeping it in the same stack and deployment lifecycle.
 
-### How do I see what AWS resources Stacktape created?
-
-Run [`stacktape info:stack`](/cli/info-stack) to see all CloudFormation resources in your stack. Use the `--detailed` flag for full logical resource IDs. You can also run [`stacktape compile-template`](/cli/compile-template) to inspect the raw CloudFormation template before deploying.
-
-### Should I use one big stack or many small ones?
-
-Start with one stack per service boundary. A typical web application (API + database + queue + bucket) fits comfortably in a single stack. Split when teams need independent deploy cycles, when you hit CloudFormation limits, or when blast radius concerns justify isolation. One stack is simpler to manage — split only when you have a concrete reason.
-
-### How do I protect a database from accidental deletion?
-
-Use `deploymentConfig.terminationProtection` to prevent the entire stack from being deleted. For per-resource protection, use CloudFormation stack policies via `overrides` to deny `Update:Replace` and `Update:Delete` actions on specific resources.
-
-### What's the difference between connectTo and iamRoleStatements?
-
-The `connectTo` property is the high-level path: name a resource, get permissions + environment variables + network access automatically. Use `iamRoleStatements` when you need to access AWS services directly (e.g., Rekognition, Bedrock, Textract) or need fine-grained control over specific IAM actions that `connectTo` doesn't expose.
-
 ### How does Stacktape handle VPC networking?
 
-Stacktape creates a VPC automatically when your stack includes resources that need private networking (relational databases, Redis clusters, or workloads with `usePrivateSubnetsWithNAT`). Resources that don't need VPC access (Lambda functions, DynamoDB, S3 buckets) work without one. You can share a VPC across stacks using `stackConfig.vpc.reuseVpc` by referencing another stack's project name and stage, or by providing a VPC ID directly.
+Stacktape creates a VPC automatically when your stack includes resources that need private networking, such as relational databases and Redis clusters. Resources that don't need VPC access (Lambda functions, DynamoDB, S3 buckets) work without one. You can share or reuse a VPC across stacks with `stackConfig.vpc.reuseVpc`.

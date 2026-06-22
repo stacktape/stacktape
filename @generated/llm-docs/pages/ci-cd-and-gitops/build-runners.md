@@ -89,7 +89,7 @@ You can switch between EC2 and CodeBuild runners from the project's runner confi
 
 ## Build runners and CI/CD
 
-Build runners execute deployments for Git-backed projects managed in the Stacktape Console — see [GitOps deployments](/ci-cd-and-gitops/gitops-with-console). Console runner settings apply to Git-backed projects managed in the Stacktape Console; [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) and CLI workflows like [`codebuild:deploy`](/cli/codebuild-deploy) are configured separately.
+Build runners execute deployments for Git-backed projects managed in the Stacktape Console — see [GitOps deployments](/ci-cd-and-gitops/gitops-with-console). Console runner settings apply to Git-backed projects managed in the Stacktape Console; [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) and CLI workflows like [`deploy --runner codebuild`](/cli/deploy) are configured separately.
 
 ## FAQ
 
@@ -101,34 +101,18 @@ Use an EC2 runner unless you deploy very infrequently. EC2 runners cache depende
 
 An EC2 runner has two cost components: a fixed ~$3/month for storage (billed even when hibernated) and per-minute compute charges only while the instance is running. With the default `c7a.2xlarge` instance, compute costs approximately $0.006/min. Smaller instances like `m6a.large` cost ~$0.001/min, while the largest `c7a.8xlarge` costs ~$0.023/min.
 
-### How fast does an EC2 runner wake from hibernation?
+### How does EC2 runner hibernation affect speed and cost?
 
-An EC2 runner auto-hibernates after 15 minutes of inactivity and wakes up in approximately 10 seconds when the next deployment triggers. This is significantly faster than provisioning a new instance, which would take minutes. Hibernation preserves the instance's state, so cached dependencies are immediately available.
-
-### Can I use different runner types for different stages?
-
-The Console's runner configuration modal describes itself as choosing how deployments run "for this project" — the setting applies to the project as a whole.
-
-### Do build runners affect my deployed infrastructure?
-
-Changing the runner type affects how future Console deployments run; the runner setting is not part of Stacktape resource configuration in `stacktape.ts`. Your deployed infrastructure is determined by your Stacktape configuration, not by which runner type executes the deployment.
+An EC2 runner auto-hibernates after 15 minutes of inactivity, saving its memory state to its storage volume. While hibernated you pay only for storage (~$3/month) with no compute charges. When the next deployment triggers, the instance resumes from its saved state in about 10 seconds — far faster than booting a new instance from scratch — with cached dependencies immediately available. This gives you warm-instance speed without paying for compute during idle periods.
 
 ### Can I switch runner types after creating a project?
 
-Yes. Open the runner configuration modal for your project in the Stacktape Console and select a different runner type. The modal notes that changes take effect on the next deployment.
-
-### What is AWS CodeBuild?
-
-AWS CodeBuild is a managed build service that provisions a fresh container for each build, runs your commands, and tears down the container when done. You pay per minute of build time with no idle charges. In the Stacktape context, CodeBuild runners use this service to execute deployments. CodeBuild has no caching between builds, so every deploy re-downloads dependencies.
-
-### How does EC2 hibernation reduce runner costs?
-
-EC2 hibernation saves the instance's memory state to its storage volume and stops the instance. While hibernated, you pay only for storage (~$3/month) — no compute charges. When a deployment triggers, the instance resumes from its saved state in about 10 seconds instead of booting from scratch. This gives you warm-instance speed without paying for compute during idle periods between deploys.
+Yes. Open the runner configuration modal for your project in the Stacktape Console and select a different runner type. Changes take effect on the next deployment. EC2 runner settings (including the instance type) are configured per project, while CodeBuild settings are configured globally for every project on the Projects page.
 
 ### Do I need a build runner if I use custom CI/CD?
 
-No. Build runners are specific to Git-backed projects deployed through the Stacktape Console (see [GitOps](/ci-cd-and-gitops/gitops-with-console)). When you use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) — GitHub Actions, GitLab CI, or any other pipeline — your CI system's own runners execute the Stacktape CLI. The Console's runner configuration does not apply. The [`codebuild:deploy`](/cli/codebuild-deploy) CLI command is also separate from Console-managed runners — see its [CLI reference](/cli/codebuild-deploy) for details.
+No. Build runners are specific to Git-backed projects deployed through the Stacktape Console (see [GitOps](/ci-cd-and-gitops/gitops-with-console)). When you use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) — GitHub Actions, GitLab CI, or any other pipeline — your CI system's own runners execute the Stacktape CLI. The Console's runner configuration does not apply. The [`deploy --runner codebuild`](/cli/deploy) CLI command is also separate from Console-managed runners — see its [CLI reference](/cli/deploy) for details.
 
 ### What instance type should I choose for my EC2 runner?
 
-Start with the default `c7a.2xlarge` (8 vCPU, 16 GB). It handles most build workloads well. If your builds are simple and you want to minimize cost, drop to `m6a.large` (2 vCPU, 8 GB, ~$0.001/min). For projects with longer build times, scale up to `c7a.4xlarge` or `c7a.8xlarge` for more CPU and memory. The `m6a` family offers more memory per vCPU as an AWS general-purpose instance family. You can change the instance type at any time from the runner configuration modal.
+Start with the default `c7a.2xlarge` (8 vCPU, 16 GB) — it handles most build workloads well. To minimize cost on simple builds, drop to `m6a.large` (2 vCPU, 8 GB, ~$0.001/min); for projects with longer build times, scale up to `c7a.4xlarge` or `c7a.8xlarge` for more CPU and memory. You can change the instance type at any time from the runner configuration modal, and changes take effect on the next deployment.

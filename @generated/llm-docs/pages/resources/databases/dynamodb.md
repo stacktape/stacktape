@@ -10,7 +10,7 @@ DynamoDB is the right choice when your access patterns are well-defined and key-
 - User profiles, session stores, shopping carts — single-key lookups at scale
 - IoT telemetry and time-series data (partition by device ID, sort by timestamp)
 - Leaderboards, counters, and real-time analytics where you need fast writes
-- Event sourcing with [DynamoDB Streams](/configuration/triggers/dynamodb-streams) to trigger downstream processing
+- Event sourcing with [DynamoDB Streams](/resources/triggers/dynamodb-streams) to trigger downstream processing
 - Any workload where the access pattern is known upfront and read/write latency matters more than query flexibility
 
 ## When NOT to use
@@ -193,7 +193,7 @@ GSIs consume their own read/write capacity (or request units in on-demand mode) 
 
 ## Streams
 
-DynamoDB Streams capture item-level changes. Stacktape exposes a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) for [Lambda functions](/resources/compute/lambda-function) and [batch jobs](/resources/compute/batch-job), invoking them when items change. Enable streams for use cases like auditing, analytics, cache invalidation, or downstream synchronization.
+DynamoDB Streams capture item-level changes. Stacktape exposes a [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) for [Lambda functions](/resources/compute/lambda-function) and [batch jobs](/resources/compute/batch-job), invoking them when items change. Enable streams for use cases like auditing, analytics, cache invalidation, or downstream synchronization.
 
 
 Example (TypeScript):
@@ -224,7 +224,7 @@ The `streamType` controls what data each stream record contains:
 | `OLD_IMAGE` | Full item before the change | Undo/restore workflows |
 | `NEW_AND_OLD_IMAGES` | Both before and after | Audit trails, change tracking, diff computation |
 
-Once streams are enabled, you can set up a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) on a Lambda function or batch job to process changes. Use the table's `streamArn` referenceable parameter when configuring the trigger; it is meaningful when streams are enabled with `streamType`.
+Once streams are enabled, you can set up a [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) on a Lambda function or batch job to process changes. Use the table's `streamArn` referenceable parameter when configuring the trigger; it is meaningful when streams are enabled with `streamType`.
 
 ## Backups
 
@@ -277,7 +277,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['itemsTable']
+    connectTo: [itemsTable]
   });
 
   return {
@@ -413,7 +413,7 @@ Use DynamoDB when your access patterns are predictable and key-based — user lo
 
 ### How much does DynamoDB cost?
 
-AWS DynamoDB on-demand mode charges per million read/write request units plus storage. Provisioned mode charges per hour of provisioned capacity. Both modes include 25 GB of free storage and 25 provisioned WCU/RCU in the AWS Free Tier. On-demand is more expensive per request but avoids paying for unused capacity. For steady workloads, provisioned mode with auto-scaling typically costs less.
+You pay for reads, writes, and storage. On-demand mode (the default) is more expensive per request but charges only for actual usage with no capacity planning; provisioned mode has a lower per-request cost but requires you to set capacity, so for steady, predictable traffic it typically costs less — especially with auto-scaling enabled. Two features add to the bill: secondary indexes duplicate data and consume their own capacity, and `enablePointInTimeRecovery` adds roughly 20% to storage costs.
 
 ### Can I change the primary key after creating a table?
 
@@ -421,28 +421,12 @@ No. The primary key (partition key and sort key) is immutable after table creati
 
 ### How do DynamoDB Streams work with Stacktape?
 
-Enable streams by setting `streamType` on your DynamoDB table, then configure a [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) on a Lambda function. Stream records are processed in batches. Each record contains the change data (new image, old image, or both, depending on your `streamType`). If you configure retry behavior with `maximumRetryAttempts`, the source notes that an error retries the entire batch, so handlers should be idempotent.
+Enable streams by setting `streamType` on your DynamoDB table, then configure a [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) on a [Lambda function](/resources/compute/lambda-function) or [batch job](/resources/compute/batch-job). The `streamType` controls what each record contains — `KEYS_ONLY`, `NEW_IMAGE`, `OLD_IMAGE`, or `NEW_AND_OLD_IMAGES`. Use the table's `streamArn` referenceable parameter when wiring up the trigger.
 
-### What is the difference between on-demand and provisioned capacity?
+### Does `connectTo` grant permission for DynamoDB transactions?
 
-On-demand mode requires no capacity planning — DynamoDB scales automatically and you pay per request. Provisioned mode requires you to set fixed read/write capacity units, but per-request costs are lower. Add auto-scaling to provisioned mode to handle traffic variations automatically. Most new projects should start with on-demand and switch to provisioned only after traffic patterns are established.
+No. `connectTo` documents DynamoDB access as CRUD plus scan/query, which does not cover transaction operations like `TransactWriteItems` and `TransactGetItems`. If your workload needs transactions or any other DynamoDB API beyond CRUD/scan/query, use [`iamRoleStatements`](/configuration/connecting-resources) on the consuming workload to grant the explicit AWS permissions. Note that AWS charges transactions at twice the normal read/write capacity.
 
-### How do I query by attributes other than the primary key?
+### How do I enable TTL so items expire automatically?
 
-Create a global secondary index (GSI) with the desired attribute as its partition key. For example, add a `byEmail` GSI to query users by email when the table's primary key is `userId`. Each GSI consumes additional capacity and storage, so only create indexes you actively need.
-
-### Does DynamoDB support transactions?
-
-AWS DynamoDB supports ACID transactions across multiple items within the same table or across tables, using `TransactWriteItems` and `TransactGetItems` operations. Transactions consume twice the normal read/write capacity. `connectTo` documents DynamoDB access as CRUD plus scan/query. If your workload needs additional DynamoDB APIs (such as transactions), use `iamRoleStatements` on the consuming workload for explicit AWS permissions.
-
-### How does the local DynamoDB emulator work in dev mode?
-
-During `stacktape dev`, DynamoDB runs locally in Docker by default, unless you set `dev.remote: true` to use the deployed table. The local emulator lets you develop and test without deploying to AWS. Use remote mode when you need precise production parity or access to real data. See [dev mode overview](/local-development/dev-mode-overview) for more details on local development.
-
-### Can I use DynamoDB with container workloads?
-
-Yes. Add the DynamoDB table resource name (e.g., `itemsTable`) to the `connectTo` list on a consuming workload — [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), or [batch jobs](/resources/compute/batch-job). Stacktape injects the table name, ARN, and stream ARN as environment variables and grants the necessary IAM permissions automatically.
-
-### What are the size and throughput limits of DynamoDB?
-
-Each DynamoDB item can be up to 400 KB. There is no limit on the number of items or total table size. On-demand mode is the safest default for variable traffic because DynamoDB manages capacity for you; very large or sudden traffic changes can still run into AWS service limits. Provisioned mode scales up to 40,000 RCU and 40,000 WCU per table by default (higher limits available via AWS support). GSIs have their own throughput limits independent of the base table.
+There is no dedicated property for time-to-live, so use `overrides` to set `Properties.TimeToLiveSpecification` with `Enabled: true` and the `AttributeName` holding the expiration timestamp. AWS DynamoDB then deletes expired items at no additional write cost, though deletions can lag the expiration time by up to 48 hours. See the [Overrides](#overrides) section for the full example.

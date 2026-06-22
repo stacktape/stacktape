@@ -11,7 +11,7 @@ The Stacktape MCP server gives AI coding assistants structured access to Stackta
 Use the MCP server when your AI coding assistant supports the [Model Context Protocol](https://modelcontextprotocol.io). The structured tool interface is better than raw CLI output for several workflows:
 
 - **Deploying or deleting stacks** — the assistant plans the command, validates arguments against CLI metadata, and executes with safety gates, all through tool calls.
-- **Debugging** — query [logs](/cli/debug-logs), [metrics](/cli/debug-metrics), [alarms](/cli/debug-alarms), [database contents](/cli/debug-sql), or [DynamoDB items](/cli/debug-dynamodb) during a conversation. The assistant gets structured JSON instead of parsing terminal output.
+- **Debugging** — query [logs](/cli/logs), [metrics](/cli/metrics), [alarms](/cli/alarms), [database contents](/cli/query-sql), or [DynamoDB items](/cli/query-dynamodb) during a conversation. The assistant gets structured JSON instead of parsing terminal output.
 - **Configuration help** — the assistant searches Stacktape's bundled documentation index for resource types, config syntax, and deployment patterns without opening a browser.
 - **Dev mode** — start, monitor, rebuild, and stop [dev mode](/local-development/dev-mode-overview) sessions from within your AI conversation.
 
@@ -223,7 +223,7 @@ The `orient` action returns the same scan data with stronger next-action guidanc
 
 ### CLI tool
 
-`stacktape_cli` covers the non-interactive CLI surface: [deployments](/cli/deploy), [deletions](/cli/delete), [previewing changes](/cli/preview-changes), [rollbacks](/cli/rollback), diagnostics ([`debug:logs`](/cli/debug-logs), [`debug:metrics`](/cli/debug-metrics), [`debug:alarms`](/cli/debug-alarms), [`debug:sql`](/cli/debug-sql), [`debug:dynamodb`](/cli/debug-dynamodb), [`debug:redis`](/cli/debug-redis), [`debug:opensearch`](/cli/debug-opensearch)), [secrets](/configuration/secrets) (`secret:create`, `secret:get`, `secret:delete`), parameters (`param:get`), stack info (`info:stack`, `info:stacks`), and deployment scripts (`script:run`).
+`stacktape_cli` covers the non-interactive CLI surface: [deployments](/cli/deploy), [deletions](/cli/delete), [previewing changes](/cli/diff), [rollbacks](/cli/rollback), diagnostics ([`logs`](/cli/logs), [`metrics`](/cli/metrics), [`alarms`](/cli/alarms), [`query:sql`](/cli/query-sql), [`query:dynamodb`](/cli/query-dynamodb), [`query:redis`](/cli/query-redis), [`query:opensearch`](/cli/query-opensearch)), [secrets](/configuration/secrets) (`secret:set`, `secret:get`, `secret:delete`), parameters (`param:get`), stack info (`info:stack`, `info:stacks`), and deployment scripts (`script:run`).
 
 The typical workflow:
 
@@ -236,7 +236,7 @@ Common parameters accepted by `plan` and `run`:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `command` | string | CLI command name, e.g. `deploy`, `debug:logs`, `secret:get` |
+| `command` | string | CLI command name, e.g. `deploy`, `logs`, `secret:get` |
 | `cwd` | string | Absolute path to the Stacktape project root for project scanning |
 | `args` | object | CLI arguments as a camelCase key-value object |
 | `stage` | string | Target Stacktape stage |
@@ -248,7 +248,7 @@ Common parameters accepted by `plan` and `run`:
 | `resourceName` | string | Resource name for diagnostics commands |
 | `scriptName` | string | Deployment script name for `script:run` |
 | `secretName` | string | Secret name for secret commands |
-| `secretValue` | string | Secret value for `secret:create` (masked in tool output) |
+| `secretValue` | string | Secret value for `secret:set` (masked in tool output) |
 | `secretFile` | string | Path to a file containing the secret value |
 | `hotSwap` | boolean | Request hotswap deployment when supported |
 | `confirm` | boolean | Required for mutating/destructive commands in `run` |
@@ -279,10 +279,10 @@ The MCP server classifies every CLI command into a safety level and enforces per
 
 | Safety level | Behavior | Examples |
 |-------------|----------|---------|
-| `readOnly` | Executes without confirmation | `preview-changes`, `compile-template`, `info:stack`, `info:stacks`, `debug:logs`, `debug:metrics`, `debug:alarms` |
-| `diagnostic` | Executes without confirmation | `debug:sql`, `debug:dynamodb`, `debug:redis`, `debug:opensearch` |
-| `local` | Executes without confirmation | `package-workloads` |
-| `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret:create`](/cli/secret-create), [`rollback`](/cli/rollback) |
+| `readOnly` | Executes without confirmation | `diff`, `synth`, `info:stack`, `info:stacks`, `logs`, `metrics`, `alarms` |
+| `diagnostic` | Executes without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch` |
+| `local` | Executes without confirmation | `package` |
+| `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret:set`](/cli/secret-set), [`rollback`](/cli/rollback) |
 | `destructive` | Requires direct user confirmation through MCP form elicitation; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret:delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion:session` |
 
@@ -362,46 +362,30 @@ The MCP server spawns separate CLI subprocesses for each operation, so it does n
 
 ## FAQ
 
-### What is the Model Context Protocol (MCP)?
-
-MCP is an open standard that lets AI assistants call external tools through a structured JSON-RPC interface. Instead of parsing CLI output as text, the assistant receives typed JSON responses it can reason about. The Stacktape MCP server implements this protocol over stdio transport — your AI client launches `stacktape mcp` as a local process. Learn more at the [MCP specification site](https://modelcontextprotocol.io).
-
 ### Which AI assistants work with the Stacktape MCP server?
 
 [`stacktape mcp:add`](/cli/mcp-add) configures Claude Code, Cursor, VS Code with GitHub Copilot, Windsurf, OpenAI Codex, and OpenCode automatically. Any other MCP client that can launch a stdio server process should also work — point it at `stacktape mcp`. Automatic setup via `mcp:add` is only implemented for these six clients.
 
 ### Does the MCP server store or transmit my credentials?
 
-The MCP server runs locally and reuses the local Stacktape CLI authentication state. Commands executed through `stacktape_cli` and `stacktape_dev` follow the underlying CLI's normal authentication and AWS access behavior. The `stacktape_cli` planning action rejects raw Stacktape credential CLI arguments, and the MCP instructions tell assistants not to collect API keys in chat. The server also redacts known credential patterns (API keys, tokens, database connection strings with passwords) from all responses before returning them to the AI client.
+The MCP server runs locally and reuses the local Stacktape CLI authentication state. Commands executed through `stacktape_cli` and `stacktape_dev` follow the underlying CLI's normal authentication and AWS access behavior. The `stacktape_cli` planning action rejects raw Stacktape credential CLI arguments, and the MCP instructions tell assistants not to collect API keys in chat. Commands flagged `sensitiveOutput` (such as `secret:get` and private `param:get`) have their output masked, and the server also redacts known credential patterns (API keys, tokens, database connection strings with passwords) from all responses before returning them to the AI client. Even so, sensitive values are best retrieved by running the command in your own terminal rather than through an AI conversation.
 
-### Can I use the MCP server without an AWS account?
+### What works without an AWS account or login?
 
-Docs search, project scanning, and CLI metadata operations (`list`, `describe`, `plan`) work without an AWS account or Stacktape login. `stacktape_cli` with `action: "run"` and `stacktape_dev` execute the underlying Stacktape CLI flow. If execution fails with an authentication error, the MCP guidance tells the assistant to ask you to run [`stacktape login`](/cli/login) in your own terminal. Some commands also require a configured [AWS profile](/cli/aws-profile-create).
+Docs search, project scanning, and CLI metadata operations (`list`, `describe`, `plan`) work with no AWS account or Stacktape login — planning never requires credentials, so an assistant can explore commands and build execution plans offline. Only `stacktape_cli` with `action: "run"` and `stacktape_dev` execute the underlying CLI flow; if that fails with an authentication error, the guidance tells the assistant to ask you to run [`stacktape login`](/cli/login) in your own terminal. Some commands also require a configured [AWS profile](/cli/aws-profile-create).
 
 ### Is the MCP server safe for production workflows?
 
-The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation through MCP elicitation when supported, and interactive commands are rejected. Some diagnostic commands like [`debug:sql`](/cli/debug-sql) and [`debug:container-exec`](/cli/debug-container-exec) can modify state depending on the query passed — review those tool calls before approving. Treat MCP-initiated deployments with the same care as manual CLI deployments.
+The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation through MCP elicitation when supported, and interactive commands are rejected. Note that diagnostic commands like [`query:sql`](/cli/query-sql) run without confirmation but can modify state depending on the query passed — review those tool calls before approving. Treat MCP-initiated deployments with the same care as manual CLI deployments.
 
 ### What happens if a deployment times out through MCP?
 
 CLI commands run as subprocesses. The caller can specify a `timeoutMs` value; if exceeded, the MCP server terminates the subprocess and returns an error. The dev mode `start` action uses a 12-minute timeout for initial setup. For long-running deployments, run them directly via the [CLI](/cli/deploy) where you get real-time streaming output.
 
-### Can I run the MCP server alongside normal CLI usage?
-
-Yes. Each MCP tool call spawns a separate CLI subprocess. Running `stacktape deploy` in a terminal while the MCP server handles a `debug:logs` call works fine. The one constraint: avoid overlapping deployments to the same project and stage, which causes CloudFormation conflicts regardless of how the commands are invoked.
-
 ### What is the difference between plan and run in stacktape_cli?
 
 `action: "plan"` creates a read-only execution plan: it scans the project, reads `package.json` scripts for defaults, validates arguments, and returns the recommended `action: "run"` payload — without executing anything or requiring credentials. `action: "run"` executes the command. The typical flow is plan first, then run with the planned payload after the user approves.
 
-### Can I scope the MCP server to specific tools or commands?
+### Why was my tool response truncated or rejected as too large?
 
-The MCP server exposes all four tools on every startup. Per-call access control is handled at the AI client level — most clients prompt you to approve or deny individual tool calls. This gives you per-invocation control over what the MCP server does.
-
-### How does the MCP server handle sensitive command output?
-
-Commands flagged with `sensitiveOutput` (such as `secret:get` and private `param:get`) have their output masked before returning to the AI client. The server also applies pattern-based redaction to all responses, catching Stacktape API keys, GitHub tokens, Slack tokens, and database connection strings with embedded passwords. Despite this, sensitive values are best retrieved by running the command in your own terminal rather than through an AI conversation.
-
-### Does the MCP server need network access?
-
-Docs search and project scanning are fully local — the documentation index is bundled with the CLI. CLI execution and dev mode connect to AWS and Stacktape's API through the underlying CLI, which requires network access. The MCP server itself does not make any network calls beyond what the CLI subprocess needs.
+Tool responses are capped at 30,000 characters. The server first shortens large `rawTail` output by keeping the beginning and end, then compacts other large payloads (truncating answer text, limiting reference and snippet counts, shortening data content). If compaction is still not enough, it returns `RESPONSE_TOO_LARGE`. For long-running deployments with heavy output, run them directly via the [CLI](/cli/deploy) where you get full streaming output instead.

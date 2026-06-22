@@ -234,7 +234,7 @@ For the complete list of flags and options, see the [`stacktape dev`](/cli/dev) 
 
 Yes. Dev mode uses Docker to run container workloads and emulated databases locally. You need Docker Desktop or a compatible Docker runtime installed and running before starting dev mode. Hosting buckets and SSR frontends run through their framework dev servers rather than Docker, and Lambda functions deploy directly to AWS — but most dev mode workflows involve at least one container or database.
 
-### Does dev mode work with all Stacktape resource types?
+### Which resource types does dev mode support, and what isn't emulated locally?
 
 Dev mode supports container workloads ([web-service](/resources/compute/web-service), [worker-service](/resources/compute/worker-service), [private-service](/resources/compute/private-service), [multi-container-workload](/resources/compute/multi-container-workload)), [Lambda functions](/resources/compute/lambda-function), [hosting buckets](/resources/frontend/static-hosting) (with `dev` config), and all SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix). Local emulation covers relational databases, Redis, DynamoDB, and OpenSearch. Other resource types such as [SQS queues](/resources/messaging/sqs-queue), [SNS topics](/resources/messaging/sns-topic), [S3 buckets](/resources/storage/s3-bucket), and [state machines](/resources/orchestration/state-machine) are not emulated locally — use [legacy mode](#legacy-mode) to work with a fully deployed stack that includes these resources.
 
@@ -253,18 +253,6 @@ Dev mode (`stacktape dev`) runs workloads on your local machine with Docker and,
 ### Does dev mode cost anything on AWS?
 
 Normal dev mode creates a minimal dev stack in AWS, so AWS charges can come from the AWS resources in that dev stack, Lambda invocations, and any deployed resources you choose to use through `--remoteResources`. Container workloads and locally emulated databases run on your machine and don't generate AWS charges. Small development workloads may fall within AWS Lambda free-tier usage, depending on account eligibility and invocation volume.
-
-### Can I run multiple dev mode sessions simultaneously?
-
-Dev mode state is scoped by project and stage, but avoid concurrent sessions unless you have verified that their ports, Docker resources, and selected stages do not conflict. Running multiple sessions against the same project and stage can contend for the same local containers, ports, and dev stack. Running many concurrent sessions increases local resource usage (CPU, memory, Docker containers, ports).
-
-### Can I use dev mode in a monorepo?
-
-Yes. Point `stacktape dev` at a config file that references the resources you want to run, then use `--resources` to select specific workloads or the interactive picker. Each workload packages and runs independently, so you can iterate on one service while others continue running. See [Configure your stack](/getting-started/configure-your-stack) for how to organize your Stacktape config.
-
-### How does Stacktape dev mode compare to Docker Compose?
-
-Docker Compose requires manual service definitions, network configuration, and environment wiring. Stacktape dev mode reads your existing Stacktape config and automatically sets up Docker containers, local database emulators, environment variables, and Lambda tunneling. You configure your stack once for production and dev mode handles the local translation. Dev mode also deploys Lambda functions to real AWS infrastructure — Docker Compose can only simulate them.
 
 ### When should I use legacy mode instead of normal dev mode?
 

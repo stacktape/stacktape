@@ -18,9 +18,9 @@ Synchronous triggers deliver a request and wait for a response. The caller block
 
 | Trigger | Type value | Works with | Dedicated page |
 |---------|-----------|------------|----------------|
-| HTTP API Gateway | `http-api-gateway` | Lambda functions, container workloads | [HTTP triggers](/configuration/triggers/http-triggers) |
-| Application Load Balancer | `application-load-balancer` | Lambda functions, container workloads | [HTTP triggers](/configuration/triggers/http-triggers) |
-| Network Load Balancer | `network-load-balancer` | Container workloads only | [HTTP triggers](/configuration/triggers/http-triggers) |
+| HTTP API Gateway | `http-api-gateway` | Lambda functions, container workloads | [HTTP triggers](/resources/triggers/http-triggers) |
+| Application Load Balancer | `application-load-balancer` | Lambda functions, container workloads | [HTTP triggers](/resources/triggers/http-triggers) |
+| Network Load Balancer | `network-load-balancer` | Container workloads only | [HTTP triggers](/resources/triggers/http-triggers) |
 
 [HTTP API Gateway](/resources/networking/http-api-gateway) is the simplest option for serverless APIs — per-request pricing, no idle cost, automatic path and method routing. An [Application Load Balancer](/resources/networking/application-load-balancer) adds advanced routing (header matching, query parameters, source IP filtering) and is the natural choice when you already have an ALB for container workloads. A [Network Load Balancer](/resources/networking/network-load-balancer) operates at Layer 4 (TCP/TLS) and is container-only.
 
@@ -30,16 +30,16 @@ Asynchronous triggers fall into two delivery patterns. **Push-based** sources �
 
 | Trigger | Type value | Delivery | Dedicated page |
 |---------|-----------|----------|----------------|
-| Schedule (cron/rate) | `schedule` | Push | [Schedule triggers](/configuration/triggers/schedule-triggers) |
-| S3 bucket events | `s3` | Push | [S3 events](/configuration/triggers/s3-events) |
-| SNS topic | `sns` | Push | [SNS events](/configuration/triggers/sns-events) |
-| EventBridge event bus | `event-bus` | Push (batch jobs) | [Event bus events](/configuration/triggers/event-bus-events) |
-| CloudWatch Logs | `cloudwatch-log` | Push | [CloudWatch logs](/configuration/triggers/cloudwatch-logs) |
-| CloudWatch Alarm | `cloudwatch-alarm` | Push | [Alarms as triggers](/configuration/triggers/alarms-as-triggers) |
-| SQS queue | `sqs` | Poll | [SQS events](/configuration/triggers/sqs-events) |
-| Kinesis stream | `kinesis-stream` | Poll | [Kinesis events](/configuration/triggers/kinesis-events) |
-| DynamoDB stream | `dynamo-db-stream` | Poll | [DynamoDB streams](/configuration/triggers/dynamodb-streams) |
-| Kafka topic | `kafka-topic` | Poll | [Kafka topics](/configuration/triggers/kafka-topics) |
+| Schedule (cron/rate) | `schedule` | Push | [Schedule triggers](/resources/triggers/schedule-triggers) |
+| S3 bucket events | `s3` | Push | [S3 events](/resources/triggers/s3-events) |
+| SNS topic | `sns` | Push | [SNS events](/resources/triggers/sns-events) |
+| EventBridge event bus | `event-bus` | Push (batch jobs) | [Event bus events](/resources/triggers/event-bus-events) |
+| CloudWatch Logs | `cloudwatch-log` | Push | [CloudWatch logs](/resources/triggers/cloudwatch-logs) |
+| CloudWatch Alarm | `cloudwatch-alarm` | Push | [Alarms as triggers](/resources/triggers/alarms-as-triggers) |
+| SQS queue | `sqs` | Poll | [SQS events](/resources/triggers/sqs-events) |
+| Kinesis stream | `kinesis-stream` | Poll | [Kinesis events](/resources/triggers/kinesis-events) |
+| DynamoDB stream | `dynamo-db-stream` | Poll | [DynamoDB streams](/resources/triggers/dynamodb-streams) |
+| Kafka topic | `kafka-topic` | Poll | [Kafka topics](/resources/triggers/kafka-topics) |
 
 
 > **Warning:** **S3 triggers** require the `s3EventType` property to specify which event fires the function — for example, `s3:ObjectCreated:*` or `s3:ObjectRemoved:*`. **DynamoDB stream triggers** require streaming to be enabled on the DynamoDB table (via the `streaming` property in your `dynamoDbTables` config) before the trigger can be configured. **Kafka triggers** require an `authentication` field on `customKafkaConfiguration` — either SASL (`BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`) or mTLS.
@@ -147,13 +147,13 @@ When you add a trigger to the `events` array, Stacktape translates it into the a
 
 | When this starts the work | Use this trigger | Dedicated page |
 |---------------------------|-----------------|----------------|
-| An HTTP request from a client | [HTTP API Gateway](/configuration/triggers/http-triggers) (simplest, per-request pricing) or [Application Load Balancer](/configuration/triggers/http-triggers) (advanced routing, header/query matching) | [HTTP triggers](/configuration/triggers/http-triggers) |
-| A recurring schedule | [Schedule trigger](/configuration/triggers/schedule-triggers) with a `rate()` or `cron()` expression | [Schedule triggers](/configuration/triggers/schedule-triggers) |
-| A file upload or change in S3 | [S3 event trigger](/configuration/triggers/s3-events) — filter by key prefix or suffix to target specific files | [S3 events](/configuration/triggers/s3-events) |
-| A message from another service | [SQS](/configuration/triggers/sqs-events) for point-to-point queuing, [SNS](/configuration/triggers/sns-events) for fan-out, or [EventBridge](/configuration/triggers/event-bus-events) for content-based routing | — |
-| A database change | [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) to react to item creates, updates, and deletes | [DynamoDB streams](/configuration/triggers/dynamodb-streams) |
-| A real-time data stream | [Kinesis trigger](/configuration/triggers/kinesis-events) for high-throughput ordered data | [Kinesis events](/configuration/triggers/kinesis-events) |
-| A log event or alarm state change | [CloudWatch Logs trigger](/configuration/triggers/cloudwatch-logs) with a filter pattern, or [CloudWatch Alarm trigger](/configuration/triggers/alarms-as-triggers) for metric thresholds | — |
+| An HTTP request from a client | [HTTP API Gateway](/resources/triggers/http-triggers) (simplest, per-request pricing) or [Application Load Balancer](/resources/triggers/http-triggers) (advanced routing, header/query matching) | [HTTP triggers](/resources/triggers/http-triggers) |
+| A recurring schedule | [Schedule trigger](/resources/triggers/schedule-triggers) with a `rate()` or `cron()` expression | [Schedule triggers](/resources/triggers/schedule-triggers) |
+| A file upload or change in S3 | [S3 event trigger](/resources/triggers/s3-events) — filter by key prefix or suffix to target specific files | [S3 events](/resources/triggers/s3-events) |
+| A message from another service | [SQS](/resources/triggers/sqs-events) for point-to-point queuing, [SNS](/resources/triggers/sns-events) for fan-out, or [EventBridge](/resources/triggers/event-bus-events) for content-based routing | — |
+| A database change | [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) to react to item creates, updates, and deletes | [DynamoDB streams](/resources/triggers/dynamodb-streams) |
+| A real-time data stream | [Kinesis trigger](/resources/triggers/kinesis-events) for high-throughput ordered data | [Kinesis events](/resources/triggers/kinesis-events) |
+| A log event or alarm state change | [CloudWatch Logs trigger](/resources/triggers/cloudwatch-logs) with a filter pattern, or [CloudWatch Alarm trigger](/resources/triggers/alarms-as-triggers) for metric thresholds | — |
 
 ## Batching and throughput
 
@@ -220,7 +220,7 @@ Yes. The `events` property accepts an array, and a Lambda function can include m
 
 ### What is the difference between SQS, SNS, and EventBridge triggers?
 
-[SQS](/configuration/triggers/sqs-events) is point-to-point: one message, one consumer. A single SQS queue should only have one consumer function — for fan-out (multiple consumers for the same message), use SNS or EventBridge instead. Use SQS for work queues and decoupling producers from consumers. [SNS](/configuration/triggers/sns-events) is fan-out: one message delivered to multiple subscribers simultaneously. [EventBridge](/configuration/triggers/event-bus-events) adds content-based routing with pattern matching on event fields — use it when you need to route different event types to different targets based on payload content. SQS and SNS are simpler to set up; EventBridge is more flexible but requires defining event patterns.
+[SQS](/resources/triggers/sqs-events) is point-to-point: one message, one consumer. A single SQS queue should only have one consumer function — for fan-out (multiple consumers for the same message), use SNS or EventBridge instead. Use SQS for work queues and decoupling producers from consumers. [SNS](/resources/triggers/sns-events) is fan-out: one message delivered to multiple subscribers simultaneously. [EventBridge](/resources/triggers/event-bus-events) adds content-based routing with pattern matching on event fields — use it when you need to route different event types to different targets based on payload content. SQS and SNS are simpler to set up; EventBridge is more flexible but requires defining event patterns.
 
 ### Why can't container workloads use queue or stream triggers?
 
@@ -228,19 +228,15 @@ Container workloads ([web services](/resources/compute/web-service), [private se
 
 ### When should I use HTTP API Gateway versus an Application Load Balancer?
 
-Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for most serverless APIs — it has per-request pricing with no idle cost, simpler configuration, and automatic path/method routing. Use an [Application Load Balancer](/resources/networking/application-load-balancer) when you need advanced routing rules (header matching, query parameters, source IP filtering), when you already have an ALB for container workloads, or when you need sticky sessions. API Gateway is the better default for Lambda-backed APIs; ALBs make more sense when mixing Lambda and container targets behind the same endpoint.
+Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for most serverless APIs — it has per-request pricing with no idle cost, simpler configuration, and automatic path/method routing. Use an [Application Load Balancer](/resources/networking/application-load-balancer) when you need advanced routing rules (header matching, query parameters, source IP filtering) or when you already have an ALB for container workloads. API Gateway is the better default for Lambda-backed APIs; ALBs make more sense when mixing Lambda and container targets behind the same endpoint.
 
 ### What happens if my function fails while processing a batch?
 
-Behavior depends on the trigger type. For Kinesis and DynamoDB stream integrations, the source warns that if an error occurs, the entire batch is retried, including records that were processed successfully — bound retries with `maximumRetryAttempts`, route exhausted batches to an SQS queue or SNS topic via `onFailure`, and use `bisectBatchOnFunctionError` to isolate bad records by splitting failed batches. SQS records are processed in batches and the function fires when `batchSize`, `maxBatchWindowSeconds`, or the 6 MB payload limit is reached. For Kinesis and DynamoDB stream integrations, failed batches can be retried as a whole, so handlers should be idempotent.
+For [Kinesis](/resources/triggers/kinesis-events) and [DynamoDB stream](/resources/triggers/dynamodb-streams) integrations, an error retries the *entire* batch — including records that already succeeded — so your handler must be idempotent. Bound retries with `maximumRetryAttempts`, route exhausted batches to an SQS queue or SNS topic via `onFailure` for later inspection, and use `bisectBatchOnFunctionError` to split a failed batch in half and isolate the bad record.
 
 ### What is the default batch size for event-source triggers?
 
-Default batch size is 10 for SQS and Kinesis, and 100 for DynamoDB streams and Kafka. Maximum batch sizes also vary: SQS, Kinesis, and Kafka support up to 10,000 records per batch, while DynamoDB streams support up to 1,000. Choose based on your function's processing time and memory — larger batches are more efficient but require more resources and increase the blast radius of failures.
-
-### How do I filter which events trigger my function?
-
-Several trigger types support server-side filtering. S3 triggers accept `prefix` and `suffix` filters on object keys via `filterRule`. SNS supports `filterPolicy` for attribute-based message filtering. EventBridge uses `eventPattern` for content-based routing on any event field. CloudWatch Logs accepts a `filter` pattern. Other integration types do not define a dedicated filter property — for those, handle filtering in your handler code.
+Defaults vary by source: 10 for SQS and Kinesis, 100 for DynamoDB streams and Kafka. Maximums also differ — SQS, Kinesis, and Kafka allow up to 10,000 records per batch, DynamoDB streams up to 1,000. Larger batches are more cost-efficient but increase the blast radius of failures, since one bad record can force a retry of the whole batch.
 
 ### What is Service Connect and when should I use it?
 

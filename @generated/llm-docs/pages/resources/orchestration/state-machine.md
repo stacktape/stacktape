@@ -23,7 +23,7 @@ Not every coordination problem needs a state machine. For straightforward async 
 | Decoupled async processing | [SQS queue](/resources/messaging/sqs-queue) trigger on a Lambda function |
 | Fan-out to multiple consumers | [SNS topic](/resources/messaging/sns-topic) or [EventBridge event bus](/resources/messaging/event-bus) |
 | High-throughput stream processing | [Kinesis stream](/resources/messaging/kinesis-stream) with a Lambda consumer |
-| Simple scheduled task | A Lambda function with a [schedule trigger](/configuration/triggers/schedule-triggers) |
+| Simple scheduled task | A Lambda function with a [schedule trigger](/resources/triggers/schedule-triggers) |
 
 ## Basic example
 
@@ -97,7 +97,7 @@ export default defineConfig(() => {
 A state machine definition requires `StartAt` and `States`. `StartAt` names the first state to execute, and `States` maps state names to state objects — each with a `Type` field. Most non-terminal states transition with `Next` or finish with `End: true`; terminal `Succeed` and `Fail` states end execution without needing `Next` or `End`.
 
 
-> **Tip:** Task states reference Lambda functions by their CloudFormation logical names. Inspect the compiled template (via [`stacktape compile-template`](/cli/compile-template)) to verify logical names before hard-coding them. The logical names used in examples on this page are illustrative.
+> **Tip:** Task states reference Lambda functions by their CloudFormation logical names. Inspect the compiled template (via [`stacktape synth`](/cli/synth)) to verify logical names before hard-coding them. The logical names used in examples on this page are illustrative.
 
 
 ## Workflow definition
@@ -132,7 +132,7 @@ Task states use the `Resource` property to identify a Lambda function or another
 }
 ```
 
-Run [`stacktape compile-template`](/cli/compile-template) to find the CloudFormation logical name for each resource in your generated template. Do not hard-code logical names without verifying them against the compiled output.
+Run [`stacktape synth`](/cli/synth) to find the CloudFormation logical name for each resource in your generated template. Do not hard-code logical names without verifying them against the compiled output.
 
 You can also set `TimeoutSeconds` on a Task state to limit how long the state machine waits for the task to complete, and `HeartbeatSeconds` to require periodic heartbeat signals from long-running tasks. The `Parameters` property lets you reshape the input before passing it to the task.
 
@@ -253,8 +253,8 @@ export default defineConfig(() => {
   });
   const startOrder = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/start-order.ts' }),
-    connectTo: ['orderWorkflow'],
-    environment: [{ name: 'ORDER_WORKFLOW_ARN', value: "$ResourceParam('orderWorkflow', 'arn')" }]
+    connectTo: [orderWorkflow],
+    environment: { ORDER_WORKFLOW_ARN: "$ResourceParam('orderWorkflow', 'arn')" }
   });
 
   return {
@@ -308,7 +308,7 @@ This handler code starts a workflow execution and returns the execution ARN, wit
 
 The `StateMachine` resource supports [overrides](/configuration/overrides-and-escape-hatches) for modifying the generated CloudFormation resources. The `StateMachineProps` type exposes only the ASL `definition` property — CloudFormation-level settings not modeled by the type (such as logging configuration or the workflow type) must be set through `overrides`. Use overrides as an escape hatch only after inspecting the compiled template and confirming the logical resource path you need to modify.
 
-For example, to switch the state machine to an Express workflow (higher throughput, lower per-transition cost, 5-minute maximum duration), override the `StateMachineType` property on the generated `AWS::StepFunctions::StateMachine` resource. First run [`stacktape compile-template`](/cli/compile-template) to find the logical name. The example below assumes the logical name is `OrderWorkflowStateMachine` — verify yours against the compiled output.
+For example, to switch the state machine to an Express workflow (higher throughput, lower per-transition cost, 5-minute maximum duration), override the `StateMachineType` property on the generated `AWS::StepFunctions::StateMachine` resource. First run [`stacktape synth`](/cli/synth) to find the logical name. The example below assumes the logical name is `OrderWorkflowStateMachine` — verify yours against the compiled output.
 
 
 Example (TypeScript):
@@ -339,7 +339,7 @@ export default defineConfig(() => {
 The `overrides` object keys are CloudFormation logical names, and values use dot-notation paths into the resource properties. `StateMachineType` accepts `STANDARD` (default) or `EXPRESS`. See [overrides](/configuration/overrides-and-escape-hatches) for full syntax details.
 
 
-> **Tip:** Use [`stacktape compile-template`](/cli/compile-template) to inspect the CloudFormation resources generated for the state machine before applying overrides.
+> **Tip:** Use [`stacktape synth`](/cli/synth) to inspect the CloudFormation resources generated for the state machine before applying overrides.
 
 
 ## Referenceable parameters
@@ -378,35 +378,23 @@ type StateMachineProps = {
 
 ### How do I reference Lambda functions in a state machine definition?
 
-Use CloudFormation intrinsic functions in the Task state's `Resource` field — for example, `{ 'Fn::GetAtt': ['MyFunctionLogicalName', 'Arn'] }`. The logical name depends on the compiled CloudFormation template. Run [`stacktape compile-template`](/cli/compile-template) to find the exact logical name for each resource in your generated template before referencing them.
+Use CloudFormation intrinsic functions in the Task state's `Resource` field — for example, `{ 'Fn::GetAtt': ['MyFunctionLogicalName', 'Arn'] }`. The logical name depends on the compiled CloudFormation template. Run [`stacktape synth`](/cli/synth) to find the exact logical name for each resource in your generated template before referencing them.
 
 ### How do I pass the state machine ARN to a Lambda function?
 
 Use [`connectTo`](/configuration/connecting-resources) to grant IAM permissions, and add an `environment` entry with the [`$ResourceParam` directive](/configuration/directives) to inject the ARN. For example, `{ name: 'MY_WORKFLOW_ARN', value: "$ResourceParam('myWorkflow', 'arn')" }`. The state machine exposes `arn` and `name` as [referenceable parameters](/configuration/referenceable-parameters).
 
-### Can I customize the underlying CloudFormation resources?
+### How do I switch to an Express workflow (or change other CloudFormation settings)?
 
-Yes. The `StateMachine` resource supports [overrides](/configuration/overrides-and-escape-hatches) for modifying the generated CloudFormation resources. The `StateMachineProps` type exposes only the ASL `definition`, so any CloudFormation-level settings not modeled by the type must be applied through `overrides`. Use [`stacktape compile-template`](/cli/compile-template) to inspect the generated resources and find logical names before applying overrides.
-
-### How do I inspect or modify the IAM permissions for a state machine?
-
-Use [`stacktape compile-template`](/cli/compile-template) to inspect the CloudFormation resources and IAM policies generated for the state machine. Use [overrides](/configuration/overrides-and-escape-hatches) if you need to modify the generated resources or permissions.
+The `StateMachineProps` type exposes only the ASL `definition` — anything else, including the workflow type and logging, must be set through [overrides](/configuration/overrides-and-escape-hatches). To switch to Express (higher throughput, lower per-transition cost, 5-minute maximum duration), override `Properties.StateMachineType` to `EXPRESS` on the generated `AWS::StepFunctions::StateMachine` resource. Run [`stacktape synth`](/cli/synth) first to find its logical name, since overrides key off it.
 
 ### How much do AWS Step Functions cost?
 
-AWS Step Functions charges per state transition (~$0.025/1,000 transitions). The AWS Free Tier includes 4,000 transitions per month. Each state in your workflow counts as one transition, so a 5-state workflow costs 5 transitions per execution. AWS also offers Express workflows with different pricing and a 5-minute duration limit — the Stacktape `StateMachineProps` type does not expose a workflow-type selector, but you can switch to Express via [overrides](/configuration/overrides-and-escape-hatches). See the [AWS Step Functions pricing page](https://aws.amazon.com/step-functions/pricing/) for current rates.
-
-### What is Amazon States Language?
-
-Amazon States Language (ASL) is the JSON-based specification used to define Step Functions workflows. It describes states, transitions, error handling, input/output processing, and parallel execution. Stacktape accepts the ASL definition as the `definition` property of the `StateMachine` resource. The Stacktape type system models eight state types: Choice, Fail, Map, Parallel, Pass, Succeed, Task, and Wait. The [full specification](https://states-language.net/spec.html) documents all state types and features.
+AWS Standard Step Functions charge per state transition (~$0.025/1,000 transitions), so cost scales with how many states each execution passes through. This adds up at high volume — for simple decoupled or single-step work, a [Lambda function](/resources/compute/lambda-function) behind an [SQS queue](/resources/messaging/sqs-queue) or [SNS topic](/resources/messaging/sns-topic) is cheaper. Express workflows use different (per-request + duration) pricing; see [How do I switch to an Express workflow](#how-do-i-switch-to-an-express-workflow-or-change-other-cloudformation-settings) and the [AWS Step Functions pricing page](https://aws.amazon.com/step-functions/pricing/) for current rates.
 
 ### How long can a Step Functions execution run?
 
-AWS Standard Step Functions workflows can run for up to one year. Set the `TimeoutSeconds` property in your state machine definition to impose a shorter limit. Individual Task states also support `TimeoutSeconds` to limit how long a single step can take. Use `HeartbeatSeconds` on Task states to require periodic signals from long-running tasks.
-
-### Can Step Functions run tasks in parallel?
-
-Yes. Use the **Parallel** state to run multiple branches concurrently — all branches must complete before the workflow continues. Use the **Map** state to iterate over an array and run a sub-workflow for each item, with `MaxConcurrency` controlling how many items process simultaneously. Both state types support `Retry` and `Catch` for error handling.
+AWS Standard Step Functions workflows can run for up to one year, so a workflow with no timeout can keep transitioning (and billing) indefinitely. Set the top-level `TimeoutSeconds` property in your definition to cap the whole workflow, and `TimeoutSeconds` on individual Task states to bound a single step. Use `HeartbeatSeconds` on Task states to require periodic signals from long-running tasks.
 
 ### When should I use a state machine vs an SQS queue?
 

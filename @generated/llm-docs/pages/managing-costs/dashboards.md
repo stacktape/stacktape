@@ -83,21 +83,9 @@ Cost reports are generated daily and may not be available immediately after a ne
 
 No. AWS infrastructure costs are billed directly to your AWS account, and the dashboards show those charges as-is. Stacktape's subscription fee is separate and does not appear in these dashboards. See [Billing and subscription](/stacktape-console/billing-and-subscription) for subscription details.
 
-### Can I see costs for a specific stage?
-
-Yes. The Costs per stack table lists each stage as a separate row. Click any row to open the cost page for that project and stage. See [Per-resource breakdown](/managing-costs/per-resource-breakdown) for details on that view.
-
-### Why don't I see costs for a newly deployed stack?
-
-Cost reports are generated daily and may not be available immediately. If you deployed a stack recently, check back later. Additionally, some AWS services like Lambda only incur costs on invocation — a deployed but idle function may legitimately show zero cost.
-
-### What is the difference between "AWS Costs by Project" and "AWS Costs by Resource"?
-
-"AWS Costs by Project" groups current-month spend by project — useful for comparing application-level costs. "AWS Costs by Resource" groups spend by AWS resource type — useful for identifying which resource types drive your bill. Both charts appear on the organization overview.
-
 ### How is this different from the AWS Billing console?
 
-The AWS Billing console shows account-wide cost data. The Stacktape Console attributes costs to your specific projects and stages, so you can see per-stack spend directly. For deeper AWS-native analysis, you can use AWS Cost Explorer alongside the Stacktape dashboards.
+The AWS Billing console shows account-wide cost data. The Stacktape Console attributes costs to your specific projects, stages, and regions, so you can see per-stack spend directly without slicing through raw billing data.
 
 ### Can I set up alerts when costs exceed a threshold?
 
@@ -106,10 +94,6 @@ Yes. Stacktape supports budget alerts that notify you when spend reaches specifi
 ### How far back can I view cost history?
 
 The time range selector on the Costs per stack page includes each month so far in the current year plus all 12 months of the previous year. This gives you between 13 and 24 selectable months depending on when in the year you view it.
-
-### What costs appear in the Costs per stack table?
-
-The Costs per stack table displays attributed stack costs from the selected active connected AWS account for the selected month. Each row represents a deployed stack with its total attributed spend. If no cost report is available for the selected account and time range, the table shows a message noting that reports are generated daily.
 
 ### Can I compare costs across multiple AWS accounts?
 

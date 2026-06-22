@@ -1,16 +1,16 @@
 # AgentCore Browser
 
-AgentCore Browser is a Stacktape resource for configuring a browser tool on AWS Bedrock AgentCore. An [AgentCore Runtime](/resources/ai/agentcore-runtime) can reference the browser by setting its `useBrowser` property to the browser resource name. An optional `recording` object lets you configure bucket-based session recording for debugging and audit.
+AgentCore Browser is a Stacktape resource for configuring a browser tool on AWS Bedrock AgentCore. An [AgentCore Runtime](/resources/ai/agentcore-runtime) can reference the browser by setting its `useBrowser` property to the browser resource name. An optional `recording` object lets you configure bucket-based browser recording with a target bucket and key prefix.
 
 ## When to use
 
-Use AgentCore Browser when your AI agent needs a managed, sandboxed browser environment. Typical use cases include agents that interact with rendered web pages, agents that need to process web content, and agents that require browser-based tooling beyond simple HTTP requests.
+Use AgentCore Browser when your [AgentCore Runtime](/resources/ai/agentcore-runtime) needs a browser tool reference. `AgentCoreRuntimeProps` exposes `useBrowser?: string`, which accepts the name of an AgentCore Browser resource. Attach a browser when the runtime needs browser-based capabilities beyond simple HTTP requests.
 
 If your agent only needs to call HTTP APIs (REST, GraphQL), skip the browser and use direct HTTP calls or the [AgentCore Gateway](/resources/ai/agentcore-gateway) instead. A managed browser adds overhead that is unnecessary for structured API interactions.
 
 ## When NOT to use
 
-AgentCore Browser is not the right fit when your agent does not need a full browser environment. Simpler alternatives are faster, cheaper, and easier to operate.
+AgentCore Browser is not the right fit when your AgentCore Runtime does not need a browser tool reference. If none of the runtime's tasks require a browser environment, skip this resource entirely — simpler alternatives are faster and easier to operate.
 
 - **Static API calls** — If the agent only needs to fetch JSON from known endpoints, use HTTP requests directly from your runtime container. A browser adds unnecessary overhead for structured API work.
 - **Headless rendering for your own frontend** — AgentCore Browser is designed for agent web interaction, not for server-side rendering of your own app. Use [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), or other SSR frontend resources instead.
@@ -59,12 +59,12 @@ AgentCore Runtime uses the same [container packaging](/packaging/overview) optio
 
 ### Session recording
 
-AgentCore Browser exposes an optional `recording` configuration with `enabled`, `bucketName`, and `prefix` properties. Use it when you want AWS Bedrock AgentCore browser recording configured for this browser resource.
+AgentCore Browser exposes an optional `recording` object with `enabled`, `bucketName`, and `prefix` properties. Omit the `recording` object when you do not need Stacktape to configure browser recording. Add it when you need recording settings such as a target bucket and key prefix.
 
-Enable recording during development to debug agent browser behavior. In production, leave recording off unless you need an audit trail. Enabling recording may add storage costs in the configured bucket, so manage retention and access control on that bucket accordingly.
+The `recording` configuration may add S3 storage costs in the configured bucket. Manage retention policies and access control on that bucket separately.
 
 
-> **Tip:** Most teams start without recording and add it selectively when debugging specific agent behaviors or when compliance requires an audit trail.
+> **Tip:** Add recording selectively when you need stored browser sessions for review. Confirm any audit or retention requirements in your own S3 bucket configuration.
 
 
 Example (TypeScript):
@@ -90,7 +90,7 @@ export default defineConfig(() => {
 ```
 
 
-The `recording.bucketName` property takes a bucket name string. In this example, `$ResourceParam("recordingsBucket", "name")` dynamically resolves to the name of the Stacktape-managed `recordingsBucket` resource. You can also pass a hardcoded bucket name if you are using a bucket managed outside your Stacktape stack. See [directives](/configuration/directives) for more on `$ResourceParam`.
+`recording.bucketName` is a string, so the value can be a `$ResourceParam()` expression or a literal bucket name. In this example, `$ResourceParam("recordingsBucket", "name")` dynamically resolves to the name of the Stacktape-managed `recordingsBucket` resource. If the bucket is not managed in the same Stacktape stack, make sure the AWS-side permissions and bucket policy allow AgentCore Browser recording. See [directives](/configuration/directives) for more on `$ResourceParam`.
 
 See the [API reference](#api-reference) below for the full `recording` object shape.
 
@@ -131,7 +131,7 @@ export default defineConfig(() => {
       idleRuntimeSessionTimeout: 3600,
       maxLifetime: 28800
     },
-    environment: [{ name: 'AI_MODEL', value: 'eu.amazon.nova-micro-v1:0' }]
+    environment: { AI_MODEL: 'eu.amazon.nova-micro-v1:0' }
   });
 
   return {
@@ -145,15 +145,15 @@ export default defineConfig(() => {
 ```
 
 
-`AgentCoreRuntimeProps` exposes `useMemory`, `useGateway`, `useBrowser`, and `useCodeInterpreter` as optional string properties for referencing the corresponding AgentCore resources by name. In this example, `useMemory: 'researchMemory'` and `useBrowser: 'researchBrowser'` match the keys in the returned `resources` object. The `expirationDays` property on `AgentCoreMemory` controls how long memory entries are retained. The `lifecycle` object on `AgentCoreRuntime` tunes session lifetime: `idleRuntimeSessionTimeout` sets how long an idle session persists, and `maxLifetime` caps the total session duration.
+`AgentCoreRuntimeProps` exposes `useMemory`, `useGateway`, `useBrowser`, and `useCodeInterpreter` as optional string properties for referencing the corresponding AgentCore resources by name. In this example, `useMemory: 'researchMemory'` and `useBrowser: 'researchBrowser'` match the keys in the returned `resources` object. The `expirationDays` property on `AgentCoreMemory` controls how long memory entries are retained. The `lifecycle` object on `AgentCoreRuntime` tunes session lifetime: `idleRuntimeSessionTimeout` sets how long an idle session persists, and `maxLifetime` caps the total session duration. The values `45`, `3600`, and `28800` in this example are illustrative choices — the source types expose these as `number` properties without documenting specific defaults or upper bounds. Adjust them to fit your agent's session and retention requirements.
 
 ## Overrides
 
-AgentCore Browser accepts the standard [overrides](/configuration/overrides-and-escape-hatches) escape hatch for modifying generated CloudFormation child resources. Use dot-notation paths to override specific properties. Find resource logical IDs with [`stacktape info:stack --detailed`](/cli/info-stack).
+AgentCore Browser accepts the standard [overrides](/configuration/overrides-and-escape-hatches) escape hatch for modifying generated CloudFormation child resources. Use dot-notation paths to override specific properties. Find resource logical IDs with [`stacktape stack-info --detailed`](/cli/info-stack).
 
 ## Tags
 
-AgentCore Browser accepts `tags` (`CloudformationTag[]`) for adding AWS-level ownership, cost allocation, or audit labels. See the API reference below for the exact tag shape.
+AgentCore Browser accepts `tags?: CloudformationTag[]`. Use tags where your AWS tagging policy expects them. See the [API reference](#api-reference) below for the exact shape.
 
 ## Referenceable parameters
 
@@ -191,17 +191,13 @@ type AgentCoreBrowserProps = {
 
 Set the `useBrowser` property on your [AgentCore Runtime](/resources/ai/agentcore-runtime) to the resource name of your AgentCore Browser. `AgentCoreRuntimeProps` includes `useBrowser?: string`; in your Stacktape config, pass the browser resource name you return from `resources`. For example, if your browser resource is keyed as `researchBrowser`, set `useBrowser: 'researchBrowser'` on the runtime.
 
-### Can I use the browser without enabling recording?
-
-Yes. Recording is entirely optional. You can omit the `recording` property entirely; the source type does not require it on `AgentCoreBrowserProps`. Most development setups start without recording and add it later if debugging or auditing is needed.
-
 ### Where are session recordings stored?
 
 The `recording` object on `AgentCoreBrowserProps` accepts `enabled`, `bucketName`, and `prefix`. Use `bucketName` to pass the target bucket name and `prefix` to set the key prefix for recordings. You are responsible for managing the bucket's lifecycle policies and access control. Use [`$ResourceParam()`](/configuration/directives) to reference a Stacktape-managed [Bucket](/resources/storage/s3-bucket) by name, or pass a hardcoded name for an externally managed bucket.
 
-### What is the difference between AgentCore Browser and AgentCore Code Interpreter?
+### AgentCore Browser vs AgentCore Code Interpreter — which do I need?
 
-[AgentCore Browser](/resources/ai/agentcore-browser) configures a browser tool resource. [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) configures a code execution tool resource. Use the browser when the agent needs a browser tool; use the code interpreter when the agent needs to compute, transform data, or run scripts. `AgentCoreRuntimeProps` exposes both `useBrowser` and `useCodeInterpreter` as string properties, so a single runtime can reference one of each.
+Use AgentCore Browser when the agent needs to interact with rendered web pages; use [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) when the agent needs to compute, transform data, or run scripts. `AgentCoreRuntimeProps` exposes both `useBrowser` and `useCodeInterpreter` as string properties, so a single runtime can reference one of each at the same time.
 
 ### How much does AgentCore Browser cost?
 
@@ -210,11 +206,3 @@ No concrete AgentCore Browser pricing is present in the Stacktape source. Check 
 ### When should I use a browser instead of HTTP calls in my agent?
 
 Use a browser when the agent needs a full browser environment rather than simple HTTP requests. If your agent only calls structured APIs (REST, GraphQL) with known endpoints, direct HTTP calls are faster, cheaper, and simpler. The browser is intended for use cases where a rendered browser context is needed; HTTP calls are for structured data exchange.
-
-### Can I customize the underlying CloudFormation resources?
-
-Yes. AgentCore Browser accepts `overrides`, the same escape hatch available on other Stacktape resources. Use [overrides](/configuration/overrides-and-escape-hatches) to modify properties on the generated CloudFormation child resources. Find resource logical IDs with [`stacktape info:stack --detailed`](/cli/info-stack) before applying overrides.
-
-### Can multiple runtimes reference the same browser resource?
-
-`AgentCoreRuntimeProps` includes `useBrowser?: string`, which accepts the name of an AgentCore Browser resource. The Stacktape type system does not restrict how many runtimes reference a given browser resource, but whether this works at the AWS Bedrock AgentCore service level is not documented in the Stacktape source. Consult the AWS Bedrock AgentCore documentation for any session-level or concurrency constraints before sharing a browser across runtimes.

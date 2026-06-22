@@ -13,8 +13,8 @@ CloudWatch Logs triggers fit when you need programmatic access to raw log data a
 
 ## When NOT to use
 
-- **Simple log viewing** — use [`stacktape debug:logs`](/cli/debug-logs) or the Stacktape Console instead of building a custom pipeline.
-- **Threshold-based alerting** — if you only need to trigger when a metric crosses a threshold, [alarms as triggers](/configuration/triggers/alarms-as-triggers) are simpler and don't require log parsing.
+- **Simple log viewing** — use [`stacktape logs`](/cli/logs) or the Stacktape Console instead of building a custom pipeline.
+- **Threshold-based alerting** — if you only need to trigger when a metric crosses a threshold, [alarms as triggers](/resources/triggers/alarms-as-triggers) are simpler and don't require log parsing.
 - **High-volume batch analytics** — for batch processing of large log volumes, consider exporting logs to [S3](/resources/storage/s3-bucket) and processing them with a [batch job](/resources/compute/batch-job). CloudWatch Logs triggers process records as they arrive but are not designed for high-throughput ETL.
 - **Managed log forwarding** — if you just need to pipe logs to an external service with no custom logic, [log forwarding](/observability/log-forwarding) handles this without code.
 
@@ -219,15 +219,7 @@ For details on the syntax, see the [AWS documentation on filter and pattern synt
 
 ### When should I use a CloudWatch Logs trigger vs a CloudWatch alarm?
 
-Use an [alarm trigger](/configuration/triggers/alarms-as-triggers) when you want to react to a metric crossing a threshold (e.g., error rate above 5%). Use a CloudWatch Logs trigger when you need to inspect individual log records — extracting specific fields, forwarding raw data, or running custom parsing logic. Alarms are simpler for threshold-based alerting; log triggers give you access to the actual log content.
-
-### Can I trigger on logs from a resource in my own stack?
-
-Yes. Use the [`$ResourceParam()`](/configuration/directives) directive to reference the `logGroupArn` of a resource in your stack. Check the [referenceable parameters](/configuration/referenceable-parameters) page to confirm the resource type you want to monitor exposes `logGroupArn`.
-
-### Can I filter on JSON-structured logs?
-
-Yes. The `filter` property supports JSON filter pattern syntax. For example, `{ $.level = "error" }` matches log lines that are valid JSON with a `level` field equal to `"error"`. You can also use numeric comparisons like `{ $.statusCode >= 500 }`. See the [AWS filter pattern syntax docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html) for the full reference.
+Use an [alarm trigger](/resources/triggers/alarms-as-triggers) when you want to react to a metric crossing a threshold (e.g., error rate above 5%). Use a CloudWatch Logs trigger when you need to inspect individual log records — extracting specific fields, forwarding raw data, or running custom parsing logic. Alarms are simpler for threshold-based alerting; log triggers give you access to the actual log content.
 
 ### How many subscription filters can a single log group have?
 
@@ -237,18 +229,14 @@ AWS limits each CloudWatch log group to two subscription filters. This limit app
 
 No. AWS batches multiple log events into a single invocation. The `logEvents` array in the decoded payload contains all records in the batch. Your handler should always iterate over the full array rather than assuming a single record per invocation.
 
+### Why is my handler receiving garbled or binary data?
+
+The `awslogs.data` field is always base64-encoded and gzip-compressed — AWS CloudWatch Logs sends the payload in this format and it is not configurable. Your handler must base64-decode and gunzip the data before parsing it (e.g., with `gunzipSync` from `node:zlib`). Skipping the decode/decompress step is the usual cause of garbled data.
+
 ### How does this differ from log forwarding in Stacktape?
 
 [Log forwarding](/observability/log-forwarding) is a managed Stacktape feature that streams logs to external destinations without custom code. A CloudWatch Logs trigger gives you a programmable hook — use it when you need custom parsing, transformation, conditional routing, or enrichment logic that goes beyond simple forwarding.
 
-### Which resources can use this trigger?
-
-`CloudwatchLogIntegration` is a [Lambda function](/resources/compute/lambda-function) trigger — it appears in the `events` array of a Lambda function. The configuration requires a `logGroupArn` and accepts an optional `filter`.
-
 ### What happens if my handler throws an error?
 
 AWS CloudWatch Logs may redeliver the same batch of log events. Your handler should be idempotent — use the `id` field on each log event to detect and skip duplicates. The integration type does not expose retry-count configuration at the Stacktape level.
-
-### How do I forward logs to an external service like Datadog or Splunk?
-
-Create a Lambda function with a CloudWatch Logs trigger, decode and decompress the event payload, then use the external service's HTTP API or SDK to forward the log data. Most external logging services publish Lambda forwarder templates you can adapt. If you don't need custom transformation, consider using Stacktape's [log forwarding](/observability/log-forwarding) feature instead.

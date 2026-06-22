@@ -134,7 +134,7 @@ import { defineConfig, RedisCluster } from 'stacktape';
 export default defineConfig(() => {
   const cache = new RedisCluster({
     instanceSize: 'cache.t4g.micro',
-    engineVersion: '7.2',
+    engineVersion: '7.1',
     defaultUserPassword: "$Secret('redis.password')"
   });
 
@@ -276,7 +276,7 @@ Oracle and SQL Server engines are not mapped to a local container type. MongoDB 
 
 ### Does local database data persist when I restart dev mode?
 
-Yes. Dev mode mounts a local data directory into each database container, so data persists across dev mode restarts. If a container with the same name is already running, Stacktape reuses it rather than creating a new one.
+Yes. Dev mode mounts a local data directory into each database container, so data survives dev mode restarts. To wipe all local databases for the stage, run `stacktape dev --freshDb`, or delete a single resource's directory under `.stacktape/dev-data/<stage>/<resourceName>/data/`.
 
 ### Can I run multiple stages locally at the same time?
 
@@ -294,17 +294,9 @@ No. The `amazon/dynamodb-local` image used by dev mode does not include Streams,
 
 Aurora Serverless v1 and v2 engine types are mapped to standard PostgreSQL or MySQL containers locally. Serverless scaling (ACU-based), pause-after-inactivity, and automatic failover are AWS-only features. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
-### What happens if Docker is not running?
-
-Dev mode needs Docker to start local database containers. If Docker is not running or not installed, dev mode reports an error and cannot start local databases.
-
 ### Can I use the local database for running migrations?
 
 Yes. Workloads that list the database in `connectTo` receive the connection string as an environment variable, so migration tools that read the connection string from the environment work without changes. Run migrations from your application startup code, a local migration command (e.g. `npx prisma migrate dev`), or manually via a database client connected to `localhost:<port>`. Schema changes persist across dev sessions because the data directory is mounted from the host.
-
-### Can I use Oracle or SQL Server databases locally?
-
-No. RDS Oracle and SQL Server engine types do not have local emulation in Stacktape dev mode. Use `dev.remote: true` on the resource to connect to the deployed RDS instance during development. Alternatively, you can run your own Oracle or SQL Server container manually and configure your application to connect to it.
 
 ### Where can I find the actual port a local database is using?
 

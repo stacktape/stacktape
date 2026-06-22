@@ -242,7 +242,7 @@ The delete command deletes deployment artifacts and then deletes the CloudFormat
 
 ### Can I delete a stack without a configuration file?
 
-Yes. The configuration file is optional for the delete command. You can identify the stack using `--projectName`, `--stage`, and `--region` flags directly. The trade-off is that `beforeDelete` lifecycle hooks will not run without a config file.
+Yes. The config file is optional — you can identify the stack with `--projectName`, `--stage`, and `--region` directly. The trade-off is that `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) only run when you pass `--configPath`, so without it any data export or cleanup hooks are skipped.
 
 ### How do I delete a stack in a CI/CD pipeline?
 
@@ -252,22 +252,6 @@ Use `--autoConfirmOperation` to skip the interactive confirmation prompt in CI/C
 
 Deletion fails when the CloudFormation stack has `EnableTerminationProtection` set. First [deploy](/cli/deploy) an update with the `terminationProtection` property set to `false`, then run the delete command again.
 
-### Does deleting a stack affect other stages?
-
-The delete command targets only the stack identified by the provided `--projectName`, `--stage`, and `--region` arguments. Other stacks are not affected.
-
-### How long does a stack deletion take?
-
-Deletion time varies depending on the number and type of AWS resources in the stack.
-
-### Can I recover a deleted stack?
-
-No. Once deleted, the stack and its deployment artifacts are permanently removed. To recreate the stack, run [`deploy`](/cli/deploy) again with the same configuration.
-
 ### What is the difference between delete and rollback?
 
 The [`rollback`](/cli/rollback) command reverts your stack to a previous deployment version while keeping the stack alive. The `delete` command permanently removes the entire stack and all its resources. Use rollback when you want to undo a bad deploy; use delete when you want to completely remove the stack from AWS.
-
-### Do beforeDelete hooks have access to deployed resources?
-
-Yes. The `beforeDelete` hook phase runs before any artifacts or resources are deleted, so hooks can still interact with the running stack. This makes hooks useful for exporting data from databases or notifying dependent services before teardown begins.

@@ -100,28 +100,16 @@ The Account Settings page does not include an email-change form. Your email is t
 
 ### Which authenticator apps work with Stacktape MFA?
 
-Any authenticator app that supports TOTP (Time-based One-Time Password) works. Common choices include Google Authenticator, Authy, Microsoft Authenticator, and 1Password. The Console generates an `otpauth://totp` QR code, which is the standard format used by TOTP authenticator apps.
+Any authenticator app that supports TOTP (Time-based One-Time Password) works. Common choices include Google Authenticator, Authy, Microsoft Authenticator, and 1Password. The Console generates a standard TOTP QR code, so any compliant authenticator app can read it.
 
 ### What happens if I lose access to my authenticator app?
 
-The Account Settings page does not provide a self-service MFA recovery flow. If you still have an active session, you can disable MFA from the Account Settings page and set it up again with a new device. If you are locked out entirely, contact your organization administrator or [support@stacktape.com](mailto:support@stacktape.com) for assistance with account deletion — there is no documented self-service recovery for a lost authenticator.
+The Account Settings page does not provide a self-service MFA recovery flow. If you still have an active session, you can disable MFA from the Account Settings page and set it up again with a new device. If you are locked out entirely, contact [support@stacktape.com](mailto:support@stacktape.com) — there is no documented self-service recovery for a lost authenticator.
 
-### Does changing my password log me out?
+### Why does my password or MFA section show "go to your Google account settings"?
 
-Yes. After a successful password change, the Console logs you out. You must sign in again with your new password. For API key management, see [API keys](/stacktape-console/api-keys).
-
-### Can I be logged in with both Google and email/password?
-
-The Console adapts what it shows based on the active session. The password form checks whether the current Cognito username starts with `Google_` — if so, it displays a message directing you to your Google account settings instead of the password fields. The MFA section shows similar Google-account guidance when the MFA preference lookup fails because the access token lacks the required scopes. When signed in with email and password, the local password and MFA forms are shown.
+If you signed in with Google, the Console can't change your password or MFA itself. The password form detects the Google login from your current Cognito username, and the MFA section shows the same guidance when the MFA preference lookup fails because the Google session's access token lacks the required scopes. This is expected — manage your password and MFA through your Google account instead.
 
 ### Is MFA configured per user or per organization?
 
-Account Settings configures MFA for the current user. Each team member enables or disables MFA independently from their own Account Settings page.
-
-### What are the password requirements?
-
-Passwords changed from Account Settings must contain at least 8 characters and at least one number. The Console validates both the new password and confirmation fields against these rules.
-
-### How do I navigate to Account Settings?
-
-Open Account Settings in the Stacktape Console to manage your personal credentials separately from [organization, project, and stage settings](/stacktape-console/organizations-projects-and-stages).
+Account Settings configures MFA for the current user only. Each team member enables or disables MFA independently from their own Account Settings page. For organization-wide user management, see [Team and access control](/stacktape-console/team-and-access-control).

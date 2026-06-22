@@ -122,17 +122,9 @@ For PR-based workflows, automate deletion when the branch is deleted or the PR i
 
 Yes. The `stacktape delete` command does not require a configuration file. Specify `--projectName`, `--stage`, and `--region` and Stacktape deletes the stack directly. The only limitation is that pre-deletion lifecycle hooks defined in the config file will not run, because no configuration is loaded.
 
-### How long does CloudFormation stack deletion take?
+### What happens to my data when I delete a stack? Can I recover it?
 
-Deletion time depends on the number and type of resources in the stack. AWS CloudFormation deletes resources in reverse dependency order, and some AWS resources take longer to deprovision than others (for example, VPC-related resources and databases require connection draining and network interface cleanup). Simple stacks delete faster than stacks with many networking or stateful resources. Monitor progress in the CloudFormation stack events.
-
-### What happens to my data when I delete a stack?
-
-CloudFormation attempts to delete all resources in the stack, including databases, buckets, and caches. Stateful data is lost unless the underlying AWS resource has retention, backups, snapshots, or versioning configured independently. If you need to preserve data, export it before running delete. A pre-deletion [hook](/configuration/hooks-and-scripts) is the recommended approach for automated exports.
-
-### Can I recover a deleted stack?
-
-Stacktape does not provide an undo for deleted stacks. Once CloudFormation finishes deleting resources, they are removed. For recovery capability, configure AWS-level protections on individual resources before deletion: AWS RDS automated backups, S3 versioning, or DynamoDB point-in-time recovery. These are AWS service features configured outside of the Stacktape deletion process.
+CloudFormation attempts to delete all resources in the stack, including databases, buckets, and caches, and Stacktape provides no undo — once CloudFormation finishes, the resources are gone. Stateful data survives only if the underlying AWS resource has retention, backups, snapshots, or versioning configured independently (for example RDS automated backups, S3 versioning, or DynamoDB point-in-time recovery). If you need to preserve data, export it before running delete; a pre-deletion [hook](/configuration/hooks-and-scripts) is the recommended approach for automated exports.
 
 ### How do I prevent team members from accidentally deleting production?
 
@@ -145,14 +137,6 @@ The delete operation itself is free — AWS CloudFormation does not charge for s
 ### What if my stack is stuck in DELETE_FAILED?
 
 CloudFormation reports the specific failing resource and error. Common causes include S3 buckets with externally-added objects, resources with AWS-level deletion protection, or cross-stack security group references. Inspect the stack events, fix the underlying AWS resource issue, and run `stacktape delete` again.
-
-### Should I auto-delete stacks for each branch?
-
-Yes, for the [stacks-per-branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern), delete preview stacks automatically after the PR merges or the branch is deleted. Most CI/CD workflows trigger deletion on branch delete or PR close events. Keeping stale branch stacks accumulates cost — especially when they include always-on resources like containers, databases, or NAT Gateways.
-
-### Can I delete a stack while another operation is in progress?
-
-No. If a stack is in an `UPDATE_IN_PROGRESS` or `CREATE_IN_PROGRESS` CloudFormation state, you must wait for the operation to complete or fail before issuing a delete. AWS CloudFormation allows only one operation per stack at a time. If a deployment is stuck, you may need to wait for the CloudFormation timeout or use the AWS Console to cancel the update.
 
 ### What is the difference between deleting a stack and rolling back?
 

@@ -115,7 +115,7 @@ type AlarmIntegrationProps = {
 
 ### Can I trigger multiple Lambda functions from the same alarm?
 
-Inside `properties`, the only documented required field is `alarmName`. The provided type source does not document a uniqueness constraint for `alarmName`, but if you need reliable fan-out semantics — for example, one handler for remediation and another for custom notifications — prefer publishing alarm state changes to an [EventBridge event bus](/resources/messaging/event-bus) and subscribing each consumer with an [event bus trigger](/configuration/triggers/event-bus-events), unless your generated template confirms multiple alarm targets for your stack.
+`AlarmIntegrationProps` exposes only `alarmName`, so for reliable fan-out — for example, one handler for remediation and another for custom notifications — publish alarm state changes to an [EventBridge event bus](/resources/messaging/event-bus) and subscribe each consumer with an [event bus trigger](/resources/triggers/event-bus-events). That gives each function its own independent subscription to the same alarm event.
 
 ### How is an alarm trigger different from notification targets?
 
@@ -125,26 +125,10 @@ Inside `properties`, the only documented required field is `alarmName`. The prov
 
 Not currently. The `input`, `inputPath`, and `inputTransformer` options are not available on `cloudwatch-alarm` triggers. Your function receives the alarm event as delivered by AWS. If you need a transformed or filtered payload, parse and reshape it inside your handler code.
 
-### What alarm types can I use as triggers?
-
-The alarm referenced by `alarmName` can use any of the built-in trigger types from the [`alarms` section](/observability/alarms). This covers Lambda error rate and duration, relational database CPU/memory/storage/latency/connection metrics, HTTP API Gateway error rate and latency, Application Load Balancer error rate, unhealthy targets, and `application-load-balancer-custom` alarms, and SQS queue message count and not-empty alarms. See the [Supported alarm types](#supported-alarm-types) table for the full list.
-
 ### What happens if my Lambda function fails when triggered by an alarm?
 
-As a general Lambda best practice, design your handler to be idempotent when it has side effects — use upserts instead of inserts, or check-before-send for notifications. The `AlarmIntegrationProps` type does not expose retry configuration, unlike stream and queue integrations. For investigation, view function invocation logs with [`stacktape debug:logs`](/cli/debug-logs).
+`AlarmIntegrationProps` exposes no retry configuration, unlike stream and queue integrations — so design your handler to be idempotent when it has side effects (use upserts instead of inserts, or check-before-send for notifications). To investigate failures, view function invocation logs with [`stacktape logs`](/cli/logs).
 
-### How does CloudWatch evaluate alarm thresholds?
+### Can I reference alarms from a different Stacktape stack or AWS account?
 
-AWS CloudWatch evaluates alarms based on a configurable evaluation window. You set a period (default 60 seconds), the number of evaluation periods to consider, and how many of those periods must breach the threshold before the alarm fires. This prevents short metric spikes from triggering false alarms. Configure these settings through the `evaluation` property on your alarm definition — see [Alarms](/observability/alarms) for details.
-
-### Should I use an alarm trigger or an EventBridge event bus trigger?
-
-Use an alarm trigger when you want to react to a specific CloudWatch metric crossing a threshold — it is purpose-built for operational alerting with minimal configuration (just `alarmName`). Use an [EventBridge event bus trigger](/configuration/triggers/event-bus-events) when you need to match arbitrary event patterns from AWS services or custom applications. EventBridge triggers also support `input`, `inputPath`, and `inputTransformer` for payload customization, which alarm triggers do not.
-
-### Can I reference alarms from a different Stacktape stack or external AWS account?
-
-`alarmName` names an alarm defined in the `alarms` section. The `AlarmIntegrationProps` type does not expose an ARN, external account, or external stack field — only `alarmName` referencing an alarm in the same configuration. If you need to react to alarms from another stack or account, model the event flow explicitly with an [EventBridge event bus](/resources/messaging/event-bus) and an [event bus trigger](/configuration/triggers/event-bus-events).
-
-### Do alarm triggers add cost beyond the alarm itself?
-
-Expect AWS CloudWatch alarm charges plus standard [Lambda function](/resources/compute/lambda-function) invocation and duration charges each time the handler runs. Since alarms fire infrequently compared to request-driven triggers, the per-invocation Lambda cost is typically minimal relative to your overall compute spend.
+No. `alarmName` must name an alarm defined in the same configuration's `alarms` section — `AlarmIntegrationProps` exposes no ARN, external-account, or external-stack field. To react to alarms from another stack or account, route them through an [EventBridge event bus](/resources/messaging/event-bus) and consume them with an [event bus trigger](/resources/triggers/event-bus-events).

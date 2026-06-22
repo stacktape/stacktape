@@ -178,7 +178,7 @@ Use `scoping-workloads-in-vpc` when you want to restrict Redis access to specifi
 
 ### Local access via bastion
 
-Since Redis clusters have no public endpoint, you cannot connect from your local machine directly. To interact with the cluster for debugging or data inspection, use a [bastion host](/resources/security/bastion-host). Once a bastion is deployed, use [`stacktape bastion:tunnel`](/cli/bastion-tunnel) to create a secure tunnel, or use [`stacktape debug:redis`](/cli/debug-redis) to interact with the cluster through the bastion.
+Since Redis clusters have no public endpoint, you cannot connect from your local machine directly. To interact with the cluster for debugging or data inspection, use a [bastion host](/resources/security/bastion-host). Once a bastion is deployed, use [`stacktape bastion:tunnel`](/cli/bastion-tunnel) to create a secure tunnel, or use [`stacktape query:redis`](/cli/query-redis) to interact with the cluster through the bastion.
 
 ## Connecting from workloads
 
@@ -217,8 +217,8 @@ export default defineConfig(() => {
       entryfilePath: './src/handler.ts'
     }),
     joinDefaultVpc: true,
-    connectTo: ['cache'],
-    environment: [{ name: 'REDIS_URL', value: $ResourceParam('cache', 'connectionString') }]
+    connectTo: [cache],
+    environment: { REDIS_URL: $ResourceParam('cache', 'connectionString') }
   });
 
   return {
@@ -278,7 +278,7 @@ Backups are recommended for production clusters where the cache contains data th
 
 ## Logging
 
-Stacktape enables slow-query logging for Redis clusters by default. Slow query logs are sent to CloudWatch and retained for 90 days. View them with [`stacktape debug:logs`](/cli/debug-logs) or in the Stacktape Console.
+Stacktape enables slow-query logging for Redis clusters by default. Slow query logs are sent to CloudWatch and retained for 90 days. View them with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
 You can customize the log format (`json` or `text`), retention period, or disable logging entirely:
 
@@ -446,7 +446,7 @@ You pay per node-hour based on the instance size you choose. The cheapest option
 
 ### Can I connect to Redis from my local machine?
 
-Redis clusters run inside your VPC with no public endpoint. To connect from your local machine, deploy a [bastion host](/resources/security/bastion-host) in your stack and use [`stacktape bastion:tunnel`](/cli/bastion-tunnel) or [`stacktape debug:redis`](/cli/debug-redis). During [dev mode](/local-development/dev-mode-overview), Redis runs locally in Docker by default, so no tunnel is needed for local development.
+Redis clusters run inside your VPC with no public endpoint. To connect from your local machine, deploy a [bastion host](/resources/security/bastion-host) in your stack and use [`stacktape bastion:tunnel`](/cli/bastion-tunnel) or [`stacktape query:redis`](/cli/query-redis). During [dev mode](/local-development/dev-mode-overview), Redis runs locally in Docker by default, so no tunnel is needed for local development.
 
 ### Redis vs DynamoDB — which should I use for caching?
 
@@ -460,22 +460,10 @@ A Stacktape `RedisCluster` provisions a managed AWS ElastiCache cluster that run
 
 Yes. The `instanceSize` can be changed after creation without data loss. There may be brief connectivity interruptions during the AWS-side modification — if you have replicas with automatic failover enabled, the impact is reduced. Clients should support automatic reconnection.
 
-### Does Stacktape Redis support Redis Cluster mode (sharding)?
+### Can I add sharding to an existing Redis cluster?
 
-Yes. Set `enableSharding: true` to distribute data across multiple shards, each with its own primary and replicas. Sharding must be enabled at cluster creation time and cannot be added later. Most teams don't need sharding — large memory-optimized instances can hold substantial working sets on a single node. Sharding is useful when you need more write throughput than a single primary can provide.
+No. Sharding (`enableSharding: true`) must be enabled at creation time — you cannot convert an existing non-sharded cluster, and the replica count cannot be changed afterward for sharded clusters. To enable sharding later, you must delete and recreate the cluster. Most teams don't need it: large memory-optimized instances hold substantial working sets on a single node, and replicas scale reads. Reach for sharding only when you need more write throughput than one primary can provide.
 
-### How do I secure my Redis password?
+### Why can't my Lambda function reach the Redis cluster?
 
-Store the password as a secret using [`stacktape secret:create`](/cli/secret-create), then reference it in your config with `$Secret('redis.password')`. The password must be 16-128 printable ASCII characters and cannot contain `/`, `"`, or `@`. All traffic between clients and the cluster is encrypted in transit.
-
-### Can Lambda functions connect to Redis?
-
-Yes, but Lambda functions must set `joinDefaultVpc: true` because Redis clusters run inside the VPC. Add the Redis resource name to the Lambda's `connectTo` array, and Stacktape handles the security group rules and environment variable injection. Be aware that Lambda cold starts may be slightly longer when the function runs inside a VPC.
-
-### How do I run migrations or seed data in Redis?
-
-Use a [deployment script](/resources/advanced/deployment-scripts) or a [hook](/configuration/hooks-and-scripts) with `connectTo` pointing to your Redis cluster. Stacktape injects the connection details as environment variables. For ad-hoc operations, use [`stacktape debug:redis`](/cli/debug-redis) to interact with the cluster through a bastion host.
-
-### Does Redis scale automatically?
-
-No. Redis clusters use fixed-size instances — you choose the instance size and number of nodes upfront. To scale up, change the `instanceSize` to a larger node. To scale out writes, enable sharding with more shards. Unlike serverless options such as [Upstash Redis](/resources/databases/upstash-redis) or [DynamoDB](/resources/databases/dynamodb), ElastiCache Redis does not auto-scale capacity based on demand.
+Redis clusters have no public endpoint and live inside the VPC, so a Lambda must set `joinDefaultVpc: true` to reach one — without it, connections will time out. Add the Redis resource name to the Lambda's `connectTo` array and Stacktape opens the security group rules and injects `STP_*_HOST`/`PORT` environment variables. Container workloads and batch jobs are already in the VPC, so they don't need this flag.

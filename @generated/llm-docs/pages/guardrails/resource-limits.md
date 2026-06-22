@@ -1,6 +1,6 @@
 # Resource Limit Guardrails
 
-Resource limit guardrails are preventive policies that cap compute sizing, allowed resource types, and total Stacktape resource count in your stack. They define maximum allowed values for governance checks — if a [Lambda function](/resources/compute/lambda-function) exceeds a memory ceiling or a [container workload](/resources/compute/web-service) requests too much CPU, the configuration is non-compliant and deployment does not proceed.
+Resource limit guardrails are preventive policies that cap compute sizing, allowed resource types, and total Stacktape resource count in your stack. They define maximum allowed values for governance checks — if a [Lambda function](/resources/compute/lambda-function) exceeds a memory ceiling or a [container workload](/resources/compute/web-service) requests too much CPU, the configuration is non-compliant with this guardrail.
 
 ## How resource limit guardrails work
 
@@ -16,7 +16,7 @@ Resource limit guardrails are policy definitions, separate from individual Lambd
 
 Resource limit guardrails are most valuable when multiple developers or teams share an AWS account and you need to prevent cost surprises or capacity mistakes:
 
-- **Cost control** — Cap Lambda memory and container CPU/memory to prevent developers from accidentally provisioning expensive resources. A single 10 GB Lambda or 16 vCPU container can dominate your AWS bill.
+- **Cost control** — Cap Lambda memory and container CPU/memory to prevent developers from accidentally provisioning expensive resources. Large Lambda memory settings or large container CPU allocations can materially increase AWS compute spend.
 - **Staging environment discipline** — Apply sizing limits that keep development and staging stages cost-effective. These resource-limit guardrail property shapes do not include per-stage exception fields. If you need different limits by stage, model that at the guardrail-management layer rather than inside these individual property objects.
 - **Stack sprawl prevention** — Limit the number of resources per stack to keep infrastructure manageable and avoid hitting AWS CloudFormation or account-level limits.
 - **Restricting resource types** — Block resource types that are expensive, not yet approved, or unnecessary for your workloads (e.g., block `open-search-domain` or `redis-cluster` if your team only uses serverless databases).
@@ -29,25 +29,25 @@ Resource limit guardrails are most valuable when multiple developers or teams sh
 
 ## Function memory limit
 
-The `function-memory-limit` guardrail defines the maximum memory (in MB) allowed for any [Lambda function](/resources/compute/lambda-function) or [edge function](/resources/compute/edge-function) in the stack. Edge functions are deployed as Lambda@Edge, a variant of AWS Lambda, so function guardrails apply to them.
+The `function-memory-limit` guardrail defines the maximum memory (in MB) allowed for any [Lambda function](/resources/compute/lambda-function) in the stack. The type definitions describe this guardrail as applying to Lambda functions; they do not explicitly document whether [edge functions](/resources/compute/edge-function) are within enforcement scope.
 
 | Property | Type | Description |
 |---|---|---|
 | `maxMemoryMB` | `number` | Maximum memory in MB allowed for any Lambda function |
 
-Lambda functions default to 1024 MB when `memory` is not explicitly set — keep this in mind when choosing your `maxMemoryMB` value. See the [Lambda function](/resources/compute/lambda-function) page for full resource defaults.
+Set the limit high enough for the normal Lambda configurations your team uses. See the [Lambda function](/resources/compute/lambda-function) page for resource defaults so you can choose a `maxMemoryMB` value that does not block functions using default settings.
 
 **When to set this:** Most Lambda workloads run well between 256 MB and 2048 MB. Setting a ceiling of 2048 MB or 3008 MB prevents developers from accidentally choosing 10 GB when they meant 1 GB, while still leaving room for memory-intensive tasks like image processing. AWS Lambda memory scales linearly with CPU — a function with 1,769 MB gets 1 full vCPU.
 
 ## Function timeout limit
 
-The `function-timeout-limit` guardrail defines the maximum timeout (in seconds) allowed for any [Lambda function](/resources/compute/lambda-function) or [edge function](/resources/compute/edge-function).
+The `function-timeout-limit` guardrail defines the maximum timeout (in seconds) allowed for any [Lambda function](/resources/compute/lambda-function). As with the memory guardrail, the type definitions describe this as applying to Lambda functions and do not explicitly document whether [edge functions](/resources/compute/edge-function) are within enforcement scope.
 
 | Property | Type | Description |
 |---|---|---|
 | `maxTimeoutSeconds` | `number` | Maximum timeout in seconds allowed for any Lambda function |
 
-Lambda functions default to a timeout of 20 seconds when `timeout` is not explicitly set — keep this in mind when choosing your `maxTimeoutSeconds` value. See the [Lambda function](/resources/compute/lambda-function) page for full resource defaults.
+Set the limit high enough for the normal Lambda configurations your team uses. See the [Lambda function](/resources/compute/lambda-function) page for resource defaults so you can choose a `maxTimeoutSeconds` value that does not block functions using default settings.
 
 **When to set this:** Long timeouts often indicate work that belongs in a [container workload](/resources/compute/web-service) or [batch job](/resources/compute/batch-job) rather than a Lambda function. A 30-second limit covers most API and event-processing use cases. If you need functions that run for minutes, consider whether they should be Lambda functions at all — AWS Lambda supports up to 900 seconds, but per-invocation cost grows linearly with duration.
 
@@ -60,7 +60,7 @@ The `container-resource-limit` guardrail defines the maximum vCPU and memory (in
 | `maxCpu` | `number` | Maximum vCPU allowed per container workload |
 | `maxMemoryMB` | `number` | Maximum memory in MB allowed per container workload |
 
-The guardrail checks only explicitly set `resources.cpu` and `resources.memory` values on each container workload against the defined maximum. Container workloads that do not set these values are not evaluated against the limit — if you need all container workloads to declare explicit resource values, enforce that through code review or team conventions.
+The type definitions expose optional `maxCpu` and `maxMemoryMB` properties that define maximum container vCPU and memory. They do not document how omitted workload CPU or memory settings are evaluated against these limits, so teams that require explicit sizing should enforce that through code review or conventions.
 
 **When to set this:** Container costs scale directly with CPU and memory allocations. For AWS Fargate workloads, CPU and memory determine per-second pricing. Capping at 4 vCPU and 8192 MB covers most web APIs and background workers. Reserve higher limits for compute-heavy workloads like video encoding or ML inference — and require those teams to explicitly request an exception or use a dedicated project.
 
@@ -107,7 +107,7 @@ Combine resource limit guardrails with [deployment guardrails](/guardrails/deplo
 
 ## Guardrail violations
 
-When a resource-limit guardrail finds a non-compliant configuration, deployment does not proceed. Developers should reduce the resource size, remove the blocked resource type, or ask an administrator to adjust the guardrail policy.
+When a resource-limit guardrail finds a non-compliant configuration, the guardrail system rejects the configuration. Developers should reduce the resource size, remove the blocked resource type, or ask an administrator to adjust the guardrail policy.
 
 ## FAQ
 
@@ -117,23 +117,15 @@ Guardrails are preventive — they check configuration compliance before deploym
 
 ### Can I set different resource limits for different stages?
 
-These resource-limit guardrail property shapes do not include per-stage exception fields — configured limits apply uniformly within a single guardrail definition. To apply different limits by stage, configure separate guardrail definitions at the guardrail-management layer (for example, using separate Stacktape organizations for production and development, each with its own guardrail configuration). Combine with [deployment guardrails](/guardrails/deployment) to control which stages and regions are available.
+No — these resource-limit guardrail property shapes do not include per-stage exception fields, so configured limits apply uniformly within a single guardrail definition. To vary limits, manage stricter or looser policies at the guardrail-management layer, and combine with [deployment guardrails](/guardrails/deployment) to control which stages and regions are available. See the [guardrails overview](/guardrails/overview) for management options.
 
-### Do guardrails affect functions that use the default memory or timeout?
+### Will a guardrail block functions that don't set memory or timeout explicitly?
 
-The `function-memory-limit` and `function-timeout-limit` guardrails define maximum allowed memory and timeout values for Lambda functions. If your team relies on implicit Lambda defaults, verify that the guardrail limit is not set below your normal baseline by previewing the deployment or checking the [Lambda function](/resources/compute/lambda-function) page for default values.
-
-### Are edge functions checked by function guardrails?
-
-Yes. [Edge functions](/resources/compute/edge-function) are deployed as Lambda@Edge, a variant of AWS Lambda. The `function-memory-limit` and `function-timeout-limit` guardrails apply to Lambda functions, which includes edge functions.
-
-### What happens if a container workload doesn't set CPU or memory?
-
-The `container-resource-limit` guardrail checks only explicitly set `resources.cpu` and `resources.memory` values. If a container workload does not set these values, the guardrail does not block it. If you need all container workloads to declare explicit resource values, enforce that through code review or team conventions.
+It can, if you set the limit too low. The `function-memory-limit` and `function-timeout-limit` guardrails check the effective memory and timeout of every Lambda function, including those relying on implicit defaults. Make sure the guardrail ceiling is not below your normal baseline — check the [Lambda function](/resources/compute/lambda-function) page for default values before setting a limit.
 
 ### How much does a Lambda function cost per MB of memory?
 
-AWS Lambda pricing is based on the number of requests and the duration billed in GB-seconds. More memory also allocates proportionally more CPU — at 1,769 MB a function gets 1 full vCPU. Doubling memory doubles the per-millisecond cost but often halves execution time for CPU-bound workloads, making the total cost similar. Use the `function-memory-limit` guardrail to prevent extreme allocations (e.g., 10 GB) that are rarely cost-effective.
+AWS Lambda pricing is based on the number of requests and the duration billed in GB-seconds, so cost scales with the memory you allocate. More memory also allocates proportionally more CPU — at 1,769 MB a function gets 1 full vCPU. Use the `function-memory-limit` guardrail to prevent extreme allocations (e.g., 10 GB) that are rarely cost-effective.
 
 ### How does the resource count limit relate to AWS CloudFormation limits?
 
@@ -142,7 +134,3 @@ AWS CloudFormation has a default limit of 500 resources per stack, but each Stac
 ### When should I use resource type restriction vs other guardrails?
 
 Use `resource-type-restriction` when an entire category of resource is off-limits — for example, blocking all container workloads to enforce a serverless architecture. Use the other resource limit guardrails when the resource type is allowed but you want to cap its size. The two work well together: allow `web-service` as a type but cap it at 4 vCPU and 8192 MB memory.
-
-### Can a guardrail block `stacktape delete`?
-
-Command restrictions are covered by the `command-restriction` guardrail type, documented on the [deployment guardrails](/guardrails/deployment) page. The type definition's JSDoc lists `delete` and `rollback` as example blocked commands. Resource-limit guardrails on this page do not restrict which commands can run.

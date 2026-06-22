@@ -332,11 +332,7 @@ USER app
 
 ### What base images can I use?
 
-Your Dockerfile can use the same `FROM` syntax as a normal Docker build. Common choices include official language images (`node:20-alpine`, `python:3.12-slim`) and distroless images from Google for minimal attack surface. The custom Dockerfile packaging properties (`CustomDockerfileCwImagePackagingProps`) expose `buildContextPath`, `dockerfilePath`, `buildArgs`, `command`, and `entryPoint` — there is no property for configuring private-registry credentials at build time. If you need Stacktape to reference an already-built image from a private registry, use [prebuilt image](/packaging/containers/prebuilt-image) packaging instead — `PrebuiltImageCwPackagingProps` exposes `repositoryCredentialsSecretArn` for that purpose.
-
-### How does Stacktape handle the built image?
-
-Stacktape builds the image and uploads it to a managed ECR repository. The repository is managed by Stacktape as part of your stack — you point to your Dockerfile and build context, and Stacktape handles the image build and upload.
+Your Dockerfile can use the same `FROM` syntax as a normal Docker build — official language images (`node:20-alpine`, `python:3.12-slim`), distroless images, or any base reachable by the build environment. Note that the packaging properties expose no setting for private-registry build-time credentials. If you need Stacktape to pull an already-built image from a private registry, use [prebuilt image](/packaging/containers/prebuilt-image) packaging instead — it exposes `repositoryCredentialsSecretArn` for that purpose.
 
 ### How do I pass runtime secrets to the container?
 
@@ -346,25 +342,13 @@ Do not use `buildArgs` for secrets — they are visible in image layer history. 
 
 The [Stacktape container buildpack](/packaging/containers/stacktape-buildpack) automatically bundles your code and dependencies into a container image, so you do not author or maintain a Dockerfile. It supports JavaScript, TypeScript, Python, Java, and Go. Custom Dockerfile gives you full control but requires you to manage base image updates, layer ordering, and security patching yourself. Use the buildpack for standard apps; use a custom Dockerfile when you need system-level dependencies, multi-stage builds, or unsupported runtimes.
 
-### When should I use a prebuilt image instead?
-
-Use [prebuilt image](/packaging/containers/prebuilt-image) packaging when your image is already built and pushed to a container registry — whether by your CI pipeline, a shared team registry, or a third-party vendor. Stacktape skips the build step entirely and pulls the image at deploy time. This is the right choice when your build pipeline lives outside Stacktape.
-
 ### What is the maximum container image size?
 
 AWS ECR does not enforce a hard image size limit. However, larger images increase deploy time because more data must be pulled when a new task starts. As a general guideline, keep web-facing images small — teams often target a few hundred MB so tasks spend less time pulling layers. Batch jobs can tolerate larger images because startup latency is less critical.
 
-### Can I use multi-stage Docker builds?
-
-Yes. Multi-stage Dockerfiles work with no additional Stacktape configuration. They are the recommended approach for production images because they separate build-time dependencies (compilers, dev tools) from the runtime, producing smaller and more secure images. See [Multi-stage builds](#multi-stage-builds) above for a working example.
-
 ### How do I debug a failing Docker build?
 
-Run `docker build` locally with the same build context path and Dockerfile to reproduce the error outside Stacktape. Check that all files referenced by `COPY` instructions exist within the build context and are not excluded by `.dockerignore`. During deployment, check the deployment output for the Docker build step to identify the failure.
-
-### How do I speed up Docker image builds?
-
-Docker caches image layers and reuses unchanged layers on subsequent builds. Order your Dockerfile instructions from least-frequently-changed (base image, system packages) to most-frequently-changed (application code). Copy dependency manifests and install before copying source files. Use a `.dockerignore` to minimize build context size. See [Docker layer caching](#docker-layer-caching) for a worked example.
+Run `docker build` locally with the same build context path and Dockerfile to reproduce the error outside Stacktape. A common cause is a `COPY` instruction referencing a file that lives outside `buildContextPath` or is excluded by `.dockerignore` — Docker cannot access files above the context directory. During deployment, check the deployment output for the Docker build step to identify the failure.
 
 ### Can I override CMD or ENTRYPOINT without modifying the Dockerfile?
 

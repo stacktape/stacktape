@@ -169,33 +169,13 @@ If a project was created without linking a Git repository, the project card show
 
 A project represents a single application, usually mapped to one Git repository. A stage is an isolated deployment of that project — like production, staging, or dev. Each project can have multiple stages, and each stage has its own databases, functions, containers, and networking. Think of projects as "what you're building" and stages as "where it's running."
 
-### Do stages share resources with each other?
-
-No. Stages are fully isolated and do not share resources with each other. Each stage has its own containers, functions, databases, and other deployed resources. This separation makes it safer to test changes in a staging stage without affecting production.
-
 ### Should I use one configuration per project or one per stage?
 
 Most teams share a single Stacktape configuration across all stages — the same `stacktape.ts` deploys to production, staging, and dev. This keeps environments consistent and reduces configuration drift. Use separate configurations per stage only when environments genuinely need different resource shapes (for example, a smaller database instance in dev). See [Stages and environments](/configuration/stages-and-environments) for patterns.
 
-### Can I move a project between organizations?
+### Why does my active stage show $0 cost?
 
-A project-move action is not available on the Projects or project overview pages. For organization management, see [Team and access control](/stacktape-console/team-and-access-control).
-
-### What happens to AWS resources when I delete a stage?
-
-Deployed stages are deleted from the CLI with [`stacktape delete`](/cli/delete) — see that page for exact deletion semantics, including which AWS resources are removed and whether the action can be reversed. If a project still has deployed stages, the Console advises deleting them before deleting the project.
-
-### How long does cost data take to appear in the Console?
-
-Cost data comes from AWS Cost and Usage Reports, which are generated daily and may take up to a day to appear. Newly deployed stages may show $0/mo until daily report data arrives. The project card displays the current month's cost alongside a trend label (`No spend`, `New spend`, a percentage change, or `Flat`).
-
-### How do I set up a branch-per-stage workflow?
-
-Connect a Git repository to your project, then open **Configure Git deployments** from the project settings to set up Git-based deployments. See [Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for the full pattern and [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for setup instructions.
-
-### How is the stage name used by the Console?
-
-The Console looks up a stage's deployed stack using a stack name formed from the project name and the stage name. For example, a project named `my-app` with stage `prod` maps to a stack named `my-app-prod`. Keep stage names short and descriptive so the resulting stack name is easy to recognize.
+Cost data comes from AWS Cost and Usage Reports, which are generated daily and may take up to a day to appear. A newly deployed stage will show $0/mo until the first daily report arrives, even if it is already running resources. The project card displays the current month's cost alongside a trend label (`No spend`, `New spend`, a percentage change, or `Flat`).
 
 ### What is the difference between a Stacktape organization and an AWS account?
 

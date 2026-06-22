@@ -67,7 +67,7 @@ export default defineConfig(() => {
 ```
 
 
-The `memory` value (in MB) sets Lambda memory and proportional CPU allocation, while `timeout` (in seconds) caps execution time — tune both for your handler. The gradual deployment behavior depends only on the `deployment.strategy` block. With `Canary10Percent5Minutes`, 10% of invocations go to the new version immediately. After 5 minutes with no issues, the remaining 90% shifts over. If issues arise during the canary window, traffic rolls back to the previous version automatically. Configure [alarms](/observability/alarms) or a `beforeAllowTrafficFunction` hook to define the failure signals that trigger rollback.
+The `memory` value (in MB) sets Lambda memory and proportional CPU allocation, while `timeout` (in seconds) caps execution time — tune both for your handler. The gradual deployment behavior depends only on the `deployment.strategy` block. With `Canary10Percent5Minutes`, 10% of invocations go to the new version immediately. After 5 minutes with no issues, the remaining 90% shifts over. If issues arise during the canary window, traffic rolls back to the previous version automatically. Use a `beforeAllowTrafficFunction` hook to run a validation step that can stop the deployment and trigger rollback before traffic shifts. You can also configure [alarms](/observability/alarms) to monitor error rates during the canary window.
 
 ### Lambda lifecycle hooks
 
@@ -141,12 +141,9 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({
       entryfilePath: './src/server.ts'
     }),
-    environment: [
-      {
-        name: 'PORT',
-        value: '3000'
-      }
-    ],
+    environment: {
+      PORT: '3000'
+    },
     resources: { cpu: 0.25, memory: 512 },
     loadBalancing: {
       type: 'application-load-balancer'
@@ -190,12 +187,9 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({
       entryfilePath: './src/server.ts'
     }),
-    environment: [
-      {
-        name: 'PORT',
-        value: '3000'
-      }
-    ],
+    environment: {
+      PORT: '3000'
+    },
     resources: { cpu: 0.5, memory: 1024 },
     loadBalancing: {
       type: 'application-load-balancer'
@@ -307,23 +301,15 @@ The API reference above covers **Lambda deployment configuration only**. Contain
 
 ### What happens if my deployment fails during the canary window?
 
-For Lambda functions, traffic automatically reverts to the previous version — AWS CodeDeploy restores the alias weights to point 100% of traffic to the previous version. For container workloads, the `beforeAllowTrafficFunction` hook can block traffic from shifting to the new version. Rollback operates at the traffic-routing layer (Lambda alias weights or ALB target group routing).
+For Lambda functions, traffic automatically reverts to the previous version — AWS CodeDeploy restores the alias weights to point 100% of traffic to the previous version. For container workloads, the `beforeAllowTrafficFunction` hook can block traffic from shifting to the new version. Rollback operates at the traffic-routing layer (Lambda alias weights or ALB target group routing) rather than a full redeploy, so it's fast; exact propagation time depends on AWS service behavior and active connections draining from the new version.
 
 ### Can I use gradual deployments with HTTP API Gateway?
 
 No. Gradual deployments for container workloads require an [application load balancer](/resources/networking/application-load-balancer). The default `http-api-gateway` load balancing type routes to a single target and does not support weighted traffic splitting. Lambda functions don't have this restriction — they use alias-based shifting and work regardless of how the function is triggered.
 
-### How do I monitor the canary during deployment?
-
-Use [`stacktape debug:logs`](/cli/debug-logs) to tail logs from the function or container in real time. You can also configure [alarms](/observability/alarms) on your resources to surface issues as they happen. CloudWatch metrics are available directly in AWS CloudWatch. Stacktape also provides [observability pages](/observability/overview) for metrics and alarms.
-
 ### Does AllAtOnce provide any benefit over a normal deployment?
 
 Yes. `AllAtOnce` still runs your `beforeAllowTrafficFunction` before traffic shifts, giving you a pre-flight check (smoke test, integration verification) that can block the deployment. The `beforeAllowTrafficFunction` and `afterTrafficShiftFunction` hooks are properties within the `deployment` block — they are only available when `deployment` is configured.
-
-### Can I use gradual deployments for private services or worker services?
-
-[Private services](/resources/compute/private-service) and [worker services](/resources/compute/worker-service) do not expose the `deployment` property. Private services don't have internet-facing load balancers, and worker services have no inbound traffic to shift. If you need gradual deployments for an internal service, consider using a [multi-container workload](/resources/compute/multi-container-workload) with an ALB integration instead.
 
 ### Why are the strategy names different between Lambda and container workloads?
 
@@ -331,15 +317,11 @@ Lambda and container workloads use different AWS CodeDeploy deployment group typ
 
 ### Can I customize the canary percentage or timing?
 
-No. The strategies use fixed percentages and intervals. All canary strategies shift 10% initially, and all linear strategies increment by 10% per step. If you need custom percentages or intervals, you can use [CloudFormation overrides](/configuration/overrides-and-escape-hatches) to define a custom deployment configuration, but this requires understanding the underlying AWS CodeDeploy configuration resources.
+The `deployment.strategy` property accepts only the fixed strategies listed on this page. All canary strategies shift 10% initially, and all linear strategies increment by 10% per step. Custom percentages and intervals are not available through the Stacktape configuration.
 
 ### How much does a gradual deployment cost compared to a normal deployment?
 
-For Lambda functions, there's no additional cost — the same invocations are split across two versions. For container workloads, additional capacity may run during the traffic-shifting window as both old and new container versions serve traffic. The cost depends on CPU, memory, instance mode, region, and strategy duration.
-
-### How fast does rollback happen?
-
-Rollback is handled at the traffic-routing layer — Lambda alias weights or ALB target group routing are updated to point all traffic back to the previous version. Exact propagation time depends on AWS service behavior and the number of active connections draining from the new version.
+For Lambda functions, there's no additional cost — the same invocations are split across two versions. For container workloads, the main cost addition is the required [application load balancer](/resources/networking/application-load-balancer) (~$18/month plus usage-based LCU charges) if you were previously on the default `http-api-gateway`. Additional Fargate or EC2 capacity may also run during the traffic-shifting window as both old and new versions serve traffic.
 
 ### When should I use a longer canary window (15 or 30 minutes)?
 

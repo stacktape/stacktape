@@ -118,13 +118,10 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/ingest.ts'
     }),
-    connectTo: ['eventStream'],
-    environment: [
-      {
-        name: 'STREAM_NAME',
-        value: "$ResourceParam('eventStream', 'name')"
-      }
-    ],
+    connectTo: [eventStream],
+    environment: {
+      STREAM_NAME: "$ResourceParam('eventStream', 'name')"
+    },
     memory: 256,
     timeout: 10,
     events: [
@@ -212,7 +209,7 @@ By default, all consumers reading from a Kinesis stream share the same 2 MB/s re
 
 Enable enhanced fan-out when you have multiple independent consumers reading from the same stream and latency matters. If you have a single consumer or can tolerate shared throughput, skip it — enhanced fan-out adds per-consumer, per-shard-hour cost.
 
-Set `enableEnhancedFanOut: true` on the stream. On the consuming [Lambda function's](/resources/compute/lambda-function) [Kinesis trigger](/configuration/triggers/kinesis-events), set `autoCreateConsumer: true` to create a dedicated stream consumer for that integration.
+Set `enableEnhancedFanOut: true` on the stream. On the consuming [Lambda function's](/resources/compute/lambda-function) [Kinesis trigger](/resources/triggers/kinesis-events), set `autoCreateConsumer: true` to create a dedicated stream consumer for that integration.
 
 
 Example (TypeScript):
@@ -282,7 +279,7 @@ export default defineConfig(() => {
 
 ## Triggering a Lambda function
 
-A Kinesis stream is a common event source for [Lambda functions](/resources/compute/lambda-function). A [Kinesis trigger](/configuration/triggers/kinesis-events) invokes the Lambda with batches of records from the stream. In direct mode, AWS polls each shard approximately once per second; when `autoCreateConsumer` is enabled, a dedicated stream consumer pushes records instead for lower latency. Configure this using a Kinesis trigger on the Lambda function — not on the stream itself. Use `kinesisStreamName` to reference a Kinesis stream defined in your stack's resources, or `streamArn` to consume a stream not managed by your stack.
+A Kinesis stream is a common event source for [Lambda functions](/resources/compute/lambda-function). A [Kinesis trigger](/resources/triggers/kinesis-events) invokes the Lambda with batches of records from the stream. In direct mode, AWS polls each shard approximately once per second; when `autoCreateConsumer` is enabled, a dedicated stream consumer pushes records instead for lower latency. Configure this using a Kinesis trigger on the Lambda function — not on the stream itself. Use `kinesisStreamName` to reference a Kinesis stream defined in your stack's resources, or `streamArn` to consume a stream not managed by your stack.
 
 Key trigger settings:
 
@@ -373,13 +370,10 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/producer.ts'
     }),
-    connectTo: ['eventStream'],
-    environment: [
-      {
-        name: 'STREAM_NAME',
-        value: "$ResourceParam('eventStream', 'name')"
-      }
-    ],
+    connectTo: [eventStream],
+    environment: {
+      STREAM_NAME: "$ResourceParam('eventStream', 'name')"
+    },
     memory: 256,
     timeout: 30
   });
@@ -462,10 +456,6 @@ Use a Kinesis stream when you need ordered, replayable data with multiple indepe
 
 Amazon Kinesis uses two pricing models. On-demand mode charges per GB of data ingested and retrieved, with no minimum fee or capacity planning. Provisioned mode charges per shard-hour regardless of utilization. Additional charges apply for data retention beyond 24 hours and for enhanced fan-out consumers. On-demand is generally cheaper for bursty or unpredictable traffic; provisioned can be cheaper for steady, high-volume streams.
 
-### What is a Kinesis shard?
-
-A shard is the base throughput unit of an Amazon Kinesis stream. Each shard provides 1 MB/s (1,000 records/s) of write capacity and 2 MB/s of read capacity shared across all consumers. In provisioned mode, you specify the number of shards directly. In on-demand mode, the stream auto-scales and you do not configure `shardCount`. Records within a shard are delivered in order by partition key.
-
 ### Can I replay data from a Kinesis stream?
 
 Yes. Kinesis retains records for 24 hours by default, and you can extend retention up to 365 days using `retentionPeriodHours`. Consumers can start reading from any point within the retention window using `startingPosition: 'TRIM_HORIZON'` (start of retained data) or `'LATEST'` (new records only). This makes Kinesis suitable for reprocessing after bug fixes or adding new consumers to historical data.
@@ -476,20 +466,8 @@ Enhanced fan-out gives each consumer its own dedicated 2 MB/s read throughput pe
 
 ### How do I handle failed records in a Kinesis Lambda consumer?
 
-Configure `maximumRetryAttempts` on the [Kinesis trigger](/configuration/triggers/kinesis-events) to limit retries. Use `bisectBatchOnFunctionError: true` to split failed batches in half, isolating poison records faster. Use `onFailure` to configure an SQS or SNS destination for batches that fail after all retry attempts. Always make your handler idempotent — AWS Lambda retries the entire batch on error, including already-processed records.
+Configure `maximumRetryAttempts` on the [Kinesis trigger](/resources/triggers/kinesis-events) to limit retries. Use `bisectBatchOnFunctionError: true` to split failed batches in half, isolating poison records faster. Use `onFailure` to configure an SQS or SNS destination for batches that fail after all retry attempts. Always make your handler idempotent — AWS Lambda retries the entire batch on error, including already-processed records.
 
-### On-demand vs provisioned — which capacity mode should I choose?
+### Why do my consumers keep falling behind the stream?
 
-Use on-demand (the default) for most workloads, especially when traffic is unpredictable or you want zero capacity management. AWS scales shards automatically. Use provisioned when you have steady, predictable throughput and want lower per-unit cost — you control the exact shard count and pay a fixed rate per shard-hour. Provisioned requires you to monitor and adjust shard count manually as traffic changes.
-
-### Can I consume a Kinesis stream from a container workload?
-
-Yes. Add the Kinesis stream to a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [multi-container workload](/resources/compute/multi-container-workload) `connectTo` list to grant the IAM permissions needed to interact with the stream. The documented `connectTo` environment-variable table does not list KinesisStream, so pass the stream name or ARN explicitly using `$ResourceParam()` in your `environment` configuration. Your application can then use the AWS SDK's Kinesis client to produce or consume records.
-
-### Does Stacktape support Kinesis Data Firehose?
-
-The Stacktape resource types include `KinesisStream` for Kinesis Data Streams and do not include a dedicated Firehose delivery stream resource. The `KinesisStream` resource creates a Kinesis Data Stream. If you need Firehose for loading data directly into S3, Redshift, or OpenSearch, add it using [raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) or [AWS CDK constructs](/resources/advanced/aws-cdk-constructs) alongside your Kinesis stream.
-
-### How do I monitor a Kinesis stream?
-
-Use [`stacktape debug:logs`](/cli/debug-logs) to view logs from Lambda functions that consume records from the stream. Amazon Kinesis Data Streams publishes service metrics to CloudWatch — use metrics such as `GetRecords.IteratorAgeMilliseconds` to monitor consumer lag. A growing iterator age indicates consumers are falling behind; consider adding more shards (provisioned mode) or increasing Lambda concurrency to catch up. Stacktape's provided alarm trigger types do not include a Kinesis-specific alarm, so monitor stream metrics directly in CloudWatch or set up custom alarms via [overrides](/configuration/overrides-and-escape-hatches).
+Watch the `GetRecords.IteratorAgeMilliseconds` CloudWatch metric — a growing iterator age means consumers can't keep up with the incoming records. To catch up, add shards (provisioned mode) so reads parallelize, raise `parallelizationFactor` on the [Kinesis trigger](/resources/triggers/kinesis-events) to process more batches per shard concurrently, or enable [enhanced fan-out](#enhanced-fan-out) so each consumer gets its own 2 MB/s pipe. Stacktape's provided alarm trigger types do not include a Kinesis-specific alarm, so set up lag alarms on this metric directly in CloudWatch via [overrides](/configuration/overrides-and-escape-hatches).

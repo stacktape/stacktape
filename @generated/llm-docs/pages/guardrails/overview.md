@@ -107,33 +107,17 @@ Guardrails are most valuable when:
 
 Guardrail definitions contain allowed or blocked values for stages, regions, commands, resource types, and resource settings. When a configuration falls outside the defined policy, it is not permitted. For example, a stage restriction with `allowedStages: ["production", "staging"]` rejects deployments targeting any other stage name.
 
-### Can I set different guardrails for production vs development stages?
+### Can I apply different guardrails to production vs development stages?
 
-Guardrails are managed for the selected organization in the Stacktape Console. You can use the stage restriction guardrail to limit which stage names are allowed. The guardrail definitions shown in the Console do not include per-stage conditions for resource-level settings like memory limits or VPC requirements — all restrictions apply organization-wide.
-
-### How do Stacktape guardrails differ from AWS Service Control Policies?
-
-AWS Service Control Policies (SCPs) operate at the AWS Organizations level and restrict which AWS API calls IAM principals can make. Stacktape guardrails validate Stacktape concepts such as stages, regions, commands, resource types, and resource settings. SCPs operate at the AWS Organizations/IAM layer and restrict AWS API actions that Stacktape doesn't control. The two are complementary — use both for defense-in-depth.
-
-### Can I block specific resource types entirely?
-
-Yes. The resource type restriction guardrail accepts a `blockedResourceTypes` list of Stacktape resource types. The source gives `["open-search-domain", "redis-cluster"]` as examples. Block resource types your organization hasn't approved for use. See [Database guardrails](/guardrails/databases) for details.
+No — guardrails apply organization-wide. They are managed for the selected organization in the Stacktape Console, and the guardrail definitions do not include per-stage conditions for resource-level settings like memory limits or VPC requirements. You can use the stage restriction guardrail to limit which stage names are allowed, but the other restrictions apply to every stage equally.
 
 ### Can guardrails prevent accidental stack deletion?
 
 Yes. The command restriction guardrail accepts a `blockedCommands` list with command name strings such as `delete` and `rollback`. Adding `delete` to `blockedCommands` blocks the [`stacktape delete`](/cli/delete) command for the organization.
 
-### What is the relationship between guardrails and IAM policies?
-
-Guardrails operate within the Stacktape layer — they validate Stacktape configuration and deployment parameters before the corresponding operation proceeds. IAM policies operate at the AWS API level and control access to AWS resources directly. Use IAM for AWS-level access control; Stacktape guardrails validate Stacktape operations. The two are complementary.
-
-### How many guardrail types does Stacktape support?
-
-Stacktape supports 15 guardrail types covering deployment restrictions (stage, region, command), security and data protection (VPC databases, deletion protection, DLQ, WAF, custom domains), resource limits (function memory, function timeout, container resources, resource count), and database restrictions (engine types, instance sizes, blocked resource types). All are managed in the [Stacktape Console](/stacktape-console/console-overview).
-
 ### Can I restrict which AWS regions my team deploys to?
 
-Yes. The region restriction guardrail accepts an `allowedRegions` list of AWS region identifiers (e.g., `["eu-west-1", "us-east-1"]`). Operations targeting any region not in the list fail immediately. This is the recommended approach for data residency compliance — simpler than managing per-region IAM policies and catches violations before any AWS resources are provisioned. See [Deployment guardrails](/guardrails/deployment).
+Yes. The region restriction guardrail accepts an `allowedRegions` list of AWS region identifiers (e.g., `["eu-west-1", "us-east-1"]`). Operations targeting any region not in the list fail. This is useful for data residency compliance and cost control, and catches violations before any infrastructure changes occur. See [Deployment guardrails](/guardrails/deployment).
 
 ### What is the difference between blocking a resource type and blocking a database engine?
 

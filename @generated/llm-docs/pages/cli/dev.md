@@ -486,32 +486,16 @@ Normal dev mode uses Docker to emulate databases (PostgreSQL, MySQL, MariaDB, Dy
 
 Use [`stacktape dev`](/cli/dev) for iterating on code locally with fast feedback loops — it runs workloads on your machine and emulates databases without a full deployment cycle. Use [`stacktape deploy`](/cli/deploy) when you need to ship to AWS, test in a real cloud environment, or validate production behavior. Dev mode is for development; deploy is for staging, production, or integration testing.
 
-### How do I run only specific resources in dev mode?
+### How can I connect to a real deployed database instead of the local one?
 
-Pass `--resources` with a comma-separated list of resource names, or use `--resources all` to run everything without the interactive picker. To run most resources while excluding a few, use `--skipResources`. Without either flag, an interactive multi-select picker appears.
-
-### What does `--remoteResources` do?
-
-In normal dev mode, databases and Redis run locally by default. The `--remoteResources` flag connects specified resources to their deployed AWS counterparts instead of using local emulation. This is useful when local emulation is insufficient or when you need to test against real data. Pass resource names as a comma-separated list: `--remoteResources myPostgres,myRedis`.
+Use `--remoteResources` with a comma-separated list of resource names (for example `--remoteResources myPostgres,myRedis`). In normal dev mode, databases and Redis run locally by default; this flag points the selected ones at their deployed AWS counterparts, which is useful when local emulation is insufficient or you need to test against real data. To connect every workload to real AWS resources instead, use legacy mode (`--devMode legacy`), which requires an already-deployed stack.
 
 ### What is agent mode and when should I use it?
 
 Agent mode (`--agent`) runs dev mode as a detached daemon with an HTTP server for programmatic control. It uses JSONL output and disables the interactive terminal UI. Use agent mode when integrating with AI coding agents, automation tools, or any workflow that needs to control dev mode programmatically. Stop a running agent with [`dev:stop`](/cli/dev-stop).
 
-### Can I use `--disableEmulation` during initial setup?
-
-Yes. The `--disableEmulation` flag disables automatic injection of parameters and credentials during local emulation. This is useful when you want to run a compute resource locally before the corresponding deployed resource exists — for example, during initial development before your first [`stacktape deploy`](/cli/deploy).
-
-### How do I reset local database state?
-
-Use the `--freshDb` flag to delete existing local database data before starting dev mode. This gives you a clean database state each time you start, which is useful for testing migrations or resetting test data.
-
-### Can I rebuild workloads without restarting dev mode?
-
-Yes. While dev mode is running interactively, type `rs` to rebuild all workloads, or `rs <name>` to rebuild a specific one by name.
-
 ## Related commands
 
 - [`dev:stop`](/cli/dev-stop) — stop a running dev agent
 - [`deploy`](/cli/deploy) — deploy your stack to AWS (required before using legacy mode)
-- [`debug:logs`](/cli/debug-logs) — fetch logs from deployed resources
+- [`logs`](/cli/logs) — fetch logs from deployed resources

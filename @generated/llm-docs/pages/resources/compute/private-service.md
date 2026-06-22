@@ -279,7 +279,7 @@ export default defineConfig(() => {
       entryfilePath: './src/internal-api.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
-    connectTo: ['dataBucket']
+    connectTo: [dataBucket]
   });
 
   const publicApi = new WebService({
@@ -287,7 +287,7 @@ export default defineConfig(() => {
       entryfilePath: './src/public-api.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
-    connectTo: ['internalApi']
+    connectTo: [internalApi]
   });
 
   return { resources: { dataBucket, internalApi, publicApi } };
@@ -419,7 +419,7 @@ Leave `usePrivateSubnetsWithNAT` unset for ordinary services that only need outb
 
 ## Logging
 
-Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the [Stacktape Console](/stacktape-console/console-overview). You can also set up [log forwarding](/observability/log-forwarding) to external services like Datadog.
+Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with [`stacktape logs`](/cli/logs) or in the [Stacktape Console](/stacktape-console/console-overview). You can also set up [log forwarding](/observability/log-forwarding) to external services like Datadog.
 
 Set the top-level `protocol` property on the private service (not nested inside `logging`) to `http`, `http2`, or `grpc` to enable protocol-specific CloudWatch metrics — for example, HTTP 5xx error rate tracking for HTTP services.
 
@@ -428,10 +428,6 @@ Set the top-level `protocol` property on the private service (not nested inside 
 Set `enableRemoteSessions: true` to allow interactive shell access to running containers via [`stacktape container:session`](/cli/container-session). This adds a small SSM agent sidecar that uses minimal CPU and memory. Useful for debugging production issues without needing a public endpoint, but disabled by default to minimize attack surface.
 
 ## FAQ
-
-### How do I connect to a private service from a web service?
-
-Add the private service name to the web service's `connectTo` array. Stacktape injects the service's `ADDRESS` parameter as `STP_[RESOURCE_NAME]_ADDRESS` and automatically opens network access. Use that environment variable as the base URL for HTTP or gRPC calls. No manual DNS configuration is needed. See [connecting resources](/configuration/connecting-resources).
 
 ### When should I use `application-load-balancer` vs `service-connect`?
 
@@ -447,19 +443,11 @@ The main costs are Fargate compute and networking. Compute runs approximately ~$
 
 ### Can I run a gRPC server as a private service?
 
-Yes. Set `port` to your gRPC server's listening port (e.g., `50051`) and set `protocol: 'grpc'` to enable protocol-specific CloudWatch metrics. Other containers in the stack connect using `connectTo` to receive the injected `ADDRESS` environment variable. The Stacktape image buildpack supports Node.js, Python, Java, Go, PHP, Ruby, and .NET.
-
-### How fast does a Fargate private service cold-start?
-
-AWS Fargate cold-start — the time from a scaling event to a task becoming healthy — is primarily determined by container image size and ECR pull time. To minimize cold-start impact, keep `minInstances` at 1 or higher so a warm instance is always available. New instances launched during scale-out incur the same startup time, so set auto-scaling thresholds conservatively for latency-sensitive internal services.
+Yes. Set `port` to your gRPC server's listening port (e.g., `50051`) and set the top-level `protocol: 'grpc'` to enable protocol-specific CloudWatch metrics. Other containers in the stack connect using `connectTo` to receive the injected `ADDRESS` environment variable. The Stacktape image buildpack supports Node.js, Python, Java, Go, PHP, Ruby, and .NET.
 
 ### Private service vs worker service — which should I use?
 
 Use a **private service** when other parts of your stack need to actively call it over HTTP, gRPC, or TCP — it accepts and routes inbound connections. Use a [worker service](/resources/compute/worker-service) when the workload only consumes messages from a queue, stream, or event source and never needs to respond to inbound requests. Worker services have no load balancing cost at all.
-
-### Private service vs Lambda function for internal APIs — which is cheaper?
-
-It depends on call volume. A Lambda function charges only when invoked and scales to zero — typically cheaper for infrequent calls. A private service charges for Fargate compute 24/7 regardless of traffic. For high-throughput, consistent internal traffic, the flat Fargate cost beats per-invocation Lambda pricing. The break-even point varies by request duration, but sustained high-frequency services (thousands of requests per minute continuously) generally favor a private service.
 
 ### How do I run database migrations before the main container starts?
 

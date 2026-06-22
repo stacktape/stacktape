@@ -98,7 +98,7 @@ The `timeout` of `25` seconds in the example leaves margin below the CDN origin 
 
 The `serverLambda.logging` sub-property controls CloudWatch log behavior. Lower `retentionDays` to reduce storage costs in development stages, or raise it for production audit requirements. Set `logging.disabled` to `true` to turn off CloudWatch logging entirely — only do this if you forward logs elsewhere.
 
-View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the [Stacktape Console](/stacktape-console/console-overview).
+View logs with [`stacktape logs`](/cli/logs) or in the [Stacktape Console](/stacktape-console/console-overview).
 
 ### VPC connectivity
 
@@ -236,21 +236,9 @@ A Stacktape TanStack Start resource uses CloudFront CDN to serve the app. Its do
 
 Set `appDirectory` to the directory containing your `app.config.ts` file. The default is `"."` (the repository root). In a monorepo, point it to the TanStack Start workspace — for example, `./apps/web` or `./packages/frontend`. Stacktape runs `vinxi build` from this directory unless you override `buildCommand`.
 
-### Can I use a custom domain with TanStack Start?
-
-Yes. Configure `customDomains` on the TanStack Start resource and ensure a Route 53 hosted zone for the domain exists in your AWS account with the registrar's nameservers pointing to it. Stacktape creates the DNS record and provisions a free TLS certificate. Set `disableDnsRecordCreation` to `true` if you manage DNS externally. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
-
-### Can I protect a TanStack Start app with AWS WAF?
-
-Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource whose `scope` is `cdn`. This protects the CloudFront distribution path. WAF adds per-request cost, so enable it for production-facing apps rather than development stages.
-
 ### How do I connect a database to a TanStack Start app?
 
-Use `connectTo` to reference the database resource by name and set `serverLambda.joinDefaultVpc` to `true` so the SSR Lambda can reach VPC-protected resources. Stacktape injects connection strings as environment variables automatically — for example, `STP_MY_DB_CONNECTION_STRING` for a resource named `myDb`. See [connecting resources](/configuration/connecting-resources) for the full list of injected variables per resource type.
-
-### What build system does TanStack Start use under the hood?
-
-TanStack Start uses Vinxi as its build and dev server tool, and Vinxi uses Nitro for the server runtime. Stacktape runs `vinxi build` by default and deploys the output using the Nitro aws-lambda preset. Override the build command with `buildCommand` if your project needs a custom build step, such as running a monorepo package-manager filter.
+Use `connectTo` to reference the database resource by name, and also set `serverLambda.joinDefaultVpc` to `true` — without it the SSR Lambda cannot reach VPC-protected resources like relational databases or Redis, and connections time out. `connectTo` injects connection details as environment variables automatically, for example `STP_MY_DB_CONNECTION_STRING` for a resource named `myDb`. Note the SSR function loses direct internet access once it joins the VPC, so plan accordingly if server code also calls external APIs. See [connecting resources](/configuration/connecting-resources) for the full list of injected variables per resource type.
 
 ### How much does hosting TanStack Start on Lambda and CloudFront cost?
 
@@ -263,10 +251,6 @@ The SSR function runs on AWS Lambda, so the first request after a period of inac
 ### When should I use static hosting instead of TanStack Start?
 
 Use [static hosting](/resources/frontend/static-hosting) when the site can be fully built into static files at deploy time and does not need runtime server rendering or server functions. Static hosting has fewer moving parts, no Lambda cold starts, and lower cost. Use the TanStack Start resource when server-rendered pages, server functions, or runtime data loading are part of the product.
-
-### How does the TanStack Start resource compare to the Next.js resource?
-
-Both deploy SSR on Lambda with S3 and CloudFront, and both handle framework-specific build output automatically. Choose based on which framework your app uses. The [Next.js resource](/resources/frontend/nextjs) is shaped for the Next.js build output and supports Next.js-specific features; the TanStack Start resource is shaped for the Vinxi/Nitro build output. Both support custom domains, CDN caching, WAF, and VPC connectivity.
 
 ## API Reference
 

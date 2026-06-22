@@ -68,10 +68,10 @@ The `image` property accepts any valid container image reference: a Docker Hub s
 
 To pull from a private registry that requires authentication, store your credentials in AWS Secrets Manager and reference the secret ARN via `repositoryCredentialsSecretArn`. The secret must be a JSON object with `username` and `password` keys.
 
-Create the secret using the Stacktape CLI [`secret:create`](/cli/secret-create) command. The command accepts `--secretName` to set the secret name and `--secretValue` to provide the JSON credentials inline. See the [CLI reference](/cli/secret-create) for the full list of flags (including `--secretFile` and `--region`).
+Create the secret using the Stacktape CLI [`secret:set`](/cli/secret-set) command. The command accepts `--secretName` to set the secret name and `--secretValue` to provide the JSON credentials inline. See the [CLI reference](/cli/secret-set) for the full list of flags (including `--secretFile` and `--region`).
 
 ```bash
-stacktape secret:create --secretName my-registry-creds --secretValue '{"username":"my-user","password":"my-token"}'
+stacktape secret:set --secretName my-registry-creds --secretValue '{"username":"my-user","password":"my-token"}'
 ```
 
 Then reference the secret ARN in your config:
@@ -246,25 +246,13 @@ Set `image` to the registry reference you want the container resource to use. Fo
 
 ## FAQ
 
-### Which resources support prebuilt image packaging?
+### When should I use prebuilt image vs letting Stacktape build the image?
 
-Prebuilt image packaging is supported by all container-based compute resources in Stacktape: [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), and [batch jobs](/resources/compute/batch-job). It is not available for [Lambda functions](/resources/compute/lambda-function), which use [function packaging modes](/packaging/function/stacktape-buildpack) instead.
+Use prebuilt image when the image already exists — built by your CI pipeline, pulled from a public registry, or shared across services. Use the [Stacktape image buildpack](/packaging/containers/stacktape-buildpack), [custom Dockerfile](/packaging/containers/custom-dockerfile), [Nixpacks](/packaging/containers/nixpacks), or [external buildpack](/packaging/containers/external-buildpack) when you want Stacktape to build from source during deployment. Prebuilt image is faster to deploy (no build step) but requires external infrastructure to produce and push images, and the deployed version is only as explicit as the tag you put in the `image` string.
 
-### How does ECS pull images from a public registry?
+### How do I pull from a private registry?
 
-AWS ECS Fargate can pull public images (Docker Hub, GitHub Container Registry, Quay) without credentials. No `repositoryCredentialsSecretArn` is needed for public repositories. If you encounter pull failures from a public registry, consider mirroring the image to Amazon ECR or providing registry credentials via `repositoryCredentialsSecretArn`.
-
-### When should I use prebuilt image vs custom Dockerfile?
-
-Use prebuilt image when the image already exists — built by your CI pipeline, pulled from a public registry, or shared across services. Use [custom Dockerfile](/packaging/containers/custom-dockerfile) when you want Stacktape to build the image from source during deployment. Prebuilt image is faster to deploy (no build step) but requires external infrastructure to produce and push images.
-
-### How do I update the deployed image version?
-
-Set `image` to the registry reference you want the container resource to use, then redeploy. For production, prefer immutable tags so the configured image version is explicit in review. With mutable tags like `latest`, the same `image` string can resolve to different image content in the registry over time.
-
-### Should I build images in CI or let Stacktape build them?
-
-Let Stacktape build images (via [buildpack](/packaging/containers/stacktape-buildpack) or [custom Dockerfile](/packaging/containers/custom-dockerfile)) when you want the simplest setup — no registry management, no CI build steps for containers. Build in CI and use prebuilt image when you need custom tooling, want to share images across environments, or already have a container pipeline. Teams with mature CI systems often prefer prebuilt images for production and Stacktape buildpack for dev stages.
+Store the registry credentials in AWS Secrets Manager as a JSON object with `username` and `password` keys, then pass the secret ARN via `repositoryCredentialsSecretArn`. Public registries (Docker Hub, GitHub Container Registry) need no credentials, and Amazon ECR is authenticated automatically through the task execution role — only non-ECR private registries need `repositoryCredentialsSecretArn`. Note that batch jobs don't support `repositoryCredentialsSecretArn`, so for a private batch-job image push it to ECR first or use a [custom Dockerfile](/packaging/containers/custom-dockerfile).
 
 ### What's the difference between command and entryPoint?
 
@@ -272,19 +260,11 @@ The `command` property overrides the image's Docker `CMD` instruction — typica
 
 ### How do I debug startup failures with a prebuilt image?
 
-Check container logs using [`stacktape debug:logs`](/cli/debug-logs) with the resource name. Common causes of startup failures: the image doesn't expose the expected port, the `command` override has a typo, required environment variables aren't set, or the process exits immediately instead of staying alive. Verify your `entryPoint` and `command` produce a long-running process for always-on resources (web services, private services, worker services).
-
-### Does image size affect startup time?
-
-Larger container images take longer for AWS ECS to pull and decompress before the container starts. For workloads where fast startup matters (scaling events, deployments), keep images lean — use multi-stage Docker builds, alpine-based images, or `.dockerignore` files to exclude unnecessary files before pushing to your registry.
+Check container logs using [`stacktape logs`](/cli/logs) with the resource name (and `--container` for multi-container workloads). Common causes of startup failures: the image doesn't expose the expected port, the `command` override has a typo, required environment variables aren't set, or the process exits immediately instead of staying alive. Verify your `entryPoint` and `command` produce a long-running process for always-on resources (web services, private services, worker services).
 
 ### Can I use the same prebuilt image across multiple Stacktape resources?
 
-Yes. Multiple resources can reference the same image tag. Each resource pulls independently. This is useful when a single base image serves different roles (API server, worker, migration runner) differentiated only by the `command` override. Build once, deploy many times with different startup arguments.
-
-### How does prebuilt image compare to Nixpacks or external buildpack?
-
-Prebuilt image skips the build entirely — you provide a ready-to-run image. [Nixpacks](/packaging/containers/nixpacks) and [external buildpack](/packaging/containers/external-buildpack) both auto-detect your language and build an image from source, similar to the [Stacktape image buildpack](/packaging/containers/stacktape-buildpack). Choose Nixpacks or external buildpack if you want automated builds without writing a Dockerfile. Choose prebuilt image if you want complete separation between building and deploying.
+Yes. Multiple resources can reference the same image tag, and each pulls independently. This is useful when a single base image serves different roles (API server, worker, migration runner) differentiated only by the `command` override — build once, deploy many times with different startup arguments.
 
 ## API reference
 

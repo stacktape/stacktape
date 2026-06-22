@@ -44,7 +44,7 @@ export default defineConfig(() => {
 ```
 
 
-This deploys a container running your agent code on Bedrock AgentCore. The config declares a `chat` endpoint for the runtime. This example uses `CustomDockerfilePackaging` with `buildContextPath: './agent'`, so Stacktape uses the [Dockerfile-based container packaging](/packaging/containers/custom-dockerfile) mode for the runtime.
+The `AgentCoreRuntime` resource configures a container-packaged agent runtime with protocol, endpoint, lifecycle, and tool-attachment properties. The config declares a `chat` endpoint using the HTTP protocol. This example uses `CustomDockerfilePackaging` with `buildContextPath: './agent'`, so Stacktape uses the [Dockerfile-based container packaging](/packaging/containers/custom-dockerfile) mode for the runtime.
 
 ## Examples
 
@@ -87,7 +87,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `idleRuntimeSessionTimeout` is set to `300` and `maxLifetime` to `7200`. The `expirationDays` on the memory resource controls how long stored entries are retained (in days).
+In this example, `idleRuntimeSessionTimeout` is set to `300` and `maxLifetime` to `7200` — these are example values; choose durations appropriate for your agent's session patterns. The memory resource accepts an `expirationDays` number (`30` in this example); use it when you want memory retention to be bounded.
 
 ### Agent with tools, authentication, and resource access
 
@@ -150,13 +150,13 @@ export default defineConfig(() => {
       maxLifetime: 14400,
       idleRuntimeSessionTimeout: 1800
     },
-    connectTo: ['conversations'],
+    connectTo: [conversations],
     authorizer: {
       discoveryUrl:
         'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123/.well-known/openid-configuration',
       allowedAudience: ['my-app-client-id']
     },
-    environment: [{ name: 'AI_MODEL', value: 'anthropic.claude-sonnet-4-20250514' }]
+    environment: { AI_MODEL: 'anthropic.claude-sonnet-4-20250514' }
   });
 
   return {
@@ -173,7 +173,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `idleRuntimeSessionTimeout` is set to `1800` and `maxLifetime` to `14400`. The `connectTo` grants access to the DynamoDB table and provides connection values including `STP_CONVERSATIONS_NAME`, `STP_CONVERSATIONS_ARN`, and `STP_CONVERSATIONS_STREAM_ARN`. The `supportedVersions` property on the gateway is an optional string array that declares which gateway protocol versions this agent supports — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for details. The `authorizer` property configures JWT authorizer settings: `discoveryUrl` (required) points to an OIDC discovery endpoint, while `allowedAudience`, `allowedClients`, and `allowedScopes` are optional string arrays that filter incoming tokens.
+In this example, `idleRuntimeSessionTimeout` is set to `1800` and `maxLifetime` to `14400` — these are example values; choose durations appropriate for your agent's session patterns. For documented target resource types, `connectTo` grants IAM permissions and uses the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern described in [Connecting resources](/configuration/connecting-resources). For a DynamoDB table named `conversations`, the documented parameters include `NAME`, `ARN`, and `STREAM_ARN`. The `supportedVersions` on the gateway is an optional string array — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for gateway-specific configuration. The `authorizer` property configures JWT authorizer settings: `discoveryUrl` (required) points to an OIDC discovery endpoint, while `allowedAudience`, `allowedClients`, and `allowedScopes` are optional string arrays that filter incoming tokens.
 
 ## Protocols
 
@@ -184,7 +184,7 @@ AgentCore Runtime supports four communication protocols, set via the `protocol` 
 | `HTTP` | Standard HTTP request/response. Works with any HTTP client or framework. |
 | `MCP` | [Model Context Protocol](https://modelcontextprotocol.io/). Standardized protocol for tool-calling agents that follow the MCP specification. |
 | `A2A` | Agent-to-Agent protocol. For agents that communicate with other agents using a structured agent protocol. |
-| `AGUI` | Agent GUI protocol. For agents that render interactive UI elements as part of their responses. |
+| `AGUI` | Agent GUI protocol. Choose this value when your container implements the AGUI specification. |
 
 Use `HTTP` for a conventional request/response endpoint. Use `MCP`, `A2A`, or `AGUI` only when your agent implements that specific protocol. All four values are valid for the `protocol` property: `'HTTP'`, `'MCP'`, `'A2A'`, and `'AGUI'`.
 
@@ -232,7 +232,7 @@ AgentCore Runtime can connect to managed tools that extend your agent's capabili
 
 | Property | Resource type | What it provides |
 |----------|--------------|------------------|
-| `useMemory` | [AgentCore Memory](/resources/ai/agentcore-memory) | Persistent, cross-session memory store |
+| `useMemory` | [AgentCore Memory](/resources/ai/agentcore-memory) | Memory store with optional `expirationDays` retention |
 | `useGateway` | [AgentCore Gateway](/resources/ai/agentcore-gateway) | MCP-style tool gateway with governed tool definitions |
 | `useBrowser` | [AgentCore Browser](/resources/ai/agentcore-browser) | Sandboxed browser for web research |
 | `useCodeInterpreter` | [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) | Sandboxed code execution environment |
@@ -324,7 +324,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `idleRuntimeSessionTimeout` is set to `300` and `maxLifetime` to `3600`. Both properties accept a numeric value. For cost-sensitive workloads, consider setting a shorter `idleRuntimeSessionTimeout` to reclaim idle sessions sooner. Use a longer `maxLifetime` for agents that maintain important in-memory state across a multi-step conversation.
+In this example, `idleRuntimeSessionTimeout` is set to `300` and `maxLifetime` to `3600` — these are example values; choose durations appropriate for your agent's session patterns. Both properties accept a numeric value. For cost-sensitive workloads, consider a shorter `idleRuntimeSessionTimeout` to reclaim idle sessions sooner. Use a longer `maxLifetime` for agents that maintain important in-memory state across a multi-step conversation.
 
 ## Authentication
 
@@ -397,7 +397,7 @@ export default defineConfig(() => {
     }),
     protocol: 'HTTP',
     endpoints: ['chat'],
-    connectTo: ['knowledgeBase', 'conversationLog']
+    connectTo: [knowledgeBase, conversationLog]
   });
 
   return {
@@ -471,11 +471,11 @@ export default defineConfig(() => {
     }),
     protocol: 'HTTP',
     endpoints: ['chat'],
-    environment: [
-      { name: 'AI_MODEL', value: 'anthropic.claude-sonnet-4-20250514' },
-      { name: 'MAX_TOKENS', value: '4096' },
-      { name: 'API_KEY', value: "$Secret('my-api-key')" }
-    ]
+    environment: {
+      AI_MODEL: 'anthropic.claude-sonnet-4-20250514',
+      MAX_TOKENS: '4096',
+      API_KEY: "$Secret('my-api-key')"
+    }
   });
 
   return {
@@ -485,7 +485,7 @@ export default defineConfig(() => {
 ```
 
 
-Each entry needs a `name` and a `value`. Values are strings, numbers, or booleans (numbers and booleans are converted to strings). Environment variables from `connectTo` follow the `STP_[RESOURCE_NAME]_[PARAM]` pattern and are merged automatically — you don't need to declare them in `environment`. See [Connecting resources](/configuration/connecting-resources) for the full reference.
+Each entry needs a `name` and a `value`. Values are strings, numbers, or booleans (numbers and booleans are converted to strings). For supported target resource types, `connectTo` uses the documented `STP_[RESOURCE_NAME]_[PARAM]` naming pattern for connection values. Use `environment` for values you want to pass explicitly to the runtime. See [Connecting resources](/configuration/connecting-resources) for the full reference.
 
 ## Request headers
 
@@ -513,57 +513,33 @@ export default defineConfig(() => {
 ```
 
 
-The `requestHeaders` property is an optional string array for header names. The provided type source does not document additional forwarding or filtering semantics beyond declaring the header names.
+Use `requestHeaders` when the runtime needs named request headers such as tenant or trace identifiers. The property accepts an optional array of header name strings.
 
 ## FAQ
-
-### What is AWS Bedrock AgentCore?
-
-AWS Bedrock AgentCore is a managed service for running AI agents. You bring your agent logic as a container image; AgentCore provides the runtime infrastructure. Stacktape's `AgentCoreRuntime` resource provisions and configures AgentCore agents declaratively as part of your stack, with properties for protocol selection, lifecycle control, endpoints, and tool attachments.
 
 ### What protocols does AgentCore Runtime support?
 
 AgentCore Runtime supports four protocols: `HTTP` (standard request/response), `MCP` (Model Context Protocol for tool-calling agents), `A2A` (Agent-to-Agent communication), and `AGUI` (Agent GUI for interactive UIs). Set the protocol via the `protocol` property. Choose `MCP` or `A2A` when your agent specifically implements those protocol specifications; use `HTTP` for general-purpose agent endpoints.
 
-### Can I attach persistent memory to my agent?
+### What managed tools can I attach to an agent?
 
-Yes. Create an [AgentCore Memory](/resources/ai/agentcore-memory) resource and reference it with `useMemory`. The memory store persists across sessions. Set `expirationDays` on the memory resource to control how long stored entries are retained. See the [AgentCore Memory](/resources/ai/agentcore-memory) page for full configuration options.
+Attach any combination of four managed tools, each a separate AgentCore resource referenced by name: `useMemory` for [persistent memory](/resources/ai/agentcore-memory) (with optional `expirationDays` retention), `useGateway` for a governed [tool gateway](/resources/ai/agentcore-gateway), `useBrowser` for a [sandboxed browser](/resources/ai/agentcore-browser), and `useCodeInterpreter` for a [code execution environment](/resources/ai/agentcore-code-interpreter). You can attach all four at once. Skip `useBrowser` and `useCodeInterpreter` unless needed — each adds a managed sandbox and increases the resource footprint.
 
 ### How do I access other AWS resources from my agent?
 
 Use `connectTo` to grant your agent access to Stacktape resources like DynamoDB tables, S3 buckets, SQS queues, and databases. For supported target resource types, `connectTo` grants IAM permissions and provides `STP_[RESOURCE_NAME]_[PARAM]` connection values as documented in [Connecting resources](/configuration/connecting-resources). For AWS services outside Stacktape's resource model, use `iamRoleStatements` to add custom IAM permissions.
 
-### What container images can I use?
-
-AgentCore Runtime supports five [container packaging](/packaging/overview) modes: Stacktape buildpack (zero-config from source), custom Dockerfile, prebuilt image, Nixpacks, and external buildpack. With `PrebuiltImagePackaging`, you provide an image reference (public or private with `repositoryCredentialsSecretArn`). Your image needs to satisfy the runtime contract expected by AWS Bedrock AgentCore.
-
 ### When should I use AgentCore Runtime vs a Lambda function for AI?
 
-Use AgentCore Runtime when your agent needs lifecycle control (`maxLifetime`, `idleRuntimeSessionTimeout`), multi-turn conversations, or tool attachments (`useMemory`, `useBrowser`, `useCodeInterpreter`, `useGateway`). Use a [Lambda function](/resources/compute/lambda-function) when you're building a stateless AI endpoint — a single model call that returns a response. Lambda is simpler and cheaper for request/response workloads; AgentCore Runtime is purpose-built for agents with longer-running sessions and tool integrations.
-
-### When should I use AgentCore Runtime vs a web service?
-
-A [web service](/resources/compute/web-service) gives you an always-on container with full control over networking, scaling, health checks, and deployment strategies. AgentCore Runtime is more opinionated — it provides protocol selection, lifecycle control, and tool-attachment properties declaratively. Choose a web service if you need fine-grained control over container resources, custom load balancing, or if your agent is part of a larger application. Choose AgentCore Runtime when you want managed agent infrastructure with less operational overhead.
+Use AgentCore Runtime when your agent needs lifecycle control (`maxLifetime`, `idleRuntimeSessionTimeout`), multi-turn conversations, or tool attachments (`useMemory`, `useBrowser`, `useCodeInterpreter`, `useGateway`). Use a [Lambda function](/resources/compute/lambda-function) when you're building a stateless AI endpoint — a single model call that returns a response. Lambda is simpler and cheaper for request/response workloads; AgentCore Runtime is purpose-built for agents with longer-running sessions and tool integrations. For an always-on container with full control over scaling and networking, use a [web service](/resources/compute/web-service) instead.
 
 ### How do I secure my agent endpoints?
 
-Use the `authorizer` property to configure JWT-based authentication. Provide your OIDC provider's `discoveryUrl`, and optionally restrict access by audience (`allowedAudience`), client ID (`allowedClients`), or scope (`allowedScopes`). As a security best practice, configure an authorizer for production agents.
-
-### Can I use multiple tools with a single agent?
-
-Yes. You can attach all four tool types simultaneously — `useMemory`, `useGateway`, `useBrowser`, and `useCodeInterpreter` — each referencing a separate AgentCore resource in your stack by name.
-
-### What referenceable parameters does AgentCore Runtime expose?
-
-AgentCore Runtime exposes four [referenceable parameters](/configuration/referenceable-parameters): `id` (the runtime resource ID), `arn` (the runtime ARN), `endpointName` (the deployed endpoint name), and `endpointArn` (the endpoint ARN). Use these with the [`$ResourceParam` directive](/configuration/directives) to reference runtime attributes in other resource configurations, environment variables, or stack outputs.
+Use the `authorizer` property to configure JWT-based authentication. Provide your OIDC provider's `discoveryUrl` (the only required field), and optionally restrict access by audience (`allowedAudience`), client ID (`allowedClients`), or scope (`allowedScopes`). JWT auth requires an OIDC provider such as Amazon Cognito or Auth0. Configure an authorizer for any endpoint exposed to the public internet.
 
 ### How is AWS Bedrock AgentCore priced?
 
-Bedrock AgentCore pricing is session-based — you pay for active runtime sessions rather than reserved compute capacity. Pricing varies by region and session duration. Check the [AWS Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/) for current rates, as pricing details are not embedded in the Stacktape configuration.
-
-### What AWS regions support AgentCore Runtime?
-
-AWS Bedrock AgentCore is available in a subset of AWS regions. Regional availability may differ from other Bedrock features. Check the [AWS regional services list](https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/) for current AgentCore availability before choosing your deployment region in Stacktape.
+Bedrock AgentCore pricing is session-based — you pay for active runtime sessions rather than reserved compute capacity. Because cost scales with session count and duration, a shorter `idleRuntimeSessionTimeout` reclaims idle sessions sooner and lowers cost. Pricing varies by region; check the [AWS Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/) for current rates.
 
 ### How does AgentCore Runtime handle concurrency?
 

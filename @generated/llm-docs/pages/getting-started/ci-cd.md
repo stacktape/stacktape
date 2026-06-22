@@ -111,13 +111,13 @@ For more detail on custom pipelines, see [Custom CI/CD](/ci-cd-and-gitops/custom
 
 ## CodeBuild deploy
 
-For large projects where uploading built artifacts from your CI runner is slow, Stacktape can offload the entire build and deploy to AWS CodeBuild using [`codebuild:deploy`](/cli/codebuild-deploy). The CLI zips your project, uploads it to S3, and runs the deployment remotely in your AWS account — useful when your codebase or dependencies are large.
+For large projects where uploading built artifacts from your CI runner is slow, Stacktape can offload the entire build and deploy to AWS CodeBuild using [`deploy --runner codebuild`](/cli/deploy). The CLI zips your project, uploads it to S3, and runs the deployment remotely in your AWS account — useful when your codebase or dependencies are large.
 
 ```bash
-npx stacktape codebuild:deploy --projectName my-project --stage production --region us-east-1
+npx stacktape deploy --runner codebuild --projectName my-project --stage production --region us-east-1
 ```
 
-[`codebuild:deploy`](/cli/codebuild-deploy) performs the same deployment as [`deploy`](/cli/deploy) but runs the build step on AWS infrastructure instead of your local machine or CI runner. In CI, pass `--autoConfirmOperation` to skip the confirmation prompt.
+[`deploy --runner codebuild`](/cli/deploy) performs the same deployment as [`deploy`](/cli/deploy) but runs the build step on AWS infrastructure instead of your local machine or CI runner. In CI, pass `--autoConfirmOperation` to skip the confirmation prompt.
 
 ## Which path to choose
 
@@ -140,5 +140,3 @@ Use this comparison to decide between Console-managed GitOps and a self-managed 
 ## Next step
 
 Your deployments are now automated. The final step covers production hardening — alarms, budgets, custom domains, and guardrails.
-
-**Next → [Going to production](/getting-started/going-to-production)**

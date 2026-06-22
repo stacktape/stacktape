@@ -240,17 +240,9 @@ Use project-level config (`.mcp.json`, `.cursor/mcp.json`, etc.) when you want t
 
 Yes. The command reads your existing config, adds or updates the `stacktape` server entry under the appropriate root key (e.g. `mcpServers`, `servers`, or `mcp`), and writes the file back. It creates a timestamped `.bak` backup before any modification. If the config already has a `stacktape` entry with identical content, the file is left unchanged and no backup is created.
 
-### What does STACKTAPE_MCP_CLIENT_NAME do?
+### My assistant isn't using Stacktape context — what's wrong?
 
-The `mcp:add` command sets a `STACKTAPE_MCP_CLIENT_NAME` environment variable in each client's config — values like `claude-code`, `cursor`, `vscode`, `windsurf`, `codex`, or `opencode`. Include the same value in manual configs when you want them to match `mcp:add` output.
-
-### What if my AI client is not in the supported list?
-
-Other MCP-compatible clients may work if they can launch a local command with arguments and environment variables. Configure the client to run `stacktape mcp` as the command. Check your client's documentation for the exact config format — the examples in [Manual setup](#manual-setup) cover the six supported clients and can serve as a reference for the general pattern.
-
-### Can I use the MCP integration alongside normal CLI usage?
-
-Yes. The MCP server launches as a separate subprocess when your AI assistant starts a session. It does not interfere with other Stacktape commands you run in a terminal.
+Most failures come from a few causes: the `stacktape` command isn't on your PATH (run `stacktape --version` to check), your CLI is too old to include the `mcp` subcommand (run [`stacktape upgrade`](/cli/upgrade)), MCP support isn't enabled in your client's settings, or the config file is in a location the client doesn't read for the current workspace. See [Verifying the integration](#verifying-the-integration) for the full checklist.
 
 ### How do I remove the MCP configuration?
 

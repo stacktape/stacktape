@@ -168,7 +168,7 @@ EFS filesystems expose the following parameter for use with [`$ResourceParam`](/
 
 ### How do I mount an EFS volume to a workload?
 
-Define an `EfsFilesystem` resource in your config, then add it to the `volumeMounts` array on a container workload. Consult the workload's API reference for the exact mount entry shape. Your application accesses the mounted volume using standard file I/O — no SDK required, and all data is encrypted in transit automatically.
+Define an `EfsFilesystem` resource in your config, then add it to the `volumeMounts` array on a container workload. Consult the workload's API reference for the exact mount entry shape. Your application accesses the mounted volume using standard file I/O — no SDK required, and the volume persists across container restarts.
 
 ### How much does Amazon EFS cost?
 
@@ -186,22 +186,6 @@ Use EFS when your application needs to read and write files using standard files
 
 Start with `elastic` (the default) — it auto-scales with demand and requires no capacity planning. Switch to `provisioned` only if you have a steady, high-throughput workload (video processing, large data pipelines) where you need guaranteed MiB/s and are willing to pay for it regardless of usage. Avoid `bursting` for small filesystems because throughput is tied to storage size and burst credits can deplete quickly. Most teams never need to change from `elastic`.
 
-### Does EFS have a storage limit?
-
-Underneath, Amazon EFS has no pre-set storage limit — AWS documentation states filesystems grow and shrink automatically with usage. You don't need to provision capacity in advance; the filesystem expands as you write data and contracts as you delete it. There are no minimum storage charges beyond what you actually use.
-
 ### How do I back up an EFS filesystem?
 
-Set `backupEnabled: true` in your EfsFilesystem config to enable daily automatic backups through AWS Backup with 35-day retention. Backups are incremental, so only changes since the last backup are copied. `EfsFilesystemProps` only exposes `backupEnabled`; schedule, retention, and cross-region backup settings are not modeled on this resource.
-
-### Can I use EFS with Lambda functions?
-
-AWS Lambda supports mounting EFS filesystems at the AWS level. The Stacktape `EfsFilesystemProps` type does not model Lambda-specific mount configuration — the `volumeMounts` property is available on container workloads. See the [Lambda function page](/resources/compute/lambda-function) for details on what Stacktape exposes for Lambda functions.
-
-### Does EFS encrypt data?
-
-Data in transit between container workloads and EFS volumes is encrypted automatically, as noted in the `volumeMounts` property documentation. `EfsFilesystemProps` does not expose a dedicated at-rest encryption setting. Underneath, AWS EFS supports at-rest encryption using AWS KMS keys — use [overrides](/configuration/overrides-and-escape-hatches) to configure this after verifying the generated CloudFormation resource.
-
-### EFS vs EBS — what's the difference?
-
-Amazon EFS is a shared network filesystem — multiple containers can mount it simultaneously. Amazon EBS is block storage attached to a single compute instance, accessible by only one instance at a time. The Stacktape resource union includes `EfsFilesystem`; it does not include a dedicated EBS resource type. If your workload requires single-instance block storage, EFS with provisioned throughput mode or [overrides](/configuration/overrides-and-escape-hatches) may be worth investigating.
+Set `backupEnabled: true` in your EfsFilesystem config to enable daily automatic backups through AWS Backup with 35-day retention. Backups are incremental, so only changes since the last backup are copied. Note that `EfsFilesystemProps` only exposes `backupEnabled` — schedule, retention, and cross-region backup settings are not configurable on this resource.

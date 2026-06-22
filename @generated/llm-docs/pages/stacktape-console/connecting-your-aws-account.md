@@ -95,30 +95,18 @@ Yes. The connection stack must be created in `eu-west-1`, but that only controls
 
 Connecting the account is free. You pay only for the AWS resources that Stacktape later deploys into your account.
 
-### How should I organize AWS accounts across Stacktape organizations?
-
-Connected AWS accounts are stored per Stacktape organization. If you need stronger isolation, connect separate AWS accounts and choose the appropriate account in your deployment setup.
-
-### What happens if I delete the CloudFormation connection stack in AWS?
-
-Deleting the CloudFormation connection stack in AWS removes the IAM role, which revokes Stacktape's access. Deployments to that account stop working. If Stacktape reports the connection as BLOCKED, check the status reason in the Note column. You can remove the connection from the AWS Accounts table and create a new connection to restore access.
-
 ### How do I revoke Stacktape's access to my AWS account?
 
-You can revoke access by deleting the AWS account connection in the Stacktape Console or by deleting the CloudFormation connection stack in the AWS Console. Both are documented revocation paths.
+You have two options: delete the AWS account connection in the Stacktape Console (removes it from Stacktape's side), or delete the CloudFormation connection stack in the AWS Console (removes the IAM role from your account). Either one stops deployments to that account from working. After deleting the stack in AWS, Stacktape reports the connection as BLOCKED — remove it from the AWS Accounts table and create a new connection to restore access.
 
-### What is the `org:manage-aws-accounts` permission?
+### Why is the "Connect AWS account" button disabled?
 
-The Console uses `org:manage-aws-accounts` to enable the **Connect AWS account** button and the delete control on connected-account rows. If the button is disabled, you do not currently have the required organization permission. See [Team and access control](/stacktape-console/team-and-access-control) for organization access management.
+Connecting and deleting account connections requires the `org:manage-aws-accounts` permission. If the button (or the delete control on a connected-account row) is disabled, you don't currently have that organization permission. Ask your organization owner or admin to grant the appropriate role — see [Team and access control](/stacktape-console/team-and-access-control).
 
-### What does the PENDING state mean?
+### Why won't my account stay connected (stuck in PENDING)?
 
-PENDING means the connection link was generated in Stacktape but the CloudFormation stack in AWS has not yet completed. While a PENDING account exists on the AWS Accounts page, the Console refetches account data every two seconds. When the backend returns the account as ACTIVE, the table shows ACTIVE. If the account stays PENDING, use the "Finish the account connection" link in the Note column to complete the stack creation in AWS.
+PENDING means the connection link was generated but the CloudFormation stack in AWS hasn't finished creating. The Console refetches the account every two seconds and flips it to ACTIVE automatically once the backend reports it. If it stays PENDING, use the "Finish the account connection" link in the Note column to reopen the AWS flow, and verify the stack is being created in the **eu-west-1** region.
 
-### How does cross-account AssumeRole work?
+### Why can't I delete a connected AWS account?
 
-AWS cross-account AssumeRole is a standard AWS mechanism where one AWS account is granted permission to temporarily assume an IAM role in another AWS account. The role defines what actions are allowed. Stacktape uses the assumed role to interact with your AWS account — you do not need to manage AWS credentials manually. Under standard AWS AssumeRole mechanics, credentials are temporary — no permanent credentials are stored or shared. This is the most commonly used approach for secure third-party AWS access.
-
-### Can I restrict what Stacktape can do in my account?
-
-The Console creates the connection with `connectionMode: 'PRIVILEGED'`. See [AWS permissions](/stacktape-console/aws-permissions) for the full list of permissions the role includes and guidance on the operational impact of restricting them.
+Stacktape blocks deletion when projects reference the account in their GitOps deployment configurations; the error message lists the affected projects. Remove the GitOps deployment configurations from those projects, then retry the deletion.

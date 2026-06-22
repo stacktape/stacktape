@@ -278,7 +278,9 @@ import {
 } from 'stacktape';
 
 export default defineConfig(() => {
-  const nlb = new NetworkLoadBalancer({});
+  const nlb = new NetworkLoadBalancer({
+    listeners: [{ protocol: 'TCP', port: 8883 }]
+  });
 
   const workload = new MultiContainerWorkload({
     containers: [
@@ -487,11 +489,25 @@ Stacktape multi-container-workloads use `connectTo` to give all containers acces
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+import {
+  defineConfig,
+  MultiContainerWorkload,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  Bucket,
+  $Secret,
+  StacktapeImageBuildpackPackaging
+} from 'stacktape';
 
 export default defineConfig(() => {
+  const myDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
+  });
+  const myBucket = new Bucket({});
+
   const workload = new MultiContainerWorkload({
-    connectTo: ['myDatabase', 'myBucket'],
+    connectTo: [myDatabase, myBucket],
     containers: [
       {
         name: 'server',
@@ -501,7 +517,7 @@ export default defineConfig(() => {
     resources: { cpu: 0.5, memory: 1024 }
   });
 
-  return { resources: { workload } };
+  return { resources: { myDatabase, myBucket, workload } };
 });
 ```
 
@@ -663,7 +679,7 @@ Set `usePrivateSubnetsWithNAT: true` to deploy in private subnets where all outb
 
 ## Logging
 
-Stacktape multi-container-workload container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. Each container has independent logging configuration via its `logging` property — you can disable logging per container or set a different retention period. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the [Stacktape Console](/stacktape-console/console-overview).
+Stacktape multi-container-workload container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. Each container has independent logging configuration via its `logging` property — you can disable logging per container or set a different retention period. View logs with [`stacktape logs`](/cli/logs) or in the [Stacktape Console](/stacktape-console/console-overview).
 
 Set `logging.disabled: true` on a container to stop sending its output to CloudWatch. You can also configure [log forwarding](/observability/log-forwarding) to external services like Datadog on a per-container basis.
 
@@ -676,10 +692,6 @@ Stacktape multi-container-workloads support interactive shell access to running 
 ### What's the difference between multi-container-workload and web-service?
 
 A [web-service](/resources/compute/web-service) is purpose-built for a single HTTP-facing container — it manages a load balancer, TLS, custom domains, CDN, and CORS for you. A multi-container-workload gives you multiple peer containers with independent traffic routing, each referencing external load balancer resources you define separately. Use multi-container-workload when your architecture genuinely needs multiple containers receiving different types of traffic, or when the web-service's built-in abstractions don't fit.
-
-### Can I use a custom domain with a multi-container-workload?
-
-Not directly on the workload itself. Custom domains are configured on the load balancer or API Gateway resource that the container connects to via its `events` array. See the [custom domains](/resources/networking/custom-domains) page for setup details on each resource type.
 
 ### Does a multi-container-workload scale to zero?
 
@@ -700,14 +712,6 @@ Add a migration container to the `containers` array with `essential: false`. Add
 ### Can I give each container different CPU/memory limits?
 
 No. CPU and memory are allocated at the task level and shared across all containers — individual containers cannot be assigned hard compute limits separately from the task total. Plan the total `cpu` and `memory` to cover peak combined usage across all containers in the workload.
-
-### How fast does a Fargate task with multiple containers start?
-
-Fargate task startup time depends on the number and total size of container images being pulled. `dependsOn` chains add sequencing time — an init container's runtime is added to the total startup before the main container is healthy. Smaller, optimized images reduce startup time.
-
-### When should I use multi-container-workload vs separate services?
-
-Use a multi-container-workload when containers are tightly coupled — they communicate via localhost, share a volume, or must start and stop together. Use separate Stacktape resources ([web-service](/resources/compute/web-service), [worker-service](/resources/compute/worker-service), etc.) when containers scale independently, are owned by different teams, or a failure in one should not affect the other. Sharing a task amplifies blast radius.
 
 ### What happens when one container in the workload crashes?
 

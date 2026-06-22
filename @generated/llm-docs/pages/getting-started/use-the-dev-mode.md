@@ -73,6 +73,9 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: "$Secret('database.password')"
+    },
     engine: new RdsEnginePostgres({
       version: '16.6',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
@@ -194,8 +197,8 @@ The agent server starts on port 7331 by default (or the next available port). Se
 
 Stacktape provides CLI commands for inspecting logs and metrics from your running resources, both during dev mode and against deployed stacks:
 
-- [`stacktape debug:logs`](/cli/debug-logs) — Stream or search logs from your Lambda functions and container workloads
-- [`stacktape debug:metrics`](/cli/debug-metrics) — View CloudWatch metrics for any resource
+- [`stacktape logs`](/cli/logs) — Stream or search logs from your Lambda functions and container workloads
+- [`stacktape metrics`](/cli/metrics) — View CloudWatch metrics for any resource
 
 For deeper coverage of debugging workflows, see [Dev mode overview](/local-development/dev-mode-overview).
 
@@ -212,5 +215,3 @@ Legacy mode skips the dev-stack deployment and connects directly to your existin
 ## Next step
 
 Your code works locally. Time to ship it.
-
-**Next → [Deploy your first stage](/getting-started/deploy-your-first-stage)**

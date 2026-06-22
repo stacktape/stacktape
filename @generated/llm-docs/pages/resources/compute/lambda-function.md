@@ -9,8 +9,8 @@ A Stacktape Lambda function is a serverless compute resource that runs code in r
 A Lambda function is the right default for event-driven code that finishes within minutes, does not need a continuously running process, and can tolerate statelessness between invocations.
 
 - **HTTP APIs with variable traffic** — pair with an [HTTP API Gateway](/resources/networking/http-api-gateway) or enable a function URL for a single-function HTTPS endpoint. Cost approaches zero during quiet periods.
-- **Background event handlers** — react to [SQS](/configuration/triggers/sqs-events), [SNS](/configuration/triggers/sns-events), [S3](/configuration/triggers/s3-events), [DynamoDB stream](/configuration/triggers/dynamodb-streams), [Kinesis](/configuration/triggers/kinesis-events), [EventBridge](/configuration/triggers/event-bus-events), [CloudWatch log](/configuration/triggers/cloudwatch-logs), [Kafka topic](/configuration/triggers/kafka-topics), or [alarm](/configuration/triggers/alarms-as-triggers) events.
-- **Scheduled tasks** — run cron-like cleanup, reporting, or polling with a [schedule trigger](/configuration/triggers/schedule-triggers).
+- **Background event handlers** — react to [SQS](/resources/triggers/sqs-events), [SNS](/resources/triggers/sns-events), [S3](/resources/triggers/s3-events), [DynamoDB stream](/resources/triggers/dynamodb-streams), [Kinesis](/resources/triggers/kinesis-events), [EventBridge](/resources/triggers/event-bus-events), [CloudWatch log](/resources/triggers/cloudwatch-logs), [Kafka topic](/resources/triggers/kafka-topics), or [alarm](/resources/triggers/alarms-as-triggers) events.
+- **Scheduled tasks** — run cron-like cleanup, reporting, or polling with a [schedule trigger](/resources/triggers/schedule-triggers).
 - **Pay-per-use workloads** — functions that sit idle most of the time cost nothing until invoked.
 
 ## When NOT to use
@@ -95,7 +95,7 @@ export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({});
 
   const usersTable = new DynamoDbTable({
-    primaryKey: { partitionKey: { name: 'userId', type: 'S' } }
+    primaryKey: { partitionKey: { name: 'userId', type: 'string' } }
   });
 
   const api = new LambdaFunction({
@@ -112,7 +112,7 @@ export default defineConfig(() => {
         }
       }
     ],
-    connectTo: ['usersTable'],
+    connectTo: [usersTable],
     memory: 512,
     timeout: 30
   });
@@ -159,7 +159,7 @@ export const handler = handle(app);
 
 ### Scheduled cleanup task
 
-A Lambda function that runs every hour to delete expired records. The [schedule trigger](/configuration/triggers/schedule-triggers) accepts rate expressions and AWS cron expressions (6-field, UTC).
+A Lambda function that runs every hour to delete expired records. The [schedule trigger](/resources/triggers/schedule-triggers) accepts rate expressions and AWS cron expressions (6-field, UTC).
 
 
 Example (TypeScript):
@@ -173,7 +173,7 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const sessionsTable = new DynamoDbTable({
-    primaryKey: { partitionKey: { name: 'sessionId', type: 'S' } }
+    primaryKey: { partitionKey: { name: 'sessionId', type: 'string' } }
   });
 
   const cleanup = new LambdaFunction({
@@ -186,7 +186,7 @@ export default defineConfig(() => {
         properties: { scheduleRate: 'rate(1 hour)' }
       }
     ],
-    connectTo: ['sessionsTable'],
+    connectTo: [sessionsTable],
     timeout: 120
   });
 
@@ -291,18 +291,18 @@ A Lambda function receives work through its `events` array. Stacktape supports 1
 
 | Trigger type | Event discriminator | Docs |
 |---|---|---|
-| HTTP API Gateway | `http-api-gateway` | [HTTP triggers](/configuration/triggers/http-triggers) |
-| Application Load Balancer | `application-load-balancer` | [HTTP triggers](/configuration/triggers/http-triggers) |
-| Schedule | `schedule` | [Schedule triggers](/configuration/triggers/schedule-triggers) |
-| S3 | `s3` | [S3 events](/configuration/triggers/s3-events) |
-| SQS | `sqs` | [SQS events](/configuration/triggers/sqs-events) |
-| SNS | `sns` | [SNS events](/configuration/triggers/sns-events) |
-| DynamoDB stream | `dynamo-db-stream` | [DynamoDB streams](/configuration/triggers/dynamodb-streams) |
-| Kinesis stream | `kinesis-stream` | [Kinesis events](/configuration/triggers/kinesis-events) |
-| EventBridge | `event-bus` | [EventBridge events](/configuration/triggers/event-bus-events) |
-| CloudWatch log | `cloudwatch-log` | [CloudWatch logs](/configuration/triggers/cloudwatch-logs) |
-| CloudWatch alarm | `cloudwatch-alarm` | [Alarms as triggers](/configuration/triggers/alarms-as-triggers) |
-| Kafka topic | `kafka-topic` | [Kafka topics](/configuration/triggers/kafka-topics) |
+| HTTP API Gateway | `http-api-gateway` | [HTTP triggers](/resources/triggers/http-triggers) |
+| Application Load Balancer | `application-load-balancer` | [HTTP triggers](/resources/triggers/http-triggers) |
+| Schedule | `schedule` | [Schedule triggers](/resources/triggers/schedule-triggers) |
+| S3 | `s3` | [S3 events](/resources/triggers/s3-events) |
+| SQS | `sqs` | [SQS events](/resources/triggers/sqs-events) |
+| SNS | `sns` | [SNS events](/resources/triggers/sns-events) |
+| DynamoDB stream | `dynamo-db-stream` | [DynamoDB streams](/resources/triggers/dynamodb-streams) |
+| Kinesis stream | `kinesis-stream` | [Kinesis events](/resources/triggers/kinesis-events) |
+| EventBridge | `event-bus` | [EventBridge events](/resources/triggers/event-bus-events) |
+| CloudWatch log | `cloudwatch-log` | [CloudWatch logs](/resources/triggers/cloudwatch-logs) |
+| CloudWatch alarm | `cloudwatch-alarm` | [Alarms as triggers](/resources/triggers/alarms-as-triggers) |
+| Kafka topic | `kafka-topic` | [Kafka topics](/resources/triggers/kafka-topics) |
 
 For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), `batchSize` and `maxBatchWindowSeconds` control how many records the function receives per invocation. Keep handlers idempotent: failed batches are retried including records that already processed successfully.
 
@@ -340,7 +340,7 @@ export default defineConfig(() => {
 
 `batchSize` controls the maximum number of records delivered to one invocation and defaults to `10`. The maximum `batchSize` varies by trigger type (for example, DynamoDB streams cap at `1,000` while SQS and Kinesis accept up to `10,000`). `maxBatchWindowSeconds` waits up to the configured seconds before invoking with a partial batch (maximum `300`). The function is also invoked when the batch reaches the 6 MB payload limit.
 
-A schedule trigger runs the function on a cron expression or fixed rate. `scheduleRate` accepts rate expressions like `rate(5 minutes)` and cron expressions like `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, UTC). See [schedule triggers](/configuration/triggers/schedule-triggers) for full syntax.
+A schedule trigger runs the function on a cron expression or fixed rate. `scheduleRate` accepts rate expressions like `rate(5 minutes)` and cron expressions like `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, UTC). See [schedule triggers](/resources/triggers/schedule-triggers) for full syntax.
 
 ## Function URLs
 
@@ -464,16 +464,24 @@ import {
   defineConfig,
   LambdaFunction,
   RelationalDatabase,
-  StacktapeLambdaBuildpackPackaging
+  RdsEnginePostgres,
+  StacktapeLambdaBuildpackPackaging,
+  $Secret
 } from 'stacktape';
 export default defineConfig(() => {
-  const database = new RelationalDatabase({});
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    }),
+    credentials: { masterUserPassword: $Secret('database.password') }
+  });
 
   const api = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
-    connectTo: ['database'],
+    connectTo: [database],
     joinDefaultVpc: true,
-    environment: [{ name: 'LOG_LEVEL', value: 'info' }],
+    environment: { LOG_LEVEL: 'info' },
     memory: 1024,
     timeout: 30
   });
@@ -663,7 +671,7 @@ export default defineConfig(() => {
 
 ## Observability
 
-Lambda function logs from `stdout` and `stderr` are sent to CloudWatch Logs automatically. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the Stacktape Console.
+Lambda function logs from `stdout` and `stderr` are sent to CloudWatch Logs automatically. View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
 `logging.retentionDays` defaults to `180`. Set a shorter retention for high-volume functions when old logs are not needed; keep longer retention for audit-heavy production paths. Setting `logging.disabled: true` disables CloudWatch logging entirely — use this only when another observability path captures the same data.
 
@@ -719,17 +727,9 @@ Most teams do not need layers. The Stacktape Lambda buildpack handles dependency
 
 Yes. A Lambda function only runs when invoked, so idle functions do not consume compute. The exception is `provisionedConcurrency`: those instances stay warm and bill even when idle. Most teams start without provisioned concurrency and add it only for latency-sensitive paths.
 
-### What is the maximum runtime for a Lambda function?
+### Should I use a function URL or an HTTP API Gateway?
 
-AWS Lambda enforces a maximum `timeout` of `900` seconds (15 minutes). The Stacktape default is `10` seconds. For processing that can exceed 15 minutes, use a [batch job](/resources/compute/batch-job) or [worker service](/resources/compute/worker-service).
-
-### Can I expose a Lambda function without API Gateway?
-
-Yes. Set `url.enabled: true` to give the function its own HTTPS endpoint. Function URLs are simpler and lower-overhead for single-function endpoints. Use an [HTTP API Gateway](/resources/networking/http-api-gateway) when you need route-level method/path matching, authorizers, or a shared API across multiple functions.
-
-### Which packaging modes does Stacktape support for Lambda?
-
-Stacktape supports two modes: `stacktape-lambda-buildpack` (recommended — Stacktape builds from source) and `custom-artifact` (provide a pre-built zip). The buildpack supports JS, TS, Python, Java, Go, Ruby, PHP, and .NET. See the [packaging overview](/packaging/overview) for details.
+Use `url.enabled: true` (a function URL) when the function handles all routing itself — a Hono/Express app behind `handle()`, a webhook receiver, or a single narrow-purpose endpoint. Use an [HTTP API Gateway](/resources/networking/http-api-gateway) when you need route-level `method`/`path` matching or a shared API surface across multiple functions. Note that a function URL defaults to `authMode: 'NONE'`, meaning anyone can call it — set `authMode: 'AWS_IAM'` to restrict access.
 
 ### How do I connect a Lambda function to a database?
 
@@ -739,21 +739,13 @@ Use `connectTo` to reference the database resource — Stacktape grants IAM perm
 
 Use a Lambda function for short-lived, event-driven work that finishes within 15 minutes and does not need a persistent process. Use a [web service](/resources/compute/web-service) for always-on containers, workloads needing both VPC and internet access, or tasks requiring more than 10,240 MB of memory. Lambda scales to zero and bills per invocation; a web service bills per running container-hour.
 
-### How much memory should I allocate?
+### How much memory should I allocate, and how do I lower cost?
 
-Start with the smallest memory that meets latency requirements, then increase for CPU-bound work. Lambda CPU scales proportionally: `1,769` MB = 1 vCPU. Higher memory can reduce total cost by shortening execution time. The range is `128` to `10,240` MB.
+Lambda CPU scales proportionally with `memory`: `1,769` MB equals 1 vCPU (range `128`–`10,240` MB). Start with the smallest memory that meets your latency target, then raise it for CPU-bound work — higher memory often *reduces* total cost because faster execution offsets the higher per-millisecond rate. For an additional ~20% saving per GB-second, set `architecture: 'arm64'` (AWS Graviton), which usually works without code changes.
 
-### How do Lambda cold starts affect API latency?
+### Why are records being processed more than once from my SQS or stream trigger?
 
-A cold start happens when AWS creates a new function instance. Stacktape exposes `provisionedConcurrency` to keep instances warm for user-facing APIs. Skip provisioned concurrency for background work — it bills while idle and adds deployment time.
-
-### Can a Lambda function use persistent file storage?
-
-Yes. Use `volumeMounts` with an [EFS filesystem](/resources/storage/efs-filesystem) to mount persistent, shared storage. Set `joinDefaultVpc: true` and a `mountPath` starting with `/mnt/`. EFS data persists across invocations and can be shared across multiple functions. The ephemeral `/tmp` directory is only available during one invocation.
-
-### What event sources can trigger a Stacktape Lambda function?
-
-Stacktape Lambda functions support 12 trigger types: HTTP API Gateway, Application Load Balancer, schedules, S3, SQS, SNS, Kinesis streams, DynamoDB streams, CloudWatch logs, EventBridge event buses, Kafka topics, and CloudWatch alarms. Stacktape configures the required permissions for each trigger automatically. See [triggers overview](/configuration/triggers/overview).
+For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), a failed batch is retried in full — including records that already succeeded. Keep handlers idempotent so reprocessing a record is safe. `batchSize` (default `10`) and `maxBatchWindowSeconds` (max `300`) control how many records each invocation receives.
 
 ## API Reference
 

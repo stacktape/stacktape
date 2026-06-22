@@ -1,6 +1,6 @@
 # defaults:configure
 
-The `defaults:configure` command sets system-wide default values for common Stacktape CLI arguments like region, stage, and AWS profile. Once configured, you can skip repetitive flags on commands like [`deploy`](/cli/deploy), [`delete`](/cli/delete), and [`debug:logs`](/cli/debug-logs). The command does not require an API key, so you can run it before [`login`](/cli/login).
+The `defaults:configure` command sets system-wide default values for common Stacktape CLI arguments like region, stage, and AWS profile. Once configured, you can skip repetitive flags on commands like [`deploy`](/cli/deploy), [`delete`](/cli/delete), and [`logs`](/cli/logs). The command does not require an API key, so you can run it before [`login`](/cli/login).
 
 ## Usage
 
@@ -34,7 +34,7 @@ These defaults apply automatically when the corresponding CLI flag is not explic
 | `projectName` | Project name |
 | `awsAccount` | AWS Account name |
 
-Setting a default `region` and `stage` is the most common use case. For example, [`deploy`](/cli/deploy) requires both `--region` and `--stage`, so defaults for both let you run `stacktape deploy` without extra flags. [`delete`](/cli/delete) requires `--region`, and [`debug:logs`](/cli/debug-logs) requires `--region`, `--stage`, and `--resourceName` (which is not a configurable default).
+Setting a default `region` and `stage` is the most common use case. For example, [`deploy`](/cli/deploy) requires both `--region` and `--stage`, so defaults for both let you run `stacktape deploy` without extra flags. [`delete`](/cli/delete) requires `--region`, and [`logs`](/cli/logs) requires `--region`, `--stage`, and `--resourceName` (which is not a configurable default).
 
 ### Other defaults
 
@@ -114,26 +114,6 @@ Run `stacktape defaults:configure` again. When prompted for the property you wan
 
 No. The `defaults:configure` command does not require a Stacktape API key. You can configure region, stage, and profile defaults before running [`login`](/cli/login). This is useful when setting up a new machine — configure your defaults first, then log in when you're ready to deploy.
 
-### Can I set defaults per project instead of globally?
+### Can I set defaults per project, or only globally?
 
-The `defaults:configure` command sets system-wide defaults that apply across all projects on your machine. If you work on multiple projects with different regions or stages, pass the flags explicitly on commands where the defaults don't apply, or use shell aliases for project-specific workflows.
-
-### Should I use defaults:configure or shell aliases?
-
-Use `defaults:configure` when one region, stage, and profile cover most of your work — it's simpler and applies to every Stacktape command automatically. Use shell aliases or wrapper scripts when you regularly switch between multiple configurations (e.g., separate staging and production aliases). The two approaches can coexist: set your most common values as defaults, then override with flags or aliases when needed.
-
-### Are stored defaults secure?
-
-Defaults are saved to a local file on your filesystem. The `defaults:configure` prompt masks sensitive values when displaying their current state. Protect the file with standard filesystem permissions if you share the machine with other users. For API key management, see [`login`](/cli/login).
-
-### How do defaults work in CI/CD pipelines?
-
-Configured defaults are machine-specific and stored locally. In CI/CD environments, you typically do not run `defaults:configure`. Instead, pass all required flags explicitly in your pipeline scripts (e.g., `stacktape deploy --region eu-west-1 --stage production --projectName my-app`). See [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) for pipeline integration patterns.
-
-### What happens if I configure a default for a flag that a specific command doesn't accept?
-
-The default is simply ignored for that command. For example, if you set a default `stage`, commands that don't accept `--stage` (like [`help`](/cli/help) or [`version`](/cli/version)) are unaffected. Defaults only apply to commands that accept the corresponding flag.
-
-### Can I see which defaults are active before running a command?
-
-Run [`defaults:list`](/cli/defaults-list) to print all currently configured defaults. This shows both CLI argument defaults (region, stage, profile) and other stored settings. It's a quick way to verify your configuration before deploying or debugging.
+The `defaults:configure` command sets system-wide defaults that apply across all projects on your machine — there is no per-project scope. If one region, stage, and profile cover most of your work, defaults are the simplest option. If you regularly switch between configurations (for example separate staging and production setups), keep your most common values as defaults and pass explicit flags (such as `--region` or `--stage`) on the commands where the defaults don't apply — those flags override the stored defaults for that single invocation.

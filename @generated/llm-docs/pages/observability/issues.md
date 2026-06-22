@@ -140,7 +140,7 @@ Issues, [logs](/observability/logs), and [alarms](/observability/alarms) serve d
 |---|---|---|---|
 | **Purpose** | Track and triage runtime errors | View raw output from functions and workloads | Alert on metric thresholds |
 | **Grouping** | Errors grouped with occurrence counts | Individual log lines | One alarm per rule |
-| **Action model** | Resolve, ignore, or reopen | Search and filter via [`debug:logs`](/cli/debug-logs) | Triggers [notifications](/observability/notifications) |
+| **Action model** | Resolve, ignore, or reopen | Search and filter via [`logs`](/cli/logs) | Triggers [notifications](/observability/notifications) |
 | **Best for** | Error triage and regression tracking | Debugging specific requests | Proactive threshold monitoring |
 
 Issues complement [alarms](/observability/alarms): alarms tell you *something is wrong* (high error rate, elevated latency), while issues tell you *what specific errors are happening*. Configure [alert channels](/observability/alert-channels) for alarm notifications, then use the Issues page to diagnose which errors are driving the spike.
@@ -154,39 +154,23 @@ Issues complement [alarms](/observability/alarms): alarms tell you *something is
 
 ### How do I enable issue monitoring for my projects?
 
-Open the Issues page in the [Stacktape Console](/stacktape-console/console-overview) and click **Configure Issues**. You can enable monitoring organization-wide or for individual projects, and optionally restrict it to specific stage names. After enabling, matching stages need to be deployed with Stacktape CLI 3.8.0 or newer before AWS log subscriptions are added.
+Open the Issues page in the [Stacktape Console](/stacktape-console/console-overview) and click **Configure Issues** (this requires the `projects:update-settings` permission). You can enable monitoring organization-wide or for individual projects, and optionally restrict it to specific stage names. Monitoring is off by default for new projects.
 
-### What types of errors does Stacktape detect?
+### Why aren't my issues showing up after I enabled monitoring?
 
-The Console maps known error types to friendly labels — including Uncaught, Caught, Unhandled Rejection, Exit Error, Handler Not Found, and Panic. The CLI output includes the raw `errorType` value. If an error type does not match a known label, the raw value is displayed. Use these labels to group similar errors during triage.
+Enabling monitoring in the Console only configures the platform to process incoming errors — the AWS log subscriptions that actually report errors are added to your resources during deployment. You must redeploy matching stages with Stacktape CLI 3.8.0 or newer; stages last deployed with an older CLI report nothing until redeployed.
 
 ### Does issue monitoring add cost?
 
-The setup modal receives an `issuesEventSamplingRate` setting that you can adjust for high-traffic stages. See [Managing Costs](/managing-costs/overview) for broader cost guidance across Stacktape features.
+The main lever is the `issuesEventSamplingRate` setting (defaults to `100`), which you can lower for high-traffic stages to reduce issue event volume while keeping trend visibility. See [Managing Costs](/managing-costs/overview) for broader cost guidance across Stacktape features.
 
-### Can I manage issues from CI/CD pipelines?
+### How is Stacktape Issues different from Sentry or Datadog?
 
-Yes. The [`issues:list`](/cli/issues-list) command supports filtering by project, stage, and status, and emits JSON in agent mode for programmatic consumption. See the CLI reference pages for [`issues:resolve`](/cli/issues-resolve), [`issues:ignore`](/cli/issues-ignore), and [`issues:reopen`](/cli/issues-reopen) for the supported status-change commands.
-
-### What permissions do I need to configure issue monitoring?
-
-Configuring monitoring settings — enabling per project, setting the sampling rate, choosing stages — requires the `projects:update-settings` permission. See [team and access control](/stacktape-console/team-and-access-control) for managing organization permissions.
-
-### How is Stacktape Issues different from Sentry or Bugsnag?
-
-Stacktape Issues is built in and does not require adding a Sentry or Bugsnag SDK to your application. Because it does not use in-process instrumentation, it provides less context than a dedicated APM tool — no breadcrumbs, no custom tags, no user session tracking, no performance traces. Use Issues for straightforward error triage; consider a dedicated APM tool if you need deep debugging context, release tracking, or performance monitoring.
-
-### Do I need to redeploy after enabling issue monitoring?
-
-Yes. Enabling monitoring in the Console configures the platform to process incoming errors, but AWS log subscriptions are added to your resources during deployment. Matching stages need to be deployed with Stacktape CLI 3.8.0 or newer before those subscriptions are in place.
+Stacktape Issues is built in and does not require adding a Sentry or Bugsnag SDK to your application. Because it does not use in-process instrumentation, it provides less context than a dedicated APM tool — no breadcrumbs, no custom tags, no user session tracking, no performance traces. It also can't capture errors that are silently swallowed or produce no log output. Use Issues for straightforward error triage; consider a dedicated APM tool if you need deep debugging context, release tracking, or performance monitoring.
 
 ### What happens to existing issues when I disable monitoring?
 
-Existing issues remain visible in the Console after monitoring is turned off. Previously recorded issues are not deleted when monitoring is disabled. You can still filter and search them.
-
-### Can I filter issues to only production stages?
-
-Yes, at two levels. The setup modal accepts `issuesEnabledStages`, letting you control which stages are monitored. The Console page has a Stage filter for narrowing displayed issues by stage after capture.
+Existing issues remain visible in the Console after monitoring is turned off — they are not deleted. You can still filter and search them; only the capture of new issues stops.
 
 ### When should I use issues vs alarms for error monitoring?
 

@@ -17,8 +17,8 @@ Underneath, Stacktape Kinesis triggers use AWS Kinesis Data Streams, which prese
 
 Kinesis shards carry a base hourly cost and add shard-management complexity. Skip Kinesis triggers when:
 
-- **Simple task decoupling without ordering** — an [SQS trigger](/configuration/triggers/sqs-events) is simpler to operate and auto-scales consumers without shard management.
-- **Fan-out from a single event to multiple targets** — an [SNS trigger](/configuration/triggers/sns-events) or [EventBridge event bus trigger](/configuration/triggers/event-bus-events) is a better fit when each event should invoke multiple independent handlers simultaneously.
+- **Simple task decoupling without ordering** — an [SQS trigger](/resources/triggers/sqs-events) is simpler to operate and auto-scales consumers without shard management.
+- **Fan-out from a single event to multiple targets** — an [SNS trigger](/resources/triggers/sns-events) or [EventBridge event bus trigger](/resources/triggers/event-bus-events) is a better fit when each event should invoke multiple independent handlers simultaneously.
 - **Low-volume, irregular workloads** — if you process fewer than a few hundred events per second, SQS (pay-per-message) or EventBridge (pay-per-event) is more cost-effective than provisioning shards.
 
 ## Basic example
@@ -38,7 +38,7 @@ import {
 } from 'stacktape';
 
 export default defineConfig(() => {
-  const clickStream = new KinesisStream();
+  const clickStream = new KinesisStream({});
 
   const processor = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
@@ -118,7 +118,7 @@ import {
 } from 'stacktape';
 
 export default defineConfig(() => {
-  const telemetry = new KinesisStream();
+  const telemetry = new KinesisStream({});
 
   const aggregator = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
@@ -251,34 +251,18 @@ You must specify either `kinesisStreamName` or `streamArn`. | - |
 
 Yes. Use the `streamArn` property instead of `kinesisStreamName` and pass the full ARN of the external stream. Cross-account access depends on AWS permissions for the stream and the consuming Lambda function. If using enhanced fan-out with an external consumer, pass `consumerArn` directly instead of `autoCreateConsumer`.
 
-### How do I monitor a Kinesis-triggered Lambda function?
-
-Use [`stacktape debug:logs`](/cli/debug-logs) to tail the function's logs from the CLI. AWS CloudWatch publishes Kinesis-specific metrics like `IteratorAge` — a rising iterator age signals that your function is falling behind the stream and can't keep up with incoming data volume. See [Observability overview](/observability/overview) for more on monitoring and alerting.
-
 ### What happens if my function can't keep up with the stream?
 
-When records arrive faster than your function processes them, the iterator age grows — meaning there's an increasing delay between when a record is written and when it's processed. To catch up, increase `batchSize` so each invocation handles more records, add `parallelizationFactor` for concurrent batch processing per shard, increase function memory (which increases CPU), or add more shards to the underlying stream. For sustained high throughput with multiple consumers, use enhanced fan-out.
+When records arrive faster than your function processes them, the iterator age grows — the CloudWatch `IteratorAge` metric measures this increasing delay between when a record is written and when it's processed, and is the key signal that your function is falling behind. To catch up, increase `batchSize` so each invocation handles more records, add `parallelizationFactor` for concurrent batch processing per shard, increase function memory (which increases CPU), or add more shards to the underlying stream. For sustained high throughput with multiple consumers, use enhanced fan-out.
 
 ### How much does a Kinesis Data Stream cost?
 
 AWS Kinesis charges per shard-hour for provisioned mode, plus per-PUT-payload-unit for all writes. On-demand mode charges per GB written and read, with no shard management. Enhanced fan-out adds per-consumer-shard-hour and per-GB-retrieved charges. For low-traffic workloads, [SQS](/resources/messaging/sqs-queue) with its pay-per-message model is usually cheaper.
 
-### What is the maximum record size in Kinesis?
-
-AWS Kinesis accepts individual records up to 1 MB. The Lambda event source mapping delivers batches of up to 10,000 records or the Lambda payload limit (6 MB), whichever is reached first. If your records are large, keep `batchSize` low to avoid hitting the payload limit.
-
 ### When should I use Kinesis vs SQS vs EventBridge?
 
-Use **Kinesis** when you need ordered, replayable, high-throughput streaming where multiple consumers can independently read the same data. Use **[SQS](/configuration/triggers/sqs-events)** for simple decoupled task processing where each message is consumed once and ordering doesn't matter. Use **[EventBridge](/configuration/triggers/event-bus-events)** for content-based event routing — matching events by patterns and fanning out to different targets based on event type or payload. SQS is the simplest and cheapest for most workloads; Kinesis is the right tool when ordering, replay, or multi-consumer access matters.
+Use **Kinesis** when you need ordered, replayable, high-throughput streaming where multiple consumers can independently read the same data. Use **[SQS](/resources/triggers/sqs-events)** for simple decoupled task processing where each message is consumed once and ordering doesn't matter. Use **[EventBridge](/resources/triggers/event-bus-events)** for content-based event routing — matching events by patterns and fanning out to different targets based on event type or payload. SQS is the simplest and cheapest for most workloads; Kinesis is the right tool when ordering, replay, or multi-consumer access matters.
 
 ### Can I use Kinesis triggers with container workloads?
 
 The `KinesisIntegration` type is a function event integration. If you need a container-based Kinesis consumer, run a consumer application (such as the AWS Kinesis Client Library) inside a [worker service](/resources/compute/worker-service) or [multi-container workload](/resources/compute/multi-container-workload), and grant access to the stream using [`connectTo`](/configuration/connecting-resources).
-
-### Should I use TRIM_HORIZON or LATEST for starting position?
-
-Use `TRIM_HORIZON` (the default) when you need to process all available records in the stream — for example, during initial setup or when replaying data after a bug fix. Use `LATEST` when you only care about new records and historical records are irrelevant.
-
-### How do I handle poison-pill records that always fail?
-
-Combine `maximumRetryAttempts` with `bisectBatchOnFunctionError` and an `onFailure` destination. The bisect strategy narrows down the failing records by splitting each retry in half. The retry limit prevents the shard from being blocked. The failure destination captures failed batch metadata for later inspection and manual reprocessing. Design your handler to be idempotent so retried records don't produce duplicate side effects.

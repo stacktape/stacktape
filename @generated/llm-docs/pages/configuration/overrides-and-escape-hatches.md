@@ -35,17 +35,17 @@ Use [`stacktape info:stack --detailed`](/cli/info-stack) to inspect child resour
 stacktape info:stack --stage dev --region eu-west-1 --detailed
 ```
 
-Alternatively, run [`stacktape compile-template`](/cli/compile-template) to generate the full CloudFormation template locally and verify that your overrides produce the expected output:
+Alternatively, run [`stacktape synth`](/cli/synth) to generate the full CloudFormation template locally and verify that your overrides produce the expected output:
 
 ```bash
-stacktape compile-template --stage dev --region eu-west-1
+stacktape synth --stage dev --region eu-west-1
 ```
 
 This writes a `compiled-template.yaml` file you can inspect. Use it to verify that your override keys resolved correctly and that the final CloudFormation properties match your expectations.
 
 ### Common child resource names
 
-The table below lists commonly overridden child resources. Use the property name from the second column as the override key. Use [`stacktape compile-template`](/cli/compile-template) to verify the final CloudFormation output.
+The table below lists commonly overridden child resources. Use the property name from the second column as the override key. Use [`stacktape synth`](/cli/synth) to verify the final CloudFormation output.
 
 | Stacktape resource type | Child resource property name | AWS resource type |
 |---|---|---|
@@ -60,7 +60,7 @@ The table below lists commonly overridden child resources. Use the property name
 | HTTP API Gateway | `StpHttpApi` | `AWS::ApiGatewayV2::Api` |
 
 
-> **Warning:** The table above is not exhaustive, and child resource names can vary by resource shape. If an override does not take effect, use [`stacktape compile-template`](/cli/compile-template) to inspect the generated template and verify the exact child resource key.
+> **Warning:** The table above is not exhaustive, and child resource names can vary by resource shape. If an override does not take effect, use [`stacktape synth`](/cli/synth) to inspect the generated template and verify the exact child resource key.
 
 
 ## Overrides
@@ -250,7 +250,7 @@ Use overrides when you know the exact final value and it doesn't depend on exist
 | Config format | TypeScript and YAML | TypeScript (native functions) and YAML (function strings) |
 | Use case | Set known property values | Compute, append, or conditionally modify |
 | Merge behavior | Shallow merge | Full control — you return the final object |
-| Stacktape validation | CloudFormation property values are not Stacktape-validated; verify with `compile-template` | No Stacktape validation on returned properties; verify with `compile-template` |
+| Stacktape validation | CloudFormation property values are not Stacktape-validated; verify with `synth` | No Stacktape validation on returned properties; verify with `synth` |
 
 ## Raw CloudFormation resources
 
@@ -394,10 +394,10 @@ The `AwsCdkConstruct` class accepts three properties: `entryfilePath` (required,
 
 ## Inspecting the generated template
 
-To verify that your overrides, transforms, and raw resources produce the expected CloudFormation output, use [`stacktape compile-template`](/cli/compile-template):
+To verify that your overrides, transforms, and raw resources produce the expected CloudFormation output, use [`stacktape synth`](/cli/synth):
 
 ```bash
-stacktape compile-template --stage dev --region eu-west-1
+stacktape synth --stage dev --region eu-west-1
 ```
 
 This writes the final CloudFormation template to `compiled-template.yaml`. Inspect it before deploying to catch errors early — CloudFormation deployment failures are slower to debug than template inspection.
@@ -407,47 +407,35 @@ This writes the final CloudFormation template to `compiled-template.yaml`. Inspe
 - **Try native properties first.** Overrides are a last resort. Check the resource's API reference for the property you need before reaching for an override.
 - **Use transforms for array modifications.** If you need to append to an existing array (layers, environment variables, mount points), a transform is safer than an override because it preserves whatever Stacktape already configured.
 - **Keep overrides minimal.** Each override is a maintenance obligation — Stacktape may change its internal resource structure in future versions.
-- **Validate with `compile-template`.** Always inspect the compiled output after adding overrides or transforms. Overrides bypass Stacktape's validation, so errors only surface at deploy time if you skip this step.
+- **Validate with `synth`.** Always inspect the compiled output after adding overrides or transforms. Overrides bypass Stacktape's validation, so errors only surface at deploy time if you skip this step.
 - **Prefer CDK constructs for multi-resource setups.** If you need more than 2-3 related raw CloudFormation resources with cross-references, a CDK construct is cleaner and benefits from CDK's type-safe APIs.
 - **Document why, not what.** When using overrides, add a code comment explaining why the override is needed — the code already shows what it does.
 
 ## FAQ
 
-### Can I use overrides in YAML configs?
+### Should I use overrides or transforms?
 
-Yes. Overrides work in both TypeScript and YAML configurations. In YAML, specify overrides using the child resource property name and provide the CloudFormation properties to set. The syntax is the same — an object keyed by child resource name with property values beneath it.
+Use overrides when you know the exact final value and it doesn't depend on existing configuration — they're static key-value pairs merged shallowly on top of what Stacktape generates. Use transforms when you need to append to an array (layers, environment variables, mount points) without clobbering existing entries, conditionally modify a property, or compute a value from the resource's current configuration. Transforms are JavaScript functions that receive the current `Properties` and return the final object, so you get full control over the merge.
 
-### Can I use transforms in YAML configs?
+### Can I use overrides and transforms in YAML configs?
 
-The legacy curated examples show YAML transforms as inline JavaScript function body strings. Prefer TypeScript configs for transforms because the function is native code with IDE autocomplete and type safety. For simple transformations, YAML function strings work; for complex logic, use TypeScript.
-
-### What happens if I override a property that Stacktape also sets?
-
-Stacktape applies overrides after it generates the base CloudFormation template. Your override keys are applied on top of the generated values. Use [`stacktape compile-template`](/cli/compile-template) to verify the final merged output before deploying.
+Both work in YAML, but transforms are awkward there: YAML transforms are written as inline JavaScript function body strings, while overrides are plain objects keyed by child resource name. Prefer TypeScript configs — transforms become native functions with IDE autocomplete and type safety, and overrides get intellisense for child resource keys.
 
 ### Will overrides break when Stacktape updates?
 
-Possibly. If Stacktape changes how it structures a child resource internally, your override could target a property that no longer exists or behaves differently. This is rare in patch updates but can happen in major versions. Pin your Stacktape version in production and test overrides after upgrading. Running `compile-template` after an upgrade shows whether your overrides still produce the expected output.
+Possibly. If Stacktape changes how it structures a child resource internally, your override could target a property that no longer exists or behaves differently. This is rare in patch updates but can happen in major versions. Pin your Stacktape version in production and test overrides after upgrading. Running `synth` after an upgrade shows whether your overrides still produce the expected output.
 
-### How do I find what CloudFormation attributes I can reference with $CfResourceParam?
+### What attributes can I reference with $CfResourceParam?
 
-Check the [AWS CloudFormation Resource Reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for the resource type you're targeting. Each resource type lists its return values — these are the attributes you can pass as the second argument to `$CfResourceParam`. Common ones include `Arn`, `Ref` (physical ID), and resource-specific attributes like `TopicArn` for SNS or `BucketName` for S3.
+The second argument to [`$CfResourceParam`](/configuration/directives) is a CloudFormation return value of the target resource type. Check the [AWS CloudFormation Resource Reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for each type's available return values. Common ones include `Ref` (the physical resource ID) and resource-specific attributes like `TopicArn` for SNS or `Arn`/`BucketName` for S3.
 
 ### Do raw CloudFormation resources get automatic IAM permissions?
 
-No. Unlike Stacktape-managed resources (which get permissions automatically via [`connectTo`](/configuration/connecting-resources)), raw CloudFormation resources require you to manage IAM roles and policies manually. You'll need to add your own `AWS::IAM::Role` or `AWS::IAM::Policy` resources in `cloudformationResources`, or use overrides on existing Stacktape-managed roles to add additional policy statements.
+No. Unlike Stacktape-managed resources — which get baseline IAM permissions automatically and support [`connectTo`](/configuration/connecting-resources) integration — raw CloudFormation resources require you to manage IAM roles and policies manually. You'll need to add your own `AWS::IAM::Role` or `AWS::IAM::Policy` resources in `cloudformationResources`, or use overrides on existing Stacktape-managed roles to add additional policy statements.
 
 ### When should I use a CDK construct instead of raw CloudFormation?
 
 Use CDK constructs when you need multiple interrelated resources with complex configuration logic — for example, a CloudWatch dashboard with dynamic widgets, a custom VPC peering setup, or a Step Functions state machine with many states. CDK provides type-safe APIs, intelligent defaults, and handles cross-resource references cleanly. For a single additional resource (like an SNS topic or a Secrets Manager secret), raw CloudFormation is simpler and has less tooling overhead.
-
-### How do I inspect CDK construct outputs in my stack?
-
-Use [`stacktape compile-template`](/cli/compile-template) to inspect the synthesized CloudFormation output when combining CDK constructs with other Stacktape resources. CDK constructs are synthesized into CloudFormation resources during deployment. The compiled template shows the logical names CDK generates, which is useful for debugging and understanding the final template structure.
-
-### Are there limits on raw CloudFormation resources?
-
-Raw CloudFormation resources count toward AWS CloudFormation's per-stack resource limits. They also don't benefit from Stacktape's simplified configuration, automatic IAM permissions, or `connectTo` support. For most projects the resource count is not a concern, but large stacks with many resources should monitor the total count via `compile-template` output.
 
 ### Can I override resources conditionally based on the stage?
 

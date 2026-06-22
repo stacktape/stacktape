@@ -85,7 +85,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['mainDb']
+    connectTo: [mainDb]
   });
 
   return {
@@ -413,18 +413,6 @@ Use MongoDB Atlas when your data has variable schemas, deeply nested structures,
 
 Add the cluster's resource name to your workload's [`connectTo`](/configuration/connecting-resources) list. Stacktape injects the `STP_[RESOURCE_NAME]_CONNECTION_STRING` environment variable with the MongoDB connection URI. Use this connection string directly with any MongoDB driver.
 
-### Can I auto-scale my MongoDB Atlas cluster?
-
-Yes, dedicated tiers (M10+) support automatic tier scaling. Set `autoScaling.minClusterTier` and `autoScaling.maxClusterTier` to define scaling bounds. The cluster scales up when CPU or memory exceeds 75% for 1 hour and scales down when both drop below 50% for 24 hours. Disk storage also auto-scales by default, expanding when usage hits 90%. Shared tiers (M2/M5) do not support auto-scaling.
-
-### MongoDB Atlas vs DynamoDB — which should I choose?
-
-Use [DynamoDB](/resources/databases/dynamodb) for key-value and simple document workloads with unpredictable traffic — it scales to zero and charges per request with no base cost. Use MongoDB Atlas when you want MongoDB's document model and query ecosystem rather than DynamoDB's key-value access patterns. DynamoDB is cheaper at low scale; MongoDB Atlas offers more query flexibility but has a fixed monthly cost based on the selected tier.
-
-### Does Stacktape support MongoDB Atlas sharding?
-
-Yes. Set `numShards` to a value greater than 1 to enable sharded mode. Sharding requires a dedicated tier of M30 or higher — M2, M5, M10, and M20 tiers don't support it. Most applications don't need sharding — consider it only when a single replica set can't handle your write volume or dataset size.
-
 ### How do I back up my MongoDB Atlas cluster?
 
 Dedicated tiers (M10+) support configurable daily snapshots at 18:00 UTC via `enableBackups: true`. For finer recovery granularity, enable `enablePointInTimeRecovery` to restore to any second within the last 7 days (requires `enableBackups`). M2/M5 get automatic snapshots with different rules. Enable both properties for any production cluster where data loss is unacceptable.
@@ -433,6 +421,6 @@ Dedicated tiers (M10+) support configurable daily snapshots at 18:00 UTC via `en
 
 Set `adminUserCredentials` with a username and password to provide an admin user for direct database access (e.g., from your local machine or admin tools). Local access also depends on the configured Atlas accessibility mode and allowed IPs — use [bastion tunneling](/resources/security/bastion-host) in your [scripts](/configuration/hooks-and-scripts) to securely tunnel connections through a bastion host when using `vpc` or `scoping-workloads-in-vpc` mode. Admin credentials are not needed for application access via `connectTo`.
 
-### Do I need additional provider configuration to use this resource?
+### Why does my MongoDB Atlas cluster fail to deploy without provider configuration?
 
-Yes. MongoDB Atlas is a third-party service, so you must configure `providerConfig.mongoDbAtlas` in your Stacktape configuration before deploying a `mongo-db-atlas-cluster` resource. Store sensitive settings as [secrets](/configuration/secrets) and reference them with `$Secret()`. [Upstash Redis](/resources/databases/upstash-redis) also uses `providerConfig` for the same reason. AWS-native databases like [relational databases](/resources/databases/relational-database) and [DynamoDB](/resources/databases/dynamodb) do not require additional provider configuration.
+MongoDB Atlas is a third-party service, so you must configure `providerConfig.mongoDbAtlas` in your Stacktape configuration before deploying a `mongo-db-atlas-cluster` resource — unlike AWS-native databases such as [relational databases](/resources/databases/relational-database) and [DynamoDB](/resources/databases/dynamodb), which need no extra provider setup. Store sensitive settings (like private keys) as [secrets](/configuration/secrets) and reference them with the `$Secret()` directive rather than putting them in your config file.

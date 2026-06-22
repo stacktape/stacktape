@@ -113,44 +113,44 @@ The dev TUI supports these keyboard commands:
 
 ## Viewing logs
 
-Stacktape provides two ways to view Lambda function logs: real-time streaming in the dev TUI during active development, and historical log fetching with [`stacktape debug:logs`](/cli/debug-logs) for deployed stages.
+Stacktape provides two ways to view Lambda function logs: real-time streaming in the dev TUI during active development, and historical log fetching with [`stacktape logs`](/cli/logs) for deployed stages.
 
 ### Dev TUI log streaming
 
 The Stacktape dev TUI shows logs for running workloads during the dev session, giving you immediate feedback on each invocation. Logs appear within the TUI alongside status information for all running workloads and local resources. This is the primary debugging interface during active development — you see function output, errors, and stack traces without leaving your terminal.
 
 
-> **Tip:** Structure your Lambda function output as JSON objects. JSON logs are easier to search and filter — both in the dev TUI during development and later with [`stacktape debug:logs`](/cli/debug-logs) and CloudWatch Logs Insights when investigating production issues.
+> **Tip:** Structure your Lambda function output as JSON objects. JSON logs are easier to search and filter — both in the dev TUI during development and later with [`stacktape logs`](/cli/logs) and CloudWatch Logs Insights when investigating production issues.
 
 
-### Historical logs with debug:logs
+### Historical logs with logs
 
-Outside of dev mode, use [`stacktape debug:logs`](/cli/debug-logs) to fetch logs for a Stacktape resource in a deployed stack. For Lambda debugging, pass the Lambda function resource name with `--resourceName`.
+Outside of dev mode, use [`stacktape logs`](/cli/logs) to fetch logs for a Stacktape resource in a deployed stack. For Lambda debugging, pass the Lambda function resource name with `--resourceName`.
 
 View logs for a specific function:
 
 ```bash
-stacktape debug:logs --resourceName myApi --stage production
+stacktape logs --resourceName myApi --stage production
 ```
 
-By default, `stacktape debug:logs` uses a one-hour start time and returns up to 100 events.
+By default, `stacktape logs` uses a one-hour start time and returns up to 100 events.
 
 View the last 30 minutes of logs:
 
 ```bash
-stacktape debug:logs --resourceName myApi --stage production --startTime 30m
+stacktape logs --resourceName myApi --stage production --startTime 30m
 ```
 
 Filter logs containing a specific pattern:
 
 ```bash
-stacktape debug:logs --resourceName myApi --stage production --filter "ERROR"
+stacktape logs --resourceName myApi --stage production --filter "ERROR"
 ```
 
 Run a CloudWatch Logs Insights query for structured searching:
 
 ```bash
-stacktape debug:logs --resourceName myApi --stage production --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
+stacktape logs --resourceName myApi --stage production --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
 ```
 
 The `--startTime` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolute ISO timestamps. Use `--limit` to control how many log events are returned. `--endTime` sets the upper time boundary for `--query` Logs Insights queries. `--raw` switches the standard log-fetching output to machine-readable JSON; the `--query` path prints formatted results unless agent mode is active.
@@ -248,7 +248,7 @@ Lambda functions in dev mode run on AWS infrastructure rather than locally, so t
 
 ### Structured logging
 
-Lambda functions run on AWS during dev mode, so the primary debugging approach is structured logging rather than local debugger attachment. The tradeoff is high-fidelity testing against the real Lambda runtime. Structured logging is the most effective debugging approach — add JSON log statements at key points in your function. The dev TUI shows them during the session, and you can query them later with [`stacktape debug:logs`](/cli/debug-logs).
+Lambda functions run on AWS during dev mode, so the primary debugging approach is structured logging rather than local debugger attachment. The tradeoff is high-fidelity testing against the real Lambda runtime. Structured logging is the most effective debugging approach — add JSON log statements at key points in your function. The dev TUI shows them during the session, and you can query them later with [`stacktape logs`](/cli/logs).
 
 ```typescript
 export const handler = async (event: any) => {
@@ -280,17 +280,17 @@ Use descriptive `action` fields so you can later filter with `--filter "request_
 
 ### Testing HTTP-triggered functions
 
-For Lambda functions with [HTTP API Gateway triggers](/configuration/triggers/http-triggers), invoke the function's endpoint directly with curl, a browser, or any HTTP client while watching logs stream in the dev TUI. For HTTP-triggered Lambda functions, use the URL shown by dev mode when one is available, or inspect the deployed stack outputs for the endpoint.
+For Lambda functions with [HTTP API Gateway triggers](/resources/triggers/http-triggers), invoke the function's endpoint directly with curl, a browser, or any HTTP client while watching logs stream in the dev TUI. For HTTP-triggered Lambda functions, use the URL shown by dev mode when one is available, or inspect the deployed stack outputs for the endpoint.
 
 ### Narrowing the feedback loop
 
-When debugging a specific function, use `--resources <name>` to start only that function in dev mode. This reduces startup time and log noise from other workloads. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/configuration/triggers/sqs-events), or wait for [schedules](/configuration/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
+When debugging a specific function, use `--resources <name>` to start only that function in dev mode. This reduces startup time and log noise from other workloads. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
 
 ## Dev mode vs deployed-stack debugging
 
-Stacktape offers two distinct workflows for investigating Lambda function behavior: interactive dev mode for active development, and [`stacktape debug:logs`](/cli/debug-logs) for historical log analysis on deployed stages. Choose based on whether you are iterating on code or investigating an issue in an existing deployment.
+Stacktape offers two distinct workflows for investigating Lambda function behavior: interactive dev mode for active development, and [`stacktape logs`](/cli/logs) for historical log analysis on deployed stages. Choose based on whether you are iterating on code or investigating an issue in an existing deployment.
 
-| Aspect | Dev mode (`stacktape dev`) | Deployed stack (`debug:logs`) |
+| Aspect | Dev mode (`stacktape dev`) | Deployed stack (`logs`) |
 |--------|---------------------------|-------------------------------|
 | Log delivery | Streamed in the dev TUI | Historical fetch from CloudWatch |
 | Code iteration | Rebuild from TUI with `rs` | Requires full [`stacktape deploy`](/cli/deploy) |
@@ -300,7 +300,7 @@ Stacktape offers two distinct workflows for investigating Lambda function behavi
 | Local resources | Docker-based databases on your machine | Not applicable |
 | Best for | Active development and rapid iteration | Investigating issues in deployed stages |
 
-Use dev mode for active development — the rebuild-and-test loop from the TUI is significantly faster than deploying each change. Use [`stacktape debug:logs`](/cli/debug-logs) for investigating issues in deployed production or staging stacks where you need historical logs without disrupting the running environment. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview).
+Use dev mode for active development — the rebuild-and-test loop from the TUI is significantly faster than deploying each change. Use [`stacktape logs`](/cli/logs) for investigating issues in deployed production or staging stacks where you need historical logs without disrupting the running environment. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview).
 
 ## FAQ
 
@@ -308,38 +308,30 @@ Use dev mode for active development — the rebuild-and-test loop from the TUI i
 
 Lambda functions in dev mode run on AWS Lambda infrastructure, not on your local machine. The debugging path documented here is log streaming in the dev TUI combined with targeted rebuilds using `rs <name>`. The tradeoff is high-fidelity testing against the real Lambda runtime on AWS. Add targeted `console.info(JSON.stringify(...))` statements at key points and rebuild quickly after changes.
 
-### How do I rebuild a function after changing code?
-
-Type `rs` in the dev TUI and press Enter to rebuild all workloads, or `rs <functionName>` to rebuild a specific function. Stacktape runs the rebuild handler for the selected workload, giving you explicit control over when rebuilds happen.
-
 ### Do my Lambda function's event sources work in dev mode?
 
-Lambda functions are included as dev-compatible workloads, and normal dev mode deploys a dev stack that includes selected functions. To verify a trigger during dev mode, invoke the function's configured entry point — call the HTTP endpoint directly, send a message to a connected queue, or wait for a scheduled trigger — and watch the dev TUI logs for output. See [triggers overview](/configuration/triggers/overview) for the available event source types.
+Lambda functions are included as dev-compatible workloads, and normal dev mode deploys a dev stack that includes selected functions. To verify a trigger during dev mode, invoke the function's configured entry point — call the HTTP endpoint directly, send a message to a connected queue, or wait for a scheduled trigger — and watch the dev TUI logs for output. See [triggers overview](/resources/triggers/overview) for the available event source types.
 
 ### Can I debug only some functions while keeping others untouched?
 
 Yes. Use `--resources myApi,myWorker` to select specific functions, or `--skipResources heavyBatchJob` to exclude some. Only selected resources are started and rendered in the dev TUI during the session. This is useful when you're iterating on one function and don't want to rebuild or disrupt others.
 
-### What happens to Lambda environment variables when dev mode exits?
-
-Dev mode registers a Lambda environment cleanup hook when it starts. On exit (via `Ctrl+C` or SIGTERM), the registered cleanup hooks run. If dev mode exits unexpectedly, use a fresh [`stacktape deploy`](/cli/deploy) or restart dev mode if the deployed stack's Lambda configuration needs to be reconciled.
-
 ### What's the difference between normal and legacy dev mode?
 
 Normal dev mode (the default) deploys its own dev stack and supports running databases locally in Docker with tunnel connectivity to deployed Lambda functions. Legacy dev mode (`--devMode legacy`) requires an already-deployed stack and does not support local database emulation. Use normal mode for day-to-day development; use legacy mode when you need to test against a full production-equivalent stack or an existing deployed stage.
 
-### Should I use dev mode or full deploy to test Lambda functions?
+### Why does dev mode refuse to start on my stage?
 
-Use dev mode for active development — the rebuild cycle from the TUI is much faster than running [`stacktape deploy`](/cli/deploy) for each code change. Use a full deploy when you need to validate the exact deployed stack rather than the selected dev-mode resources and local emulation. Dev mode is for fast iteration; full deploy is for comprehensive validation.
+Normal dev mode and full deployments share the same stage namespace, so running `stacktape dev` against a stage that already has a healthy non-dev stack (from a prior [`stacktape deploy`](/cli/deploy)) is rejected to avoid overwriting it. Use a dedicated stage name like `dev`, `dev-local`, or `dev-jane`, or run `--devMode legacy` to attach to the existing deployed stack instead.
+
+### How do my local databases connect to functions running on AWS?
+
+Lambda functions in dev mode run on AWS and cannot reach `localhost` on your machine, so Stacktape creates TCP tunnels that expose each selected [local database](/local-development/local-databases) through a publicly reachable endpoint, plus an "Injecting environment" step that wires the functions to the active session. If tunnels are blocked by a corporate firewall or network policy, pass `--noTunnel` — the environment-injection step still runs.
 
 ### How much does running dev mode cost?
 
-Dev mode deploys a dev stack to run selected workloads. AWS Lambda charges apply for function invocations during development; the AWS Lambda free tier includes 1 million requests and 400,000 GB-seconds per month. Selected local databases run on your machine as Docker containers, so database service charges for those local resources do not apply during the dev session. Other AWS resources in the dev stack (such as API Gateway endpoints) can still incur charges.
-
-### Can I use dev mode for container workloads too?
-
-Yes. Container workloads ([web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service), [private services](/resources/compute/private-service), and [multi-container workloads](/resources/compute/multi-container-workload)) are dev-compatible and run locally in Docker during dev mode. Unlike Lambda functions (which deploy to AWS), containers execute on your machine. Hosting buckets with a `dev` configuration and SSR frontends ([Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), etc.) are also supported. See [debugging containers](/local-development/debugging-containers) for container-specific details.
+Dev mode deploys a dev stack on real AWS infrastructure, so standard AWS charges apply for the resources it runs (Lambda invocations, API Gateway endpoints, and other deployed resources). Selected local databases run on your machine as Docker containers, so no AWS database service charges apply for those during the dev session. Note that `stacktape logs` CloudWatch Logs Insights queries (via `--query`) are billed by the amount of data scanned — use narrow time ranges and specific filters on high-volume functions.
 
 ### How do I view logs from a Lambda function that's already deployed?
 
-Use [`stacktape debug:logs`](/cli/debug-logs) with `--resourceName` and `--stage` to fetch CloudWatch logs from any deployed stage. By default, it returns the last hour of logs (up to 100 events). Add `--filter "ERROR"` to narrow results, or use `--query` for CloudWatch Logs Insights queries that can search structured JSON fields across log streams. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview).
+Use [`stacktape logs`](/cli/logs) with `--resourceName` and `--stage` to fetch CloudWatch logs from any deployed stage. By default, it returns the last hour of logs (up to 100 events). Add `--filter "ERROR"` to narrow results, or use `--query` for CloudWatch Logs Insights queries that can search structured JSON fields across log streams. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview).

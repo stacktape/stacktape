@@ -13,9 +13,9 @@ SQS event triggers fit when you need reliable, at-least-once message processing 
 
 ## When NOT to use
 
-- **Fan-out to multiple consumers** — a single SQS queue should have only one consumer. If multiple services need the same message, use an [SNS topic](/configuration/triggers/sns-events) or [EventBridge event bus](/configuration/triggers/event-bus-events) to fan out into separate queues.
-- **Ordered streaming with sub-second latency** — for per-shard ordering and continuous stream processing, use [Kinesis streams](/configuration/triggers/kinesis-events).
-- **Request-response patterns** — SQS is asynchronous and fire-and-forget. If the caller needs a synchronous response, use an [HTTP trigger](/configuration/triggers/http-triggers).
+- **Fan-out to multiple consumers** — a single SQS queue should have only one consumer. If multiple services need the same message, use an [SNS topic](/resources/triggers/sns-events) or [EventBridge event bus](/resources/triggers/event-bus-events) to fan out into separate queues.
+- **Ordered streaming with sub-second latency** — for per-shard ordering and continuous stream processing, use [Kinesis streams](/resources/triggers/kinesis-events).
+- **Request-response patterns** — SQS is asynchronous and fire-and-forget. If the caller needs a synchronous response, use an [HTTP trigger](/resources/triggers/http-triggers).
 
 ## Basic example
 
@@ -157,7 +157,7 @@ You must specify exactly one of `sqsQueueName` or `sqsQueueArn` — not both. Us
 
 ## Handling failures
 
-Unlike [Kinesis](/configuration/triggers/kinesis-events) and [DynamoDB stream](/configuration/triggers/dynamodb-streams) triggers — which expose `maximumRetryAttempts` and `onFailure` properties directly on the integration — `SqsIntegration` does not expose retry, `onFailure`, or dead-letter properties.
+Unlike [Kinesis](/resources/triggers/kinesis-events) and [DynamoDB stream](/resources/triggers/dynamodb-streams) triggers — which expose `maximumRetryAttempts` and `onFailure` properties directly on the integration — `SqsIntegration` does not expose retry, `onFailure`, or dead-letter properties.
 
 When your Lambda function throws an error while processing an SQS batch, AWS returns the entire batch of messages to the queue for reprocessing. The queue's visibility timeout controls how long messages stay hidden from consumers after delivery. AWS dead-letter behavior for SQS is configured on the queue through a redrive policy, not on the event source mapping. See the [SQS queue resource page](/resources/messaging/sqs-queue) for queue-level configuration options.
 
@@ -209,13 +209,9 @@ You must specify either `sqsQueueName` or `sqsQueueArn`. | - |
 
 ## FAQ
 
-### Can I consume messages from an SQS queue not managed by this stack?
-
-Yes. Use the `sqsQueueArn` property to reference an existing SQS queue by its ARN. For cross-account queues, verify that your AWS setup grants the necessary permissions. See [using an external queue](#using-an-external-queue) above.
-
 ### Can I attach multiple Lambda functions to the same SQS queue?
 
-No. Each standard SQS queue should have exactly one consumer. When a message is delivered to a consumer, it becomes invisible to other consumers for the duration of the visibility timeout. If multiple services need the same message, use an [SNS topic](/configuration/triggers/sns-events) or [EventBridge event bus](/configuration/triggers/event-bus-events) to fan out to separate queues — one per consumer.
+No. Each standard SQS queue should have exactly one consumer. When a message is delivered to a consumer, it becomes invisible to other consumers for the duration of the visibility timeout. If multiple services need the same message, use an [SNS topic](/resources/triggers/sns-events) or [EventBridge event bus](/resources/triggers/event-bus-events) to fan out to separate queues — one per consumer.
 
 ### What happens when my Lambda function fails to process a message?
 
@@ -229,18 +225,14 @@ If the referenced queue is FIFO, `SqsIntegration` still references it through `s
 
 AWS SQS uses a request-based pricing model, with standard queues priced lower than FIFO queues and rates varying by region. AWS includes a free tier for SQS. For current rates and free-tier details, see [AWS SQS pricing](https://aws.amazon.com/sqs/pricing/). For most Lambda-triggered workloads, SQS costs are negligible compared to Lambda execution costs.
 
-### SQS vs SNS — when should I use each?
+### When should I use SQS instead of SNS or EventBridge?
 
-Use SQS when you need a durable work queue with one consumer that processes messages at its own pace — order processing, background jobs, traffic buffering. Use [SNS](/configuration/triggers/sns-events) when you need pub/sub fan-out: one message delivered to multiple subscribers simultaneously. A common pattern combines both — SNS fans out to multiple SQS queues, each with its own consumer Lambda.
-
-### SQS vs EventBridge — which is better for event routing?
-
-[EventBridge](/configuration/triggers/event-bus-events) excels at content-based routing — it filters events by field values and routes them to different targets without code. SQS is better for simple point-to-point message queuing where you want buffering, backpressure, and straightforward retries. Use EventBridge for routing decisions, SQS for reliable task processing.
+Use SQS when you need a durable work queue with one consumer that processes messages at its own pace — order processing, background jobs, traffic buffering. Use [SNS](/resources/triggers/sns-events) when you need pub/sub fan-out: one message delivered to multiple subscribers at once. Use [EventBridge](/resources/triggers/event-bus-events) when you need content-based routing — filtering events by field values and routing them to different targets without code. A common pattern combines them — SNS or EventBridge fans out to multiple SQS queues, each with its own consumer Lambda.
 
 ### What is the maximum message size for SQS?
 
 AWS SQS supports messages up to 256 KB. For larger payloads, store the data in an [S3 bucket](/resources/storage/s3-bucket) and send the S3 object key as the message body. Your consumer Lambda reads the full payload from S3 using that key. This pattern keeps queue throughput high while supporting arbitrarily large data.
 
-### How do I monitor SQS message processing?
+### How do I tell whether my queue is falling behind?
 
-Use [`stacktape debug:logs`](/cli/debug-logs) to view your Lambda function's execution logs, including any errors during message processing. AWS CloudWatch also provides SQS queue metrics like `ApproximateNumberOfMessagesVisible` (backlog depth) and `ApproximateAgeOfOldestMessage` (processing lag). Configure [alarms](/observability/alarms) on these metrics to alert when your queue falls behind.
+Watch the CloudWatch SQS metrics `ApproximateNumberOfMessagesVisible` (backlog depth) and `ApproximateAgeOfOldestMessage` (processing lag) — a growing backlog or rising age means your consumer can't keep up, so raise `batchSize` or increase Lambda concurrency. Configure [alarms](/observability/alarms) on these metrics to get alerted, and use [`stacktape logs`](/cli/logs) to inspect handler errors during message processing.

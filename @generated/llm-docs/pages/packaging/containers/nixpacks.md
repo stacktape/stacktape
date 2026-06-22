@@ -563,33 +563,21 @@ Use Nixpacks when you want auto-detected builds without writing a Dockerfile and
 
 The [Stacktape container buildpack](/packaging/containers/stacktape-buildpack) is built and maintained by Stacktape. For JS/TS, the Stacktape buildpack bundles code into a single file with source maps. It supports JavaScript, TypeScript, Python, Java, and Go for container images. Nixpacks is an open-source tool with broader language support and offers `startCmd`, build phases, custom base images (`buildImage`, `startRunImage`), and runtime file filtering (`startOnlyIncludeFiles`). Prefer the Stacktape buildpack for supported languages when you do not need Nixpacks-specific controls such as phases or custom Nixpacks providers.
 
-### Which Stacktape resources support Nixpacks packaging?
+### Can I use Nixpacks with Lambda functions?
 
-Stacktape exposes Nixpacks as a packaging option for container-based compute resources: [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), and [batch jobs](/resources/compute/batch-job). It is not available for [Lambda functions](/resources/compute/lambda-function), which use [function packaging modes](/packaging/overview).
+No. Nixpacks is a container packaging mode, available only on container-based compute: [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), and [batch jobs](/resources/compute/batch-job). [Lambda functions](/resources/compute/lambda-function) use [function packaging modes](/packaging/overview) instead.
 
-### Can I install system packages during the build?
+### How do I install system packages like ffmpeg or libpq?
 
-Yes. Use `nixPkgs` to install Nix packages or `aptPkgs` to install APT packages within a Nixpacks build phase. For example, adding `nixPkgs: ['ffmpeg', 'imagemagick']` makes those tools available during that phase. Whether packages installed in a build phase are available at runtime depends on the Nixpacks build process — if you need specific packages at runtime, consider using `startRunImage` set to an image that already includes them.
+Add them to a build phase: `nixPkgs` installs Nix packages (e.g. `['ffmpeg', 'imagemagick']`) and `aptPkgs` installs APT packages (e.g. `['libpq-dev']`) on Debian/Ubuntu-based builds. The gotcha: packages added in a phase are present at build time, but whether they survive into the runtime image depends on the build. If you need a tool at runtime, set `startRunImage` to a base image that already includes it.
 
 ### How do I reduce the final container image size?
 
 Use `startOnlyIncludeFiles` to include only the files needed at runtime (e.g., compiled binaries, production dependencies). Combine this with `startRunImage` set to a smaller base image like `node:20-slim` or `python:3.12-slim`. For compiled languages, you may only need the output binary in the runtime image.
 
-### What is a Nixpacks provider and when should I override it?
-
-A Nixpacks provider encapsulates language-specific build logic — package installation, compilation, and start command inference. By default, Nixpacks auto-detects the provider from your project files. Override the `providers` property when auto-detection picks the wrong language (common in monorepos or projects with multiple language files), or when you need to combine providers for a multi-language build.
-
-### Can I cache dependencies between builds?
-
-Yes. Use `cacheDirectories` in a build phase to list directories that should be cached between builds to speed up subsequent builds. For example, caching `/root/.cache/pip` for Python or `/root/.npm` for Node.js can reduce repeated dependency downloads when the cache is reused. This is a phase-level setting — each phase can cache different directories.
-
-### How does Nixpacks compare to external buildpacks (Paketo/Heroku)?
-
-Both Nixpacks and [external buildpacks](/packaging/containers/external-buildpack) auto-detect your application type. Nixpacks uses Nix for dependency management and gives you fine-grained phase control (custom commands, system packages, caching per phase). External buildpacks follow the Cloud Native Buildpacks specification and use builders like Paketo or Heroku — they're a better fit if your team is already invested in the CNB ecosystem or needs certified buildpacks.
-
 ### What is the difference between `buildImage` and `startRunImage`?
 
-`buildImage` is the base image Nixpacks uses for building the application. `startRunImage` is the base image for running the application in production. Separating them lets you use a feature-rich build environment (with compilers, headers, build tools) while keeping the production image lean. Most projects only customize one or neither.
+`buildImage` is the base image Nixpacks uses for building the application; `startRunImage` is the base image for running it in production. Separating them lets you use a feature-rich build environment (compilers, headers, build tools) while keeping the production image lean. The footgun: when you override `startRunImage`, you are responsible for compatibility with the build output — a binary compiled against glibc will not run on an Alpine (musl) image, and system packages installed during the build must also exist in the run image. Most projects customize one or neither.
 
 ## API reference
 

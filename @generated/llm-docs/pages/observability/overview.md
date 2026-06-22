@@ -8,9 +8,9 @@ Stacktape provides multiple observability surfaces for supported workloads and A
 
 | Surface | CLI | Console | Config |
 |---------|-----|---------|--------|
-| [Logs](/observability/logs) | [`stacktape debug:logs`](/cli/debug-logs) | See [Logs](/observability/logs) | — |
-| [Metrics](/observability/metrics) | [`stacktape debug:metrics`](/cli/debug-metrics) | See [Metrics](/observability/metrics) | — |
-| [Alarms](/observability/alarms) | [`stacktape debug:alarms`](/cli/debug-alarms) | Alarm state overview, alarm rules editor | See [Alarms](/observability/alarms) |
+| [Logs](/observability/logs) | [`stacktape logs`](/cli/logs) | See [Logs](/observability/logs) | — |
+| [Metrics](/observability/metrics) | [`stacktape metrics`](/cli/metrics) | See [Metrics](/observability/metrics) | — |
+| [Alarms](/observability/alarms) | [`stacktape alarms`](/cli/alarms) | Alarm state overview, alarm rules editor | See [Alarms](/observability/alarms) |
 | [Issues](/observability/issues) | [`stacktape issues:list`](/cli/issues-list), [`issues:resolve`](/cli/issues-resolve), [`issues:ignore`](/cli/issues-ignore), [`issues:reopen`](/cli/issues-reopen) | Error inbox with grouping and occurrence counts | Enabled in Console for all projects, selected projects, or specific stage names |
 | [Alert channels](/observability/alert-channels) | — | Create and manage channels | See [Alert channels](/observability/alert-channels) |
 | [Notifications](/observability/notifications) | — | Notification rules for deployment events | — |
@@ -19,11 +19,11 @@ Stacktape provides multiple observability surfaces for supported workloads and A
 
 ## Logs
 
-Stacktape has a logs surface for inspecting CloudWatch Logs produced by your stack. Use [`stacktape debug:logs`](/cli/debug-logs) for ad-hoc log queries and live tailing from the terminal — filter by resource, time range, or keyword. The Console provides a persistent log viewer for browsing logs across resources and stages without leaving the browser. For full CLI options and details, see [Logs](/observability/logs).
+Stacktape has a logs surface for inspecting CloudWatch Logs produced by your stack. Use [`stacktape logs`](/cli/logs) for ad-hoc log queries and live tailing from the terminal — filter by resource, time range, or keyword. The Console provides a persistent log viewer for browsing logs across resources and stages without leaving the browser. For full CLI options and details, see [Logs](/observability/logs).
 
 ## Metrics
 
-Stacktape provides a metrics surface for viewing AWS CloudWatch metrics produced by your resources. Use [`stacktape debug:metrics`](/cli/debug-metrics) for quick terminal-based metric checks — useful during active debugging or in CI/CD scripts. The Console provides metric dashboards for ongoing monitoring across your stack. For full CLI options and details, see [Metrics](/observability/metrics).
+Stacktape provides a metrics surface for viewing AWS CloudWatch metrics produced by your resources. Use [`stacktape metrics`](/cli/metrics) for quick terminal-based metric checks — useful during active debugging or in CI/CD scripts. The Console provides metric dashboards for ongoing monitoring across your stack. For full CLI options and details, see [Metrics](/observability/metrics).
 
 ## Alarms
 
@@ -33,7 +33,7 @@ Alarms monitor CloudWatch metrics and fire when a threshold is breached. You can
 
 **Console-managed rules** — alarm rules created in the Console monitor AWS metrics for your resources, such as Lambda error rates, database CPU usage, or API latency. When a metric crosses the defined threshold, an alert is sent to the channel you specify. Creating or changing a rule saves it in the Console; Stacktape creates, updates, or removes the underlying CloudWatch Alarms and EventBridge notification routing the next time each matching project and stage is deployed.
 
-**From the CLI**, use [`stacktape debug:alarms`](/cli/debug-alarms) to inspect alarm state in a stack.
+**From the CLI**, use [`stacktape alarms`](/cli/alarms) to inspect alarm state in a stack.
 
 ## Issues
 
@@ -110,10 +110,6 @@ Both work against the same underlying CloudWatch data and Stacktape issue store.
 
 ## FAQ
 
-### What AWS services does Stacktape observability use?
-
-Stacktape observability reads from CloudWatch Logs (log storage), CloudWatch Metrics (time-series metrics), and CloudWatch Alarms (threshold monitoring). Log forwarding uses Kinesis Data Firehose for reliable delivery to external platforms. Issue detection uses CloudWatch Logs subscription filters and the Stacktape service Lambda, which are wired into your stack during deployment.
-
 ### Can I use Datadog or another external platform instead of CloudWatch?
 
 Yes. Stacktape's [log forwarding](/observability/log-forwarding) streams logs to external platforms via Kinesis Data Firehose — three destination types are available (`datadog`, `highlight`, and `http-endpoint`). See the [Log forwarding](/observability/log-forwarding) page for supported targets and setup. CloudWatch metrics and alarms remain AWS-native — Stacktape doesn't replace CloudWatch, but you can forward the raw log data to your preferred platform for analysis and search.
@@ -128,24 +124,16 @@ Per-resource alarms in your `stacktape.ts` are version-controlled and deploy wit
 
 ### How does issue detection differ from log monitoring?
 
-[Issues](/observability/issues) is an automated error inbox — it detects, groups, and tracks recurring runtime errors without manual setup beyond enabling it per-project in the Console. Log monitoring (via [`stacktape debug:logs`](/cli/debug-logs) or the Console) gives you raw access to all log output. Issues answer "what's broken across my stack?" while logs answer "what happened at this specific time?"
+[Issues](/observability/issues) is an automated error inbox — it detects, groups, and tracks recurring runtime errors without manual setup beyond enabling it per-project in the Console. Log monitoring (via [`stacktape logs`](/cli/logs) or the Console) gives you raw access to all log output. Issues answer "what's broken across my stack?" while logs answer "what happened at this specific time?"
 
-### Which languages does issue detection support?
+### Why isn't issue detection picking up my errors?
 
-Issue detection recognizes error patterns for TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP. Detection is log-pattern based — it looks for common markers like unhandled exceptions, tracebacks, panics, and fatal errors. Languages or error formats that don't match these patterns will not be detected automatically.
+Detection is log-pattern based and only recognizes common runtime error markers (unhandled exceptions, tracebacks, panics, fatal errors) for TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP — errors that don't match these patterns are missed. It is also skipped entirely for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages. Note that wiring requires Stacktape CLI 3.8.0 or newer, and AWS subscription filters only change on the next deployment of each matching stage.
 
-### Can I get alerted on Slack when a deployment fails?
+### Why does enabling log forwarding disable issue detection on a workload?
 
-Yes. Create an alert channel in the Console — supported destinations include Slack, email, and webhooks — then create a notification rule for deployment failure events and deliver it to that channel. See [Notifications](/observability/notifications) and [Alert channels](/observability/alert-channels).
-
-### What happens when log forwarding delivery fails?
-
-Kinesis Data Firehose retries delivery automatically. If retries are exhausted, failed deliveries are backed up to an S3 bucket automatically, providing a recovery path for reprocessing. See [Log forwarding](/observability/log-forwarding) for configuration details.
+Both features rely on a CloudWatch Logs subscription filter, and each log group has a limited number of filter slots. When [log forwarding](/observability/log-forwarding) is configured on a workload, Stacktape skips issue detection there to avoid exhausting those slots. If you need automated error grouping for a workload, leave log forwarding off for it.
 
 ### How much does observability cost on AWS?
 
 For details on CloudWatch, Kinesis Data Firehose, and overall AWS spend management, see [Managing costs](/managing-costs/overview).
-
-### When should I use log forwarding vs CloudWatch Logs Insights?
-
-CloudWatch Logs Insights is built-in and requires no extra configuration — use it for ad-hoc queries, debugging, and occasional log analysis via [`stacktape debug:logs`](/cli/debug-logs). Log forwarding is better when you need a dedicated log platform with richer search, dashboards, alerting, or long-term retention beyond what CloudWatch provides. Keep in mind that log forwarding uses a subscription filter slot, which disables issue detection for that workload.

@@ -22,7 +22,7 @@ Use an SNS topic when a single event needs to trigger multiple independent actio
 
 ## Basic example
 
-An SNS topic has no required properties. Because `fifoEnabled` defaults to `false`, omitting all properties creates a standard topic. In Stacktape, Lambda subscriptions are the documented integration path, configured using the `SnsIntegration` trigger (`type: 'sns'`) on the [Lambda function](/resources/compute/lambda-function) — see [SNS triggers](/configuration/triggers/sns-events). For other subscription protocols not modeled by Stacktape, you can use [`cloudformationResources`](/resources/advanced/raw-cloudformation-resources) as a raw CloudFormation escape hatch.
+An SNS topic has no required properties. Because `fifoEnabled` defaults to `false`, omitting all properties creates a standard topic. In Stacktape, Lambda subscriptions are the documented integration path, configured using the `SnsIntegration` trigger (`type: 'sns'`) on the [Lambda function](/resources/compute/lambda-function) — see [SNS triggers](/resources/triggers/sns-events). For other subscription protocols not modeled by Stacktape, you can use [`cloudformationResources`](/resources/advanced/raw-cloudformation-resources) as a raw CloudFormation escape hatch.
 
 
 Example (TypeScript):
@@ -101,7 +101,7 @@ export default defineConfig(() => {
 
 ## Fan-out pattern
 
-SNS fan-out delivers each published message to every subscriber independently. In Stacktape, the most direct fan-out uses multiple [Lambda functions](/resources/compute/lambda-function), each subscribing to the same topic via an [SNS trigger](/configuration/triggers/sns-events). Each function receives its own copy of every message and processes it independently — the publisher does not need to know how many subscribers exist.
+SNS fan-out delivers each published message to every subscriber independently. In Stacktape, the most direct fan-out uses multiple [Lambda functions](/resources/compute/lambda-function), each subscribing to the same topic via an [SNS trigger](/resources/triggers/sns-events). Each function receives its own copy of every message and processes it independently — the publisher does not need to know how many subscribers exist.
 
 This example shows a single `orderEvents` topic with two independent subscribers: one sends email confirmations, the other records analytics. Publishing one message triggers both functions simultaneously.
 
@@ -162,7 +162,7 @@ export default defineConfig(() => {
 
 ## Subscribing a Lambda function
 
-A [Lambda function](/resources/compute/lambda-function) can subscribe to an SNS topic using an [SNS trigger](/configuration/triggers/sns-events). When a message is published, AWS invokes the function with the message payload. Configure this using an SNS event on the Lambda function — not on the topic itself.
+A [Lambda function](/resources/compute/lambda-function) can subscribe to an SNS topic using an [SNS trigger](/resources/triggers/sns-events). When a message is published, AWS invokes the function with the message payload. Configure this using an SNS event on the Lambda function — not on the topic itself.
 
 Key settings on the trigger:
 
@@ -247,7 +247,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/api.ts'
     }),
-    connectTo: ['notifications'],
+    connectTo: [notifications],
     memory: 512,
     timeout: 30
   });
@@ -356,7 +356,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/api.ts'
     }),
-    connectTo: ['alerts'],
+    connectTo: [alerts],
     memory: 512,
     timeout: 30
   });
@@ -426,11 +426,7 @@ Use an SNS topic when you need fan-out — multiple subscribers each receiving a
 
 ### How does Amazon SNS pricing work?
 
-Amazon SNS uses pay-per-publish pricing with no minimum fee. The first 1 million publishes per month are included in the AWS Free Tier. After that, you pay per million publishes. SMS and email deliveries have separate per-message charges that vary by destination country. Check current AWS SNS pricing for exact regional rates.
-
-### What subscriber types does SNS support?
-
-Amazon SNS supports delivery to Lambda functions, SQS queues, HTTP/HTTPS endpoints, email addresses, and SMS phone numbers for standard topics. FIFO topics can only deliver to FIFO SQS queues. In Stacktape, Lambda subscriptions are the documented integration path, configured using the `SnsIntegration` trigger (`type: 'sns'`) on the [Lambda function](/resources/compute/lambda-function) — see [SNS triggers](/configuration/triggers/sns-events). For other subscription protocols, you can use [`cloudformationResources`](/resources/advanced/raw-cloudformation-resources) as a raw CloudFormation escape hatch.
+SNS is pay-per-publish with no minimum fee — the first 1 million publishes per month are in the AWS Free Tier, and after that you pay per million publishes. SMS and email deliveries carry separate per-message charges that vary by destination country, so they cost more than fanning out to Lambda or SQS subscribers. Check current AWS SNS pricing for exact regional rates.
 
 ### What is the maximum message size for SNS?
 
@@ -438,7 +434,7 @@ The maximum SNS message size is 256 KB. For larger payloads, store the data in a
 
 ### How do I filter messages so subscribers only receive relevant ones?
 
-Use `filterPolicy` on the [SNS trigger](/configuration/triggers/sns-events) to filter messages by their attributes. Only messages whose attributes match the filter policy are delivered to that subscriber. This reduces unnecessary Lambda invocations and processing costs. For richer content-based routing with nested pattern matching, consider an [EventBridge event bus](/resources/messaging/event-bus).
+Use `filterPolicy` on the [SNS trigger](/resources/triggers/sns-events) to filter messages by their attributes. Only messages whose attributes match the filter policy are delivered to that subscriber. This reduces unnecessary Lambda invocations and processing costs. For richer content-based routing with nested pattern matching, consider an [EventBridge event bus](/resources/messaging/event-bus).
 
 ### Can I use SNS with container services?
 
@@ -446,16 +442,4 @@ Yes. Use `connectTo` on a [web service](/resources/compute/web-service), [worker
 
 ### What happens if a subscriber is offline when a message is published?
 
-For Lambda subscribers, Amazon SNS retries delivery with exponential backoff. For SQS and HTTP/S subscribers, Amazon SNS follows its delivery retry policy — retrying over a period of time before giving up. If all retries fail, the message is lost. For Stacktape SNS triggers on Lambda functions, you can configure `onDeliveryFailure` to send messages that fail delivery to an SQS queue for later inspection.
-
-### SNS topic vs EventBridge event bus — which should I use?
-
-Use an SNS topic for pub/sub fan-out where each subscriber receives every message, optionally narrowed with basic attribute filtering. Use an [EventBridge event bus](/resources/messaging/event-bus) when you need event-pattern routing over fields such as `source`, `detail-type`, `region`, `resources`, or nested `detail` content — EventBridge's pattern language is richer than SNS filter policies. SNS is the simpler choice for pure fan-out; EventBridge is the better fit when routing logic drives which subscribers see which events.
-
-### Can I send SMS messages with an SNS topic?
-
-Yes. Standard SNS topics support SMS delivery — set `smsDisplayName` (max 11 characters) to customize the sender name shown on messages. SMS has separate per-message charges that vary by destination country. FIFO topics do not support SMS delivery. SMS sending may require additional AWS account-level configuration depending on your destination countries.
-
-### How do I handle message ordering with SNS?
-
-Standard SNS topics use best-effort ordering — messages may arrive out of order at subscribers. For strict ordering, create a FIFO topic by setting `fifoEnabled: true`. FIFO topics guarantee message order within each message group and provide exactly-once delivery. The tradeoff is lower throughput (~300 publishes/s, or ~3,000 with batching) and the restriction that subscribers must be FIFO SQS queues only.
+For Lambda subscribers, Amazon SNS retries delivery with exponential backoff. For SQS and HTTP/S subscribers, Amazon SNS follows its delivery retry policy — retrying over a period of time before giving up. SNS does not store messages, so if all retries fail the message is lost. For Stacktape SNS triggers on Lambda functions, you can configure `onDeliveryFailure` to send messages that fail delivery to an SQS queue for later inspection. If you need durable, replayable delivery, route the topic through an [SQS queue](/resources/messaging/sqs-queue) or use a [Kinesis stream](/resources/messaging/kinesis-stream) instead.

@@ -19,7 +19,7 @@ AgentCore Memory is scoped to the AgentCore ecosystem. Choose a different resour
 - **General-purpose database**: Use a [DynamoDB table](/resources/databases/dynamodb) or a [relational database](/resources/databases/relational-database) for structured application data.
 - **File or blob storage**: Use an [S3 bucket](/resources/storage/s3-bucket).
 - **Single-session agent context**: If your agent's state lives entirely within one request or session, manage it in-process or pass it through the conversation payload — no memory resource needed.
-- **Non-AgentCore compute**: To connect an AgentCore Memory to a runtime, set the `useMemory` property on an [AgentCore Runtime](/resources/ai/agentcore-runtime). The provided types do not document `connectTo`-style environment variable injection for AgentCore Memory, so it is not designed for use with other Stacktape compute resource types like [Lambda functions](/resources/compute/lambda-function) or [web services](/resources/compute/web-service).
+- **Non-AgentCore compute**: The provided types only document direct AgentCore Memory wiring through `AgentCoreRuntimeProps.useMemory`; they do not document `connectTo` environment variable injection for AgentCore Memory. If another workload needs to call Bedrock AgentCore directly, pass `id` or `arn` with [`$ResourceParam()`](/configuration/directives) and configure the required IAM permissions explicitly.
 
 ## Basic example
 
@@ -42,7 +42,7 @@ export default defineConfig(() => {
 
 ## Connecting to an AgentCore Runtime
 
-`AgentCoreRuntimeProps` exposes an optional `useMemory` string. In your Stacktape config, set it to the name of the `AgentCoreMemory` resource defined in the same `resources` object.
+`AgentCoreRuntimeProps` exposes an optional `useMemory` string. The examples below set it to the name of an `AgentCoreMemory` resource.
 
 The runtime example below uses `CustomDockerfilePackaging`, but AgentCore Runtime supports the same container packaging modes as other Stacktape container workloads: [Stacktape buildpack](/packaging/containers/stacktape-buildpack), [custom Dockerfile](/packaging/containers/custom-dockerfile), [prebuilt image](/packaging/containers/prebuilt-image), [Nixpacks](/packaging/containers/nixpacks), and [external buildpack](/packaging/containers/external-buildpack).
 
@@ -69,10 +69,10 @@ export default defineConfig(() => {
       buildContextPath: './'
     }),
     useMemory: 'supportMemory',
-    environment: [
-      { name: 'AI_MODEL', value: 'eu.amazon.nova-micro-v1:0' },
-      { name: 'MEMORY_ID', value: "$ResourceParam('supportMemory', 'id')" }
-    ]
+    environment: {
+      AI_MODEL: 'eu.amazon.nova-micro-v1:0',
+      MEMORY_ID: "$ResourceParam('supportMemory', 'id')"
+    }
   });
 
   return {
@@ -129,7 +129,7 @@ The `memoryStrategies` property accepts an array of strategy objects. The Stackt
 
 AgentCore Memory accepts an optional `encryptionKeyArn` property for specifying a customer-managed KMS key. Provide the ARN of a KMS key from your AWS account when your compliance requirements mandate customer-managed encryption.
 
-`encryptionKeyArn` is optional. When omitted, no customer-managed key is configured at the Stacktape config layer. The Stacktape type only exposes the customer-managed key ARN; it does not document the AWS service's default encryption behavior when this property is omitted. Customer-managed keys are primarily relevant for regulated industries or workloads handling sensitive personal data that require encryption key auditing and rotation control. Replace the placeholder ARN below with your own KMS key ARN.
+`AgentCoreMemoryProps` exposes `encryptionKeyArn` as an optional string. The provided Stacktape type does not describe default encryption behavior or key requirements when this property is omitted — consult the [AWS Bedrock AgentCore documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/) for encryption defaults. Customer-managed KMS keys are typically used when compliance processes require encryption key auditing and rotation control. Replace the placeholder ARN below with your own KMS key ARN.
 
 
 Example (TypeScript):
@@ -200,7 +200,7 @@ export default defineConfig(() => {
       entryfilePath: './src/agent.ts'
     }),
     useMemory: 'chatMemory',
-    environment: [{ name: 'MEMORY_ID', value: "$ResourceParam('chatMemory', 'id')" }]
+    environment: { MEMORY_ID: "$ResourceParam('chatMemory', 'id')" }
   });
 
   return {
@@ -216,8 +216,8 @@ AgentCore Memory exposes `id` and `arn` as referenceable parameters, accessible 
 
 | Parameter | Description |
 |---|---|
-| `id` | The unique memory ID assigned by AWS. Use this to interact with the memory through the Bedrock AgentCore SDK. |
-| `arn` | The full ARN of the memory resource. Use this when referencing the memory in IAM policies or cross-stack outputs. |
+| `id` | The unique memory ID assigned by AWS. Typically used to interact with the memory through the Bedrock AgentCore SDK. |
+| `arn` | The full ARN of the memory resource. Typically used when referencing the memory in IAM policies or cross-stack outputs. |
 
 Reference these from other parts of your configuration. For example, pass the memory ID to a runtime container:
 
@@ -260,25 +260,13 @@ type AgentCoreMemoryProps = {
 
 ## FAQ
 
-### What is AWS Bedrock AgentCore Memory?
-
-AWS Bedrock AgentCore Memory is a managed persistence layer for AI agents. It stores structured memories extracted from agent conversations and makes them available for retrieval in future sessions. In Stacktape, you provision it as a single `AgentCoreMemory` resource in your configuration and connect it to an [AgentCore Runtime](/resources/ai/agentcore-runtime) via the `useMemory` property.
-
 ### How do I connect AgentCore Memory to an AgentCore Runtime?
 
-Set the `useMemory` property on your [AgentCore Runtime](/resources/ai/agentcore-runtime) to the name of the memory resource defined in your config. To access the memory ID at runtime, pass it through an explicit environment variable using `$ResourceParam('memoryResourceName', 'id')`. See the [Connecting to an AgentCore Runtime](#connecting-to-an-agentcore-runtime) section for a complete example.
+Set the `useMemory` property on your [AgentCore Runtime](/resources/ai/agentcore-runtime) to the name of the memory resource defined in your config. This wires the two together, but it does not expose the memory ID to your application code — to read it at runtime, pass it through an explicit environment variable using `$ResourceParam('memoryResourceName', 'id')`. See the [Connecting to an AgentCore Runtime](#connecting-to-an-agentcore-runtime) section for a complete example.
 
-### How does agent memory get populated?
+### How do I configure memory strategies?
 
-The `memoryStrategies` property on `AgentCoreMemory` accepts an array of strategy objects (`any[]` in the Stacktape type). The inner shape and behavior of these strategy objects — including how they extract, consolidate, and retrieve information — are defined by the AWS Bedrock AgentCore API, not by Stacktape. Consult the [AWS Bedrock AgentCore documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/) for available strategy types and their behavior.
-
-### What are memory strategies in Bedrock AgentCore?
-
-The `memoryStrategies` property on `AgentCoreMemory` accepts an array of strategy configuration objects (`any[]`). Stacktape passes these objects through without additional typing or validation — the inner shape follows the AWS Bedrock AgentCore API schema. See the [AWS Bedrock AgentCore documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/) for available strategy types and configuration options.
-
-### What referenceable parameters does AgentCore Memory expose?
-
-AgentCore Memory exposes `id` (the unique memory ID) and `arn` (the full ARN). Access either with the [`$ResourceParam()` directive](/configuration/directives) — for example, `$ResourceParam('myMemory', 'id')`. These are useful for passing the memory ID into runtime containers or referencing the memory in [deployment scripts](/resources/advanced/deployment-scripts).
+The `memoryStrategies` property accepts an array of strategy objects, but it is typed as `any[]` in Stacktape — the config surface does not validate or document the inner shape. The strategy types, required fields, and how they extract and consolidate information are defined entirely by the AWS Bedrock AgentCore API. Consult the [AWS Bedrock AgentCore documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/) for the available strategies and their behavior.
 
 ### Can I encrypt AgentCore Memory with my own KMS key?
 
@@ -288,13 +276,9 @@ Yes. Set the `encryptionKeyArn` property to the ARN of a customer-managed KMS ke
 
 AgentCore Memory integrates directly with [AgentCore Runtime](/resources/ai/agentcore-runtime) through the `useMemory` property and supports configurable memory strategies for organizing recalled information. [DynamoDB](/resources/databases/dynamodb) is a general-purpose key-value store that works with any compute resource and gives you full schema control. Use AgentCore Memory when your agent runs on AgentCore Runtime and you want managed memory; use DynamoDB when you need broader flexibility or aren't using AgentCore.
 
-### Do I need AgentCore Memory for every AI agent?
-
-No. AgentCore Memory is for agents that need cross-session persistence — recalling prior conversations, tracking user preferences, or accumulating context over time. If your agent handles each request independently or manages state within a single session, you don't need a memory resource. Add it when the agent's value depends on remembering past interactions.
-
 ### How do I delete or reset stored memories?
 
-Removing the `AgentCoreMemory` resource from your config and redeploying, or deleting the entire stack with [`stacktape delete`](/cli/delete), requests deletion of the underlying AWS resource. Whether stored memory data is permanently deleted, retained, or recoverable depends on the AWS Bedrock AgentCore service — consult the [AWS Bedrock AgentCore documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/) for data lifecycle details. The Stacktape types do not expose selective deletion of individual memory entries.
+The `AgentCoreMemoryProps` type does not expose selective deletion of individual memory entries. Removing the resource from your config and redeploying, or deleting the stack with [`stacktape delete`](/cli/delete), follows the standard Stacktape resource deletion workflow. For data lifecycle details — whether stored memory data is permanently deleted, retained, or recoverable — consult the [AWS Bedrock AgentCore documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/).
 
 ### Can multiple AgentCore Runtimes reference the same memory resource?
 

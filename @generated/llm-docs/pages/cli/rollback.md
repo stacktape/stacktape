@@ -332,9 +332,9 @@ No. Rollback reuses stored deployment artifacts (Lambda zips, container images) 
 
 Rollback primarily restores the previous CloudFormation template and stored workload artifacts. For bucket-synced static content, Stacktape also attempts a manifest-based restore. Application-side data changes such as database migrations or records written by your application are not undone. If your deployment included a schema migration, you may need to manually reconcile the database state after rolling back.
 
-### How many versions can I roll back?
+### How far back can I roll back?
 
-This depends on the `previousVersionsToKeep` setting. Old versions may have been cleaned up after successful deployments. Use `--listVersions` to see which versions still have their artifacts available in the deployment bucket.
+It depends on the `previousVersionsToKeep` setting — older versions may have been cleaned up after successful deployments, and once a version's artifacts are gone you can no longer roll back to it. Use `--listVersions` to see which versions still have their artifacts available in the deployment bucket.
 
 ### Can I roll forward after a rollback?
 
@@ -344,25 +344,9 @@ Yes. Each rollback creates a new deployment version (e.g., rolling back from `v0
 
 No. When rollback safety metadata reports `after:deploy` hooks, Stacktape warns that they will not be re-executed during rollback. If your deployment relies on post-deploy scripts (database seeding, cache warming), you need to run them manually after the rollback completes.
 
-### Does rollback restore static website content?
-
-Stacktape attempts to restore bucket-synced content from a version manifest stored during the original deployment. If Stacktape cannot restore bucket-synced content, it warns that stacks with static websites may need to be redeployed from the original commit.
-
-### Does rollback require a config file?
-
-No. The `rollback` command initializes with `commandRequiresConfig: false` and works from stored CloudFormation templates and deployment artifacts. `--region` is the only required argument. `--stage` and `--projectName` are optional arguments used to identify the target stack.
-
-### How does rollback differ from redeploying an older Git commit?
-
-Redeploying from an older commit runs the normal [`deploy`](/cli/deploy) flow from source. Rollback skips rebuilding because it reuses stored deployment artifacts from the target version. Rollback also preserves the deployment version history: it creates a new version rather than overwriting.
-
-### What happens to CloudFormation drift during rollback?
-
-Rollback deploys the stored template from the target version as-is. If resources were manually modified in AWS after the original deployment, review the CloudFormation update carefully because rollback applies the target version's template, not the manually changed state.
-
 ## Related commands
 
 - [`cf:rollback`](/cli/cf-rollback) — recover a stack stuck in a failed CloudFormation update state
 - [`deploy`](/cli/deploy) — deploy your stack to AWS
-- [`preview-changes`](/cli/preview-changes) — preview what a deployment would change before applying it
+- [`diff`](/cli/diff) — preview what a deployment would change before applying it
 - [`info:operations`](/cli/info-operations) — view recent deployment operations and their status

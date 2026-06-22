@@ -255,10 +255,6 @@ type ExternalBuildpackCwImagePackagingProps = {
 
 ## FAQ
 
-### What is a Cloud Native Buildpack?
-
-A Cloud Native Buildpack (CNB) is an open standard for converting application source code into container images without writing a Dockerfile. Buildpacks inspect your source directory, detect the language and framework, install dependencies, compile the code, and produce a layered OCI image. The [buildpacks.io](https://buildpacks.io) project maintains the spec, and major providers include Paketo, Heroku, and Google Cloud.
-
 ### Can I use Heroku buildpacks with Stacktape?
 
 Yes. Set `builder` to a Heroku builder image like `heroku/builder:24`. If you're migrating from Heroku, this lets you keep the same build process your team already understands. You can also specify individual Heroku buildpacks in the `buildpacks` array for more granular control.
@@ -267,26 +263,14 @@ Yes. Set `builder` to a Heroku builder image like `heroku/builder:24`. If you're
 
 The [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) is Stacktape's own packaging system that bundles your code and dependencies into an optimized container image. It supports JavaScript/TypeScript, Python, Java, and Go. External buildpack delegates image creation entirely to the Cloud Native Buildpack ecosystem — buildpacks exist for almost any language or framework. Use the Stacktape buildpack when your language is supported and you want the integrated path; use external buildpack when you need a specific CNB builder or broader language coverage.
 
-### How does external buildpack differ from Nixpacks?
+### Why is my buildpack build failing?
 
-Both auto-detect your language and build without a Dockerfile. [Nixpacks](/packaging/containers/nixpacks) uses Nix for reproducible builds and has its own detection engine. External buildpack uses the Cloud Native Buildpack standard with community builders. Choose external buildpack when you need Paketo or Heroku buildpack compatibility; choose Nixpacks if you want Nix-based reproducibility or if Nixpacks better supports your stack.
-
-### Can I combine multiple buildpacks?
-
-Yes. The `buildpacks` array accepts multiple entries. The CNB spec processes them in order, so you can layer buildpacks — for example, adding a CA certificate buildpack before the main language buildpack, or combining a static assets buildpack with your application buildpack.
-
-### How do I debug a failed buildpack build?
-
-Common failure causes include: missing dependency files (no `package.json`, `requirements.txt`, etc. in the source directory), an incompatible builder version, or the builder not recognizing your language. Verify your `sourceDirectoryPath` contains the files the builder expects, and check the builder's documentation for supported language versions.
+Common causes include missing dependency files (no `package.json`, `requirements.txt`, `pom.xml`, etc. in the source directory), an incompatible builder version, or the builder not recognizing your language. Verify your `sourceDirectoryPath` points at the directory containing the files the builder expects, and check the builder's documentation for supported language versions. If auto-detection picks the wrong buildpack, pin it explicitly via the `buildpacks` array.
 
 ### When should I use a custom Dockerfile instead?
 
-Use a [custom Dockerfile](/packaging/containers/custom-dockerfile) when you need multi-stage builds, a specific base image not provided by any builder, system-level packages beyond what buildpacks provide, or full control over the image layer structure. Cloud Native Buildpacks are opinionated about image layout — if that opinion doesn't match your needs, a Dockerfile gives complete control.
+Use a [custom Dockerfile](/packaging/containers/custom-dockerfile) when you need multi-stage builds, a specific base image no builder provides, system-level packages beyond what buildpacks include, or full control over the image layer structure. Cloud Native Buildpacks are opinionated about image layout — if that opinion doesn't fit, a Dockerfile gives complete control.
 
-### What's the cost difference between external buildpack and other modes?
+### Is external buildpack more expensive than other packaging modes?
 
-The packaging mode itself has no runtime cost difference — you pay for the same ECS Fargate or EC2 compute regardless of how the image was built. Build time differences affect deploy speed: external buildpack builds can be slower on the first run because the builder image must be pulled. If build time matters, compare against the Stacktape image buildpack for supported languages.
-
-### What is the default builder?
-
-Stacktape defaults to `paketobuildpacks/builder-jammy-base` when you omit the `builder` property. This is a general-purpose Paketo builder based on Ubuntu 22.04. You can override it with any valid CNB builder image by setting `builder` to a different image reference.
+No — the packaging mode has no runtime cost difference. You pay for the same ECS Fargate or EC2 compute regardless of how the image was built. The only difference is build time: Cloud Native Buildpacks reuse cached dependency layers across deploys when dependencies haven't changed, so subsequent builds can be faster. If deploy speed matters, compare against the [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) for supported languages.

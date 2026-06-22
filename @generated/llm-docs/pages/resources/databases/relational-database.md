@@ -467,7 +467,7 @@ PostgreSQL supports fine-grained logging via `engineSpecificOptions`. The `log_m
 
 MySQL supports `server_audit_events` (default `['QUERY_DDL']`) to control what the audit log records. Supported values are `CONNECT`, `QUERY`, `QUERY_DDL`, `QUERY_DML`, `QUERY_DML_NO_SELECT`, and `QUERY_DCL`. Enabling `QUERY` or `QUERY_DML` logs every data operation and can generate significant log volume — use them for short-term audits rather than permanent monitoring. The `long_query_time` option (default 10 seconds) controls slow query detection.
 
-View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the Stacktape Console.
+View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
 
 Example (TypeScript):
@@ -673,13 +673,9 @@ Aurora Serverless v2 is the best default for most new projects. It auto-scales c
 
 Define a script of type `local-script` in the `scripts` section of your config with `connectTo` set to include the database resource name, then reference the script from `hooks.afterDeploy` using `scriptName`. Stacktape injects the connection string environment variable into your script automatically. For databases behind a VPC, use a script of type `local-script-with-bastion-tunneling` to tunnel through a [bastion host](/resources/security/bastion-host). See [hooks and scripts](/configuration/hooks-and-scripts) for the full setup.
 
-### How much does AWS RDS cost?
+### How much does a Stacktape relational database cost?
 
-AWS RDS pricing is based on instance hours, storage (GB/month), and I/O. Instance costs range from ~$12/month for `db.t4g.micro` (1 GB RAM) to thousands per month for large `r` or `x` family instances. Storage costs are separate (typically a few cents per GB/month with auto-scaling). Multi-AZ doubles the instance cost. Aurora adds a per-million I/O charge but includes storage replication. Data transfer out of AWS incurs additional charges.
-
-### What is the difference between Aurora and standard RDS PostgreSQL?
-
-Aurora PostgreSQL uses a re-engineered storage layer that automatically replicates data across three availability zones. If the primary instance fails, Aurora promotes a read replica automatically, usually within 30 seconds. Standard RDS multi-AZ failover uses a standby replica that doesn't serve read traffic. Aurora costs more per instance-hour but includes built-in replication and faster recovery. Standard RDS is simpler and cheaper for small workloads or when you need engines Aurora doesn't support (MariaDB, Oracle, SQL Server).
+Standard RDS starts at ~$12/month for `db.t4g.micro` and scales up with instance size — `db.t4g.medium` (~$50/month) or `db.r6g.large` (~$180/month). Storage is billed separately (a few cents per GB/month for the allocated, not maximum, size) and `multiAz` roughly doubles the instance cost. Aurora instances start at ~$35/month. Aurora Serverless v2 bills per ACU-hour between your `minCapacity` and `maxCapacity` with no fixed instance commitment, so it costs less during quiet periods but has less predictable monthly totals.
 
 ### Can I connect to my Stacktape database from my local machine?
 
@@ -687,19 +683,7 @@ Yes. By default, databases use `internet` accessibility mode (except Aurora Serv
 
 ### How do I back up and restore my database?
 
-AWS RDS and Aurora automatically take daily backups and retain them based on `automatedBackupRetentionDays` (default 1 day, maximum 35 days). You can also create manual snapshots through the AWS console for long-term retention. Aurora continuously backs up data to S3 and supports point-in-time recovery to any second within the retention window. Restoring from a snapshot creates a new database instance — this is managed through the AWS console, not through Stacktape config.
-
-### What database engines does Stacktape support?
-
-Stacktape supports PostgreSQL, MySQL, MariaDB, Oracle (Enterprise and Standard Edition 2), and SQL Server (Enterprise, Express, Standard, and Web editions) through standard RDS. Aurora-compatible engines include Aurora PostgreSQL and Aurora MySQL, available in both provisioned and Serverless v2 variants. Aurora Serverless v1 is also available for PostgreSQL and MySQL but is recommended only for legacy use cases — use Serverless v2 for new projects.
-
-### How does auto-scaling work with Aurora Serverless v2?
-
-Aurora Serverless v2 scales compute in 0.5-ACU increments between your configured `minCapacity` (default 0.5) and `maxCapacity` (default 10). One ACU provides approximately 2 GB of RAM. Scaling happens automatically based on CPU utilization, connections, and available memory — no manual intervention needed. Unlike Serverless v1, Serverless v2 does not support pausing when idle, but the minimum 0.5 ACU keeps baseline costs low. You can add read replicas with `serverlessReadersCount`, each of which scales independently.
-
-### Can I use a custom domain with my database?
-
-Databases don't use [custom domains](/resources/networking/custom-domains) — they are accessed by hostname and port, not by URL. The connection hostname is available as a [referenceable parameter](#referenceable-parameters) (`host`) and is injected automatically when using `connectTo`. If you need a memorable alias, create a CNAME record in your DNS provider pointing to the database hostname.
+AWS automatically takes daily backups and retains them based on `automatedBackupRetentionDays` (default 1 day, range 0–35); for production, raise this to at least 7 so you can recover from corruption discovered days later. Restoring from a snapshot creates a new database instance and is done through the AWS console, not through Stacktape config. Note that `deletionProtection: true` blocks deletion entirely — you must redeploy with it set to `false` before Stacktape can delete the database.
 
 ### How do I choose the right RDS instance size?
 

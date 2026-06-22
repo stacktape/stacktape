@@ -9,7 +9,7 @@ A Stacktape bastion host is a lightweight EC2 instance that gives you secure, ke
 Add a bastion host when your stack has private VPC resources and you need interactive or ad-hoc access from your local machine. Common scenarios:
 
 - **Connecting database GUI tools** — use port-forwarding tunnels so pgAdmin, DBeaver, or TablePlus can reach a private database as if it were on `localhost`.
-- **Running ad-hoc queries** — use [`bastion:tunnel`](/cli/bastion-tunnel) to connect local database tools, or [`debug:sql`](/cli/debug-sql) for quick command-line queries against private databases.
+- **Running ad-hoc queries** — use [`bastion:tunnel`](/cli/bastion-tunnel) to connect local database tools, or [`query:sql`](/cli/query-sql) for quick command-line queries against private databases.
 - **Debugging connectivity** — verify that VPC networking, security groups, and DNS resolution work as expected from inside the VPC.
 - **Running maintenance scripts** — execute migration or data-fix scripts that need direct VPC network access.
 
@@ -17,13 +17,13 @@ Most stacks with a private [relational database](/resources/databases/relational
 
 ## When NOT to use
 
-- **No private resources.** If you do not need interactive access to private VPC resources, skip the bastion. For public-only stacks, deployment scripts or direct client access are usually simpler. Private databases are still recommended for production.
+- **No private resources.** If you do not need interactive access to private VPC resources, skip the bastion. For public-only stacks, deployment scripts or direct client access are usually simpler.
 - **Automated-only access.** If you only need to run migrations during deploys and your target is publicly reachable, use [deployment scripts](/resources/advanced/deployment-scripts) or [lifecycle hooks](/configuration/hooks-and-scripts) with `connectTo` — they inject connection details automatically without a persistent EC2 instance. For private VPC targets, the `local-script-with-bastion-tunneling` and `bastion-script` script types route through a bastion; use `bastionResource` to select which one.
 - **High-bandwidth data transfer.** A bastion routes traffic through a single small instance. For bulk data movement (large database imports/exports, continuous replication), consider AWS Direct Connect or a VPN instead.
 
 ## Basic example
 
-A bastion host requires no configuration — all properties are optional. The default instance size is `t3.micro`. The `logging` property lets you configure CloudWatch retention for three log streams — `messages`, `secure`, and `audit`. See the [Logging](#logging) section for retention defaults and options.
+A bastion host requires no configuration — all properties are optional. The default instance size is `t3.micro`. The `logging` property supports CloudWatch retention configuration for `messages`, `secure`, and `audit` log streams. See the [Logging](#logging) section for retention defaults and options.
 
 
 Example (TypeScript):
@@ -40,21 +40,21 @@ export default defineConfig(() => {
 ```
 
 
-After deploying, use [`bastion:ssh`](/cli/bastion-session) to open an interactive shell or [`bastion:tunnel`](/cli/bastion-tunnel) to create port-forwarding tunnels to private resources.
+After deploying, use [`bastion:session`](/cli/bastion-session) to open an interactive shell or [`bastion:tunnel`](/cli/bastion-tunnel) to create port-forwarding tunnels to private resources.
 
 ## Connecting to private resources
 
-The primary purpose of a bastion host is reaching private or VPC-protected resources — including relational databases, Redis clusters, MongoDB Atlas clusters, application load balancers, and private services. Stacktape provides two CLI commands for this: an interactive shell session and port-forwarding tunnels.
+A Stacktape bastion host gives you access to private VPC resources such as relational databases, Redis clusters, and OpenSearch domains. Stacktape provides two CLI commands for this: an interactive shell session and port-forwarding tunnels. The [`bastion:tunnel`](/cli/bastion-tunnel) command supports a specific set of tunnel targets: relational databases, Redis clusters, MongoDB Atlas clusters, application load balancers, and private services with an application load balancer.
 
 ### Interactive shell
 
-The [`bastion:ssh`](/cli/bastion-session) command opens an interactive shell on the bastion instance. Stacktape uses keyless SSH via AWS Systems Manager, so there are no SSH keys to manage.
+The [`bastion:session`](/cli/bastion-session) command opens an interactive shell on the bastion instance. Stacktape uses keyless access via AWS Systems Manager, so there are no SSH keys to manage.
 
 ```bash
-stacktape bastion:ssh --stage production --region eu-west-1
+stacktape bastion:session --stage production --region eu-west-1
 ```
 
-Once connected, you can run commands on the bastion instance. Install the tools you need (database clients, network utilities) via [`runCommandsAtLaunch`](#startup-commands) so they're available every time you connect. See the [`bastion:ssh` CLI reference](/cli/bastion-session) for the full set of options.
+Once connected, you can run commands on the bastion instance. Install the tools you need (database clients, network utilities) via [`runCommandsAtLaunch`](#startup-commands) so they're available every time you connect. See the [`bastion:session` CLI reference](/cli/bastion-session) for details.
 
 ### Tunnels
 
@@ -64,7 +64,7 @@ The [`bastion:tunnel`](/cli/bastion-tunnel) command creates a port-forwarding tu
 stacktape bastion:tunnel --stage production --region eu-west-1
 ```
 
-See the [`bastion:tunnel` CLI reference](/cli/bastion-tunnel) for the full set of options including how to specify the tunnel target. Supported tunnel targets:
+The tunnel target is a Stacktape resource name. See the [`bastion:tunnel` CLI reference](/cli/bastion-tunnel) for command usage. Supported tunnel targets:
 
 | Resource type | Example use case |
 |---|---|
@@ -88,7 +88,7 @@ Both script types accept an optional `bastionResource` property to specify which
 
 ## Instance size
 
-The `instanceSize` property sets the EC2 instance type for the bastion. The default is `t3.micro`, which is sufficient for SSH tunneling and basic admin tasks. Use any valid EC2 instance type string for the AWS region you deploy to. Increase the size only if you run compute-intensive scripts directly on the bastion (data processing, heavy compilation).
+`instanceSize` is an EC2 instance type string. The default is `t3.micro`, which is sufficient for tunneling and basic admin tasks. Increase the size only if you run compute-intensive scripts directly on the bastion (data processing, heavy compilation).
 
 
 Example (TypeScript):
@@ -106,8 +106,6 @@ export default defineConfig(() => {
 });
 ```
 
-
-`instanceSize` is a string for the EC2 instance type. For most teams, start with the default `t3.micro`; increase it only if commands run on the bastion need more CPU or memory.
 
 ## Startup commands
 
@@ -130,7 +128,7 @@ export default defineConfig(() => {
 ```
 
 
-`runCommandsAtLaunch` accepts any shell commands valid for the bastion instance. The `yum` commands above are illustrative — choose commands that are valid for the image Stacktape uses for the bastion. Common tools to install include PostgreSQL clients (`psql`), Redis clients (`redis-cli`), MySQL clients, and JSON processors like `jq`.
+`runCommandsAtLaunch` accepts any shell commands valid for the bastion instance. The commands above are illustrative — use the package manager available on the bastion's underlying image. Common tools to install include PostgreSQL clients (`psql`), Redis clients (`redis-cli`), MySQL clients, and JSON processors like `jq`.
 
 
 > **Warning:** Changing `runCommandsAtLaunch` after the initial deployment replaces the underlying EC2 instance. Any data stored on the old instance is permanently lost. Treat the bastion as a disposable access point — don't store important files on it.
@@ -171,6 +169,59 @@ export default defineConfig(() => {
 
 For compliance-sensitive environments, keep `secure` and `audit` logs at longer retention periods. For development stacks where cost matters more than audit trails, reduce retention or disable log types you don't need.
 
+## Examples
+
+### Bastion with database tooling
+
+A bastion configured with startup commands to install database clients. After deployment, use [`bastion:session`](/cli/bastion-session) to connect and run `psql` or `redis-cli` against private resources, or use [`bastion:tunnel`](/cli/bastion-tunnel) to map remote endpoints to local ports for GUI tools.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, Bastion } from 'stacktape';
+export default defineConfig(() => {
+  const bastion = new Bastion({
+    runCommandsAtLaunch: [
+      'yum install -y postgresql15',
+      'yum install -y redis6',
+      'yum install -y jq'
+    ]
+  });
+
+  return {
+    resources: { bastion }
+  };
+});
+```
+
+
+### Bastion with compliance logging
+
+A bastion configured with extended log retention for `secure` and `audit` streams. System `messages` are kept for 7 days to reduce CloudWatch cost. This setup suits production stacks where audit trails are required.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, Bastion } from 'stacktape';
+export default defineConfig(() => {
+  const bastion = new Bastion({
+    instanceSize: 't3.micro',
+    logging: {
+      messages: { retentionDays: 7 },
+      secure: { retentionDays: 731 },
+      audit: { retentionDays: 731 }
+    }
+  });
+
+  return {
+    resources: { bastion }
+  };
+});
+```
+
+
 ## API Reference
 
 
@@ -200,11 +251,7 @@ type BastionProps = {
 
 ### How much does a bastion host cost?
 
-A bastion runs a single EC2 instance. With the default `t3.micro`, the cost is approximately $4/month (varies by AWS region). Tunnel traffic may also incur standard AWS data transfer charges; for typical interactive database access this is usually much smaller than the instance cost. You can reduce cost further by deleting the bastion from development stacks you don't use frequently.
-
-### Do I need SSH keys to connect?
-
-No. Stacktape bastion hosts use AWS Systems Manager for keyless access — there are no SSH keys to generate, distribute, or rotate. This eliminates a common source of security risk and operational overhead.
+A bastion runs a single EC2 instance continuously — there is no scale-to-zero. With the default `t3.micro`, the cost is approximately $4/month (varies by AWS region). Tunnel traffic may also incur standard AWS data transfer charges, but for typical interactive database access this is much smaller than the instance cost. For development stacks you don't use daily, remove the bastion resource and re-add it when needed.
 
 ### Can I connect a database GUI to a private database?
 
@@ -218,21 +265,13 @@ Changing `runCommandsAtLaunch` replaces the underlying EC2 instance on the next 
 
 Yes, in two ways. A `bastion-script` runs migration commands directly on the bastion instance inside the VPC. Alternatively, `local-script-with-bastion-tunneling` runs locally while tunneling connections to private VPC resources through the bastion; `connectTo` ensures injected connection details use the tunneled endpoints. Both are configured in the [scripts](/configuration/hooks-and-scripts) section of your config and can be attached to lifecycle hooks.
 
-### What's the difference between bastion:ssh and bastion:tunnel?
+### What's the difference between bastion:session and bastion:tunnel?
 
-[`bastion:ssh`](/cli/bastion-session) opens an interactive shell on the bastion instance — you type commands and see output, similar to SSH. [`bastion:tunnel`](/cli/bastion-tunnel) creates a port-forwarding tunnel that maps a remote resource endpoint to a local port, letting local tools connect to the private resource. Use `bastion:ssh` for ad-hoc commands on the bastion itself; use `bastion:tunnel` for connecting local applications to private resources.
-
-### Do I need a bastion for every stack?
-
-No. Only add a bastion to stacks that contain private resources you want to access interactively. If a stack only has [Lambda functions](/resources/compute/lambda-function) and public APIs, a bastion adds no value. For stacks with private databases or Redis clusters, add a bastion when you need interactive access for debugging, maintenance, or local development workflows.
+[`bastion:session`](/cli/bastion-session) opens an interactive shell on the bastion instance — you type commands and see output, similar to SSH. [`bastion:tunnel`](/cli/bastion-tunnel) creates a port-forwarding tunnel that maps a remote resource endpoint to a local port, letting local tools connect to the private resource. Use `bastion:session` for ad-hoc commands on the bastion itself; use `bastion:tunnel` for connecting local applications to private resources.
 
 ### What resources can I tunnel to?
 
 The [`bastion:tunnel`](/cli/bastion-tunnel) command supports [relational databases](/resources/databases/relational-database), [Redis clusters](/resources/databases/redis), [MongoDB Atlas clusters](/resources/databases/mongodb-atlas), [application load balancers](/resources/networking/application-load-balancer), and [private services](/resources/compute/private-service) fronted by an application load balancer. If the target has multiple endpoints (for example, a Redis cluster with writer and reader nodes), all endpoints are tunneled automatically.
-
-### Is the bastion always running?
-
-A Stacktape bastion is an EC2 instance, so plan for ongoing instance cost while the resource exists in your stack. Unlike serverless resources, there is no scale-to-zero — the instance runs continuously to be ready when you need it. For development stacks you don't use daily, consider removing the bastion resource and re-adding it when needed.
 
 ### Bastion host vs VPN — which should I use?
 

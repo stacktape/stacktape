@@ -24,10 +24,117 @@ interface RedisClusterProps {
    *
    * > **Must be set at creation time** — can't be added later.
    * > Requires `numReplicaNodes >= 1`. Replica count can't be changed after creation.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.m7g.large
+   *       enableSharding: true
+   *       numShards: 3
+   *       numReplicaNodes: 1
+   *
+   *   worker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/worker.ts
+   *       joinDefaultVpc: true
+   *       connectTo:
+   *         - redis
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.m7g.large',
+   *     enableSharding: true,
+   *     numShards: 3,
+   *     numReplicaNodes: 1
+   *   });
+   *
+   *   const worker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: './src/worker.ts' }
+   *     },
+   *     joinDefaultVpc: true,
+   *     connectTo: [redis]
+   *   });
+   *
+   *   return { resources: { redis, worker } };
+   * });
+   * ```
    */
   enableSharding?: boolean;
   /**
    * #### Number of shards (only with `enableSharding: true`).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.m7g.large
+   *       enableSharding: true
+   *       numShards: 4
+   *       numReplicaNodes: 1
+   *
+   *   worker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/worker.ts
+   *       joinDefaultVpc: true
+   *       connectTo:
+   *         - redis
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.m7g.large',
+   *     enableSharding: true,
+   *     numShards: 4,
+   *     numReplicaNodes: 1
+   *   });
+   *
+   *   const worker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: './src/worker.ts' }
+   *     },
+   *     joinDefaultVpc: true,
+   *     connectTo: [redis]
+   *   });
+   *
+   *   return { resources: { redis, worker } };
+   * });
+   * ```
+   *
    * @default 1
    */
   numShards?: number;
@@ -38,6 +145,57 @@ interface RedisClusterProps {
    *
    * If the primary fails and `enableAutomaticFailover` is on, a replica takes over.
    * Can't be changed after creation for sharded clusters.
+   *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       numReplicaNodes: 2
+   *       enableAutomaticFailover: true
+   *
+   *   worker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/worker.ts
+   *       joinDefaultVpc: true
+   *       connectTo:
+   *         - redis
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     numReplicaNodes: 2,
+   *     enableAutomaticFailover: true
+   *   });
+   *
+   *   const worker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: './src/worker.ts' }
+   *     },
+   *     joinDefaultVpc: true,
+   *     connectTo: [redis]
+   *   });
+   *
+   *   return { resources: { redis, worker } };
+   * });
+   * ```
    *
    * @default 0
    */
@@ -50,6 +208,56 @@ interface RedisClusterProps {
    * Requires `numReplicaNodes >= 1`. Always enabled for sharded clusters.
    *
    * > Deploy replicas first, then enable failover in a separate deployment.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       numReplicaNodes: 1
+   *       enableAutomaticFailover: true
+   *
+   *   worker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/worker.ts
+   *       joinDefaultVpc: true
+   *       connectTo:
+   *         - redis
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     numReplicaNodes: 1,
+   *     enableAutomaticFailover: true
+   *   });
+   *
+   *   const worker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: './src/worker.ts' }
+   *     },
+   *     joinDefaultVpc: true,
+   *     connectTo: [redis]
+   *   });
+   *
+   *   return { resources: { redis, worker } };
+   * });
+   * ```
    */
   enableAutomaticFailover?: boolean;
   /**
@@ -67,6 +275,54 @@ interface RedisClusterProps {
    * Suffix `g` = ARM/Graviton (better price-performance).
    *
    * This size applies to every node (primary + replicas). You can change it later without data loss.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.r7g.large
+   *       engineVersion: '7.1'
+   *
+   *   worker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/worker.ts
+   *       joinDefaultVpc: true
+   *       connectTo:
+   *         - redis
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.r7g.large',
+   *     engineVersion: '7.1'
+   *   });
+   *
+   *   const worker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: './src/worker.ts' }
+   *     },
+   *     joinDefaultVpc: true,
+   *     connectTo: [redis]
+   *   });
+   *
+   *   return { resources: { redis, worker } };
+   * });
+   * ```
    */
   instanceSize:
     | 'cache.t3.micro'
@@ -131,15 +387,134 @@ interface RedisClusterProps {
     | 'cache.r4.16xlarge';
   /**
    * #### Slow query logging. Sent to CloudWatch; view with `stacktape logs`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       logging:
+   *         disabled: false
+   *         format: json
+   *         retentionDays: 30
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     logging: {
+   *       disabled: false,
+   *       format: 'json',
+   *       retentionDays: 30
+   *     }
+   *   });
+   *
+   *   return { resources: { redis } };
+   * });
+   * ```
    */
   logging?: RedisLogging;
   /**
    * #### Days to keep automated daily backups. Set to 0 to disable.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.m7g.large
+   *       automatedBackupRetentionDays: 7
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.m7g.large',
+   *     automatedBackupRetentionDays: 7
+   *   });
+   *
+   *   return { resources: { redis } };
+   * });
+   * ```
+   *
    * @default 0
    */
   automatedBackupRetentionDays?: number;
   /**
    * #### Port the cluster listens on.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       port: 6380
+   *
+   *   worker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/worker.ts
+   *       joinDefaultVpc: true
+   *       connectTo:
+   *         - redis
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     port: 6380
+   *   });
+   *
+   *   const worker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: './src/worker.ts' }
+   *     },
+   *     joinDefaultVpc: true,
+   *     connectTo: [redis]
+   *   });
+   *
+   *   return { resources: { redis, worker } };
+   * });
+   * ```
+   *
    * @default 6379
    */
   port?: number;
@@ -149,22 +524,165 @@ interface RedisClusterProps {
    * ---
    *
    * All traffic is encrypted in transit. Use `$Secret()` instead of hardcoding:
-   * ```yaml
+   * ```yml
    * defaultUserPassword: $Secret('redis.password')
+   * ```
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small'
+   *   });
+   *
+   *   return { resources: { redis } };
+   * });
    * ```
    */
   defaultUserPassword: string;
   /**
    * #### Network access control: `vpc` (default) or `scoping-workloads-in-vpc` (most restrictive).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       accessibility:
+   *         accessibilityMode: scoping-workloads-in-vpc
+   *
+   *   worker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/worker.ts
+   *       joinDefaultVpc: true
+   *       connectTo:
+   *         - redis
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     accessibility: {
+   *       accessibilityMode: 'scoping-workloads-in-vpc'
+   *     }
+   *   });
+   *
+   *   const worker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: './src/worker.ts' }
+   *     },
+   *     joinDefaultVpc: true,
+   *     connectTo: [redis]
+   *   });
+   *
+   *   return { resources: { redis, worker } };
+   * });
+   * ```
    */
   accessibility?: RedisAccessibility;
   /**
    * #### Redis engine version.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       engineVersion: '7.1'
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     engineVersion: '7.1'
+   *   });
+   *
+   *   return { resources: { redis } };
+   * });
+   * ```
+   *
    * @default "6.2"
    */
   engineVersion?: '7.1' | '7.0' | '6.2' | '6.0';
   /**
    * #### Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed cluster.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       dev:
+   *         remote: true
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     dev: {
+   *       remote: true
+   *     }
+   *   });
+   *
+   *   return { resources: { redis } };
+   * });
+   * ```
    */
   dev?: DevModeConfig;
 }
@@ -172,16 +690,122 @@ interface RedisClusterProps {
 interface RedisLogging extends LogForwardingBase {
   /**
    * #### Disable slow query logging.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       logging:
+   *         disabled: true
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     logging: {
+   *       disabled: true
+   *     }
+   *   });
+   *
+   *   return { resources: { redis } };
+   * });
+   * ```
+   *
    * @default false
    */
   disabled?: boolean;
   /**
    * #### Log format.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       logging:
+   *         format: text
+   *         retentionDays: 90
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     logging: {
+   *       format: 'text',
+   *       retentionDays: 90
+   *     }
+   *   });
+   *
+   *   return { resources: { redis } };
+   * });
+   * ```
+   *
    * @default json
    */
   format?: 'text' | 'json';
   /**
    * #### How many days to keep logs.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       logging:
+   *         format: json
+   *         retentionDays: 365
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     logging: {
+   *       format: 'json',
+   *       retentionDays: 365
+   *     }
+   *   });
+   *
+   *   return { resources: { redis } };
+   * });
+   * ```
+   *
    * @default 90
    */
   retentionDays?: 1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1827 | 3653;
@@ -198,6 +822,58 @@ interface RedisAccessibility {
    *
    * Redis clusters don't have public IPs — you can't connect from your local machine directly.
    * Use a bastion host for local access.
+   *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   redis:
+   *     type: redis-cluster
+   *     properties:
+   *       defaultUserPassword: $Secret('redis.password')
+   *       instanceSize: cache.t4g.small
+   *       accessibility:
+   *         accessibilityMode: vpc
+   *
+   *   worker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/worker.ts
+   *       joinDefaultVpc: true
+   *       connectTo:
+   *         - redis
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const redis = new RedisCluster({
+   *     defaultUserPassword: $Secret('redis.password'),
+   *     instanceSize: 'cache.t4g.small',
+   *     accessibility: {
+   *       accessibilityMode: 'vpc'
+   *     }
+   *   });
+   *
+   *   const worker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: './src/worker.ts' }
+   *     },
+   *     joinDefaultVpc: true,
+   *     connectTo: [redis]
+   *   });
+   *
+   *   return { resources: { redis, worker } };
+   * });
+   * ```
    *
    * @default vpc
    */

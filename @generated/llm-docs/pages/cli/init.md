@@ -240,26 +240,26 @@ stacktape init --agent
 
 ## FAQ
 
-### What's the fastest way to start a new Stacktape project?
-
-Run `stacktape init` with no flags. The wizard analyzes your existing code, generates a configuration, and can deploy in a single session. If you prefer a known-good starting point, use `--starterProject` to initialize from a starter project template.
-
 ### Do I need an AWS account before running init?
 
-No. The wizard walks you through connecting an AWS account as one of its steps. You can also connect your account separately in the [Stacktape Console](/stacktape-console/connecting-your-aws-account) before running `init`.
+No. The wizard walks you through connecting an AWS account as one of its steps, and it doesn't require a Stacktape API key either — sign-up or login happens inside the flow. You can also connect your account separately in the [Stacktape Console](/stacktape-console/connecting-your-aws-account) before running `init`.
 
-### Can I use init in a CI pipeline or with an AI coding agent?
+### How do I run init non-interactively (CI or an AI coding agent)?
 
-Yes. Pass `--agent` to optimize CLI output for programmatic consumption — it uses JSONL output, disables the interactive terminal UI, and auto-confirms operations. For non-interactive starter-project initialization, combine `--agent` with explicit flags such as `--starterId`, `--configFormat`, and `--infrastructureType`.
+Pass `--agent`. It switches output to JSONL, disables the interactive terminal UI, and auto-confirms operations. Since the AI wizard is interactive, combine `--agent` with explicit flags — typically `--starterId` plus `--configFormat` and `--infrastructureType` — so the run has no prompts to answer.
 
 ### What is the difference between --starterId and --templateId?
 
-`--starterId` initializes from a built-in starter project template bundled with Stacktape. `--templateId` fetches a configuration template from the Stacktape Console's [Config Builder page](/stacktape-console/visual-config-editor).
+`--starterId` initializes from a built-in starter project template bundled with Stacktape. `--templateId` fetches a configuration template from the Stacktape Console's [Config Builder page](/stacktape-console/visual-config-editor). Both skip the AI-powered wizard.
+
+### Which --infrastructureType should I choose?
+
+Use `low-cost` for development and experimentation (single instances, no WAF or VPC), `standard` for staging and small production workloads (serverless databases, moderate scaling), and `production` for high-availability workloads (Aurora, WAF, VPC, bastion hosts, backups, and deletion protection). The tier affects resource sizing, scaling, security posture, and cost.
 
 ### Does init deploy anything?
 
 Not automatically. At the end of the wizard, you're offered the option to deploy. You can decline and run [`stacktape deploy`](/cli/deploy) later when you're ready.
 
-### Can I re-run init on an existing project?
+### Will init overwrite files in my project directory?
 
-You can run `init` again in the same directory. Review the generated configuration before deploying to make sure it matches your intent.
+The AI wizard generates a config alongside your existing code, so review it before deploying. The destructive case is `--initializeProjectTo`: if you point it at a non-empty directory, its contents are deleted before the starter project is placed there, so use a new or empty directory.

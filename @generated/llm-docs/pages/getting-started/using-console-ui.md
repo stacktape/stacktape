@@ -18,11 +18,11 @@ Key items — recent deployments, open issues, recent alerts, and budget alerts 
 
 ## Logs
 
-Use [`stacktape debug:logs`](/cli/debug-logs) for CLI log access. See [Observability — Logs](/observability/logs) for the detailed workflow including log querying, filtering, and forwarding to external services.
+Use [`stacktape logs`](/cli/logs) for CLI log access. See [Observability — Logs](/observability/logs) for the detailed workflow including log querying, filtering, and forwarding to external services.
 
 ## Metrics
 
-Use [`stacktape debug:metrics`](/cli/debug-metrics) for CLI-based metric queries. See [Observability — Metrics](/observability/metrics) for the detailed metric reference.
+Use [`stacktape metrics`](/cli/metrics) for CLI-based metric queries. See [Observability — Metrics](/observability/metrics) for the detailed metric reference.
 
 ## Alarms
 
@@ -56,7 +56,7 @@ The Overview dashboard also surfaces costs by project and by resource type for a
 
 The Secrets page lists AWS Secrets Manager secrets and lets you create, show, update, and delete them. The page asks you to choose an AWS account and AWS region before listing or changing secrets. Reference secrets with `$Secret()` in your Stacktape configuration — the secret value stays in AWS Secrets Manager instead of being committed to your config file or version control. See [Configuration — Secrets](/configuration/secrets) for the runtime details.
 
-You can also manage secrets from the CLI with [`stacktape secret:create`](/cli/secret-create), [`stacktape secret:get`](/cli/secret-get), and [`stacktape secret:delete`](/cli/secret-delete). See [Configuration — Secrets](/configuration/secrets) for the full workflow.
+You can also manage secrets from the CLI with [`stacktape secret:set`](/cli/secret-set), [`stacktape secret:get`](/cli/secret-get), and [`stacktape secret:delete`](/cli/secret-delete). See [Configuration — Secrets](/configuration/secrets) for the full workflow.
 
 ## Quick reference
 
@@ -65,15 +65,13 @@ A deploy gives the Console enough stack metadata to show deployments, costs (whe
 | Feature | Where in Console | CLI equivalent | Setup required |
 |---------|-----------------|----------------|----------------|
 | Deployments | Overview | [`stacktape info:operations`](/cli/info-operations) | None — shown when deployed stages exist |
-| Logs | — | [`stacktape debug:logs`](/cli/debug-logs) | None |
-| Metrics | — | [`stacktape debug:metrics`](/cli/debug-metrics) | None |
-| Alarms | Monitoring → Alarms → Rules | View state: [`stacktape debug:alarms`](/cli/debug-alarms) | Create alarm rules + alert channel |
+| Logs | — | [`stacktape logs`](/cli/logs) | None |
+| Metrics | — | [`stacktape metrics`](/cli/metrics) | None |
+| Alarms | Monitoring → Alarms → Rules | View state: [`stacktape alarms`](/cli/alarms) | Create alarm rules + alert channel |
 | Issues | Monitoring → Issues | [`stacktape issues:list`](/cli/issues-list) | Enable per-project + deploy with CLI 3.8.0+ |
 | Costs | Organization → Costs | — | None — reports arrive daily |
-| Secrets | Configuration → Secrets | [`stacktape secret:create`](/cli/secret-create) | Connected AWS account + AWS region selection |
+| Secrets | Configuration → Secrets | [`stacktape secret:set`](/cli/secret-set) | Connected AWS account + AWS region selection |
 
 ## Next step
 
 Your stack is deployed and observable. The next step is automating deployments so every push to your main branch triggers a redeploy — and pull requests get their own preview stages.
-
-**Next → [CI/CD](/getting-started/ci-cd)**

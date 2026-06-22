@@ -18,7 +18,7 @@ Provisioned concurrency can reduce cold starts, but it adds idle compute cost �
 
 ### Container services: always-on cost
 
-A Stacktape [web service](/resources/compute/web-service) is a container running 24/7 with a public HTTPS URL, so treat it as always-on compute that bills continuously. [Private services](/resources/compute/private-service) and [worker services](/resources/compute/worker-service) are also container-based resources — see their resource pages for runtime and scaling behavior. Before deploying a container service, confirm your workload genuinely needs an always-on process. If traffic is sporadic, a Lambda function with an [HTTP trigger](/configuration/triggers/http-triggers) is usually cheaper.
+A Stacktape [web service](/resources/compute/web-service) is a container running 24/7 with a public HTTPS URL, so treat it as always-on compute that bills continuously. [Private services](/resources/compute/private-service) and [worker services](/resources/compute/worker-service) are also container-based resources — see their resource pages for runtime and scaling behavior. Before deploying a container service, confirm your workload genuinely needs an always-on process. If traffic is sporadic, a Lambda function with an [HTTP trigger](/resources/triggers/http-triggers) is usually cheaper.
 
 Right-size the `resources` block. For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory, so right-sizing is the first optimization. Start at the smallest combination that keeps your application responsive and scale up only when metrics show resource pressure.
 
@@ -111,7 +111,7 @@ Set `timeout` to the lowest value your function needs. Timeouts don't affect cos
 
 ## Right-size container resources
 
-For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape debug:metrics`](/cli/debug-metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
+For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape metrics`](/cli/metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
 
 Start at the smallest CPU/memory combination that keeps your application responsive and scale up only when metrics justify it. See the [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), and [worker service](/resources/compute/worker-service) pages for the supported CPU and memory values on each resource.
 
@@ -185,7 +185,7 @@ You can restrict the CDN price class to reduce per-request cost in premium regio
 
 ## Reduce log retention
 
-CloudWatch log storage accumulates cost over time. [Batch job](/resources/compute/batch-job) logs default to 90 days of retention. For other resources, check the logging section on that resource's page before changing retention. You can view logs with [`stacktape debug:logs`](/cli/debug-logs).
+CloudWatch log storage accumulates cost over time. [Batch job](/resources/compute/batch-job) logs default to 90 days of retention. For other resources, check the logging section on that resource's page before changing retention. You can view logs with [`stacktape logs`](/cli/logs).
 
 For development and staging stages, 7–14 days of log retention is usually enough. For production, 30–60 days covers most debugging scenarios. For batch jobs, set `retentionDays` in the `logging` block — other resources may expose their own logging settings, so check each resource's page for details:
 
@@ -278,29 +278,17 @@ Stacktape's subscription fee is separate from your AWS bill. AWS resources are b
 
 No. A [web service](/resources/compute/web-service) is a container running 24/7 with a public HTTPS URL, so treat it as always-on compute rather than a scale-to-zero endpoint. If your workload has periods of zero traffic, a [Lambda function](/resources/compute/lambda-function) is cheaper — it costs nothing when idle.
 
-### How much cheaper is ARM/Graviton?
-
-AWS prices Graviton (`arm64`) instances below comparable x86 instances across Lambda and Fargate, so switching architectures usually lowers compute cost without changing behavior. Most modern application runtimes (Node.js, Python, Go, Java, .NET) run on ARM without changes. See the [Lambda function](/resources/compute/lambda-function) and [web service](/resources/compute/web-service) pages for how to configure architecture on each resource.
-
 ### When should I use Aurora Serverless v2 vs standard RDS?
 
 Use Aurora Serverless v2 when your database traffic is variable, unpredictable, or has significant idle periods — it scales capacity automatically and you pay only for what you use. Use standard RDS when traffic is steady and predictable — a fixed-size instance avoids the per-ACU premium. For dev/staging, Aurora Serverless v2 at a low `minCapacity` is almost always cheaper since it scales down when unused.
 
 ### How do I reduce Lambda cold start costs without provisioned concurrency?
 
-Provisioned concurrency eliminates cold starts but bills for idle instances. Alternatives that reduce cold starts without idle cost: use `arm64` (Graviton processors start faster), keep deployment packages small (smaller packages initialize faster), and increase memory (more CPU available during initialization). For non-latency-critical endpoints, occasional cold starts are usually acceptable and cost nothing extra.
-
-### What's the cheapest way to host a static website?
-
-A [hosting bucket](/resources/frontend/static-hosting) (S3 + CloudFront CDN) is the cheapest option for static sites. S3 storage costs pennies per GB, and CloudFront has no base monthly fee. There's no compute instance running — you pay only for storage and data transfer. This works for React, Vue, Angular, Astro (static mode), or any framework that produces static HTML/JS/CSS output.
+Provisioned concurrency reduces cold starts but adds idle compute cost, since each provisioned instance bills continuously. To avoid that idle cost, right-size memory instead — more memory means more CPU, which speeds up initialization (see [Right-size Lambda memory](#right-size-lambda-memory)). For most internal or background endpoints, occasional cold starts are an acceptable tradeoff for zero idle cost.
 
 ### How does DynamoDB on-demand pricing compare to provisioned?
 
 DynamoDB on-demand mode charges per read and write operation with no idle cost. Provisioned mode lets you reserve a fixed throughput (reads/writes per second) at a lower per-unit price but bills continuously even at zero traffic. On-demand is cheaper for variable or low-traffic tables. Provisioned with auto-scaling is cheaper when you have sustained, predictable throughput and can accurately forecast capacity.
-
-### Should I use a CDN for my API?
-
-A CDN helps when your API returns cacheable responses — public data, search results, configuration, or any response that's the same for multiple users within a time window. It reduces origin load and data transfer costs. Skip the CDN for APIs where every response is unique and personalized — caching won't help, and you add a small latency hop. CloudFront has no base monthly cost, so the financial risk of trying it is low.
 
 ### How do I prevent unexpected cost spikes?
 

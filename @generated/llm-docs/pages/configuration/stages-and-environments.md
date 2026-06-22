@@ -257,16 +257,16 @@ instead), and only production gets a WAF. This pattern keeps preview stages fast
 ## Stage-specific secrets
 
 Store separate Stacktape secrets for each stage. Use
-[`stacktape secret:create`](/cli/secret-create) to create them, and the
+[`stacktape secret:set`](/cli/secret-set) to create them, and the
 [`$Secret` directive](/configuration/directives) to reference them in config.
 
-Create separate secrets for each stage — for example, `db-password-dev` and `db-password-production` — using [`stacktape secret:create`](/cli/secret-create):
+Create separate secrets for each stage — for example, `db-password-dev` and `db-password-production` — using [`stacktape secret:set`](/cli/secret-set):
 
 ```bash
-stacktape secret:create --region eu-west-1
+stacktape secret:set --region eu-west-1
 ```
 
-Run the command once per secret. See the [CLI reference](/cli/secret-create) for available options.
+Run the command once per secret. See the [CLI reference](/cli/secret-set) for available options.
 
 Then reference the stage-specific secret in your config using the `stage` parameter:
 
@@ -478,30 +478,14 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 Each stage creates its own CloudFormation stack with its own AWS resources — separate databases, separate Lambda functions, separate S3 buckets, and so on. Stacktape provisions each stage's resources independently and does not share data between stages unless you explicitly configure it (e.g., by referencing another stack's outputs via the [`$StackOutput` directive](/configuration/directives)). Deploying or deleting one stage has no effect on other stages.
 
-### How do I set up automatic preview environments for pull requests?
-
-Stages are a good fit for per-PR preview environments — each PR can deploy to its own isolated stage. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) and [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for the full setup.
-
 ### What happens when I deploy to an existing stage?
 
-Deploying to an existing stage updates that stage's CloudFormation stack. Underneath, AWS CloudFormation computes the diff between the current and desired state and applies only the changes needed. When an update fails and auto-rollback is enabled, Stacktape deletes artifacts from the rolled-back deploy unless the error occurred during stack monitoring.
-
-### How do I clean up unused stages?
-
-Run [`stacktape delete --stage <name> --region <region>`](/cli/delete) to delete a stage's stack. To see what stages exist, use [`stacktape info:stacks`](/cli/info-stacks). For automated cleanup, see [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) and [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern).
-
-### Should I use separate AWS accounts or separate stages for production isolation?
-
-Stages provide strong isolation — each stage is a separate CloudFormation stack with separate resources. For most teams, this is sufficient. Separate AWS accounts add IAM-level isolation (a compromised dev credential cannot access production resources) and independent billing, but they also add operational complexity. Use separate accounts when your organization requires strict regulatory compliance or blast-radius isolation between environments.
+Deploying to an existing stage updates that stage's CloudFormation stack rather than creating a new one. CloudFormation computes the diff between the current and desired state and applies only the changes needed. Deleting a stage removes only that stage's stack — other stages are unaffected.
 
 ### Can different stages use different AWS regions?
 
 Yes. The region is a separate parameter from the stage, so you can deploy `dev` to `eu-west-1` and `production` to `us-east-1`. The stack name is derived from `{projectName}-{stage}`, and region-scoped resources (like secrets and ACM certificates) must exist in the target region. Create stage-appropriate secrets in each region you deploy to.
 
-### How does the stage name appear in AWS resource names?
+### How do I keep development costs low across stages?
 
-Stacktape derives the CloudFormation stack name from `{projectName}-{stage}`. If the combined name is too long, Stacktape obfuscates some internal resource names to stay within AWS naming limits — keeping stage names short avoids this.
-
-### What's the difference between stages and AWS accounts for environment separation?
-
-Stages separate stacks and resources within the AWS account and region you deploy to. Separate AWS accounts can add a stronger IAM and billing boundary, but require additional account and CI/CD setup. Most teams start with stages (simpler, cheaper, faster feedback loops) and move to multi-account only when compliance or blast-radius requirements demand it. Stages and multi-account are not mutually exclusive — you can use stages within each account (e.g., `dev` and `staging` in a dev account, `production` in a prod account).
+Vary resource sizing by stage. Branch on the `stage` parameter to give dev and preview stages the smallest instance sizes and lowest scaling, while production gets larger instances and multi-AZ — the multi-tier lookup pattern shown above makes this automatic. You can also conditionally skip expensive resources (like a database) in ephemeral `pr-*` stages, or have several services in the same stage share one database via the [`$CfStackOutput` directive](/configuration/directives).

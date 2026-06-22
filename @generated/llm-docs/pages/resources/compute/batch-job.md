@@ -36,7 +36,7 @@ export default defineConfig(() => {
       packaging: new StacktapeImageBuildpackPackaging({
         entryfilePath: './src/jobs/nightly-report.ts'
       }),
-      environment: [{ name: 'REPORT_BUCKET_PREFIX', value: 'reports/nightly' }]
+      environment: { REPORT_BUCKET_PREFIX: 'reports/nightly' }
     },
     resources: {
       cpu: 2,
@@ -58,7 +58,7 @@ export default defineConfig(() => {
 ```
 
 
-The schedule expression uses AWS cron syntax and runs in UTC. Use `rate(...)` for simple intervals such as `rate(2 hours)`, and use `cron(...)` when the job must run at a specific time or day. See [schedule triggers](/configuration/triggers/schedule-triggers) for trigger details.
+The schedule expression uses AWS cron syntax and runs in UTC. Use `rate(...)` for simple intervals such as `rate(2 hours)`, and use `cron(...)` when the job must run at a specific time or day. See [schedule triggers](/resources/triggers/schedule-triggers) for trigger details.
 
 ## Compute resources
 
@@ -122,7 +122,7 @@ A batch job can start from several event sources: HTTP API Gateway, Application 
 | `cloudwatch-log` | Matching CloudWatch log records start the job |
 | `event-bus` | EventBridge events matching a pattern start the job |
 
-The API reference carries the full property shape for each integration. For a broader decision guide across trigger families, see [triggers overview](/configuration/triggers/overview).
+The API reference carries the full property shape for each integration. For a broader decision guide across trigger families, see [triggers overview](/resources/triggers/overview).
 
 ## Retries and timeout
 
@@ -207,18 +207,19 @@ import {
   Bucket,
   RelationalDatabase,
   RdsEnginePostgres,
+  $Secret,
   StacktapeImageBuildpackPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const reports = new Bucket({});
   const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
-    instanceClass: 'db.t4g.micro'
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
   });
 
   const exportJob = new BatchJob({
-    connectTo: ['mainDatabase', 'reports'],
+    connectTo: [mainDatabase, reports],
     container: {
       packaging: new StacktapeImageBuildpackPackaging({
         entryfilePath: './src/jobs/export.ts'
@@ -262,49 +263,29 @@ export default defineConfig(() => {
 ```
 
 
-`retentionDays` accepts CloudWatch retention values exposed in the API reference, including `1`, `3`, `5`, `7`, `14`, `30`, `60`, `90`, `120`, `150`, `180`, `365`, `400`, `545`, `731`, `1827`, and `3653`. View runtime logs with [`stacktape debug:logs`](/cli/debug-logs).
+`retentionDays` accepts CloudWatch retention values exposed in the API reference, including `1`, `3`, `5`, `7`, `14`, `30`, `60`, `90`, `120`, `150`, `180`, `365`, `400`, `545`, `731`, `1827`, and `3653`. View runtime logs with [`stacktape logs`](/cli/logs).
 
 ## FAQ
 
-### What is a Stacktape batch job?
+### When should I use a batch-job vs a Lambda function or worker-service?
 
-A Stacktape batch job is a containerized task that runs to completion instead of staying online as a service. A batch job is intended for data processing, ML training, video encoding, imports, and similar workloads with a clear end state. Use the `BatchJob` resource when you want Stacktape to package the container, declare compute needs, and wire event triggers.
-
-### How is a batch job different from a worker-service?
-
-A batch job starts, does a defined unit of work, exits, and can be retried when it fails or times out. A [worker-service](/resources/compute/worker-service) runs continuously rather than starting per job. Use a worker-service when the container should stay running; use a batch job for finite compute jobs with a clear end state.
-
-### Can a batch job run on a schedule?
-
-Yes. Add a `schedule` event with `scheduleRate`, using either a `rate(...)` expression or an AWS cron expression. Scheduled batch jobs are a good fit for reports, cleanup, imports, and periodic syncs; see [schedule triggers](/configuration/triggers/schedule-triggers).
-
-### Can a batch job process S3 uploads?
-
-Yes. Add an `s3` event with a bucket ARN, S3 event type, and optional prefix or suffix filter. S3-triggered batch jobs are useful for image processing, document conversion, and object-driven import pipelines; see [S3 events](/configuration/triggers/s3-events).
-
-### Can I trigger a batch job from an HTTP request?
-
-Yes. A batch job supports `http-api-gateway` and `application-load-balancer` integrations. Use HTTP-triggered batch jobs when a request should start long-running compute instead of being handled entirely by a short request handler; see [HTTP triggers](/configuration/triggers/http-triggers).
-
-### Does a batch job support GPU workloads?
-
-Yes. Set `resources.gpu` when the job requires GPU-backed compute. GPU jobs are appropriate for model training, inference batch runs, rendering, and other workloads that benefit from GPU acceleration; omit `gpu` for normal CPU-only jobs to keep scheduling and cost simpler.
+Use a [Lambda function](/resources/compute/lambda-function) for short-lived, event-driven tasks billed per invocation. Use a [worker-service](/resources/compute/worker-service) when the container should stay running continuously. Use a batch job when the work is long-running, container-native, compute-heavy, possibly GPU-backed, and has a clear end state where the process starts, does a unit of work, and exits.
 
 ### Should I use Spot instances for batch jobs?
 
-Use `useSpotInstances: true` when the job can restart from the beginning or resume from checkpoints. Spot capacity can reduce cost substantially, but AWS can interrupt the job; Stacktape documents a `SIGTERM` notice and a 120-second graceful shutdown window. Avoid Spot for payment, email, or deadline-sensitive jobs.
+Use `useSpotInstances: true` when the job can restart from the beginning or resume from checkpoints. Spot capacity can reduce cost up to 90%, but AWS can interrupt the job: the container receives `SIGTERM` and has 120 seconds to shut down gracefully. Combine Spot with `retryConfig` so interrupted jobs are resubmitted, and avoid Spot for payment, email, or other non-idempotent, deadline-sensitive work.
 
-### How do retries work for failed batch jobs?
+### Why do my batch jobs run more than once or create duplicate side effects?
 
-`retryConfig` controls how many attempts Stacktape should make and how long to wait between attempts. `attempts` defaults to `1`, `retryIntervalSeconds` defaults to `0`, and `retryIntervalMultiplier` defaults to `1`. Because the whole job attempt is retried, job code should be idempotent before you raise the attempt count.
+Retries repeat the entire job attempt, and several trigger sources (SQS, SNS, Kinesis, streams) can also redeliver. `attempts` defaults to `1`, `retryIntervalSeconds` to `0`, and `retryIntervalMultiplier` to `1`, so duplicates only appear once you raise the attempt count or use a retrying trigger. Make job code idempotent before enabling multiple attempts for writes, imports, or notifications.
 
-### How much does an AWS batch job cost?
+### How should I size cpu and memory for a batch job?
 
-Batch job cost depends on vCPU, memory, GPU needs, runtime, and whether on-demand or Spot capacity is used. The provided Fargate pricing data uses vCPU-hour and GB-hour billing, with continuous us-east-1 usage around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB. See [optimization tips](/managing-costs/optimization-tips) for broader cost control guidance.
+`cpu` is the number of vCPUs and `memory` is in MB. Because AWS reserves some memory for system processes, request slightly less than an exact power of two for memory-sensitive sizing: for example `7680` MB often fits better than exactly `8192` MB on an 8 GB instance class. Add `resources.gpu` only for workloads that need GPU acceleration such as model training or rendering.
 
-### When should I use batch-job vs Lambda function?
+### How much does a batch job cost?
 
-Use a [Lambda function](/resources/compute/lambda-function) for short-lived, event-driven tasks. Use a batch job when the work is long-running, container-native, compute-heavy, needs GPU, or is easier to express as a job process that exits. Batch jobs are a better fit for workloads that look like command-line programs.
+Cost depends on vCPU, memory, GPU needs, runtime, and whether on-demand or Spot capacity is used. The provided Fargate pricing data uses vCPU-hour and GB-hour billing, with continuous us-east-1 usage around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB. Because batch jobs are billed only while running, short jobs cost far less; see [optimization tips](/managing-costs/optimization-tips) for broader cost guidance.
 
 ## API Reference
 

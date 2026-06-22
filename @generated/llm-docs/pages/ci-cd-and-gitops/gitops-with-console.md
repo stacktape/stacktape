@@ -112,50 +112,26 @@ This gives you continuous deployment to staging on every push, production deploy
 
 ## FAQ
 
-### What is GitOps and how does it work?
-
-GitOps is a deployment model where Git is the single source of truth for what gets deployed. When you push code to a branch, an automated system detects the change and triggers a deployment. With Stacktape Console, the Stacktape GitHub App handler receives webhook events from GitHub and starts deployments to your AWS account based on the GitOps configurations you define — no pipeline files needed in your repository.
-
-### How do GitHub webhooks trigger CI/CD pipelines?
-
-GitHub sends HTTP POST requests (webhooks) to a registered endpoint whenever events occur in a repository — pushes, PR opens, PR closes, and more. The Stacktape GitHub App handler receives these webhook events, matches them against your GitOps configurations using `getActionsToPerform`, and starts deployments or deletions for each matching configuration. A single webhook event can trigger multiple concurrent actions if multiple configurations match.
-
-### How do PR preview environments get cleaned up?
-
-When you create a PR preview configuration, you can enable auto-deletion on PR close. When enabled, the handler starts a stack deletion as soon as the PR is closed or merged. The temporary internal configuration that watches for pushes to the PR branch is also cleaned up automatically. Enable auto-delete to avoid accumulating unused AWS resources. See [Stacks per Git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for more cleanup strategies.
-
-### What happens if a GitOps action fails?
-
-The GitHub App handler processes matching configurations through `Promise.all`. PR bookkeeping errors and PR-close deletion errors are captured individually — the handler response reports whether action processing failed (e.g. `Failed to process N actions`). The deployment start call is not wrapped in that same per-action error handler, so a deployment-start failure surfaces separately.
-
-### How much does AWS CodeBuild cost for deployments?
-
-AWS CodeBuild pricing is based on build minutes and compute type. The AWS free tier includes 100 build minutes per month on the smallest instance type. Beyond that, pricing varies by compute type and region. Deployment duration depends on stack complexity and packaging mode. See [Build runners](/ci-cd-and-gitops/build-runners) for runner type comparison.
-
-### Can I deploy to multiple AWS accounts from the same repository?
-
-Yes. Each GitOps configuration targets a specific connected AWS account and region. You can create multiple configurations for the same branch deploying to different accounts — for example, `main` → `prod` on your production AWS account and `main` → `staging` on a separate staging account. Each configuration is independent.
-
 ### How is GitOps with Console different from custom CI/CD?
 
-GitOps with Console is a managed deployment pipeline. You configure triggers in the Console and the GitHub App handler reacts to matching events by starting deployments on your build runner. [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) means you write your own pipeline files (GitHub Actions, GitLab CI, etc.) and call Stacktape CLI commands as steps. Custom CI/CD gives you full control over build steps, test suites, and approval gates. GitOps with Console is faster to set up but does not support pre-deployment testing or approval workflows.
+GitOps with Console is a managed deployment flow: you configure triggers in the Console and the GitHub App handler reacts to matching Git events by starting deployments on your build runner — no pipeline files in your repo. [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) means you write your own pipeline (GitHub Actions, GitLab CI, etc.) and call Stacktape CLI commands as steps, giving you full control over build steps, test suites, and approval gates. GitOps with Console is faster to set up but does not support pre-deployment testing or approval workflows; if you need those, use custom CI/CD.
 
 ### Can I run tests before deploying with GitOps?
 
-GitOps with Console does not include a built-in test step. If you need to run tests, linting, or other checks before deploying, use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) where you control every pipeline step. Alternatively, use GitHub's native CI for testing and rely on branch protection rules to prevent merging broken code into the branch that triggers GitOps deployment.
+No — GitOps with Console deploys on every matching Git event and has no built-in test or approval step. If you need to run tests, linting, or other checks first, use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) where you control every pipeline step. Alternatively, run tests in GitHub's native CI and use branch protection rules so broken code never reaches the branch that triggers a GitOps deployment.
 
-### When should I use GitOps with Console vs GitHub Actions?
+### How are PR preview environments cleaned up?
 
-Use GitOps with Console when you want zero-config push-to-deploy and PR previews without maintaining pipeline files. Use [GitHub Actions with custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) when you need pre-deployment test suites, approval gates, matrix builds, or multi-step workflows. GitHub Actions gives full pipeline control; GitOps with Console gives the fastest path from push to deployment with no pipeline maintenance. You can also use [Stacktape-managed GitHub Actions runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) for cost-effective runner infrastructure if you go the GitHub Actions route.
+When creating a PR preview configuration, enable auto-deletion on PR close. With it enabled, the handler starts a stack deletion as soon as the PR is closed or merged, and the temporary internal configuration that keeps the preview current with pushes is removed automatically. If you do not enable auto-delete, preview stages keep running (and incurring AWS cost) until you remove them manually with [`stacktape delete`](/cli/delete). See [Stacks per Git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for more cleanup strategies.
 
-### How does push-based GitOps compare to pull-based GitOps?
+### Can a single push deploy to multiple accounts or regions?
 
-Stacktape Console uses push-based GitOps: GitHub sends a webhook on push, and the handler starts a deployment immediately. Pull-based GitOps (used by tools like ArgoCD or Flux) has an agent that periodically polls a Git repository for changes and reconciles the desired state. Push-based is simpler and lower-latency for most web application deployments. Pull-based suits Kubernetes-native workflows where continuous reconciliation and drift detection are priorities.
+Yes. For each incoming event the handler starts a deployment for every matching configuration concurrently (via `Promise.all`). Each configuration targets a specific connected AWS account and region, so you can have two configurations watching `main` — one deploying to `us-east-1` and another to `eu-west-1`, or to entirely separate accounts — and a single merge to `main` starts both deployments at once.
 
-### Do I need to install anything in my repository to use GitOps?
+### How much does it cost to run GitOps deployments?
 
-GitOps is configured entirely in the Console rather than through pipeline files in your repository. The GitHub App handler receives webhook events from GitHub for repositories where the app is installed. Your repository must be deployable by Stacktape, and the project's Git URL must be set in the Console so the GitOps page can derive the repository owner and branches.
+GitOps deployments run on Stacktape's build runners — see [Build runners](/ci-cd-and-gitops/build-runners) for the runner types, compute sizing, and their cost tradeoffs. Beyond the runner cost, PR preview environments also incur the AWS cost of whatever resources each preview stack provisions, and that cost continues until the stage is deleted — another reason to enable auto-delete on PR close.
 
-### Can a single push trigger multiple deployments?
+### A push isn't triggering a deployment — what should I check?
 
-Yes. The GitHub App handler calls `getActionsToPerform` for each incoming event and starts a deployment for every returned configuration through `Promise.all`. For example, if you have two configurations watching `main` — one deploying to `us-east-1` and another to `eu-west-1` — a single push to `main` starts both deployments concurrently.
+Confirm the Stacktape GitHub App is installed on the repository (the handler only receives webhooks for installed repos), that the project's Git URL is set in the Console so the GitOps page can derive the repo owner and branches, and that you have a GitOps configuration whose watched branch matches the branch you pushed to. The handler matches incoming events against your configurations to decide what to deploy — if nothing matches, nothing happens.

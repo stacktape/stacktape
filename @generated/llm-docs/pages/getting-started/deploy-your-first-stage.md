@@ -111,10 +111,10 @@ Open the resource URL printed by the CLI. For a [web service](/resources/compute
 
 The deploy output also includes a Console URL for the deployed stack. See [Manage your app in the Console](/getting-started/using-console-ui) for what you can do there.
 
-To view logs from the CLI, use [`stacktape debug:logs`](/cli/debug-logs).
+To view logs from the CLI, use [`stacktape logs`](/cli/logs).
 
 ```bash
-stacktape debug:logs
+stacktape logs
 ```
 
 ## Redeploying after changes
@@ -179,24 +179,6 @@ Connecting an AWS account is free. AWS resources created by your stacks are bill
 
 Yes. The AWS account connection stack is created in `eu-west-1`, but your project stacks can deploy to any AWS region. Specify the region with `--region` on each deploy command, or set a default with [`stacktape defaults:configure`](/cli/defaults-configure).
 
-### What if I already have resources in my AWS account?
-
-Stacktape deploys the resources declared in your configuration through a CloudFormation stack. You can generally run Stacktape alongside other infrastructure, but avoid naming or ownership conflicts with resources managed elsewhere.
-
-### Can I deploy from CI/CD instead of my local machine?
-
-Yes. After verifying your first deploy locally, set up automated deployments with [GitOps](/getting-started/ci-cd) or integrate Stacktape into your [custom CI/CD pipeline](/ci-cd-and-gitops/custom-ci-cd). CI environments use API keys for authentication instead of browser-based login.
-
-### How do I delete a deployed stage?
-
-Use the [`stacktape delete`](/cli/delete) command with the same stage and region.
-
-```bash
-stacktape delete --stage dev --region eu-west-1
-```
-
-This deletes the CloudFormation stack and all associated resources from your AWS account. See [`stacktape delete`](/cli/delete) for details.
-
 ### Is the connection between Stacktape and my AWS account secure?
 
 The connection uses a CloudFormation stack that grants Stacktape cross-account AssumeRole access — the standard AWS approach for third-party integrations. You can revoke access instantly by deleting the connection stack in AWS or removing the account from the Console.
@@ -211,8 +193,6 @@ Stages are logical environments (dev, staging, production) within a single AWS a
 
 ### Can I preview what a deploy will change before running it?
 
-Yes. Use [`stacktape preview-changes`](/cli/preview-changes) to see the CloudFormation diff without actually deploying. This shows which resources would be created, updated, or deleted.
+Yes. Use [`stacktape diff`](/cli/diff) to see the CloudFormation change set without actually deploying. This shows which resources would be created, updated, replaced, or deleted.
 
 ---
-
-**Next →** [Manage your app in the Console](/getting-started/using-console-ui)

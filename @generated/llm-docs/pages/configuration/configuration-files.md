@@ -304,15 +304,11 @@ The table below shows the mapping between TypeScript classes and YAML types. Thi
 
 ### Should I use TypeScript or YAML for my Stacktape config?
 
-Use TypeScript for most projects. It catches configuration errors before deployment, provides full IDE support, and lets you use conditional logic and loops for per-stage differences. YAML is appropriate for very small, static projects or when your team strongly prefers declarative-only configuration. YAML and TypeScript represent the same logical config shape — named resources with resource-specific properties — so you can convert between them when needed.
+Use TypeScript for most projects. It catches configuration errors before deployment, provides full IDE support, and lets you use conditional logic and loops for per-stage differences. YAML is appropriate for very small, static projects with a fixed set of resources, or when your team strongly prefers declarative-only configuration. Both produce identical infrastructure — the choice only affects your authoring experience.
 
 ### Can I switch from YAML to TypeScript?
 
-YAML and TypeScript represent the same logical config shape: named resources with resource-specific properties. When converting, keep resource names and property values stable, then use [`stacktape compile-template`](/cli/compile-template) to verify the output before deploying. Rename your `stacktape.yml` to `stacktape.ts` and rewrite the resources using the `defineConfig` pattern and resource classes.
-
-### Where should I put my stacktape.ts file?
-
-Place it in your project root alongside `package.json`. Stacktape auto-detects it there. If you prefer a different location (e.g. `infrastructure/stacktape.ts`), pass `--configPath` when running CLI commands.
+YAML and TypeScript represent the same logical config shape: named resources with resource-specific properties. Rename your `stacktape.yml` to `stacktape.ts` and rewrite the resources using the `defineConfig` pattern and resource classes, keeping resource names and property values stable. Then run [`stacktape synth`](/cli/synth) to verify the output before deploying.
 
 ### Can I use JavaScript instead of TypeScript?
 
@@ -322,22 +318,14 @@ Yes — Stacktape accepts `stacktape.js` files using the same `defineConfig` pat
 
 In TypeScript, use the `stage` parameter from the `defineConfig` callback to branch conditionally (`stage === 'production' ? 'db.t4g.medium' : 'db.t4g.micro'`). In YAML, use the `variables` section combined with [directives](/configuration/directives) like `$Stage()` for stage-aware interpolation.
 
-### Can I reference secrets in my config?
+### How do I keep secrets out of my config file?
 
-Stacktape configuration is evaluated at deploy time. Use `$Secret()` to reference a Stacktape secret in configuration values. For sensitive credentials like database passwords or API keys, `$Secret()` is the recommended approach — it keeps secrets out of your config files and resolves them securely during deployment. See [Secrets](/configuration/secrets) for how to create and manage secrets.
+Use the `$Secret()` directive to reference a Stacktape secret instead of hardcoding sensitive values like database passwords or API keys. The reference resolves securely at deploy time, so the actual value never appears in your config or version control. In TypeScript, import `$Secret` from the `stacktape` package; in YAML, use the `$Secret()` string syntax. See [Secrets](/configuration/secrets) for how to create and manage secrets.
 
 ### How do I validate my configuration before deploying?
 
-In TypeScript, the type system catches most errors in your editor. For both formats, run [`stacktape compile-template`](/cli/compile-template) to compile your configuration before deploying.
-
-### What is the resources field?
-
-The `resources` field is the only required top-level property. Each entry is a named resource, such as `mainDatabase` or `apiHandler`. Use descriptive names because other configuration features such as `connectTo` and `$ResourceParam()` refer to resources by name.
+In TypeScript, the type system catches most errors in your editor. For both formats, run [`stacktape synth`](/cli/synth) to compile your configuration before deploying.
 
 ### Can I use raw CloudFormation alongside Stacktape resources?
 
 Yes. The `cloudformationResources` top-level field accepts raw CloudFormation resource definitions merged into the template alongside Stacktape-managed resources. This is an escape hatch for AWS services Stacktape doesn't have a built-in resource type for. See [Raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) for details.
-
-### How much does ECS Fargate vs Lambda cost for an API?
-
-Lambda charges per invocation and per GB-second of compute. It scales to zero — idle APIs cost nothing. ECS Fargate charges per vCPU-hour and GB-hour, running continuously even without traffic. For sporadic traffic (under ~1M requests/month), Lambda is typically cheaper. For sustained high-throughput APIs, Fargate's per-request cost is lower because you pay a flat hourly rate regardless of request count. Use a [Lambda function](/resources/compute/lambda-function) for event-driven workloads and a [web service](/resources/compute/web-service) for always-on APIs with predictable traffic.

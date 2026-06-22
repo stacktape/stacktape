@@ -16,7 +16,7 @@ AI Config Generation gives you a starting Stacktape config from an existing code
 
 - **You have an existing project** and want Stacktape to infer the right resources rather than writing a config from scratch.
 - **You're evaluating Stacktape** and want to see what a real config looks like for your codebase, not for a generic starter project.
-- **Your project has multiple services** (an API, a frontend, a background worker) and you want them identified and wired together in one pass.
+- **You want a first config draft from an existing repository** — run the generator, then review the generated resources and wiring yourself rather than writing everything from scratch.
 
 ## When NOT to use
 
@@ -32,11 +32,11 @@ When you start generation, the Console creates a temporary project for the selec
 
 ## Using the generator
 
-AI Config Generation runs inside the Config Editor page in the Stacktape Console. The steps below walk through selecting a repository, choosing a branch, and starting a generation run.
+AI Config Generation runs inside the Config Editor page in the [Stacktape Console](/stacktape-console/console-overview). You select a template, choose a repository type (public or private), provide a repository and branch, then start the generation run. The steps below walk through each part of this flow.
 
 ### Open the generation modal
 
-Navigate to the **Config Editor** page in the [Stacktape Console](/stacktape-console/console-overview). After selecting a template, the page renders the config editor with AI generation controls. Use these controls to open the generation modal.
+Navigate to the **Config Editor** page in the [Stacktape Console](/stacktape-console/console-overview). After selecting a template, the Config Editor receives AI generation controls. The generator flow asks for a repository type, repository, and branch before it starts.
 
 ### Select a repository type
 
@@ -44,7 +44,7 @@ Inside the generation interface, choose whether to generate from a **public** or
 
 **Public repositories** — enter the full Git URL directly into the "Repository URL" field (e.g., `https://github.com/your-org/your-repo`). No Git provider connection is needed.
 
-**Private repositories** — select from repositories available through your connected Git provider installations. If no providers are connected, the dropdown shows "You need to connect a Git provider first." Click **Connect new Git provider** in the Console to set up a Git provider integration. Once connected, your repositories appear in the dropdown.
+**Private repositories** — select from repositories available through your connected Git provider installations. If no providers are connected, the dropdown shows "You need to connect a Git provider first." Click **Connect new Git provider** in the Console to set up a [Git provider integration](/ci-cd-and-gitops/gitops-with-console). Once a Git provider is connected, repositories available to Stacktape appear in the dropdown. If none are available, the dropdown shows "No repositories available."
 
 ### Select a branch
 
@@ -56,15 +56,15 @@ Start the generation process. The start control is disabled until both a reposit
 
 ### Review and save
 
-When generation finishes, you can edit the resulting configuration in the config editor and save it to the selected template.
+When generation finishes, you can edit the resulting configuration in the config editor and save it to the selected template. Templates created for a new stage may be read-only in the Config Editor — if so, edit the config from the stage configuration page instead.
 
 
-> **Info:** The generated config is a starting point for review, not a deployment-ready config. Review resource types, add secrets, configure domains, and adjust sizing before deploying.
+> **Info:** Treat generated output as a draft. Before deploying, review resource choices and add any project-specific settings such as secrets, domains, and sizing.
 
 
 ## After generation
 
-Treat any generated config as a starting point. Before deploying, review and extend it following general Stacktape deployment best practices:
+The items below are general Stacktape deployment best practices — they are not specific to the AI generator, but they apply to any generated config you plan to deploy:
 
 1. **Review resource types** — confirm each resource maps to the correct Stacktape resource type. For example, verify that an API is a [Lambda function](/resources/compute/lambda-function) vs. a [web service](/resources/compute/web-service), or that a frontend uses the right SSR resource ([Next.js](/resources/frontend/nextjs), [Nuxt](/resources/frontend/nuxt), [Astro](/resources/frontend/astro), etc.).
 
@@ -80,12 +80,7 @@ Treat any generated config as a starting point. Before deploying, review and ext
 
 ## Tips for better results
 
-Well-structured repositories give the generator more useful signals to work with:
-
-- **Include a `.env.example` file** — clear variable names (like `DATABASE_URL`, `REDIS_URL`, `S3_BUCKET`) help the generator infer what infrastructure your project requires.
-- **Use standard project conventions** — conventional file names and directory structures (`next.config.js`, `prisma/schema.prisma`, `Dockerfile`, standard entry points) are easier for the generator to interpret.
-- **Keep dependency files current** — `package.json`, `requirements.txt`, `go.mod`, and similar files signal your project's runtime and infrastructure needs. Make sure they reflect what the project actually uses.
-- **Keep Dockerfiles in the project** — if your services use containers, Dockerfiles help the generator understand build steps and service configuration.
+Before running generation, make sure the selected branch contains the application code and build files you expect Stacktape to inspect. A clean, up-to-date branch gives the generator the best starting point — stale or incomplete code on the branch can lead to a config that doesn't reflect your project's current state.
 
 ## FAQ
 
@@ -97,17 +92,9 @@ Well-structured repositories give the generator more useful signals to work with
 
 No. For public repositories, paste the Git URL directly into the URL input field. A Git provider connection is only required for private repositories where authentication is needed to clone the code.
 
-### Can I edit the generated config before deploying?
+### Why can't I edit the generated config in the editor?
 
-Yes. You can edit the generated config in the [visual config editor](/stacktape-console/visual-config-editor) and save it to the selected template. Edit any aspect of the config before deploying.
-
-### Can I re-run generation on the same repository?
-
-Yes. Start a new generation at any time from the config editor. Each generation run is independent — a temporary project is created for each run and cleaned up afterward. Saving writes the editor content to the currently selected template.
-
-### What does the generator produce?
-
-The Console starts an AI generation run for the selected repository and branch, then produces a Stacktape configuration. Review the resulting config carefully before saving or deploying — confirm that each resource maps to the correct type and that the wiring between resources matches your project's actual architecture.
+You can normally edit the generated config in the [visual config editor](/stacktape-console/visual-config-editor) and save it to the selected template. However, templates created for a new stage may be read-only in the Config Editor — in that case, edit the config from the stage configuration page instead.
 
 ### What if generation fails?
 
@@ -115,16 +102,8 @@ If initialization fails, the Console shows "Failed to initialize AI config gener
 
 ### Is my repository data safe?
 
-The generation pipeline runs on Stacktape's infrastructure. A temporary project is created for the selected repository and branch, then deleted automatically after generation completes. For details on data handling, refer to the [Stacktape Console](/stacktape-console/console-overview) documentation or contact support.
-
-### How does this compare to the MCP server?
-
-AI Config Generation runs in the [Stacktape Console](/stacktape-console/console-overview) and focuses on one task: producing an initial config from a Git repository. Stacktape also has a separate [MCP server](/using-with-ai/mcp-server-setup) for AI coding assistants — see the [MCP server setup page](/using-with-ai/mcp-server-setup) for current capabilities. They solve different problems — use AI Config Generation for the initial config, then use the MCP server or [coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations) for day-to-day development.
+The generation pipeline runs on Stacktape's infrastructure. A temporary project is created for the selected repository and branch, then deleted automatically once generation completes.
 
 ### Does the generator produce a production-ready config?
 
 No. Treat any generated config as a starting point: review resource choices, secrets, domains, sizing, alarms, budgets, and CI/CD before deploying. See [Going to production](/getting-started/going-to-production) for the complete production-readiness checklist.
-
-### When should I write a config manually instead?
-
-Write a config manually when you have a simple project (one or two resources), when you already know your exact infrastructure requirements, or when your project uses non-standard patterns that a code analyzer is unlikely to interpret correctly. The [configuration guide](/getting-started/configure-your-stack) and the [visual config editor](/stacktape-console/visual-config-editor) with IntelliSense make manual authoring straightforward.

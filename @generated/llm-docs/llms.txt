@@ -76,18 +76,6 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [Resources](/configuration/resources) - source: docs/docs/configuration/resources.mdx
 - [Secrets](/configuration/secrets) - source: docs/docs/configuration/secrets.mdx
 - [Stages and Environments](/configuration/stages-and-environments) - source: docs/docs/configuration/stages-and-environments.mdx
-- [Alarms as Triggers](/configuration/triggers/alarms-as-triggers) - source: docs/docs/configuration/triggers/alarms-as-triggers.mdx
-- [CloudWatch Logs](/configuration/triggers/cloudwatch-logs) - source: docs/docs/configuration/triggers/cloudwatch-logs.mdx
-- [DynamoDB Streams](/configuration/triggers/dynamodb-streams) - source: docs/docs/configuration/triggers/dynamodb-streams.mdx
-- [Event Bus Events](/configuration/triggers/event-bus-events) - source: docs/docs/configuration/triggers/event-bus-events.mdx
-- [HTTP Triggers](/configuration/triggers/http-triggers) - source: docs/docs/configuration/triggers/http-triggers.mdx
-- [Kafka Topics](/configuration/triggers/kafka-topics) - source: docs/docs/configuration/triggers/kafka-topics.mdx
-- [Kinesis Events](/configuration/triggers/kinesis-events) - source: docs/docs/configuration/triggers/kinesis-events.mdx
-- [Triggers Overview](/configuration/triggers/overview) - source: docs/docs/configuration/triggers/overview.mdx
-- [S3 Events](/configuration/triggers/s3-events) - source: docs/docs/configuration/triggers/s3-events.mdx
-- [Schedule Triggers](/configuration/triggers/schedule-triggers) - source: docs/docs/configuration/triggers/schedule-triggers.mdx
-- [SNS Events](/configuration/triggers/sns-events) - source: docs/docs/configuration/triggers/sns-events.mdx
-- [SQS Events](/configuration/triggers/sqs-events) - source: docs/docs/configuration/triggers/sqs-events.mdx
 - [Variables and Reuse](/configuration/variables-and-reuse) - source: docs/docs/configuration/variables-and-reuse.mdx
 - [Deploy-Time Parameters](/deployment-and-lifecycle/deploy-time-parameters) - source: docs/docs/deployment-and-lifecycle/deploy-time-parameters.mdx
 - [Deploying Stacks](/deployment-and-lifecycle/deploying-stacks) - source: docs/docs/deployment-and-lifecycle/deploying-stacks.mdx
@@ -182,6 +170,18 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [Web Application Firewall](/resources/security/web-application-firewall) - source: docs/docs/resources/security/web-application-firewall.mdx
 - [EFS Filesystem](/resources/storage/efs-filesystem) - source: docs/docs/resources/storage/efs-filesystem.mdx
 - [S3 Bucket](/resources/storage/s3-bucket) - source: docs/docs/resources/storage/s3-bucket.mdx
+- [Alarms as Triggers](/resources/triggers/alarms-as-triggers) - source: docs/docs/resources/triggers/alarms-as-triggers.mdx
+- [CloudWatch Logs](/resources/triggers/cloudwatch-logs) - source: docs/docs/resources/triggers/cloudwatch-logs.mdx
+- [DynamoDB Streams](/resources/triggers/dynamodb-streams) - source: docs/docs/resources/triggers/dynamodb-streams.mdx
+- [Event Bus Events](/resources/triggers/event-bus-events) - source: docs/docs/resources/triggers/event-bus-events.mdx
+- [HTTP Triggers](/resources/triggers/http-triggers) - source: docs/docs/resources/triggers/http-triggers.mdx
+- [Kafka Topics](/resources/triggers/kafka-topics) - source: docs/docs/resources/triggers/kafka-topics.mdx
+- [Kinesis Events](/resources/triggers/kinesis-events) - source: docs/docs/resources/triggers/kinesis-events.mdx
+- [Triggers Overview](/resources/triggers/overview) - source: docs/docs/resources/triggers/overview.mdx
+- [S3 Events](/resources/triggers/s3-events) - source: docs/docs/resources/triggers/s3-events.mdx
+- [Schedule Triggers](/resources/triggers/schedule-triggers) - source: docs/docs/resources/triggers/schedule-triggers.mdx
+- [SNS Events](/resources/triggers/sns-events) - source: docs/docs/resources/triggers/sns-events.mdx
+- [SQS Events](/resources/triggers/sqs-events) - source: docs/docs/resources/triggers/sqs-events.mdx
 - [Account Settings](/stacktape-console/account-settings) - source: docs/docs/stacktape-console/account-settings.mdx
 - [API Keys](/stacktape-console/api-keys) - source: docs/docs/stacktape-console/api-keys.mdx
 - [AWS Permissions Needed](/stacktape-console/aws-permissions) - source: docs/docs/stacktape-console/aws-permissions.mdx

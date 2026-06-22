@@ -92,7 +92,7 @@ export default defineConfig(() => {
 
 The `2048` MB memory and `25` second timeout shown above are example overrides, not SolidStart-specific defaults. Leave `serverLambda` unset until SSR latency, initialization cost, or integration behavior gives you a reason to tune it. Increase `memory` when SSR is CPU-bound or the app initializes large dependencies. `timeout` configures the maximum seconds the SSR function runs before AWS terminates the invocation. Use `serverLambda` VPC configuration when the SSR Lambda must reach VPC-protected resources such as databases or Redis; see the [Lambda function](/resources/compute/lambda-function) page for inherited VPC options.
 
-Use [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview) to view SSR function logs. See the API reference at the bottom of this page for the full `serverLambda` property surface including logging configuration.
+Use [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/console-overview) to view SSR function logs. See the API reference at the bottom of this page for the full `serverLambda` property surface including logging configuration.
 
 ## Custom domains and firewall
 
@@ -201,14 +201,16 @@ export default defineConfig(() => {
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, SolidStartWeb, RelationalDatabase, RdsEnginePostgresql } from 'stacktape';
+import { defineConfig, SolidStartWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgresql({
+    engine: new RdsEnginePostgres({
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
-    })
+    }),
+    credentials: { masterUserPassword: $Secret('database.password') }
   });
 
   const web = new SolidStartWeb({
@@ -251,33 +253,21 @@ Prefer `connectTo` for Stacktape-managed resources because it handles both permi
 
 ## FAQ
 
-### What does Stacktape create for a SolidStart app?
-
-A Stacktape SolidStart resource deploys a SolidStart SSR app with a nested `serverFunction` (Lambda for SSR) and `bucket` (S3 for static assets), fronted by a CloudFront CDN. The default build command is `vinxi build` unless `buildCommand` is set. See the [resources overview](/configuration/resources) for how Stacktape resources map to AWS.
-
 ### Where should `appDirectory` point?
 
 Set `appDirectory` to the directory containing `app.config.ts`. It defaults to `"."`, the repository root. In a monorepo, set it to the SolidStart workspace (e.g. `./apps/web`) rather than the root. Use `buildCommand` when the default `vinxi build` is not the command you want Stacktape to run.
 
 ### Can I use a custom domain with SolidStart?
 
-Yes. Configure `customDomains` on the SolidStart resource and ensure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape automatically creates DNS records and provisions free TLS certificates. By default, Stacktape provisions and renews free certificates automatically; set `customCertificateArn` for a certificate from your AWS account, or `disableDnsRecordCreation` when Stacktape should skip DNS record creation. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+Yes. Set `customDomains` on the SolidStart resource and ensure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape then creates the DNS records and provisions and renews free TLS certificates automatically. Use a bare hostname like `www.example.com` (no `https://`). Set `customCertificateArn` to supply your own certificate, or `disableDnsRecordCreation` when you manage DNS elsewhere (for example through Cloudflare). See [custom domains](/resources/networking/custom-domains) for the broader domain model.
 
 ### How do I connect to a database from SolidStart server functions?
 
 Use `connectTo` to reference the database resource. Stacktape injects connection details as environment variables following the `STP_[RESOURCE_NAME]_[PARAM]` pattern — access them in SolidStart server functions via `process.env`. For VPC-protected databases, set `serverLambda.joinDefaultVpc` to `true` so the SSR Lambda can reach the database. See [connecting resources](/configuration/connecting-resources) for the full variable table.
 
-### Can I protect a SolidStart app with AWS WAF?
-
-Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource whose `scope` is `cdn`. This protects the CloudFront distribution. AWS WAF charges per rule and per million inspected requests, on top of CloudFront costs.
-
-### How does Lambda cold start affect SolidStart SSR?
-
-When no warm Lambda instance is available, AWS provisions a new execution environment, adding latency to the first request. Cold starts for Node.js Lambda functions typically add 200–500 ms depending on bundle size and memory allocation. Increase `serverLambda.memory` to speed up initialization, and rely on CloudFront CDN caching to reduce the number of requests that reach Lambda. Subsequent requests to a warm instance avoid the cold-start penalty.
-
 ### How much does hosting SolidStart on Lambda and CloudFront cost?
 
-AWS bills Lambda, S3, and CloudFront separately. Lambda charges per invocation and GB-second of compute; S3 charges for storage and requests; CloudFront charges for data transfer and requests. All three services include free-tier allowances — check [AWS pricing](https://aws.amazon.com/pricing/) for current free-tier limits and regional rates. For most low-to-moderate traffic apps, the combined cost stays under a few dollars per month. Use [cost dashboards](/managing-costs/dashboards) to inspect real spend after deploying.
+AWS bills Lambda, S3, and CloudFront separately. Lambda charges per invocation and GB-second of compute; S3 charges for storage and requests; CloudFront charges for data transfer and requests. All three services include free-tier allowances — check [AWS pricing](https://aws.amazon.com/pricing/) for current free-tier limits and regional rates. Use [cost dashboards](/managing-costs/dashboards) to inspect real spend after deploying.
 
 ### When should I use static hosting instead of the SolidStart resource?
 
@@ -286,10 +276,6 @@ Use [static hosting](/resources/frontend/static-hosting) when the site builds to
 ### When should I use a web service instead of the SolidStart resource?
 
 Use a [web-service](/resources/compute/web-service) when you need a persistent HTTP server, long-running WebSocket connections, or a framework not modeled by the frontend resources. Web services run in containers and offer more control over the server process. The SolidStart resource is purpose-built for the standard SolidStart build output and manages SSR, static assets, and CloudFront CDN without requiring a container.
-
-### How does SolidStart SSR compare to Next.js SSR on Stacktape?
-
-Both deploy with the same underlying architecture: Lambda for SSR, S3 for static assets, and CloudFront for CDN. The [Next.js resource](/resources/frontend/nextjs) has its own framework-specific configuration surface. Choose based on which framework your team uses and the framework-level features you need — the infrastructure model is equivalent.
 
 ## API Reference
 

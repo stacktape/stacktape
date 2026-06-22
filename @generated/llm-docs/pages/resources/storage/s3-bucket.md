@@ -174,6 +174,7 @@ export default defineConfig(() => {
       headersPreset: 'single-page-app'
     },
     cdn: {
+      enabled: true,
       rewriteRoutesForSinglePageApp: true
     }
   });
@@ -306,7 +307,7 @@ When versioning is enabled, pair it with a `non-current-version-expiration` rule
 
 Stacktape buckets support two approaches for reacting to object changes:
 
-**S3 event triggers** invoke a [Lambda function](/resources/compute/lambda-function) directly for configured S3 event types — commonly object-created, object-removed, and object-restore events. The trigger type also supports replication-related and reduced-redundancy lost-object events through the [S3 trigger configuration](/configuration/triggers/s3-events). This is the simplest approach for processing uploads — for example, resizing images or parsing CSV files. Configure S3 triggers on the Lambda function side.
+**S3 event triggers** invoke a [Lambda function](/resources/compute/lambda-function) directly for configured S3 event types — commonly object-created, object-removed, and object-restore events. The trigger type also supports replication-related and reduced-redundancy lost-object events through the [S3 trigger configuration](/resources/triggers/s3-events). This is the simplest approach for processing uploads — for example, resizing images or parsing CSV files. Configure S3 triggers on the Lambda function side.
 
 **EventBridge notifications** send bucket events to [EventBridge](/resources/messaging/event-bus), where multiple consumers can react to the same event independently. Enable with `enableEventBusNotifications: true` (defaults to `false`). Use EventBridge notifications when bucket events should be available on EventBridge for other parts of your architecture. For direct upload processing, an S3 trigger on a Lambda function is usually simpler.
 
@@ -345,7 +346,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/processor.ts'
     }),
-    connectTo: ['uploads']
+    connectTo: [uploads]
   });
 
   return {
@@ -455,9 +456,9 @@ or clean up incomplete uploads. | - |
 
 Use the AWS S3 SDK (available for every major language) with the bucket name from the `STP_[RESOURCE_NAME]_NAME` environment variable injected by [`connectTo`](/configuration/connecting-resources). For example, a bucket resource named `uploads` injects `STP_UPLOADS_NAME`. For browser-based uploads, generate a presigned URL on your server and have the client upload directly to S3 — this avoids routing large files through your API. Enable [CORS](#cors) on the bucket when using presigned URLs from a browser.
 
-### How much does S3 storage cost?
+### How much does S3 storage cost, and how do I keep it down?
 
-S3 uses pure pay-per-use pricing with no upfront costs or minimum commitments. You pay for storage volume (per GB/month), requests (per 1,000 GET/PUT operations), and data transfer out of AWS. Costs decrease significantly with [lifecycle rules](#lifecycle-rules) that transition older data to cheaper storage classes like `STANDARD_IA` or `GLACIER`. See [Managing Costs](/managing-costs/overview) for tips on monitoring AWS spend.
+S3 uses pure pay-per-use pricing with no upfront costs or minimum commitments. You pay for storage volume (per GB/month), requests (per 1,000 GET/PUT operations), and data transfer out of AWS. Drive the bill down with [lifecycle rules](#lifecycle-rules): transition infrequently accessed data to `STANDARD_IA` after 30 days, archive old data to `GLACIER` or `DEEP_ARCHIVE`, expire logs after a retention period, and add an `abort-incomplete-multipart-upload` rule to every bucket to stop failed uploads from accumulating invisible charges. For unpredictable access patterns, `INTELLIGENT_TIERING` auto-tiers objects based on actual usage. See [Managing Costs](/managing-costs/overview) for monitoring AWS spend.
 
 ### When should I use a Bucket vs a HostingBucket?
 
@@ -469,23 +470,11 @@ Use a [HostingBucket](/resources/frontend/static-hosting) when you're deploying 
 
 ### How do I trigger a Lambda function when a file is uploaded?
 
-Configure an [S3 event trigger](/configuration/triggers/s3-events) on your [Lambda function](/resources/compute/lambda-function). The trigger fires for the configured S3 event type — commonly object-created, object-removed, or object-restore events. You can filter by key prefix and suffix to trigger only for specific file types or paths. For fan-out to multiple consumers from the same event, enable `enableEventBusNotifications` and use [EventBridge](/resources/messaging/event-bus) rules instead.
-
-### What is the maximum object size in S3?
-
-A single S3 object can be up to 5 TB. For objects larger than 5 GB, S3 requires multipart upload — most AWS SDKs handle this automatically. Add an `abort-incomplete-multipart-upload` [lifecycle rule](#lifecycle-rules) to clean up failed multipart uploads that would otherwise accumulate invisible storage charges.
-
-### Can I make bucket files publicly downloadable?
-
-Yes. Set `accessibility.accessibilityMode` to `public-read` to allow anyone to download files via their S3 URL. For production use, consider placing a [CDN](#cdn) in front of the bucket instead — it reduces latency and lowers bandwidth costs. Alternatively, generate presigned URLs from your API to grant temporary access to specific files without making the entire bucket public.
+Configure an [S3 event trigger](/resources/triggers/s3-events) on your [Lambda function](/resources/compute/lambda-function). The trigger fires for the configured S3 event type — commonly object-created, object-removed, or object-restore events. You can filter by key prefix and suffix to trigger only for specific file types or paths. For fan-out to multiple consumers from the same event, enable `enableEventBusNotifications` and use [EventBridge](/resources/messaging/event-bus) rules instead.
 
 ### S3 vs EFS — when should I use each?
 
 Use S3 (Bucket) for object storage — uploading, downloading, and processing individual files via the S3 API. Use [EFS](/resources/storage/efs-filesystem) when containers need a shared POSIX filesystem that mounts like a local directory. EFS is appropriate for workloads that read and write files using standard file I/O (e.g., CMS media directories, shared config files across containers). S3 is cheaper per GB, more durable, and scales without capacity limits, but requires SDK-based access rather than filesystem calls.
-
-### How do I reduce S3 storage costs over time?
-
-Use [lifecycle rules](#lifecycle-rules) to automate cost reduction. Transition infrequently accessed data to `STANDARD_IA` after 30 days, archive old data to `GLACIER` or `DEEP_ARCHIVE`, and expire logs or temporary files after a set retention period. Add an `abort-incomplete-multipart-upload` rule to every bucket to prevent invisible storage waste from failed uploads. For data with unpredictable access patterns, `INTELLIGENT_TIERING` automatically moves objects between tiers based on actual usage.
 
 ### Is data in S3 encrypted?
 

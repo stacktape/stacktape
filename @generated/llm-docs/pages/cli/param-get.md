@@ -217,20 +217,16 @@ Each Stacktape resource type exposes a specific set of referenceable parameters.
 
 Yes. The command queries a deployed stack to read the parameter's runtime value. If the stack has not been deployed yet, there is nothing to retrieve. Deploy first with [`deploy`](/cli/deploy), then use `param:get` to read outputs.
 
-### Can I use param:get in CI/CD pipelines?
+### How do I capture the value in a shell script or CI step?
 
-Yes. Use `--agent` or `--outputFormat jsonl` to get machine-readable JSONL output that can be parsed programmatically in subsequent pipeline steps. The default interactive output includes formatting not suited for automated parsing.
+Pass `--agent` or `--outputFormat jsonl` to get machine-readable JSONL output (one JSON object per line). The default interactive output includes colors and formatting that are not suitable for capturing into a shell variable or parsing in a pipeline step.
 
 ### What is the difference between param:get and info:stack?
 
 [`param:get`](/cli/param-get) retrieves a single parameter value from a single resource — ideal for scripting and automation. [`info:stack`](/cli/info-stack) returns a broader overview of all outputs and AWS resources in the stack — better for exploration and discovery after a deployment.
 
-### Do I need to pass --stage every time?
-
-No. The `--stage` flag is optional. If you have configured a default stage using [`defaults:configure`](/cli/defaults-configure), it applies automatically. Pass `--stage` explicitly when you need to override the default or when no default is set.
-
 ## Related commands
 
 - [`info:stack`](/cli/info-stack) — view all outputs and resources in a deployed stack.
-- [`compile-template`](/cli/compile-template) — compile your Stacktape configuration into a CloudFormation template for inspection before deployment.
+- [`synth`](/cli/synth) — compile your Stacktape configuration into a CloudFormation template for inspection before deployment.
 - [`defaults:configure`](/cli/defaults-configure) — set default region and stage so you can omit them from repeated commands.

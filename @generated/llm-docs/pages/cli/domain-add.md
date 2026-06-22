@@ -206,30 +206,10 @@ If the domain is not registered (not purchased from any registrar), the command 
 
 The command creates a regional certificate for the selected `--region` and, when that region is not `us-east-1`, also requests a `us-east-1` ACM certificate stored as `usEast1Cert` in domain status. Run the command in each region where you intend regional certificates for the domain.
 
-### How long does DNS propagation take?
-
-DNS propagation after updating name servers at your registrar typically takes anywhere from a few hours to 48 hours, depending on the registrar and prior TTL values. AWS ACM certificate validation usually completes within minutes once DNS has propagated. Re-run `domain:add` after propagation to continue the setup.
-
 ### Is there a cost for adding a domain?
 
-The command describes TLS certificates as free, and SES verification as free. Route 53 domain registration prices start at $3/year for `.click` domains (as noted by the command when a domain is unregistered).
-
-### What happens if I cancel midway through the wizard?
-
-The command stores domain status in AWS Parameter Store after selected steps such as hosted-zone setup and certificate-validation setup. Re-run `domain:add` after the pending step (DNS propagation, certificate validation) has had time to complete — the wizard may still re-confirm prompts before proceeding.
+Adding the domain is free: both the ACM TLS certificates and SES verification are free. The only cost is the underlying domain registration itself — Route 53 prices start at $3/year for `.click` domains, but registration is a separate step (`domain:add` requires the domain to already be registered).
 
 ### Can I use a domain registered outside AWS?
 
-Yes. For domains registered with GoDaddy, Namecheap, Hostinger, or another registrar, the command asks whether to move DNS management to Route 53. If you confirm, it creates a hosted zone (if needed) and prints the name servers to set at your registrar. After DNS propagation, re-run the command to continue with certificate provisioning.
-
-### What resources can use a custom domain after adding it?
-
-The CLI describes the added domain as usable with web services, hosting buckets, and API Gateways. After adding the root domain, configure subdomains on the resource that should serve them. For the full setup guide, see [custom domains](/resources/networking/custom-domains).
-
-### How does DNS validation work for TLS certificates?
-
-AWS ACM validates domain ownership by checking for a specific DNS record in the domain's hosted zone. When the regional certificate is not yet issued, the `domain:add` command adds a DNS validation record from the regional certificate's domain validation options to the Route 53 hosted zone. Certificate issuance typically completes within minutes once the record is in place.
-
-### Can I use domain:add in a CI/CD pipeline?
-
-The `domain:add` command prompts for the domain name interactively and asks for multiple confirmations during setup, making it primarily an interactive command. Domain setup is typically a one-time task per region — run it manually rather than scripting it into CI.
+Yes. For domains registered with another registrar (GoDaddy, Namecheap, Hostinger, etc.), the command asks whether to move DNS management to Route 53. If you confirm, it creates a hosted zone (if needed) and prints the name servers to set at your registrar. If the domain is already serving traffic, copy your existing DNS records into the new hosted zone before switching name servers to avoid downtime. After DNS propagation, re-run the command to continue with certificate provisioning.

@@ -72,36 +72,24 @@ The Channels page includes a delete action for each listed channel. When the del
 
 ### Can I use the same channel for alarms, notifications, and budgets?
 
-Yes. A channel created in the Console can be referenced by alarm rules, notification rules, and budget alerts. Create the channel once and select it in whichever rules need it. This reusability is the main advantage of Console-managed channels — you define the destination once and select it across multiple rules.
+Yes — this is the main reason to use Console-managed channels. Create a channel once and reference it from [alarm rules](/observability/alarms), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets). Channels are scoped to the selected organization, so you don't recreate them per project or stage.
 
-### How do I test that my channel is working?
+### When should I use a Console channel instead of config-level alarm options?
 
-Check [alert history](/observability/alert-history) in the Console to see a unified log of alerts across notifications, alarms, and budgets. The notification history and alarm history pages include delivery status, so you can confirm whether an alert was sent. If the history indicates the alert was sent but the destination did not receive it, inspect the channel details in the Console and check the receiving system.
-
-### What happens if a channel's endpoint becomes unreachable?
-
-Check [alert history](/observability/alert-history) in the Console for a log of alerts sent through your channels. The notification history and alarm history pages include delivery status. Correct the channel configuration as needed, then verify alert history after the next alert fires to confirm delivery resumes. Outside of Stacktape, you may also want to check the receiving system's own logs as a general troubleshooting step.
+Use Console-managed channels when the destination is shared across multiple rules, or when non-developers need to manage alert routing without touching config files. If you'd rather define alarms that deploy alongside your stack from your Stacktape config, see [alarm configuration](/observability/alarms) instead.
 
 ### Can I send alerts to multiple Slack channels?
 
-Create a separate alert channel for each Slack channel you want to target. Then select each channel in the relevant alarm rules, notification rules, or budget alerts. This gives you fine-grained control over which alerts reach which Slack channels.
+Yes, but you create a separate alert channel for each Slack channel you want to target, then select each one in the relevant rules. This lets a warning-level alarm rule deliver to one Slack channel while a critical rule targets another channel (or a webhook for your incident-management tool).
 
-### When should I use Console channels vs config-level alarm options?
+### How do I tell whether an alert was actually delivered?
 
-Use Console-managed alert channels when the destination is shared across multiple rules or when non-developers need to manage alert routing without touching config files. For alarm options configured directly in your Stacktape config, see [alarm configuration](/observability/alarms).
+Check [alert history](/observability/alert-history) in the Console — a unified log across notifications, alarms, and budgets. The notification and alarm history views include delivery status, so you can confirm an alert was sent. If history shows it was sent but the destination never received it, open the channel details in the Console and check the receiving system's own logs.
 
-### Are alert channels managed per-organization or per-project?
+### Why can't I delete a channel?
 
-The Console loads alert channels for the selected organization and uses them when configuring notification rules, alarm rules, and budget alerts. You do not need to recreate channels for each project or stage.
-
-### Can I route different thresholds to different channels?
-
-Alarm rules monitor metrics and send alerts to a specified channel when a threshold is breached. To reach different destinations for different conditions, configure each alarm rule with the appropriate channel. For example, a warning-level rule could target a Slack channel while a critical rule targets a webhook for your incident management system.
+The delete fails when the channel is still referenced by a rule — the API returns an error starting with "Can't delete this channel yet," and the Console lists the referencing rule lines. Remove those references from the relevant alarm rules, notification rules, or budget alerts, then retry the deletion.
 
 ### Is there a CLI command for managing alert channels?
 
-Alert channels are created, viewed, and deleted from the **Channels** page in the [Stacktape Console](/stacktape-console/console-overview). The CLI provides observability commands like [`stacktape debug:logs`](/cli/debug-logs) and [`stacktape debug:alarms`](/cli/debug-alarms) for runtime debugging.
-
-### What is the difference between alert channels and alarm configuration in Stacktape config?
-
-Console-managed alert channels are reusable destinations that any rule in your organization can reference by name. They are created and managed entirely in the Console. Console channels are best for shared, organization-wide routing managed by non-developers. See [alarm configuration](/observability/alarms) for alarm options that deploy with your stack.
+No. Alert channels are a Console-only feature — they are created, viewed, and deleted from the **Channels** page in the [Stacktape Console](/stacktape-console/console-overview). The CLI's observability commands like [`stacktape logs`](/cli/logs) and [`stacktape alarms`](/cli/alarms) are for runtime debugging, not channel management.

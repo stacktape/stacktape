@@ -303,4 +303,4 @@ stacktape bucket:sync --stage staging --resourceName assets --region eu-central-
 
 - [`deploy`](/cli/deploy) — deploys the full stack including bucket resources and their `directoryUpload` configuration.
 - [`delete`](/cli/delete) — deletes the stack and its managed resources; back up any data you want to keep before running it.
-- [`preview-changes`](/cli/preview-changes) — shows what a deployment would change before you run it.
+- [`diff`](/cli/diff) — shows what a deployment would change before you run it.

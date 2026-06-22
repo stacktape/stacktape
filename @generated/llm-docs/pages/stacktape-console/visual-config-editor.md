@@ -107,10 +107,6 @@ For private repository generation, the editor pulls repositories from your conne
 
 ## FAQ
 
-### Can I use the config editor without deploying?
-
-Yes. The config editor is a standalone tool for working with Stacktape configuration templates in the Console. You can select, edit, and save templates without triggering any deployment. When you're ready, use a Stacktape config file such as `stacktape.ts` or `stacktape.yaml` in your project and run [`stacktape deploy`](/cli/deploy), or set up [GitOps](/ci-cd-and-gitops/gitops-with-console) to deploy automatically on push.
-
 ### Should I use the visual config editor or my local IDE?
 
 Both work well at different stages. The config editor is convenient when you want to draft a config in the Console — for example, when starting from a preset or generating one from a Git repository. Once your project's config lives in version control, most teams edit `stacktape.ts` directly in their IDE using the [TypeScript config](/configuration/configuration-files) format, which gives you variables, conditionals, loops, and IDE refactoring tools.
@@ -133,16 +129,4 @@ No — templates marked as created in the Console for a new stage are read-only 
 
 ### What happens if AI config generation fails?
 
-The generation process creates a temporary project in the Console and runs the analysis. The editor passes a cleanup callback that deletes the temporary AI-generation project. If initialization fails, the Console shows "Failed to initialize AI config generation." Review your repository and branch selections before trying again.
-
-### Can the resulting config be saved as TypeScript or YAML?
-
-The local config file name is either `stacktape.ts` or `stacktape.yaml`. See [configuration files](/configuration/configuration-files) for details on both formats and the benefits of the TypeScript approach.
-
-### What is the CloudFormation template view useful for?
-
-The CloudFormation template view lets you inspect the compiled CloudFormation resources generated from your Stacktape config. This is useful for understanding what AWS infrastructure Stacktape will create before deploying. Keep in mind that it is not 100% accurate because some information is known only during deployment.
-
-### Config editor vs stacktape init — when to use which?
-
-[`stacktape init`](/cli/init) scaffolds a new Stacktape project locally. The config editor in the Console is where you draft and manage configuration templates separately from your local project. Use the config editor when you want to explore resource types, try different configurations, or generate a config from an existing repository; use `stacktape init` when you're starting a new local project from a starter.
+If initialization fails, the Console shows "Failed to initialize AI config generation." The generation runs in a temporary Console project that is cleaned up automatically afterward, so a failed attempt leaves nothing behind — review your repository and branch selections and try again. See [AI config generation](/using-with-ai/config-generation-from-repository) for how the analysis works.

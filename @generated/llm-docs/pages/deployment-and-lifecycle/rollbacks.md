@@ -134,25 +134,17 @@ After a successful `cf:rollback`, Stacktape automatically cleans up any deployme
 
 `stacktape rollback` does not run reverse database migrations; it deploys the old CloudFormation template. If your schema changed between versions (for example, you added a column via a [deployment script](/deployment-and-lifecycle/deployment-scripts-and-hooks)), you need to review and handle any schema or data changes separately before and after the rollback.
 
-### When should I reach for `cf:rollback` instead of just redeploying?
-
-Use `cf:rollback` when a failed deployment leaves the stack unable to accept the next Stacktape update. The command calls Stacktape's CloudFormation rollback flow, then cleans up artifacts from the failed deployment so the next deploy starts clean.
-
-### Does rollback work with gradual deployments?
-
-A version rollback deploys the selected version's CloudFormation template as a new stack update through the rollback deployment path. If your normal deploys use a [gradual deployment](/deployment-and-lifecycle/gradual-deployments) strategy (canary or linear), verify the rollback behavior for your resource type before relying on rollback during an incident — the rollback path may not follow the same traffic-shifting sequence as a normal deploy.
-
 ### How do I know which version to roll back to?
 
 Run `stacktape rollback --listVersions` to see all available versions with their version numbers. Versions are numbered sequentially (`v000001`, `v000002`, etc.), so you can correlate them with your deployment history. For most incidents, rolling back one step (the default) is correct — you're undoing the most recent change.
 
-### Can I roll back a stack deployed from CI/CD?
-
-Yes. Neither command requires a config file. `stacktape rollback` uses retained deployment artifacts from the deployment bucket, while `stacktape cf:rollback` works against the deployed CloudFormation stack state and then cleans up rolled-back deployment artifacts. You can run either command from any machine with Stacktape installed and access to the target AWS account, such as your laptop or a CI runner.
-
 ### Can I roll forward after a rollback?
 
 Yes. A version rollback creates a new deployment version (e.g., rolling back from `v000005` to `v000003` creates `v000006`). After a successful version rollback, Stacktape reports the new deployment version. You can then deploy normally with [`stacktape deploy`](/cli/deploy) or run another rollback to any retained version.
+
+### Why can't I roll back to an old version?
+
+Each version stays a valid rollback target only while its deployment artifacts are retained. Once a version's artifacts are cleaned up, `stacktape rollback` can no longer restore it — even though it may still appear in your deployment history. Retention is controlled by `deploymentConfig.previousVersionsToKeep`; raise it if you need a longer rollback window, at the cost of keeping more artifacts in storage.
 
 ### Does CloudFormation rollback always succeed?
 

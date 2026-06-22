@@ -157,37 +157,17 @@ Stacktape zips the directory before deployment. Make sure the file referenced by
 
 Use custom artifact packaging when your project has a custom build process that the buildpack can't replicate, or when your CI pipeline already produces a tested zip and you want Stacktape to deploy it directly. If you're writing standard TypeScript or Python without special build requirements, the [Stacktape buildpack](/packaging/function/stacktape-buildpack) is simpler and handles bundling automatically.
 
-### Can I use a directory instead of a zip file?
+### Do I have to zip my artifact myself?
 
-Yes. If `packagePath` points to a directory, Stacktape automatically zips it before deployment. Make sure the file referenced by `handler` exists at the path Lambda will see inside the package. This is convenient when your build tool outputs to a folder rather than producing a zip directly — no need for a manual `zip` step.
+No. `packagePath` accepts a `.zip` file, a directory, or any single non-zip file (for example, a compiled Go binary). A `.zip` is deployed as-is; a directory or non-zip file is zipped automatically before deployment — convenient when your build tool outputs a folder or a single binary rather than a ready-made zip.
 
-### How do I set the handler property?
+### What value do I set for the handler property?
 
-The `handler` property uses the `filepath:functionName` syntax. For example, `src/index.js:handler` calls the `handler` export from `src/index.js` inside your deployment package. Set the file path and function name to match the entry point in your artifact.
+The `handler` property uses `filepath:functionName` syntax and points at the file *inside the deployment package*, not your source. For a TypeScript Lambda compiled to JavaScript, reference the output `.js`, not the source `.ts` — if your build emits `dist/index.js` with an exported `handler`, set `handler: 'index.js:handler'` and point `packagePath` at `dist`.
 
-### What's the maximum size for a Lambda deployment package?
+### Why does my custom artifact deploy but fail at runtime?
 
-AWS Lambda enforces its own deployment package size limits. Custom artifact packaging targets Lambda deployment packages specifically — if your workload doesn't fit within Lambda's package constraints, consider a [container workload](/resources/compute/web-service), which uses one of the [container packaging modes](/packaging/overview) (custom Dockerfile, prebuilt image, Stacktape image buildpack, Nixpacks, or external buildpack) instead of a Lambda zip.
-
-### How do I debug deployment issues with custom artifacts?
-
-If your function fails after deploy, check that the `handler` path matches the file structure inside your zip. Unzip the artifact locally and verify the handler file exists at the expected path. Use [`stacktape debug:logs`](/cli/debug-logs) to view Lambda invocation errors — a mismatched handler path typically surfaces as a module-not-found or handler-not-found error.
-
-### Does custom artifact packaging affect other Lambda settings?
-
-Custom artifact packaging only exposes `packagePath` and an optional `handler`. All other runtime behavior is configured on the [Lambda function](/resources/compute/lambda-function) resource itself and works the same regardless of which packaging mode you choose.
-
-### Can I use custom artifact for container workloads?
-
-No. Custom artifact packaging applies only to Lambda functions. For container-based workloads (web services, private services, worker services, multi-container workloads, batch jobs), see the [container packaging modes](/packaging/overview): custom Dockerfile, prebuilt image, Stacktape image buildpack, Nixpacks, or external buildpack.
-
-### How does Stacktape handle non-zip files at packagePath?
-
-If `packagePath` points to a single non-zip file (for example, a compiled Go binary or a standalone Python script), Stacktape automatically wraps it in a zip before deployment. This means you can point directly at a compiled binary without manually zipping it first.
-
-### What handler format should I use for a TypeScript Lambda compiled to JavaScript?
-
-After compiling TypeScript to JavaScript (via tsc, esbuild, or another bundler), the handler references the output `.js` file, not the source `.ts` file. For example, if your build outputs `dist/index.js` with an exported `handler` function, set `handler: 'index.js:handler'` and point `packagePath` at the `dist` directory.
+The most common cause is a `handler` path that doesn't match the file structure inside your zip. Unzip the artifact locally and confirm the handler file exists at the path Lambda will see — a mismatch typically surfaces as a module-not-found or handler-not-found error at invocation time. Use [`stacktape logs`](/cli/logs) to view the error.
 
 
 ## API Reference: `CustomArtifactLambdaPackagingProps`

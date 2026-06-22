@@ -1,6 +1,6 @@
 # Logs
 
-Stacktape gives you two built-in surfaces for viewing application logs: the [Stacktape Console](/stacktape-console/console-overview) and the [`stacktape debug:logs`](/cli/debug-logs) CLI command. Both read from AWS CloudWatch Logs — the log data AWS captures from your compute resources such as [Lambda functions](/resources/compute/lambda-function), container workloads ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload)), and [batch jobs](/resources/compute/batch-job).
+Stacktape gives you two built-in surfaces for viewing application logs: the [Stacktape Console](/stacktape-console/console-overview) and the [`stacktape logs`](/cli/logs) CLI command. Both read from AWS CloudWatch Logs — the log data AWS captures from your compute resources such as [Lambda functions](/resources/compute/lambda-function), container workloads ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload)), and [batch jobs](/resources/compute/batch-job).
 
 ## How logging works
 
@@ -35,14 +35,14 @@ The virtualized list keeps the viewer responsive even with hundreds of log entri
 
 ## Viewing logs with the CLI
 
-The [`stacktape debug:logs`](/cli/debug-logs) command fetches logs from your terminal. It supports two modes: standard log fetching and [CloudWatch Logs Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html) queries via the `--query` flag.
+The [`stacktape logs`](/cli/logs) command fetches logs from your terminal. It supports two modes: standard log fetching and [CloudWatch Logs Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html) queries via the `--query` flag.
 
 ### Basic usage
 
 Fetch the most recent logs for a resource:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi
 ```
 
 This returns up to 100 log events from the last hour. Without `--raw` or agent mode, log events are passed to a formatted printer that adds timestamps and level-based coloring. Pass `--raw` for structured JSON output instead.
@@ -54,25 +54,25 @@ Control the time window with `--startTime` and `--endTime`.
 Last 30 minutes:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi --startTime 30m
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi --startTime 30m
 ```
 
 Last 3 hours:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi --startTime 3h
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi --startTime 3h
 ```
 
 Last 2 days:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi --startTime 2d
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi --startTime 2d
 ```
 
 Specific time window (used with Logs Insights queries):
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi \
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi \
   --startTime "2025-05-14T08:00:00Z" --endTime "2025-05-14T09:00:00Z" \
   --query "fields @timestamp, @message | sort @timestamp desc | limit 50"
 ```
@@ -93,7 +93,7 @@ If `--startTime` is omitted, it defaults to 1 hour before `--endTime`. If `--end
 Use `--limit` to control how many log events are returned. For example, to fetch the last 500 events:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi --limit 500
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi --limit 500
 ```
 
 The default limit is 100 events. The CLI applies the limit by slicing the fetched events to the first N entries (`events.slice(0, limit)`). If you are looking at a high-traffic resource, increase the limit to capture more context around an incident.
@@ -105,13 +105,13 @@ Use `--filter` to apply a CloudWatch filter pattern, returning only events that 
 Filter to only errors:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi --filter "ERROR"
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi --filter "ERROR"
 ```
 
 Filter JSON structured logs by field value:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi \
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi \
   --filter '{ $.level = "error" }'
 ```
 
@@ -131,14 +131,14 @@ For complex analysis — aggregations, top-N queries, statistical breakdowns —
 Find the 20 most recent errors with timestamps:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi \
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi \
   --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
 ```
 
 Count errors per hour over the last 24 hours:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi \
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi \
   --startTime 24h \
   --query "filter @message like /ERROR/ | stats count(*) as errorCount by bin(1h)"
 ```
@@ -146,7 +146,7 @@ stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi \
 Find slowest Lambda invocations:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi \
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi \
   --query "filter @type = 'REPORT' | stats max(@duration) as maxDuration, avg(@duration) as avgDuration by bin(5m)"
 ```
 
@@ -161,7 +161,7 @@ When `--query` is provided, the command uses the CloudWatch Logs Insights engine
 For [multi-container workloads](/resources/compute/multi-container-workload), use `--container` to specify which container's logs to fetch:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myWorkload --container nginx
+stacktape logs --stage prod --region eu-west-1 --resourceName myWorkload --container nginx
 ```
 
 The `--container` flag is used when resolving the log group for the resource. For single-container resources ([web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service)), the log group is resolved automatically and `--container` is not needed.
@@ -171,7 +171,7 @@ The `--container` flag is used when resolving the log group for the resource. Fo
 Use `--raw` to get structured JSON output instead of formatted text:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi --raw
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi --raw
 ```
 
 This outputs a JSON object containing the log group name and an array of events, each with `timestamp`, `message`, and `logStream` fields. Raw output is useful for piping into `jq`, storing for later analysis, or consuming in scripts.
@@ -202,7 +202,7 @@ Both surfaces access the same underlying CloudWatch Logs data. Choose based on y
 
 ## Feature Comparison
 
-| Feature | CLI (debug:logs) | Console |
+| Feature | CLI (logs) | Console |
 | --- | --- | --- |
 | Historical log search | yes | yes |
 | Filter patterns | yes | yes |
@@ -213,7 +213,7 @@ Both surfaces access the same underlying CloudWatch Logs data. Choose based on y
 | Scriptable / CI-friendly | yes | no |
 
 
-Use the Console for quick visual inspection of stored log events with its 14 preset time windows, date-range picker, and expandable log lines. Use the CLI for Logs Insights queries, JSON export, scripted analysis, and terminal-based workflows. The [`debug:logs`](/cli/debug-logs) command targets a single `--resourceName` per invocation; the Console log viewer operates on one log group at a time.
+Use the Console for quick visual inspection of stored log events with its 14 preset time windows, date-range picker, and expandable log lines. Use the CLI for Logs Insights queries, JSON export, scripted analysis, and terminal-based workflows. The [`logs`](/cli/logs) command targets a single `--resourceName` per invocation; the Console log viewer operates on one log group at a time.
 
 ## Structured logging
 
@@ -230,14 +230,14 @@ With this format, you can run targeted queries.
 Filter to errors for a specific user:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi \
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi \
   --filter '{ $.userId = "u-123" && $.level = "error" }'
 ```
 
 Aggregate error counts by status code over the last 6 hours:
 
 ```bash
-stacktape debug:logs --stage prod --region eu-west-1 --resourceName myApi \
+stacktape logs --stage prod --region eu-west-1 --resourceName myApi \
   --startTime 6h \
   --query "filter level = 'error' | stats count(*) by statusCode"
 ```
@@ -250,41 +250,21 @@ For external log shipping, see [log forwarding](/observability/log-forwarding). 
 
 ## FAQ
 
-### Which Stacktape resources produce logs?
-
-`stacktape debug:logs` fetches from a CloudWatch log group resolved by `--resourceName` and, optionally, `--container` for [multi-container workloads](/resources/compute/multi-container-workload). The Console log viewer reads from the same resolved log group. Application logs are whatever your code writes to stdout and stderr — the underlying AWS service streams that into CloudWatch Logs.
-
-### How long are CloudWatch Logs retained?
-
-AWS CloudWatch Logs retains log data based on the retention policy configured on each log group. AWS supports retention periods from 1 day to 10 years, or indefinite retention. Check your log group's retention setting in the AWS console if storage costs are a concern. For cost guidance, see [optimization tips](/managing-costs/optimization-tips).
-
 ### How much does CloudWatch Logs cost?
 
 AWS CloudWatch Logs charges for ingestion, storage, and Logs Insights queries. Pricing is billed directly to your AWS account and varies by region — check the [AWS CloudWatch pricing page](https://aws.amazon.com/cloudwatch/pricing/) for current rates. For Stacktape cost management, see [Managing Costs](/managing-costs/overview).
 
 ### Can I search logs across multiple resources at once?
 
-The CLI's [`debug:logs`](/cli/debug-logs) command targets a single `--resourceName` per invocation, and the Console log viewer operates on one log group at a time. To search across multiple resources, run separate `stacktape debug:logs` commands for each. For cross-resource log analysis, consider forwarding logs to a centralized platform using [log forwarding](/observability/log-forwarding).
+The CLI's [`logs`](/cli/logs) command targets a single `--resourceName` per invocation, and the Console log viewer operates on one log group at a time. To search across multiple resources, run separate `stacktape logs` commands for each. For cross-resource log analysis, consider forwarding logs to a centralized platform using [log forwarding](/observability/log-forwarding).
 
 ### What is the difference between filter patterns and Logs Insights queries?
 
 Filter patterns are simple text or JSON-field matchers applied at fetch time — they return matching log lines. CloudWatch Logs Insights is a full query language that supports aggregation (`stats count(*)`), grouping (`by bin(1h)`), sorting, and field extraction. Use filter patterns for quick keyword searches; use Insights for analytical queries like "how many errors per hour" or "what are the slowest requests." The CLI supports both filter patterns (`--filter`) and Logs Insights queries (`--query`). The Console log viewer supports CloudWatch filter patterns.
 
-### Can I export logs to S3?
-
-AWS supports exporting CloudWatch Logs to S3 via export tasks, configured through the AWS console or AWS CLI. Stacktape does not provide a built-in command for this, but the log groups are standard CloudWatch resources in your AWS account. For continuous log shipping, [log forwarding](/observability/log-forwarding) is a more practical approach.
-
-### How do I view logs for a specific container in a multi-container workload?
-
-Use the `--container` flag with the CLI: `stacktape debug:logs --stage prod --region eu-west-1 --resourceName myWorkload --container myContainer`. The flag tells the CLI which container's log group to resolve when fetching events. For single-container resources (web services, private services, worker services), the container is resolved automatically and the flag is not needed.
-
 ### When should I use CloudWatch Logs vs an external logging service?
 
-CloudWatch Logs requires no additional setup for Stacktape resources, integrates with the CLI and Console, and handles most debugging and monitoring needs. Switch to an external service (Datadog, Grafana Cloud, Highlight.io, etc.) when you need cross-service correlation, advanced alerting on log patterns, long-term log analytics beyond CloudWatch retention, or a unified dashboard spanning AWS and non-AWS systems. Use [log forwarding](/observability/log-forwarding) to send logs to both destinations.
-
-### What format should my application logs use for best results?
-
-Structured JSON logs are the most queryable format. Both the CLI's `--filter` flag and Logs Insights queries can match on individual JSON fields (e.g., `{ $.level = "error" }` or `filter statusCode >= 500`). Plain-text logs work for simple keyword filtering but cannot be queried by field. Most logging libraries support JSON output with minimal configuration — see the [Structured logging](#structured-logging) section above.
+CloudWatch Logs requires no additional setup for Stacktape resources and integrates with both the CLI and the Console, so it handles most debugging and monitoring needs. Reach for an external service when you need cross-service correlation, advanced alerting on log patterns, or a unified dashboard spanning AWS and non-AWS systems. Use [log forwarding](/observability/log-forwarding) to ship logs to those destinations.
 
 ### How do I set up alerts based on log patterns?
 

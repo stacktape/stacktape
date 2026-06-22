@@ -15,7 +15,7 @@ Common scenarios where log forwarding pays off:
 
 ## When NOT to use log forwarding
 
-If you only need to view and search logs, Stacktape's built-in [log viewing](/observability/logs) — via [`stacktape debug:logs`](/cli/debug-logs) or the Stacktape Console — is sufficient. Log forwarding adds Firehose ingestion cost and a backup S3 bucket for failed deliveries. Skip it unless you have a specific external destination in mind. For cost details, see [Managing Costs](/managing-costs/overview).
+If you only need to view and search logs, Stacktape's built-in [log viewing](/observability/logs) — via [`stacktape logs`](/cli/logs) or the Stacktape Console — is sufficient. Log forwarding adds Firehose ingestion cost and a backup S3 bucket for failed deliveries. Skip it unless you have a specific external destination in mind. For cost details, see [Managing Costs](/managing-costs/overview).
 
 ## Supported destinations
 
@@ -214,7 +214,7 @@ When Firehose cannot deliver logs to your endpoint (network errors, 4xx/5xx resp
 
 ### Built-in log viewing
 
-Log forwarding sends logs to the configured external destination through Kinesis Data Firehose. Use [`stacktape debug:logs`](/cli/debug-logs) or the Stacktape Console for Stacktape's built-in log viewing.
+Log forwarding sends logs to the configured external destination through Kinesis Data Firehose. Use [`stacktape logs`](/cli/logs) or the Stacktape Console for Stacktape's built-in log viewing.
 
 ## Choosing a destination
 
@@ -230,21 +230,9 @@ Use the dedicated `datadog` or `highlight` type when you target those services �
 
 ## FAQ
 
-### Do forwarded logs still appear in CloudWatch?
-
-Log forwarding sends logs to the configured external destination through Kinesis Data Firehose. Use [`stacktape debug:logs`](/cli/debug-logs) or the Stacktape Console for Stacktape's built-in log viewing.
-
-### What format are the forwarded logs in?
-
-Logs are delivered through Kinesis Data Firehose to the configured HTTPS destination. The Stacktape source does not document the delivered payload shape. Verify your destination's Firehose HTTPS intake requirements to confirm compatibility before deploying.
-
 ### What happens if my endpoint is down?
 
-Firehose retries delivery for the configured retry duration (defaults to 300 seconds for the HTTP endpoint type). After retries are exhausted, failed batches go to a backup S3 bucket.
-
-### How does the `logForwarding` property relate to resource configuration?
-
-Where a resource's logging configuration includes `logForwarding`, the property accepts one of three destination types: `datadog`, `highlight`, or `http-endpoint`. The configuration shape is the same regardless of which resource type you attach it to.
+Firehose retries delivery for the configured retry duration (defaults to 300 seconds for the HTTP endpoint type). After retries are exhausted, failed log batches are written to a backup S3 bucket. Check your destination's ingestion logs and that backup bucket to diagnose delivery failures.
 
 ### Can I use a custom HTTP endpoint for Grafana Cloud Logs?
 
@@ -260,15 +248,11 @@ Use the `datadog` type. It requires only `apiKey` and uses the default Datadog e
 
 ### Does log forwarding support filtering which logs are sent?
 
-The `logForwarding` configuration does not include a filter option. If you need filtering, handle it in the destination or ingestion pipeline — for example, Datadog Log Pipelines or Grafana Cloud log processing rules.
-
-### How do I verify that log forwarding is working?
-
-After deploying with log forwarding configured, generate some log output from your resource (make a request to your API, trigger a Lambda invocation, etc.) and check your external platform for incoming logs. If logs do not appear after your destination's normal ingestion delay, verify your endpoint URL and access credentials. Failed deliveries are routed to a backup S3 bucket after retries are exhausted — check your destination's ingestion logs and the backup S3 bucket to identify delivery failures.
+The `logForwarding` configuration does not include a filter option — every log record from the resource is forwarded. If you need filtering, handle it in the destination or ingestion pipeline — for example, Datadog Log Pipelines or Grafana Cloud log processing rules.
 
 ### Can I forward logs from any resource type?
 
-The `logForwarding` property accepts `http-endpoint`, `highlight`, or `datadog` destinations. Not all resource types include `logForwarding` in their logging configuration — check the API reference for your specific resource type to confirm.
+The `logForwarding` property accepts `http-endpoint`, `highlight`, or `datadog` destinations, but not every resource type exposes `logForwarding` in its logging configuration. Check the API reference for your specific resource type to confirm it is supported.
 
 ## API reference
 
@@ -285,6 +269,49 @@ interface LogForwardingBase {
    * ---
    *
    * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       memory: 512
+   *       timeout: 10
+   *       logging:
+   *         retentionDays: 90
+   *         logForwarding:
+   *           type: datadog
+   *           properties:
+   *             apiKey: $Secret('datadog.apiKey')
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     memory: 512,
+   *     timeout: 10,
+   *     logging: {
+   *       retentionDays: 90,
+   *       logForwarding: {
+   *         type: 'datadog',
+   *         properties: { apiKey: $Secret('datadog.apiKey') }
+   *       }
+   *     }
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
   logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;
 }

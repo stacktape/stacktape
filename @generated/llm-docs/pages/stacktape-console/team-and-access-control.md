@@ -111,10 +111,6 @@ This member authenticated through an external identity provider rather than a di
 
 ## FAQ
 
-### How do roles affect the Users page?
-
-Each organization member has exactly one role, displayed as a color-coded badge in the Users table. Your role determines which permission gates — `members:invite`, `members:remove`, `members:update-role`, and `api-keys:revoke-all` — are available to you on this page. The Users page also enforces an Admin-on-Owner restriction: Admin-role users cannot act on Owner-role members.
-
 ### Can an Admin remove or edit an Owner?
 
 No. The Users page hides the edit, revoke, and remove buttons entirely from Admin-role users on Owner-role rows. This constraint is enforced in the UI independently of the four permission gates.
@@ -123,30 +119,18 @@ No. The Users page hides the edit, revoke, and remove buttons entirely from Admi
 
 No. The Users page exposes them as two independent actions, each with its own confirmation dialog. Removing a member removes them from the organization. Revoking API keys invalidates their programmatic credentials. For a complete offboarding, use both actions — revoke API keys to invalidate programmatic credentials, then remove the member.
 
-### How many members can I add to my organization?
-
-Member limits depend on your organization type and subscription plan. Personal organizations do not support additional members. Named organizations have a limit computed from the subscription plan type — when reached, the Invite button is disabled with a message directing you to upgrade. Check [Billing and Subscription](/stacktape-console/billing-and-subscription) for your plan's specifics.
-
 ### Can I enforce MFA for all organization members?
 
 The Users page displays each member's MFA status but does not offer an organization-wide MFA enforcement toggle. Each member enables MFA individually through their own [Account Settings](/stacktape-console/account-settings). Members authenticated via an external identity provider show MFA as "External" because their provider handles authentication.
 
-### What happens when I invite someone?
+### Why is a member stuck on "Invited" status?
 
-The invited member appears in the Users table with status "Invited." Once the member confirms their account, the Users table shows the Cognito-derived account state (such as "Confirmed") instead of "Invited." Unconfirmed members show "Disabled" for MFA until they complete account setup.
+The member appears with status "Invited" until they confirm their account; only then does the table show their Cognito-derived state (such as "Confirmed"). If they stay "Invited" indefinitely, the invitation email was likely missed or filtered — and note the Users page does not expose a resend-invitation action from this view. Unconfirmed members always show "Disabled" for MFA until they complete account setup.
 
-### Does Stacktape support external identity providers for team login?
+### Why can't I invite members to my organization?
 
-Yes. The Users page displays members with "External provider" as their account status when they authenticate through an external identity provider. Their MFA column shows "External" because authentication is managed by that provider. External identity provider configuration is not shown on the Users page.
-
-### Where can I see who deployed what?
-
-The Stacktape Console includes an Activity view that logs CLI operations across your organization — deploys, deletes, scripts, and other recorded commands. This gives team leads visibility into who performed which actions. See [Console Overview](/stacktape-console/console-overview) for more on Console capabilities.
-
-### What is a personal organization?
-
-Every Stacktape account has a default personal organization. Personal organizations are limited to a single member and do not support invitations. To collaborate with a team, create a named organization and invite members there. See [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages) for the full organizational model.
+If the **Invite new member** button is disabled, it is one of three reasons, each with its own tooltip: your role lacks the `members:invite` permission, you are on a personal organization (which is limited to a single member — create a named organization instead), or your organization has reached its member limit for the current subscription plan. See [Billing and Subscription](/stacktape-console/billing-and-subscription) for upgrade options.
 
 ### How do I choose the right role for a team member?
 
-Assign the least-privileged role that lets the member do their job. When you click the edit button for a member, the update form lets you change their role. On the Users page, actions are controlled by the `members:invite`, `members:remove`, `members:update-role`, and `api-keys:revoke-all` permission gates, with an additional Admin-on-Owner restriction that prevents Admin-role users from acting on Owner-role members.
+Assign the least-privileged role that lets the member do their job. A member's role determines which of the four permission gates they hold — `members:invite`, `members:remove`, `members:update-role`, and `api-keys:revoke-all` — and an Admin can never edit, remove, or revoke keys for an Owner regardless of permissions. To change a role, click the edit (pencil) button for the member and pick a new role in the update form.

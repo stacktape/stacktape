@@ -22,7 +22,7 @@ Self-hosted Convex is the right choice when you want Convex's reactive programmi
 
 ## Basic example
 
-A minimal Convex deployment uses the `Convex` class from the `stacktape` package and requires the path to your `convex/` directory, backend resource sizing, and dashboard resource sizing (the dashboard is enabled by default and its compute resources should be specified).
+A minimal Convex deployment uses the `Convex` class from the `stacktape` package. The only required property is `appDirectory` — the path to your `convex/` directory. Backend resources default to `{ cpu: 0.5, memory: 1024 }` and dashboard resources default to `{ cpu: 0.25, memory: 512 }`, but specifying them explicitly is recommended for production clarity.
 
 
 Example (TypeScript):
@@ -137,12 +137,9 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    environment: [
-      {
-        name: 'CONVEX_URL',
-        value: "$ResourceParam('myConvex', 'url')"
-      }
-    ]
+    environment: {
+      CONVEX_URL: "$ResourceParam('myConvex', 'url')"
+    }
   });
 
   return {
@@ -202,11 +199,11 @@ All nested resources are managed by Stacktape — you don't configure them indiv
 
 ## Backend
 
-The backend container runs the Convex server process. All client queries, mutations, actions, and reactive subscriptions flow through it. Container logs are sent to CloudWatch — view them with [`stacktape debug:logs`](/cli/debug-logs).
+The backend container runs the Convex server process. All client queries, mutations, actions, and reactive subscriptions flow through it. Container logs are sent to CloudWatch — view them with [`stacktape logs`](/cli/logs).
 
 ### Compute resources
 
-Backend resources control the CPU and memory available to the Convex server. There is no default — you must specify sizing. The `cpu` property sets vCPU count and `memory` sets RAM in MB, following Fargate's allowed combinations.
+Backend resources control the CPU and memory available to the Convex server. Defaults to `{ cpu: 0.5, memory: 1024 }` — sufficient for development but undersized for production traffic. The `cpu` property sets vCPU count and `memory` sets RAM in MB, following Fargate's allowed combinations.
 
 
 Example (TypeScript):
@@ -251,7 +248,7 @@ Scale **vertically** by increasing `cpu` and `memory`. A single 4 vCPU / 8 GB ba
 
 ### Fargate vs EC2
 
-By default, the backend runs on AWS Fargate (serverless containers). To use EC2 instances instead, specify `instanceTypes` in the resources config. EC2 is typically cheaper per vCPU-hour and supports warm pools for faster task replacement.
+Backend and dashboard resources use the generic container workload resources config. For Fargate (the default), specify `cpu` and `memory` to set the container size. For EC2, specify `instanceTypes` instead — CPU and memory are derived from the instance type. EC2 is typically cheaper per vCPU-hour and supports warm pools for faster task replacement.
 
 
 Example (TypeScript):
@@ -297,7 +294,7 @@ The admin dashboard is a stateless Next.js app (~$3–5/month at default sizing)
 
 ### Dashboard resources
 
-When the dashboard is enabled, specify its compute resources. The dashboard is a Next.js app and is very light — `{ cpu: 0.25, memory: 512 }` is the documented lightweight starting point for most teams.
+Dashboard resources default to `{ cpu: 0.25, memory: 512 }`, which is sufficient for most teams. The dashboard is a lightweight Next.js app — you rarely need to increase these values.
 
 
 Example (TypeScript):
@@ -382,6 +379,10 @@ export default defineConfig(() => {
 ```
 
 
+### Dashboard image
+
+Stacktape defaults to a known-good dashboard image currently from `ghcr.io/get-convex/convex-dashboard`. Use `dashboard.image` to pin a specific version — for example, to test a newer release or roll back to a known-good one. In most cases, leave this unset and let Stacktape manage the image version.
+
 ## Database
 
 Every Convex deployment requires a PostgreSQL database for transactional storage. Stacktape provisions a single-AZ RDS PostgreSQL 16 instance on `db.t4g.micro` by default (~$13/month) with 20 GB storage, 1-day backup retention, and `scoping-workloads-in-vpc` accessibility. The Convex backend is the only workload that can reach the database.
@@ -392,7 +393,7 @@ Every Convex deployment requires a PostgreSQL database for transactional storage
 
 ### Engine options
 
-The `database.engine` property supports three PostgreSQL engine types:
+`database.engine` accepts `RdsEngine`, `AuroraServerlessV2Engine`, or `AuroraEngine` variants. Convex requires PostgreSQL 13 or later — use a PostgreSQL engine for all three. See the [relational database page](/resources/databases/relational-database) for full engine class documentation.
 
 | Engine | Best for | Idle cost context |
 |---|---|---|
@@ -400,7 +401,7 @@ The `database.engine` property supports three PostgreSQL engine types:
 | **Aurora Serverless v2** | Variable workloads, auto-scales 0.5–8 ACU | Higher idle cost than standard RDS due to minimum ACU billing |
 | **Aurora** (provisioned) | High availability, multi-AZ failover | Varies by instance class |
 
-Convex requires PostgreSQL 13 or later. The default (PostgreSQL 16 on `db.t4g.micro`) is the cheapest production-viable option. Aurora Serverless v2 is the right choice when your Convex workload has highly variable traffic — it auto-scales between 0.5 and 8 ACU, but idle cost is higher than standard RDS. Aurora provisioned is suited for production workloads that need multi-AZ failover, at the cost of fixed instance pricing. Most Convex deployments should start with the default RDS engine. See the [relational database page](/resources/databases/relational-database) for full engine documentation.
+The default (PostgreSQL 16 on `db.t4g.micro`) is the cheapest production-viable option. Aurora Serverless v2 is the right choice when your Convex workload has highly variable traffic — it auto-scales between 0.5 and 8 ACU, but idle cost is higher than standard RDS. Aurora provisioned is suited for production workloads that need multi-AZ failover, at the cost of fixed instance pricing. Most Convex deployments should start with the default RDS engine.
 
 ### Other database overrides
 
@@ -467,7 +468,7 @@ Set `deletionProtection` to `true` to prevent accidental deletion of the underly
 
 ## Alarms
 
-The Convex resource accepts `ApplicationLoadBalancerAlarm` and `RelationalDatabaseAlarm` [alarm](/observability/alarms) triggers — including ALB error rate, ALB unhealthy targets, ALB custom metrics, database read/write latency, CPU utilization, free storage, free memory, and connection count. Alarms are merged with global alarms from the Stacktape Console. Use `disabledGlobalAlarms` to exclude specific global alarm names from this deployment. See [alarms](/observability/alarms) for full configuration details.
+The Convex resource accepts `ApplicationLoadBalancerAlarm` and `RelationalDatabaseAlarm` [alarm](/observability/alarms) triggers, covering ALB health and database performance metrics. Alarms are merged with global alarms from the Stacktape Console. Use `disabledGlobalAlarms` to exclude specific global alarm names from this deployment. See [alarms](/observability/alarms) for available trigger types and configuration details.
 
 ## Dev mode
 
@@ -525,16 +526,16 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 ## API Reference: `ConvexProps`
 ```typescript
-import type { ApplicationLoadBalancerAlarm, ConvexBackendConfig, ConvexCustomDomains, ConvexDashboardConfig, ConvexDatabaseConfig, ConvexStorageConfig, DevModeConfig, RelationalDatabaseAlarm } from 'stacktape';
+import type { ApplicationLoadBalancerAlarm, ConvexBackendConfig, ConvexCustomDomains, ConvexDashboardConfig, ConvexDatabaseConfig, ConvexFunctionsDeploymentConfig, ConvexStorageConfig, DevModeConfig, RelationalDatabaseAlarm } from 'stacktape';
 
 type ConvexProps = {
-  /** Path to the convex/ directory in your project (where schema.ts and function files live). */
+  /** Path to the convex/ directory in your project. */
   appDirectory: string;
-  /** Configuration for the Convex backend container (the Rust server process). */
-  backend: ConvexBackendConfig;
   /** Alarms for this Convex deployment (backend container, ALB, database). Merged with global
 alarms from the Stacktape Console. */
   alarms?: Array<ConvexAlarms>;
+  /** Configuration for the Convex backend container (the Rust server process). */
+  backend?: ConvexBackendConfig;
   /** Custom domains for the Convex backend. */
   customDomains?: ConvexCustomDomains;
   /** Configuration for the Convex admin dashboard. */
@@ -548,6 +549,8 @@ filesystem storage. */
   dev?: DevModeConfig;
   /** Global alarm names to exclude from this deployment. */
   disabledGlobalAlarms?: Array<string>;
+  /** How Stacktape deploys Convex functions after infrastructure is ready. */
+  functionsDeployment?: ConvexFunctionsDeploymentConfig;
   /** Shared configuration applied to all five Convex S3 buckets (modules, files, search,
 exports, snapshot_imports). */
   storage?: ConvexStorageConfig;
@@ -561,14 +564,13 @@ type ConvexAlarms =
 
 | Property | Required | Type | Description | Default |
 | --- | --- | --- | --- | --- |
-| `appDirectory` | yes | `string` | Path to the `convex/` directory in your project (where `schema.ts` and function files live). After each `stacktape deploy`, Stacktape runs `npx convex deploy` from this directory against the
-freshly-deployed backend. Type generation (`convex/_generated/`) should be wired in via a
-`hooks.beforeDeploy` script running `npx convex codegen` — see the `convex-nextjs` starter project.
+| `appDirectory` | yes | `string` | Path to the `convex/` directory in your project. After each `stacktape deploy`, Stacktape runs `npx convex deploy` from the parent project directory
+against the freshly-deployed backend.
 
 Example: `appDirectory: './convex'` | - |
-| `backend` | yes | `ConvexBackendConfig` | Configuration for the Convex backend container (the Rust server process). | - |
 | `alarms` | no | `Array<ApplicationLoadBalancerAlarm \| RelationalDatabaseAlarm>` | Alarms for this Convex deployment (backend container, ALB, database). Merged with global
 alarms from the Stacktape Console. | - |
+| `backend` | no | `ConvexBackendConfig` | Configuration for the Convex backend container (the Rust server process). | - |
 | `customDomains` | no | `ConvexCustomDomains` | Custom domains for the Convex backend. Convex exposes two distinct origins that the outside world reaches:
 
 **`cloud`** — the API + WebSocket endpoint (`CONVEX_CLOUD_ORIGIN`). All client traffic
@@ -577,8 +579,7 @@ client. Required.
 **`site`** — the HTTP-actions endpoint (`CONVEX_SITE_ORIGIN`). User-defined `httpAction()`
 routes (webhooks, OAuth callbacks, etc.) live here. Kept separate from `cloud` so webhook
 URLs don&#39;t collide with internal API paths. Required.
-**`dashboard`** — optional. If provided and `dashboard.enabled` is `true`, the dashboard
-serves at this domain. Otherwise the dashboard is reachable via the ALB DNS on port 6791.
+**`dashboard`** — required when `dashboard.enabled` is `true`. The dashboard serves at this domain.
 
 Each domain must have a Route53 hosted zone in your AWS account. Stacktape provisions free
 TLS certificates and DNS records automatically.
@@ -604,6 +605,12 @@ filesystem storage. Set `remote: true` to point `stacktape dev` at the deployed 
 is recommended because Convex&#39;s save-push-reload loop is noticeably faster over loopback than
 across the WAN, and avoids 24/7 Fargate + RDS cost per developer. | - |
 | `disabledGlobalAlarms` | no | `Array<string>` | Global alarm names to exclude from this deployment. | - |
+| `functionsDeployment` | no | `ConvexFunctionsDeploymentConfig` | How Stacktape deploys Convex functions after infrastructure is ready. By default, Stacktape runs `npx convex deploy --codegen disable --typecheck try` from the
+project directory containing `appDirectory`, with `CONVEX_SELF_HOSTED_URL` and
+`CONVEX_SELF_HOSTED_ADMIN_KEY` injected automatically.
+
+Set `enabled: false` if your CI/CD pipeline deploys functions separately, or set `command`
+when your project uses a custom package-manager command. | - |
 | `storage` | no | `ConvexStorageConfig` | Shared configuration applied to all five Convex S3 buckets (`modules`, `files`, `search`,
 `exports`, `snapshot_imports`). Each Convex deployment requires five separate buckets internally. By default they are all
 private, encrypted at rest, with versioning disabled. Use this property to override defaults
@@ -611,10 +618,6 @@ across all five at once (e.g., enable versioning for prod). | - |
 
 
 ## FAQ
-
-### How does deployment work with self-hosted Convex?
-
-When you run [`stacktape deploy`](/deployment-and-lifecycle/deploying-stacks), Stacktape first provisions all infrastructure (Fargate tasks, RDS, S3 buckets, ALB) through CloudFormation. Once the backend container is healthy, Stacktape generates a managed admin key — it enables ECS Exec internally because this is required to generate the key after the backend starts. The admin key is stored in AWS Secrets Manager. Stacktape then runs `npx convex deploy` against the configured `appDirectory` to push your Convex functions to the backend. This happens automatically on every deployment.
 
 ### How much does a self-hosted Convex deployment cost on AWS?
 
@@ -636,18 +639,10 @@ The dashboard has no built-in authentication — the admin key, which you paste 
 
 The underlying RDS PostgreSQL database has automated daily backups with 1-day retention by default. Increase `database.automatedBackupRetentionDays` (up to 35) for production stages. For application-level backups, the Convex tooling provides `npx convex export` to create portable snapshots. Enabling `storage.versioning` on the S3 buckets provides object-level recovery for files stored through Convex's file storage API.
 
-### Can I use Aurora Serverless v2 instead of RDS for the Convex database?
+### Can I point Convex at my existing PostgreSQL database?
 
-Yes. Override `database.engine` to use Aurora Serverless v2 for auto-scaling capacity. Aurora Serverless v2 auto-scales between 0.5 and 8 ACU, which suits Convex workloads with highly variable traffic. The tradeoff is higher idle cost than standard RDS due to minimum ACU billing. Convex requires PostgreSQL 13 or later — Aurora Serverless v2 with PostgreSQL meets this requirement. See the [relational database page](/resources/databases/relational-database) for engine configuration details.
+No. Convex assumes it owns its PostgreSQL instance entirely and manages its own databases inside the cluster, so you cannot bring an external database — the RDS instance is an internal implementation detail of the Convex deployment. You can, however, change the database engine via `database.engine` (RDS PostgreSQL by default, or Aurora Serverless v2 for highly variable traffic at higher idle cost). Convex requires PostgreSQL 13 or later, so use a PostgreSQL engine variant.
 
-### Convex vs a traditional database + API — when should I use Convex?
+### Does dev mode run against my deployed AWS backend or locally?
 
-Use Convex when your application benefits from real-time reactivity (live-updating UIs, collaborative features, dashboards), transactional consistency without hand-rolled conflict resolution, and built-in file storage. Convex's reactive query model eliminates manual cache invalidation and WebSocket plumbing. For straightforward CRUD APIs, scheduled jobs, or workloads that don't need real-time updates, a [Lambda function](/resources/compute/lambda-function) with [DynamoDB](/resources/databases/dynamodb) or a [relational database](/resources/databases/relational-database) is simpler and cheaper.
-
-### What happens if the Convex backend container crashes?
-
-AWS ECS automatically replaces the crashed container. The ALB health check detects the failure and routes traffic away from the unhealthy task while a new one starts. Your PostgreSQL data and S3-stored files persist across container restarts. Configure [alarms](/observability/alarms) on the load balancer to get notified when unhealthy targets are detected. For production stages, set `deletionProtection: true` and increase `database.automatedBackupRetentionDays` for additional safety.
-
-### How does dev mode work with Convex?
-
-By default, [`stacktape dev`](/local-development/dev-mode-overview) runs convex-backend locally in Docker with SQLite and local filesystem storage. This gives you the fastest iteration loop with no AWS costs. Set `dev.remote: true` to connect to the deployed AWS backend instead — useful when you need real data or production-matching behavior. The deployed stage must exist before using remote dev mode. See [dev mode overview](/local-development/dev-mode-overview) for details.
+By default, [`stacktape dev`](/local-development/dev-mode-overview) runs convex-backend locally in Docker with SQLite and local filesystem storage — no AWS costs, and the save-push-reload loop is faster over loopback than across the WAN. Set `dev.remote: true` to connect to the deployed AWS backend instead, which requires the stage to already exist; use this when local emulation doesn't match production behavior or you need real data. See [dev mode overview](/local-development/dev-mode-overview) for details.

@@ -19,7 +19,7 @@ Not every deploy-time task needs a deployment script. Consider alternatives:
 
 - **Local build steps** (compiling, linting, generating assets) — use [lifecycle hooks](/configuration/hooks-and-scripts) with a `local-script`. These run on your machine or CI runner and don't need AWS access.
 - **Tasks longer than 15 minutes or needing more than 10,240 MB memory** — deployment scripts are Lambda functions with a 900-second maximum timeout and 10,240 MB memory cap. For long ETL jobs, data backfills, or heavy processing, use a [batch job](/resources/compute/batch-job).
-- **Recurring tasks** — if the task should run on a schedule (nightly reports, periodic cleanup), use a [Lambda function](/resources/compute/lambda-function) with a [schedule trigger](/configuration/triggers/schedule-triggers) instead.
+- **Recurring tasks** — if the task should run on a schedule (nightly reports, periodic cleanup), use a [Lambda function](/resources/compute/lambda-function) with a [schedule trigger](/resources/triggers/schedule-triggers) instead.
 - **Tasks needing local files or interactive prompts** — deployment scripts run in AWS Lambda, not on your machine. Use a lifecycle hook with a [local script](/configuration/hooks-and-scripts) for anything that reads local files or needs user input.
 
 
@@ -53,8 +53,8 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
-    instanceSize: 'db.t4g.micro'
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: 'my-secret-password' }
   });
 
   const runMigrations = new DeploymentScript({
@@ -252,39 +252,27 @@ Stacktape treats the deployment as failed and triggers a rollback. Your stack st
 
 ### What happens if my before:delete script fails?
 
-Stack deletion continues. This is by design — a broken cleanup script should never prevent you from deleting a stack. If your cleanup script fails, inspect the logs via [`stacktape debug:logs`](/cli/debug-logs) to diagnose the issue, but the stack resources will still be removed.
+Stack deletion continues. This is by design — a broken cleanup script should never prevent you from deleting a stack. If your cleanup script fails, inspect the logs via [`stacktape logs`](/cli/logs) to diagnose the issue, but the stack resources will still be removed.
 
-### Can I run a deployment script manually without deploying?
+### Can I re-run a deployment script without a full deploy?
 
-Yes. Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to invoke any deployment script on demand. Use a full [`stacktape deploy`](/cli/deploy) when you need to apply configuration changes alongside running the script.
+Yes. Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to invoke a configured script on demand — useful for re-running migrations after a hotfix or re-seeding data. Run a full [`stacktape deploy`](/cli/deploy) first when you've changed the script's resources, packaging, permissions, or environment, since `deployment-script:run` invokes the already-deployed version.
 
 ### Can a deployment script access my database?
 
 Yes. Add the database to `connectTo` and set `joinDefaultVpc: true`. For a relational database, `connectTo` injects `STP_[RESOURCE_NAME]_CONNECTION_STRING`, `STP_[RESOURCE_NAME]_HOST`, and `STP_[RESOURCE_NAME]_PORT`. Aurora clusters also get `STP_[RESOURCE_NAME]_READER_CONNECTION_STRING` and `STP_[RESOURCE_NAME]_READER_HOST`. This is the standard pattern for running database migrations in a deployment script.
 
-### How long can a deployment script run?
+### How long can a deployment script run, and what's the default timeout?
 
-Deployment scripts are Lambda functions, so the maximum execution time is 900 seconds (15 minutes). The default timeout is 10 seconds. Set `timeout` explicitly for tasks like database migrations that may take longer. If your task needs more than 15 minutes, use a [batch job](/resources/compute/batch-job) instead.
-
-### Can I have multiple deployment scripts in one stack?
-
-Yes. Define multiple `DeploymentScript` resources in your config, each with its own `trigger`. The provided config type does not expose an ordering property for deployment scripts. If steps must run in a strict sequence, the practical approach is to put them in one script.
+Deployment scripts are Lambda functions, so the maximum execution time is 900 seconds (15 minutes). The default `timeout` is only 10 seconds — a common footgun for migrations, which silently get cut off. Set `timeout` explicitly for anything non-trivial. If the task needs more than 15 minutes or more than 10,240 MB of memory, use a [batch job](/resources/compute/batch-job) instead, which runs as a container with longer runtimes and heavier compute.
 
 ### Should I use a deployment script or a lifecycle hook for migrations?
 
 Use a deployment script when the migration needs direct VPC access to the database; this is usually the cleanest Stacktape-native path when the migration fits within Lambda limits. A deployment script runs inside AWS as a Lambda function, so it can reach VPC-protected databases when `joinDefaultVpc` is enabled. Use a lifecycle hook with a `local-script` when the migration tool doesn't package well as a Lambda or takes longer than 15 minutes. If the local script needs to reach VPC-protected resources, a `local-script-with-bastion-tunneling` script runs locally and can tunnel connections to supported protected resources, including relational databases and Redis clusters, through a [bastion host](/resources/security/bastion-host); set the optional `bastionResource` property when you need to choose a specific bastion.
 
-### When should I use a batch job instead of a deployment script?
-
-Use a [batch job](/resources/compute/batch-job) when the task exceeds 15 minutes, needs more than 10,240 MB of memory, or processes large datasets. Batch jobs run as containers and support longer runtimes and heavier compute. Deployment scripts are better for quick tasks (migrations, seeding) that fit within Lambda's constraints.
-
 ### How much does running a deployment script cost?
 
 Deployment scripts use AWS Lambda pricing: you pay per invocation and for compute time measured in GB-seconds. A typical database migration running for 10 seconds with 512 MB memory costs a fraction of a cent. See [AWS Lambda pricing](https://aws.amazon.com/lambda/pricing/) for current rates.
-
-### Can I use Python or other languages for deployment scripts?
-
-Yes. Deployment scripts support the same languages as [Lambda functions](/resources/compute/lambda-function): JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. When using `StacktapeLambdaBuildpackPackaging`, the runtime is auto-detected from the file extension. You can also set the `runtime` property explicitly if needed.
 
 
 ## API Reference: `DeploymentScriptProps`

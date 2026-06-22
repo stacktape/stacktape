@@ -149,4 +149,4 @@ When no limit is provided, the command requests 25 issues. Omit `--projectName`,
 - [`issues:resolve`](/cli/issues-resolve) — Mark an issue as resolved. The issue reopens automatically if the same error occurs again.
 - [`issues:ignore`](/cli/issues-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences and do not generate alerts.
 - [`issues:reopen`](/cli/issues-reopen) — Reopen a resolved or ignored issue, setting its status back to OPEN.
-- [`debug:logs`](/cli/debug-logs) — Fetch logs from a deployed resource to investigate root causes of issues.
+- [`logs`](/cli/logs) — Fetch logs from a deployed resource to investigate root causes of issues.

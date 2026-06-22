@@ -18,9 +18,9 @@ Event bus triggers add a pattern-matching routing layer. If your use case doesn'
 
 | Scenario | Better alternative |
 |---|---|
-| Point-to-point messaging with batching and retries | [SQS queue trigger](/configuration/triggers/sqs-events) — point-to-point queue consumption with configurable batch sizes and batch windows |
-| Fan-out where every subscriber gets every message | [SNS trigger](/configuration/triggers/sns-events) — simpler pub/sub without pattern syntax |
-| High-throughput ordered streaming with replay | [Kinesis trigger](/configuration/triggers/kinesis-events) — per-shard ordering and built-in replay |
+| Point-to-point messaging with batching and retries | [SQS queue trigger](/resources/triggers/sqs-events) — point-to-point queue consumption with configurable batch sizes and batch windows |
+| Fan-out where every subscriber gets every message | [SNS trigger](/resources/triggers/sns-events) — simpler pub/sub without pattern syntax |
+| High-throughput ordered streaming with replay | [Kinesis trigger](/resources/triggers/kinesis-events) — per-shard ordering and built-in replay |
 | Payloads exceeding the EventBridge size limit | Store data in [S3](/resources/storage/s3-bucket) and pass a reference through any event source |
 
 ## Basic example
@@ -374,40 +374,62 @@ You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`. 
 | `input` | no | `unknown` | A fixed JSON object to be passed as the event payload. If you need to customize the payload based on the event, use `inputTransformer` instead.
 You can only use one of `input`, `inputPath`, or `inputTransformer`.
 
-Example:
+**Example (YAML):**
 
 ```yaml
-input:
-  source: 'my-custom-event'
+resources:
+  orderEvents:
+    type: event-bus
+  orderProcessor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/process-order.ts
+      events:
+        - type: event-bus
+          properties:
+            eventBusName: orderEvents
+            eventPattern:
+              source:
+                - my.orders
+            input:
+              source: my-custom-event
+```
+
+**Example (TypeScript):**
+
+```ts
+import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const orderEvents = new EventBus({});
+  const orderProcessor = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
+    events: [
+      {
+        type: 'event-bus',
+        properties: {
+          eventBusName: 'orderEvents',
+          eventPattern: { source: ['my.orders'] },
+          input: { source: 'my-custom-event' }
+        }
+      }
+    ]
+  });
+  return { resources: { orderEvents, orderProcessor } };
+});
 ``` | - |
 | `inputPath` | no | `string` | A JSONPath expression to extract a portion of the event to pass to the target. This is useful for forwarding only a specific part of the event payload.
-You can only use one of `input`, `inputPath`, or `inputTransformer`.
-
-Example:
-inputPath: &#39;$.detail&#39; | - |
+You can only use one of `input`, `inputPath`, or `inputTransformer`. | - |
 | `inputTransformer` | no | `EventInputTransformer` | Customizes the event payload sent to the target. This allows you to extract values from the original event and use them to construct a new payload.
-You can only use one of `input`, `inputPath`, or `inputTransformer`.
-
-Example:
-inputTransformer:
-  inputPathsMap:
-    instanceId: &#39;$.detail.instance-id&#39;
-    instanceState: &#39;$.detail.state&#39;
-  inputTemplate:
-    message: &#39;Instance <instanceId> is now in state <instanceState>.&#39; | - |
+You can only use one of `input`, `inputPath`, or `inputTransformer`. | - |
 | `onDeliveryFailure` | no | `EventBusOnDeliveryFailure` | A destination for events that fail to be delivered to the target. In rare cases, an event might fail to be delivered. This property specifies an SQS queue where failed events will be sent. | - |
 | `useDefaultBus` | no | `boolean` | Uses the default AWS event bus. You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`. | - |
 
 
 ## FAQ
-
-### What is Amazon EventBridge?
-
-Amazon EventBridge is a serverless event bus service from AWS. It receives structured JSON events from your applications, SaaS partners, or AWS services and routes them to targets based on rules you define. Stacktape's `EventBusIntegration` lets you wire EventBridge rules to your compute resources declaratively — without managing IAM policies, rule targets, or delivery configurations by hand.
-
-### Can I use the default AWS event bus without creating an event bus resource?
-
-Yes. Set `useDefaultBus: true` on the integration instead of specifying `eventBusName` or `eventBusArn`. The default AWS event bus receives events from AWS services automatically, so no [event bus resource](/resources/messaging/event-bus) is needed in your stack.
 
 ### How much does EventBridge cost?
 
@@ -425,13 +447,9 @@ Configure `onDeliveryFailure` to route failed events to an [SQS queue](/resource
 
 Yes. Three mutually exclusive payload options are available: `input` (a static JSON object that replaces the event), `inputPath` (a JSONPath expression to extract part of the event), and `inputTransformer` (extract multiple fields and assemble a custom payload using placeholders). The most common choice is `inputPath: '$.detail'` to strip the EventBridge envelope and forward only your business payload.
 
-### When should I use EventBridge vs SQS?
+### When should I use EventBridge vs SQS or SNS?
 
-Use EventBridge when you need **pattern-based routing** — multiple targets reacting to different subsets of events from the same bus. Use [SQS](/configuration/triggers/sqs-events) for **point-to-point messaging** — a single consumer that needs configurable batch sizes, visibility timeouts, and message-level retry. SQS is simpler and cheaper for one-producer-one-consumer workflows. EventBridge shines when the routing logic is the core concern.
-
-### When should I use EventBridge vs SNS?
-
-[SNS](/configuration/triggers/sns-events) delivers every message to every subscriber (fan-out). EventBridge delivers only events that match a subscriber's pattern (content-based routing). If every consumer should see every message, SNS is simpler and has lower per-message latency. If consumers only care about specific event types or payload values, EventBridge eliminates filtering logic from your application code and keeps each function focused on the events it handles.
+Reach for EventBridge when **content-based routing** is the point — multiple targets each react to a different subset of events from the same bus, filtered by pattern. Use [SQS](/resources/triggers/sqs-events) for **point-to-point** workflows where a single consumer needs configurable batch sizes, visibility timeouts, and message-level retry. Use [SNS](/resources/triggers/sns-events) for **fan-out** where every subscriber should receive every message. SQS and SNS are simpler and cheaper when you don't need pattern matching; EventBridge earns its routing layer when consumers only care about specific event types or payload values.
 
 ### How do I handle large payloads with EventBridge?
 

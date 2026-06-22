@@ -17,7 +17,7 @@ Agent mode is designed for workflows where an AI coding assistant drives the edi
 ## When NOT to use
 
 - **Manual development** — If you're editing code yourself and checking results in a browser, standard [dev mode](/local-development/dev-mode-overview) without `--agent` is simpler. The TUI output is optimized for human reading.
-- **Production observability** — Agent mode runs locally. For deployed stacks, use [`stacktape debug:logs`](/cli/debug-logs), [`stacktape debug:metrics`](/cli/debug-metrics), or the [Stacktape Console](/stacktape-console/console-overview).
+- **Production observability** — Agent mode runs locally. For deployed stacks, use [`stacktape logs`](/cli/logs), [`stacktape metrics`](/cli/metrics), or the [Stacktape Console](/stacktape-console/console-overview).
 - **CI/CD pipelines** — Use [`stacktape deploy`](/cli/deploy) directly in your pipeline. Agent mode is a development-time feature.
 
 ## Starting agent mode
@@ -28,12 +28,14 @@ Add the `--agent` flag to the [`stacktape dev`](/cli/dev) command to start the H
 stacktape dev --agent --agentPort 9900 --stage dev --region eu-west-1
 ```
 
-| Flag            | Description                                                |
-| --------------- | ---------------------------------------------------------- |
-| `--agent`       | Enables the agent HTTP API server alongside dev mode       |
-| `--agentPort`   | Port for the agent HTTP server                             |
-| `--resources`   | Which workloads to run (`all` or comma-separated names)    |
-| `--freshDb`     | Reset local database data on startup                       |
+| Flag            | Description                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| `--agent`       | Enables the agent HTTP API server alongside dev mode                                     |
+| `--agentPort`   | Port for the agent HTTP server                                                           |
+| `--stage`       | Stage used for dev mode and the `.stacktape/dev-data/{stage}/` directory                 |
+| `--region`      | AWS region used by dev mode and as the default for `/aws/sdk` when `region` is omitted   |
+| `--resources`   | Which workloads to run (`all` or comma-separated names)                                  |
+| `--freshDb`     | Reset local database data on startup                                                     |
 
 Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — use `--freshDb` to wipe it for a clean slate.
 
@@ -102,7 +104,7 @@ For detailed information including uptime, per-workload type/port/error data, lo
 curl "http://localhost:9900/status?verbose=true"
 ```
 
-The verbose response replaces the workload string map with an array of objects containing `name`, `type`, `status`, `url`, `port`, and `error` fields, plus a `localResources` array, `uptime` in seconds, and the `logFile` path.
+The verbose response replaces the workload string map with an array of objects containing `name`, `type`, `status`, `url`, `port`, and `error` fields, plus a `localResources` array, `uptime` in seconds, and the `logFile` path. Workload `status` is one of `pending`, `starting`, `running`, `error`, or `stopped`. Local resource status uses the same values.
 
 ### Logs
 
@@ -202,7 +204,7 @@ If a workload is currently in the `starting` state (mid-rebuild), the server rej
 
 ### Liveness check
 
-`GET /health` returns the current agent phase and can be used as a simple liveness check. Use `/status` for full workload details.
+`GET /health` returns the current agent phase and can be used as a simple liveness check. Unlike `/status`, `/health` does not include workloads or local resources — it only returns `ok` and the current agent `phase` inside the standard envelope. Use `/status` for full workload details.
 
 ```bash
 curl http://localhost:9900/health
@@ -230,7 +232,7 @@ Calling stop when the agent is already stopping or stopped returns success witho
 
 ## Database endpoints
 
-Agent mode exposes HTTP endpoints for local resource instances started by dev mode. The current server has typed handlers for PostgreSQL, MySQL/MariaDB, Redis, DynamoDB, and OpenSearch resources, so AI agents can inspect schemas, run queries, and verify data without installing separate database client tools.
+Agent mode exposes HTTP endpoints for local resource instances started by dev mode. The current server has typed handlers for PostgreSQL, MySQL/MariaDB, Redis, DynamoDB, and OpenSearch resources, so AI agents can inspect schemas, run queries, and verify data without installing separate database client tools. `GET /` lists only the database endpoint groups for local resources currently running in this dev session. If a resource is not running or has a different local type, the endpoint returns an error with available resource names where applicable.
 
 The `{name}` path parameter in every database endpoint matches the resource name in your Stacktape configuration. If you reference a name that doesn't exist, the error response includes an `available` array listing the valid resource names.
 
@@ -348,7 +350,7 @@ curl -X POST http://localhost:9900/aws/sdk \
   -d '{"service": "lambda", "command": "ListFunctions", "input": {"MaxItems": 10}}'
 ```
 
-The request body accepts `service` (required), `command` (required), `input` (optional, defaults to `{}`), and `region` (optional, defaults to the dev mode region).
+The request body accepts `service` (required), `command` (required), `input` (optional, defaults to `{}`), and `region` (optional, defaults to the dev mode region). If `service` or `command` is missing, the agent returns a validation error with a hint showing the expected request shape.
 
 To list all supported services and example commands:
 
@@ -356,7 +358,7 @@ To list all supported services and example commands:
 curl http://localhost:9900/aws/sdk/services
 ```
 
-The response `data` field contains the return value of `getSupportedServices()` from the installed CLI version — use it as the authoritative list of valid `service` values before constructing `/aws/sdk` calls. The service list in the startup message and on this page is a summary; the endpoint response is always up to date.
+`GET /aws/sdk/services` returns a successful envelope whose payload includes the supported services from `getSupportedServices()`. In the current implementation, the services payload is nested under `data.data` in the response. Use the running endpoint response as the authoritative shape and list of valid `service` values before constructing `/aws/sdk` calls. The service list in the startup message and on this page is a summary; the endpoint response is always up to date.
 
 Common AWS SDK calls for AI agents:
 
@@ -369,7 +371,7 @@ Common AWS SDK calls for AI agents:
 | Describe a stack          | `cloudformation`   | `DescribeStacks`     | `{"StackName": "my-stack"}`                                    |
 
 
-> **Info:** The startup message lists supported services including Lambda, DynamoDB, S3, CloudWatch Logs, CloudFormation, SQS, SNS, Step Functions, EventBridge, Secrets Manager, SSM, STS, IAM, EC2, ECS, ECR, RDS, SES, Cognito, API Gateway, X-Ray, Kinesis, and Firehose. Call `GET /aws/sdk/services` on the running agent for the complete, up-to-date list.
+> **Info:** The startup message lists supported `service` identifiers: `lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `cloudwatch`, `sqs`, `sns`, `sfn`, `eventbridge`, `secretsmanager`, `ssm`, `sts`, `iam`, `ec2`, `ecs`, `ecr`, `rds`, `ses`, `cognito`, `apigatewayv2`, `xray`, `kinesis`, `firehose`, and more. Call `GET /aws/sdk/services` on the running agent for the complete, up-to-date list.
 
 
 ## Typical AI agent workflow
@@ -433,7 +435,7 @@ export default defineConfig(() => {
     ]
   });
 
-  const apiGw = new HttpApiGateway();
+  const apiGw = new HttpApiGateway({});
 
   return {
     resources: { notesTable, api, apiGw }
@@ -464,17 +466,13 @@ The `/aws/sdk` endpoint uses credentials returned by `getDevAgentCredentials()`.
 
 ## FAQ
 
-### Can I use agent mode with Claude Code, Cursor, or Windsurf?
+### Should I use agent mode or the Stacktape MCP server?
 
-Yes. Any AI assistant that can run shell commands and make HTTP requests can use agent mode. The assistant starts dev mode with `stacktape dev --agent` as a shell command, then calls the HTTP API to rebuild, check status, read log file paths, and query databases. For MCP-based setup, see the [Stacktape MCP server](/using-with-ai/mcp-server-setup) page.
-
-### How is agent mode different from the Stacktape MCP server?
-
-Agent mode is a plain HTTP API that any tool can call with `curl` or HTTP libraries — no protocol integration needed. The [MCP server](/using-with-ai/mcp-server-setup) uses the Model Context Protocol standard, which AI assistants like Claude Code and Cursor support natively. If your AI tool supports MCP, the MCP server may provide a more integrated experience. If you need raw HTTP access or are building a custom tool, use agent mode directly.
+Both work with assistants like Claude Code, Cursor, and Windsurf. Agent mode is a plain HTTP API that any tool can call with `curl` or HTTP libraries — no protocol integration needed, so it suits custom tooling or any client that can make HTTP requests. The [MCP server](/using-with-ai/mcp-server-setup) uses the Model Context Protocol standard that those assistants support natively, providing a more integrated, higher-level layer. If your AI tool supports MCP, prefer the MCP server; reach for agent mode when you need raw HTTP access.
 
 ### What databases can I query through the agent API?
 
-Agent mode provides typed query endpoints for five database types: PostgreSQL, MySQL/MariaDB, Redis, DynamoDB, and OpenSearch. SQL databases get `query`, `schema`, `tables`, `explain`, `indexes`, `stats`, and `sample` endpoints. Redis gets `command`, `keys`, `get`, `ttl`, `info`, and `type`. DynamoDB supports `query`, `scan`, `get`, `put`, `delete`, `schema`, and `sample` endpoints. OpenSearch supports `search`, `get`, `put`, `delete`, `indices`, `mapping`, `analyze`, and `count` endpoints.
+Agent mode exposes typed HTTP endpoints for five local resource types started by dev mode — PostgreSQL, MySQL/MariaDB, Redis, DynamoDB, and OpenSearch — so agents can inspect schemas, run queries, and verify data without installing separate database client tools. Each type has its own endpoint group (SQL engines get `query`/`schema`/`tables`/`explain`/`indexes`/`stats`/`sample`, plus key-value and document operations for Redis, DynamoDB, and OpenSearch). `GET /` lists only the endpoint groups for resources currently running in the session.
 
 ### Is my data persisted between agent mode sessions?
 
@@ -488,24 +486,6 @@ The PostgreSQL, MySQL, and Redis query/command endpoints accept an optional `con
 
 The agent server keeps running even if individual workloads fail. The `/status` endpoint reports per-workload status — in verbose mode, each workload includes `status`, `url`, `port`, and `error` fields. AI agents can read the error, fix the code, and call `POST /rebuild/{name}` to retry without restarting the entire dev session.
 
-### Can I use the AWS SDK endpoint to access any AWS service?
+### Why does an `/aws/sdk` call fail or return access-denied?
 
-The `/aws/sdk` endpoint supports a broad range of AWS services — the startup message lists Lambda, DynamoDB, S3, CloudWatch Logs, CloudFormation, SQS, SNS, Step Functions, and many more. Call `GET /aws/sdk/services` for the full list. Requests use dev agent credentials, which the source describes as scoped to the stack's IAM role. The credentials determine what resources are accessible.
-
-### What is the `/status` endpoint's `ready` field?
-
-The `ready` field becomes `true` when there is at least one workload and every workload has reached either `running` or `error` status. If there are zero workloads, `ready` remains `false`. AI agents should poll `/status` and wait for both `"phase": "ready"` and `"ready": true` before testing workload endpoints.
-
-### What happens if the agent port is already in use?
-
-The server fails with a clear error message suggesting a different `--agentPort` value. Each agent mode session requires a unique port. You can run separate agent sessions for different stages by using different `--agentPort` values.
-
-### How do I stop agent mode?
-
-Call the stop endpoint from any HTTP client:
-
-```bash
-curl -X POST http://localhost:9900/stop
-```
-
-This sets the phase to `stopping` and initiates graceful shutdown of all workloads and local resources. If the agent is already stopping or stopped, the request returns success without side effects.
+The `/aws/sdk` endpoint runs against dev agent credentials, which the source describes as scoped to the stack's IAM role (falling back to user credentials). Those credentials determine what resources are reachable — a call can fail with `AWS credentials not available` if no usable key pair is returned, or with an access-denied error if the role lacks permission for that resource. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` values before constructing a call.

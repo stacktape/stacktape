@@ -138,14 +138,18 @@ The following database configuration satisfies all four guardrails — it uses a
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
     }),
+    credentials: {
+      masterUserPassword: $Secret('database.password')
+    },
     accessibility: {
       accessibilityMode: 'vpc'
     },
@@ -159,34 +163,26 @@ export default defineConfig(() => {
 
 ## FAQ
 
-### What's the difference between guardrails and alarms for databases?
+### Why isn't my database guardrail in my stacktape.ts config file?
 
-[Guardrails](/guardrails/overview) are **preventive** — they block non-compliant configurations. [Alarms](/observability/alarms) are **reactive** — they monitor runtime metrics (CPU usage, connection count, storage) and notify you when thresholds are crossed. Use guardrails to enforce policy on resource configurations and alarms to monitor database health at runtime. They complement each other but serve different purposes.
+Database guardrails are managed at the organization level in the [Stacktape Console](/stacktape-console/console-overview) — they are not defined in your `stacktape.ts` config file. Your config defines the database; the guardrail (configured separately in the Console) decides whether that database is allowed to deploy. See the [guardrails overview](/guardrails/overview) for the full setup and management workflow.
 
-### Where are database guardrails configured?
+### Why does engine restriction use an allowlist but instance restriction use a blocklist?
 
-Database guardrails are managed at the organization level in the [Stacktape Console](/stacktape-console/console-overview) — they are not defined in your `stacktape.ts` config file. See the [guardrails overview](/guardrails/overview) for the full setup and management workflow.
+The `database-engine-restriction` guardrail uses an **allowlist** (`allowedEngines`) so that new engine types are blocked by default until you deliberately add them — the safer choice for standardizing on one engine family. The `database-instance-restriction` guardrail uses a **blocklist** (`blockedInstanceSizes`) because the set of valid instance sizes is large and grows as AWS adds new classes; blocking the few outliers you care about is more practical than maintaining a complete allowlist. Note that each instance size must be listed individually — blocking `db.r5.4xlarge` does not block `db.r5.8xlarge`.
 
-### Does the engine restriction use an allowlist or blocklist?
+### Should I use engine restriction or resource type restriction?
 
-The `database-engine-restriction` guardrail uses an **allowlist** (`allowedEngines`). You specify which engine types are permitted, and any engine not in the list is blocked. The `database-instance-restriction` guardrail uses the opposite approach — a **blocklist** (`blockedInstanceSizes`) of forbidden instance sizes. The allowlist approach is safer for standardization because new engine types are blocked by default until explicitly added.
-
-### How is engine restriction different from resource type restriction?
-
-The `resource-type-restriction` guardrail (covered in [resource limit guardrails](/guardrails/resource-limits)) blocks entire resource types — for example, preventing anyone from provisioning a `relational-database` at all. The `database-engine-restriction` guardrail is more granular: it allows relational databases but limits which engine types can be used within them. Use engine restriction when you want databases but need to standardize on specific engines.
-
-### What engine type identifiers can I put in the allowedEngines list?
-
-The type definition gives `postgres` and `aurora-postgresql` as examples. The `allowedEngines` array accepts engine type identifier strings — use the exact identifiers supported by your [relational database](/resources/databases/relational-database) configuration.
+The `resource-type-restriction` guardrail (covered in [resource limit guardrails](/guardrails/resource-limits)) blocks an entire resource type — for example, preventing anyone from provisioning a `relational-database` at all. The `database-engine-restriction` guardrail is more granular: it permits relational databases but limits which engine types they can use. Use engine restriction when you want teams to deploy databases but need them standardized on specific engines.
 
 ### What happens when a guardrail blocks my deployment?
 
-Active guardrails block non-matching values during deployment. Update the database configuration to match the guardrail requirements, then deploy again.
+The deployment is rejected before any non-compliant database reaches AWS — guardrails are preventive, so the blocked configuration is never applied. Update the database configuration to match the guardrail (for example, switch to an allowed engine, pick a non-blocked instance size, set `accessibilityMode: 'vpc'`, or add `deletionProtection: true`), then deploy again.
 
-### Should I enable all four database guardrails at once?
+### Which database guardrails should I enable first?
 
-Start with the guardrails that match your current priorities. VPC-only databases and deletion protection provide the highest-value safety net for production with minimal friction — they prevent data exposure and accidental deletion. Engine restriction is worth enabling once your team has standardized on an engine family. Instance restriction is most useful for cost control in larger organizations where teams independently choose their own instance sizes.
+Enable VPC-only databases and deletion protection first — they provide the highest-value safety net for production with minimal friction, preventing the two most costly mistakes: data exposure and accidental deletion. Add engine restriction once your team has standardized on an engine family, and instance restriction once cost control across teams becomes a priority. The guardrails work independently, so you can enable them incrementally.
 
-### How much does AWS RDS cost compared to Aurora Serverless?
+### Can a guardrail control my database costs?
 
-AWS RDS single-instance databases bill per hour of runtime based on instance size, plus storage. Aurora Serverless v2 bills based on consumed capacity units (ACUs) and can scale down when idle, making it cost-effective for variable workloads. The `database-instance-restriction` guardrail helps control RDS costs by blocking expensive instance sizes. See the [managing costs overview](/managing-costs/overview) for Stacktape-specific cost monitoring.
+Indirectly, yes. The `database-instance-restriction` guardrail blocks expensive instance sizes (such as `db.r5.4xlarge` and above), preventing cost surprises from oversized memory-optimized classes before they deploy. It does not monitor spend — for ongoing cost tracking see the [managing costs overview](/managing-costs/overview).

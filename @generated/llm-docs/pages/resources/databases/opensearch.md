@@ -232,7 +232,7 @@ export default defineConfig(() => {
       entryfilePath: './src/handler.ts'
     }),
     joinDefaultVpc: true,
-    connectTo: ['search']
+    connectTo: [search]
   });
 
   return {
@@ -274,10 +274,10 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/indexer.ts'
     }),
-    connectTo: ['search'],
-    environment: [
-      { name: 'OPENSEARCH_ENDPOINT', value: "$ResourceParam('search', 'domainEndpoint')" }
-    ]
+    connectTo: [search],
+    environment: {
+      OPENSEARCH_ENDPOINT: "$ResourceParam('search', 'domainEndpoint')"
+    }
   });
 
   return {
@@ -338,7 +338,7 @@ export default defineConfig(() => {
 > **Info:** Slow logs require additional configuration inside OpenSearch itself — you need to set slow-log thresholds on your index settings (e.g., `index.search.slowlog.threshold.query.warn: 2s`). Stacktape configures the selected OpenSearch log types to be sent to CloudWatch; slow-log thresholds are configured through OpenSearch index settings.
 
 
-Stacktape sends the configured OpenSearch log types to CloudWatch. See the [`debug:opensearch` CLI reference](/cli/debug-opensearch) for OpenSearch debugging commands.
+Stacktape sends the configured OpenSearch log types to CloudWatch. See the [`query:opensearch` CLI reference](/cli/query-opensearch) for OpenSearch debugging commands.
 
 ## OpenSearch Dashboards with Cognito
 
@@ -440,7 +440,7 @@ Yes — you can change instance types, add or remove data nodes, add dedicated m
 
 ### What is the difference between OpenSearch and Elasticsearch?
 
-OpenSearch is an open-source fork of Elasticsearch 7.10, maintained by AWS. It shares the Elasticsearch query DSL and is broadly compatible with many Elasticsearch clients. Client behavior depends on the client version and AWS Signature V4 authentication support — verify compatibility with your specific client library and version. Point your client at the OpenSearch domain endpoint and authenticate with AWS Signature V4.
+OpenSearch uses the Elasticsearch query DSL and is broadly compatible with many Elasticsearch clients, so if you already use that DSL or OpenSearch Dashboards you can move over without rewriting queries. Client behavior depends on the client version and AWS Signature V4 authentication support, so verify compatibility with your specific client library and version. Point your client at the domain endpoint and authenticate with AWS Signature V4.
 
 ### Do I need dedicated master nodes?
 
@@ -450,18 +450,6 @@ For development and small single-node clusters, dedicated master nodes are unnec
 
 Add the domain to your Lambda's `connectTo` list so Stacktape adds IAM permissions for the OpenSearch domain. Use `$ResourceParam` to pass the domain endpoint as an environment variable. If the domain uses VPC accessibility, set `joinDefaultVpc: true` on the Lambda. In your handler code, sign requests with AWS Signature V4 — the standard authentication method for AWS OpenSearch Service endpoints.
 
-### Can I use OpenSearch for centralized logging?
-
-Yes — OpenSearch is widely used for log aggregation and analysis. You can forward application logs from [Lambda functions](/resources/compute/lambda-function), container workloads, or external systems into OpenSearch indices and query them through OpenSearch Dashboards or the API. Pair with UltraWarm nodes to retain older logs at lower cost while keeping them searchable.
-
-### What happens if an availability zone goes down?
-
-If your cluster has 2 or more data nodes, Multi-AZ replication is automatically enabled, distributing nodes across availability zones. The cluster continues operating if one AZ fails. For the highest availability (99.99% SLA), enable `standbyEnabled` — this distributes nodes across 3 AZs with one as standby. Single-node clusters have no AZ redundancy.
-
 ### Should I use internet or VPC accessibility mode?
 
-For production, use `vpc` or `scoping-workloads-in-vpc` to add network-level isolation on top of IAM authentication. The `scoping-workloads-in-vpc` mode is the most restrictive — only workloads with explicit `connectTo` can reach the domain. Use `internet` mode only for development or when you need external access (e.g., from a local machine or external service). Switching between internet and VPC modes requires creating a new domain.
-
-### How does OpenSearch compare to DynamoDB for search use cases?
-
-DynamoDB excels at single-item lookups and simple queries by partition key, with low latency and serverless scaling. OpenSearch excels at complex queries across many documents — full-text search, aggregations, fuzzy matching, and analytics. If you need to search across document content with relevance scoring, OpenSearch is the right tool. If you need fast lookups by known keys with optional secondary indexes, [DynamoDB](/resources/databases/dynamodb) is cheaper and simpler.
+For production, use `vpc` or `scoping-workloads-in-vpc` to add network-level isolation on top of IAM authentication. The `scoping-workloads-in-vpc` mode is the most restrictive — only workloads with explicit `connectTo` can reach the domain. Use `internet` mode only for development or when you need external access (e.g., from a local machine or external service). Switching between internet and VPC modes requires creating a new domain, so pick the right mode before your first deploy.

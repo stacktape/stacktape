@@ -121,11 +121,12 @@ SvelteKitWeb environment variables are passed to the SSR Lambda function. Use `e
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, SvelteKitWeb, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+import { defineConfig, SvelteKitWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
   });
 
   const frontend = new SvelteKitWeb({
@@ -164,37 +165,25 @@ The `dev` property configures how [`stacktape dev`](/cli/dev) starts the local S
 
 ## FAQ
 
-### Does SvelteKitWeb deploy SSR or static SvelteKit apps?
-
-SvelteKitWeb is for SvelteKit SSR apps. The source definition describes a Lambda-based SvelteKit server, S3 static assets, and a CloudFront CDN. For static-only SvelteKit output, use [static hosting](/resources/frontend/static-hosting) with `hostingContentType: 'sveltekit-static-website'`.
-
 ### When should I use static hosting instead of SvelteKitWeb?
 
-Use [static hosting](/resources/frontend/static-hosting) when your SvelteKit app can be exported as static files and does not need server-side rendering or runtime endpoint handling. Static hosting avoids deploying a server Lambda function for behavior the site does not use.
+Use SvelteKitWeb when your app needs server-side rendering or runtime endpoints; it deploys a Lambda-based SvelteKit server, S3 static assets, and a CloudFront CDN. If your app can be exported as static files, use [static hosting](/resources/frontend/static-hosting) with `hostingContentType: 'sveltekit-static-website'` instead, which avoids deploying a server Lambda for behavior the site does not use.
 
-### Can I use a custom domain with SvelteKitWeb?
+### Why does my custom domain fail to provision?
 
-Yes. Add `customDomains` with a `domainName`, and Stacktape can create the DNS record and provision a TLS certificate. The domain needs a Route 53 hosted zone in the AWS account; see [custom domains](/resources/networking/custom-domains) for the broader domain model.
+Custom domains for SvelteKitWeb require a Route 53 hosted zone in the AWS account. If your registrar is not Route 53, the registrar must still point the domain at the Route 53 hosted zone nameservers. Write `domainName` without the `https://` prefix; Stacktape then creates the DNS record and provisions a TLS certificate. See [custom domains](/resources/networking/custom-domains) for the broader model.
 
 ### How do SvelteKit environment variables and database access work?
 
 Use `environment` for explicit variables passed to the SSR Lambda function. Use `connectTo` when the SvelteKit server needs access to another Stacktape resource; a database named `mainDatabase` gets variables such as `STP_MAIN_DATABASE_CONNECTION_STRING`. See [connecting resources](/configuration/connecting-resources) for the injected variable pattern.
 
-### Can I protect a SvelteKit app with AWS WAF?
+### How do I protect a SvelteKit app with AWS WAF?
 
-Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource whose scope is `cdn`. That scopes protection to the CloudFront CDN path used by SvelteKitWeb.
+Set `useFirewall` to the name of a separately defined [web application firewall](/resources/security/web-application-firewall) resource. `useFirewall` takes a resource name, not an inline firewall config, and the referenced firewall must have `scope: 'cdn'` because SvelteKitWeb traffic is filtered through CloudFront rather than an Application Load Balancer.
 
 ### How much does SvelteKit hosting on AWS cost?
 
 A SvelteKitWeb app uses Lambda for SSR execution, S3 for static asset storage, and CloudFront for CDN delivery. AWS billing therefore depends on server invocation volume and duration, stored assets, request counts, and data transfer. Use [managing costs](/managing-costs/overview) to track deployed stack spend.
-
-### Does CloudFront cache SvelteKit responses?
-
-SvelteKitWeb includes a CloudFront CDN, and the `cdn` property configures cache controls for SSR routes and specific path patterns. Cache only responses that are safe to share across users; dynamic pages that depend on cookies or authorization usually need conservative caching. See [CDN](/resources/networking/cdn) for CloudFront-oriented decisions.
-
-### Should I use SvelteKitWeb or NextjsWeb?
-
-Use SvelteKitWeb for SvelteKit applications and [NextjsWeb](/resources/frontend/nextjs) for Next.js applications. The resources are framework-specific because each framework has its own build output and server runtime expectations. Pick the resource that matches the framework already used by your frontend.
 
 ### Should I use SvelteKitWeb or a web-service?
 

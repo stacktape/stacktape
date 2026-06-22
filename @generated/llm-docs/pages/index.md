@@ -30,7 +30,7 @@ export default defineConfig(() => {
 
   const createUser = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/create-user.ts' }),
-    connectTo: [{ resource: usersTable, access: 'readWrite' }],
+    connectTo: [usersTable],
     events: [new HttpApiIntegration({ httpApiGatewayName: 'api', method: 'POST', path: '/users' })]
   });
 
@@ -51,7 +51,7 @@ Run `stacktape deploy --stage prod` and you get a live API Gateway endpoint, a D
 
 - [Long-running services](/resources/compute/web-service): Container workloads on Fargate or EC2 — web services, workers, multi-container stacks, batch jobs.
 
-- [Event-driven pipelines](/configuration/triggers/overview): SQS, SNS, EventBridge, Kinesis, DynamoDB Streams, S3 events, schedules — declarative wiring, automatic IAM.
+- [Event-driven pipelines](/resources/triggers/overview): SQS, SNS, EventBridge, Kinesis, DynamoDB Streams, S3 events, schedules — declarative wiring, automatic IAM.
 
 - [AI agents on AWS Bedrock](/resources/ai/agentcore-runtime): AgentCore runtimes, memory, gateways, browsers, and code interpreters — production agents in a few lines of config.
 

@@ -15,9 +15,9 @@ DynamoDB stream triggers fit scenarios where you need to react to data changes a
 
 DynamoDB stream triggers are not the right fit for every event-driven pattern. Several common scenarios are better served by other Stacktape trigger types.
 
-- **High-throughput, multi-consumer streaming** — AWS DynamoDB Streams supports at most 2 simultaneous readers per shard and is limited to 5 `GetRecords` calls per second per shard. For fan-out to many consumers or longer retention, pipe changes into a [Kinesis stream](/configuration/triggers/kinesis-events) instead.
-- **Request-response patterns** — stream processing is asynchronous. If the caller needs an immediate result, use an [HTTP trigger](/configuration/triggers/http-triggers).
-- **Complex event routing** — if you need content-based filtering across many consumers, use an [EventBridge event bus](/configuration/triggers/event-bus-events) rather than writing routing logic inside the stream consumer.
+- **High-throughput, multi-consumer streaming** — AWS DynamoDB Streams supports at most 2 simultaneous readers per shard and is limited to 5 `GetRecords` calls per second per shard. For fan-out to many consumers or longer retention, pipe changes into a [Kinesis stream](/resources/triggers/kinesis-events) instead.
+- **Request-response patterns** — stream processing is asynchronous. If the caller needs an immediate result, use an [HTTP trigger](/resources/triggers/http-triggers).
+- **Complex event routing** — if you need content-based filtering across many consumers, use an [EventBridge event bus](/resources/triggers/event-bus-events) rather than writing routing logic inside the stream consumer.
 
 ## Enabling streams on the table
 
@@ -312,10 +312,6 @@ type DynamoDbIntegrationProps = {
 
 ## FAQ
 
-### How do I enable DynamoDB Streams on a table?
-
-Set the `streamType` property on your [DynamoDB table](/resources/databases/dynamodb) resource. The DynamoDB resource page documents the available stream view types and their differences. Once enabled, pass the stream ARN to your `DynamoDbIntegration` via the `streamArn` property, using `$ResourceParam` for same-stack references or a literal ARN string for external tables.
-
 ### What is the retention period for DynamoDB stream records?
 
 AWS DynamoDB Streams retains records for 24 hours. If your Lambda function cannot process records within that window — due to errors, throttling, or the function being disabled — the records expire and are lost. Always configure `maximumRetryAttempts` and `onFailure` to capture failed records before they expire.
@@ -324,25 +320,17 @@ AWS DynamoDB Streams retains records for 24 hours. If your Lambda function canno
 
 `LATEST` begins reading only new records written after the trigger is created — appropriate for real-time event processing where historical data doesn't matter. `TRIM_HORIZON` starts from the oldest available record in the stream (up to 24 hours of history), useful for backfills or reprocessing after deploying a fix. The default starting position is `TRIM_HORIZON`.
 
-### How many consumers can read from a DynamoDB stream?
+### When should I use a Kinesis stream instead of a DynamoDB stream?
 
-AWS limits DynamoDB Streams to 2 simultaneous readers per shard, with a maximum of 5 `GetRecords` calls per second per shard. In practice, one Lambda trigger consumes one reader slot. If you need multiple consumers processing the same changes, pipe the stream into a [Kinesis stream](/configuration/triggers/kinesis-events) or [EventBridge event bus](/configuration/triggers/event-bus-events) for fan-out.
+AWS limits DynamoDB Streams to 2 simultaneous readers per shard and 5 `GetRecords` calls per second per shard, with 24-hour retention — and one Lambda trigger consumes one reader slot. DynamoDB Streams is free and sufficient for most cases (audit logs, denormalization, single-consumer processing). Switch to a [Kinesis stream](/resources/triggers/kinesis-events) or [EventBridge event bus](/resources/triggers/event-bus-events) when you need fan-out to many consumers, higher throughput, or retention beyond 24 hours — at the cost of extra charges.
 
-### DynamoDB Streams vs Kinesis Data Streams for DynamoDB — which should I use?
+### Why must my stream handler be idempotent?
 
-DynamoDB Streams is included at no extra cost and is sufficient for most use cases: audit logs, denormalization, and single-consumer event processing. Kinesis Data Streams for DynamoDB (a separate AWS feature) supports longer retention (up to 365 days), higher throughput, and more consumers — but costs extra per change data capture unit. Use DynamoDB Streams unless you need multi-consumer fan-out or retention beyond 24 hours.
-
-### What happens if my table has high write throughput?
-
-DynamoDB automatically shards the stream based on table partitions. Each shard gets its own Lambda invocation, so processing scales horizontally with the table. For tables with hundreds of writes per second, increase `batchSize` (up to 1,000) and set `parallelizationFactor` to process multiple batches per shard concurrently. Monitor the `IteratorAge` CloudWatch metric — if it grows, your consumers are falling behind.
-
-### How do I handle poison records that always fail?
-
-Enable `bisectBatchOnFunctionError: true` on the `DynamoDbIntegration`. When a batch fails, the event source mapping splits it in half and retries each half, progressively isolating the problematic record. Combined with `maximumRetryAttempts` and an `onFailure` destination, the poison record lands in your dead-letter queue while healthy records continue processing.
+When a batch fails because the function throws, the **entire batch is retried** — including records that were already processed successfully on the previous attempt. Your handler can therefore see the same record more than once, so processing it twice must produce the same result. Use the item keys (or another application-level idempotency key) to deduplicate. Pairing `bisectBatchOnFunctionError` with `maximumRetryAttempts` and an `onFailure` destination keeps a single poison record from retrying its shard indefinitely.
 
 ### Does the stream trigger process records in order?
 
-Yes, within a single shard (partition key). Records for the same partition key arrive in the order they were written. Across different partition keys, there is no ordering guarantee. Setting `parallelizationFactor` greater than 1 allows concurrent processing within the same shard, which can cause out-of-order processing — avoid this when strict ordering matters.
+Yes, within a single shard (partition key). Records for the same partition key arrive in the order they were written; across different partition keys there is no ordering guarantee. By default each shard is processed sequentially. Setting `parallelizationFactor` greater than 1 processes multiple batches from the same shard concurrently — this raises throughput but can cause out-of-order processing, so avoid it when strict ordering matters. Use it only when your handler is idempotent and order within a partition key doesn't matter (e.g. aggregating metrics).
 
 ### How much does DynamoDB Streams cost?
 

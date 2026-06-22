@@ -11,8 +11,8 @@ A schedule trigger invokes a Stacktape [Lambda function](/resources/compute/lamb
 
 ## When NOT to use
 
-- **Real-time event processing** — if the trigger is an incoming message, file upload, or database change, use [SQS](/configuration/triggers/sqs-events), [S3](/configuration/triggers/s3-events), or [DynamoDB Streams](/configuration/triggers/dynamodb-streams) triggers instead.
-- **Sub-minute granularity** — the minimum interval is one minute. For higher-frequency processing, use a stream-based trigger like [Kinesis](/configuration/triggers/kinesis-events) or a long-running container with an internal timer.
+- **Real-time event processing** — if the trigger is an incoming message, file upload, or database change, use [SQS](/resources/triggers/sqs-events), [S3](/resources/triggers/s3-events), or [DynamoDB Streams](/resources/triggers/dynamodb-streams) triggers instead.
+- **Sub-minute granularity** — the minimum interval is one minute. For higher-frequency processing, use a stream-based trigger like [Kinesis](/resources/triggers/kinesis-events) or a long-running container with an internal timer.
 - **Complex multi-step orchestration** — for branching, retries, or parallel steps, use a [state machine](/resources/orchestration/state-machine). This page only documents schedule triggers for Lambda functions.
 
 ## Basic example
@@ -324,7 +324,7 @@ When using a fixed `input`, the `event` parameter contains exactly the JSON valu
 
 ## Monitoring scheduled functions
 
-View logs from schedule-triggered functions using [`stacktape debug:logs`](/cli/debug-logs) with the `--resourceName` flag pointing to your scheduled function.
+View logs from schedule-triggered functions using [`stacktape logs`](/cli/logs) with the `--resourceName` flag pointing to your scheduled function.
 
 
 > **Tip:** Set up [alarms](/observability/alarms) on your scheduled functions to catch failures early. A scheduled function that fails silently (no errors, but no useful work) is harder to notice than a broken API endpoint.
@@ -355,33 +355,57 @@ type ScheduleIntegrationProps = {
 | `input` | no | `unknown` | A fixed JSON object to be passed as the event payload. If you need to customize the payload based on the event, use `inputTransformer` instead.
 You can only use one of `input`, `inputPath`, or `inputTransformer`.
 
-Example:
+**Example (YAML):**
 
 ```yaml
-input:
-  source: 'my-scheduled-event'
+resources:
+  reportFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/report.ts
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(1 hour)
+            input:
+              source: my-scheduled-event
+```
+
+**Example (TypeScript):**
+
+```ts
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const reportFunction = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/report.ts' }),
+    events: [
+      {
+        type: 'schedule',
+        properties: {
+          scheduleRate: 'rate(1 hour)',
+          input: { source: 'my-scheduled-event' }
+        }
+      }
+    ]
+  });
+  return { resources: { reportFunction } };
+});
 ``` | - |
 | `inputPath` | no | `string` | A JSONPath expression to extract a portion of the event to pass to the target. This is useful for forwarding only a specific part of the event payload.
-You can only use one of `input`, `inputPath`, or `inputTransformer`.
-
-Example:
-inputPath: &#39;$.detail&#39; | - |
+You can only use one of `input`, `inputPath`, or `inputTransformer`. | - |
 | `inputTransformer` | no | `EventInputTransformer` | Customizes the event payload sent to the target. This allows you to extract values from the original event and use them to construct a new payload.
-You can only use one of `input`, `inputPath`, or `inputTransformer`.
-
-Example:
-inputTransformer:
-  inputPathsMap:
-    eventTime: &#39;$.time&#39;
-  inputTemplate:
-    message: &#39;This event occurred at <eventTime>.&#39; | - |
+You can only use one of `input`, `inputPath`, or `inputTransformer`. | - |
 
 
 ## FAQ
 
 ### What is the minimum schedule interval?
 
-The minimum interval for a rate expression is `rate(1 minute)`. The source type examples show `rate(1 minute)` as the smallest rate-style interval. There is no sub-minute scheduling — if you need higher frequency, use a stream-based trigger like [Kinesis](/configuration/triggers/kinesis-events) or run a long-lived container with an internal loop.
+One minute — `rate(1 minute)` is the smallest interval, and cron expressions cannot fire more often than once per minute either. There is no sub-minute scheduling; if you need higher frequency, use a stream-based trigger like [Kinesis](/resources/triggers/kinesis-events) or run a long-lived container with an internal loop.
 
 ### Are schedule times in UTC or local time?
 
@@ -391,29 +415,13 @@ For Stacktape schedule triggers, cron expressions are UTC. If you need to run at
 
 AWS Lambda can run concurrent invocations, so if the previous invocation hasn't finished when the next schedule fires, a new invocation starts in parallel. Design scheduled jobs to tolerate overlap, or implement a distributed lock using DynamoDB or a similar mechanism in your handler if concurrent execution would be unsafe.
 
-### Does a schedule trigger cost anything when idle?
-
-EventBridge schedule rules do not add meaningful idle cost; check current AWS EventBridge pricing for your region. You pay for Lambda invocations and runtime when the function runs. This makes schedule triggers significantly cheaper than running a container 24/7 with a cron daemon for the same periodic task.
-
-### Can I run a container on a schedule?
-
-This page documents `ScheduleIntegration` as a recurring trigger for [Lambda functions](/resources/compute/lambda-function). For recurring container-based work, you can invoke a scheduled Lambda function that starts a container task programmatically using the AWS SDK, or check whether your container compute resource supports schedule-based triggers in its dedicated documentation.
-
 ### How do I pass different payloads for different schedules on the same function?
 
 Add multiple `ScheduleIntegration` entries to the function's `events` array, each with its own `scheduleRate` and `input` (or `inputTransformer`). The function receives the payload associated with whichever schedule fired. See the [Multiple schedules](#multiple-schedules) section.
 
-### What is the difference between rate and cron expressions?
+### How much does a scheduled Lambda function cost?
 
-Rate expressions (`rate(5 minutes)`) define a fixed interval. They are simpler but you cannot control the exact wall-clock time. Cron expressions (`cron(0 9 * * ? *)`) fire at specific times and support complex patterns like "weekdays only" or "first Monday of the month." Use rate for simple intervals where timing doesn't matter; use cron when you need precise scheduling.
-
-### What if my schedule expression is invalid?
-
-The `scheduleRate` property must be a valid AWS rate or cron expression. Common mistakes include using the 5-field Unix cron format (AWS requires 6 fields) and using `*` in both the day-of-month and day-of-week fields simultaneously (one must be `?`).
-
-### How much does a scheduled Lambda function cost on AWS?
-
-AWS Lambda pricing is purely pay-per-use: you pay for the number of invocations and the duration of each invocation (billed per millisecond). A function running once per hour with 512 MB memory and a 2-second runtime costs fractions of a cent per day. EventBridge schedule rules do not add meaningful cost. This makes Lambda-based cron jobs dramatically cheaper than running an always-on EC2 instance or ECS container solely for periodic tasks.
+Lambda pricing is pay-per-use: you pay per invocation and per millisecond of runtime, with nothing billed between invocations. Because a scheduled function costs nothing while idle, Lambda-based cron jobs are dramatically cheaper than running an always-on container solely for periodic tasks.
 
 ### When should I use a schedule trigger vs a Step Functions state machine?
 

@@ -143,12 +143,12 @@ Enable `useFirewall` when the public Remix app needs CDN-level WAF protection �
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RemixWeb, RelationalDatabase } from 'stacktape';
+import { defineConfig, RemixWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: 'postgres-16',
-    instanceClass: 'db.t4g.micro'
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
   });
 
   const web = new RemixWeb({
@@ -193,7 +193,7 @@ Prefer `connectTo` for Stacktape-managed resources because it grants supported I
 
 ## Logging
 
-Use `serverLambda` to customize SSR Lambda logging behavior, including log retention. View logs using [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview).
+Use `serverLambda` to customize SSR Lambda logging behavior, including log retention. View logs using [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/console-overview).
 
 
 Example (TypeScript):
@@ -220,10 +220,6 @@ export default defineConfig(() => {
 
 ## FAQ
 
-### What does Stacktape create for a Remix app?
-
-A Stacktape Remix resource deploys SSR on an AWS Lambda function, static assets on S3, and a CloudFront CDN in front of both. The internal resource structure includes a nested bucket and a server Lambda function. See the [resources overview](/configuration/resources) for how Stacktape resources map to AWS.
-
 ### Where should `appDirectory` point?
 
 `appDirectory` should point to the directory containing `vite.config.ts` (or `remix.config.js`). The default is `"."` (repository root). In a monorepo, point it at the Remix workspace directory rather than the root. The basic example on this page uses `./apps/web` to make that monorepo shape explicit.
@@ -240,14 +236,6 @@ Yes. Set `useFirewall` to the name of a [web application firewall](/resources/se
 
 The Remix resource is Lambda-based SSR behind CloudFront, and its config surface does not expose edge Lambda or response streaming configuration. If you need direct control over a custom server process — for example, to run a streaming server — use a [web-service](/resources/compute/web-service) with a container.
 
-### How do I run database migrations with Remix on Stacktape?
-
-Use [deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks). `hooks.afterDeploy` references a named script, and script configs can use `connectTo` to receive documented connection variables for the database. Stacktape injects connection environment variables automatically. Add the database to the Remix resource's `connectTo` only if the Remix app also needs database access at runtime.
-
-### How does CloudFront caching work for Remix apps?
-
-Stacktape stores static assets on S3 and serves the entire app through CloudFront. Use `fileOptions` to set custom headers on static files matching a pattern, and `cdn` to configure cache controls for SSR routes and specific path patterns. See the API reference for the full `fileOptions` and `cdn` property schemas.
-
 ### How much does hosting Remix on Lambda and CloudFront cost?
 
 AWS bills the underlying services separately: Lambda invocations and duration for SSR, S3 storage and requests for static assets, and CloudFront data transfer and requests for CDN traffic. Lambda has a generous free tier (1 million requests and 400,000 GB-seconds per month). CloudFront pricing is based on data transfer and requests, with free-tier allowances that may apply depending on the AWS account. Use [cost dashboards](/managing-costs/dashboards) after deployment to inspect real spend by stack.
@@ -255,10 +243,6 @@ AWS bills the underlying services separately: Lambda invocations and duration fo
 ### When should I use static hosting instead of the Remix resource?
 
 Use [static hosting](/resources/frontend/static-hosting) when the site can be built into static files and does not need SSR, loaders, actions, or server-side data fetching. Static hosting has no Lambda cost and fewer moving parts. Use the Remix resource when runtime Remix behavior — loaders, actions, server rendering — is part of the product.
-
-### When should I use a web service instead of the Remix resource?
-
-Use a [web-service](/resources/compute/web-service) when you want to run a custom HTTP server in a container, control the server process directly, or want persistent connections. Use the Remix resource when the deployment unit is a standard Remix Vite app and you want Stacktape to manage SSR, static assets, and CDN routing automatically. The Remix resource has simpler config but less runtime control.
 
 ## API Reference
 

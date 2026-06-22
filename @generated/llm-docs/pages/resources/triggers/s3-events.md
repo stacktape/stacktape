@@ -1,6 +1,6 @@
 # S3 Events
 
-An S3 event trigger invokes a [Lambda function](/resources/compute/lambda-function) when objects are created, deleted, or restored in an [S3 bucket](/resources/storage/s3-bucket). S3 triggers are the standard approach for event-driven file processing — image resizing, data imports, log parsing, virus scanning — without polling or idle infrastructure costs.
+An S3 event trigger invokes a [Lambda function](/resources/compute/lambda-function) or [batch job](/resources/compute/batch-job) when objects are created, deleted, or restored in an [S3 bucket](/resources/storage/s3-bucket). S3 triggers are the standard approach for event-driven file processing — image resizing, data imports, log parsing, virus scanning — without polling or idle infrastructure costs. S3 events are configured by adding an `S3Integration` to the `events` array of a Lambda function or batch job.
 
 ## When to use
 
@@ -63,9 +63,9 @@ export default defineConfig(() => {
 ```
 
 
-The `bucketArn` property is the ARN of the S3 bucket to monitor. For a bucket defined in the same Stacktape config, use [`$ResourceParam`](/configuration/directives) to resolve the ARN at deploy time — for example, `$ResourceParam('imagesBucket', 'arn')`. `bucketArn` is typed as a string, so the property accepts a literal ARN as well. Prefer a Stacktape-managed [Bucket](/resources/storage/s3-bucket) — Stacktape handles the notification configuration and IAM permissions automatically. Using an external bucket ARN is possible but requires you to configure the bucket's event notifications and IAM permissions outside of Stacktape.
+The `bucketArn` property is the ARN of the S3 bucket to monitor. For a bucket defined in the same Stacktape config, use [`$ResourceParam`](/configuration/directives) to resolve the ARN at deploy time — for example, `$ResourceParam('imagesBucket', 'arn')`. `bucketArn` is typed as a string, so the property also accepts a literal ARN for buckets managed outside the current config.
 
-The example includes `connectTo: [imagesBucket]` so the Lambda function receives the IAM permissions needed to interact with the bucket. See [Connecting resources](/configuration/connecting-resources) for details on how `connectTo` works.
+The example uses `connectTo: [imagesBucket]` to wire the Lambda function to the bucket. See [Connecting resources](/configuration/connecting-resources) for the permissions and environment variables `connectTo` provides.
 
 ## Event types
 
@@ -176,9 +176,9 @@ This is the standard AWS S3 event notification shape. For the full payload refer
 
 ## Delivery and retries
 
-AWS S3 delivers event notifications to Lambda asynchronously. The `S3Integration` type does not expose `batchSize` or `maxBatchWindowSeconds` properties — the only settings are `bucketArn`, `s3EventType`, and `filterRule`.
+AWS S3 delivers event notifications asynchronously. The `S3Integration` type configures only three properties: `bucketArn`, `s3EventType`, and `filterRule`. It does not expose `batchSize`, `maxBatchWindowSeconds`, retry, failure-destination, or dead-letter settings.
 
-`S3Integration` does not expose retry, failure-destination, or dead-letter properties. Runtime retry behavior follows AWS Lambda's asynchronous invocation defaults — if the function returns an error, AWS retries the invocation twice (three attempts total).
+Retry behavior is handled at the AWS Lambda layer, not by Stacktape's `S3Integration`. Under AWS Lambda's asynchronous invocation defaults, if the function returns an error, AWS retries the invocation twice (three attempts total).
 
 AWS S3 event notifications provide at-least-once delivery. In rare cases, a single event may trigger the function more than once. Design your handler to be idempotent — processing the same file twice should produce the same result.
 
@@ -200,11 +200,7 @@ Prevent this with one of these strategies:
 
 ### Can I trigger multiple Lambda functions from the same bucket?
 
-AWS allows only one S3 notification configuration per event type and prefix/suffix combination on a bucket. For multiple independent consumers, an AWS architecture pattern is to route bucket events through [SNS](/resources/messaging/sns-topic) or [EventBridge](/resources/messaging/event-bus) so each consumer subscribes independently.
-
-### How do I avoid infinite loops when writing back to the same bucket?
-
-Use prefix or suffix filtering to separate input from output. For example, trigger only on `prefix: 'uploads/'` and write results to `processed/`. Alternatively, use a separate output bucket. See the [Avoiding infinite loops](#avoiding-infinite-loops) section above.
+S3 notification rules can conflict when multiple consumers use overlapping event types and prefix/suffix filters on the same bucket. For multiple independent consumers, prefer routing bucket events through [SNS](/resources/messaging/sns-topic) or [EventBridge](/resources/messaging/event-bus) so each consumer subscribes independently.
 
 ### Is S3 event delivery guaranteed exactly once?
 
@@ -212,15 +208,7 @@ No. AWS S3 event notifications provide at-least-once delivery. In rare cases, a 
 
 ### What happens if my Lambda function fails processing an S3 event?
 
-`S3Integration` does not expose retry or failure-destination settings. Under AWS Lambda's asynchronous invocation defaults, AWS retries the invocation twice (three total attempts). Configure any retry or dead-letter behavior at the AWS Lambda level.
-
-### Can I use S3 events with a bucket not managed by Stacktape?
-
-`bucketArn` is typed as a string, so the property accepts a literal ARN. Prefer a Stacktape-managed [Bucket](/resources/storage/s3-bucket) unless you have verified the external bucket's event notification configuration and IAM permissions separately.
-
-### How fast are S3 event notifications delivered?
-
-AWS S3 typically delivers event notifications within seconds of the object operation. Delivery time is not guaranteed by an SLA and can vary under high load. For latency-sensitive pipelines, test with representative traffic patterns to validate timing meets your requirements.
+`S3Integration` configures only `bucketArn`, `s3EventType`, and `filterRule` — it does not expose retry or failure-destination settings. Retry behavior is handled by AWS Lambda's asynchronous invocation defaults: AWS retries the invocation twice (three total attempts).
 
 ### Can I filter S3 events by object size or content type?
 
@@ -229,10 +217,6 @@ No. The `filterRule` property supports only key `prefix` and `suffix` matching. 
 ### When should I use S3 events vs polling with SQS?
 
 S3 event triggers react to individual file operations immediately — the event arrives within seconds and requires no polling infrastructure. Use [SQS](/resources/messaging/sqs-queue) as an intermediary when you need batching (process 10 files at once), controlled concurrency, or a buffer between bursty uploads and a downstream system that processes at a fixed rate.
-
-### S3 events vs EventBridge for file processing?
-
-S3 events are simpler: one trigger per event type and filter, directly invoking a Lambda function. [EventBridge](/resources/messaging/event-bus) adds routing flexibility at the AWS level — content-based filtering, multiple targets, and broader event matching. Use S3 events for straightforward single-consumer file processing. Consider EventBridge when you need multi-consumer fan-out or event matching beyond prefix and suffix.
 
 ### How much does S3 event-driven processing cost?
 

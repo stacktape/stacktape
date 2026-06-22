@@ -66,18 +66,10 @@ No Stacktape API key is required. The command has no required arguments — it r
 
 Stacktape compares your installed version against the latest published release. If they match, it prints a success message confirming you are up to date and exits without making any changes.
 
-### How does Stacktape detect my installation method?
+### Why does the command print a command for local installs instead of running it?
 
-Stacktape calls an installation-type detector that classifies the current install as `native`, `package-global`, `package-local`, or unknown. For native and global package installs, the upgrade runs automatically. For local project dependencies and unknown methods, Stacktape prints the command for you to run.
-
-### Why does the command print a command instead of running it for local installs?
-
-When Stacktape is installed as a local project dependency, modifying `node_modules` and the lockfile affects your project. Stacktape prints the exact command so you can review and run it in the appropriate project context.
+Stacktape classifies your install as `native`, `package-global`, `package-local`, or unknown. Native and global package installs are upgraded automatically. For a local project dependency, upgrading modifies `node_modules` and the lockfile and affects your whole project, so Stacktape prints the exact command instead — letting you review and run it in the right project context.
 
 ### Can I downgrade or pin a specific Stacktape version?
 
-The CLI exposes an optional `--newVersion` (`--nv`) flag for specifying the version to install. The implementation resolves the latest published version and only proceeds when that version is newer than the installed one. For workflows not covered by this flag — such as a verified downgrade — use your package manager directly rather than the `upgrade` command.
-
-### How do I install Stacktape for the first time?
-
-The `upgrade` command is for existing installations. For first-time setup, start with [Getting Started — Configure your stack](/getting-started/configure-your-stack).
+The command exposes an optional `--newVersion` (`--nv`) flag for choosing the version to install; run without it, `upgrade` resolves and installs the latest published version automatically. For a reliable downgrade, use your package manager directly rather than relying on `upgrade`.

@@ -60,7 +60,7 @@ A compliant [relational database](/resources/databases/relational-database) conf
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({
@@ -69,6 +69,9 @@ export default defineConfig(() => {
         instanceSize: 'db.t4g.micro'
       }
     }),
+    credentials: {
+      masterUserPassword: $Secret('database.password')
+    },
     accessibility: {
       accessibilityMode: 'vpc'
     }
@@ -95,7 +98,7 @@ The `require-deletion-protection` guardrail requires all [relational databases](
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({
@@ -104,6 +107,9 @@ export default defineConfig(() => {
         instanceSize: 'db.t4g.micro'
       }
     }),
+    credentials: {
+      masterUserPassword: $Secret('database.password')
+    },
     deletionProtection: true
   });
 
@@ -166,7 +172,7 @@ Example (TypeScript):
 ```typescript
 import { defineConfig, ApplicationLoadBalancer, WebAppFirewall } from 'stacktape';
 export default defineConfig(() => {
-  const apiFirewall = new WebAppFirewall({});
+  const apiFirewall = new WebAppFirewall({ scope: 'regional' });
 
   const loadBalancer = new ApplicationLoadBalancer({
     useFirewall: 'apiFirewall'
@@ -271,17 +277,13 @@ For a high-level overview of all 15 guardrail types, see the [guardrails overvie
 
 ## FAQ
 
-### How do guardrails differ from alarms?
-
-Guardrails are preventive — they validate resource configurations against policy and require non-compliant configurations to be corrected. [Alarms](/observability/alarms) are reactive — they monitor running infrastructure and send notifications when metrics cross thresholds. Use guardrails to prevent insecure configurations from being deployed. Use alarms to detect unexpected behavior in already-deployed infrastructure. A production stack benefits from both.
-
 ### What is VPC-only database accessibility?
 
 VPC-only accessibility means the database has no public IP address and can only be reached from within the AWS VPC. Workloads running in the same VPC (such as [Lambda functions](/resources/compute/lambda-function) or [container workloads](/resources/compute/web-service) configured with [`connectTo`](/configuration/connecting-resources)) connect normally. For administration and debugging, use a [bastion host](/resources/security/bastion-host) or the [`bastion:tunnel`](/cli/bastion-tunnel) CLI command to create a secure tunnel from your local machine.
 
-### What does AWS WAF protect against?
+### What does the require-waf guardrail actually protect against?
 
-AWS WAF inspects incoming HTTP/HTTPS requests and blocks those matching configured rules. Common rule sets defend against OWASP top-10 threats including SQL injection, cross-site scripting (XSS), and bot traffic. WAF rules can also implement rate limiting and geographic restrictions. The `require-waf` guardrail requires all [application load balancers](/resources/networking/application-load-balancer) to have a [web application firewall](/resources/security/web-application-firewall) attached — the actual protection depends on the WAF rules you configure.
+The guardrail itself only enforces that every [application load balancer](/resources/networking/application-load-balancer) has a [web application firewall](/resources/security/web-application-firewall) attached — the real protection depends on the WAF rules you configure. AWS WAF inspects incoming HTTP/HTTPS requests and blocks those matching your rules, with common rule sets defending against SQL injection, cross-site scripting (XSS), and bot traffic, plus rate limiting and geographic restrictions.
 
 ### Do security guardrails add cost to my AWS bill?
 
@@ -295,10 +297,6 @@ Use both — they serve different purposes. Code reviews catch logic errors, des
 
 Deletion protection and backups protect against different failure modes. Deletion protection, enforced by the `require-deletion-protection` guardrail, prevents the database instance itself from being removed via API calls — it's a safeguard against accidental resource removal. Backups (automated snapshots and point-in-time recovery) protect against data corruption or accidental data changes within a running database. Most production databases benefit from both. See the [relational database page](/resources/databases/relational-database) for backup configuration.
 
-### Does the require-vpc-databases guardrail apply to all database types?
-
-The guardrail source describes the requirement as applying to all databases — when enabled, all databases must use VPC-only accessibility with no public internet access. See the [relational database page](/resources/databases/relational-database) for supported accessibility modes.
-
 ### Can I restrict which database engines my team uses?
 
-Yes. The `database-engine-restriction` guardrail lets you define an `allowedEngines` list of permitted engine type identifiers, such as `["postgres", "aurora-postgresql"]`. Database engine types not included in `allowedEngines` are blocked. See [database guardrails](/guardrails/databases) for the full database-related guardrail set including instance size restrictions.
+Yes. The `database-engine-restriction` guardrail lets you define an `allowedEngines` allowlist of permitted engine type identifiers, such as `["postgres", "aurora-postgresql"]`. Any engine type not in the list is blocked at deploy time. See [database guardrails](/guardrails/databases) for the full database-related guardrail set, including the `database-instance-restriction` guardrail for controlling instance sizes.

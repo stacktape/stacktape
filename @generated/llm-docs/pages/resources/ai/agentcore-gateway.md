@@ -1,6 +1,6 @@
 # AgentCore Gateway
 
-A Stacktape AgentCore Gateway is a managed MCP tool gateway on AWS Bedrock AgentCore. It registers Lambda-backed tools behind a single endpoint that [AgentCore runtimes](/resources/ai/agentcore-runtime) can discover and invoke. Configure optional JWT authentication to restrict access. Stacktape provisions the gateway resources in your AWS account.
+A Stacktape AgentCore Gateway is a managed MCP tool gateway on AWS Bedrock AgentCore. It defines Lambda-backed tools behind a single endpoint, each referencing a Lambda function using either `function` (Stacktape resource name) or `lambdaArn` (full ARN). An [AgentCore runtime](/resources/ai/agentcore-runtime) can reference the gateway via its `useGateway` property. Configure optional JWT authentication to restrict access.
 
 ## When to use
 
@@ -179,7 +179,7 @@ A single tool can expose multiple operations via its `toolSchema` — for exampl
 
 ### Full stack: gateway with AgentCore runtime
 
-A complete customer support agent setup with a gateway, backing Lambda functions, and an AgentCore runtime that consumes the gateway. `AgentCoreRuntimeProps` includes a `useGateway` string property that links the runtime to a gateway. The gateway exposes a `url` referenceable parameter — use `$ResourceParam('supportGateway', 'url')` when your runtime code needs the gateway endpoint explicitly.
+A complete customer support agent setup with a gateway, backing Lambda functions, and an AgentCore runtime that references the gateway. `AgentCoreRuntimeProps` exposes a `useGateway?: string` property that accepts a gateway resource name. The gateway exposes `url` as a referenceable parameter — use `$ResourceParam('supportGateway', 'url')` in an `environment` entry to pass the endpoint to your runtime code.
 
 
 Example (TypeScript):
@@ -259,10 +259,11 @@ export default defineConfig(() => {
     description: 'Customer support agent with governed business tools',
     packaging: new CustomDockerfilePackaging({ buildContextPath: './agent' }),
     useGateway: 'supportGateway',
-    environment: [
-      { name: 'AI_MODEL', value: 'eu.amazon.nova-micro-v1:0' },
-      { name: 'AGENT_NAME', value: 'customer-support' }
-    ]
+    environment: {
+      AI_MODEL: 'eu.amazon.nova-micro-v1:0',
+      AGENT_NAME: 'customer-support',
+      GATEWAY_URL: "$ResourceParam('supportGateway', 'url')"
+    }
   });
 
   return {
@@ -272,11 +273,11 @@ export default defineConfig(() => {
 ```
 
 
-Inside the runtime container, use the gateway URL to interact with the registered tools. Reference the URL explicitly with `$ResourceParam('supportGateway', 'url')` in an `environment` entry to pass it as a named environment variable to your runtime code.
+Inside the runtime container, read the `GATEWAY_URL` environment variable configured above to get the gateway endpoint. The `$ResourceParam('supportGateway', 'url')` directive resolves to the gateway's URL at deploy time.
 
 ## Tools
 
-Each tool in the gateway maps to a Lambda function and declares one or more operations via `toolSchema`. Each `AgentCoreGatewayTool` defines a `name`, optional `description`, a Lambda reference through `function` or `lambdaArn`, and a required `toolSchema` array describing available operations. Provide exactly one of `function` or `lambdaArn` per tool — providing both is not supported.
+Each tool in the gateway maps to a Lambda function and declares one or more operations via `toolSchema`. Each `AgentCoreGatewayTool` defines a `name`, optional `description`, a Lambda reference through `function` or `lambdaArn`, and a required `toolSchema` array describing available operations. A tool can reference a Lambda by Stacktape resource name with `function`, or by ARN with `lambdaArn`. The source exposes both as optional fields — use one clear target per tool.
 
 ### Referencing Lambda functions
 
@@ -296,7 +297,7 @@ Every tool has a `toolSchema` array. Each entry describes an operation:
 | `inputSchema` | Yes | JSON Schema object describing the expected input |
 | `outputSchema` | No | JSON Schema object describing the response shape |
 
-Tool schemas are passed through to the AgentCore API. Both `inputSchema` and `outputSchema` accept any JSON Schema object. Consult the AWS Bedrock AgentCore documentation for the exact JSON Schema keywords supported at the API level. In practice, keeping schemas simple (`type`, `properties`, `required`, `items`, `description`) ensures broad compatibility.
+Stacktape types `inputSchema` and `outputSchema` as `any`, so the config layer does not constrain the schema object. Validate the final schema shape against AWS Bedrock AgentCore requirements. In practice, keeping schemas simple (`type`, `properties`, `required`, `items`, `description`) ensures broad compatibility.
 
 ## JWT authorization
 
@@ -337,7 +338,7 @@ The `discoveryUrl` is required — it must point to the `.well-known/openid-conf
 
 ## Connecting to an AgentCore runtime
 
-The gateway is designed to be consumed by an [AgentCore runtime](/resources/ai/agentcore-runtime). `AgentCoreRuntimeProps` includes a `useGateway` string property that accepts the gateway's resource name. The gateway exposes a `url` referenceable parameter — use `$ResourceParam('toolGateway', 'url')` in an `environment` entry to pass the endpoint to your runtime container.
+The gateway is designed to be consumed by an [AgentCore runtime](/resources/ai/agentcore-runtime). `AgentCoreRuntimeProps` exposes a `useGateway?: string` property that accepts the gateway's resource name. The gateway exposes `url` as a referenceable parameter — use `$ResourceParam('toolGateway', 'url')` in an `environment` entry to pass the endpoint to your runtime container.
 
 
 Example (TypeScript):
@@ -360,7 +361,8 @@ export default defineConfig(() => {
       buildContextPath: './agent'
     }),
     protocol: 'MCP',
-    useGateway: 'toolGateway'
+    useGateway: 'toolGateway',
+    environment: { GATEWAY_URL: "$ResourceParam('toolGateway', 'url')" }
   });
 
   return {
@@ -370,13 +372,13 @@ export default defineConfig(() => {
 ```
 
 
-Inside the runtime container, read the environment variable you configured (e.g. `GATEWAY_URL`) to get the gateway endpoint. Use `$ResourceParam('toolGateway', 'url')` in an `environment` entry on the runtime to pass the URL explicitly.
+Inside the runtime container, read the `GATEWAY_URL` environment variable configured above to get the gateway endpoint. The `$ResourceParam('toolGateway', 'url')` directive resolves to the gateway's URL at deploy time.
 
 ## MCP protocol configuration
 
 AgentCore Gateway exposes MCP-related configuration through three optional properties. Unlike [AgentCore runtime](/resources/ai/agentcore-runtime), the gateway does not expose a configurable `protocol` property.
 
-- **`instructions`** — Natural-language instructions describing the gateway's purpose and how agents should use its tools. Returned during MCP discovery. Useful when you want to guide agent behavior — for example, telling the agent to prefer one tool over another for certain query types.
+- **`instructions`** — Natural-language instructions describing the gateway's purpose and how agents should use its tools. Useful when you want to guide agent behavior — for example, telling the agent to prefer one tool over another for certain query types.
 - **`supportedVersions`** — List of MCP protocol version strings the gateway accepts.
 - **`searchType`** — Controls how the gateway matches tool search queries from agents.
 
@@ -444,30 +446,17 @@ type AgentCoreGatewayProps = {
 
 The following parameters are available via the [`$ResourceParam` directive](/configuration/directives). For example, to reference the gateway URL in an environment variable: `$ResourceParam('toolGateway', 'url')`.
 
-
-## Referenceable Parameters: `agentcore-gateway`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `id` | Referenceable id value. | `$ResourceParam("<<resource-name>>", "id")` |
-| `arn` | Referenceable arn value. | `$ResourceParam("<<resource-name>>", "arn")` |
-| `url` | Referenceable url value. | `$ResourceParam("<<resource-name>>", "url")` |
-
+| Parameter | Usage |
+|---|---|
+| `id` | `$ResourceParam('toolGateway', 'id')` |
+| `arn` | `$ResourceParam('toolGateway', 'arn')` |
+| `url` | `$ResourceParam('toolGateway', 'url')` |
 
 ## FAQ
 
-### What is an AgentCore Gateway?
-
-An AgentCore Gateway is a managed MCP tool gateway on AWS Bedrock AgentCore. It acts as a centralized registry where you define Lambda-backed tools, each with a declared input/output schema. AI agent runtimes connect to the gateway to discover and invoke these tools through the MCP protocol. Stacktape provisions the gateway and connects each tool to its backing Lambda function.
-
 ### How does the gateway relate to the AgentCore runtime?
 
-The gateway provides tools; the [AgentCore runtime](/resources/ai/agentcore-runtime) consumes them. Set `useGateway: 'myGateway'` on the runtime to link it to the gateway. The gateway URL is available via `$ResourceParam('myGateway', 'url')` — pass it as an environment variable so your runtime code can discover and invoke tools via MCP. A single gateway can serve multiple runtimes.
-
-### Can I use the gateway without JWT authentication?
-
-Yes. The `authorizer` property is optional. Omitting it is acceptable for development stages or internal agents running in private environments. For production, configure the JWT authorizer to restrict access to authenticated callers.
+The gateway defines tools; the [AgentCore runtime](/resources/ai/agentcore-runtime) references it. `AgentCoreRuntimeProps` exposes `useGateway?: string`, which accepts a gateway resource name — for example, `useGateway: 'myGateway'`. The gateway URL is available via `$ResourceParam('myGateway', 'url')` — pass it as an environment variable so your runtime code can reach the gateway endpoint.
 
 ### Which identity providers work with the JWT authorizer?
 
@@ -475,23 +464,15 @@ Configure `authorizer.discoveryUrl` with any provider that exposes a `.well-know
 
 ### Can a single tool expose multiple operations?
 
-Yes. Each tool's `toolSchema` is an array of operation definitions. For example, an "orders" tool can expose `getOrder`, `cancelOrder`, and `listOrders` — all backed by the same Lambda function. Consult the AWS Bedrock AgentCore documentation for the exact invocation payload structure delivered to your Lambda handler.
+Yes. Each tool's `toolSchema` is an array of operation definitions, so a single tool maps one Lambda function to several operations. For example, an `orders` tool can expose both `getOrder` and `cancelOrder` from the same backing function — see the multi-tool example above.
 
 ### How do I reference a Lambda function in another stack or AWS account?
 
 Use the `lambdaArn` property instead of `function`. Provide the full ARN of the Lambda function (e.g., `arn:aws:lambda:us-east-1:123456789012:function:my-tool-handler`). If the Lambda is in a different AWS account, ensure its resource-based policy allows cross-account invocation.
 
-### What is MCP and why does the gateway use it?
-
-MCP (Model Context Protocol) is a standard for AI agents to discover and invoke tools. Unlike AgentCore runtime (which supports `HTTP`, `MCP`, `A2A`, and `AGUI` protocols), the gateway does not expose a configurable `protocol` property — it exposes MCP-related settings such as `instructions`, `supportedVersions`, and `searchType`. MCP provides structured tool discovery, typed input/output contracts, and a consistent invocation pattern, making it straightforward for agent frameworks to integrate.
-
 ### When should I use a gateway versus direct Lambda invocation?
 
-Use a gateway when you have three or more tools, need schema-based tool discovery, or want a centralized authorization layer in front of your tools. For simpler setups with one or two Lambda functions, invoke them directly from your [AgentCore runtime](/resources/ai/agentcore-runtime) code using the standard resource access model — the gateway's indirection adds complexity that isn't justified for small tool sets.
-
-### Which JSON Schema keys are supported in tool schemas?
-
-Tool schemas are passed through to the AWS Bedrock AgentCore API. Both `inputSchema` (required) and `outputSchema` (optional) accept JSON Schema objects. Consult the AWS Bedrock AgentCore documentation for the exact keywords supported at the API level. In practice, keeping schemas simple and flat (`type`, `properties`, `required`, `items`, `description`) ensures broad compatibility.
+Use a gateway when you have multiple tools, need schema-based tool discovery (the MCP protocol), or want a centralized authorization layer in front of your tools. For simpler setups with one or two Lambda functions, invoke them directly from your [AgentCore runtime](/resources/ai/agentcore-runtime) code using the standard resource access model — the gateway's indirection adds complexity that isn't justified for small tool sets.
 
 ### How much does an AgentCore Gateway cost?
 

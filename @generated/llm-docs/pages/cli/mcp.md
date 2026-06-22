@@ -72,35 +72,23 @@ stacktape mcp --logLevel debug
 
 ## FAQ
 
-### What is MCP?
-
-MCP (Model Context Protocol) is an open protocol that lets AI coding agents discover and call tools exposed by external servers. Stacktape's MCP server gives agents the ability to search docs, deploy stacks, inspect logs, query databases, and control dev mode — all without the agent needing to construct shell commands.
-
 ### Which AI clients support MCP?
 
 `stacktape mcp:add` can detect Claude Code, Codex, Cursor, VS Code/Copilot, OpenCode, and Windsurf configuration files. The `mcp` command communicates over stdio using the MCP protocol, so any client that supports MCP stdio transport can use it. Run [`stacktape mcp:add`](/cli/mcp-add) to auto-detect and configure supported clients on your machine.
 
 ### Do I need an API key to use the MCP server?
 
-The `stacktape mcp` command itself does not require an API key. Operations that run CLI commands requiring account access — such as deploying, viewing logs, and querying databases — need credentials configured with [`stacktape login`](/cli/login).
+The `stacktape mcp` command itself does not require an API key, so docs search and project inspection work with no credentials. Operations that run CLI commands requiring account access — such as deploy, delete, diagnostics, and starting dev mode — need credentials configured with [`stacktape login`](/cli/login).
 
 ### Can the MCP server modify my infrastructure?
 
-Yes. The `stacktape_cli` tool can run non-interactive CLI commands with `action: "run"`, such as `deploy`, `delete`, `rollback`, `secret:create`, and `debug:logs`. Mutating commands require `confirm: true` before they run. Destructive commands also require direct user confirmation through MCP elicitation when the client supports it; otherwise they fail closed.
+Yes. The `stacktape_cli` tool can run non-interactive CLI commands with `action: "run"`, such as `deploy`, `delete`, `rollback`, `secret:set`, and `logs`. Mutating commands require `confirm: true` before they run. Destructive commands also require direct user confirmation through MCP elicitation when the client supports it; otherwise they fail closed.
 
 For deployment preparation, agents should use `stacktape_cli` with `action: "plan"` and `command: "deploy"` first. Planning is read-only and returns the recommended run arguments, matched package script, inferred config path, working directory, and confirmation requirement without starting a deployment.
 
-### Is the MCP server a long-running process?
+### Do I need to start `stacktape mcp` myself?
 
-Yes. It runs as long as the AI client keeps the stdio connection open. When the client disconnects, the server process exits. You do not need to manage its lifecycle manually.
-
-### How does `stacktape_docs` search work?
-
-The server loads a generated lexical search index from bundled LLM documentation. Queries are matched against section-level chunks and returned with route, source file, heading path, and generated docs kind metadata. Syntax and property lookups are biased toward `config-reference` chunks, workflow questions are biased toward `docs-page` chunks, and near-duplicate top results from the same page are skipped. Use `stacktape_docs` with `action: "get"` when the agent needs a complete exact route or config reference after searching.
-
-### Can I use MCP tools alongside dev mode?
-
-Yes. The `stacktape_dev` tool lets agents start, monitor, rebuild, and stop dev sessions. When a dev session is active, agents can also read structured logs and trigger workload rebuilds without you needing to interact with the terminal.
+No. The MCP-compatible client spawns the server automatically over stdio when it starts, and the process exits when the client disconnects — you do not manage its lifecycle. Run [`stacktape mcp:add`](/cli/mcp-add) once to add the server entry to your client config; you rarely run `stacktape mcp` by hand except with `--logLevel debug` to troubleshoot a connection.
 
 ## Related commands
 

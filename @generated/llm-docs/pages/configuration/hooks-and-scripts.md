@@ -28,14 +28,14 @@ Example (TypeScript):
 ```typescript
 import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, Bucket } from 'stacktape';
 export default defineConfig(() => {
+  const uploads = new Bucket({});
+
   const api = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['uploads']
+    connectTo: [uploads]
   });
-
-  const uploads = new Bucket({});
 
   return {
     resources: { api, uploads },
@@ -72,7 +72,10 @@ Example (TypeScript):
 ```typescript
 import { defineConfig, RedisCluster, Bastion } from 'stacktape';
 export default defineConfig(() => {
-  const cache = new RedisCluster({});
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t4g.micro',
+    defaultUserPassword: "$Secret('redis.password')"
+  });
   const bastion = new Bastion({});
 
   return {
@@ -104,7 +107,10 @@ Example (TypeScript):
 ```typescript
 import { defineConfig, RedisCluster, Bastion } from 'stacktape';
 export default defineConfig(() => {
-  const cache = new RedisCluster({});
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t4g.micro',
+    defaultUserPassword: "$Secret('redis.password')"
+  });
   const bastion = new Bastion({});
 
   return {
@@ -249,10 +255,6 @@ Define a `local-script` that runs your migration tool (Prisma, Drizzle, raw SQL)
 
 Yes. Each hook (`beforeDeploy`, `afterDeploy`, etc.) accepts an array of script references. Define them in the execution order you need — for example, run tests before building.
 
-### Do hooks run during `stacktape dev`?
-
-Yes. The `beforeDev` hook fires before [dev mode](/local-development/dev-mode-overview) starts and `afterDev` fires after dev mode exits. Use `beforeDev` for setup tasks like installing dependencies or seeding a local database.
-
 ### What happens if my afterDeploy hook fails?
 
 Your infrastructure is deployed and running, but the post-deploy task needs attention. Re-run the script with [`stacktape script:run`](/cli/script-run) to address the issue. Check the CLI output for error details and confirm the fix before the next deployment.
@@ -261,22 +263,6 @@ Your infrastructure is deployed and running, but the post-deploy task needs atte
 
 Use hooks with local scripts when you need local tooling (npm, Prisma CLI, psql), filesystem access, or flexibility in execution time. Use [deployment scripts](/resources/advanced/deployment-scripts) when you need direct VPC access without bastion setup, or when you want consistent cloud execution independent of the developer's machine. Most teams use hooks for the majority of their automation.
 
-### Can scripts execute TypeScript or Python files directly?
+### How do I run a script against a private (VPC-only) database?
 
-Local scripts and `local-script-with-bastion-tunneling` can execute JS, TS, or Python files via the script execution properties. Bastion scripts are intended for commands that run on the bastion host; use `local-script-with-bastion-tunneling` when you need your local toolchain.
-
-### How do I access a private database from a script?
-
-Use `local-script-with-bastion-tunneling`. It runs your script locally while routing connections to the private resource through your [bastion host](/resources/security/bastion-host). You need a `bastion` resource defined in your config. Alternatively, use a [deployment script](/resources/advanced/deployment-scripts) for direct VPC access without bastion setup.
-
-### When should I use bastion tunneling vs a bastion script?
-
-Use `local-script-with-bastion-tunneling` when you need local tools — it runs your machine's toolchain while tunneling network access through the bastion. Use `bastion-script` when you only need basic shell commands and want to avoid running anything locally. For most development workflows, bastion tunneling is the better choice.
-
-### Can I use hooks in CI/CD pipelines?
-
-Yes. Hooks run wherever the Stacktape CLI runs. In a CI pipeline, the same hooks fire during [`stacktape deploy`](/cli/deploy) as locally. Use `skipOnCI` and `skipOnLocal` to differentiate — skip browser-opening in CI, or skip notification scripts when running on your machine. See [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) for pipeline integration patterns.
-
-### What environment variables do scripts receive?
-
-Scripts receive variables from `connectTo` (auto-injected connection details per resource — see [connecting resources](/configuration/connecting-resources)) and from the `environment` property in the script configuration. Environment values support [directives](/configuration/directives) like `$Secret()` for injecting secrets and `$ResourceParam()` for referencing resource parameters.
+Use `local-script-with-bastion-tunneling` when you need local tools like `prisma` or `psql` — it runs the script on your machine while routing connections through a [bastion host](/resources/security/bastion-host) (you need a `bastion` resource in your config). Use `bastion-script` instead when you only need basic shell commands and want to avoid running anything locally. For most workflows, bastion tunneling is the better choice.

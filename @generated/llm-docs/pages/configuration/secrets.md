@@ -55,8 +55,8 @@ edit it, or delete it.
 
 ### Using the CLI
 
-The CLI also provides a [`stacktape secret:create`](/cli/secret-create) command for creating secrets from the
-terminal. See the [`secret:create` CLI reference](/cli/secret-create) for supported options.
+The CLI also provides a [`stacktape secret:set`](/cli/secret-set) command for creating secrets from the
+terminal. See the [`secret:set` CLI reference](/cli/secret-set) for supported options.
 
 ## Referencing secrets with $Secret()
 
@@ -102,7 +102,7 @@ export default defineConfig(() => {
 
 Your application code reads the value from the environment variable — `process.env.DISCORD_BOT_TOKEN`. The secret
 named `discord-bot-token` must be fetchable by Stacktape before deployment. If it cannot be fetched, the deployment
-fails with an error and a hint to create it using [`stacktape secret:create`](/cli/secret-create).
+fails with an error and a hint to create it using [`stacktape secret:set`](/cli/secret-set).
 
 ### JSON secrets with dot notation
 
@@ -239,12 +239,6 @@ non-secret configuration values from Parameter Store that are shared across mult
 
 ## FAQ
 
-### How are secrets encrypted?
-
-AWS Secrets Manager encrypts secrets at rest using AWS KMS. Each secret is encrypted with either the AWS-managed
-default key or a customer-managed KMS key. All API calls use TLS in transit. Stacktape does not add a separate
-encryption layer — it relies on the encryption built into AWS Secrets Manager.
-
 ### Can I share secrets across stages?
 
 Yes. Secrets in AWS Secrets Manager are independent of Stacktape stacks. If you create a secret called `stripe-key` in
@@ -254,13 +248,14 @@ like `production-stripe-key` and `staging-stripe-key` if you need stage-specific
 ### What happens if a referenced secret does not exist?
 
 The deployment fails with an error naming the missing secret and a hint suggesting you create it using
-[`stacktape secret:create`](/cli/secret-create). Create all referenced secrets in the deployment region before running
+[`stacktape secret:set`](/cli/secret-set). Create all referenced secrets in the deployment region before running
 `stacktape deploy`.
 
-### Can I use $Secret() in environment variables for Lambda functions?
+### Where can I use $Secret() in my config?
 
-Yes. `$Secret()` resolves to a CloudFormation dynamic reference at deploy time and is commonly used in workload
-environment variables. This includes [Lambda functions](/resources/compute/lambda-function),
+`$Secret()` resolves to a CloudFormation dynamic reference at deploy time, so it works in any config property that
+accepts runtime directives. It is most commonly used in workload environment variables and database credential
+fields, across [Lambda functions](/resources/compute/lambda-function),
 [web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service),
 [batch jobs](/resources/compute/batch-job), and
 [multi-container workloads](/resources/compute/multi-container-workload).
@@ -271,36 +266,13 @@ AWS Secrets Manager charges a per-secret monthly storage fee and a per-API-call 
 a handful of secrets incurs minimal cost. See the
 [AWS Secrets Manager pricing page](https://aws.amazon.com/secrets-manager/pricing/) for current rates.
 
-### How do I list all secrets in a region?
+### Why do my workloads still use the old secret value after I updated it?
 
-Use the Stacktape Console's Secrets page. Select an AWS account and region to browse all secrets with sorting and
-pagination. From the CLI, use [`stacktape secret:get`](/cli/secret-get) to retrieve a specific secret by name when
-you already know its identifier.
-
-### When should I use secrets vs hard-coded config values?
-
-Use secrets for any value that is sensitive, varies by stage, or should not appear in version control. Database
-passwords, API keys, OAuth secrets, and webhook signing keys all belong in secrets. Non-sensitive configuration like
-feature flags, public API URLs, or numeric thresholds can stay in your `stacktape.ts` directly or use
-[variables](/configuration/variables-and-reuse).
+`$Secret()` pins to the secret version that was current at deploy time, so updating the value in AWS Secrets Manager
+does not affect running workloads on its own. Redeploy the stack to pin to and roll out the new version.
 
 ### Can I rotate secrets automatically?
 
 AWS Secrets Manager supports automatic rotation via Lambda functions, but Stacktape does not configure rotation
 automatically. You can set up rotation directly in the AWS Console. After rotation, redeploy your stack so workloads
 pick up the new secret version — `$Secret()` pins to the version from the last deployment.
-
-### Do secrets work in dev mode?
-
-Yes. When you run [`stacktape dev`](/local-development/dev-mode-overview), the `$Secret()` directive resolves the
-secret value by calling AWS Secrets Manager. When the current stack has a recorded `CurrentSecretVersionId` from a
-prior deployment, Stacktape passes that version ID to fetch the pinned version.
-
-### What is the difference between AWS Secrets Manager and SSM Parameter Store?
-
-AWS Secrets Manager is designed for secrets storage: it provides built-in rotation, per-secret access policies, and
-automatic encryption with KMS. AWS SSM Parameter Store is a broader key-value store that supports SecureString
-parameters encrypted with KMS. In Stacktape, `$Secret()` additionally supports JSON key extraction through dot
-notation, while `$SsmParam()` does not. Secrets Manager has a per-secret monthly fee, while SSM Parameter Store's
-standard tier has no per-parameter storage charge. Choose `$Secret()` for credentials and API keys. Choose
-`$SsmParam()` for existing SSM parameters or shared configuration values.

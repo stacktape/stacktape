@@ -156,12 +156,9 @@ import { defineConfig, HostingBucket } from 'stacktape';
 export default defineConfig(() => {
   const website = new HostingBucket({
     uploadDirectoryPath: './dist',
-    injectEnvironment: [
-      {
-        name: 'PUBLIC_API_URL',
-        value: 'https://api.example.com'
-      }
-    ],
+    injectEnvironment: {
+      PUBLIC_API_URL: 'https://api.example.com'
+    },
     writeDotenvFilesTo: './dist'
   });
 
@@ -215,45 +212,33 @@ Because static hosting publishes uploaded files through the CDN, use `excludeFil
 
 ## FAQ
 
-### What is Stacktape static hosting?
-
-Stacktape static hosting is the `HostingBucket` resource, which uploads a directory of static frontend files to S3 and serves them through CloudFront. It is intended for static websites, SPAs, and pre-rendered framework output rather than server-rendered apps.
-
 ### Which build output directory should I upload?
 
 Set `uploadDirectoryPath` to the directory produced by your frontend build, such as `dist`, `build`, or `out`. Stacktape uploads that directory's contents on every deploy. If your build runs in a subdirectory, set `build.workingDirectory` and keep `uploadDirectoryPath` pointed at the resulting output folder.
 
 ### Which hostingContentType should I choose?
 
-Use `single-page-app` for React, Vue, Angular, Vite, or Webpack apps with client-side routing. Use the default `static-website` for ordinary multi-page static sites, and use the framework-specific presets for static Astro, SvelteKit, Nuxt, or Gatsby outputs. The API reference below lists the exact property shape.
+Use `single-page-app` for React, Vue, Angular, Vite, or Webpack apps with client-side routing — it serves `index.html` for routes like `/about` so browser refreshes and direct links work, and caches hashed assets indefinitely. Use the default `static-website` for ordinary multi-page sites, and use the framework-specific presets for static Astro, SvelteKit, Nuxt, or Gatsby outputs.
 
-### Can I use a custom domain?
+### Why does my custom domain fail to provision?
 
-Yes. Add `customDomains` to the hosting-bucket and provide domain names such as `www.example.com`. Stacktape creates DNS records and TLS certificates, but the domain must already have a Route53 hosted zone in the AWS account. For broader domain concepts, see [custom domains](/resources/networking/custom-domains).
+`customDomains` only works if the domain already exists as a Route53 hosted zone in the AWS account — Stacktape creates the DNS records and TLS certificate but does not register the zone for you. If DNS is managed elsewhere, set `disableDnsRecordCreation`, and set `customCertificateArn` to use a specific ACM certificate. For broader domain concepts, see [custom domains](/resources/networking/custom-domains).
 
-### Can static hosting inject environment variables?
+### Can static hosting inject environment variables without rebuilding?
 
-Yes. `injectEnvironment` exposes deploy-time values in HTML files as `window.STP_INJECTED_ENV.VARIABLE_NAME`, and `writeDotenvFilesTo` writes values to a `.env` file in a target directory. Use this for public frontend configuration such as API URLs, not for browser-inaccessible secrets. See [secrets](/configuration/secrets) for secret management.
-
-### Does Stacktape static hosting support client-side routes?
-
-Yes, use `hostingContentType: 'single-page-app'`. The source describes this preset as serving `index.html` for routes such as `/about`, which is the behavior SPAs need for browser refreshes and direct links. Multi-page static sites should usually stay on the default `static-website` preset.
+Yes. `injectEnvironment` exposes deploy-time values in HTML files as `window.STP_INJECTED_ENV.VARIABLE_NAME`, and `writeDotenvFilesTo` writes values to a `.env` file in a target directory (merging existing content) — both without a second frontend build. Use this for public frontend configuration such as API URLs, not for browser-inaccessible secrets. See [secrets](/configuration/secrets) for secret management.
 
 ### How much does S3 and CloudFront static hosting cost?
 
-S3 and CloudFront are usage-priced AWS services: storage, requests, data transfer, and CDN features drive the bill. The provided Stacktape source for `HostingBucketProps` does not include concrete price numbers, so this page avoids quoting estimates. Use [cost dashboards](/managing-costs/dashboards) after deployment to inspect actual stack spend.
+A hosting-bucket bills through the underlying AWS services it provisions — S3 storage and requests, plus CloudFront data transfer and CDN features — so cost scales with traffic and stored assets rather than a fixed price. Use [cost dashboards](/managing-costs/dashboards) after deployment to inspect actual stack spend.
 
 ### Static hosting vs S3 bucket: which should I use?
 
 Use [static hosting](/resources/frontend/static-hosting) when you want a website: build command, upload directory, CDN behavior, content presets, custom domains, and frontend environment injection. Use an [S3 bucket](/resources/storage/s3-bucket) when you need general object storage for application data, uploads, backups, or private files.
 
-### Static hosting vs Next.js: which should I use?
-
-Use static hosting when your app can be built into static files and does not need a server runtime. Use [Next.js](/resources/frontend/nextjs) when your Next.js app needs server rendering, API routes, middleware behavior, or framework-managed runtime behavior. Static exports from frontend frameworks can fit static hosting when the output is only files.
-
 ### Can I route API requests from a static site?
 
-Yes, `routeRewrites` routes specific URL patterns to different origins — for example, `/api/*` to a Lambda function — while unmatched requests go to the bucket. See the [API reference](#api-reference) for the exact `CdnRouteRewrite` fields. For larger APIs, define the backend explicitly with [HTTP API Gateway](/resources/networking/http-api-gateway), [Lambda functions](/resources/compute/lambda-function), or [web services](/resources/compute/web-service).
+Yes, `routeRewrites` routes specific URL patterns to different origins — for example, `/api/*` to a Lambda function — while unmatched requests go to the bucket. Rewrites are evaluated in order. See the [API reference](#api-reference) for the exact `CdnRouteRewrite` fields. For larger APIs, define the backend explicitly with [HTTP API Gateway](/resources/networking/http-api-gateway), [Lambda functions](/resources/compute/lambda-function), or [web services](/resources/compute/web-service).
 
 ## API Reference
 

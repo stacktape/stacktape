@@ -19,7 +19,7 @@ For production stages, define at least one error-rate alarm per public-facing re
 
 Alarms are not the right tool for every monitoring need:
 
-- **Debugging a specific request** — use [logs](/observability/logs) and the [`stacktape debug:logs`](/cli/debug-logs) CLI command instead.
+- **Debugging a specific request** — use [logs](/observability/logs) and the [`stacktape logs`](/cli/logs) CLI command instead.
 - **Trend analysis over weeks** — use [metrics](/observability/metrics) dashboards in the Console for visual exploration.
 - **Tracking application-level errors** — [issues](/observability/issues) automatically group and deduplicate runtime errors from your code. Alarms operate on aggregate CloudWatch metrics, not individual error instances.
 - **Cost alerting** — use [budgets](/managing-costs/budgets) to get notified when spend crosses a threshold.
@@ -325,10 +325,10 @@ The `disabledGlobalAlarms` array takes the alarm names as configured in the Cons
 
 ### CLI
 
-Use [`stacktape debug:alarms`](/cli/debug-alarms) to inspect alarms from the CLI. See the [CLI reference](/cli/debug-alarms) for flags and output details.
+Use [`stacktape alarms`](/cli/alarms) to inspect alarms from the CLI. See the [CLI reference](/cli/alarms) for flags and output details.
 
 ```bash
-stacktape debug:alarms --stage production --region eu-west-1
+stacktape alarms --stage production --region eu-west-1
 ```
 
 
@@ -337,11 +337,11 @@ stacktape debug:alarms --stage production --region eu-west-1
 
 ### Console
 
-The Console alarm rules page lists alarm rules by name, created date, targeted projects, targeted stages, and trigger type. The details modal shows alert-channel summary, trigger properties, and evaluation settings. The table includes delete controls for each rule. For real-time alarm state of a specific stage's resources, use the [`stacktape debug:alarms`](/cli/debug-alarms) CLI command.
+The Console alarm rules page lists alarm rules by name, created date, targeted projects, targeted stages, and trigger type. The details modal shows alert-channel summary, trigger properties, and evaluation settings. The table includes delete controls for each rule. For real-time alarm state of a specific stage's resources, use the [`stacktape alarms`](/cli/alarms) CLI command.
 
 ## Alarms as event triggers
 
-Stacktape alarm state changes can be used as event sources for [Lambda functions](/resources/compute/lambda-function), enabling automated remediation workflows. See [alarms as triggers](/configuration/triggers/alarms-as-triggers) for configuration details.
+Stacktape alarm state changes can be used as event sources for [Lambda functions](/resources/compute/lambda-function), enabling automated remediation workflows. See [alarms as triggers](/resources/triggers/alarms-as-triggers) for configuration details.
 
 ## API reference
 
@@ -378,10 +378,6 @@ interface AlarmDefinition extends AlarmDefinitionBase {
 
 ## FAQ
 
-### Which resources support inline alarms?
-
-Stacktape supports inline alarms on [Lambda functions](/resources/compute/lambda-function), [relational databases](/resources/databases/relational-database), [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), and [SQS queues](/resources/messaging/sqs-queue). Global alarm rules target these same five resource types.
-
 ### How much do CloudWatch alarms cost?
 
 AWS CloudWatch charges per alarm-metric per month. Stacktape alarms use standard resolution (periods must be multiples of 60 seconds). For most stacks, alarm costs are a small fraction of overall compute and database spend. See [managing costs](/managing-costs/overview) for broader cost guidance.
@@ -389,10 +385,6 @@ AWS CloudWatch charges per alarm-metric per month. Stacktape alarms use standard
 ### Can I set different alarm thresholds for production vs development?
 
 Yes. Global alarm rules in the Console can be scoped to specific stages using `forStages`. Create a strict rule targeting `["production"]` with a low error threshold, and a relaxed rule (or no rule) for development stages. Alternatively, use [stage-based configuration](/configuration/stages-and-environments) in your TypeScript config to conditionally set different alarm thresholds per stage.
-
-### What happens when an alarm fires?
-
-When the threshold is breached for the required number of evaluation periods, the alarm transitions to `ALARM` state. Notifications are sent to all configured `notificationTargets` (Slack, email, Discord, MS Teams, webhook). The `includeInHistory` property defaults to `true` and controls whether alarm state changes appear in monitoring history.
 
 ### How do I avoid false alarms from short traffic spikes?
 
@@ -404,16 +396,12 @@ Inline alarms are defined in your `stacktape.ts` config on individual resources 
 
 ### Can I alarm on custom CloudWatch metrics from my application?
 
-The `application-load-balancer-custom` trigger type lets you alarm on any supported ALB CloudWatch metric by specifying the metric name and a threshold. For other resource types, Stacktape provides a fixed set of trigger types covering the most critical metrics. Custom application-level metrics emitted via the CloudWatch SDK are not directly supported as alarm triggers in the Stacktape config.
+Custom application-level metrics emitted via the CloudWatch SDK are not directly supported as alarm triggers in the Stacktape config. For each resource type, Stacktape provides a fixed set of trigger types covering the most critical metrics. The one exception is the `application-load-balancer-custom` trigger, which lets you alarm on any supported ALB CloudWatch metric by specifying the metric name and a threshold — see the [API reference](#api-reference) for supported properties.
 
 ### How do I test that my alarms work?
 
-Deploy a stage with alarms configured and use [`stacktape debug:alarms`](/cli/debug-alarms) to verify the alarms were created. To trigger a test alarm, temporarily set a threshold that your current traffic would breach (e.g. `thresholdPercent: 0` on an error-rate alarm) and wait for the evaluation period to elapse. Check your notification target (Slack, email, etc.) for the alert, then restore the real threshold.
+Deploy a stage with alarms configured and use [`stacktape alarms`](/cli/alarms) to verify the alarms were created. To trigger a test alarm, temporarily set a threshold that your current traffic would breach (e.g. `thresholdPercent: 0` on an error-rate alarm) and wait for the evaluation period to elapse. Check your notification target (Slack, email, etc.) for the alert, then restore the real threshold.
 
 ### When should I use alarms vs issues?
 
 [Alarms](/observability/alarms) monitor aggregate CloudWatch metrics (error rates, CPU, latency) and fire based on thresholds you define. [Issues](/observability/issues) automatically detect, group, and deduplicate individual runtime errors from your application code. Use alarms for infrastructure-level health monitoring and issues for application-level error tracking. Most production stacks benefit from both — alarms catch broad degradation while issues catch specific bugs.
-
-### What does the `application-load-balancer-custom` trigger support?
-
-The `application-load-balancer-custom` trigger lets you alarm on additional ALB CloudWatch metrics beyond the built-in error-rate and unhealthy-targets triggers. See the [API reference](#api-reference) for supported properties, and refer to the [AWS ALB CloudWatch metrics documentation](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-cloudwatch-metrics.html) for metric descriptions.

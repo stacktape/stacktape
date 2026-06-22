@@ -264,41 +264,25 @@ The Console also offers a **Remove config** option, which deletes the saved runn
 
 ## FAQ
 
-### How do I set up a self-hosted GitHub Actions runner with Stacktape?
-
-Install the Stacktape GitHub App on your repository, connect an AWS account in the Stacktape Console, then enable the GitHub Actions runner configuration for your project. In your GitHub Actions workflow, set `runs-on: [self-hosted, stacktape]`. When a queued job with the `stacktape` label arrives, the handler calls `ensureRunner` for the project, AWS account, region, and instance type — no manual EC2 setup required.
-
-### Do I need to store AWS credentials or API keys in GitHub Secrets?
-
-You do not need to store `STACKTAPE_API_KEY` as a GitHub secret — the handler automatically injects it when dispatching the job to the EC2 instance. The source only documents automatic `STACKTAPE_API_KEY` injection. If a workflow step needs other credentials, configure them according to your team's GitHub Actions credential policy.
-
-### How fast does the runner start?
-
-The Console tooltip describes resume as ~15s and cold start as ~30s. A running instance avoids resume or cold-provisioning time, but each queued job still requires a JIT runner configuration and SSM dispatch before execution begins.
-
 ### When should I use self-hosted runners vs GitHub-hosted runners?
 
 Self-hosted runners are better when you need more compute (up to 32 vCPU) or run enough CI minutes that EC2 per-second pricing is cheaper than GitHub's per-minute billing. GitHub-hosted runners are simpler for teams with short, infrequent workflows — no EC2 instance to manage and no idle cost. Most teams start on hosted runners and switch to self-hosted when build speed or cost becomes a bottleneck.
 
-### Can I use self-hosted runners together with GitOps?
+### Do I need to store AWS credentials or a Stacktape API key in GitHub Secrets?
 
-These are separate features. [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) triggers deployments directly from git events without a pipeline file. Self-hosted runners execute GitHub Actions workflows that you write. If you want both automatic deployment and custom pipeline logic, use self-hosted runners with a GitHub Actions workflow — you get full control over pre-deploy steps while running on managed infrastructure.
+You do not need to store `STACKTAPE_API_KEY` as a GitHub secret — the handler automatically injects it into the runner environment when dispatching the job to the EC2 instance. The runner also already runs in your connected AWS account, so Stacktape commands have account access without configuring AWS credentials in the workflow. If a workflow step needs other third-party credentials, configure them according to your team's GitHub Actions credential policy.
 
-### Can I use self-hosted runners for non-Stacktape workflows?
+### How fast does the runner start, and why does my job still wait?
 
-The runner executes GitHub Actions jobs that include the `stacktape` label on a Linux x64 JIT runner. Use it for Stacktape deployment workflows and other GitHub Actions steps where that operational model fits. `STACKTAPE_API_KEY` is injected automatically, but you are not required to use it.
+The Console tooltip describes resume from hibernation as ~15s and a cold start (no existing instance) as ~30s. Even when the instance is already running, each queued job still requires Stacktape to register a JIT runner configuration with GitHub and dispatch the agent over SSM before your steps begin, so expect a short delay on every run, not just the first.
 
-### What operating system and architecture does the runner use?
+### How does Stacktape decide which AWS region the runner uses, and why might it fail?
 
-Stacktape registers the JIT runner with GitHub labels `self-hosted`, `linux`, `x64`, and `stacktape`. The Console instance selector currently lists `m6a` and `c7a` instance types (both AMD x86_64).
+If you set a region in the runner configuration, that region is used. Otherwise, at runtime the handler checks the project's deployment-region flags — the regions where the project has active stages — picks the first match, then falls back to the project's default region. If no region can be determined, the handler logs an error and does not dispatch the job, so a `stacktape`-labeled job can silently never run. Configure a region explicitly or deploy a stage first to avoid this.
 
-### How does Stacktape decide which AWS region to use?
+### Should I use self-hosted runners or GitOps with Console?
 
-If you set a region in the runner configuration, that region is used. Otherwise, at runtime the handler checks the project's deployment-region flags — the regions where the project has active stages — and picks the first match. If no deployment region is found, it falls back to the project's default region. If no region can be determined, the handler logs an error and does not dispatch the job. Configure a region explicitly or deploy a stage first.
-
-### What happens if the Stacktape GitHub App receives duplicate webhooks?
-
-GitHub may retry webhook deliveries on timeout or 504 responses. The handler guards against duplicates — if a job record already exists for a given GitHub job ID, the duplicate event is skipped. This prevents double runs or conflicting SSM commands on the same instance.
+They solve different problems. [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) triggers deployments directly from git events with no pipeline file or runner to manage — simplest if you only need deploy-on-push. Self-hosted runners execute full GitHub Actions workflows you write, so they're the choice when you need pre-deploy testing, matrix builds, or other custom steps while still running on managed infrastructure in your own AWS account.
 
 ### How do I troubleshoot a failed runner job?
 

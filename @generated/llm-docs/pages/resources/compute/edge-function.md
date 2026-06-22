@@ -176,49 +176,33 @@ The `assets` connection gives the edge function IAM access to the bucket. Edge L
 
 Edge function logs are sent to CloudWatch Logs in the AWS region where the function executed, not necessarily the AWS region where your Stacktape stack was deployed. That matters during incident response: a user request served from a different edge location can produce logs outside the stack region you normally inspect.
 
-Use [`stacktape debug:logs`](/cli/debug-logs) for CLI log inspection, and remember that CloudWatch log location follows execution region for edge functions. The `logging` property lets you configure logging for the edge function, while the API reference carries the full option shape.
+Use [`stacktape logs`](/cli/logs) for CLI log inspection, and remember that CloudWatch log location follows execution region for edge functions. The `logging` property lets you configure logging for the edge function, while the API reference carries the full option shape.
 
 ## FAQ
 
-### What is a Stacktape edge function?
-
-A Stacktape edge function is an `EdgeLambdaFunction` resource for Lambda code that runs on CloudFront edge events. The source describes request and response manipulation use cases such as header changes, URL rewrites, A/B testing, and auth checks. Use it with a [CDN](/resources/networking/cdn) when the decision belongs at the edge.
-
 ### How do I attach an edge function to CloudFront?
 
-Define the `EdgeLambdaFunction` resource in your Stacktape config, then reference it from CDN `edgeFunctions` configuration. The edge function page documents the function resource; the CDN page is the right place for origin, cache, domain, and edge association details. See [CDN](/resources/networking/cdn).
+Define the `EdgeLambdaFunction` resource in `resources`, then reference it from CDN `edgeFunctions` configuration, where you choose the CloudFront event (viewer or origin) that invokes it. The choice of event matters: it determines the function's memory and timeout ceilings. Keep origins, caching, and domains on the [CDN](/resources/networking/cdn) resource itself.
 
-### Can an edge function use environment variables?
+### Why can't my edge function use environment variables or reach my database?
 
-No. The source explicitly says edge Lambda functions cannot use environment variables. If your code needs values injected as `STP_[RESOURCE_NAME]_[PARAM]`, use a regional [Lambda function](/resources/compute/lambda-function) or a container resource with [connecting resources](/configuration/connecting-resources).
-
-### Can an edge function connect to a database or Redis?
-
-No, not through VPC access. The source says edge Lambda functions cannot connect to VPC resources, and `connectTo` only sets up IAM permissions. Use a [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), or [private service](/resources/compute/private-service) for database-backed application logic.
+Edge functions run on CloudFront edge events and have two hard limitations: they cannot use environment variables, and they cannot connect to VPC resources (so no direct relational database or Redis access). `connectTo` on an edge function only grants IAM permissions. If your code needs injected config values or VPC-backed services, move that logic to a regional [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), or [private service](/resources/compute/private-service).
 
 ### Which runtimes can Stacktape edge functions use?
 
-Stacktape edge functions support Node.js and Python runtimes. The public type lists `nodejs24.x`, `nodejs22.x`, `nodejs20.x`, `nodejs18.x`, and Python runtimes from `python3.13` through `python3.8`. For broader Lambda runtime coverage, use a regional [Lambda function](/resources/compute/lambda-function).
+Edge functions support Node.js (`nodejs24.x`, `nodejs22.x`, `nodejs20.x`, `nodejs18.x`) and Python (`python3.13` through `python3.8`). For broader Lambda runtime coverage, use a regional [Lambda function](/resources/compute/lambda-function).
 
-### How much memory can a Lambda@Edge function use?
+### What are the memory and timeout limits for an edge function?
 
-In Stacktape's edge function type, memory defaults to `128` MB. Viewer events can use up to `128` MB, while origin events can use up to `10,240` MB. Choose the CloudFront event based on the work the function needs to do, then keep the function small enough for that event's limit.
+Limits depend on the CloudFront event the function is attached to, and the defaults are `128` MB memory and `3` second timeout. Viewer events are capped at `128` MB and `5` seconds; origin events can use up to `10,240` MB and `30` seconds. Use viewer events for lightweight header/URL decisions, and an origin event only when the logic genuinely needs the larger budget. If a handler outgrows these limits, move the work behind the CDN into a [web service](/resources/compute/web-service) or [Lambda function](/resources/compute/lambda-function).
 
-### How long can a Lambda@Edge function run?
+### Why can't I find my edge function's logs in my stack's region?
 
-In Stacktape's edge function type, timeout defaults to `3` seconds. Viewer events can run for up to `5` seconds, while origin events can run for up to `30` seconds. If a handler needs more time than that, move the work behind the CDN into a [web service](/resources/compute/web-service) or [Lambda function](/resources/compute/lambda-function).
+Edge function logs go to CloudWatch Logs in the AWS region where the request was served, not necessarily the region where your stack was deployed. A request handled at a different edge location produces logs outside the region you normally inspect. Use [`stacktape logs`](/cli/logs) and remember the log location follows the execution region.
 
-### How much does Lambda@Edge cost?
+### Edge function vs Lambda function vs CDN config: which should I use?
 
-Lambda@Edge is billed by request count and execution duration, while CloudFront has its own request and data-transfer charges. The provided Stacktape source for this page does not include concrete price numbers, so this page avoids quoting a dollar estimate. Use Stacktape cost views and budgets from [Managing Costs](/managing-costs/overview) to track real spend.
-
-### Edge function vs Lambda function: which should I use?
-
-Use an edge function when code must run on CloudFront request or response events before traffic reaches the origin. Use a regional [Lambda function](/resources/compute/lambda-function) for event-driven application logic, environment variables, broader integrations, or VPC access. Most backend code belongs in a regional compute resource, not at the edge.
-
-### Edge function vs CDN configuration: which should I use?
-
-Use CDN configuration when caching, origin routing, or domain behavior can be expressed without code. Use an edge function only when request or response manipulation requires code, such as conditional rewrites or custom header logic. Start with [CDN](/resources/networking/cdn) settings first, then add edge code for logic the CDN resource cannot express declaratively.
+Start with [CDN](/resources/networking/cdn) configuration when caching, origin routing, or domain behavior can be expressed declaratively without code. Use an edge function when request or response manipulation requires code at the CloudFront layer (conditional rewrites, custom header logic, A/B routing). Use a regional [Lambda function](/resources/compute/lambda-function) for everything else: application logic, environment variables, broader integrations, or VPC access.
 
 ## API Reference
 

@@ -167,16 +167,16 @@ Other guardrail types (`stage-restriction`, `command-restriction`, `resource-typ
 
 ## Monitoring multi-region stacks
 
-Each region's stack is monitored independently. Use [`stacktape debug:logs`](/cli/debug-logs) with the appropriate `--region` flag to view logs for a specific region:
+Each region's stack is monitored independently. Use [`stacktape logs`](/cli/logs) with the appropriate `--region` flag to view logs for a specific region:
 
 ```bash
-stacktape debug:logs --stage production --region eu-west-1 --resourceName api
+stacktape logs --stage production --region eu-west-1 --resourceName api
 ```
 
 For the secondary region:
 
 ```bash
-stacktape debug:logs --stage production --region us-east-1 --resourceName api
+stacktape logs --stage production --region us-east-1 --resourceName api
 ```
 
 Since each region runs its own CloudFormation stack, logs, alarms, and metrics are scoped to that region. See [Observability](/observability/overview) for monitoring and alerting options.
@@ -203,10 +203,6 @@ Common questions about running Stacktape stacks across multiple AWS regions.
 
 You can deploy to any number of AWS regions your account supports — each region runs an independent CloudFormation stack. The practical limit is operational: more regions mean more stacks to monitor, more data replication to manage, and higher costs. Most multi-region setups use 2–3 regions.
 
-### Does Stacktape handle cross-region failover automatically?
-
-No. Stacktape deploys independent stacks per region but does not configure DNS failover, health-check routing, or automatic traffic shifting between regions. Use Route 53 routing policies (failover, latency-based, or weighted) configured directly in AWS or via [overrides](/configuration/overrides-and-escape-hatches) to control how traffic flows between regions.
-
 ### Can I use the same stage name in multiple regions?
 
 Yes. The same stage name (e.g., `production`) can be deployed to multiple regions. Each region creates its own independent CloudFormation stack, so resources in different regions do not collide.
@@ -215,26 +211,14 @@ Yes. The same stage name (e.g., `production`) can be deployed to multiple region
 
 Stacktape does not manage cross-region data replication. Use AWS-native solutions: DynamoDB global tables for key-value data with eventual consistency, Aurora Global Database for relational data with async replication, or S3 Cross-Region Replication for object storage. Choose based on whether you need strong consistency (single-writer Aurora) or can tolerate eventual consistency (DynamoDB global tables).
 
-### Is multi-region more expensive than single-region with a CDN?
+### Do I need multi-region, or is a single region plus a CDN enough?
 
-Yes. Multi-region duplicates compute, databases, and networking costs across every active region. A single-region deployment with a [CDN](/resources/networking/cdn) caches static and cacheable responses at CloudFront edge locations without duplicating your core infrastructure. Multi-region is justified only when your dynamic API responses are latency-sensitive and your users span multiple continents — or when compliance mandates data residency.
-
-### How does the defineConfig callback know which region is being deployed to?
-
-The `defineConfig` callback receives a `params` object (the `GetConfigParams` type) with `region`, `stage`, `projectName`, `command`, `awsProfile`, `cliArgs`, and `user`. Use `params.region` (or destructure it) to write conditional logic — different scaling targets, instance sizes, or feature flags per region — all from a single `stacktape.ts` file.
+Start with a single region and a [CDN](/resources/networking/cdn). CloudFront caches static and cacheable responses at edge locations worldwide without duplicating your core infrastructure, while multi-region duplicates compute, database, and networking costs in every active region. Move to multi-region only when (1) your dynamic, non-cacheable API latency is unacceptable for distant users, (2) compliance mandates in-region data residency, or (3) you need active-active redundancy for disaster recovery.
 
 ### What happens if one region's deployment fails?
 
-Each region deploys independently. A failure in one region does not affect others. When automatic rollback is enabled, CloudFormation rolls back the failed region's stack to its previous state while successful regions continue serving traffic. If rollback is disabled, the stack may remain in an `UPDATE_FAILED` state — a subsequent `stacktape deploy` to the same region will attempt to recover the stack. Check [`stacktape debug:logs`](/cli/debug-logs) with the failing region's `--region` flag to investigate, and see [Rollbacks](/deployment-and-lifecycle/rollbacks) for recovery options.
+Each region deploys independently, so a failure in one region does not affect others. When automatic rollback is enabled, CloudFormation rolls back the failed region's stack to its previous state while successful regions keep serving traffic. Check [`stacktape logs`](/cli/logs) with the failing region's `--region` flag to investigate.
 
-### How do custom domains work with multi-region?
+### How do custom domains and DNS routing work with multi-region?
 
-Each region's stack can have its own [custom domain](/resources/networking/custom-domains) configuration. For multi-region routing (latency-based, failover, geo), configure Route 53 routing policies outside Stacktape — either directly in the AWS Console or via [overrides](/configuration/overrides-and-escape-hatches).
-
-### Should I use multi-region or a single region with CloudFront?
-
-Start with a single region and a CDN. AWS CloudFront caches responses at edge locations worldwide, reducing latency for cacheable content globally. Move to multi-region only when: (1) your dynamic API latency exceeds acceptable thresholds for distant users, (2) compliance requires in-region data processing, or (3) you need active-active redundancy for disaster recovery. Most web applications perform well with a single region plus CDN.
-
-### How do I test a multi-region setup without affecting production?
-
-Deploy to a separate stage (e.g., `staging`) in multiple regions first. The same `stacktape.ts` works for staging and production — only the stage name differs. This lets you validate DNS routing, data replication, and monitoring before cutting over production traffic.
+Each region's stack can have its own [custom domain](/resources/networking/custom-domains), but Stacktape does not manage cross-region routing. To direct users to the nearest or healthiest region, configure Route 53 routing policies (latency-based, geo-location, weighted, or failover) outside Stacktape — directly in the AWS Console or via [overrides](/configuration/overrides-and-escape-hatches). Because routing lives outside the stack, remove DNS records pointing to a region before you [delete](/cli/delete) it.

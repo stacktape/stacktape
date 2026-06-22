@@ -286,38 +286,26 @@ When you run `bastion:tunnel`, Stacktape performs the following steps:
 
 ### Do I need SSH keys to use bastion:tunnel?
 
-No. The `bastion:tunnel` command uses AWS SSM Session Manager for port forwarding, not SSH. You do not need to manage SSH keys. Because the tunnel uses SSM port forwarding, AWS may require the local [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) depending on your AWS CLI setup. The stack must also include a [bastion](/resources/security/bastion-host) resource, and the command requires `--region`, `--stage`, and `--resourceName`.
-
-### Can I tunnel to a publicly accessible database?
-
-You can, but there is no reason to. If a database has a public endpoint, connect to it directly. Bastion tunneling is designed for resources deployed in a private VPC with no public endpoint.
-
-### What happens if the target resource type is not supported?
-
-Stacktape fails the command with an unsupported-tunnel-target error. The supported resource types are `relational-database`, `redis-cluster`, `application-load-balancer`, and `private-service` (with a nested load balancer).
-
-### Can I run multiple tunnels at the same time?
-
-Each `bastion:tunnel` invocation keeps running while its port-forwarding sessions are open. To open another tunnel, run another invocation and choose a different `--localTunnelingPort` if you need a fixed local port.
-
-### Why does my private service tunnel fail?
-
-Tunneling to a [private service](/resources/compute/private-service) requires the deployed service to have a nested load balancer. If your private service does not have one, the command fails with an error.
+No. The `bastion:tunnel` command uses AWS SSM Session Manager for port forwarding, not SSH, so there are no SSH keys to manage. Depending on your AWS CLI setup, AWS may require the local [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html), and your stack must include a [bastion](/resources/security/bastion-host) resource.
 
 ### How do I connect a database GUI through the tunnel?
 
 Run `bastion:tunnel` and note the local address printed in the output (e.g. `127.0.0.1:5433`). In your database GUI, set the host to `127.0.0.1` and the port to the printed local port. Use the same database credentials you normally use for the deployed resource; `bastion:tunnel` only changes the host and port to the printed local address.
 
-### Does the tunnel stay open indefinitely?
+### Why does my private service tunnel fail?
 
-The command registers a cleanup hook that closes all tunnel sessions when Stacktape runs cleanup, then keeps the process alive. Press `Ctrl+C` to trigger cleanup and exit.
+Tunneling to a [private service](/resources/compute/private-service) requires the deployed service to have a nested load balancer. If your private service does not have one, the command fails with an error. The other supported targets are `relational-database`, `redis-cluster`, and `application-load-balancer`; any other resource type fails with an unsupported-tunnel-target error.
 
-### What is the SSM Session Manager plugin?
+### Can I run multiple tunnels at the same time?
 
-The SSM Session Manager plugin is an AWS-provided binary that enables your local machine to establish port-forwarding sessions through AWS Systems Manager. AWS may require it for local SSM port forwarding depending on your AWS CLI setup. Install it from the [AWS documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+Yes. Each `bastion:tunnel` invocation keeps running while its port-forwarding sessions are open, so run another invocation in a separate terminal for a second tunnel. Pass a different `--localTunnelingPort` to each one to avoid local port collisions.
+
+### Can I tunnel to a publicly accessible database?
+
+You can, but there is no reason to. If a database has a public endpoint, connect to it directly. Bastion tunneling is designed for resources deployed in a private VPC with no public endpoint.
 
 ## Related commands
 
 - [`bastion:session`](/cli/bastion-session) — start an interactive shell session on the bastion host itself.
-- [`debug:sql`](/cli/debug-sql) — run read-only SQL queries against a deployed database. Supports `--bastionResource` for VPC-only databases.
-- [`debug:redis`](/cli/debug-redis) — query a deployed Redis cluster. Supports `--bastionResource` for VPC-only clusters.
+- [`query:sql`](/cli/query-sql) — run read-only SQL queries against a deployed database. Supports `--bastionResource` for VPC-only databases.
+- [`query:redis`](/cli/query-redis) — query a deployed Redis cluster. Supports `--bastionResource` for VPC-only clusters.

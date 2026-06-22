@@ -154,29 +154,13 @@ Deployment guardrails also combine with guardrails from other categories. A comm
 
 Guardrails are preventive — they block non-compliant operations before infrastructure changes happen. [Alarms](/observability/alarms) are reactive — they monitor running infrastructure and fire when metrics cross thresholds (error rates, latency, CPU). Use guardrails to prevent mistakes at deployment time; use alarms to detect problems at runtime. Both are part of a healthy production setup but serve fundamentally different purposes.
 
-### How do Stacktape guardrails compare to AWS Service Control Policies?
+### Should I use guardrails or IAM to restrict deployments?
 
-As general AWS background, Service Control Policies (SCPs) restrict which AWS API calls IAM principals can make at the AWS Organizations level. Stacktape guardrails operate at the Stacktape layer — they restrict deployment parameters and configuration using concepts like stages, resource types, and stack size (as defined in the `GuardrailDefinition` union). SCPs are broader and can restrict AWS actions outside Stacktape's control. For defense-in-depth, use both — guardrails for Stacktape-level policy, SCPs for AWS-level access control.
-
-### Can I block the delete command but still allow deployments?
-
-Yes. The `command-restriction` guardrail's `blockedCommands` property is a string array — you list only the commands to block. Adding `"delete"` to the array blocks that specific command. For example, `["delete", "rollback"]` blocks both commands, but you can list any combination that fits your policy.
-
-### Where do I configure guardrails?
-
-Guardrails are configured in the [Stacktape Console](/stacktape-console/console-overview), not in your project's `stacktape.ts` file. The property shapes documented on this page correspond to the `GuardrailDefinition` union type defined in Stacktape's configuration types.
-
-### Can I restrict any resource type, not just databases?
-
-Yes. The `blockedResourceTypes` property accepts any value from the `StpResourceType` union — the same `type` discriminator that identifies each Stacktape resource. See the [Resources](/configuration/resources) documentation for the full list. This guardrail is not limited to database-related types.
+They serve different layers. As general AWS background, IAM (and AWS Organizations Service Control Policies) controls who can call AWS APIs — it answers "is this user allowed to create an EC2 instance?" Stacktape guardrails control policy at the Stacktape layer — using the `GuardrailDefinition` types like `stage-restriction`, `resource-type-restriction`, and `resource-count-limit` to enforce concepts that IAM alone cannot express (stage naming conventions, resource type bans, resource count caps). For defense-in-depth, use both — guardrails for Stacktape-specific policy and IAM/SCPs for AWS-level access control.
 
 ### What happens when a guardrail is violated?
 
-The operation is rejected by the guardrail — for example, a deployment targeting a stage outside `allowedStages` is not permitted by the stage-restriction guardrail. Adjust the deployment parameters or configuration to comply with the active guardrails, then retry.
-
-### Should I use guardrails or IAM to restrict deployments?
-
-They serve different layers. As general AWS background, IAM controls who can call AWS APIs — it answers "is this user allowed to create an EC2 instance?" Stacktape guardrails control policy at the Stacktape layer — using the `GuardrailDefinition` types like `stage-restriction`, `resource-type-restriction`, and `resource-count-limit` to enforce concepts that IAM alone cannot express (stage naming conventions, resource type bans, resource count caps). Use guardrails for Stacktape-specific policy and IAM for AWS-level access control.
+The operation is rejected before any infrastructure changes happen — for example, a deployment targeting a stage outside `allowedStages` is not permitted by the stage-restriction guardrail. Adjust the deployment parameters or configuration to comply with the active guardrails, then retry. To allow a blocked operation (such as `delete`), remove it from the guardrail in the Console first.
 
 ### Can I use different guardrails for different stages?
 

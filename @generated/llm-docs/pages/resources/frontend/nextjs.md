@@ -84,12 +84,12 @@ Example (TypeScript):
 import { defineConfig, NextjsWeb, DynamoDbTable } from 'stacktape';
 export default defineConfig(() => {
   const items = new DynamoDbTable({
-    partitionKey: { name: 'id', type: 'string' }
+    primaryKey: { partitionKey: { name: 'id', type: 'string' } }
   });
 
   const web = new NextjsWeb({
     appDirectory: './apps/web',
-    connectTo: ['items']
+    connectTo: [items]
   });
 
   return { resources: { items, web } };
@@ -262,15 +262,16 @@ Use `fileOptions` when specific static files need custom headers (such as `Cache
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, NextjsWeb, RelationalDatabase } from 'stacktape';
+import { defineConfig, NextjsWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: 'postgres-16'
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
   });
 
   const web = new NextjsWeb({
     appDirectory: './apps/web',
-    connectTo: ['mainDatabase'],
+    connectTo: [mainDatabase],
     serverLambda: {
       joinDefaultVpc: true
     }
@@ -291,31 +292,27 @@ Prefer `connectTo` for Stacktape-managed resources because it handles IAM permis
 
 ## Logging
 
-The Next.js server Lambda supports Lambda logging configuration through `serverLambda.logging`, and logs are sent to CloudWatch. For Stacktape log viewing, use [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview); the lower-level Lambda logging options are documented in the API reference.
+The Next.js server Lambda supports Lambda logging configuration through `serverLambda.logging`, and logs are sent to CloudWatch. For Stacktape log viewing, use [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/console-overview); the lower-level Lambda logging options are documented in the API reference.
 
 Most teams should keep logging enabled for deployed Next.js apps because SSR errors, initialization failures, and runtime exceptions need CloudWatch logs for diagnosis. Tune logging only when retention, cost, or compliance requirements justify changing the default behavior exposed by the Lambda logging configuration.
 
 ## FAQ
 
-### What does Stacktape create for a Next.js app?
+### What does Stacktape create for a Next.js app, and does it support ISR?
 
-A Stacktape Next.js resource builds the app, serves SSR through Lambda, uploads static assets to S3, and delivers traffic through CloudFront. The resource also includes supporting pieces for image optimization, middleware, and ISR — including a revalidation queue, revalidation function, revalidation table, and revalidation insert function. See the [resources overview](/configuration/resources) for how Stacktape resources map to AWS.
+A Stacktape Next.js resource builds the app, serves SSR through Lambda, uploads static assets to S3, and delivers traffic through CloudFront. It also handles image optimization, middleware, and ISR out of the box — provisioning a revalidation queue, revalidation function, revalidation table, and revalidation insert function. See the [resources overview](/configuration/resources) for how Stacktape resources map to AWS.
 
 ### Where should `appDirectory` point?
 
 `appDirectory` should point to the directory containing `next.config.js`. In a monorepo, that usually means the Next.js workspace rather than the repository root. The basic example on this page uses `./apps/web` to make that monorepo shape explicit.
 
-### Can I use a custom domain with Next.js?
-
-Yes. Configure `customDomains` on the Next.js resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape can create the DNS record and manage the TLS certificate unless you provide `customCertificateArn` or set `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
-
 ### Can I protect a Next.js app with AWS WAF?
 
 Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource whose `scope` is `cdn`. This protects the CDN path for the Next.js app; it is separate from load-balancer firewall attachment paths used by compute resources.
 
-### Does Stacktape Next.js support ISR?
+### Why can't my Next.js app reach its database or Redis?
 
-Yes. The Next.js resource source explicitly says Stacktape handles ISR, and the internal resource shape includes a revalidation queue, revalidation function, revalidation table, and revalidation insert function. The API reference documents the public configuration surface for the resource.
+The SSR Lambda is not in your VPC by default, so it cannot reach VPC-only resources such as relational databases and Redis. When you `connectTo` one of these, also set `serverLambda.joinDefaultVpc: true`. Note that joining the VPC removes the function's direct internet access, though S3 and DynamoDB stay reachable through auto-created VPC endpoints. DynamoDB and other non-VPC resources work without this flag.
 
 ### Should I use edge Lambda for Next.js SSR?
 
@@ -332,10 +329,6 @@ AWS bills the underlying services separately: Lambda invocations and duration fo
 ### When should I use static hosting instead of Next.js?
 
 Use [static hosting](/resources/frontend/static-hosting) when the site can be built into static files and does not need SSR, middleware, ISR, or Next.js image optimization at runtime. Use the Next.js resource when runtime Next.js behavior is part of the product. Static hosting is simpler and usually has fewer moving parts.
-
-### When should I use a web service instead of the Next.js resource?
-
-Use a [web-service](/resources/compute/web-service) when you want to run a custom HTTP server in a container, control the server process directly, or deploy a framework that is not modeled by the frontend resources. Use the Next.js resource when the deployment unit is a standard Next.js app and you want Stacktape to manage SSR, static assets, CDN routing, and Next.js-specific helpers.
 
 ## API Reference
 

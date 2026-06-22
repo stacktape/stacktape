@@ -244,10 +244,6 @@ The goal is clarity and correctness, not minimal line count. A config file that 
 
 Yes. Since `stacktape.ts` is a regular TypeScript file, you can read `process.env` values when the config is evaluated. Use `process.env` for truly external values like CI tokens or build-time feature flags that you don't want to commit to the repository.
 
-### What's the difference between $Var() and a TypeScript const?
-
-`$Var()` is a [directive](/configuration/directives) that reads from the config's `variables` map. A TypeScript `const` is a language-level variable resolved during module evaluation. In TypeScript configs, `const` gives you type checking, autocomplete, and conditional logic. Reserve `$Var()` for YAML configs where native language features are not available.
-
 ### How do I share configuration across multiple Stacktape projects?
 
 Create a shared TypeScript module (local file or published npm package) that exports constants, helper functions, or partial resource configurations. Import it into each project's `stacktape.ts`. This is more reliable than duplicating values across projects because TypeScript catches type errors at build time when the shared module's shape changes.
@@ -255,10 +251,6 @@ Create a shared TypeScript module (local file or published npm package) that exp
 ### What happens to variables at runtime?
 
 Variables and constants defined in `stacktape.ts` exist only when the config is evaluated before deployment. They do not automatically appear as runtime values in your deployed Lambda functions or containers. To pass a value to a running workload, set it in the resource's `environment` property — which maps to environment variables available at runtime.
-
-### How do I avoid hardcoding the stage name in custom domains?
-
-Use the `stage` parameter from `defineConfig` to construct [custom domain](/resources/networking/custom-domains) names dynamically. For example, `` domainName: `${stage}.api.example.com` `` gives each stage its own subdomain without manual per-environment configuration.
 
 ### When should I use a custom directive instead of inline TypeScript?
 
@@ -271,10 +263,6 @@ Yes. Use standard TypeScript loops or `Array.map()` inside `defineConfig` to cre
 ### Should I use one stacktape.ts or split into multiple files?
 
 Stacktape reads a single configuration file. But that file can import from any number of TypeScript modules. For small-to-medium projects, keep everything in one file. For larger projects with 10+ resources, split resource definitions into separate files (e.g. `api.ts`, `database.ts`, `workers.ts`) and import them into your main `stacktape.ts`. The split is a code organization choice — Stacktape processes the merged result identically.
-
-### TypeScript config vs YAML config — which should I use?
-
-TypeScript is the recommended default. It gives you type checking, autocomplete, conditional logic, loops, and imports — all of which eliminate the need for custom templating. YAML works if your team prefers declarative config and doesn't need stage-based branching or dynamic resource generation. Both formats produce the same underlying configuration. See [configuration files](/configuration/configuration-files) for setup details.
 
 ### How do Stacktape config variables compare to CloudFormation parameters?
 

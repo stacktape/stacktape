@@ -91,14 +91,14 @@ The Console includes separate notification history, alarm history, and budget hi
 Use **alert history** when you need a cross-cutting view — for example, correlating a failed deploy notification with the alarm that fired shortly after, or reviewing all alert activity over the last hour regardless of source. Use the source-specific history pages when investigating a single alert category in isolation.
 
 
-> **Info:** Alert history is available in the Stacktape Console. For CLI-based alarm inspection, use [`stacktape debug:alarms`](/cli/debug-alarms) to check current CloudWatch alarm states.
+> **Info:** Alert history is available in the Stacktape Console. For CLI-based alarm inspection, use [`stacktape alarms`](/cli/alarms) to check current CloudWatch alarm states.
 
 
 ## FAQ
 
-### What is the difference between alert history and the alarms history page?
+### When should I use alert history vs. the source-specific history pages?
 
-Alert history is a unified view combining events from all four sources — alarms, notifications, budgets, and issues — into a single paginated table. The alarms history view shows only alarm-triggered and alarm-resolved events. Use alert history when you need the full cross-system picture; use the alarms-specific view when you are troubleshooting metric-based alerts in isolation.
+Alert history is a unified view combining events from all four sources — alarms, notifications, budgets, and issues — into a single paginated table. The separate notification, alarm, and budget history pages each show only one source. Use alert history for a cross-cutting picture (for example, correlating a failed deploy notification with an alarm that fired shortly after); use a source-specific page when troubleshooting a single alert category in isolation.
 
 ### Can I filter alert history by project or stage?
 
@@ -112,18 +112,6 @@ The Console displays "No rules matched" when an event's delivery records are emp
 
 The Console styles three delivery statuses with distinct colors: **SENT** (green), **FAILED** (red), and **PENDING** (orange). When an event has multiple delivery records — for example, because it matched rules pointing to different channels — each delivery is listed separately with its own independent status.
 
-### How do I set up alerts so events appear in alert history?
-
-Configure [alarm rules](/observability/alarms) for metric-based monitoring, [notification rules](/observability/notifications) for deployment and lifecycle events, [budget alerts](/managing-costs/budgets) for cost thresholds, and enable [issues](/observability/issues) for runtime error detection. Events from these systems appear in the alert history table and are delivered through your configured [alert channels](/observability/alert-channels).
-
 ### Can I view alert history from the CLI?
 
-Alert history is a Console page. For CLI-based observability, use [`stacktape debug:alarms`](/cli/debug-alarms) to check current CloudWatch alarm states, [`stacktape debug:logs`](/cli/debug-logs) to tail or search logs, and [`stacktape debug:metrics`](/cli/debug-metrics) to query CloudWatch metrics.
-
-### What severity levels are shown in alert history?
-
-The alert history page renders the severity value returned with each event. WARNING (orange), ERROR (red), and CRITICAL (dark red) use distinct colors. INFO and any unrecognized severity values render with the primary text color.
-
-### How does alert history relate to CloudWatch alarms?
-
-Alert history records alarm events (triggered and resolved) alongside notification, budget, and issue events — giving you a unified timeline. Alarm rules are configured in the Console; the [alarm rules page](/observability/alarms) explains how Stacktape applies CloudWatch alarms and EventBridge routing on the next deployment of each matching project and stage. You can also inspect the current state of CloudWatch alarms using [`stacktape debug:alarms`](/cli/debug-alarms) from the CLI.
+No — alert history is a Console-only page. For CLI-based alarm inspection, use [`stacktape alarms`](/cli/alarms) to check current CloudWatch alarm states.

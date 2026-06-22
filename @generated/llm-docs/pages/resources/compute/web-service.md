@@ -279,13 +279,13 @@ import {
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: { masterUserPassword: "$Secret('db.password')" },
-    engine: new RdsEnginePostgres({ primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
 
   const uploadsBucket = new Bucket({});
 
   const api = new WebService({
-    connectTo: ['myDatabase', 'uploadsBucket'],
+    connectTo: [myDatabase, uploadsBucket],
     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 }
   });
@@ -328,6 +328,7 @@ export default defineConfig(() => {
     resources: { cpu: 0.5, memory: 1024 },
     sideContainers: [
       {
+        name: 'migrations',
         containerType: 'run-on-init',
         packaging: new CustomDockerfilePackaging({
           buildContextPath: './migrations',
@@ -403,7 +404,7 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     loadBalancing: { type: 'application-load-balancer' },
-    deployment: {}
+    deployment: { strategy: 'Linear10PercentEvery3Minutes' }
   });
 
   return { resources: { api } };
@@ -448,7 +449,7 @@ export default defineConfig(() => {
 
 Container output (`stdout` and `stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. The `logging` property controls the logging configuration. Use [log forwarding](/observability/log-forwarding) when logs need to reach external observability tools.
 
-Logs are a core operating path for always-on containers. Keep application logs structured enough to debug request failures, startup errors, and health-check failures, then view them through the Stacktape Console or the [`stacktape debug:logs`](/cli/debug-logs) CLI command.
+Logs are a core operating path for always-on containers. Keep application logs structured enough to debug request failures, startup errors, and health-check failures, then view them through the Stacktape Console or the [`stacktape logs`](/cli/logs) CLI command.
 
 ## Remote sessions
 
@@ -476,25 +477,21 @@ Keep remote sessions disabled by default for routine services and enable them de
 
 ## FAQ
 
-### What is a Stacktape web service?
-
-A Stacktape web service is an always-on container with a public HTTPS URL. Stacktape manages the surrounding AWS resources for traffic, TLS, scaling, health checks, logs, and deployment behavior while your application runs as a container. Use [web-service](/resources/compute/web-service) for public APIs and containerized web backends.
-
 ### Does a Stacktape web service scale to zero?
 
-No. A Stacktape web service is always-on container compute, and Fargate bills while tasks are running. Use a [Lambda function](/resources/compute/lambda-function) when scale-to-zero billing is more important than keeping a container warm.
+No. A Stacktape web service is always-on container compute, and Fargate bills while tasks are running, so `minInstances` is your baseline cost even during idle periods. Use a [Lambda function](/resources/compute/lambda-function) when scale-to-zero billing is more important than keeping a container warm.
 
 ### Which load balancing mode should I choose?
 
 Use the default `http-api-gateway` mode for most HTTP APIs and web apps. Choose `application-load-balancer` for WebSockets, gradual deployments, top-level `useFirewall`, or high steady request volume. Choose `network-load-balancer` only for TCP/TLS protocols that are not ordinary HTTP; see [Application Load Balancer](/resources/networking/application-load-balancer) and [Network Load Balancer](/resources/networking/network-load-balancer).
 
-### Can I use a custom domain with a web service?
+### Why isn't my custom domain working?
 
-Yes. Add `customDomains` with a domain name such as `api.example.com`, and Stacktape can create DNS records and TLS certificates when the domain has a Route53 hosted zone in your AWS account. For broader domain behavior, see [custom domains](/resources/networking/custom-domains).
+The most common cause is missing DNS setup: `customDomains` only auto-creates the DNS record and TLS certificate when the domain is already a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing at that zone. If you manage DNS elsewhere, set `disableDnsRecordCreation: true` and point the record yourself, or supply your own ACM certificate via `customCertificateArn`. See [custom domains](/resources/networking/custom-domains).
 
-### Can I put CloudFront in front of a web service?
+### Why are my `cors` settings being ignored?
 
-Yes. Configure the web service `cdn` property when a CDN should sit in front of the public endpoint. Use it for cacheable responses or global latency reduction; skip it for purely dynamic APIs where every request needs fresh origin processing. For CloudFront-specific behavior, see [CDN](/resources/networking/cdn).
+The `cors` property only takes effect with the default `http-api-gateway` load balancing mode; it does nothing under `application-load-balancer` or `network-load-balancer`. It also overrides CORS headers your application returns, so for route-specific behavior prefer handling CORS in your application code instead.
 
 ### How much does an ECS Fargate web service cost?
 
@@ -502,11 +499,7 @@ Fargate bills by allocated vCPU and memory for each running task, so idle web se
 
 ### Web service vs Lambda function: which should I use?
 
-Use a web service when your application is already a long-running container, needs stable always-on latency, uses protocols or libraries better suited to servers, or needs container-level control. Use a [Lambda function](/resources/compute/lambda-function) for event-driven work, sporadic traffic, or workloads where scale-to-zero billing is the main goal.
-
-### Web service vs private service: which should I use?
-
-Use a web service when the container should be reachable from the internet through a public HTTPS endpoint. Use a [private-service](/resources/compute/private-service) when the container should be reachable only from resources inside the stack or VPC. The choice is mainly about public exposure, not whether the container runs continuously.
+Use a web service when your application is already a long-running container, needs stable always-on latency, uses protocols or libraries better suited to servers, or needs container-level control. Use a [Lambda function](/resources/compute/lambda-function) for event-driven work, sporadic traffic, or workloads where scale-to-zero billing is the main goal. If the container should not be reachable from the internet at all, use a [private-service](/resources/compute/private-service) instead.
 
 ### How do I run database migrations for a web service?
 

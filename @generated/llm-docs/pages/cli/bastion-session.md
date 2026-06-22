@@ -225,5 +225,5 @@ When using `--bastionResource`, the value must match the name of a bastion resou
 ## Related commands
 
 - [`bastion:tunnel`](/cli/bastion-tunnel) — create a secure tunnel through a bastion to reach a private resource (database, Redis, OpenSearch) from your local machine.
-- [`debug:sql`](/cli/debug-sql) — run read-only SQL queries against a deployed database. Supports `--bastionResource` to tunnel through a bastion when the database is VPC-only.
-- [`debug:redis`](/cli/debug-redis) — query a deployed Redis cluster. Also supports `--bastionResource` for VPC-only clusters.
+- [`query:sql`](/cli/query-sql) — run read-only SQL queries against a deployed database. Supports `--bastionResource` to tunnel through a bastion when the database is VPC-only.
+- [`query:redis`](/cli/query-redis) — query a deployed Redis cluster. Also supports `--bastionResource` for VPC-only clusters.

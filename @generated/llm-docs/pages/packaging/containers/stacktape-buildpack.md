@@ -34,13 +34,9 @@ Example (TypeScript):
 import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new WebService({
-    containers: {
-      api: {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/server.ts'
-        })
-      }
-    },
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
     resources: {
       cpu: 0.25,
       memory: 512
@@ -84,19 +80,15 @@ import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stac
 
 export default defineConfig(() => {
   const api = new WebService({
-    containers: {
-      api: {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/server.ts',
-          languageSpecificConfig: {
-            nodeVersion: 22,
-            outputModuleFormat: 'esm',
-            emitTsDecoratorMetadata: true,
-            dependenciesToExcludeFromBundle: ['@prisma/client']
-          }
-        })
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts',
+      languageSpecificConfig: {
+        nodeVersion: 22,
+        outputModuleFormat: 'esm',
+        emitTsDecoratorMetadata: true,
+        dependenciesToExcludeFromBundle: ['@prisma/client']
       }
-    },
+    }),
     resources: {
       cpu: 0.25,
       memory: 512
@@ -150,17 +142,13 @@ import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stac
 
 export default defineConfig(() => {
   const api = new WebService({
-    containers: {
-      api: {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './app/main.py:app',
-          languageSpecificConfig: {
-            pythonVersion: 3.12,
-            runAppAs: 'ASGI'
-          }
-        })
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './app/main.py:app',
+      languageSpecificConfig: {
+        pythonVersion: 3.12,
+        runAppAs: 'ASGI'
       }
-    },
+    }),
     resources: {
       cpu: 0.25,
       memory: 512
@@ -206,18 +194,14 @@ import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stac
 
 export default defineConfig(() => {
   const api = new WebService({
-    containers: {
-      api: {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/main/java/com/example/App.java',
-          languageSpecificConfig: {
-            javaVersion: 17,
-            useMaven: true,
-            packageManagerFile: './pom.xml'
-          }
-        })
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/main/java/com/example/App.java',
+      languageSpecificConfig: {
+        javaVersion: 17,
+        useMaven: true,
+        packageManagerFile: './pom.xml'
       }
-    },
+    }),
     resources: {
       cpu: 1,
       memory: 2048
@@ -267,14 +251,10 @@ import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stac
 
 export default defineConfig(() => {
   const api = new WebService({
-    containers: {
-      api: {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/server.ts',
-          customDockerBuildCommands: ['apk add --no-cache ffmpeg', 'apk add --no-cache imagemagick']
-        })
-      }
-    },
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts',
+      customDockerBuildCommands: ['apk add --no-cache ffmpeg', 'apk add --no-cache imagemagick']
+    }),
     resources: {
       cpu: 0.5,
       memory: 1024
@@ -303,14 +283,10 @@ import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stac
 
 export default defineConfig(() => {
   const imageService = new WebService({
-    containers: {
-      processor: {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/processor.ts',
-          requiresGlibcBinaries: true
-        })
-      }
-    },
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/processor.ts',
+      requiresGlibcBinaries: true
+    }),
     resources: {
       cpu: 0.5,
       memory: 1024
@@ -338,16 +314,12 @@ import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 's
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    containers: {
-      worker: {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/worker.ts',
-          includeFiles: ['./config/**', './templates/**'],
-          excludeFiles: ['./tests/**', './**/*.test.ts'],
-          excludeDependencies: ['jest', '@types/jest']
-        })
-      }
-    },
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+      includeFiles: ['./config/**', './templates/**'],
+      excludeFiles: ['./tests/**', './**/*.test.ts'],
+      excludeDependencies: ['jest', '@types/jest']
+    }),
     resources: {
       cpu: 0.25,
       memory: 512
@@ -385,13 +357,9 @@ The Stacktape container buildpack is one of five container packaging modes. Each
 
 ## FAQ
 
-### Which languages does the Stacktape container buildpack support?
+### Where are built images stored, and what does it cost?
 
-The container buildpack explicitly documents support for JavaScript, TypeScript, Python, Java, and Go. The `languageSpecificConfig` type union also exposes Ruby, PHP, and .NET version and project options. JavaScript and TypeScript get the deepest integration — bundling into a single file, source maps, module format selection, and decorator metadata support. Python includes built-in WSGI/ASGI server binding. Java supports both Gradle and Maven build systems. See the [JavaScript and TypeScript](#javascript-and-typescript), [Python](#python), [Java](#java), and [Additional language-specific options](#additional-language-specific-options) sections above for per-language tuning options.
-
-### How much does AWS ECR storage cost for container images?
-
-AWS ECR pricing is based on image storage (per GB per month) and data transfer out. The Stacktape buildpack uploads each image to a managed ECR repository — you don't create or configure it. For cost control, consider using the default Alpine-based images (which produce smaller images) and stripping unnecessary files with `excludeFiles`.
+The buildpack uploads each image to a managed ECR repository — you don't create or configure it. AWS ECR pricing is based on image storage (per GB per month) and data transfer out, so keeping images small directly lowers cost: stick with the default Alpine base (avoid `requiresGlibcBinaries` unless needed) and strip tests and dev assets with `excludeFiles`. For images you build outside Stacktape, use the [prebuilt image](/packaging/containers/prebuilt-image) mode to reference them from any registry instead.
 
 ### When should I use the Stacktape buildpack instead of a custom Dockerfile?
 
@@ -413,21 +381,9 @@ Use the `customDockerBuildCommands` property to run shell commands during the Do
 
 Both build container images from source without a Dockerfile. The Stacktape buildpack provides deeper integration for its documented languages — JS/TS bundling, source maps, WSGI/ASGI binding for Python, and fine-grained dependency exclusion controls. [Nixpacks](/packaging/containers/nixpacks) is a general-purpose tool that auto-detects a broader set of languages and frameworks and exposes a `startCmd` property for explicit start-command control. Choose the Stacktape buildpack for tighter control over bundling and language-specific tuning. Choose Nixpacks when your language or framework isn't in the buildpack's supported list or you need start-command overrides.
 
-### Where are built container images stored?
+### How do I set a custom start command with the Stacktape buildpack?
 
-The resulting image is uploaded to a managed ECR repository. AWS ECR is a container registry service — pricing is based on storage used and data transfer out. You don't need to create or configure the registry. For container images you build outside of Stacktape, use the [prebuilt image](/packaging/containers/prebuilt-image) packaging mode to reference them from any registry.
-
-### Can I use the Stacktape buildpack with a multi-container workload?
-
-Yes. Each container in a [multi-container workload](/resources/compute/multi-container-workload) has its own `packaging` property. You can use the Stacktape buildpack for some containers and other packaging modes for others in the same workload. A common pattern is using the buildpack for the main application container while using a [prebuilt image](/packaging/containers/prebuilt-image) for sidecars like metrics exporters or log agents.
-
-### What container image size limits apply on ECS Fargate?
-
-Smaller container images generally deploy and start faster on AWS ECS Fargate, since the image is pulled when a task launches. The Stacktape buildpack's default Alpine base produces compact images. Use `excludeFiles` to strip tests and dev assets, and avoid enabling `requiresGlibcBinaries` unless your dependencies require it.
-
-### How does Docker layer caching affect build times with the Stacktape buildpack?
-
-Build times depend on your CI environment's Docker layer cache. When the cache is warm, unchanged layers (like dependency installation) are reused, making subsequent builds faster. For the fastest iteration loop during development, use [dev mode](/local-development/dev-mode-overview) instead of full deploys. When deploying via CI, ensure the build runner preserves the Docker layer cache between runs; see [build runners](/ci-cd-and-gitops/build-runners) for details.
+You can't — this is the buildpack's main limitation. `StacktapeImageBuildpackPackaging` does not expose `command`, `entryPoint`, or `startCmd`; the start behavior is generated from your `entryfilePath` and language settings. If you need a custom entrypoint script or an explicit binary invocation, switch to a [custom Dockerfile](/packaging/containers/custom-dockerfile), [prebuilt image](/packaging/containers/prebuilt-image), [Nixpacks](/packaging/containers/nixpacks), or [external buildpack](/packaging/containers/external-buildpack), each of which exposes a start-command property.
 
 ## API reference
 

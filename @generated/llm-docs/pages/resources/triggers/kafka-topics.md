@@ -14,9 +14,9 @@ Common scenarios:
 
 ## When NOT to use
 
-- **Simple message queuing** — if you don't already run Kafka, an [SQS queue trigger](/configuration/triggers/sqs-events) is simpler and cheaper for standard async processing.
-- **Fan-out to multiple consumers** — Kafka handles fan-out natively via consumer groups, but if your architecture is AWS-native, [SNS](/configuration/triggers/sns-events) or [EventBridge](/configuration/triggers/event-bus-events) is typically easier to operate.
-- **Ordered stream processing with retry controls** — if you need `maximumRetryAttempts`, `onFailure` destinations, or `bisectBatchOnFunctionError`, consider a [Kinesis stream trigger](/configuration/triggers/kinesis-events) or [DynamoDB stream trigger](/configuration/triggers/dynamodb-streams) instead. The Kafka topic trigger does not expose these properties.
+- **Simple message queuing** — if you don't already run Kafka, an [SQS queue trigger](/resources/triggers/sqs-events) is simpler and cheaper for standard async processing.
+- **Fan-out to multiple consumers** — Kafka handles fan-out natively via consumer groups, but if your architecture is AWS-native, [SNS](/resources/triggers/sns-events) or [EventBridge](/resources/triggers/event-bus-events) is typically easier to operate.
+- **Ordered stream processing with retry controls** — if you need `maximumRetryAttempts`, `onFailure` destinations, or `bisectBatchOnFunctionError`, consider a [Kinesis stream trigger](/resources/triggers/kinesis-events) or [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) instead. The Kafka topic trigger does not expose these properties.
 
 ## Basic example
 
@@ -81,7 +81,7 @@ SASL (Simple Authentication and Security Layer) authenticates with a username an
 | `SASL_SCRAM_256_AUTH` | SCRAM-SHA-256 | Production clusters with SCRAM-256 enabled |
 | `SASL_SCRAM_512_AUTH` | SCRAM-SHA-512 | Production clusters with SCRAM-512 enabled |
 
-The referenced Secrets Manager secret must be a JSON object with `username` and `password` keys. You can create it using the [`stacktape secret:create`](/cli/secret-create) CLI command. Set `authenticationSecretArn` to the ARN of the Secrets Manager secret that contains the Kafka credentials.
+The referenced Secrets Manager secret must be a JSON object with `username` and `password` keys. You can create it using the [`stacktape secret:set`](/cli/secret-set) CLI command. Set `authenticationSecretArn` to the ARN of the Secrets Manager secret that contains the Kafka credentials.
 
 Stacktape exposes `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, and `SASL_SCRAM_512_AUTH`. Choose the variant that matches your Kafka cluster's configured SASL mechanism. Use `BASIC_AUTH` only when the broker requires SASL/PLAIN.
 
@@ -242,21 +242,17 @@ Maximum is 300 seconds. | `0.5` |
 
 Yes. The Lambda function `events` property accepts an array, so you can add multiple `KafkaTopicIntegration` entries — each pointing to a different topic or a different cluster. This is useful when a single function needs to process events from several sources with the same handler logic.
 
-### How does scaling work for Kafka consumers?
-
-AWS Lambda Kafka event-source mappings generally scale with the number of available topic partitions, so partition count affects maximum parallelism. This is AWS Lambda behavior, not a Stacktape-specific mechanism. Refer to the [AWS Lambda documentation on self-managed Kafka](https://docs.aws.amazon.com/lambda/latest/dg/with-kafka.html) for details on scaling and concurrency when sizing high-throughput consumers.
-
 ### What happens if my function fails?
 
-Unlike [Kinesis stream](/configuration/triggers/kinesis-events) or [DynamoDB stream](/configuration/triggers/dynamodb-streams) triggers, which expose `maximumRetryAttempts` and `onFailure` destination properties, the Kafka topic trigger does not expose these controls. Design your handler to be idempotent, and consider implementing dead-letter logic within your function code if you need to capture persistently failing records.
+Unlike [Kinesis stream](/resources/triggers/kinesis-events) or [DynamoDB stream](/resources/triggers/dynamodb-streams) triggers, which expose `maximumRetryAttempts` and `onFailure` destination properties, the Kafka topic trigger does not expose these controls. Design your handler to be idempotent, and consider implementing dead-letter logic within your function code if you need to capture persistently failing records.
 
 ### How do I create the Secrets Manager secret for authentication?
 
-Create a Secrets Manager secret with the [`stacktape secret:create`](/cli/secret-create) command. For SASL, the secret value must be a JSON object with `username` and `password` keys — set the resulting ARN as `authenticationSecretArn`. For MTLS, the `clientCertificate` property (required) references a secret containing the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password. The `serverRootCaCertificate` property (optional) references a separate secret containing the server's root CA certificate for clusters using a private or self-signed CA.
+Create a Secrets Manager secret with the [`stacktape secret:set`](/cli/secret-set) command. For SASL, the secret value must be a JSON object with `username` and `password` keys — set the resulting ARN as `authenticationSecretArn`. For MTLS, the `clientCertificate` property (required) references a secret containing the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password. The `serverRootCaCertificate` property (optional) references a separate secret containing the server's root CA certificate for clusters using a private or self-signed CA.
 
-### What's the difference between SASL and MTLS authentication?
+### Which authentication type should I use: SASL or MTLS?
 
-SASL authenticates with a username and password — simpler to set up and widely supported across Kafka deployments. MTLS authenticates with a client TLS certificate — typically used in enterprise or zero-trust environments that mandate certificate-based identity. Stacktape exposes `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`. Choose based on what your Kafka cluster supports and your security requirements.
+Stacktape exposes four types: `BASIC_AUTH` (SASL/PLAIN), `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`. The SASL variants authenticate with a username and password stored in Secrets Manager and are simpler to operate — pick the variant matching your cluster's configured SASL mechanism (use `BASIC_AUTH` only when the broker requires SASL/PLAIN). Choose `MTLS` (client TLS certificate) only when your organization mandates certificate-based identity, since you then have to manage certificate rotation and broker trust.
 
 ### Is there a cost for the Kafka event-source mapping?
 
@@ -265,11 +261,3 @@ There is no Stacktape-specific surcharge for Kafka topic triggers. Costs come fr
 ### Can I filter messages before they reach my function?
 
 `KafkaTopicIntegrationProps` exposes `customKafkaConfiguration`, `batchSize`, and `maxBatchWindowSeconds`; it does not expose a Stacktape-level filter property for Kafka triggers. If you need filtering, implement it in your handler or route records into narrower Kafka topics before attaching the trigger.
-
-### How do I monitor my Kafka consumer?
-
-Use [`stacktape debug:logs`](/cli/debug-logs) to inspect your function's CloudWatch logs. For Lambda invocation metrics and broader monitoring, see the [observability overview](/observability/overview).
-
-### What authentication types are supported?
-
-Stacktape supports four authentication types for Kafka topic triggers: `BASIC_AUTH` (SASL/PLAIN), `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS` (mutual TLS). SASL variants use a username and password stored in Secrets Manager. MTLS uses a client certificate. See the [Authentication](#authentication) section above for details and examples of each type.

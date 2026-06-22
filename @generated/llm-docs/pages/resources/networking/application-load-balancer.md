@@ -83,7 +83,7 @@ When multiple conditions are specified on a single integration, all conditions m
 > **Tip:** Leave gaps between priority values — e.g., 10, 20, 30 — so you can insert rules later without reassigning all priorities.
 
 
-For container workloads, the integration also requires `containerPort` to specify which container port receives the traffic. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API.
+For container workloads, the integration also requires `containerPort` to specify which container port receives the traffic. See [HTTP triggers](/resources/triggers/http-triggers) for the full integration API.
 
 ### Multi-service routing
 
@@ -421,15 +421,11 @@ Backward compatible format `string[]` is still supported. | - |
 
 ### How much does an Application Load Balancer cost?
 
-AWS ALB has a flat base charge of roughly $16–18/month (varies by region) plus a variable component based on Load Balancer Capacity Units (LCUs). LCUs measure active connections, new connections, bandwidth, and rule evaluations — most moderate-traffic apps use less than 1 LCU. ALB is AWS Free Tier eligible for the first 12 months.
+AWS ALB has a flat base charge of roughly $18/month plus a variable component based on Load Balancer Capacity Units (LCUs). LCUs measure active connections, new connections, bandwidth, and rule evaluations — most moderate-traffic apps stay near the base cost. ALB is AWS Free Tier eligible. Note the base cost runs even at zero traffic, so a pay-per-request [HTTP API Gateway](/resources/networking/http-api-gateway) is cheaper for low or spiky volume.
 
 ### How do I route traffic to multiple services through one ALB?
 
-Define multiple compute resources (Lambda functions, container workloads) each with their own `ApplicationLoadBalancerIntegration` event referencing the same ALB by name. Each integration specifies a `priority` (lower numbers are evaluated first) and matching conditions like `paths`, `methods`, or `hosts`. See [HTTP triggers](/configuration/triggers/http-triggers) for the full integration API.
-
-### Can I use a custom domain with an Application Load Balancer?
-
-Yes. Add a `customDomains` array to your ALB configuration with your domain name. By default, Stacktape creates DNS records and TLS certificates for configured domains. Your domain must have a Route53 hosted zone — set one up with [`stacktape domain:add`](/cli/domain-add). See [Custom domains](/resources/networking/custom-domains) for details.
+Routes live on the compute resources, not on the ALB. Give each Lambda function or container workload its own `ApplicationLoadBalancerIntegration` event referencing the same ALB by name, with a `priority` (rules are evaluated lowest-first, first match wins) and matching conditions like `paths`, `methods`, or `hosts`. Leave gaps between priority values (10, 20, 30) so you can insert rules later without renumbering. See [HTTP triggers](/resources/triggers/http-triggers) for the full integration API.
 
 ### What's the difference between an Application Load Balancer and a Network Load Balancer?
 
@@ -443,18 +439,6 @@ Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-bas
 
 Yes. AWS ALB natively supports WebSocket connections over HTTP/HTTPS listeners. Once the initial HTTP upgrade handshake completes, the ALB maintains the persistent bidirectional connection between client and backend. This makes ALB the right networking choice for real-time applications using Socket.io, ws, or similar WebSocket libraries. Stacktape's Application Load Balancer is the documented path for WebSocket connections.
 
-### Can I restrict access to specific IP addresses?
+### Why isn't my health check configured on the Application Load Balancer resource?
 
-Yes. Use the `whitelistIps` property on a listener to restrict access to specific IP addresses or CIDR ranges. Requests from IPs not in the whitelist are rejected at the ALB level before reaching your application. For more granular IP-based rules (rate limiting, geo-blocking), attach a [web application firewall](/resources/security/web-application-firewall) using the `useFirewall` property.
-
-### How does ALB health checking work?
-
-AWS ALB continuously checks the health of registered targets (containers or Lambda functions) by sending periodic HTTP requests to a configured health check path. Unhealthy targets are automatically removed from the routing pool and re-added when they recover. Application Load Balancer alarming can monitor unhealthy targets. The provided ALB resource type does not define health-check settings directly; target-side health-check configuration is on the container workload or service resource. See [web service](/resources/compute/web-service) or [multi-container workload](/resources/compute/multi-container-workload) for health check settings.
-
-### Can I use an internal ALB for service-to-service communication?
-
-Yes. Set `interface: 'internal'` to create an ALB that's only reachable within your VPC. Internal ALBs support all the same routing, listener, and alarm features as internet-facing ALBs — they just aren't reachable from the internet. This is useful for backend APIs consumed by other services in the same stack, or for services accessed through a VPN.
-
-### How do I attach a firewall to my Application Load Balancer?
-
-Define a [web application firewall](/resources/security/web-application-firewall) resource with a regional scope, then reference it by name in the ALB's `useFirewall` property. The firewall filters traffic before it reaches your application. If you also use a CDN in front of the ALB, you can attach a separate firewall to the CDN distribution using the CDN's `useFirewall` property for edge-level protection.
+The ALB resource itself does not define health-check settings — they live on the target. AWS ALB continuously probes registered targets and removes unhealthy ones from the routing pool, but the health-check path and thresholds are configured on the container workload or service that receives the traffic. See [web service](/resources/compute/web-service) or [multi-container workload](/resources/compute/multi-container-workload) for health-check settings, and use the `application-load-balancer-unhealthy-targets` alarm to be notified when targets fail.

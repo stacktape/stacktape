@@ -92,7 +92,7 @@ Valid Fargate CPU/memory combinations:
 | 8 | 16384–61440 MB |
 | 16 | 32768–122880 MB |
 
-Start with Fargate for most workers and adjust the task size after observing real CPU and memory utilization in the [Stacktape Console](/stacktape-console/console-overview) or through [`stacktape debug:metrics`](/cli/debug-metrics).
+Start with Fargate for most workers and adjust the task size after observing real CPU and memory utilization in the [Stacktape Console](/stacktape-console/console-overview) or through [`stacktape metrics`](/cli/metrics).
 
 ### EC2
 
@@ -211,7 +211,7 @@ export default defineConfig(() => {
   const worker = new WorkerService({
     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
-    connectTo: ['jobsQueue', 'mainDatabase']
+    connectTo: [jobsQueue, mainDatabase]
   });
 
   return { resources: { jobsQueue, mainDatabase, worker } };
@@ -354,7 +354,7 @@ export default defineConfig(() => {
   const worker = new WorkerService({
     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
-    connectTo: ['sharedData'],
+    connectTo: [sharedData],
     volumeMounts: [
       {
         type: 'efs',
@@ -404,7 +404,7 @@ export default defineConfig(() => {
 
 ## Logging
 
-Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with [`stacktape debug:logs`](/cli/debug-logs) or in the [Stacktape Console](/stacktape-console/console-overview). Adjust retention with `logging.retentionDays` — supported values range from 1 day to 3653 days (10 years). Set `logging.disabled: true` only when CloudWatch logging is intentionally not needed.
+Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with [`stacktape logs`](/cli/logs) or in the [Stacktape Console](/stacktape-console/console-overview). Adjust retention with `logging.retentionDays` — supported values range from 1 day to 3653 days (10 years). Set `logging.disabled: true` only when CloudWatch logging is intentionally not needed.
 
 For most worker services, keep logging enabled and make log output structured enough to identify the job ID, queue message, or resource the worker was processing. Forward logs to external services (Datadog, Splunk) using [log forwarding](/observability/log-forwarding).
 
@@ -436,45 +436,33 @@ export default defineConfig(() => {
 
 ## FAQ
 
-### What is a Stacktape worker service?
-
-A Stacktape worker service is an always-on container with no public URL, running inside your VPC on AWS ECS Fargate (or EC2). It is designed for background processing — queue consumers, polling loops, data sync jobs, and internal tasks that need persistent access to databases, queues, or other stack resources through [`connectTo`](/configuration/connecting-resources).
-
-### Does a worker service have a public endpoint?
-
-No. A worker service has no public URL and is not reachable from the internet. If your container needs a public HTTPS endpoint, use a [web service](/resources/compute/web-service). If it needs to be addressable by other resources within the stack, use a [private service](/resources/compute/private-service).
-
 ### Can a worker service scale to zero?
 
 No. A worker service is an always-on resource and Fargate cannot scale to zero — at least one task bills continuously. The minimum `minInstances` is 1. If you need scale-to-zero billing, use a [Lambda function](/resources/compute/lambda-function) for event-driven workloads.
 
 ### How much does an ECS Fargate worker service cost?
 
-Fargate bills per vCPU-second and per GB-second for each running task. At us-east-1 list prices, costs range from ~$7.29/month for 0.25 vCPU to ~$466/month for 16 vCPU, plus memory costs. Idle containers still bill. ARM (`arm64`) architecture reduces costs by ~20%. See [managing costs](/managing-costs/overview) for tracking and optimization.
+Fargate bills per vCPU-second and per GB-second for each running task. Costs range from ~$7.29/month for 0.25 vCPU to ~$466/month for 16 vCPU, plus memory from ~$1.60/month per 512 MB. Idle containers still bill because Fargate cannot scale to zero. ARM (`arm64`) architecture reduces costs by ~20%. See [managing costs](/managing-costs/overview) for tracking and optimization.
 
 ### Worker service vs Lambda function — when should I use each?
 
 Use a worker service for long-running processes, polling loops, or consumers that need warm connections and continuous availability. Use a [Lambda function](/resources/compute/lambda-function) for event-driven work with variable load where per-invocation billing and scale-to-zero matter more than connection warmth. Workers excel at steady throughput; Lambda excels at bursty, unpredictable workloads.
 
-### Worker service vs batch job — what is the difference?
-
-A worker service runs continuously and processes work as it arrives. A [batch job](/resources/compute/batch-job) runs to completion and then stops — it is submitted on demand for finite, often compute-heavy tasks like data processing pipelines or report generation. Use a worker service for ongoing operational capacity; use a batch job for discrete units of work.
-
 ### How do I run database migrations before my worker starts?
 
 Use a `run-on-init` side container. This container must exit with code 0 before the main worker container starts. Point its packaging at your migration scripts or Dockerfile. See the [side containers](#side-containers) section for a working example.
 
-### Can I use a custom Dockerfile for a worker service?
-
-Yes. A worker service supports all five container packaging modes: Stacktape image buildpack, [custom Dockerfile](/packaging/containers/custom-dockerfile), [prebuilt image](/packaging/containers/prebuilt-image), [Nixpacks](/packaging/containers/nixpacks), and [external buildpack](/packaging/containers/external-buildpack). Use a custom Dockerfile when the worker needs specific system packages, a particular base image, or a multi-stage build.
-
 ### How do I debug a running worker service?
 
-Start with [`stacktape debug:logs`](/cli/debug-logs) or the [Stacktape Console](/stacktape-console/console-overview) to inspect container output. For interactive debugging, enable `enableRemoteSessions` and use [`stacktape container:session`](/cli/container-session) to open a shell inside the running container. Use [`stacktape debug:metrics`](/cli/debug-metrics) to check CPU and memory utilization.
+Start with [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/console-overview) to inspect container output. For interactive debugging, enable `enableRemoteSessions` and use [`stacktape container:session`](/cli/container-session) to open a shell inside the running container. Use [`stacktape metrics`](/cli/metrics) to check CPU and memory utilization.
 
 ### What happens when a worker service container crashes?
 
 ECS automatically replaces crashed containers (containers that exit unexpectedly). If you configure an `internalHealthCheck`, ECS also replaces containers that are still running but fail health checks — useful for detecting deadlocked processes that don't exit on their own. The replacement container starts fresh with the same configuration.
+
+### Why is my worker killed mid-task during a deploy or scale-in?
+
+The default `stopTimeout` is only 2 seconds — ECS sends `SIGTERM`, waits that long, then forces `SIGKILL`. A queue consumer still processing a message can be killed before it finishes. Raise `stopTimeout` (max 120 seconds) to give the worker time to finish the current message, flush telemetry, and release distributed locks after receiving `SIGTERM`. See [graceful shutdown](#graceful-shutdown).
 
 ## API Reference
 

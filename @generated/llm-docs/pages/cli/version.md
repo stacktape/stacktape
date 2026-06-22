@@ -30,6 +30,6 @@ No available options.
 
 No. The `version` command runs entirely locally and does not contact the Stacktape API. You can run it before logging in or configuring any credentials.
 
-### How do I upgrade to the latest version?
+### How do I check if my Stacktape version is out of date?
 
-Run [`stacktape upgrade`](/cli/upgrade). You can also install a specific version with `stacktape upgrade --version 3.4.0`. After upgrading, run `stacktape version` to confirm the new version is active.
+Run `stacktape version` to see what you have installed, then run [`stacktape upgrade`](/cli/upgrade) to move to the latest release (or `stacktape upgrade --version 3.4.0` for a specific version). Re-run `stacktape version` afterward to confirm the new version is active.

@@ -2,7 +2,7 @@
 
 HTTP triggers route incoming web requests to your Stacktape [Lambda functions](/resources/compute/lambda-function) and [container workloads](/resources/compute/multi-container-workload). Two integration types are available: [HTTP API Gateway](/resources/networking/http-api-gateway) for serverless routing by method and path, and [Application Load Balancer](/resources/networking/application-load-balancer) for routing based on paths, methods, hosts, headers, query parameters, and source IP addresses. [Web services](/resources/compute/web-service) and [private services](/resources/compute/private-service) handle HTTP traffic through their own resource-level configuration rather than event triggers.
 
-Each incoming HTTP request triggers exactly one function or container invocation — there is no batching. For an overview of all trigger types (including non-HTTP sources like queues, schedules, and streams), see [Triggers overview](/configuration/triggers/overview).
+Each incoming HTTP request triggers exactly one function or container invocation — there is no batching. For an overview of all trigger types (including non-HTTP sources like queues, schedules, and streams), see [Triggers overview](/resources/triggers/overview).
 
 ## Choosing a trigger type
 
@@ -215,13 +215,9 @@ The API reference above covers HTTP API Gateway integration properties. For ALB 
 
 Yes. HTTP API Gateways and Application Load Balancers are independent resources. You can define multiple gateways and load balancers in the same stack, routing different functions or workloads through each. This is useful when some routes benefit from pay-per-request pricing (API Gateway) while others need advanced routing capabilities (ALB).
 
-### How do I route different URL paths to different Lambda functions?
-
-Create multiple Lambda functions, each with its own HTTP trigger integration pointing to the same gateway or load balancer. With HTTP API Gateway, each function specifies a unique `method` and `path` combination. With ALB, each function specifies different `paths` and a unique `priority` value. See [Lambda functions](/resources/compute/lambda-function) for configuration details.
-
 ### What is the difference between payload format 1.0 and 2.0?
 
-Payload format `'1.0'` wraps the HTTP request in a detailed event envelope with `requestContext`, `multiValueHeaders`, and `multiValueQueryStringParameters`. Payload format `'2.0'` uses a flatter structure with simpler header and query parameter handling. The default is `'1.0'`. Most web frameworks handle both transparently, so this mainly matters for raw Lambda handlers. See the [AWS documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html) for a full comparison.
+Payload format `'1.0'` wraps the HTTP request in a detailed event envelope with `requestContext`, `headers`, `multiValueHeaders`, and `queryStringParameters`. Payload format `'2.0'` uses a flatter structure with simpler header and query parameter handling, merging cookies into a dedicated field. The default is `'1.0'`. Most web frameworks handle both transparently, so this mainly matters for raw Lambda handlers. See the [AWS documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html) for a full comparison.
 
 ### How much does AWS HTTP API Gateway cost?
 
@@ -235,18 +231,6 @@ Choose HTTP API Gateway for serverless APIs where you route by method and path a
 
 HTTP API Gateway integrations support an `authorizer` property that rejects unauthorized requests at the gateway level before they reach your function. ALB integrations do not have built-in authorizer support — implement authentication in your application code instead. See [User auth pools](/resources/security/user-auth-pool) for setting up authorization with API Gateway.
 
-### What is the maximum request payload size for HTTP API Gateway?
+### Why isn't my ALB rule matching even though the path is correct?
 
-AWS HTTP API Gateway accepts request and response payloads up to 10 MB. For larger payloads, upload files directly to an [S3 bucket](/resources/storage/s3-bucket) using presigned URLs, or route traffic through an Application Load Balancer. Most REST and GraphQL APIs stay well within the 10 MB boundary.
-
-### Can I use a custom domain with HTTP triggers?
-
-Custom domains are configured on the gateway or load balancer resource, not on individual trigger integrations. See [Custom domains](/resources/networking/custom-domains) for setup details.
-
-### What is the difference between an Application Load Balancer and a Network Load Balancer?
-
-An ALB operates at Layer 7 (HTTP/HTTPS) and can route based on request content — paths, headers, query parameters, hostnames, and source IPs. A [Network Load Balancer](/resources/networking/network-load-balancer) operates at Layer 4 (TCP/TLS) and routes raw connections without inspecting request content. In Stacktape, NLB integrations work with container workloads only, not Lambda functions. Use an NLB for non-HTTP protocols or raw TCP/TLS services.
-
-### How do I view logs for my HTTP-triggered functions?
-
-Use [`stacktape debug:logs`](/cli/debug-logs) to stream or tail logs for Lambda functions and container workloads. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview). Gateway-level access logging is configured on the [HTTP API Gateway resource](/resources/networking/http-api-gateway); see that page for details.
+ALB rules are evaluated by `priority` from the lowest number to the highest, and the first matching rule wins — so a broad, lower-numbered rule (such as a catch-all `paths: ['*']`) can intercept requests before a more specific, higher-numbered rule is ever reached. Priority values must also be unique across all rules on the same listener. Leave gaps between numbers (10, 20, 30) so you can insert more specific rules ahead of broad ones without renumbering.

@@ -78,17 +78,13 @@ Notification rules are created and managed in the Console. Organization-wide bud
 
 ## FAQ
 
-### Can I create notification rules from the CLI or config file?
+### Can I route different events to different channels?
 
-The Stacktape Console provides notification rule management on the Notifications page.
+Yes — create multiple notification rules, each with its own event types, scope, and [alert channel](/observability/alert-channels). For example, send all deployment events to a low-noise logging webhook with one rule, and route only `production` deployment failures to a high-urgency Slack channel with another. Use separate rules whenever different teams or severity levels need different destinations.
 
-### Can one event trigger multiple notification rules?
+### Why didn't my notification get delivered?
 
-You can create multiple notification rules, each with different event types, scopes, and channels. For example, create one rule for all deployment events sent to a logging webhook, and another rule for deployment failures on `production` sent to a high-urgency Slack channel. Use separate rules when different teams or severity levels need different destinations.
-
-### How do I know if a notification was delivered?
-
-Check the notification history in the Console to see whether the notification was sent and its delivery status. If a notification wasn't delivered, verify the [alert channel](/observability/alert-channels) configuration is still valid.
+Check the notification history in the Console, which logs every alert that was sent along with its delivery status. If a notification wasn't delivered, the cause is almost always the destination [alert channel](/observability/alert-channels) — an expired webhook URL or a misconfigured Slack integration is the most common culprit.
 
 ### What is the difference between notifications and alarms?
 
@@ -98,18 +94,6 @@ Notifications watch for selected operational events such as a deployment succeed
 
 No. You can use the same [alert channel](/observability/alert-channels) in notification rules, alarm rules, and budget alerts. Send deploy notifications and alarm alerts to the same Slack channel, or route them to different channels for different severity levels. Create channels once, then reference them from any rule type.
 
-### How should I set up notifications for a multi-team organization?
-
-Use project scoping. Create separate notification rules per team, each scoped to the projects that team owns. This way, the frontend team gets notified about frontend deploys and the backend team about backend deploys, without cross-team noise. Each team can also choose their preferred channel — Slack for one team, email for another.
-
 ### Can I get notified only for production deploys?
 
-Yes. Use stage scoping when creating a notification rule to select the stage names the rule applies to, such as `production`. Combine stage scoping with project scoping when only some project-stage pairs should send notifications.
-
-### Where can I see all alerts across notifications, alarms, and budgets?
-
-Stacktape describes [alert history](/observability/alert-history) as a unified log of alerts across notifications, alarms, and budgets. Use it for a single view of every alert your organization has received, regardless of which system generated it.
-
-### How much do notifications cost?
-
-For information on monitoring and managing your AWS spend, see [managing costs](/managing-costs/overview). For details on platform feature coverage, see [billing and subscription](/stacktape-console/billing-and-subscription).
+Yes. Use stage scoping when creating a notification rule to select the stage names it applies to, such as `production`. This keeps dev and staging deploys from generating noise while production alerts stay active. Combine it with project scoping when only some project-stage pairs should send notifications — useful for giving each team alerts on only the projects it owns.

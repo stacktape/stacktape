@@ -1,6 +1,6 @@
 # AWS CDK Constructs
 
-A Stacktape CDK construct resource (`AwsCdkConstruct`) lets you embed an AWS CDK construct directly inside your Stacktape stack. Write a CDK construct class in TypeScript or JavaScript, point to the file, and Stacktape synthesizes and deploys it as part of your stack. Use it as an escape hatch for AWS resources that Stacktape does not natively support.
+A Stacktape CDK construct resource (`AwsCdkConstruct`) lets you embed an AWS CDK construct directly inside your Stacktape stack. Write a CDK construct class in TypeScript or JavaScript, point to the file with `entryfilePath`, optionally set `exportName` and `constructProperties`, and Stacktape deploys it as part of your stack. Use it as an escape hatch for AWS resources that Stacktape does not natively support.
 
 ## When to use
 
@@ -29,7 +29,7 @@ Skip CDK constructs when a simpler alternative fits:
 
 ## Prerequisites
 
-The Stacktape config type requires the entry file to export a class that extends `Construct` from `aws-cdk-lib`. In CDK v2, the `Construct` base class is provided by the `constructs` package. Both are standard CDK v2 dependencies — install them before deploying.
+The `entryfilePath` must point to a file that exports a class extending `Construct`. In CDK v2, the `Construct` base class comes from the `constructs` package, and AWS service constructs come from `aws-cdk-lib`. Both must be resolvable from your entry file — install them as project dependencies if not already present.
 
 ```bash
 npm install aws-cdk-lib constructs
@@ -58,7 +58,7 @@ export default defineConfig(() => {
 ```
 
 
-The construct file is a standard CDK construct class. The Stacktape config type requires the file to export a class that extends `Construct` from `aws-cdk-lib`. In CDK v2, `Construct` is typically imported from the `constructs` package, as shown below.
+The construct file is a standard CDK construct class — the code below is illustrative CDK application code that you adapt to your use case. The Stacktape config type requires the file to export a class that extends `Construct` from `aws-cdk-lib`. In CDK v2, `Construct` is typically imported from the `constructs` package, as shown below.
 
 ```typescript
 import { Construct } from 'constructs';
@@ -109,7 +109,7 @@ export default defineConfig(() => {
 ```
 
 
-The corresponding construct file with a named export:
+The corresponding construct file with a named export (illustrative CDK application code — adapt the AWS service imports and configurations to your needs):
 
 ```typescript
 import { Construct } from 'constructs';
@@ -161,7 +161,7 @@ export default defineConfig(() => {
 ```
 
 
-The construct receives these values through the `props` parameter:
+The construct receives these values through the `props` parameter. The following is illustrative CDK application code — adapt the AWS service imports and resource configurations to your needs:
 
 ```typescript
 import { Construct } from 'constructs';
@@ -203,7 +203,7 @@ export default class DataPipeline extends Construct {
 
 `AwsCdkConstructProps` only exposes `entryfilePath`, `exportName`, and `constructProperties`, so CDK constructs do not get the same Stacktape-specific integration features as native resources:
 
-- **No `connectTo` support.** `AwsCdkConstructProps` does not define a `connectTo` field. Use `constructProperties` to pass Stacktape-managed values into the CDK construct. For workloads that expose `environment` and `iamRoleStatements` (such as [Lambda functions](/resources/compute/lambda-function) and [container workloads](/resources/compute/multi-container-workload)), configure those fields manually to grant access to CDK-created resources.
+- **No `connectTo` support.** `AwsCdkConstructProps` does not define a `connectTo` field. Use `constructProperties` to pass Stacktape-managed values into the CDK construct. For workloads that expose `environment` and `iamRoleStatements`, configure those fields manually to grant access to CDK-created resources.
 - **No referenceable parameters.** The referenceable-parameter types do not define parameters for `aws-cdk-construct`, so [`$ResourceParam()`](/configuration/directives) cannot reference outputs from an `AwsCdkConstruct`. To wire values between resources, keep the consuming resources inside the same CDK construct where CDK can handle references natively.
 - **No overrides.** `AwsCdkConstruct` does not expose an `overrides` property in the current config type. Modify the CDK construct code directly instead.
 - **No dev mode.** `AwsCdkConstructProps` does not expose a `devMode` setting, and `aws-cdk-construct` is not listed among `DevModeCapableResourceType` values (which include `batch-job`, `multi-container-workload`, and `function`).
@@ -224,33 +224,17 @@ For a CloudWatch dashboard or a single IAM role, [`cloudformationResources`](/re
 
 ## FAQ
 
-### What is AWS CDK?
-
-AWS CDK (Cloud Development Kit) is an open-source framework for defining cloud infrastructure in code. It lets you use TypeScript, JavaScript, Python, Java, or other languages to define AWS resources, and synthesizes your code into a CloudFormation template. CDK has three levels of constructs: L1 (raw CloudFormation), L2 (opinionated wrappers with defaults), and L3 (multi-resource patterns). In Stacktape, you embed CDK constructs for resources Stacktape doesn't natively support. Learn more about the two escape hatches in [overrides and escape hatches](/configuration/overrides-and-escape-hatches).
-
 ### Can I use existing CDK constructs from npm?
 
-Yes. Install any published CDK construct library (e.g., `@aws-solutions-constructs/*`, community constructs, or your own internal packages) alongside `aws-cdk-lib`. Import and use them in your construct file the same way you would in a standalone CDK app. Stacktape synthesizes and deploys the CDK construct as part of your stack.
+If the construct library is installed in your project and importable from the entry file, you can use it in your construct class. Import third-party constructs (e.g., `@aws-solutions-constructs/*`, community constructs, or your own packages) the same way you would in a standalone CDK app.
 
 ### Can my CDK construct reference Stacktape-managed resources?
 
 Yes, through `constructProperties`. Pass ARNs, names, or connection strings from Stacktape resources using `$ResourceParam()` directives. The CDK construct can then use CDK's `fromXxxArn()` or `fromXxxName()` import methods to reference those resources. See [Passing props to constructs](#passing-props-to-constructs) above for a working example.
 
-### Do CDK constructs support connectTo?
+### Why doesn't connectTo work with a CDK construct?
 
-No. `AwsCdkConstructProps` does not define a `connectTo` field. For workloads that expose `environment` and `iamRoleStatements`, configure those fields manually to grant access to CDK-created resources. Conversely, to give a CDK-created resource access to a Stacktape resource, pass the Stacktape resource's ARN or connection details through `constructProperties`.
-
-### When should I use a CDK construct instead of raw CloudFormation?
-
-Use a CDK construct when you need multiple related AWS resources wired together — for example, an API Gateway backed by a Lambda function with IAM roles and log groups. CDK L2 constructs handle the cross-resource wiring and provide sensible defaults, saving you from writing verbose CloudFormation JSON. Use [`cloudformationResources`](/resources/advanced/raw-cloudformation-resources) when you need a single standalone resource like a CloudWatch dashboard, an IAM role, or an SSM parameter.
-
-### Can I use CDK constructs with both TypeScript and JavaScript?
-
-Yes. The `entryfilePath` property accepts both `.ts` and `.js` files. TypeScript constructs are commonly used in CDK projects because of type safety with `aws-cdk-lib` types.
-
-### Can I use multiple CDK constructs in one stack?
-
-Yes. Define multiple `AwsCdkConstruct` resources in the same `resources` map, each with its own `entryfilePath`, `exportName`, and `constructProperties`. You can point them to different entry files or to the same file with different `exportName` values.
+`AwsCdkConstructProps` does not define a `connectTo` field, so an `AwsCdkConstruct` cannot participate in automatic permission/env-var wiring. To grant a Stacktape workload access to a CDK-created resource, configure that workload's `environment` and `iamRoleStatements` manually. Conversely, to give a CDK-created resource access to a Stacktape resource, pass the Stacktape resource's ARN or connection details into the construct through `constructProperties`.
 
 ### How do I pass values from a CDK construct to other Stacktape resources?
 
@@ -283,5 +267,35 @@ type AwsCdkConstructProps = {
 | --- | --- | --- | --- | --- |
 | `entryfilePath` | yes | `string` | Path to the file containing your CDK construct class. Supports `.js` and `.ts` files. The file must export a class that extends `Construct` from `aws-cdk-lib`. | - |
 | `constructProperties` | no | `unknown` | Custom props passed to the construct's constructor. This object is forwarded as the third argument (`props`) to your construct class. Use `$ResourceParam()` and `$Secret()`
-directives here to pass dynamic values from other resources in your stack. | - |
+directives here to pass dynamic values from other resources in your stack.
+
+**Example (YAML):**
+
+```yaml
+resources:
+  notifications:
+    type: aws-cdk-construct
+    properties:
+      entryfilePath: cdk/notification-topic.ts
+      constructProperties:
+        displayName: Production Alerts
+        emailSubscription: $Secret('alerts-email')
+```
+
+**Example (TypeScript):**
+
+```ts
+import { AwsCdkConstruct, $Secret, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const notifications = new AwsCdkConstruct({
+    entryfilePath: 'cdk/notification-topic.ts',
+    constructProperties: {
+      displayName: 'Production Alerts',
+      emailSubscription: $Secret('alerts-email')
+    }
+  });
+  return { resources: { notifications } };
+});
+``` | - |
 | `exportName` | no | `string` | Name of the exported construct class from the entry file. Must match the exact export name. Use this when the file has multiple exports or uses named exports. | `default` |

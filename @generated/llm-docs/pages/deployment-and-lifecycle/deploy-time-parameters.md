@@ -244,7 +244,7 @@ The directive expects the full CloudFormation stack name. Stacktape's error hint
 
 For sensitive values, use CloudFormation-time directives that resolve during stack creation.
 
-**`$Secret()`** references a value stored in AWS Secrets Manager. Stacktape looks up the secret during deployment to validate the reference and pin the current version, then writes a Secrets Manager dynamic reference into the template rather than plaintext. For JSON secrets, reference a top-level key by appending it after the secret name: `$Secret('mySecret.apiKey')`. If a secret does not exist, the directive throws an error with a hint to create it using [`stacktape secret:create`](/cli/secret-create). See [Secrets](/configuration/secrets) for the full guide.
+**`$Secret()`** references a value stored in AWS Secrets Manager. Stacktape looks up the secret during deployment to validate the reference and pin the current version, then writes a Secrets Manager dynamic reference into the template rather than plaintext. For JSON secrets, reference a top-level key by appending it after the secret name: `$Secret('mySecret.apiKey')`. If a secret does not exist, the directive throws an error with a hint to create it using [`stacktape secret:set`](/cli/secret-set). See [Secrets](/configuration/secrets) for the full guide.
 
 **`$SsmParam()`** references a value stored in AWS Systems Manager Parameter Store. It uses a secure dynamic reference (`ssm-secure`) for `SecureString` parameters and a standard SSM dynamic reference for other parameter types. The parameter version is pinned at deploy time to produce a deterministic reference.
 
@@ -317,46 +317,26 @@ Two config-time directives help reduce duplication and access the raw config str
 
 ## FAQ
 
-### Can I use directives in any config property?
-
-Config-time directives (like `$Stage()` and `$CliArgs()`) resolve to plain values before the template is built, so they work in any property that accepts the resolved type. `$Secret()` and `$SsmParam()` return CloudFormation dynamic reference strings. `$ResourceParam()` returns the Stacktape resource's referenceable parameter value. `$CfResourceParam()` emits a `GetAtt` or `Ref` intrinsic when the requested CloudFormation attribute is valid for the resource type.
-
-### What happens if a $CliArgs argument is not provided?
-
-If the named argument is not found among the CLI arguments and additional arguments made available to the command, and no default value is specified, `$CliArgs()` resolves to `undefined`. Always provide a default for values your config depends on: `$CliArgs('myArg', 'fallback')`.
-
 ### What is the difference between $Format and $CfFormat?
 
-`$Format()` resolves at config-time — the result is a static string in the CloudFormation template. `$CfFormat()` produces a CloudFormation `Sub` expression that resolves during stack creation. Use `$CfFormat()` when composing strings that include CloudFormation-time values like [`$ResourceParam()`](/configuration/referenceable-parameters) references. For everything else, prefer `$Format()`.
-
-### Can I nest directives?
-
-Directive strings can be composed with `$Format()`. For example, `$Format('https://{}.example.com', '$Stage()')` resolves `$Stage()` and inserts the result into the format string. This lets you combine deploy-time context into a single value.
+`$Format()` resolves at config-time — the result is a static string baked into the CloudFormation template. `$CfFormat()` produces a CloudFormation `Sub` expression that resolves during stack creation. Use `$CfFormat()` only when composing strings that include CloudFormation-time values like [`$ResourceParam()`](/configuration/referenceable-parameters) references; for everything else, prefer `$Format()` because it produces simpler templates.
 
 ### How do I manage different configurations for development and production?
 
-For string-valued properties, embed `$Stage()` directly or use `$Format()` to compose stage-specific names. Because `defineConfig` accepts a TypeScript function, you can use standard conditionals in the callback for config logic that goes beyond string substitution. For stage-specific external config, use `$File()` to load different settings files. For sensitive values that differ per stage, create separate [secrets](/configuration/secrets) per stage. See [Stages and environments](/configuration/stages-and-environments) for the full guide.
+For string-valued properties, embed `$Stage()` directly or use `$Format()` to compose stage-specific names. Because `defineConfig` accepts a TypeScript function, you can use standard conditionals in the callback for structural config logic that goes beyond string substitution. For stage-specific external config, use `$File()` to load different settings files, and create separate [secrets](/configuration/secrets) per stage for sensitive values that differ. See [Stages and environments](/configuration/stages-and-environments) for the full guide.
 
 ### How do I pass secrets to my application at deploy time?
 
-Use the `$Secret()` directive in environment variables. Stacktape validates the secret and pins the current version during deployment, then writes a Secrets Manager dynamic reference into the CloudFormation template — the plaintext value never appears in the template. Create secrets with [`stacktape secret:create`](/cli/secret-create). See [Secrets](/configuration/secrets) for setup details.
-
-### Should I use directives or TypeScript conditionals for stage-specific config?
-
-Both work. Because `defineConfig` accepts a TypeScript function, you can use conditionals and helper functions alongside directive strings. Directives are embedded in string values and work identically in YAML and TypeScript configs. For simple string substitutions, directives are concise. For more complex config logic, TypeScript conditionals inside the callback are clearer. Most projects use both: callback-level logic for structural decisions, directives for string values.
+Use the `$Secret()` directive in environment variables. Stacktape validates the secret and pins the current version during deployment, then writes a Secrets Manager dynamic reference into the CloudFormation template — the plaintext value never appears in the template. For JSON secrets, append a top-level key: `$Secret('stripeConfig.apiKey')`. Create secrets with [`stacktape secret:set`](/cli/secret-set); referencing a secret that doesn't exist throws an error. See [Secrets](/configuration/secrets) for setup details.
 
 ### Can I reference outputs from a stack in a different AWS region?
 
-Both `$StackOutput()` and `$CfStackOutput()` accept an optional third argument for the AWS region: `$StackOutput('my-stack-production', 'ApiUrl', 'us-east-1')`. The region argument is used when Stacktape looks up and validates the source stack output. `$StackOutput()` fetches the output through the CLI at config-time, so cross-region lookups work. `$CfStackOutput()` emits a CloudFormation `ImportValue`, so AWS CloudFormation import/export rules apply to the emitted reference. The referenced stack must be deployed and have the specified output exported in either case.
+Both `$StackOutput()` and `$CfStackOutput()` accept an optional third argument for the AWS region: `$StackOutput('my-stack-production', 'ApiUrl', 'us-east-1')`. `$StackOutput()` fetches the output through the CLI at config-time, so cross-region lookups work. `$CfStackOutput()` emits a CloudFormation `ImportValue`, so AWS import/export rules apply — including the constraint that `ImportValue` cannot reference exports across regions. Reach for `$StackOutput()` when those constraints aren't satisfied. In either case the referenced stack must be deployed with the output exported.
 
 ### How do CloudFormation-time directives behave during local development?
 
-When Stacktape uses local directive resolution (e.g. during [`stacktape dev`](/local-development/dev-mode-overview)), CloudFormation-time directives use local resolver behavior. `$ResourceParam()` reads from the deployed stack overview — if the referenced value is `undefined` or `null` and `--disableEmulation` is set, it returns a missing-output identifier instead of throwing; without `--disableEmulation`, it throws an error with a hint to use the flag. `$Secret()` fetches the actual secret value from Secrets Manager (using the version ID from the deployed stack output if available) and throws an error if the fetch fails. `$SsmParam()` fetches the parameter value from SSM Parameter Store directly.
+During local directive resolution (e.g. [`stacktape dev`](/local-development/dev-mode-overview)), runtime directives switch to local resolver behavior instead of emitting CloudFormation references. `$ResourceParam()` reads from the deployed stack overview — if the value is missing and `--disableEmulation` is set it returns a missing-output identifier, otherwise it throws with a hint to use that flag. `$Secret()` fetches the actual secret value from Secrets Manager, and `$SsmParam()` fetches the parameter value directly from SSM. This means `stacktape dev` needs a deployed stack to resolve these references.
 
 ### When should I use $File vs $CliArgs for external configuration?
 
-Use `$File()` for structured, version-controlled configuration (JSON, YAML, `.env`, INI) that defines repeatable settings per environment — it gives you nested property access (e.g. `$File('./config.json').database.host`). Use `$CliArgs()` for one-off overrides passed at deploy time — values that change between deploys without file changes. `$CliArgs()` is well suited for CI pipeline parameters and ad-hoc flags.
-
-### What Git properties does $GitInfo provide?
-
-`$GitInfo(property)` reads a named property from Stacktape's Git metadata. If you pass an invalid property name, the error message lists all valid arguments. The directive is lazy-loaded — it only accesses Git information when actually referenced in the config.
+Use `$File()` for structured, version-controlled configuration (JSON, YAML, `.env`, INI) that defines repeatable per-environment settings — it gives you nested property access like `$File('./config.json').database.host`. Use `$CliArgs()` for one-off overrides passed at deploy time, such as CI pipeline parameters or ad-hoc flags that change between deploys without editing files. Always provide a default for any `$CliArgs()` value your config depends on, since an unmatched argument with no default resolves to `undefined`.

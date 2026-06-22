@@ -387,10 +387,6 @@ For Python: use `module/file.py:app` format when using `runAppAs` (WSGI/ASGI). |
 
 ## FAQ
 
-### What languages does the Stacktape Lambda buildpack support?
-
-The buildpack supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. All configuration beyond `entryfilePath` is optional — the defaults handle bundling and artifact creation for each language. See the [Language-specific configuration](#language-specific-configuration) section for all tuning options.
-
 ### Should I use the Stacktape buildpack or a custom artifact?
 
 Use `StacktapeLambdaBuildpackPackaging` for most projects — it handles bundling and artifact creation with minimal configuration. Use [custom artifact packaging](/packaging/function/custom-artifact) when you already have a pre-built zip from an external build pipeline, need a custom toolchain the buildpack doesn't support, or want full control over the deployment package contents.
@@ -401,28 +397,16 @@ Yes. Set `outputModuleFormat: 'esm'` in `languageSpecificConfig` to enable ES Mo
 
 ### What is the maximum Lambda deployment package size?
 
-Underneath, AWS Lambda enforces deployment package size limits (50 MB zipped for direct upload, 250 MB unzipped). The buildpack's single-file bundling (for JS/TS), `excludeFiles`, and `excludeDependencies` options help keep packages small. Stacktape `LambdaFunction` packaging supports the Stacktape Lambda buildpack and custom artifacts. If your dependencies cannot fit within these limits, consider moving the workload to a container resource such as a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [batch job](/resources/compute/batch-job).
+Underneath, AWS Lambda enforces deployment package size limits (50 MB zipped for direct upload, 250 MB unzipped). The buildpack's single-file bundling (for JS/TS), `excludeFiles`, and `excludeDependencies` options help keep packages small. If your dependencies cannot fit within these limits, consider moving the workload to a container resource such as a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [batch job](/resources/compute/batch-job).
 
 ### How do I handle native binary dependencies like sharp or Prisma?
 
 Add native binary packages to `dependenciesToExcludeFromBundle` in your Node.js/TypeScript `languageSpecificConfig`. Excluded dependencies are installed separately in the deployment package rather than being statically bundled. If a dependency works locally but fails in Lambda with a binary error, excluding it from the bundle is usually the fix.
 
-### Does the buildpack support TypeScript path aliases?
+### My Python (or minified) Lambda works locally but breaks in production — why?
 
-Yes. Set `tsConfigPath` in `languageSpecificConfig` to point to your `tsconfig.json`. Stacktape uses that file to resolve path aliases during the build process.
-
-### How does Lambda cold start relate to package size?
-
-Larger deployment packages increase cold start duration because AWS Lambda must download and extract the package before your function can execute. The buildpack minimizes this by bundling JS/TS code into a single file and letting you exclude unnecessary files and dependencies via `excludeFiles` and `excludeDependencies`. Exclude files and dependencies you do not need at runtime to reduce download and extraction work during cold starts.
-
-### Can I deploy the same code as both a Lambda function and a container?
-
-Yes, but you need different packaging configurations. [Lambda function](/resources/compute/lambda-function) resources use `StacktapeLambdaBuildpackPackaging` (this page), which produces a zip artifact. Container workloads like [web services](/resources/compute/web-service) use [container packaging](/packaging/containers/stacktape-buildpack) (`StacktapeImageBuildpackPackaging`), which produces an OCI image. Your application code can be shared, but the packaging configuration and entry point conventions differ between the two.
+Python minification is enabled by default (`minify: true`). It reduces package size but rewrites your deployed source, which can make production behavior diverge from local and makes stack traces harder to read. If a function works locally but misbehaves after deployment, set `minify: false` in your Python `languageSpecificConfig`. The trade-off is a larger deployment package.
 
 ### How do I debug a Lambda function packaged with the buildpack?
 
-For JavaScript and TypeScript, source maps are generated automatically and included in the deployment package. If you set `outputSourceMapsTo`, source maps are saved locally instead and CloudWatch stack traces will not be mapped. Use [`stacktape debug:logs`](/cli/debug-logs) to tail function logs from the CLI. For rapid iteration without full redeployment, use [dev mode](/local-development/dev-mode-overview) with Lambda functions.
-
-### When should I use arm64 (Graviton) vs x86_64 for Lambda?
-
-`StacktapeLambdaBuildpackPackaging` does not expose an architecture setting — configure it on the [Lambda function resource](/resources/compute/lambda-function). Per AWS documentation, Graviton-based Lambda functions (`arm64`) may offer better price-performance for most workloads. Stick with `x86_64` if you depend on native binary packages that only ship x86 builds. See the [Lambda function](/resources/compute/lambda-function) page for details.
+For JavaScript and TypeScript, source maps are generated automatically and included in the deployment package so CloudWatch stack traces map back to your source. If you set `outputSourceMapsTo`, source maps are saved locally instead and CloudWatch stack traces will not be mapped. For rapid iteration without a full redeploy, use [dev mode](/local-development/dev-mode-overview) with Lambda functions.

@@ -25,7 +25,7 @@ You can combine both: GitOps for staging and PR previews, custom CI for producti
 Create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. You can authenticate the CLI in two ways:
 
 - **Explicit login step** — run [`stacktape login --apiKey <key>`](/cli/login) as a pipeline step before deploying. The login command verifies the key and saves it for subsequent CLI commands.
-- **Environment variable** — set `STACKTAPE_API_KEY` as an environment variable in your CI runner. The CLI reads this variable at startup and uses it for authentication. The CI examples on this page use this approach for brevity.
+- **Environment variable** — set `STACKTAPE_API_KEY` as an environment variable in your CI runner. The CI examples on this page use this approach for brevity.
 
 | Provider | Where to store the secret |
 |----------|--------------------------|
@@ -42,7 +42,7 @@ Create an API key in the Stacktape Console under [API keys](/stacktape-console/a
 
 ### --autoConfirmOperation
 
-The [`deploy`](/cli/deploy) and [`delete`](/cli/delete) commands can prompt for confirmation before modifying infrastructure. The `--autoConfirmOperation` flag skips these prompts. Always include this flag in automated pipelines — without it, the CLI may prompt for confirmation and throw an error in a non-TTY CI environment. See the [`deploy` CLI reference](/cli/deploy) for details.
+The [`deploy`](/cli/deploy) and [`delete`](/cli/delete) commands can prompt for confirmation before modifying infrastructure. The `--autoConfirmOperation` flag skips these prompts. Always include this flag in automated pipelines — without it, the CLI may wait for confirmation before modifying infrastructure, which is unsuitable for automated CI jobs. See the [`deploy` CLI reference](/cli/deploy) for details.
 
 ### --stage and --region
 
@@ -61,7 +61,7 @@ npx stacktape delete --stage pr-42 --region us-east-1 --autoConfirmOperation
 ```
 
 
-> **Info:** If your CI pipeline deploys more than one Stacktape project, make the project selection explicit in the same way you do locally — pass `--projectName` or set the project name in each configuration file.
+> **Info:** If your CI pipeline deploys more than one Stacktape project, make the project selection explicit — set the project name in each configuration file or pass it as a CLI argument.
 
 
 ### --hotSwap
@@ -304,21 +304,21 @@ workflows:
 
 Store `STACKTAPE_API_KEY` as a project environment variable in CircleCI.
 
-## Using codebuild:deploy in pipelines
+## Using deploy --runner codebuild in pipelines
 
-For large projects where uploading built artifacts from your CI runner is slow, consider using [`codebuild:deploy`](/cli/codebuild-deploy) instead. This command offloads the build and deployment to AWS CodeBuild inside your AWS account. See the [`codebuild:deploy` CLI reference](/cli/codebuild-deploy) for details on behavior, available flags, and the build environment.
+For large projects where uploading built artifacts from your CI runner is slow, consider using `deploy --runner codebuild` instead. This offloads the build and deployment to AWS CodeBuild inside your AWS account. The `--runner` flag accepts `local` (default), `codebuild`, or `ec2`. See the [`deploy` CLI reference](/cli/deploy) for details on behavior and available flags.
 
-### When to use codebuild:deploy vs deploy
+### When to use CodeBuild runner vs local runner
 
 | Scenario | Recommended command |
 |----------|-------------------|
-| Small to medium project, CI runner has enough CPU/RAM | [`deploy`](/cli/deploy) |
-| Large dependencies, slow upload from CI runner | [`codebuild:deploy`](/cli/codebuild-deploy) |
-| Need consistent build environment across team | [`codebuild:deploy`](/cli/codebuild-deploy) |
+| Small to medium project, CI runner has enough CPU/RAM | `stacktape deploy` (default `--runner local`) |
+| Large dependencies, slow upload from CI runner | `stacktape deploy --runner codebuild` |
+| Need consistent build environment across team | `stacktape deploy --runner codebuild` |
 | Need full control over build environment | [`deploy`](/cli/deploy) on a [self-hosted runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) |
-| Want fastest possible deploy from CI | [`deploy`](/cli/deploy) with caching |
+| Want fastest possible deploy from CI | `stacktape deploy` with caching |
 
-The `deploy` command runs the build and deployment on your CI runner. The `codebuild:deploy` command offloads this to AWS CodeBuild. See the [`codebuild:deploy` CLI reference](/cli/codebuild-deploy) for the full details. AWS CodeBuild charges per build minute — see [AWS CodeBuild pricing](https://aws.amazon.com/codebuild/pricing/) for current rates.
+The default `deploy` command runs the build and deployment on your CI runner. The `--runner codebuild` flag offloads this to AWS CodeBuild. AWS CodeBuild charges per build minute — see [AWS CodeBuild pricing](https://aws.amazon.com/codebuild/pricing/) for current rates.
 
 ## Multi-environment patterns
 
@@ -338,19 +338,19 @@ Stacktape supports deploy-time parameterization so you can keep one configuratio
 
 ## Previewing changes before deploying
 
-In workflows with approval gates, use [`preview-changes`](/cli/preview-changes) as an earlier pipeline step to inspect what a deployment would change before approving it. This gives reviewers a chance to see the planned infrastructure diff without actually applying changes.
+In workflows with approval gates, use [`diff`](/cli/diff) as an earlier pipeline step to inspect what a deployment would change before approving it. This gives reviewers a chance to see the planned infrastructure diff without actually applying changes.
 
 ```bash
-npx stacktape preview-changes --stage production --region us-east-1
+npx stacktape diff --stage production --region us-east-1
 ```
 
-This is useful in production pipelines where a reviewer needs to see the infrastructure diff before approving. Pair it with a manual approval step so the team can review changes before the deploy job runs. See the [`preview-changes` CLI reference](/cli/preview-changes) for details on its output.
+This is useful in production pipelines where a reviewer needs to see the infrastructure diff before approving. Pair it with a manual approval step so the team can review changes before the deploy job runs. See the [`diff` CLI reference](/cli/diff) for details on its output.
 
 ## Troubleshooting
 
 ### CLI hangs or throws an error waiting for input
 
-Add `--autoConfirmOperation` to your [`deploy`](/cli/deploy) or [`delete`](/cli/delete) command. Without this flag, the CLI may prompt for confirmation and throw an error in a non-TTY CI environment.
+Add `--autoConfirmOperation` to your [`deploy`](/cli/deploy) or [`delete`](/cli/delete) command. Without this flag, the CLI may wait for confirmation before modifying infrastructure, which is unsuitable for automated CI jobs.
 
 ### Authentication fails
 
@@ -368,40 +368,24 @@ Stacktape deploys use CloudFormation, which serializes updates to a single stack
 
 ### How do I authenticate Stacktape in a CI pipeline?
 
-Run [`stacktape login --apiKey <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner — the CLI reads this variable at startup. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated key for CI rather than a personal key so you can rotate it without disrupting developer workflows.
+Run [`stacktape login --apiKey <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated key for CI rather than a personal key so you can rotate it without disrupting developer workflows.
 
 ### When should I use custom CI/CD vs GitOps?
 
 Use [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) when you want zero-maintenance push-to-deploy with PR previews and no workflow files. Use custom CI/CD when you need pre-deploy test gates, manual approval steps, multi-step pipelines, or non-git triggers. You can combine both — GitOps for staging branches and custom CI for production.
 
-### Should I use codebuild:deploy or deploy in CI?
+### Should I use deploy --runner codebuild or the default local runner in CI?
 
-Use [`deploy`](/cli/deploy) for most projects — it's simpler and runs on your CI runner. Switch to [`codebuild:deploy`](/cli/codebuild-deploy) when your project has large dependencies that are slow to upload, or when you need a consistent AWS-hosted build environment. See the [`codebuild:deploy` CLI reference](/cli/codebuild-deploy) for details on behavior and available flags. AWS CodeBuild charges per build minute based on compute type.
+Use [`deploy`](/cli/deploy) for most projects — it's simpler and runs on your CI runner. Switch to `deploy --runner codebuild` when your project has large dependencies that are slow to upload, or when you need a consistent AWS-hosted build environment. The `--runner` flag also accepts `ec2` for an EC2-based build runner. See the [`deploy` CLI reference](/cli/deploy) for details on behavior and available flags. AWS CodeBuild charges per build minute based on compute type.
 
-### How does CloudFormation handle failed deployments?
+### What happens when a deploy fails in CI?
 
-AWS CloudFormation tracks infrastructure as a stack. By default, failed deployments auto-rollback to the last working state. When auto-rollback is enabled and a deploy fails (outside of stack-monitoring errors, where the actual stack outcome is unknown), Stacktape removes deployment artifacts from the rolled-back attempt. You can pass `--disableAutoRollback` to keep the stack in a failed state for inspection — then fix the issue and redeploy, or use [`stacktape rollback`](/cli/rollback) to recover. See [Rollbacks](/deployment-and-lifecycle/rollbacks) for the full rollback options.
-
-### What does AWS CodeBuild cost?
-
-AWS CodeBuild charges per build minute based on the compute type you use. Pricing varies by region and instance size. You pay only for the build time consumed — there is no charge when no builds are running. Check the [AWS CodeBuild pricing page](https://aws.amazon.com/codebuild/pricing/) for current rates. Stacktape itself does not add per-deployment charges on top of your subscription.
-
-### Can I run Stacktape in Docker-based CI runners?
-
-Yes. Use any Docker image with Node.js installed. The `npx stacktape` command downloads the CLI binary on first invocation. If your pipeline builds Docker images (for container workloads), the CI runner also needs Docker available — either Docker-in-Docker or a privileged runner.
+By default, failed deployments auto-rollback to the last working state, and Stacktape removes deployment artifacts from the rolled-back attempt (except after stack-monitoring errors, where the actual stack outcome is unknown). To debug a failure, pass `--disableAutoRollback` so the stack stays in its failed state for inspection, then fix the issue and redeploy. Keep auto-rollback enabled for production pipelines. See [Rollbacks](/deployment-and-lifecycle/rollbacks) for the full options.
 
 ### How do I deploy to multiple AWS regions from CI?
 
 Run the deploy command once per region with the same stage name but different `--region` values. Each region creates an independent stack. You can run these as parallel jobs in your CI pipeline. See [multi-region deployments](/deployment-and-lifecycle/multi-region-deployments) for patterns and considerations.
 
-### How long does a CloudFormation deployment take?
+### Why does one of two concurrent deploys to the same stage fail?
 
-Deployment time depends on the resources in your stack. A Lambda-only stack is usually faster than stacks with databases, VPCs, or container workloads, which take longer because AWS provisions those resources sequentially. Use `--hotSwap` on development stacks to skip a full CloudFormation deploy for eligible code-only changes.
-
-### How do I use Stacktape with GitHub Actions?
-
-The examples on this page use `npx stacktape` directly in a GitHub Actions `run` step, which works anywhere Node.js is available. This approach keeps your pipeline simple and avoids depending on a third-party action's release cycle. See the [GitHub Actions](#github-actions) section above for complete workflow examples including test gates, PR previews, and concurrency control.
-
-### Can I combine GitOps and custom CI/CD for the same project?
-
-Yes. A common setup uses [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for staging branches (zero-maintenance push-to-deploy) and custom CI for production (with test gates and manual approval). The two approaches target different stages of the same project and don't conflict.
+Stacktape deploys use CloudFormation, which serializes updates to a single stack. If two CI runs deploy to the same stage at once, one fails because the stack is already in an `UPDATE_IN_PROGRESS` state. Prevent this with CI concurrency controls — a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.

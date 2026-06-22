@@ -256,10 +256,6 @@ Backward compatible format `string[]` is still supported. | - |
 
 ## FAQ
 
-### What protocols does a Stacktape Network Load Balancer support?
-
-A Stacktape Network Load Balancer supports TCP and TLS protocols. TCP forwards raw connections without encryption. TLS terminates encryption at the load balancer and forwards decrypted traffic to your container. HTTP/HTTPS traffic should use an [Application Load Balancer](/resources/networking/application-load-balancer) or [HTTP API Gateway](/resources/networking/http-api-gateway) instead, as those provide HTTP-aware routing and features.
-
 ### How much does AWS Network Load Balancer cost?
 
 AWS NLB pricing has two components: a flat hourly charge (varying by region) and a per-LCU (Load Balancer Capacity Unit) charge based on new connections, active connections, and processed bytes. Unlike [HTTP API Gateway](/resources/networking/http-api-gateway), NLB has an always-on cost even with zero traffic. For low-traffic workloads, consider whether a dedicated load balancer is cost-justified.
@@ -267,18 +263,6 @@ AWS NLB pricing has two components: a flat hourly charge (varying by region) and
 ### When should I use a Network Load Balancer vs an Application Load Balancer?
 
 Use a Network Load Balancer for non-HTTP protocols (MQTT, gRPC with TLS pass-through, custom TCP protocols, game servers). Use an [Application Load Balancer](/resources/networking/application-load-balancer) for HTTP/HTTPS workloads — it offers path-based routing, host-based routing, header matching, CDN attachment, and WAF integration that NLB does not support. If your workload speaks HTTP, ALB is almost always the better choice.
-
-### Can I use a custom domain with a Network Load Balancer?
-
-Yes. Add a `customDomains` array to the NLB configuration with your domain name. Stacktape provisions a free TLS certificate via ACM and creates a DNS record in Route53 automatically. Your domain must have a Route53 hosted zone — set one up with [`stacktape domain:add`](/cli/domain-add). See [Custom domains](/resources/networking/custom-domains) for full details.
-
-### Does Network Load Balancer support health checks?
-
-The Network Load Balancer resource does not expose health-check settings in its configuration type. For container-level replacement behavior, use the workload health-check settings on the target workload when that workload type exposes them.
-
-### Can I attach a CDN or WAF to a Network Load Balancer?
-
-No. Network Load Balancer does not support [CDN](/resources/networking/cdn) (CloudFront) attachment or [web application firewall](/resources/security/web-application-firewall) (WAF) integration. These features require HTTP-level processing that NLB does not perform. For IP-based access control, use `whitelistIps` on individual listeners. If you need CDN or WAF, use an [Application Load Balancer](/resources/networking/application-load-balancer) instead.
 
 ### Can I expose multiple ports on a single Network Load Balancer?
 
@@ -288,10 +272,6 @@ Yes. Define multiple entries in the `listeners` array, each with its own port, p
 
 Container workloads add a `network-load-balancer` integration (type `network-load-balancer`) to their events array. The integration specifies `loadBalancerName` (the NLB resource name), `listenerPort` (which NLB listener to bind to), and `containerPort` (the port inside the container that receives traffic).
 
-### What is the difference between internet and internal interface?
+### Why can't I restrict NLB access with a web application firewall?
 
-Setting `interface: 'internet'` (default) makes the NLB publicly accessible from the internet. Setting `interface: 'internal'` makes it reachable only from within the VPC — useful for internal services like gRPC backends or database proxies that other workloads call but should not be publicly exposed. Choose `internal` when the NLB is part of a service-to-service communication layer.
-
-### Does Network Load Balancer support gradual deployments?
-
-No. Network Load Balancer does not support gradual (canary or linear) deployment strategies. For deployment strategies that shift traffic incrementally between old and new versions, use container workloads behind an [Application Load Balancer](/resources/networking/application-load-balancer), which integrates with CodeDeploy for gradual deployments.
+NLB operates at Layer 4 (TCP/TLS) and does no HTTP-level processing, so it can't attach a [web application firewall](/resources/security/web-application-firewall) or [CDN](/resources/networking/cdn). The only access-control mechanism at the load balancer level is `whitelistIps` on each listener, which restricts connections to specific IPs or CIDR ranges. If you need rate limiting, geo-blocking, or bot protection, put the workload behind an [Application Load Balancer](/resources/networking/application-load-balancer) instead.

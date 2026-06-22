@@ -174,7 +174,7 @@ export default defineConfig(() => {
   const seed = new LocalScript({
     executeScript: './scripts/seed.ts',
     connectTo: [database],
-    environment: [{ name: 'SEED_COUNT', value: '100' }]
+    environment: { SEED_COUNT: '100' }
   });
 
   const setup = new LocalScript({
@@ -589,10 +589,10 @@ The script inherits the `api` function's IAM role, which has DynamoDB access thr
 
 ## Debugging
 
-View logs from deployment scripts using [`stacktape debug:logs`](/cli/debug-logs):
+View logs from deployment scripts using [`stacktape logs`](/cli/logs):
 
 ```bash
-stacktape debug:logs --resourceName migrate
+stacktape logs --resourceName migrate
 ```
 
 Local script and bastion script output is visible in your terminal when running the script. See [hooks and scripts configuration](/configuration/hooks-and-scripts) for any output-handling options exposed by each script type.
@@ -603,17 +603,13 @@ Local script and bastion script output is visible in your terminal when running 
 
 Use a **hook** with a local script when you want to run your existing migration tooling (Prisma, Drizzle, Knex) directly from your machine or CI runner. Use a **deployment script** when you need rollback safety — if the migration fails with `after:deploy`, CloudFormation rolls back all infrastructure changes, keeping your schema and code in sync. For most production stacks, the deployment script approach is safer.
 
-### What happens if an `after:deploy` deployment script fails?
+### What happens when a deployment script fails?
 
-CloudFormation rolls back the entire deployment. All infrastructure changes from that deploy are reverted to their previous state. This is the key advantage of deployment scripts over hooks for critical post-deploy tasks like database migrations — a failed migration does not leave your stack in a half-updated state.
-
-### What happens if a `before:delete` deployment script fails?
-
-Deletion continues. The failure is logged but does not block the stack from being destroyed. This is by design — `before:delete` scripts handle best-effort cleanup (exporting data, deregistering external services) rather than hard prerequisites for deletion.
+It depends on the trigger, and the two behaviors are intentionally asymmetric. An `after:deploy` failure rolls back the entire deployment — all infrastructure changes from that deploy are reverted, so a failed migration never leaves your stack in a half-updated state. A `before:delete` failure is logged but does not block the stack from being destroyed, because those scripts handle best-effort cleanup (exporting data, deregistering external services) rather than hard prerequisites for deletion.
 
 ### How long can a deployment script run?
 
-The maximum `timeout` is 900 seconds (15 minutes), which is the AWS Lambda execution limit. The default timeout is 10 seconds, so you should explicitly set a higher value for migrations or data processing. If your workload needs more than 15 minutes, consider using a [batch job](/resources/compute/batch-job) for very long-running tasks, or a hook with a local script.
+The maximum `timeout` is 900 seconds (15 minutes), which is the AWS Lambda execution limit. The default timeout is 10 seconds, so you should explicitly set a higher value for migrations or data processing. If your workload needs more than 15 minutes, run it as a hook with a local script instead — hooks run on your machine or CI runner and are not bound by the Lambda timeout.
 
 ### Can I pass secrets to deployment scripts?
 
@@ -623,21 +619,9 @@ Use the `environment` property with [`$Secret()`](/configuration/directives) for
 
 Yes. Use [`stacktape deployment-script:run`](/cli/deployment-script-run) to invoke the deployment script Lambda outside of the normal deployment lifecycle. This is useful during development or when a migration needs to be re-applied.
 
-### What's the difference between the three script types?
-
-**Local scripts** run on your machine or CI runner — use them for builds, linting, and running local CLI tools. **Bastion scripts** run remotely on a [bastion host](/resources/security/bastion-host) inside your VPC — use them when you need a consistent Linux environment with direct VPC network access. **Local scripts with bastion tunneling** run locally but tunnel network connections through a bastion — use them when you want local tooling (ORMs, migration CLIs) but need to reach VPC-only resources like private databases.
-
 ### How do I access a private database from a deployment script?
 
 Set `joinDefaultVpc: true` on the deployment script. This connects the Lambda function to the default VPC, enabling network access to VPC resources such as databases and Redis clusters. VPC-connected Lambda functions lose direct internet access — if your script also needs to call external APIs, configure a NAT gateway in your VPC.
-
-### Can I use a pre-built package for deployment scripts?
-
-Yes. Instead of the Stacktape buildpack (which auto-bundles from source), use the `CustomArtifactLambdaPackaging` mode and point it at your pre-built zip or directory. See [custom artifact packaging](/packaging/function/custom-artifact) for details.
-
-### How are deployment scripts different from Lambda functions?
-
-A deployment script uses the same underlying AWS Lambda infrastructure but is tied to the CloudFormation lifecycle rather than serving as a standalone compute resource. Deployment scripts run once during deploy or delete (depending on the `trigger`), not in response to HTTP requests or other event sources. They share the same memory, timeout, and storage limits as [Lambda functions](/resources/compute/lambda-function).
 
 ## API reference
 

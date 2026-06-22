@@ -80,14 +80,6 @@ These are general credential-management recommendations applicable to API keys:
 
 ## FAQ
 
-### What are Stacktape API keys used for?
-
-Stacktape API keys let you authenticate with Stacktape from the CLI or in CI/CD pipelines without a browser login flow. They replace the browser-based [`stacktape login`](/cli/login) in environments where a browser is unavailable — such as GitHub Actions runners, GitLab CI, or headless build servers.
-
-### How do I set up API key authentication in my CI/CD pipeline?
-
-Create an API key in the Console, then store it as a secret in your CI/CD platform (e.g. GitHub Actions secrets, GitLab CI variables). For CI/CD setup patterns, see [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd).
-
 ### What expiration period should I choose?
 
 Manual API keys expire by default and cannot exceed 365 days. As a general credential-management practice, shorter expirations reduce risk if a key is leaked. For developer machines, [`stacktape login`](/cli/login) handles authentication without requiring you to create and rotate a Console API key.
@@ -99,10 +91,6 @@ The API Keys page does not show a reactivation action for expired or revoked key
 ### How do I rotate an API key without downtime?
 
 The Console can show multiple active keys, so you can rotate without downtime. Create the new key first. Update your CI/CD secret or environment variable to the new value. Confirm authentication works with the new key. Then revoke the old key.
-
-### How many API keys can I create?
-
-The API Keys page does not show a visible count limit. For maintainability, use separate keys for separate integration points rather than consolidating into a single shared key.
 
 ### What happens when I revoke a key?
 

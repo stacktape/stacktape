@@ -74,42 +74,22 @@ For concrete, actionable guidance on each of these, see [Optimization tips](/man
 
 ## FAQ
 
-### How long does it take for cost data to appear?
+### How long does it take for cost data to appear, and how often does it refresh?
 
-Cost reports are generated daily from AWS Cost and Usage Reports. New and changed stacks follow the same daily refresh cadence.
+Cost reports are generated daily from AWS Cost and Usage Reports, and new stacks may take up to a day to appear after their first deployment. There is no sub-daily spend monitoring through the Stacktape Console cost views.
 
 ### Are AWS costs billed through Stacktape?
 
 No. AWS bills your AWS account directly — the Stacktape Console displays AWS cost report data for connected AWS accounts but does not process AWS charges. Stacktape's own subscription is a separate charge billed by Stacktape to your organization. See [Billing and subscription](/stacktape-console/billing-and-subscription) for subscription details.
 
-### How do budget alerts work?
+### What's the difference between organization-wide and stack-scoped budgets?
 
-You define a spending threshold and one or more percentage triggers. Budget alerts can be scoped to specific projects or applied across the organization. Organization-wide budget alerts are created in the selected AWS account when saved. Stack-scoped budget status depends on Stacktape deployment metadata, so deploy matching stacks after creating or changing stack-scoped alerts. Budget history records both threshold-exceeded and forecasted-overspend events. See [Budgets](/managing-costs/budgets) for setup steps.
-
-### Can I set budgets per stage?
-
-Budget alerts can be applied across the organization or scoped to specific projects. There is no separate per-stage budget scope — use the costs-per-stack view for per-stage cost visibility. Organization-wide budgets are the simpler option for a single safety net.
+You define a spending threshold and one or more percentage triggers for either scope. Organization-wide budgets apply across the whole organization and are created in the selected AWS account when saved — the simpler option for a single safety net. Stack-scoped budgets target specific projects, and their status depends on Stacktape deployment metadata, so you must deploy matching stacks after creating or changing them. There is no separate per-stage budget scope; use the costs-per-stack view for per-stage cost visibility. See [Budgets](/managing-costs/budgets) for setup steps.
 
 ### What AWS services typically cost the most in Stacktape deployments?
 
-For most deployments, the top cost drivers are compute (ECS Fargate tasks or Lambda invocations), databases (RDS or Aurora instances), and data transfer. The exact breakdown depends on your architecture. The overview dashboard includes an AWS Costs by Resource chart that shows your actual cost distribution across AWS service categories.
+For most deployments the largest cost drivers are compute (Lambda invocations and always-on containers), databases, and networking. The exact breakdown depends on your architecture. The overview dashboard includes an AWS Costs by Resource chart that shows your actual cost distribution across AWS service categories, and [Optimization tips](/managing-costs/optimization-tips) covers how to bring each of these down.
 
-### How can I reduce Lambda function costs?
-
-Reduce Lambda costs by right-sizing memory so functions do not pay for unused capacity and reducing execution duration through code optimization. For high-throughput functions that run continuously, evaluate whether a container-based [web service](/resources/compute/web-service) would be cheaper at sustained load. See [Optimization tips](/managing-costs/optimization-tips) for detailed guidance on these and other levers like ARM/Graviton instances.
-
-### How often are cost reports updated?
-
-Cost reports are generated daily from AWS Cost and Usage Reports. Sub-daily spend monitoring is not available through the Stacktape Console cost views.
-
-### What is the difference between the overview dashboard and the costs page?
+### What's the difference between the overview dashboard and the costs per stack page?
 
 The overview dashboard shows a spending summary — month-to-date total with a trend comparison against the previous month, a cost trend sparkline, AWS Costs by Project (top 10), and AWS Costs by Resource. The dedicated costs per stack page shows attributed stacks in a table, paginated at 10 rows per page and initially sorted by month-to-date costs, with AWS account and time range selectors and navigation to per-stage detail views. See [Dashboards](/managing-costs/dashboards) for a walkthrough of both.
-
-### How does Stacktape cost tracking compare to AWS Cost Explorer?
-
-The Stacktape Console shows attributed costs by project and stage. Use AWS Cost Explorer when you need broader account-level analysis outside Stacktape's stack view — it offers custom reports, forecasting, savings plan recommendations, and full-account visibility across all services. Use the Stacktape Console for day-to-day stack-level cost awareness, and AWS Cost Explorer when you need advanced analysis or custom report exports.
-
-### Can I see costs for resources not created by Stacktape?
-
-The costs-per-stack table shows attributed stack cost data by project and stage. Use AWS Cost Explorer for full-account cost analysis, including resources not managed by Stacktape.

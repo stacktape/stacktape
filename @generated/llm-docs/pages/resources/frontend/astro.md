@@ -202,19 +202,15 @@ Keep `dev.command` aligned with how the team runs Astro locally outside Stacktap
 
 ## Logging
 
-Astro SSR logs are sent to CloudWatch. Configure Lambda logging through the `serverLambda.logging` property. Use the [`stacktape debug:logs`](/cli/debug-logs) command to inspect SSR runtime output from the CLI, or view logs directly in the AWS console.
+Astro SSR logs are sent to CloudWatch. Configure Lambda logging through the `serverLambda.logging` property. Use the [`stacktape logs`](/cli/logs) command to inspect SSR runtime output from the CLI, or view logs directly in the AWS console.
 
 The source exposes logging under `serverLambda`, not as a top-level Astro property. Keep that distinction clear when configuring the app: static asset delivery and CDN behavior are separate from Lambda runtime logging for SSR requests.
 
 ## FAQ
 
-### Is Stacktape Astro for SSR or static Astro sites?
+### Should I use the Astro resource or a hosting bucket?
 
-A Stacktape Astro resource is for Astro SSR apps. Static-only Astro sites should use a [hosting bucket](/resources/frontend/static-hosting) with `hostingContentType: 'astro-static-website'` instead. The Astro source explicitly names `hosting-bucket` with this content type as the correct path for static output.
-
-### What AWS services does Stacktape use for Astro?
-
-A Stacktape Astro resource uses Lambda for server rendering, S3 for static assets, and CloudFront as the CDN. Stacktape presents these as one Astro frontend resource so most teams do not need to wire the AWS services manually. The API details are in the Astro resource reference below.
+Use the Astro resource only for SSR apps that render routes on the server. For static-only Astro output, use a [hosting bucket](/resources/frontend/static-hosting) with `hostingContentType: 'astro-static-website'` instead — that is the documented path for static builds and avoids running an SSR Lambda you do not need.
 
 ### Can I use a custom domain with Astro?
 
@@ -222,31 +218,23 @@ Yes. Add `customDomains` to the Astro resource and provide a domain name backed 
 
 ### Can I protect an Astro app with AWS WAF?
 
-Yes. Set `useFirewall` to the name of a `web-app-firewall` resource whose `scope` is `cdn`. That protects the Astro app at the CDN layer, which is the attachment path documented by the Astro source. See [web application firewall](/resources/security/web-application-firewall) for firewall configuration.
+Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource. The firewall must have `scope: 'cdn'` — the Astro app is protected at the CloudFront/CDN layer, so a firewall with any other scope will not attach.
 
 ### How do I connect Astro SSR to a database?
 
-Add the database resource name to `connectTo` on the Astro resource and enable `serverLambda.joinDefaultVpc` so the SSR function can reach VPC resources. The `connectTo` contract handles IAM permissions, network access for resources that need security group rules, and environment variable injection using the `STP_[RESOURCE_NAME]_[PARAM]` pattern. Note that joining the VPC removes direct internet access — configure NAT gateways if the function also needs outbound internet. See [connecting resources](/configuration/connecting-resources) for the complete injected-variable table.
+Add the database resource name to `connectTo` on the Astro resource and enable `serverLambda.joinDefaultVpc` so the SSR function can reach VPC resources. The `connectTo` contract handles IAM permissions, network access for resources that need security group rules, and environment variable injection using the `STP_[RESOURCE_NAME]_[PARAM]` pattern. See [connecting resources](/configuration/connecting-resources) for the complete injected-variable table.
 
-### Does Astro SSR run in a VPC?
+### Why can't my Astro SSR function reach the internet after connecting to a database?
 
-The Astro SSR Lambda can join the default VPC when `serverLambda.joinDefaultVpc` is enabled. Use that only when the function must reach VPC resources such as databases or Redis. The source warns that the function loses direct internet access when joined to the VPC, so public outbound HTTP workloads should usually keep the default.
+Enabling `serverLambda.joinDefaultVpc` (required to reach VPC resources like databases or Redis) removes the function's direct internet access. If the SSR routes also make outbound HTTP calls to third-party APIs, configure NAT gateways via `stackConfig.vpc.nat`. Leave `joinDefaultVpc` off for sites that only need public outbound traffic.
 
 ### How much does an Astro SSR app cost on AWS?
 
-An Astro SSR app typically has Lambda invocation and duration costs for server-rendered routes, S3 storage and request costs for static assets, and CloudFront data transfer and request costs for CDN traffic. The provided Stacktape source does not include concrete Astro pricing numbers, so this page does not quote list prices. Use [managing costs](/managing-costs/overview) to track deployed stack spend.
+An Astro SSR app accrues Lambda invocation and duration costs for server-rendered routes, S3 storage and request costs for static assets, and CloudFront data transfer and request costs for CDN traffic. There are no fixed always-on charges. Use [managing costs](/managing-costs/overview) to track deployed stack spend.
 
 ### When should I use Astro instead of Next.js?
 
 Use the Stacktape Astro resource when the project is an Astro app and you want Astro's content-focused SSR model. Use [Next.js](/resources/frontend/nextjs) when the project depends on Next.js routing, rendering, or framework conventions. Stacktape has dedicated resources for both frameworks, so choose based on the application framework, not the AWS plumbing.
-
-### Can I change the Astro build command?
-
-Yes. Set `buildCommand` when the default `astro build` command is not the command your project should run. This is common in monorepos or teams that standardize builds through scripts such as `pnpm build`. Keep the default for simple Astro projects to reduce configuration.
-
-### Where do I configure local Astro development?
-
-Use the `dev` property on the Astro resource to override the default `astro dev` command or set a working directory. This is only for `stacktape dev`; deployment builds use `buildCommand` and the Astro app directory. See [`stacktape dev`](/cli/dev) for CLI behavior.
 
 ## API Reference
 

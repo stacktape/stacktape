@@ -156,7 +156,7 @@ export default defineConfig(() => {
 
 ## Triggering a Lambda function
 
-An SQS queue is one of the most common event sources for [Lambda functions](/resources/compute/lambda-function). When messages arrive, AWS invokes the function with a batch of messages. Your handler should process messages idempotently, because failed batches can be retried. Configure this using an [SQS trigger](/configuration/triggers/sqs-events) on the Lambda function — not on the queue itself.
+An SQS queue is one of the most common event sources for [Lambda functions](/resources/compute/lambda-function). When messages arrive, AWS invokes the function with a batch of messages. Your handler should process messages idempotently, because failed batches can be retried. Configure this using an [SQS trigger](/resources/triggers/sqs-events) on the Lambda function — not on the queue itself.
 
 Key settings on the trigger:
 
@@ -249,7 +249,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/api.ts'
     }),
-    connectTo: ['taskQueue'],
+    connectTo: [taskQueue],
     memory: 512,
     timeout: 30
   });
@@ -487,30 +487,18 @@ SQS uses pay-per-request pricing with no minimum fee. The first 1 million reques
 
 The maximum message size is 256 KB (262,144 bytes). For larger payloads, the standard pattern is to store the data in an [S3 bucket](/resources/storage/s3-bucket) and send a reference (the S3 key) as the message body. You can configure a smaller max using `maxMessageSizeBytes` (minimum 1 KB).
 
-### How do I handle failed messages?
+### Why does one bad message block my whole queue, and how do I stop it?
 
-Configure a [dead-letter queue](#dead-letter-queues) using `redrivePolicy`. After `maxReceiveCount` failed processing attempts, the message moves to the DLQ automatically. Monitor the DLQ with an `sqs-queue-not-empty` alarm to get notified when failures occur. You can then inspect, fix, and reprocess messages from the DLQ.
+Without a dead-letter queue, a "poison" message that always fails processing keeps becoming visible and being retried forever, stalling the consumer. Configure a [dead-letter queue](#dead-letter-queues) with `redrivePolicy`: after `maxReceiveCount` failed attempts the message moves aside to the DLQ automatically, so the rest of the queue keeps flowing. Monitor the DLQ with an `sqs-queue-not-empty` alarm so you're notified when messages land there.
 
 ### Can I use SQS with a container service instead of Lambda?
 
 Yes. Use `connectTo` on a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [multi-container workload](/resources/compute/multi-container-workload) to get SQS permissions and the queue URL injected as environment variables. Your container application polls the queue using the AWS SDK. Unlike Lambda-based consumers, you manage the polling loop yourself.
 
-### What is the difference between standard and FIFO queues?
+### My consumer keeps processing the same message twice — why?
 
-Standard queues offer nearly unlimited throughput with best-effort ordering and at-least-once delivery (rare duplicates possible). FIFO queues guarantee strict message ordering within each message group and exactly-once delivery, but have lower throughput (~300 msg/s, or ~3,000 with batching). Enable `fifoHighThroughput` for up to ~70,000 msg/s by partitioning across message groups.
+A message is hidden from other consumers only for `visibilityTimeoutSeconds` (default 30s) after one consumer picks it up. If your handler takes longer than that to delete the message, the message becomes visible again and gets processed a second time. Set `visibilityTimeoutSeconds` comfortably above your expected processing time. Standard queues are also at-least-once by design, so handlers should always be idempotent; switch to a FIFO queue if you need exactly-once delivery.
 
-### How long can messages stay in the queue?
+### Can I delay when messages become available to consumers?
 
-Messages are retained for 4 days by default (`messageRetentionPeriodSeconds: 345600`). You can configure retention from 60 seconds up to 14 days (1,209,600 seconds). Increase retention if your consumers might be temporarily offline or fall behind during traffic spikes.
-
-### Can I delay message delivery?
-
-Yes. Set `delayMessagesSecond` to a value between 0 and 900 (15 minutes). New messages will be invisible to consumers until the delay expires. This is useful when you need related data to become available before processing — for example, waiting a few seconds after an order is placed before sending a confirmation.
-
-### How do I monitor an SQS queue in Stacktape?
-
-Stacktape provides two built-in alarm triggers: `sqs-queue-not-empty` detects stalled consumers, and `sqs-queue-received-messages-count` detects traffic anomalies. Use [`stacktape debug:logs`](/cli/debug-logs) for related Lambda consumer logs. Configure [alert channels](/observability/alert-channels) to receive notifications via Slack, email, or webhooks.
-
-### SQS queue vs Kinesis stream — which should I use?
-
-Use an SQS queue for decoupling individual tasks where each message is processed once by one consumer. Use a [Kinesis stream](/resources/messaging/kinesis-stream) when you need ordered, replayable data streams with multiple consumers reading the same data independently — common for analytics pipelines, real-time dashboards, and log aggregation. Kinesis charges per shard-hour regardless of traffic; SQS charges per message.
+Yes. Set `delayMessagesSecond` to a value between 0 and 900 (15 minutes); new messages stay invisible until the delay expires. This is useful when related data needs to settle before processing — for example, waiting a few seconds after an order is placed before sending a confirmation.

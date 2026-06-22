@@ -250,33 +250,13 @@ A PR preview is an ephemeral stage created for a single pull request, deployed u
 
 Each preview stage provisions the same AWS resources as any other stage. For serverless-only stacks (Lambda functions, DynamoDB, API Gateway), idle previews cost nearly nothing due to pay-per-use pricing. For stacks with always-on resources like RDS databases or ECS containers, each preview incurs hourly costs similar to any other stage. Ensure auto-delete is enabled for PR previews and right-size preview resources using [stage-specific configuration](/configuration/stages-and-environments) to control costs.
 
-### Can I use different configuration for preview stages vs production?
-
-Yes. Stacktape supports stage-specific configuration through [directives](/configuration/directives) and conditional logic in your TypeScript config. Use smaller database instances, fewer container replicas, or skip expensive resources entirely in preview stages to keep preview costs well below production.
-
 ### What happens to data when a preview stage is deleted?
 
 Deleting a preview stage starts a Stacktape delete operation for that stage. Treat preview-stage data as disposable — preview stages are ephemeral and should not contain data you need to keep. If your workflow requires populated data for testing, use [deployment scripts](/resources/advanced/deployment-scripts) or [hooks](/configuration/hooks-and-scripts) to seed the database on each deployment.
 
-### Does Stacktape support GitLab for managed GitOps?
-
-The managed GitOps configurations in the Console use a GitHub App integration. For GitLab, Bitbucket, and other providers, use [custom CI/CD pipelines](/ci-cd-and-gitops/custom-ci-cd) with the same [`stacktape deploy`](/cli/deploy) and [`stacktape delete`](/cli/delete) commands. The stacks-per-branch pattern works identically — only the CI environment variables for branch names and PR/MR numbers differ between providers.
-
 ### How do I debug a failing PR preview deployment?
 
-For preview deployments, the GitHub App creates a comment on the PR with pending deployment details. For preview deployments and deletions, if orchestration fails, the handler attempts to update the PR comment with failure details. You can also use [`stacktape debug:logs`](/cli/debug-logs) with `--stage pr-{number}` to tail logs from the deployed resources, or check [`stacktape info:operations`](/cli/info-operations) for the deployment history of the preview stage.
-
-### How many simultaneous stages can I deploy?
-
-The GitOps source does not define a stage-count limit. In practice, many simultaneous stages can run into AWS service quotas — CloudFormation stacks per region (default 2,000), IAM roles per account (default 1,000), and other per-service limits. For teams with many concurrent PRs, monitor your AWS quotas and request increases proactively. Cleaning up stale stages is the most effective mitigation.
-
-### Can I share a database between stages?
-
-The default pattern treats each preview as its own deployed stack — the GitOps source scopes deploy and delete operations by stage. Shared databases are an advanced configuration concern. If you deliberately want previews to depend on shared state, deploy the database in a separate stack and pass its connection details into consuming stages using [directives](/configuration/directives) or environment variables in your configuration. See [connecting resources](/configuration/connecting-resources) for how to pass external values into your configuration.
-
-### How do I run database migrations in a PR preview?
-
-Use [deployment scripts](/resources/advanced/deployment-scripts) or [hooks](/configuration/hooks-and-scripts) to run migrations automatically during deployment. Since each PR preview deploys to its own stage, migrations run in isolation without affecting other stages. If your workload is configured to receive database connection details (see [connecting resources](/configuration/connecting-resources)), the migration runs against the preview stage's database.
+For preview deployments, the GitHub App creates a comment on the PR with pending deployment details. For preview deployments and deletions, if orchestration fails, the handler attempts to update the PR comment with failure details. You can also use [`stacktape logs`](/cli/logs) with `--stage pr-{number}` to tail logs from the deployed resources, or check [`stacktape info:operations`](/cli/info-operations) for the deployment history of the preview stage.
 
 ### GitOps vs custom CI/CD for stacks-per-branch — which should I choose?
 

@@ -191,15 +191,11 @@ Stacktape will still provision the TLS certificate but won&#39;t touch your DNS.
 
 ### Which Stacktape resources support custom domains?
 
-Custom domains attach to [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), and [CDNs](/resources/networking/cdn). A [CDN](/resources/networking/cdn) can target a [bucket](/resources/storage/s3-bucket), [Application Load Balancer](/resources/networking/application-load-balancer), [HTTP API Gateway](/resources/networking/http-api-gateway), or [Lambda function](/resources/compute/lambda-function), which is the typical way to put a custom domain in front of those origins. All four attachable resources use the same `DomainConfiguration` structure.
-
-### How do I set up a Route53 hosted zone for my domain?
-
-Use [`stacktape domain:add`](/cli/domain-add) to create a Route53 hosted zone for your domain. You then update your domain registrar's nameservers to point to the Route53 hosted zone. In typical DNS setups, one hosted zone for `example.com` can contain records for subdomains such as `api.example.com` and `app.example.com`.
+Custom domains attach directly to [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), and [CDNs](/resources/networking/cdn) — all four using the same `DomainConfiguration` structure. To put a custom domain in front of a [bucket](/resources/storage/s3-bucket) or [Lambda function](/resources/compute/lambda-function), front it with a [CDN](/resources/networking/cdn) and attach the domain there.
 
 ### Can I use a domain registered outside AWS?
 
-Yes. You don't need to transfer your domain registration to AWS. Register and keep the domain at any registrar (GoDaddy, Namecheap, Google Domains, etc.), then use [`stacktape domain:add`](/cli/domain-add) to create the Route53 hosted zone and update your registrar's nameservers to point to it. Your registrar handles registration; Route53 handles DNS resolution.
+Yes. You don't need to transfer your domain registration to AWS. Keep the domain at any registrar (GoDaddy, Namecheap, Google Domains, etc.), then use [`stacktape domain:add`](/cli/domain-add) to create the Route53 hosted zone and update your registrar's nameservers to point to it. Your registrar handles registration; Route53 handles DNS resolution. One hosted zone for `example.com` covers subdomains like `api.example.com` and `app.example.com`.
 
 ### Does Stacktape handle TLS certificate renewal?
 
@@ -207,7 +203,7 @@ By default, Stacktape provisions and renews free certificates automatically via 
 
 ### How much do custom domains cost on AWS?
 
-Route53 hosted zones have a small monthly cost per zone, plus a per-query fee for DNS resolution. ACM certificates provisioned by Stacktape are free. One hosted zone covers unlimited subdomains, so `api.example.com`, `app.example.com`, and `staging.example.com` all share the same zone for `example.com`. See [AWS Route53 pricing](https://aws.amazon.com/route53/pricing/) for current rates.
+Route53 hosted zones have a small monthly cost per zone, plus a per-query fee for DNS resolution. ACM certificates provisioned by Stacktape are free. Since one hosted zone covers all subdomains of a root domain, your zone count is driven by the number of distinct root domains, not the number of subdomains. See [AWS Route53 pricing](https://aws.amazon.com/route53/pricing/) for current rates.
 
 ### How long does it take for a custom domain to start working?
 
@@ -217,14 +213,6 @@ TLS certificate provisioning via DNS validation typically completes within minut
 
 Yes. Set `disableDnsRecordCreation: true` so Stacktape does not create DNS records for the resource. The `domainName` property still requires a Route53 hosted zone in your AWS account. If you also provide `customCertificateArn`, Stacktape uses your existing ACM certificate instead of provisioning one. After deployment, create the required DNS record in your external DNS provider pointing to the endpoint Stacktape exposes for the resource.
 
-### What's the difference between Route53 and my domain registrar?
-
-A domain registrar (GoDaddy, Namecheap, etc.) handles domain registration — proving you own the name. Route53 is a DNS hosting service that translates domain names to IP addresses. You can register a domain anywhere and use Route53 for DNS resolution by updating your registrar's nameservers. Stacktape requires Route53 for DNS hosting but works with any registrar.
-
-### Should I use custom domains on staging and development stages?
-
-For most teams, no. Auto-generated AWS URLs are sufficient for non-production stages and carry no extra cost. If you want branded staging URLs, use subdomain conventions like `api-staging.example.com` — this adds no extra hosted-zone cost since all subdomains share the same zone.
-
 ### Can I route one domain to multiple backends?
 
-For path-based routing under one domain, attach the custom domain to an [Application Load Balancer](/resources/networking/application-load-balancer) or [HTTP API Gateway](/resources/networking/http-api-gateway) and use their routing integrations. Application Load Balancer integrations can match paths, methods, hosts, headers, query parameters, and source IPs. HTTP API integrations match by method and path. See [HTTP triggers](/configuration/triggers/http-triggers) for details.
+For path-based routing under one domain, attach the custom domain to an [Application Load Balancer](/resources/networking/application-load-balancer) or [HTTP API Gateway](/resources/networking/http-api-gateway) and route requests to different backends using their routing integrations. See [HTTP triggers](/resources/triggers/http-triggers) for the available matching options.

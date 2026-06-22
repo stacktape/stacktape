@@ -179,9 +179,9 @@ stacktape login
 
 Create CI/API keys from the [Stacktape Console's API keys page](https://console.stacktape.com/api-keys). Manual keys are scoped to an organization, expire by default, and are shown only once. See [API keys](/stacktape-console/api-keys) for details on managing keys.
 
-### Can I use `login` in a CI/CD pipeline?
+### Do I need an explicit `login` step in CI/CD?
 
-Yes. Store a dedicated API key as a CI secret and expose it as `STACKTAPE_API_KEY`. The CLI can read that environment variable directly. If your workflow uses `login`, pass the key from the secret variable and combine with `--agent` for output optimized for programmatic consumption. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full pipeline setup.
+Usually no. If you store a dedicated API key as a CI secret and expose it as `STACKTAPE_API_KEY`, the CLI reads that environment variable directly, so commands like `deploy` work without a separate `login` step. If your workflow does use `login`, pass the key from the secret variable and combine with `--agent` for output optimized for programmatic consumption. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full pipeline setup.
 
 ### What happens if I log in with an invalid API key?
 
@@ -199,14 +199,6 @@ Interactive local auth state remains available until you replace or remove it. M
 
 No. The `login` command only authenticates the Stacktape CLI with Stacktape. AWS account connection is separate from login; see [connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details. Deploying is handled by [`deploy`](/cli/deploy).
 
-### What authentication methods does the interactive flow support?
+### Should team members share one API key?
 
-The interactive auth flow supports Google sign-in, email signup, email login, and manual API key entry. Prefer the interactive flow for local development. Use API keys for CI or other headless environments.
-
-### Can multiple team members use the same API key?
-
-No. Use separate keys per integration point and prefer individual interactive login for developer machines. Sharing keys makes attribution, rotation, and revocation harder.
-
-### How is the API key stored locally?
-
-Stacktape stores local authentication state for subsequent CLI commands. Treat those local files as credential material: do not read them into chat, copy them into scripts, or use them to manually construct `STACKTAPE_API_KEY` values. Remove local auth state with [`logout`](/cli/logout) when you no longer need it on that machine.
+No. Use a separate key per integration point and prefer individual interactive login on developer machines. Sharing a key makes attribution, rotation, and revocation harder. Treat local auth state as credential material — don't read it into chat, copy it into scripts, or use it to hand-build `STACKTAPE_API_KEY` values — and remove it with [`logout`](/cli/logout) when no longer needed.
