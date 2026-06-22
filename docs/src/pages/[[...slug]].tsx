@@ -14,20 +14,38 @@ import DocsPageLayout from '@/layout/DocsPageLayout';
 import { capitalizeFirstLetter } from '@/utils/helpers';
 import GithubSlugger from 'github-slugger';
 import { useHotReload } from '@/utils/hooks';
+import { DocsHead } from '@/components/DocsHead';
+import {
+  buildBreadcrumb,
+  buildCanonical,
+  buildFullTitle,
+  extractFaqItems,
+  mdToPlainText,
+  stripLeadingBodyH1,
+  templateFaqHeading,
+  type DocsSeo
+} from '@/utils/seo';
+import config from '../../config';
 
 const DOCS_CONTENT_DIR = 'docs';
+
+// Content directories that are internal drafts/experiments — excluded from routing, the sitemap,
+// and navigation so they are never built or indexed.
+const EXCLUDED_CONTENT_DIRS = new Set(['intro-variants']);
 
 export default function DocsPage({
   compiledSource,
   allDocPages,
   tableOfContents,
   title,
+  seo,
   lastModified
 }: {
   compiledSource: MDXRemoteSerializeResult<string, string>;
   allDocPages: MdxPageDataForNavigation[];
   tableOfContents: TableOfContentsItem[];
   title: string;
+  seo: DocsSeo;
   lastModified?: number;
 }) {
   // Enable hot reload in development - watches docs/ and code-snippets/ directories
@@ -35,6 +53,7 @@ export default function DocsPage({
 
   return (
     <DocsPageLayout allDocPages={allDocPages} tableOfContents={tableOfContents} title={title}>
+      <DocsHead seo={seo} />
       <MDXRemote
         components={MdxComponents as any}
         {...compiledSource}
@@ -106,17 +125,28 @@ export const getStaticProps: GetStaticProps = async ({ params }) => {
     ]);
     const { frontmatter, ...compiledSource } = mdxPageData;
 
+    const pageTitle = frontmatter.title || getTitleFromSlug(slug);
+    const { content: rawBody } = matter(await readFile(filePath, 'utf8'));
+    const mtimeMs = statSync(filePath).mtime.getTime();
+    const seo: DocsSeo = {
+      title: buildFullTitle(frontmatter.seoTitle, pageTitle),
+      description: mdToPlainText(frontmatter.seoDescription || config.metadata.description),
+      canonical: buildCanonical(slug),
+      faqItems: extractFaqItems(rawBody),
+      breadcrumb: buildBreadcrumb(slug, allDocPages),
+      dateModified: new Date(mtimeMs).toISOString()
+    };
+
     return {
       props: {
-        compiledSource: compiledSource,
+        compiledSource,
         frontmatterMetadata: frontmatter,
-        title: frontmatter.title || getTitleFromSlug(slug),
+        title: pageTitle,
+        seo,
         allDocPages,
         tableOfContents,
         // Add file modification time in development for hot reload
-        ...(process.env.NODE_ENV === 'development' && {
-          lastModified: statSync(filePath).mtime.getTime()
-        })
+        ...(process.env.NODE_ENV === 'development' && { lastModified: mtimeMs })
       }
     };
   } catch (error) {
@@ -136,6 +166,7 @@ async function getAllMDXFiles(dir: string): Promise<string[]> {
     const fileStat = await stat(fullPath);
 
     if (fileStat.isDirectory()) {
+      if (EXCLUDED_CONTENT_DIRS.has(item)) continue;
       files.push(...(await getAllMDXFiles(fullPath)));
     } else if (item.endsWith('.mdx') || item.endsWith('.md')) {
       files.push(fullPath);
@@ -147,13 +178,20 @@ async function getAllMDXFiles(dir: string): Promise<string[]> {
 
 const getMdxPageData = async (filePath: string) => {
   const fileContent = await readFile(filePath, 'utf8');
-  return serialize(fileContent, {
-    parseFrontmatter: true,
+  const { data: frontmatter, content } = matter(fileContent);
+  // Single H1: the layout renders the title as the page's only <h1>, so drop the duplicate
+  // leading body H1. Make the bare "## FAQ" heading topical for query matching.
+  let body = stripLeadingBodyH1(content);
+  body = templateFaqHeading(body, (frontmatter as { title?: string }).title);
+  const serialized = await serialize(body, {
+    parseFrontmatter: false,
     mdxOptions: {
       remarkPlugins: [remarkGfm, remarkEmbedSnippets],
       rehypePlugins: [rehypeAutolinkHeadings, rehypeSlug]
     }
   });
+  // frontmatter LAST so matter's parsed data wins over serialize's empty frontmatter field.
+  return { ...serialized, frontmatter };
 };
 
 const getAllDocsData = async (): Promise<MdxPageDataForNavigation[]> => {
@@ -226,10 +264,14 @@ const getTableOfContents = async (slug: string[]): Promise<TableOfContentsItem[]
   const rawMdx = await readFile(contentPath, 'utf-8');
 
   // Remove frontmatter
-  const { content } = matter(rawMdx);
+  const { data: tocFrontmatter, content } = matter(rawMdx);
+
+  // Mirror the render-time transforms (strip the duplicate leading body H1, template the FAQ
+  // heading) so the TOC text and anchor slugs match the rendered headings.
+  const prepared = templateFaqHeading(stripLeadingBodyH1(content), (tocFrontmatter as { title?: string }).title);
 
   // Remove code blocks (both ``` and ~~~ fenced blocks) and inline code
-  const cleanContent = content
+  const cleanContent = prepared
     .replace(/^```[\s\S]*?^```$/gm, '')
     .replace(/^~~~[\s\S]*?^~~~$/gm, '')
     .replace(/`[^`\n]+`/g, '')

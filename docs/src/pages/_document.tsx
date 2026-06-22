@@ -8,38 +8,44 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        <script
-          key="apollo"
-          defer
-          async
-          dangerouslySetInnerHTML={{
-            __html: `function initApollo(){var n=Math.random().toString(36).substring(7),o=document.createElement("script");
-                o.src="https://assets.apollo.io/micro/website-tracker/tracker.iife.js?nocache="+n,o.async=!0,o.defer=!0,
-                o.onload=function(){window.trackingFunctions.onLoad({appId:"6632714d8e944701af733bac"})},
-                document.head.appendChild(o)}initApollo();`
-          }}
-        />
-        <script defer data-domain="docs.stacktape.com" src="https://plausible.io/js/script.js" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `window.plausible = window.plausible || function(){(window.plausible.q = window.plausible.q || []).push(arguments)};`
-          }}
-        />
-        <meta property="og:title" content={config.metadata.name} />
+        {/* Analytics (Apollo, Plausible) moved to _app.tsx via next/script so they load off the
+            critical render path instead of blocking in the document <head>. */}
+        {/* Site-level OG/Twitter defaults only. Per-page title, description, canonical, og:title/
+            og:description/og:url and twitter:title/description are emitted by DocsHead (next/head)
+            so they are not duplicated/overridden here. */}
         <meta property="og:site_name" content={config.metadata.name} />
-        <meta property="og:url" content={config.metadata.url} />
-        <meta property="og:description" content={config.metadata.description} />
-        <meta property="og:type" content="product" />
+        <meta property="og:type" content="website" />
         <meta property="og:image" content={config.metadata.siteimage} />
-
         <meta name="twitter:card" content="summary_large_image" />
         <meta property="twitter:domain" content="docs.stacktape.com" />
-        <meta property="twitter:url" content={config.metadata.url} />
-        <meta name="twitter:title" content={config.metadata.title} />
-        <meta name="twitter:description" content={config.metadata.description} />
         <meta name="twitter:image" content={config.metadata.siteimage} />
 
-        <meta name="description" content={config.metadata.description} />
+        {/* Site-level structured data (entity grounding for search + AI answer engines). */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify([
+              {
+                '@context': 'https://schema.org',
+                '@type': 'Organization',
+                name: 'Stacktape',
+                url: 'https://stacktape.com',
+                logo: config.metadata.siteimage,
+                sameAs: Object.values(config.social)
+              },
+              { '@context': 'https://schema.org', '@type': 'WebSite', name: config.metadata.name, url: config.metadata.url },
+              {
+                '@context': 'https://schema.org',
+                '@type': 'SoftwareApplication',
+                name: 'Stacktape',
+                applicationCategory: 'DeveloperApplication',
+                operatingSystem: 'Cross-platform',
+                url: 'https://stacktape.com',
+                description: config.metadata.description
+              }
+            ])
+          }}
+        />
         <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="icon" href="/favicon.ico" />

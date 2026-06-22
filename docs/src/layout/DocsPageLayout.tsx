@@ -129,7 +129,7 @@ export default function DocsPageLayout({
           css={isMobileNavigationOpen ? { ...mainBaseStyles, display: 'none' } : { ...mainBaseStyles, display: 'initial' }}
         >
           <h1 css={pageTitleStyles}>{title}</h1>
-          <div css={mdxContentStyles}>{children}</div>
+          <article css={mdxContentStyles}>{children}</article>
           <Divider style={dividerStyle} />
           <Footer />
         </main>
