@@ -64,27 +64,28 @@ export const $CfStackOutput = (stackName: string, outputName: string) => {
 
 /**
  * Returns information about the current Git repository.
+ * @param property - Which piece of Git information to return. One of:
  *
- * $GitInfo().sha1 - SHA-1 of the latest commit
+ * `$GitInfo('sha1')` - SHA-1 of the latest commit
  *
- * $GitInfo().commit - The latest commit ID
+ * `$GitInfo('commit')` - The latest commit ID
  *
- * $GitInfo().branch - The name of the current branch
+ * `$GitInfo('branch')` - The name of the current branch
  *
- * $GitInfo().message - The message of the last commit
+ * `$GitInfo('message')` - The message of the last commit
  *
- * $GitInfo().user - Git user's name
+ * `$GitInfo('user')` - Git user's name
  *
- * $GitInfo().email - Git user's email
+ * `$GitInfo('email')` - Git user's email
  *
- * $GitInfo().repository - The name of the git repository
+ * `$GitInfo('repository')` - The name of the git repository
  *
- * $GitInfo().tags - The tags pointing to the current commit
+ * `$GitInfo('tags')` - The tags pointing to the current commit
  *
- * $GitInfo().describe - The most recent tag that is reachable from a commit
+ * `$GitInfo('describe')` - The most recent tag that is reachable from a commit
  */
-export const $GitInfo = () => {
-  return '$GitInfo()';
+export const $GitInfo = (property: string) => {
+  return `$GitInfo('${property}')`;
 };
 
 /**
