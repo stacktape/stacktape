@@ -517,9 +517,32 @@ function compileDeclarations(): Map<string, string> {
 function postProcessPlainTypes(content: string): string {
   // Replace standalone `{ [k: string]: any }` or `{ [k: string]: any; }` with `any`
   // This pattern appears when json-schema-to-typescript converts `any` types
+  return (
+    content
+      .replace(/\?:\s*\{\s*\[k:\s*string\]:\s*any;?\s*\}/g, '?: any')
+      .replace(/:\s*\{\s*\[k:\s*string\]:\s*any;?\s*\}/g, ': any')
+      // json-schema-to-typescript occasionally emits an impossible `boolean & string` (≡ never) for
+      // boolean properties carrying an `@default` tag, when compiling the full StacktapeConfig schema
+      // (a structural-dedup quirk in the library — the schema node itself is a clean `boolean`).
+      // The intersection is always a bug; collapse it back to `boolean` so e.g. `new Bucket({ enableEventBusNotifications: true })` typechecks.
+      .replace(/\b(?:boolean & string|string & boolean)\b/g, 'boolean')
+      // Same json-schema-to-typescript quirk produces an impossible `{ ... } & string` (≡ never) for
+      // object types whose sole property is a string-literal union (e.g. PrivateServiceLoadBalancing's
+      // `{ type: "application-load-balancer" | "service-connect" }`). The trailing `& string` is always a
+      // bug; drop it so `loadBalancing: { type: 'application-load-balancer' }` typechecks.
+      .replace(/(\}\s*)& string\b/g, '$1')
+  );
+}
+
+/**
+ * Strips authoring-only focus markers (# stp-focus / // stp-focus, standalone or trailing) from the
+ * JSDoc of the shipped .d.ts so editor (tsserver) hovers don't show marker noise. The `*\/` escaping of
+ * glob examples is LEFT INTACT — it must stay for the .d.ts to remain valid TypeScript.
+ */
+function stripFocusMarkersFromDts(content: string): string {
   return content
-    .replace(/\?:\s*\{\s*\[k:\s*string\]:\s*any;?\s*\}/g, '?: any')
-    .replace(/:\s*\{\s*\[k:\s*string\]:\s*any;?\s*\}/g, ': any');
+    .replace(/^[ \t]*\*[ \t]*(?:#|\/\/)[ \t]*stp-(?:end-)?focus[ \t]*\r?\n/gm, '')
+    .replace(/[ \t]*(?:#|\/\/)[ \t]*stp-(?:end-)?focus[ \t]*$/gm, '');
 }
 
 /**
@@ -933,10 +956,10 @@ ${generateAugmentedSectionTypes(resourceClassNames)}
 
   // Write all output files
   await Promise.all([
-    outputFile(PATHS.distPlainDts, plainDts, { encoding: 'utf8' }),
+    outputFile(PATHS.distPlainDts, stripFocusMarkersFromDts(plainDts), { encoding: 'utf8' }),
     outputFile(PATHS.distCloudformationDts, cloudformationDts, { encoding: 'utf8' }),
-    outputFile(PATHS.distTypesDts, typesDts, { encoding: 'utf8' }),
-    outputFile(PATHS.distDts, indexDts, { encoding: 'utf8' })
+    outputFile(PATHS.distTypesDts, stripFocusMarkersFromDts(typesDts), { encoding: 'utf8' }),
+    outputFile(PATHS.distDts, stripFocusMarkersFromDts(indexDts), { encoding: 'utf8' })
   ]);
 
   // Format all files (run twice for prettier bug)

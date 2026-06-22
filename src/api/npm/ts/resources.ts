@@ -84,5 +84,6 @@ export const {
   AgentCoreMemory,
   AgentCoreGateway,
   AgentCoreBrowser,
-  AgentCoreCodeInterpreter
+  AgentCoreCodeInterpreter,
+  AwsCdkConstruct
 } = RESOURCE_CLASSES;

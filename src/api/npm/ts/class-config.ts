@@ -198,6 +198,14 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     ]
   },
   {
+    className: 'Convex',
+    resourceType: 'convex',
+    propsType: 'ConvexProps',
+    interfaceName: 'Convex',
+    sourceFile: 'convex.d.ts',
+    canConnectTo: []
+  },
+  {
     className: 'Bucket',
     resourceType: 'bucket',
     propsType: 'BucketProps',
@@ -601,6 +609,15 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     propsType: 'AgentCoreCodeInterpreterProps',
     interfaceName: 'AgentCoreCodeInterpreter',
     sourceFile: 'agentcore.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'AwsCdkConstruct',
+    resourceType: 'aws-cdk-construct',
+    propsType: 'AwsCdkConstructProps',
+    interfaceName: 'AwsCdkConstruct',
+    sourceFile: 'aws-cdk-construct.d.ts',
+    supportsOverrides: false,
     canConnectTo: []
   }
 ];
