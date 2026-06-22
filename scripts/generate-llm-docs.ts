@@ -247,6 +247,14 @@ const typeInfoToMarkdown = (typeInfo: any): string => {
   return 'unknown';
 };
 
+// Strip authoring-only focus markers (# stp-focus / // stp-focus, standalone or trailing) and unescape
+// the comment-safe `*\/` from raw type-file content shown in the LLM docs.
+const stripExampleNoise = (text: string): string =>
+  text
+    .replace(/^[ \t]*\*?[ \t]*(?:#|\/\/)[ \t]*stp-(?:end-)?focus[ \t]*\r?\n/gm, '')
+    .replace(/[ \t]*(?:#|\/\/)[ \t]*stp-(?:end-)?focus[ \t]*$/gm, '')
+    .replaceAll('*\\/', '*/');
+
 const findTypeDeclaration = (definitionName: string): { sourcePath: string; declaration: string } | undefined => {
   if (!existsSync(TYPES_DIR)) return undefined;
   for (const file of readdirSync(TYPES_DIR)) {
@@ -260,7 +268,7 @@ const findTypeDeclaration = (definitionName: string): { sourcePath: string; decl
     if (match) {
       return {
         sourcePath: relativeSourcePath(filePath),
-        declaration: match[0].trim()
+        declaration: stripExampleNoise(match[0]).trim()
       };
     }
   }
@@ -684,7 +692,12 @@ const buildChunks = (page: LlmDocPage): LlmDocChunk[] => {
 };
 
 const buildDocsPages = async (): Promise<LlmDocPage[]> => {
-  const files = await listFiles(DOCS_SOURCE_DIR, (filePath) => filePath.endsWith('.mdx'));
+  // `intro-variants/*` are experimental landing-page A/B drafts (bespoke marketing components like
+  // <CodeToCloud/>, <BentoShowcase/>, ...), not documentation — exclude them from the LLM docs.
+  const files = await listFiles(
+    DOCS_SOURCE_DIR,
+    (filePath) => filePath.endsWith('.mdx') && !filePath.replaceAll('\\', '/').includes('/intro-variants/')
+  );
   const pages: LlmDocPage[] = [];
 
   for (const filePath of files) {
@@ -714,7 +727,7 @@ const buildDocsPages = async (): Promise<LlmDocPage[]> => {
 };
 
 const cleanTypeContent = (content: string): string =>
-  content
+  stripExampleNoise(content)
     .replace(/^type Stp\w[\s\S]*?(?=\n(?:\/\*\*|interface|type [A-Z]|$))/gm, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
