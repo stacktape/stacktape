@@ -121,6 +121,7 @@ export type {
   BastionScriptProps as PlainBastionScriptProps,
   LocalScriptWithBastionTunnelingProps as PlainLocalScriptWithBastionTunnelingProps,
   RelationalDatabaseProps,
+  ConvexProps,
   BucketProps,
   HostingBucketProps,
   DynamoDbTableProps,
@@ -148,6 +149,7 @@ export type {
   AgentCoreGatewayProps,
   AgentCoreBrowserProps,
   AgentCoreCodeInterpreterProps,
+  AwsCdkConstructProps,
   RdsEngineProperties,
   AuroraEngineProperties,
   AuroraServerlessEngineProperties,
@@ -729,6 +731,20 @@ export type RelationalDatabasePropsWithOverrides = import('./plain').RelationalD
    * Unlike overrides, transforms allow dynamic modification based on existing values.
    */
   transforms?: RelationalDatabaseTransforms;
+};
+
+export type ConvexPropsWithOverrides = import('./plain').ConvexProps & {
+  /**
+   * Override properties of underlying CloudFormation resources.
+   * Allows fine-grained control over the generated infrastructure.
+   */
+  overrides?: ConvexOverrides;
+  /**
+   * Transform functions for underlying CloudFormation resources.
+   * Each function receives the current properties and returns modified properties.
+   * Unlike overrides, transforms allow dynamic modification based on existing values.
+   */
+  transforms?: ConvexTransforms;
 };
 
 export type BucketPropsWithOverrides = import('./plain').BucketProps & {
@@ -2290,6 +2306,113 @@ export declare class BatchJob extends BaseResource {
   /** Log group ARN */
   readonly logGroupArn: string;
 }
+export declare class Convex extends BaseResource {
+  /**
+   * #### Self-hosted Convex backend on AWS — reactive database, functions, file storage, and dashboard.
+   * 
+   * ---
+   * 
+   * Provisions everything needed to run [Convex](https://www.convex.dev) self-hosted on your own AWS account:
+   * a Fargate-based backend container, a PostgreSQL database, five S3 buckets (modules, files, search,
+   * exports, snapshot imports), an ALB for HTTPS + WebSocket traffic, and an optional admin dashboard.
+   * 
+   * On every `stacktape deploy`, after the infrastructure is healthy, Stacktape runs `npx convex deploy`
+   * from the parent project directory to push the latest function code to the freshly-deployed backend, with
+   * the admin key injected automatically.
+   * 
+   * ---
+   * 
+   * ##### Single-instance constraint
+   * 
+   * The open-source convex-backend distribution is **single-process**: it cannot be horizontally scaled.
+   * Running two backends against the same Postgres would corrupt MVCC transaction validation and break
+   * reactive query invalidation. Stacktape therefore enforces one active backend task.
+   * 
+   * Scale **vertically** by bumping `backend.resources.cpu`/`memory` (or by switching to `instanceTypes`
+   * with EC2). A single 4 vCPU / 8 GB backend comfortably handles thousands of concurrent reactive
+   * subscribers per Convex's own self-hosted guidance.
+   * 
+   * ---
+   * 
+   * ##### Cost
+   * 
+   * The smallest viable configuration (single-AZ `db.t4g.micro` Postgres, 0.5 vCPU / 1 GB Fargate
+   * backend, 0.25 vCPU / 512 MB dashboard, ALB, S3) lands around **$45–65/month idle**. Production
+   * configurations with larger backends scale up from there.
+   * 
+   * **Example (YAML):**
+   * 
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       backend:
+   *         resources:
+   *           cpu: 1
+   *           memory: 2048
+   *       dashboard:
+   *         enabled: true
+   *       database:
+   *         engine:
+   *           type: postgres
+   *           properties:
+   *             version: '16.6'
+   *             primaryInstance:
+   *               instanceSize: db.t4g.small
+   *       customDomains:
+   *         cloud:
+   *           domainName: api.myapp.com
+   *         site:
+   *           domainName: webhooks.myapp.com
+   *         dashboard:
+   *           domainName: convex-admin.myapp.com
+   *       deletionProtection: true
+   * ```
+   * 
+   * **Example (TypeScript):**
+   * 
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   * 
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     backend: {
+   *       resources: {
+   *         cpu: 1,
+   *         memory: 2048
+   *       }
+   *     },
+   *     dashboard: {
+   *       enabled: true
+   *     },
+   *     database: {
+   *       engine: {
+   *         type: 'postgres',
+   *         properties: {
+   *           version: '16.6',
+   *           primaryInstance: {
+   *             instanceSize: 'db.t4g.small'
+   *           }
+   *         }
+   *       }
+   *     },
+   *     customDomains: {
+   *       cloud: { domainName: 'api.myapp.com' },
+   *       site: { domainName: 'webhooks.myapp.com' },
+   *       dashboard: { domainName: 'convex-admin.myapp.com' }
+   *     },
+   *     deletionProtection: true
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
+   */
+  constructor(properties: ConvexPropsWithOverrides);
+  constructor(name: string, properties: ConvexPropsWithOverrides);
+}
 export declare class Bucket extends BaseResource {
   /**
    * #### S3 storage bucket for files, images, backups, or any binary data.
@@ -2347,6 +2470,58 @@ export declare class EventBus extends BaseResource {
    * 
    * Use to build event-driven architectures where producers and consumers are independent.
    * Functions, batch jobs, and other resources can subscribe to specific event patterns.
+   * 
+   * ---
+   * 
+   * **Example (YAML):**
+   * 
+   * ```yaml
+   * resources:
+   *   orderEvents:
+   *     type: event-bus
+   *   orderProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/process-order.ts
+   *       events:
+   *         - type: event-bus
+   *           properties:
+   *             eventBusName: orderEvents
+   *             eventPattern:
+   *               source:
+   *                 - my.orders
+   * ```
+   * 
+   * **Example (TypeScript):**
+   * 
+   * ```ts
+   * import { EventBus, LambdaFunction, defineConfig } from 'stacktape';
+   * 
+   * export default defineConfig(() => {
+   *   const orderEvents = new EventBus({});
+   * 
+   *   const orderProcessor = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/process-order.ts' }
+   *     },
+   *     events: [
+   *       {
+   *         type: 'event-bus',
+   *         properties: {
+   *           eventBusName: 'orderEvents',
+   *           eventPattern: { source: ['my.orders'] }
+   *         }
+   *       }
+   *     ]
+   *   });
+   * 
+   *   return { resources: { orderEvents, orderProcessor } };
+   * });
+   * ```
    */
   constructor(properties: EventBusPropsWithOverrides);
   constructor(name: string, properties: EventBusPropsWithOverrides);
@@ -2401,6 +2576,73 @@ export declare class NetworkLoadBalancer extends BaseResource {
    * 
    * Handles millions of connections with ultra-low latency. Use when you need raw TCP/TLS
    * instead of HTTP routing. Does not support CDN, firewall, or gradual deployments.
+   * 
+   * **Example (YAML):**
+   * 
+   * ```yaml
+   * resources:
+   *   gameTrafficLb:
+   *     type: network-load-balancer
+   *     properties:
+   *       interface: internet
+   *       listeners:
+   *         - protocol: TCP
+   *           port: 9000
+   * 
+   *   gameServer:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   *       containers:
+   *         - name: udp-game-server
+   *           packaging:
+   *             type: stacktape-image-buildpack
+   *             properties:
+   *               entryfilePath: src/server.ts
+   *           environment:
+   *             - name: PORT
+   *               value: 9000
+   *           events:
+   *             - type: network-load-balancer
+   *               properties:
+   *                 containerPort: 9000
+   *                 loadBalancerName: gameTrafficLb
+   *                 listenerPort: 9000
+   * ```
+   * 
+   * **Example (TypeScript):**
+   * 
+   * ```ts
+   * import { NetworkLoadBalancer, MultiContainerWorkload, defineConfig } from 'stacktape';
+   * 
+   * export default defineConfig(() => {
+   *   const gameTrafficLb = new NetworkLoadBalancer({
+   *     interface: 'internet',
+   *     listeners: [{ protocol: 'TCP', port: 9000 }]
+   *   });
+   * 
+   *   const gameServer = new MultiContainerWorkload({
+   *     resources: { cpu: 0.5, memory: 1024 },
+   *     containers: [
+   *       {
+   *         name: 'udp-game-server',
+   *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+   *         environment: { PORT: 9000 },
+   *         events: [
+   *           {
+   *             type: 'network-load-balancer',
+   *             properties: { containerPort: 9000, loadBalancerName: 'gameTrafficLb', listenerPort: 9000 }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   * 
+   *   return { resources: { gameTrafficLb, gameServer } };
+   * });
+   * ```
    */
   constructor(properties: NetworkLoadBalancerPropsWithOverrides);
   constructor(name: string, properties: NetworkLoadBalancerPropsWithOverrides);
@@ -2447,6 +2689,58 @@ export declare class StateMachine extends BaseResource {
    * Define multi-step workflows with branching, retries, parallel execution, and error handling —
    * all without writing orchestration code. Pay per state transition (~$0.025/1,000 transitions).
    * Defined using [Amazon States Language (ASL)](https://states-language.net/spec.html).
+   * 
+   * **Example (YAML):**
+   * 
+   * ```yaml
+   * resources:
+   *   processOrder:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/process-order.ts
+   * 
+   *   orderWorkflow:
+   *     type: state-machine
+   *     properties:
+   *       definition:
+   *         StartAt: ProcessOrder
+   *         States:
+   *           ProcessOrder:
+   *             Type: Task
+   *             Resource:
+   *               Fn::GetAtt:
+   *                 - ProcessOrderFunction
+   *                 - Arn
+   *             End: true
+   * ```
+   * 
+   * **Example (TypeScript):**
+   * 
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   * 
+   * export default defineConfig(() => {
+   *   const processOrder = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/process-order.ts' })
+   *   });
+   *   const orderWorkflow = new StateMachine({
+   *     definition: {
+   *       StartAt: 'ProcessOrder',
+   *       States: {
+   *         ProcessOrder: {
+   *           Type: 'Task',
+   *           Resource: { 'Fn::GetAtt': ['ProcessOrderFunction', 'Arn'] },
+   *           End: true
+   *         }
+   *       }
+   *     }
+   *   });
+   *   return { resources: { processOrder, orderWorkflow } };
+   * });
+   * ```
    */
   constructor(properties: StateMachineProps);
   constructor(name: string, properties: StateMachineProps);
@@ -2585,6 +2879,62 @@ export declare class EfsFilesystem extends BaseResource {
    * Persistent, elastic (grows/shrinks automatically), and accessible from any container in your stack
    * via `volumeMounts`. Use for shared uploads, CMS media, ML model files, or anything that needs to
    * survive container restarts. Pay only for storage used (~$0.30/GB/month for standard access).
+   * 
+   * **Example (YAML):**
+   * 
+   * ```yaml
+   * resources:
+   *   sharedStorage:
+   *     type: efs-filesystem
+   *     properties:
+   *       backupEnabled: true
+   *       throughputMode: elastic
+   *   apiWorkload:
+   *     type: multi-container-workload
+   *     properties:
+   *       containers:
+   *         - name: api-container
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: my-repo/my-api
+   *           volumeMounts:
+   *             - type: efs
+   *               properties:
+   *                 efsFilesystemName: sharedStorage
+   *                 mountPath: /data
+   *       resources:
+   *         cpu: 1
+   *         memory: 2048
+   * ```
+   * 
+   * **Example (TypeScript):**
+   * 
+   * ```ts
+   * import { EfsFilesystem, MultiContainerWorkload, defineConfig } from 'stacktape';
+   * 
+   * export default defineConfig(() => {
+   *   const sharedStorage = new EfsFilesystem({
+   *     backupEnabled: true,
+   *     throughputMode: 'elastic'
+   *   });
+   * 
+   *   const apiWorkload = new MultiContainerWorkload({
+   *     containers: [
+   *       {
+   *         name: 'api-container',
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-repo/my-api' } },
+   *         volumeMounts: [
+   *           { type: 'efs', properties: { efsFilesystemName: 'sharedStorage', mountPath: '/data' } }
+   *         ]
+   *       }
+   *     ],
+   *     resources: { cpu: 1, memory: 2048 }
+   *   });
+   * 
+   *   return { resources: { sharedStorage, apiWorkload } };
+   * });
+   * ```
    */
   constructor(properties: EfsFilesystemPropsWithOverrides);
   constructor(name: string, properties: EfsFilesystemPropsWithOverrides);
@@ -2601,6 +2951,29 @@ export declare class NextjsWeb extends BaseResource {
    * 
    * Handles ISR (Incremental Static Regeneration), image optimization, and middleware out of the box.
    * Optionally deploy to Lambda@Edge for lower latency or enable response streaming.
+   * 
+   * **Example (YAML):**
+   * 
+   * ```yaml
+   * resources:
+   *   web:
+   *     type: nextjs-web
+   *     properties:
+   *       appDirectory: ./
+   * ```
+   * 
+   * **Example (TypeScript):**
+   * 
+   * ```ts
+   * import { NextjsWeb, defineConfig } from 'stacktape';
+   * 
+   * export default defineConfig(() => {
+   *   const web = new NextjsWeb({
+   *     appDirectory: './'
+   *   });
+   *   return { resources: { web } };
+   * });
+   * ```
    */
   constructor(properties: NextjsWebProps);
   constructor(name: string, properties: NextjsWebProps);
@@ -2745,6 +3118,18 @@ export declare class AgentCoreCodeInterpreter extends BaseResource {
   readonly id: string;
   /** AgentCore code interpreter ARN */
   readonly arn: string;
+}
+export declare class AwsCdkConstruct extends BaseResource {
+  /**
+   * #### Embed an AWS CDK construct directly in your Stacktape stack.
+   * 
+   * ---
+   * 
+   * Escape hatch for resources not natively supported by Stacktape. Write a CDK construct class
+   * in TypeScript/JavaScript and Stacktape will synthesize and deploy it as part of your stack.
+   */
+  constructor(properties: import('./plain').AwsCdkConstructProps);
+  constructor(name: string, properties: import('./plain').AwsCdkConstructProps);
 }
 
 // ==========================================
@@ -3596,6 +3981,63 @@ export declare class DeploymentScript extends BaseTypeProperties {
    * 
    * Executes as a Lambda function. Use `after:deploy` to run migrations after resources are ready,
    * or `before:delete` for cleanup. Can also be triggered manually with `stacktape deployment-script:run`.
+   * 
+   * **Example (YAML):**
+   * 
+   * ```yaml
+   * resources:
+   *   runMigrations:
+   *     type: deployment-script
+   *     properties:
+   *       trigger: after:deploy
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./scripts/migrate.ts
+   *       connectTo:
+   *         - mainDatabase
+   *       joinDefaultVpc: true
+   *       timeout: 120
+   *       memory: 512
+   *   mainDatabase:
+   *     type: relational-database
+   *     properties:
+   *       credentials:
+   *         masterUserPassword: $Secret('db-password')
+   *       engine:
+   *         type: postgres
+   *         properties:
+   *           primaryInstance:
+   *             instanceSize: db.t4g.micro
+   *           version: '16.2'
+   * ```
+   * 
+   * **Example (TypeScript):**
+   * 
+   * ```ts
+   * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+   * 
+   * export default defineConfig(() => {
+   *   const mainDatabase = new RelationalDatabase({
+   *     credentials: { masterUserPassword: $Secret('db-password') },
+   *     engine: new RdsEnginePostgres({
+   *       primaryInstance: { instanceSize: 'db.t4g.micro' },
+   *       version: '16.2'
+   *     })
+   *   });
+   * 
+   *   const runMigrations = new DeploymentScript({
+   *     trigger: 'after:deploy',
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/migrate.ts' }),
+   *     connectTo: ['mainDatabase'],
+   *     joinDefaultVpc: true,
+   *     timeout: 120,
+   *     memory: 512
+   *   });
+   * 
+   *   return { resources: { mainDatabase, runMigrations } };
+   * });
+   * ```
    */
   constructor(properties: import('./plain').DeploymentScriptProps);
   readonly type: 'deployment-script';
@@ -3639,7 +4081,7 @@ export type CloudFormationTemplate = {
 };
 
 export type StacktapeConfig = Omit<import('./plain').StacktapeConfig, 'resources' | 'cloudformationResources' | 'scripts'> & {
-  resources: { [resourceName: string]: RelationalDatabase | WebService | PrivateService | WorkerService | MultiContainerWorkload | LambdaFunction | BatchJob | Bucket | HostingBucket | DynamoDbTable | EventBus | HttpApiGateway | ApplicationLoadBalancer | NetworkLoadBalancer | RedisCluster | MongoDbAtlasCluster | StateMachine | UserAuthPool | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | WebAppFirewall | OpenSearchDomain | EfsFilesystem | NextjsWeb | AstroWeb | NuxtWeb | SvelteKitWeb | SolidStartWeb | TanStackWeb | RemixWeb | Bastion | AgentCoreRuntime | AgentCoreMemory | AgentCoreGateway | AgentCoreBrowser | AgentCoreCodeInterpreter | StacktapeResourceDefinition };
+  resources: { [resourceName: string]: RelationalDatabase | WebService | PrivateService | WorkerService | MultiContainerWorkload | LambdaFunction | BatchJob | Convex | Bucket | HostingBucket | DynamoDbTable | EventBus | HttpApiGateway | ApplicationLoadBalancer | NetworkLoadBalancer | RedisCluster | MongoDbAtlasCluster | StateMachine | UserAuthPool | UpstashRedis | SqsQueue | SnsTopic | KinesisStream | WebAppFirewall | OpenSearchDomain | EfsFilesystem | NextjsWeb | AstroWeb | NuxtWeb | SvelteKitWeb | SolidStartWeb | TanStackWeb | RemixWeb | Bastion | AgentCoreRuntime | AgentCoreMemory | AgentCoreGateway | AgentCoreBrowser | AgentCoreCodeInterpreter | AwsCdkConstruct | StacktapeResourceDefinition };
   /**
    * #### Scripts that can be executed using the `stacktape script:run` command.
    *
