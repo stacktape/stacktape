@@ -1,6 +1,7 @@
-import { colors } from '../../styles/variables';
+import type { NormalizedProperty, NormalizedTypeInfo } from '@/utils/api-reference-extractor';
 import { typographyCss } from '../../styles/global';
-import { PropertyInfo } from './PropertiesTable';
+import { colors } from '../../styles/variables';
+import { PropertyDescription, PropertyHeading, tokens } from './api-reference/shared';
 
 export type CommandArg = {
   name: string;
@@ -12,98 +13,104 @@ export type CommandArg = {
   allowedTypes: string[];
 };
 
-const ROW_DIVIDER = '1px solid rgba(255, 255, 255, 0.06)';
+// Map a CLI arg onto the same NormalizedProperty shape the resource API reference renders, so the
+// CLI options reuse its exact visual atoms (PropertyHeading + TypeBadge + PropertyDescription) and
+// stay on-brand.
+const buildTypeInfo = (allowedTypes?: string[], allowedValues?: string[]): NormalizedTypeInfo => {
+  const types = Array.isArray(allowedTypes) && allowedTypes.length > 0 ? allowedTypes : ['string'];
+  return {
+    kind: 'primitive',
+    types: types.map((type) => (type === 'integer' ? 'number' : type)),
+    enumValues: Array.isArray(allowedValues) && allowedValues.length > 0 ? allowedValues : undefined
+  };
+};
+
+const toProperty = (arg: CommandArg): NormalizedProperty => ({
+  name: `--${arg.name}${arg.alias ? ` (-${arg.alias})` : ''}`,
+  required: Boolean(arg.required),
+  shortDescription: arg.shortDescription || '',
+  longDescription: arg.longDescription || '',
+  typeInfo: buildTypeInfo(arg.allowedTypes, arg.allowedValues)
+});
 
 export function CliCommandsApiReference({ command, sortedArgs = [] }: { command: string; sortedArgs?: CommandArg[] }) {
+  // Defensive: a malformed sortedArgs prop (e.g. an array of strings instead of CommandArg objects,
+  // which the docs generation pipeline has accidentally produced) would otherwise crash the
+  // production build's prerender pass.
   const validArgs = sortedArgs.filter(
     (arg): arg is CommandArg => arg != null && typeof arg === 'object' && 'name' in arg
   );
   const hasMalformedArgs = sortedArgs.length !== validArgs.length;
 
   return (
-    <div
+    <section
       id={`api-ref-${command}`}
       css={{
-        margin: '24px 0',
-        background: colors.elementBackground,
-        borderRadius: '8px',
-        boxShadow:
-          '0 2px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+        marginTop: '24px',
+        marginBottom: '28px',
+        borderRadius: '10px',
+        background: tokens.surface,
+        boxShadow: tokens.panelShadow,
         overflow: 'hidden'
       }}
     >
       <div
         css={{
+          padding: '12px 16px',
+          borderBottom: `1px solid ${tokens.subtleBorder}`,
+          background: tokens.surfaceSunken,
           display: 'flex',
           alignItems: 'baseline',
-          gap: '8px',
-          padding: '12px 16px',
-          borderBottom: ROW_DIVIDER
+          gap: '10px',
+          flexWrap: 'wrap'
         }}
       >
-        <span
-          css={{
-            ...typographyCss,
-            fontSize: '15px',
-            fontWeight: 600,
-            lineHeight: 1.2,
-            color: colors.fontColorPrimary,
-            letterSpacing: '0.2px'
-          }}
-        >
-          Options
-        </span>
+        <code css={{ color: tokens.syntax.type, fontSize: '14px', fontWeight: 600, fontFamily: tokens.monoFamily }}>
+          {command}
+        </code>
         <span
           css={{
             ...typographyCss,
             fontSize: '12px',
             fontWeight: 500,
             lineHeight: 1.2,
-            color: colors.fontColorTernary,
+            color: tokens.dimText,
             textTransform: 'uppercase',
             letterSpacing: '0.6px'
           }}
         >
-          CLI reference
+          CLI options
         </span>
       </div>
 
-      <div>
-        {validArgs.length > 0 ? (
-          // Defensive: a malformed sortedArgs prop (e.g. an array of strings instead of
-          // CommandArg objects, which the docs generation pipeline has accidentally produced)
-          // would otherwise crash the production build's prerender pass.
-          validArgs.map((arg, idx) => {
-            const { name, required, shortDescription, longDescription, alias, allowedValues, allowedTypes } = arg;
-            const safeAllowedTypes = Array.isArray(allowedTypes) && allowedTypes.length > 0 ? allowedTypes : ['string'];
-            return (
-              <PropertyInfo
-                key={name}
-                propertyName={`--${name}${alias ? ` (-${alias})` : ''}`}
-                idx={idx}
-                isLast={validArgs.length - 1 === idx}
-                propertyRequired={required}
-                shortDescription={shortDescription}
-                longDescription={longDescription}
-                propertyTypeInfo={{
-                  allowedTypes: [{ typeName: safeAllowedTypes[0], enumeratedValues: allowedValues }],
-                  isArray: false
-                }}
-              />
-            );
-          })
-        ) : (
-          <p css={{ ...typographyCss, padding: '14px 16px', fontSize: '13.5px', color: colors.fontColorTernary }}>
-            No available options.
-          </p>
-        )}
-        {hasMalformedArgs && (
-          <p css={{ ...typographyCss, padding: '12px 16px', fontSize: '12.5px', lineHeight: 1.6, color: colors.error }}>
-            Some options could not be displayed because the sortedArgs payload contained entries that were not in the
-            expected CommandArg shape. Re-generate this page via the docs pipeline to refresh the reference data.
-          </p>
-        )}
-      </div>
-    </div>
+      {validArgs.length > 0 ? (
+        validArgs.map((arg, idx) => {
+          const property = toProperty(arg);
+          return (
+            <div
+              key={arg.name}
+              css={{
+                padding: '14px 16px',
+                ...(idx > 0 && { borderTop: `1px solid ${tokens.subtleBorder}` })
+              }}
+            >
+              <PropertyHeading property={property} level={2} />
+              <PropertyDescription property={property} />
+            </div>
+          );
+        })
+      ) : (
+        <p css={{ ...typographyCss, padding: '14px 16px', fontSize: '13.5px', color: tokens.mutedText }}>
+          No available options.
+        </p>
+      )}
+
+      {hasMalformedArgs && (
+        <p css={{ ...typographyCss, padding: '12px 16px', fontSize: '12.5px', lineHeight: 1.6, color: colors.error }}>
+          Some options could not be displayed because the sortedArgs payload contained entries that were not in the
+          expected CommandArg shape. Re-generate this page via the docs pipeline to refresh the reference data.
+        </p>
+      )}
+    </section>
   );
 }

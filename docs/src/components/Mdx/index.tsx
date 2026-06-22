@@ -15,11 +15,8 @@ import { MdxImage } from './Image';
 import { Jargon } from './Jargon';
 import { Link } from './Link';
 import { PreviousNext } from './PreviousNext';
-import { ApiReference } from './ApiReference';
+import { ApiReference } from './api-reference';
 import PropDescription from './PropDescription';
-// PropertiesTable was removed from the public component map. PropertyInfo from PropertiesTable is
-// still imported by CliCommandsApiReference, so the file itself stays. New resource pages must use
-// <ApiReference definitionName="..." /> instead.
 import { ReferenceableParams } from './ReferenceableParams';
 import { ResourceList } from './ResourceList';
 import { StarterProjectList, StarterProjectListShort } from './StarterProjectList';
@@ -42,6 +39,20 @@ import {
   Steps,
   UseCaseExplorer
 } from './Landing';
+import {
+  ArchCanvas,
+  BentoShowcase,
+  CommandPalette,
+  ConsoleMock,
+  DeployPipeline,
+  DiffCompare,
+  LogoMarquee,
+  RadialHub,
+  StackBuilder,
+  StoryBand,
+  StoryScroll
+} from './Landing2';
+import { OpenSourceBanner, PricingColumns, ResourceColumns, Testimonials, VideoEmbed } from './Landing3';
 
 const getNameFromProps = (props) => {
   let name = props.children;
@@ -265,7 +276,23 @@ export const MdxComponents = {
   Step,
   CompareCards,
   UseCaseExplorer,
-  CTASection
+  CTASection,
+  ArchCanvas,
+  DiffCompare,
+  BentoShowcase,
+  StackBuilder,
+  DeployPipeline,
+  ConsoleMock,
+  LogoMarquee,
+  RadialHub,
+  StoryScroll,
+  StoryBand,
+  CommandPalette,
+  OpenSourceBanner,
+  Testimonials,
+  PricingColumns,
+  ResourceColumns,
+  VideoEmbed
 };
 
 // <hr

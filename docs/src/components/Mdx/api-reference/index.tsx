@@ -1,5 +1,5 @@
 /**
- * V1 — Tree nav (dominant) + focused leaf detail (sidebar).
+ * `<ApiReference />` — recursive tree nav (dominant) + focused leaf detail (sidebar).
  *
  * Layout: dual-pane. The nav IS the schema view — every property and its inline type live in
  * the tree, so the right pane no longer renders a `<CodeBlockNew />` of the containing type
@@ -486,7 +486,7 @@ function EmptyHint() {
  * Main component.
  * -------------------------------------------------------------------------------------------- */
 
-export function ApiReferenceV1({ definitionName }: SharedRenderProps) {
+export function ApiReference({ definitionName }: SharedRenderProps) {
   const definition = getDefinition(definitionName);
   const [selectionPath, setSelectionPath] = useState<SelectionPath>([]);
   const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set());
@@ -567,3 +567,5 @@ export function ApiReferenceV1({ definitionName }: SharedRenderProps) {
     </VariantShell>
   );
 }
+
+export default ApiReference;

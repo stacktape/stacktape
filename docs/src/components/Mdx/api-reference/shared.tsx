@@ -1,7 +1,7 @@
 /**
- * Shared helpers for the API reference variants.
+ * Shared helpers for the API reference.
  *
- * All variants in this folder are dual-pane (V4 silhouette) with a tree nav on the left where
+ * The reference is dual-pane:  a tree nav on the left where
  * discriminated-union branches AND nested type-properties references are first-class navigation
  * children. They share the data helpers, the visual tokens (aligned with console-app: glassy
  * surfaces, stacktape green accent, badge-style pills), and the small atoms. Layout and the
