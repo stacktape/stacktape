@@ -250,7 +250,7 @@ export default defineConfig(() => {
   const web = new NuxtWeb({
     appDirectory: './apps/web',
     // [!code focus-start]
-    connectTo: ['uploads']
+    connectTo: [uploads]
     // [!code focus-end]
   });
 
@@ -272,16 +272,16 @@ A Stacktape Nuxt resource can set explicit `environment` variables for the SSR f
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, NuxtWeb } from 'stacktape';
+      code: `import { defineConfig, NuxtWeb, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const web = new NuxtWeb({
     appDirectory: './apps/web',
     // [!code focus-start]
-    environment: [
-      { name: 'APP_ENV', value: 'production' },
-      { name: 'STRIPE_KEY', value: '$Secret("stripe-key")' }
-    ]
+    environment: {
+      APP_ENV: 'production',
+      STRIPE_KEY: $Secret('stripe-key')
+    }
     // [!code focus-end]
   });
 

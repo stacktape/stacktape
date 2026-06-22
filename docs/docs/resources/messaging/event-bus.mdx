@@ -228,7 +228,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/api.ts'
     }),
-    connectTo: ['orderBus'],
+    connectTo: [orderBus],
     memory: 512,
     timeout: 30
   });

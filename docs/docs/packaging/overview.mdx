@@ -89,13 +89,9 @@ Start with the **Stacktape buildpack** (`StacktapeImageBuildpackPackaging`) for 
 export default defineConfig(() => {
   const api = new WebService({
     resources: { cpu: 0.25, memory: 512 },
-    containers: [
-      {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/app.ts'
-        })
-      }
-    ]
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/app.ts'
+    })
   });
 
   return { resources: { api } };

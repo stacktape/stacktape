@@ -147,16 +147,20 @@ The following database configuration satisfies all four guardrails — it uses a
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
     }),
+    credentials: {
+      masterUserPassword: $Secret('database.password')
+    },
     accessibility: {
       accessibilityMode: 'vpc'
     },

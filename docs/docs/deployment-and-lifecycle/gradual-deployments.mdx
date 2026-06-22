@@ -164,12 +164,9 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({
       entryfilePath: './src/server.ts'
     }),
-    environment: [
-      {
-        name: 'PORT',
-        value: '3000'
-      }
-    ],
+    environment: {
+      PORT: '3000'
+    },
     resources: { cpu: 0.25, memory: 512 },
     loadBalancing: {
       type: 'application-load-balancer'
@@ -219,12 +216,9 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({
       entryfilePath: './src/server.ts'
     }),
-    environment: [
-      {
-        name: 'PORT',
-        value: '3000'
-      }
-    ],
+    environment: {
+      PORT: '3000'
+    },
     resources: { cpu: 0.5, memory: 1024 },
     loadBalancing: {
       type: 'application-load-balancer'

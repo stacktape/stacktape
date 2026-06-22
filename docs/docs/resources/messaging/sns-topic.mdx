@@ -286,7 +286,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/api.ts'
     }),
-    connectTo: ['notifications'],
+    connectTo: [notifications],
     memory: 512,
     timeout: 30
   });
@@ -407,7 +407,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/api.ts'
     }),
-    connectTo: ['alerts'],
+    connectTo: [alerts],
     memory: 512,
     timeout: 30
   });

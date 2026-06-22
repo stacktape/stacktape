@@ -102,7 +102,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['mainDb']
+    connectTo: [mainDb]
   });
 
   return {

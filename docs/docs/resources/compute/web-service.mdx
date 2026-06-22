@@ -322,14 +322,14 @@ A Stacktape web service can use `connectTo` to access other resources in the sam
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: { masterUserPassword: "$Secret('db.password')" },
-    engine: new RdsEnginePostgres({ primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
 
   const uploadsBucket = new Bucket({});
 
   const api = new WebService({
     // [!code focus-start]
-    connectTo: ['myDatabase', 'uploadsBucket'],
+    connectTo: [myDatabase, uploadsBucket],
     // [!code focus-end]
     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 }
@@ -378,6 +378,7 @@ export default defineConfig(() => {
     // [!code focus-start]
     sideContainers: [
       {
+        name: 'migrations',
         containerType: 'run-on-init',
         packaging: new CustomDockerfilePackaging({
           buildContextPath: './migrations',
@@ -464,7 +465,7 @@ export default defineConfig(() => {
     resources: { cpu: 0.5, memory: 1024 },
     // [!code focus-start]
     loadBalancing: { type: 'application-load-balancer' },
-    deployment: {}
+    deployment: { strategy: 'Linear10PercentEvery3Minutes' }
     // [!code focus-end]
   });
 

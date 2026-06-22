@@ -143,13 +143,10 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/ingest.ts'
     }),
-    connectTo: ['eventStream'],
-    environment: [
-      {
-        name: 'STREAM_NAME',
-        value: "$ResourceParam('eventStream', 'name')"
-      }
-    ],
+    connectTo: [eventStream],
+    environment: {
+      STREAM_NAME: "$ResourceParam('eventStream', 'name')"
+    },
     memory: 256,
     timeout: 10,
     events: [
@@ -438,13 +435,10 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/producer.ts'
     }),
-    connectTo: ['eventStream'],
-    environment: [
-      {
-        name: 'STREAM_NAME',
-        value: "$ResourceParam('eventStream', 'name')"
-      }
-    ],
+    connectTo: [eventStream],
+    environment: {
+      STREAM_NAME: "$ResourceParam('eventStream', 'name')"
+    },
     memory: 256,
     timeout: 30
   });

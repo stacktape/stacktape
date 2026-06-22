@@ -47,7 +47,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/send-email.ts'
     }),
-    environment: [{ name: 'SENDER_DOMAIN', value: 'notifications.example.com' }],
+    environment: { SENDER_DOMAIN: 'notifications.example.com' },
     iamRoleStatements: [
       {
         Effect: 'Allow',

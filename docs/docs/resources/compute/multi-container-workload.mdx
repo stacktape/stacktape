@@ -308,7 +308,9 @@ Use `network-load-balancer` for non-HTTP protocols (TCP/TLS): MQTT brokers, cust
 } from 'stacktape';
 
 export default defineConfig(() => {
-  const nlb = new NetworkLoadBalancer({});
+  const nlb = new NetworkLoadBalancer({
+    listeners: [{ protocol: 'TCP', port: 8883 }]
+  });
 
   const workload = new MultiContainerWorkload({
     containers: [
@@ -539,12 +541,26 @@ Stacktape multi-container-workloads use `connectTo` to give all containers acces
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+      code: `import {
+  defineConfig,
+  MultiContainerWorkload,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  Bucket,
+  $Secret,
+  StacktapeImageBuildpackPackaging
+} from 'stacktape';
 
 export default defineConfig(() => {
+  const myDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
+  });
+  const myBucket = new Bucket({});
+
   const workload = new MultiContainerWorkload({
     // [!code focus-start]
-    connectTo: ['myDatabase', 'myBucket'],
+    connectTo: [myDatabase, myBucket],
     // [!code focus-end]
     containers: [
       {
@@ -555,7 +571,7 @@ export default defineConfig(() => {
     resources: { cpu: 0.5, memory: 1024 }
   });
 
-  return { resources: { workload } };
+  return { resources: { myDatabase, myBucket, workload } };
 });`
     }
   ]}

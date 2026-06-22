@@ -39,14 +39,14 @@ Scripts can run shell commands or JS/TS/Python files. The examples below use `ex
 
 // [!code focus-start]
 export default defineConfig(() => {
+  const uploads = new Bucket({});
+
   const api = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['uploads']
+    connectTo: [uploads]
   });
-
-  const uploads = new Bucket({});
 
   return {
     resources: { api, uploads },
@@ -89,7 +89,10 @@ When your database or Redis cluster has no public endpoint, `local-script-with-b
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const cache = new RedisCluster({});
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t4g.micro',
+    defaultUserPassword: "$Secret('redis.password')"
+  });
   const bastion = new Bastion({});
 
   return {
@@ -127,7 +130,10 @@ A bastion script runs directly on the bastion EC2 instance inside your VPC, with
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const cache = new RedisCluster({});
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t4g.micro',
+    defaultUserPassword: "$Secret('redis.password')"
+  });
   const bastion = new Bastion({});
 
   return {

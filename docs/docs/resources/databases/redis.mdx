@@ -252,8 +252,8 @@ export default defineConfig(() => {
       entryfilePath: './src/handler.ts'
     }),
     joinDefaultVpc: true,
-    connectTo: ['cache'],
-    environment: [{ name: 'REDIS_URL', value: $ResourceParam('cache', 'connectionString') }]
+    connectTo: [cache],
+    environment: { REDIS_URL: $ResourceParam('cache', 'connectionString') }
   });
 
   return {

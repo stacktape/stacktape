@@ -47,7 +47,7 @@ This configuration creates a [Kinesis stream](/resources/messaging/kinesis-strea
 } from 'stacktape';
 
 export default defineConfig(() => {
-  const clickStream = new KinesisStream();
+  const clickStream = new KinesisStream({});
 
   const processor = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
@@ -132,7 +132,7 @@ Set `autoCreateConsumer` to `true` to create a dedicated stream consumer. This i
 } from 'stacktape';
 
 export default defineConfig(() => {
-  const telemetry = new KinesisStream();
+  const telemetry = new KinesisStream({});
 
   const aggregator = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({

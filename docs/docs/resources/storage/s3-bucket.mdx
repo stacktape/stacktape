@@ -210,6 +210,7 @@ export default defineConfig(() => {
       headersPreset: 'single-page-app'
     },
     cdn: {
+      enabled: true,
       rewriteRoutesForSinglePageApp: true
     }
   });
@@ -405,7 +406,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/processor.ts'
     }),
-    connectTo: ['uploads']
+    connectTo: [uploads]
   });
 
   return {

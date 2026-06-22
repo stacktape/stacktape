@@ -267,7 +267,7 @@ export default defineConfig(() => {
       entryfilePath: './src/handler.ts'
     }),
     joinDefaultVpc: true,
-    connectTo: ['search']
+    connectTo: [search]
   });
 
   return {
@@ -316,10 +316,10 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/indexer.ts'
     }),
-    connectTo: ['search'],
-    environment: [
-      { name: 'OPENSEARCH_ENDPOINT', value: "$ResourceParam('search', 'domainEndpoint')" }
-    ]
+    connectTo: [search],
+    environment: {
+      OPENSEARCH_ENDPOINT: "$ResourceParam('search', 'domainEndpoint')"
+    }
   });
 
   return {

@@ -86,10 +86,10 @@ export default defineConfig(() => {
       buildContextPath: './'
     }),
     useMemory: 'supportMemory',
-    environment: [
-      { name: 'AI_MODEL', value: 'eu.amazon.nova-micro-v1:0' },
-      { name: 'MEMORY_ID', value: "$ResourceParam('supportMemory', 'id')" }
-    ]
+    environment: {
+      AI_MODEL: 'eu.amazon.nova-micro-v1:0',
+      MEMORY_ID: "$ResourceParam('supportMemory', 'id')"
+    }
   });
 
   return {
@@ -241,7 +241,7 @@ export default defineConfig(() => {
       entryfilePath: './src/agent.ts'
     }),
     useMemory: 'chatMemory',
-    environment: [{ name: 'MEMORY_ID', value: "$ResourceParam('chatMemory', 'id')" }]
+    environment: { MEMORY_ID: "$ResourceParam('chatMemory', 'id')" }
   });
 
   return {

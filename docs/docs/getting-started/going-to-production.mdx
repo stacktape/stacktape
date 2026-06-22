@@ -97,14 +97,11 @@ Stacktape [web services](/resources/compute/web-service) support custom domains 
 // [!code focus-start]
 export default defineConfig(() => {
   const api = new WebService({
-    containers: [
-      {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/server.ts'
-        }),
-        environment: [{ name: 'NODE_ENV', value: 'production' }]
-      }
-    ],
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: { cpu: 0.25, memory: 512 },
+    environment: { NODE_ENV: 'production' },
     customDomains: [{ domainName: 'api.example.com' }]
   });
 
@@ -172,13 +169,10 @@ export default defineConfig(() => {
 // [!code focus-start]
 export default defineConfig(() => {
   const api = new WebService({
-    containers: [
-      {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/server.ts'
-        })
-      }
-    ],
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: { cpu: 0.5, memory: 1024 },
     loadBalancing: { type: 'application-load-balancer' },
     deployment: {
       strategy: 'Canary10Percent5Minutes'

@@ -76,7 +76,7 @@ export default defineConfig(() => {
 
   const createUser = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/create-user.ts' }),
-    connectTo: [{ resource: usersTable, access: 'readWrite' }],
+    connectTo: [usersTable],
     events: [new HttpApiIntegration({ httpApiGatewayName: 'api', method: 'POST', path: '/users' })]
   });
 

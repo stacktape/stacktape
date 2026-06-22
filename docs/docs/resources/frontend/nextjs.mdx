@@ -107,12 +107,12 @@ A Next.js app that reads and writes data needs `connectTo` for permissions and e
 // [!code focus-start]
 export default defineConfig(() => {
   const items = new DynamoDbTable({
-    partitionKey: { name: 'id', type: 'string' }
+    primaryKey: { partitionKey: { name: 'id', type: 'string' } }
   });
 
   const web = new NextjsWeb({
     appDirectory: './apps/web',
-    connectTo: ['items']
+    connectTo: [items]
   });
 
   return { resources: { items, web } };
@@ -325,17 +325,18 @@ Use `fileOptions` when specific static files need custom headers (such as `Cache
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, NextjsWeb, RelationalDatabase } from 'stacktape';
+      code: `import { defineConfig, NextjsWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: 'postgres-16'
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
   });
 
   const web = new NextjsWeb({
     appDirectory: './apps/web',
-    connectTo: ['mainDatabase'],
+    connectTo: [mainDatabase],
     serverLambda: {
       joinDefaultVpc: true
     }

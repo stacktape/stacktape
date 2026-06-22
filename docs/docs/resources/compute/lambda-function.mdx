@@ -111,7 +111,7 @@ export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({});
 
   const usersTable = new DynamoDbTable({
-    primaryKey: { partitionKey: { name: 'userId', type: 'S' } }
+    primaryKey: { partitionKey: { name: 'userId', type: 'string' } }
   });
 
   const api = new LambdaFunction({
@@ -128,7 +128,7 @@ export default defineConfig(() => {
         }
       }
     ],
-    connectTo: ['usersTable'],
+    connectTo: [usersTable],
     memory: 512,
     timeout: 30
   });
@@ -195,7 +195,7 @@ A Lambda function that runs every hour to delete expired records. The [schedule 
 // [!code focus-start]
 export default defineConfig(() => {
   const sessionsTable = new DynamoDbTable({
-    primaryKey: { partitionKey: { name: 'sessionId', type: 'S' } }
+    primaryKey: { partitionKey: { name: 'sessionId', type: 'string' } }
   });
 
   const cleanup = new LambdaFunction({
@@ -208,7 +208,7 @@ export default defineConfig(() => {
         properties: { scheduleRate: 'rate(1 hour)' }
       }
     ],
-    connectTo: ['sessionsTable'],
+    connectTo: [sessionsTable],
     timeout: 120
   });
 
@@ -518,17 +518,25 @@ Use the `environment` property for explicit runtime variables such as `LOG_LEVEL
   defineConfig,
   LambdaFunction,
   RelationalDatabase,
-  StacktapeLambdaBuildpackPackaging
+  RdsEnginePostgres,
+  StacktapeLambdaBuildpackPackaging,
+  $Secret
 } from 'stacktape';
 // [!code focus-start]
 export default defineConfig(() => {
-  const database = new RelationalDatabase({});
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    }),
+    credentials: { masterUserPassword: $Secret('database.password') }
+  });
 
   const api = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
-    connectTo: ['database'],
+    connectTo: [database],
     joinDefaultVpc: true,
-    environment: [{ name: 'LOG_LEVEL', value: 'info' }],
+    environment: { LOG_LEVEL: 'info' },
     memory: 1024,
     timeout: 30
   });

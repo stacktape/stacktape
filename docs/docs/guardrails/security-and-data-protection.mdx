@@ -69,7 +69,7 @@ A compliant [relational database](/resources/databases/relational-database) conf
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
@@ -80,6 +80,9 @@ export default defineConfig(() => {
         instanceSize: 'db.t4g.micro'
       }
     }),
+    credentials: {
+      masterUserPassword: $Secret('database.password')
+    },
     accessibility: {
       accessibilityMode: 'vpc'
     }
@@ -110,7 +113,7 @@ The `require-deletion-protection` guardrail requires all [relational databases](
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
@@ -121,6 +124,9 @@ export default defineConfig(() => {
         instanceSize: 'db.t4g.micro'
       }
     }),
+    credentials: {
+      masterUserPassword: $Secret('database.password')
+    },
     deletionProtection: true
   });
 
@@ -195,7 +201,7 @@ A compliant [application load balancer](/resources/networking/application-load-b
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const apiFirewall = new WebAppFirewall({});
+  const apiFirewall = new WebAppFirewall({ scope: 'regional' });
 
   const loadBalancer = new ApplicationLoadBalancer({
     useFirewall: 'apiFirewall'

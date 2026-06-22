@@ -91,10 +91,10 @@ export default defineConfig(() => {
     }),
     useCodeInterpreter: 'analysisCodeInterpreter',
     endpoints: [{ name: 'production', description: 'Main analyst endpoint.' }],
-    environment: [
-      { name: 'AI_MODEL', value: 'eu.amazon.nova-micro-v1:0' },
-      { name: 'CODE_INTERPRETER_ID', value: "$ResourceParam('analysisCodeInterpreter', 'id')" }
-    ]
+    environment: {
+      AI_MODEL: 'eu.amazon.nova-micro-v1:0',
+      CODE_INTERPRETER_ID: "$ResourceParam('analysisCodeInterpreter', 'id')"
+    }
   });
 
   return {
@@ -147,7 +147,7 @@ export default defineConfig(() => {
       allowedAudience: ['tutor-api']
     },
     endpoints: [{ name: 'tutor', description: 'MCP endpoint for coding assistants.' }],
-    environment: [{ name: 'AI_MODEL', value: 'eu.amazon.nova-micro-v1:0' }]
+    environment: { AI_MODEL: 'eu.amazon.nova-micro-v1:0' }
   });
 
   return {

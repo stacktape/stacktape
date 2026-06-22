@@ -173,12 +173,12 @@ Enable `useFirewall` when the public Remix app needs CDN-level WAF protection â€
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, RemixWeb, RelationalDatabase } from 'stacktape';
+      code: `import { defineConfig, RemixWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: 'postgres-16',
-    instanceClass: 'db.t4g.micro'
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
   });
 
   const web = new RemixWeb({

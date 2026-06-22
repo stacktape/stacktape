@@ -120,7 +120,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['auth'],
+    connectTo: [auth],
     events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'gateway',
@@ -182,7 +182,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['auth'],
+    connectTo: [auth],
     events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'gateway',

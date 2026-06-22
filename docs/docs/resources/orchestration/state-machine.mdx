@@ -276,8 +276,8 @@ export default defineConfig(() => {
   // [!code focus-start]
   const startOrder = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/start-order.ts' }),
-    connectTo: ['orderWorkflow'],
-    environment: [{ name: 'ORDER_WORKFLOW_ARN', value: "$ResourceParam('orderWorkflow', 'arn')" }]
+    connectTo: [orderWorkflow],
+    environment: { ORDER_WORKFLOW_ARN: "$ResourceParam('orderWorkflow', 'arn')" }
   });
   // [!code focus-end]
 

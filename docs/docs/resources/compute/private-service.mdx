@@ -327,7 +327,7 @@ export default defineConfig(() => {
       entryfilePath: './src/internal-api.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
-    connectTo: ['dataBucket']
+    connectTo: [dataBucket]
   });
 
   const publicApi = new WebService({
@@ -335,7 +335,7 @@ export default defineConfig(() => {
       entryfilePath: './src/public-api.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
-    connectTo: ['internalApi']
+    connectTo: [internalApi]
   });
 
   return { resources: { dataBucket, internalApi, publicApi } };

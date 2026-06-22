@@ -324,7 +324,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['itemsTable']
+    connectTo: [itemsTable]
   });
 
   return {

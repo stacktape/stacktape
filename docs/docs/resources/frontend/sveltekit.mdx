@@ -144,11 +144,12 @@ SvelteKitWeb environment variables are passed to the SSR Lambda function. Use `e
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, SvelteKitWeb, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+      code: `import { defineConfig, SvelteKitWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
   });
 
   const frontend = new SvelteKitWeb({

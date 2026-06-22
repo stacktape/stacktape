@@ -241,16 +241,18 @@ export default defineConfig(() => {
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, SolidStartWeb, RelationalDatabase, RdsEnginePostgresql } from 'stacktape';
+      code: `import { defineConfig, SolidStartWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgresql({
+    engine: new RdsEnginePostgres({
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
-    })
+    }),
+    credentials: { masterUserPassword: $Secret('database.password') }
   });
 
   const web = new SolidStartWeb({

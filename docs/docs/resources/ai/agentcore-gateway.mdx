@@ -282,11 +282,11 @@ export default defineConfig(() => {
     description: 'Customer support agent with governed business tools',
     packaging: new CustomDockerfilePackaging({ buildContextPath: './agent' }),
     useGateway: 'supportGateway',
-    environment: [
-      { name: 'AI_MODEL', value: 'eu.amazon.nova-micro-v1:0' },
-      { name: 'AGENT_NAME', value: 'customer-support' },
-      { name: 'GATEWAY_URL', value: "$ResourceParam('supportGateway', 'url')" }
-    ]
+    environment: {
+      AI_MODEL: 'eu.amazon.nova-micro-v1:0',
+      AGENT_NAME: 'customer-support',
+      GATEWAY_URL: "$ResourceParam('supportGateway', 'url')"
+    }
   });
 
   return {
@@ -396,7 +396,7 @@ export default defineConfig(() => {
     }),
     protocol: 'MCP',
     useGateway: 'toolGateway',
-    environment: [{ name: 'GATEWAY_URL', value: "$ResourceParam('toolGateway', 'url')" }]
+    environment: { GATEWAY_URL: "$ResourceParam('toolGateway', 'url')" }
   });
 
   return {

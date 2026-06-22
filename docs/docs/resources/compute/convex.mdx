@@ -160,12 +160,9 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    environment: [
-      {
-        name: 'CONVEX_URL',
-        value: "$ResourceParam('myConvex', 'url')"
-      }
-    ]
+    environment: {
+      CONVEX_URL: "$ResourceParam('myConvex', 'url')"
+    }
   });
 
   return {

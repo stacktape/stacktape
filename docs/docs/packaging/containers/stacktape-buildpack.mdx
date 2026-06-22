@@ -45,13 +45,9 @@ The smallest valid configuration points the buildpack at your entry file. Stackt
 // [!code focus-start]
 export default defineConfig(() => {
   const api = new WebService({
-    containers: {
-      api: {
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/server.ts'
-        })
-      }
-    },
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
     resources: {
       cpu: 0.25,
       memory: 512
@@ -99,21 +95,17 @@ For JavaScript and TypeScript projects, the buildpack bundles your code into a s
 
 export default defineConfig(() => {
   const api = new WebService({
-    containers: {
-      api: {
-        // [!code focus-start]
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/server.ts',
-          languageSpecificConfig: {
-            nodeVersion: 22,
-            outputModuleFormat: 'esm',
-            emitTsDecoratorMetadata: true,
-            dependenciesToExcludeFromBundle: ['@prisma/client']
-          }
-        })
-        // [!code focus-end]
+    // [!code focus-start]
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts',
+      languageSpecificConfig: {
+        nodeVersion: 22,
+        outputModuleFormat: 'esm',
+        emitTsDecoratorMetadata: true,
+        dependenciesToExcludeFromBundle: ['@prisma/client']
       }
-    },
+    }),
+    // [!code focus-end]
     resources: {
       cpu: 0.25,
       memory: 512
@@ -171,19 +163,15 @@ For Python containers, use `packageManagerFile` to point to your `requirements.t
 
 export default defineConfig(() => {
   const api = new WebService({
-    containers: {
-      api: {
-        // [!code focus-start]
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './app/main.py:app',
-          languageSpecificConfig: {
-            pythonVersion: 3.12,
-            runAppAs: 'ASGI'
-          }
-        })
-        // [!code focus-end]
+    // [!code focus-start]
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './app/main.py:app',
+      languageSpecificConfig: {
+        pythonVersion: 3.12,
+        runAppAs: 'ASGI'
       }
-    },
+    }),
+    // [!code focus-end]
     resources: {
       cpu: 0.25,
       memory: 512
@@ -233,20 +221,16 @@ For Java projects, the buildpack uses Gradle by default. Set `useMaven: true` to
 
 export default defineConfig(() => {
   const api = new WebService({
-    containers: {
-      api: {
-        // [!code focus-start]
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/main/java/com/example/App.java',
-          languageSpecificConfig: {
-            javaVersion: 17,
-            useMaven: true,
-            packageManagerFile: './pom.xml'
-          }
-        })
-        // [!code focus-end]
+    // [!code focus-start]
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/main/java/com/example/App.java',
+      languageSpecificConfig: {
+        javaVersion: 17,
+        useMaven: true,
+        packageManagerFile: './pom.xml'
       }
-    },
+    }),
+    // [!code focus-end]
     resources: {
       cpu: 1,
       memory: 2048
@@ -300,16 +284,12 @@ Use `customDockerBuildCommands` to run shell commands during the Docker image bu
 
 export default defineConfig(() => {
   const api = new WebService({
-    containers: {
-      api: {
-        // [!code focus-start]
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/server.ts',
-          customDockerBuildCommands: ['apk add --no-cache ffmpeg', 'apk add --no-cache imagemagick']
-        })
-        // [!code focus-end]
-      }
-    },
+    // [!code focus-start]
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts',
+      customDockerBuildCommands: ['apk add --no-cache ffmpeg', 'apk add --no-cache imagemagick']
+    }),
+    // [!code focus-end]
     resources: {
       cpu: 0.5,
       memory: 1024
@@ -343,16 +323,12 @@ The default uses Alpine/musl. `requiresGlibcBinaries: true` switches to glibc in
 
 export default defineConfig(() => {
   const imageService = new WebService({
-    containers: {
-      processor: {
-        // [!code focus-start]
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/processor.ts',
-          requiresGlibcBinaries: true
-        })
-        // [!code focus-end]
-      }
-    },
+    // [!code focus-start]
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/processor.ts',
+      requiresGlibcBinaries: true
+    }),
+    // [!code focus-end]
     resources: {
       cpu: 0.5,
       memory: 1024
@@ -384,18 +360,14 @@ Use `includeFiles` and `excludeFiles` to control which files and dependencies ar
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    containers: {
-      worker: {
-        // [!code focus-start]
-        packaging: new StacktapeImageBuildpackPackaging({
-          entryfilePath: './src/worker.ts',
-          includeFiles: ['./config/**', './templates/**'],
-          excludeFiles: ['./tests/**', './**/*.test.ts'],
-          excludeDependencies: ['jest', '@types/jest']
-        })
-        // [!code focus-end]
-      }
-    },
+    // [!code focus-start]
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+      includeFiles: ['./config/**', './templates/**'],
+      excludeFiles: ['./tests/**', './**/*.test.ts'],
+      excludeDependencies: ['jest', '@types/jest']
+    }),
+    // [!code focus-end]
     resources: {
       cpu: 0.25,
       memory: 512

@@ -199,7 +199,7 @@ export default defineConfig(() => {
   const seed = new LocalScript({
     executeScript: './scripts/seed.ts',
     connectTo: [database],
-    environment: [{ name: 'SEED_COUNT', value: '100' }]
+    environment: { SEED_COUNT: '100' }
   });
 
   const setup = new LocalScript({

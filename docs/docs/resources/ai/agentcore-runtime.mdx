@@ -174,13 +174,13 @@ export default defineConfig(() => {
       maxLifetime: 14400,
       idleRuntimeSessionTimeout: 1800
     },
-    connectTo: ['conversations'],
+    connectTo: [conversations],
     authorizer: {
       discoveryUrl:
         'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123/.well-known/openid-configuration',
       allowedAudience: ['my-app-client-id']
     },
-    environment: [{ name: 'AI_MODEL', value: 'anthropic.claude-sonnet-4-20250514' }]
+    environment: { AI_MODEL: 'anthropic.claude-sonnet-4-20250514' }
   });
 
   return {
@@ -452,7 +452,7 @@ export default defineConfig(() => {
     }),
     protocol: 'HTTP',
     endpoints: ['chat'],
-    connectTo: ['knowledgeBase', 'conversationLog']
+    connectTo: [knowledgeBase, conversationLog]
   });
 
   return {
@@ -538,11 +538,11 @@ export default defineConfig(() => {
     }),
     protocol: 'HTTP',
     endpoints: ['chat'],
-    environment: [
-      { name: 'AI_MODEL', value: 'anthropic.claude-sonnet-4-20250514' },
-      { name: 'MAX_TOKENS', value: '4096' },
-      { name: 'API_KEY', value: "$Secret('my-api-key')" }
-    ]
+    environment: {
+      AI_MODEL: 'anthropic.claude-sonnet-4-20250514',
+      MAX_TOKENS: '4096',
+      API_KEY: "$Secret('my-api-key')"
+    }
   });
 
   return {

@@ -62,8 +62,8 @@ This deployment script runs database migrations after every deploy. It uses `con
 // [!code focus-start]
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
-    instanceSize: 'db.t4g.micro'
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: 'my-secret-password' }
   });
 
   const runMigrations = new DeploymentScript({

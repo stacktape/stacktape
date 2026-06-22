@@ -52,7 +52,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['myDatabase', 'uploads']
+    connectTo: [myDatabase, uploads]
   });
 
   return {
@@ -99,13 +99,13 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'
     }),
-    connectTo: ['usersTable'],
+    connectTo: [usersTable],
     events: [
       {
         type: 'http-api-gateway',
         properties: {
           httpApiGatewayName: 'apiGateway',
-          method: 'ANY',
+          method: '*',
           path: '/{proxy+}'
         }
       },
@@ -113,7 +113,7 @@ export default defineConfig(() => {
         type: 'http-api-gateway',
         properties: {
           httpApiGatewayName: 'apiGateway',
-          method: 'ANY',
+          method: '*',
           path: '/'
         }
       }
@@ -205,7 +205,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/api.ts'
     }),
-    connectTo: ['mainDatabase']
+    connectTo: [mainDatabase]
   });
 
   return {
@@ -482,7 +482,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/reader.ts'
     }),
-    environment: [{ name: 'BUCKET_NAME', value: "$ResourceParam('uploads', 'name')" }],
+    environment: { BUCKET_NAME: "$ResourceParam('uploads', 'name')" },
     iamRoleStatements: [
       {
         Resource: ["$ResourceParam('uploads', 'bucketArn')/*"],

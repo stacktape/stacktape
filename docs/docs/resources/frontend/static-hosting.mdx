@@ -187,12 +187,9 @@ export default defineConfig(() => {
   const website = new HostingBucket({
     uploadDirectoryPath: './dist',
     // [!code focus-start]
-    injectEnvironment: [
-      {
-        name: 'PUBLIC_API_URL',
-        value: 'https://api.example.com'
-      }
-    ],
+    injectEnvironment: {
+      PUBLIC_API_URL: 'https://api.example.com'
+    },
     writeDotenvFilesTo: './dist'
     // [!code focus-end]
   });

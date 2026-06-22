@@ -84,6 +84,9 @@ The edit-save-see loop is the core Stacktape dev mode workflow. Here is an examp
 // [!code focus-start]
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: "$Secret('database.password')"
+    },
     engine: new RdsEnginePostgres({
       version: '16.6',
       primaryInstance: { instanceSize: 'db.t4g.micro' }

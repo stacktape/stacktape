@@ -239,7 +239,7 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     // [!code focus-start]
-    connectTo: ['jobsQueue', 'mainDatabase']
+    connectTo: [jobsQueue, mainDatabase]
     // [!code focus-end]
   });
 
@@ -402,7 +402,7 @@ export default defineConfig(() => {
   const worker = new WorkerService({
     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
-    connectTo: ['sharedData'],
+    connectTo: [sharedData],
     // [!code focus-start]
     volumeMounts: [
       {

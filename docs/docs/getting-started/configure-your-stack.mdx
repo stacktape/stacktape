@@ -112,6 +112,9 @@ export default defineConfig(({ stage }) => {
   const isProduction = stage === 'production';
 
   const database = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: "$Secret('database.password')"
+    },
     engine: new RdsEnginePostgres({
       version: '16',
       primaryInstance: {
@@ -128,7 +131,7 @@ export default defineConfig(({ stage }) => {
     }),
     memory: isProduction ? 1024 : 512,
     timeout: 30,
-    connectTo: ['database'],
+    connectTo: [database],
     events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'api',

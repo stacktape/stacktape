@@ -47,7 +47,7 @@ export default defineConfig(() => {
       packaging: new StacktapeImageBuildpackPackaging({
         entryfilePath: './src/jobs/nightly-report.ts'
       }),
-      environment: [{ name: 'REPORT_BUCKET_PREFIX', value: 'reports/nightly' }]
+      environment: { REPORT_BUCKET_PREFIX: 'reports/nightly' }
     },
     resources: {
       cpu: 2,
@@ -235,19 +235,20 @@ Use `connectTo` when a batch job needs access to resources in the same stack. St
   Bucket,
   RelationalDatabase,
   RdsEnginePostgres,
+  $Secret,
   StacktapeImageBuildpackPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const reports = new Bucket({});
   const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16' }),
-    instanceClass: 'db.t4g.micro'
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
   });
 
   const exportJob = new BatchJob({
     // [!code focus-start]
-    connectTo: ['mainDatabase', 'reports'],
+    connectTo: [mainDatabase, reports],
     // [!code focus-end]
     container: {
       packaging: new StacktapeImageBuildpackPackaging({

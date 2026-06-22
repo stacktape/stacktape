@@ -166,7 +166,7 @@ export default defineConfig(() => {
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/worker.ts'
     }),
-    environment: [{ name: 'QUEUE_URL', value: "$ResourceParam('orderQueue', 'url')" }]
+    environment: { QUEUE_URL: "$ResourceParam('orderQueue', 'url')" }
   });
 
   return {
