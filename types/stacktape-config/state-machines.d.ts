@@ -6,6 +6,62 @@
  * Define multi-step workflows with branching, retries, parallel execution, and error handling —
  * all without writing orchestration code. Pay per state transition (~$0.025/1,000 transitions).
  * Defined using [Amazon States Language (ASL)](https://states-language.net/spec.html).
+ *
+ * **Example (YAML):**
+ *
+ * ```yaml
+ * resources:
+ *   processOrder:
+ *     type: function
+ *     properties:
+ *       packaging:
+ *         type: stacktape-lambda-buildpack
+ *         properties:
+ *           entryfilePath: ./src/process-order.ts
+ *
+ *   # stp-focus
+ *   orderWorkflow:
+ *     type: state-machine
+ *     properties:
+ *       definition:
+ *         StartAt: ProcessOrder
+ *         States:
+ *           ProcessOrder:
+ *             Type: Task
+ *             Resource:
+ *               Fn::GetAtt:
+ *                 - ProcessOrderFunction
+ *                 - Arn
+ *             End: true
+ *   # stp-end-focus
+ * ```
+ *
+ * **Example (TypeScript):**
+ *
+ * ```ts
+ * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+ *
+ * export default defineConfig(() => {
+ *   const processOrder = new LambdaFunction({
+ *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/process-order.ts' })
+ *   });
+ *   // stp-focus
+ *   const orderWorkflow = new StateMachine({
+ *     definition: {
+ *       StartAt: 'ProcessOrder',
+ *       States: {
+ *         ProcessOrder: {
+ *           Type: 'Task',
+ *           Resource: { 'Fn::GetAtt': ['ProcessOrderFunction', 'Arn'] },
+ *           End: true
+ *         }
+ *       }
+ *     }
+ *   });
+ *   // stp-end-focus
+ *   return { resources: { processOrder, orderWorkflow } };
+ * });
+ * ```
  */
 interface StateMachine {
   type: 'state-machine';
@@ -16,30 +72,416 @@ interface StateMachine {
 interface StateMachineProps {
   /**
    * #### The workflow definition in [Amazon States Language (ASL)](https://states-language.net/spec.html).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   chargeCard:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/charge-card.ts
+   *
+   *   paymentWorkflow:
+   *     type: state-machine
+   *     properties:
+   *       # stp-focus
+   *       definition:
+   *         Comment: Charge the customer's card
+   *         StartAt: ChargeCard
+   *         States:
+   *           ChargeCard:
+   *             Type: Task
+   *             Resource:
+   *               Fn::GetAtt:
+   *                 - ChargeCardFunction
+   *                 - Arn
+   *             End: true
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const chargeCard = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/charge-card.ts' })
+   *   });
+   *   const paymentWorkflow = new StateMachine({
+   *     // stp-focus
+   *     definition: {
+   *       Comment: "Charge the customer's card",
+   *       StartAt: 'ChargeCard',
+   *       States: {
+   *         ChargeCard: {
+   *           Type: 'Task',
+   *           Resource: { 'Fn::GetAtt': ['ChargeCardFunction', 'Arn'] },
+   *           End: true
+   *         }
+   *       }
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { chargeCard, paymentWorkflow } };
+   * });
+   * ```
    */
   definition: StateMachineDefinition;
 }
 interface StateMachineDefinition {
   /**
    * #### A human-readable description of the state machine.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   sendEmail:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/send-email.ts
+   *
+   *   notifyWorkflow:
+   *     type: state-machine
+   *     properties:
+   *       definition:
+   *         # stp-focus
+   *         Comment: Sends a welcome email to newly registered users
+   *         # stp-end-focus
+   *         StartAt: SendEmail
+   *         States:
+   *           SendEmail:
+   *             Type: Task
+   *             Resource:
+   *               Fn::GetAtt:
+   *                 - SendEmailFunction
+   *                 - Arn
+   *             End: true
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const sendEmail = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/send-email.ts' })
+   *   });
+   *   const notifyWorkflow = new StateMachine({
+   *     definition: {
+   *       // stp-focus
+   *       Comment: 'Sends a welcome email to newly registered users',
+   *       // stp-end-focus
+   *       StartAt: 'SendEmail',
+   *       States: {
+   *         SendEmail: {
+   *           Type: 'Task',
+   *           Resource: { 'Fn::GetAtt': ['SendEmailFunction', 'Arn'] },
+   *           End: true
+   *         }
+   *       }
+   *     }
+   *   });
+   *   return { resources: { sendEmail, notifyWorkflow } };
+   * });
+   * ```
    */
   Comment?: string;
   /**
    * #### The name of the state to start the execution at.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   validateInput:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/validate-input.ts
+   *
+   *   ingestWorkflow:
+   *     type: state-machine
+   *     properties:
+   *       definition:
+   *         Comment: Validate incoming data before processing
+   *         # stp-focus
+   *         StartAt: ValidateInput
+   *         # stp-end-focus
+   *         States:
+   *           ValidateInput:
+   *             Type: Task
+   *             Resource:
+   *               Fn::GetAtt:
+   *                 - ValidateInputFunction
+   *                 - Arn
+   *             End: true
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const validateInput = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/validate-input.ts' })
+   *   });
+   *   const ingestWorkflow = new StateMachine({
+   *     definition: {
+   *       Comment: 'Validate incoming data before processing',
+   *       // stp-focus
+   *       StartAt: 'ValidateInput',
+   *       // stp-end-focus
+   *       States: {
+   *         ValidateInput: {
+   *           Type: 'Task',
+   *           Resource: { 'Fn::GetAtt': ['ValidateInputFunction', 'Arn'] },
+   *           End: true
+   *         }
+   *       }
+   *     }
+   *   });
+   *   return { resources: { validateInput, ingestWorkflow } };
+   * });
+   * ```
    */
   StartAt: string;
   /**
    * #### An object containing the states of the state machine.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   extract:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/extract.ts
+   *   transform:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/transform.ts
+   *
+   *   etlWorkflow:
+   *     type: state-machine
+   *     properties:
+   *       definition:
+   *         Comment: Two-step ETL pipeline
+   *         StartAt: Extract
+   *         # stp-focus
+   *         States:
+   *           Extract:
+   *             Type: Task
+   *             Resource:
+   *               Fn::GetAtt:
+   *                 - ExtractFunction
+   *                 - Arn
+   *             Next: Transform
+   *           Transform:
+   *             Type: Task
+   *             Resource:
+   *               Fn::GetAtt:
+   *                 - TransformFunction
+   *                 - Arn
+   *             End: true
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const extract = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/extract.ts' })
+   *   });
+   *   const transform = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/transform.ts' })
+   *   });
+   *   const etlWorkflow = new StateMachine({
+   *     definition: {
+   *       Comment: 'Two-step ETL pipeline',
+   *       StartAt: 'Extract',
+   *       // stp-focus
+   *       States: {
+   *         Extract: {
+   *           Type: 'Task',
+   *           Resource: { 'Fn::GetAtt': ['ExtractFunction', 'Arn'] },
+   *           Next: 'Transform'
+   *         },
+   *         Transform: {
+   *           Type: 'Task',
+   *           Resource: { 'Fn::GetAtt': ['TransformFunction', 'Arn'] },
+   *           End: true
+   *         }
+   *       }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { extract, transform, etlWorkflow } };
+   * });
+   * ```
    */
   States: {
     [k: string]: State;
   };
   /**
    * #### The version of the Amazon States Language.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   doWork:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/do-work.ts
+   *
+   *   versionedWorkflow:
+   *     type: state-machine
+   *     properties:
+   *       definition:
+   *         Comment: Pins the Amazon States Language version
+   *         # stp-focus
+   *         Version: '1.0'
+   *         # stp-end-focus
+   *         StartAt: DoWork
+   *         States:
+   *           DoWork:
+   *             Type: Task
+   *             Resource:
+   *               Fn::GetAtt:
+   *                 - DoWorkFunction
+   *                 - Arn
+   *             End: true
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const doWork = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/do-work.ts' })
+   *   });
+   *   const versionedWorkflow = new StateMachine({
+   *     definition: {
+   *       Comment: 'Pins the Amazon States Language version',
+   *       // stp-focus
+   *       Version: '1.0',
+   *       // stp-end-focus
+   *       StartAt: 'DoWork',
+   *       States: {
+   *         DoWork: {
+   *           Type: 'Task',
+   *           Resource: { 'Fn::GetAtt': ['DoWorkFunction', 'Arn'] },
+   *           End: true
+   *         }
+   *       }
+   *     }
+   *   });
+   *   return { resources: { doWork, versionedWorkflow } };
+   * });
+   * ```
    */
   Version?: string;
   /**
    * #### The maximum time, in seconds, that a state machine can run.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   longTask:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./src/long-task.ts
+   *
+   *   boundedWorkflow:
+   *     type: state-machine
+   *     properties:
+   *       definition:
+   *         Comment: Fails the execution if it runs longer than 1 hour
+   *         StartAt: LongTask
+   *         # stp-focus
+   *         TimeoutSeconds: 3600
+   *         # stp-end-focus
+   *         States:
+   *           LongTask:
+   *             Type: Task
+   *             Resource:
+   *               Fn::GetAtt:
+   *                 - LongTaskFunction
+   *                 - Arn
+   *             End: true
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const longTask = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/long-task.ts' })
+   *   });
+   *   const boundedWorkflow = new StateMachine({
+   *     definition: {
+   *       Comment: 'Fails the execution if it runs longer than 1 hour',
+   *       StartAt: 'LongTask',
+   *       // stp-focus
+   *       TimeoutSeconds: 3600,
+   *       // stp-end-focus
+   *       States: {
+   *         LongTask: {
+   *           Type: 'Task',
+   *           Resource: { 'Fn::GetAtt': ['LongTaskFunction', 'Arn'] },
+   *           End: true
+   *         }
+   *       }
+   *     }
+   *   });
+   *   return { resources: { longTask, boundedWorkflow } };
+   * });
+   * ```
    */
   TimeoutSeconds?: number;
 }

@@ -15,15 +15,138 @@ interface NuxtWebProps extends ResourceAccessProps {
   /**
    * #### Directory containing your `nuxt.config.ts`. For monorepos, point to the Nuxt workspace.
    *
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   web:
+   *     type: nuxt-web
+   *     properties:
+   *       # stp-focus
+   *       appDirectory: ./apps/storefront
+   *       # stp-end-focus
+   *       buildCommand: npm run build
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { NuxtWeb, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const web = new NuxtWeb({
+   *     // stp-focus
+   *     appDirectory: './apps/storefront',
+   *     // stp-end-focus
+   *     buildCommand: 'npm run build'
+   *   });
+   *   return { resources: { web } };
+   * });
+   * ```
+   *
    * @default "."
    */
   appDirectory?: string;
   /**
    * #### Override the default `nuxt build` command.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   web:
+   *     type: nuxt-web
+   *     properties:
+   *       appDirectory: .
+   *       # stp-focus
+   *       buildCommand: npm run generate:ssr
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { NuxtWeb, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const web = new NuxtWeb({
+   *     appDirectory: '.',
+   *     // stp-focus
+   *     buildCommand: 'npm run generate:ssr'
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { web } };
+   * });
+   * ```
    */
   buildCommand?: string;
   /**
    * #### Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   db:
+   *     type: relational-database
+   *     properties:
+   *       credentials:
+   *         masterUserPassword: $Secret('db.password')
+   *       engine:
+   *         type: postgres
+   *         properties:
+   *           version: '16.6'
+   *           primaryInstance:
+   *             instanceSize: db.t3.micro
+   *   web:
+   *     type: nuxt-web
+   *     properties:
+   *       # stp-focus
+   *       environment:
+   *         - name: NUXT_PUBLIC_API_BASE
+   *           value: https://api.example.com
+   *         - name: DATABASE_URL
+   *           value: $ResourceParam('db', 'connectionString')
+   *         - name: SESSION_SECRET
+   *           value: $Secret('session.secret')
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { NuxtWeb, RelationalDatabase, defineConfig, $Secret, $ResourceParam } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const db = new RelationalDatabase({
+   *     credentials: { masterUserPassword: $Secret('db.password') },
+   *     engine: {
+   *       type: 'postgres',
+   *       properties: {
+   *         version: '16.6',
+   *         primaryInstance: { instanceSize: 'db.t3.micro' }
+   *       }
+   *     }
+   *   });
+   *   const web = new NuxtWeb({
+   *     // stp-focus
+   *     environment: {
+   *       NUXT_PUBLIC_API_BASE: 'https://api.example.com',
+   *       DATABASE_URL: $ResourceParam('db', 'connectionString'),
+   *       SESSION_SECRET: $Secret('session.secret')
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { db, web } };
+   * });
+   * ```
    */
   environment?: EnvironmentVar[];
   /**
@@ -32,26 +155,275 @@ interface NuxtWebProps extends ResourceAccessProps {
    * ---
    *
    * **Prerequisite:** A Route 53 hosted zone for your domain must exist in your AWS account.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   web:
+   *     type: nuxt-web
+   *     properties:
+   *       # stp-focus
+   *       customDomains:
+   *         - domainName: www.example.com
+   *         - domainName: shop.example.com
+   *           disableDnsRecordCreation: true
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { NuxtWeb, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const web = new NuxtWeb({
+   *     // stp-focus
+   *     customDomains: [
+   *       { domainName: 'www.example.com' },
+   *       { domainName: 'shop.example.com', disableDnsRecordCreation: true }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { web } };
+   * });
+   * ```
    */
   customDomains?: DomainConfiguration[];
   /**
    * #### Customize the SSR Lambda function (memory, timeout, VPC, logging).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   web:
+   *     type: nuxt-web
+   *     properties:
+   *       # stp-focus
+   *       serverLambda:
+   *         memory: 2048
+   *         timeout: 25
+   *         joinDefaultVpc: true
+   *         logging:
+   *           retentionDays: 30
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { NuxtWeb, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const web = new NuxtWeb({
+   *     // stp-focus
+   *     serverLambda: {
+   *       memory: 2048,
+   *       timeout: 25,
+   *       joinDefaultVpc: true,
+   *       logging: { retentionDays: 30 }
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { web } };
+   * });
+   * ```
    */
   serverLambda?: SsrWebServerLambdaConfig;
   /**
    * #### Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   cdnFirewall:
+   *     type: web-app-firewall
+   *     properties:
+   *       scope: cdn
+   *       defaultAction: Allow
+   *       rules:
+   *         - type: managed-rule-group
+   *           properties:
+   *             name: AWSManagedRulesCommonRuleSet
+   *             vendorName: AWS
+   *             priority: 10
+   *   web:
+   *     type: nuxt-web
+   *     properties:
+   *       # stp-focus
+   *       useFirewall: cdnFirewall
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { NuxtWeb, WebAppFirewall, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const cdnFirewall = new WebAppFirewall({
+   *     scope: 'cdn',
+   *     defaultAction: 'Allow',
+   *     rules: [
+   *       {
+   *         type: 'managed-rule-group',
+   *         properties: { name: 'AWSManagedRulesCommonRuleSet', vendorName: 'AWS', priority: 10 }
+   *       }
+   *     ]
+   *   });
+   *   const web = new NuxtWeb({
+   *     // stp-focus
+   *     useFirewall: 'cdnFirewall'
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { cdnFirewall, web } };
+   * });
+   * ```
    */
   useFirewall?: string;
   /**
    * #### Dev server config for `stacktape dev`. Defaults to `nuxt dev`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   web:
+   *     type: nuxt-web
+   *     properties:
+   *       appDirectory: ./apps/web
+   *       # stp-focus
+   *       dev:
+   *         command: npm run dev
+   *         workingDirectory: ./apps/web
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { NuxtWeb, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const web = new NuxtWeb({
+   *     appDirectory: './apps/web',
+   *     // stp-focus
+   *     dev: {
+   *       command: 'npm run dev',
+   *       workingDirectory: './apps/web'
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { web } };
+   * });
+   * ```
    */
   dev?: SsrWebDevConfig;
   /**
    * #### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   web:
+   *     type: nuxt-web
+   *     properties:
+   *       # stp-focus
+   *       fileOptions:
+   *         - includePattern: '_nuxt/**'
+   *           headers:
+   *             - key: Cache-Control
+   *               value: 'public, max-age=31536000, immutable'
+   *         - includePattern: '*.html'
+   *           headers:
+   *             - key: Cache-Control
+   *               value: no-cache
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { NuxtWeb, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const web = new NuxtWeb({
+   *     // stp-focus
+   *     fileOptions: [
+   *       {
+   *         includePattern: '_nuxt/**',
+   *         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }]
+   *       },
+   *       {
+   *         includePattern: '*.html',
+   *         headers: [{ key: 'Cache-Control', value: 'no-cache' }]
+   *       }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { web } };
+   * });
+   * ```
    */
   fileOptions?: DirectoryUploadFilter[];
   /**
    * #### CDN cache controls for SSR routes and specific path patterns.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   web:
+   *     type: nuxt-web
+   *     properties:
+   *       # stp-focus
+   *       cdn:
+   *         disableInvalidationAfterDeploy: false
+   *         defaultCachingOptions:
+   *           minTTL: 0
+   *           defaultTTL: 60
+   *           maxTTL: 3600
+   *         pathCachingOverrides:
+   *           - path: '/_nuxt/*'
+   *             cachingOptions:
+   *               defaultTTL: 31536000
+   *               maxTTL: 31536000
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { NuxtWeb, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const web = new NuxtWeb({
+   *     // stp-focus
+   *     cdn: {
+   *       disableInvalidationAfterDeploy: false,
+   *       defaultCachingOptions: { minTTL: 0, defaultTTL: 60, maxTTL: 3600 },
+   *       pathCachingOverrides: [
+   *         { path: '/_nuxt/*', cachingOptions: { defaultTTL: 31536000, maxTTL: 31536000 } }
+   *       ]
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { web } };
+   * });
+   * ```
    */
   cdn?: SsrWebCdnConfig;
 }

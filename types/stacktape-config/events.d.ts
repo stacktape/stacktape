@@ -13,6 +13,71 @@ interface ContainerWorkloadLoadBalancerIntegration {
 interface ContainerWorkloadLoadBalancerIntegrationProps extends ApplicationLoadBalancerIntegrationProps {
   /**
    * #### The container port that will receive traffic from the load balancer.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   appWorkload:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   *       containers:
+   *         - name: web
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: 'my-org/web-app:latest'
+   *           events:
+   *             - type: application-load-balancer
+   *               properties:
+   *                 loadBalancerName: publicAlb
+   *                 priority: 1
+   *                 paths:
+   *                   - '/*'
+   *                 # stp-focus
+   *                 containerPort: 8080
+   *                 # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const appWorkload = new MultiContainerWorkload({
+   *     resources: { cpu: 0.5, memory: 1024 },
+   *     containers: [
+   *       {
+   *         name: 'web',
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-org/web-app:latest' } },
+   *         events: [
+   *           {
+   *             type: 'application-load-balancer',
+   *             properties: {
+   *               loadBalancerName: 'publicAlb',
+   *               priority: 1,
+   *               paths: ['/*'],
+   *               // stp-focus
+   *               containerPort: 8080
+   *               // stp-end-focus
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, appWorkload } };
+   * });
+   * ```
    */
   containerPort: number;
 }
@@ -43,6 +108,81 @@ interface ApplicationLoadBalancerIntegrationProps {
    * ---
    *
    * This must reference a load balancer defined in your Stacktape configuration.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             # stp-focus
+   *             loadBalancerName: publicAlb
+   *             # stp-end-focus
+   *             listenerPort: 443
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   *               - '/api/articles/*'
+   *             methods:
+   *               - GET
+   *               - POST
+   *             hosts:
+   *               - api.example.com
+   *               - '*.myapp.com'
+   *             headers:
+   *               - headerName: X-Tenant-Id
+   *                 values:
+   *                   - acme-corp
+   *                   - globex
+   *             queryParams:
+   *               - paramName: version
+   *                 values:
+   *                   - v2
+   *             sourceIps:
+   *               - 10.0.0.0/16
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           // stp-focus
+   *           loadBalancerName: 'publicAlb',
+   *           // stp-end-focus
+   *           listenerPort: 443,
+   *           priority: 1,
+   *           paths: ['/api/users', '/api/articles/*'],
+   *           methods: ['GET', 'POST'],
+   *           hosts: ['api.example.com', '*.myapp.com'],
+   *           headers: [{ headerName: 'X-Tenant-Id', values: ['acme-corp', 'globex'] }],
+   *           queryParams: [{ paramName: 'version', values: ['v2'] }],
+   *           sourceIps: ['10.0.0.0/16']
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   loadBalancerName: string;
   /**
@@ -51,6 +191,58 @@ interface ApplicationLoadBalancerIntegrationProps {
    * ---
    *
    * You only need to specify this if the load balancer uses custom listeners.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             # stp-focus
+   *             listenerPort: 443
+   *             # stp-end-focus
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           // stp-focus
+   *           listenerPort: 443,
+   *           // stp-end-focus
+   *           priority: 1,
+   *           paths: ['/api/users']
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   listenerPort?: number;
   /**
@@ -60,6 +252,56 @@ interface ApplicationLoadBalancerIntegrationProps {
    *
    * Load balancer rules are evaluated in order from the lowest priority to the highest.
    * The first rule that matches an incoming request will handle it.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             # stp-focus
+   *             priority: 1
+   *             # stp-end-focus
+   *             paths:
+   *               - /api/users
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           // stp-focus
+   *           priority: 1,
+   *           // stp-end-focus
+   *           paths: ['/api/users']
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   priority: number;
   /**
@@ -71,6 +313,57 @@ interface ApplicationLoadBalancerIntegrationProps {
    * The comparison is case-sensitive and supports `*` and `?` wildcards.
    *
    * Example: `/users`, `/articles/*`
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             priority: 1
+   *             # stp-focus
+   *             paths:
+   *               - /api/users
+   *               - '/api/articles/*'
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           priority: 1,
+   *           // stp-focus
+   *           paths: ['/api/users', '/api/articles/*']
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   paths?: string[];
   /**
@@ -79,6 +372,60 @@ interface ApplicationLoadBalancerIntegrationProps {
    * ---
    *
    * Example: `GET`, `POST`, `DELETE`
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   *             # stp-focus
+   *             methods:
+   *               - GET
+   *               - POST
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           priority: 1,
+   *           paths: ['/api/users'],
+   *           // stp-focus
+   *           methods: ['GET', 'POST']
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   methods?: string[];
   /**
@@ -90,6 +437,60 @@ interface ApplicationLoadBalancerIntegrationProps {
    * Wildcards (`*` and `?`) are supported.
    *
    * Example: `api.example.com`, `*.myapp.com`
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   *             # stp-focus
+   *             hosts:
+   *               - api.example.com
+   *               - '*.myapp.com'
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           priority: 1,
+   *           paths: ['/api/users'],
+   *           // stp-focus
+   *           hosts: ['api.example.com', '*.myapp.com']
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   hosts?: string[];
   /**
@@ -98,6 +499,62 @@ interface ApplicationLoadBalancerIntegrationProps {
    * ---
    *
    * All header conditions must be met for the request to be routed.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   *             # stp-focus
+   *             headers:
+   *               - headerName: X-Tenant-Id
+   *                 values:
+   *                   - acme-corp
+   *                   - globex
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           priority: 1,
+   *           paths: ['/api/users'],
+   *           // stp-focus
+   *           headers: [{ headerName: 'X-Tenant-Id', values: ['acme-corp', 'globex'] }]
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   headers?: LbHeaderCondition[];
   /**
@@ -106,6 +563,61 @@ interface ApplicationLoadBalancerIntegrationProps {
    * ---
    *
    * All query parameter conditions must be met for the request to be routed.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   *             # stp-focus
+   *             queryParams:
+   *               - paramName: version
+   *                 values:
+   *                   - v2
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           priority: 1,
+   *           paths: ['/api/users'],
+   *           // stp-focus
+   *           queryParams: [{ paramName: 'version', values: ['v2'] }]
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   queryParams?: LbQueryParamCondition[];
   /**
@@ -114,6 +626,59 @@ interface ApplicationLoadBalancerIntegrationProps {
    * ---
    *
    * > **Note:** If the client is behind a proxy, this will be the IP address of the proxy.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   *             # stp-focus
+   *             sourceIps:
+   *               - 10.0.0.0/16
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           priority: 1,
+   *           paths: ['/api/users'],
+   *           // stp-focus
+   *           sourceIps: ['10.0.0.0/16']
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   sourceIps?: string[];
 }
@@ -121,6 +686,68 @@ interface ApplicationLoadBalancerIntegrationProps {
 interface LbHeaderCondition {
   /**
    * #### The name of the HTTP header.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   *             headers:
+   *               - # stp-focus
+   *                 headerName: X-Tenant-Id
+   *                 # stp-end-focus
+   *                 values:
+   *                   - acme-corp
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           priority: 1,
+   *           paths: ['/api/users'],
+   *           headers: [
+   *             {
+   *               // stp-focus
+   *               headerName: 'X-Tenant-Id',
+   *               // stp-end-focus
+   *               values: ['acme-corp']
+   *             }
+   *           ]
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   headerName: string;
   /**
@@ -129,12 +756,135 @@ interface LbHeaderCondition {
    * ---
    *
    * The condition is met if the header's value in the incoming request matches any of the values in this list. The comparison is case-insensitive.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   *             headers:
+   *               - headerName: X-Tenant-Id
+   *                 # stp-focus
+   *                 values:
+   *                   - acme-corp
+   *                   - globex
+   *                 # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           priority: 1,
+   *           paths: ['/api/users'],
+   *           headers: [
+   *             {
+   *               headerName: 'X-Tenant-Id',
+   *               // stp-focus
+   *               values: ['acme-corp', 'globex']
+   *               // stp-end-focus
+   *             }
+   *           ]
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   values: string[];
 }
 interface LbQueryParamCondition {
   /**
    * #### The name of the query parameter.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   *             queryParams:
+   *               - # stp-focus
+   *                 paramName: version
+   *                 # stp-end-focus
+   *                 values:
+   *                   - v2
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           priority: 1,
+   *           paths: ['/api/users'],
+   *           queryParams: [
+   *             {
+   *               // stp-focus
+   *               paramName: 'version',
+   *               // stp-end-focus
+   *               values: ['v2']
+   *             }
+   *           ]
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   paramName: string;
   /**
@@ -143,12 +893,136 @@ interface LbQueryParamCondition {
    * ---
    *
    * The condition is met if the query parameter's value in the incoming request matches any of the values in this list. The comparison is case-insensitive.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicAlb:
+   *     type: application-load-balancer
+   *     properties: {}
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       events:
+   *         - type: application-load-balancer
+   *           properties:
+   *             loadBalancerName: publicAlb
+   *             priority: 1
+   *             paths:
+   *               - /api/users
+   *             queryParams:
+   *               - paramName: version
+   *                 # stp-focus
+   *                 values:
+   *                   - v2
+   *                 # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicAlb = new ApplicationLoadBalancer({});
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     events: [
+   *       {
+   *         type: 'application-load-balancer',
+   *         properties: {
+   *           loadBalancerName: 'publicAlb',
+   *           priority: 1,
+   *           paths: ['/api/users'],
+   *           queryParams: [
+   *             {
+   *               paramName: 'version',
+   *               // stp-focus
+   *               values: ['v2']
+   *               // stp-end-focus
+   *             }
+   *           ]
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicAlb, apiFunction } };
+   * });
+   * ```
    */
   values: string[];
 }
 interface ContainerWorkloadHttpApiIntegrationProps extends HttpApiIntegrationProps {
   /**
    * #### The container port that will receive traffic from the API Gateway.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicApi:
+   *     type: http-api-gateway
+   *     properties: {}
+   *   appWorkload:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   *       containers:
+   *         - name: web
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: 'my-org/web-app:latest'
+   *           events:
+   *             - type: http-api-gateway
+   *               properties:
+   *                 httpApiGatewayName: publicApi
+   *                 method: '*'
+   *                 path: '/{proxy+}'
+   *                 # stp-focus
+   *                 containerPort: 8080
+   *                 # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { MultiContainerWorkload, HttpApiGateway, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const publicApi = new HttpApiGateway({});
+   *   const appWorkload = new MultiContainerWorkload({
+   *     resources: { cpu: 0.5, memory: 1024 },
+   *     containers: [
+   *       {
+   *         name: 'web',
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-org/web-app:latest' } },
+   *         events: [
+   *           {
+   *             type: 'http-api-gateway',
+   *             properties: {
+   *               httpApiGatewayName: 'publicApi',
+   *               method: '*',
+   *               path: '/{proxy+}',
+   *               // stp-focus
+   *               containerPort: 8080
+   *               // stp-end-focus
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { publicApi, appWorkload } };
+   * });
+   * ```
    */
   containerPort: number;
 }
@@ -176,6 +1050,71 @@ interface ContainerWorkloadInternalIntegration {
 interface ContainerWorkloadInternalIntegrationProps {
   /**
    * #### The container port to open for internal traffic.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   appWorkload:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   *       containers:
+   *         - name: web
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: 'my-org/web-app:latest'
+   *         - name: metrics
+   *           essential: false
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: 'my-org/metrics-sidecar:latest'
+   *           events:
+   *             - type: workload-internal
+   *               properties:
+   *                 # stp-focus
+   *                 containerPort: 9090
+   *                 # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { MultiContainerWorkload, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const appWorkload = new MultiContainerWorkload({
+   *     resources: { cpu: 0.5, memory: 1024 },
+   *     containers: [
+   *       {
+   *         name: 'web',
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-org/web-app:latest' } }
+   *       },
+   *       {
+   *         name: 'metrics',
+   *         essential: false,
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-org/metrics-sidecar:latest' } },
+   *         events: [
+   *           {
+   *             type: 'workload-internal',
+   *             properties: {
+   *               // stp-focus
+   *               containerPort: 9090
+   *               // stp-end-focus
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { appWorkload } };
+   * });
+   * ```
    */
   containerPort: number;
 }
@@ -191,6 +1130,64 @@ interface ContainerWorkloadServiceConnectIntegration {
 interface ContainerWorkloadServiceConnectIntegrationProps {
   /**
    * #### The container port to open for service-to-service communication.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   appWorkload:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   *       containers:
+   *         - name: web
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: 'my-org/web-app:latest'
+   *           events:
+   *             - type: service-connect
+   *               properties:
+   *                 # stp-focus
+   *                 containerPort: 8080
+   *                 # stp-end-focus
+   *                 alias: web-api
+   *                 protocol: http
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { MultiContainerWorkload, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const appWorkload = new MultiContainerWorkload({
+   *     resources: { cpu: 0.5, memory: 1024 },
+   *     containers: [
+   *       {
+   *         name: 'web',
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-org/web-app:latest' } },
+   *         events: [
+   *           {
+   *             type: 'service-connect',
+   *             properties: {
+   *               // stp-focus
+   *               containerPort: 8080,
+   *               // stp-end-focus
+   *               alias: 'web-api',
+   *               protocol: 'http'
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { appWorkload } };
+   * });
+   * ```
    */
   containerPort: number;
   /**
@@ -200,6 +1197,62 @@ interface ContainerWorkloadServiceConnectIntegrationProps {
    *
    * Other resources in the stack can connect to this service using a URL like `protocol://alias:port` (e.g., `http://my-service:8080`).
    * By default, the alias is derived from the resource and container names (e.g., `my-resource-my-container`).
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   appWorkload:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   *       containers:
+   *         - name: web
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: 'my-org/web-app:latest'
+   *           events:
+   *             - type: service-connect
+   *               properties:
+   *                 containerPort: 8080
+   *                 # stp-focus
+   *                 alias: web-api
+   *                 # stp-end-focus
+   *                 protocol: http
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { MultiContainerWorkload, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const appWorkload = new MultiContainerWorkload({
+   *     resources: { cpu: 0.5, memory: 1024 },
+   *     containers: [
+   *       {
+   *         name: 'web',
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-org/web-app:latest' } },
+   *         events: [
+   *           {
+   *             type: 'service-connect',
+   *             properties: {
+   *               containerPort: 8080,
+   *               // stp-focus
+   *               alias: 'web-api',
+   *               // stp-end-focus
+   *               protocol: 'http'
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { appWorkload } };
+   * });
+   * ```
    */
   alias?: string;
   /**
@@ -208,6 +1261,62 @@ interface ContainerWorkloadServiceConnectIntegrationProps {
    * ---
    *
    * Specifying the protocol allows AWS to capture protocol-specific metrics, such as the number of HTTP 5xx errors.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   appWorkload:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   *       containers:
+   *         - name: web
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: 'my-org/web-app:latest'
+   *           events:
+   *             - type: service-connect
+   *               properties:
+   *                 containerPort: 8080
+   *                 alias: web-api
+   *                 # stp-focus
+   *                 protocol: http
+   *                 # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { MultiContainerWorkload, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const appWorkload = new MultiContainerWorkload({
+   *     resources: { cpu: 0.5, memory: 1024 },
+   *     containers: [
+   *       {
+   *         name: 'web',
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-org/web-app:latest' } },
+   *         events: [
+   *           {
+   *             type: 'service-connect',
+   *             properties: {
+   *               containerPort: 8080,
+   *               alias: 'web-api',
+   *               // stp-focus
+   *               protocol: 'http'
+   *               // stp-end-focus
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { appWorkload } };
+   * });
+   * ```
    */
   protocol?: 'http' | 'http2' | 'grpc';
 }
@@ -719,11 +1828,49 @@ interface ScheduleIntegrationProps {
    * If you need to customize the payload based on the event, use `inputTransformer` instead.
    * You can only use one of `input`, `inputPath`, or `inputTransformer`.
    *
-   * Example:
+   * **Example (YAML):**
    *
    * ```yaml
-   * input:
-   *   source: 'my-scheduled-event'
+   * resources:
+   *   reportFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/report.ts
+   *       events:
+   *         - type: schedule
+   *           properties:
+   *             scheduleRate: rate(1 hour)
+   *             # stp-focus
+   *             input:
+   *               source: my-scheduled-event
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const reportFunction = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/report.ts' }),
+   *     events: [
+   *       {
+   *         type: 'schedule',
+   *         properties: {
+   *           scheduleRate: 'rate(1 hour)',
+   *           // stp-focus
+   *           input: { source: 'my-scheduled-event' }
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { reportFunction } };
+   * });
    * ```
    */
   input?: any;
@@ -735,10 +1882,48 @@ interface ScheduleIntegrationProps {
    * This is useful for forwarding only a specific part of the event payload.
    * You can only use one of `input`, `inputPath`, or `inputTransformer`.
    *
-   * Example:
+   * **Example (YAML):**
    *
    * ```yaml
-   * inputPath: '$.detail'
+   * resources:
+   *   reportFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/report.ts
+   *       events:
+   *         - type: schedule
+   *           properties:
+   *             scheduleRate: rate(1 hour)
+   *             # stp-focus
+   *             inputPath: $.detail
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const reportFunction = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/report.ts' }),
+   *     events: [
+   *       {
+   *         type: 'schedule',
+   *         properties: {
+   *           scheduleRate: 'rate(1 hour)',
+   *           // stp-focus
+   *           inputPath: '$.detail'
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { reportFunction } };
+   * });
    * ```
    */
   inputPath?: string;
@@ -750,14 +1935,55 @@ interface ScheduleIntegrationProps {
    * This allows you to extract values from the original event and use them to construct a new payload.
    * You can only use one of `input`, `inputPath`, or `inputTransformer`.
    *
-   * Example:
+   * **Example (YAML):**
    *
    * ```yaml
-   * inputTransformer:
-   *   inputPathsMap:
-   *     eventTime: '$.time'
-   *   inputTemplate:
-   *     message: 'This event occurred at <eventTime>.'
+   * resources:
+   *   reportFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/report.ts
+   *       events:
+   *         - type: schedule
+   *           properties:
+   *             scheduleRate: rate(1 hour)
+   *             # stp-focus
+   *             inputTransformer:
+   *               inputPathsMap:
+   *                 eventTime: $.time
+   *               inputTemplate:
+   *                 message: This event occurred at <eventTime>.
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const reportFunction = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/report.ts' }),
+   *     events: [
+   *       {
+   *         type: 'schedule',
+   *         properties: {
+   *           scheduleRate: 'rate(1 hour)',
+   *           // stp-focus
+   *           inputTransformer: {
+   *             inputPathsMap: { eventTime: '$.time' },
+   *             inputTemplate: { message: 'This event occurred at <eventTime>.' }
+   *           }
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { reportFunction } };
+   * });
    * ```
    */
   inputTransformer?: EventInputTransformer;
@@ -994,11 +2220,56 @@ interface EventBusIntegrationProps {
    * If you need to customize the payload based on the event, use `inputTransformer` instead.
    * You can only use one of `input`, `inputPath`, or `inputTransformer`.
    *
-   * Example:
+   * **Example (YAML):**
    *
    * ```yaml
-   * input:
-   *   source: 'my-custom-event'
+   * resources:
+   *   orderEvents:
+   *     type: event-bus
+   *   orderProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/process-order.ts
+   *       events:
+   *         - type: event-bus
+   *           properties:
+   *             eventBusName: orderEvents
+   *             eventPattern:
+   *               source:
+   *                 - my.orders
+   *             # stp-focus
+   *             input:
+   *               source: my-custom-event
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const orderEvents = new EventBus({});
+   *   const orderProcessor = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
+   *     events: [
+   *       {
+   *         type: 'event-bus',
+   *         properties: {
+   *           eventBusName: 'orderEvents',
+   *           eventPattern: { source: ['my.orders'] },
+   *           // stp-focus
+   *           input: { source: 'my-custom-event' }
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { orderEvents, orderProcessor } };
+   * });
    * ```
    */
   input?: any;
@@ -1010,10 +2281,55 @@ interface EventBusIntegrationProps {
    * This is useful for forwarding only a specific part of the event payload.
    * You can only use one of `input`, `inputPath`, or `inputTransformer`.
    *
-   * Example:
+   * **Example (YAML):**
    *
    * ```yaml
-   * inputPath: '$.detail'
+   * resources:
+   *   orderEvents:
+   *     type: event-bus
+   *   orderProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/process-order.ts
+   *       events:
+   *         - type: event-bus
+   *           properties:
+   *             eventBusName: orderEvents
+   *             eventPattern:
+   *               source:
+   *                 - my.orders
+   *             # stp-focus
+   *             inputPath: $.detail
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const orderEvents = new EventBus({});
+   *   const orderProcessor = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
+   *     events: [
+   *       {
+   *         type: 'event-bus',
+   *         properties: {
+   *           eventBusName: 'orderEvents',
+   *           eventPattern: { source: ['my.orders'] },
+   *           // stp-focus
+   *           inputPath: '$.detail'
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { orderEvents, orderProcessor } };
+   * });
    * ```
    */
   inputPath?: string;
@@ -1025,15 +2341,66 @@ interface EventBusIntegrationProps {
    * This allows you to extract values from the original event and use them to construct a new payload.
    * You can only use one of `input`, `inputPath`, or `inputTransformer`.
    *
-   * Example:
+   * **Example (YAML):**
    *
    * ```yaml
-   * inputTransformer:
-   *   inputPathsMap:
-   *     instanceId: '$.detail.instance-id'
-   *     instanceState: '$.detail.state'
-   *   inputTemplate:
-   *     message: 'Instance <instanceId> is now in state <instanceState>.'
+   * resources:
+   *   orderEvents:
+   *     type: event-bus
+   *   orderProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/process-order.ts
+   *       events:
+   *         - type: event-bus
+   *           properties:
+   *             eventBusName: orderEvents
+   *             eventPattern:
+   *               source:
+   *                 - my.orders
+   *             # stp-focus
+   *             inputTransformer:
+   *               inputPathsMap:
+   *                 instanceId: $.detail.instance-id
+   *                 instanceState: $.detail.state
+   *               inputTemplate:
+   *                 message: Instance <instanceId> is now in state <instanceState>.
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const orderEvents = new EventBus({});
+   *   const orderProcessor = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
+   *     events: [
+   *       {
+   *         type: 'event-bus',
+   *         properties: {
+   *           eventBusName: 'orderEvents',
+   *           eventPattern: { source: ['my.orders'] },
+   *           // stp-focus
+   *           inputTransformer: {
+   *             inputPathsMap: {
+   *               instanceId: '$.detail.instance-id',
+   *               instanceState: '$.detail.state'
+   *             },
+   *             inputTemplate: { message: 'Instance <instanceId> is now in state <instanceState>.' }
+   *           }
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { orderEvents, orderProcessor } };
+   * });
    * ```
    */
   inputTransformer?: EventInputTransformer;
@@ -1065,6 +2432,71 @@ interface ContainerWorkloadNetworkLoadBalancerIntegration {
 interface ContainerWorkloadNetworkLoadBalancerIntegrationProps extends NetworkLoadBalancerIntegrationProps {
   /**
    * #### The container port that will receive traffic from the load balancer.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   tcpNlb:
+   *     type: network-load-balancer
+   *     properties:
+   *       listeners:
+   *         - port: 5432
+   *           protocol: TCP
+   *   proxyWorkload:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.25
+   *         memory: 512
+   *       containers:
+   *         - name: proxy
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: 'my-org/tcp-proxy:latest'
+   *           events:
+   *             - type: network-load-balancer
+   *               properties:
+   *                 loadBalancerName: tcpNlb
+   *                 listenerPort: 5432
+   *                 # stp-focus
+   *                 containerPort: 5432
+   *                 # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { MultiContainerWorkload, NetworkLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const tcpNlb = new NetworkLoadBalancer({ listeners: [{ port: 5432, protocol: 'TCP' }] });
+   *   const proxyWorkload = new MultiContainerWorkload({
+   *     resources: { cpu: 0.25, memory: 512 },
+   *     containers: [
+   *       {
+   *         name: 'proxy',
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-org/tcp-proxy:latest' } },
+   *         events: [
+   *           {
+   *             type: 'network-load-balancer',
+   *             properties: {
+   *               loadBalancerName: 'tcpNlb',
+   *               listenerPort: 5432,
+   *               // stp-focus
+   *               containerPort: 5432
+   *               // stp-end-focus
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { tcpNlb, proxyWorkload } };
+   * });
+   * ```
    */
   containerPort: number;
 }
@@ -1076,10 +2508,138 @@ interface NetworkLoadBalancerIntegrationProps {
    * ---
    *
    * This must reference a load balancer defined in your Stacktape configuration.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   tcpNlb:
+   *     type: network-load-balancer
+   *     properties:
+   *       listeners:
+   *         - port: 5432
+   *           protocol: TCP
+   *   proxyWorkload:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.25
+   *         memory: 512
+   *       containers:
+   *         - name: proxy
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: 'my-org/tcp-proxy:latest'
+   *           events:
+   *             - type: network-load-balancer
+   *               properties:
+   *                 # stp-focus
+   *                 loadBalancerName: tcpNlb
+   *                 # stp-end-focus
+   *                 listenerPort: 5432
+   *                 containerPort: 5432
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { MultiContainerWorkload, NetworkLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const tcpNlb = new NetworkLoadBalancer({ listeners: [{ port: 5432, protocol: 'TCP' }] });
+   *   const proxyWorkload = new MultiContainerWorkload({
+   *     resources: { cpu: 0.25, memory: 512 },
+   *     containers: [
+   *       {
+   *         name: 'proxy',
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-org/tcp-proxy:latest' } },
+   *         events: [
+   *           {
+   *             type: 'network-load-balancer',
+   *             properties: {
+   *               // stp-focus
+   *               loadBalancerName: 'tcpNlb',
+   *               // stp-end-focus
+   *               listenerPort: 5432,
+   *               containerPort: 5432
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { tcpNlb, proxyWorkload } };
+   * });
+   * ```
    */
   loadBalancerName: string;
   /**
    * #### The port of the listener that will forward traffic to this integration.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   tcpNlb:
+   *     type: network-load-balancer
+   *     properties:
+   *       listeners:
+   *         - port: 5432
+   *           protocol: TCP
+   *   proxyWorkload:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.25
+   *         memory: 512
+   *       containers:
+   *         - name: proxy
+   *           packaging:
+   *             type: prebuilt-image
+   *             properties:
+   *               image: 'my-org/tcp-proxy:latest'
+   *           events:
+   *             - type: network-load-balancer
+   *               properties:
+   *                 loadBalancerName: tcpNlb
+   *                 # stp-focus
+   *                 listenerPort: 5432
+   *                 # stp-end-focus
+   *                 containerPort: 5432
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { MultiContainerWorkload, NetworkLoadBalancer, defineConfig } from 'stacktape';
+   * export default defineConfig(() => {
+   *   const tcpNlb = new NetworkLoadBalancer({ listeners: [{ port: 5432, protocol: 'TCP' }] });
+   *   const proxyWorkload = new MultiContainerWorkload({
+   *     resources: { cpu: 0.25, memory: 512 },
+   *     containers: [
+   *       {
+   *         name: 'proxy',
+   *         packaging: { type: 'prebuilt-image', properties: { image: 'my-org/tcp-proxy:latest' } },
+   *         events: [
+   *           {
+   *             type: 'network-load-balancer',
+   *             properties: {
+   *               loadBalancerName: 'tcpNlb',
+   *               // stp-focus
+   *               listenerPort: 5432,
+   *               // stp-end-focus
+   *               containerPort: 5432
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { tcpNlb, proxyWorkload } };
+   * });
+   * ```
    */
   listenerPort: number;
 }

@@ -30,6 +30,80 @@
  * The smallest viable configuration (single-AZ `db.t4g.micro` Postgres, 0.5 vCPU / 1 GB Fargate
  * backend, 0.25 vCPU / 512 MB dashboard, ALB, S3) lands around **$45–65/month idle**. Production
  * configurations with larger backends scale up from there.
+ *
+ * **Example (YAML):**
+ *
+ * ```yaml
+ * # stp-focus
+ * resources:
+ *   backend:
+ *     type: convex
+ *     properties:
+ *       appDirectory: ./convex
+ *       backend:
+ *         resources:
+ *           cpu: 1
+ *           memory: 2048
+ *       dashboard:
+ *         enabled: true
+ *       database:
+ *         engine:
+ *           type: postgres
+ *           properties:
+ *             version: '16.6'
+ *             primaryInstance:
+ *               instanceSize: db.t4g.small
+ *       customDomains:
+ *         cloud:
+ *           domainName: api.myapp.com
+ *         site:
+ *           domainName: webhooks.myapp.com
+ *         dashboard:
+ *           domainName: convex-admin.myapp.com
+ *       deletionProtection: true
+ * # stp-end-focus
+ * ```
+ *
+ * **Example (TypeScript):**
+ *
+ * ```ts
+ * import { Convex, defineConfig } from 'stacktape';
+ *
+ * export default defineConfig(() => {
+ *   // stp-focus
+ *   const backend = new Convex({
+ *     appDirectory: './convex',
+ *     backend: {
+ *       resources: {
+ *         cpu: 1,
+ *         memory: 2048
+ *       }
+ *     },
+ *     dashboard: {
+ *       enabled: true
+ *     },
+ *     database: {
+ *       engine: {
+ *         type: 'postgres',
+ *         properties: {
+ *           version: '16.6',
+ *           primaryInstance: {
+ *             instanceSize: 'db.t4g.small'
+ *           }
+ *         }
+ *       }
+ *     },
+ *     customDomains: {
+ *       cloud: { domainName: 'api.myapp.com' },
+ *       site: { domainName: 'webhooks.myapp.com' },
+ *       dashboard: { domainName: 'convex-admin.myapp.com' }
+ *     },
+ *     deletionProtection: true
+ *   });
+ *   // stp-end-focus
+ *   return { resources: { backend } };
+ * });
+ * ```
  */
 interface Convex {
   type: 'convex';
@@ -47,6 +121,61 @@ interface ConvexProps {
    * against the freshly-deployed backend.
    *
    * Example: `appDirectory: './convex'`
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       # stp-focus
+   *       appDirectory: ./convex
+   *       # stp-end-focus
+   *       backend:
+   *         resources:
+   *           cpu: 1
+   *           memory: 2048
+   *       database:
+   *         engine:
+   *           type: postgres
+   *           properties:
+   *             version: '16.6'
+   *             primaryInstance:
+   *               instanceSize: db.t4g.small
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     // stp-focus
+   *     appDirectory: './convex',
+   *     // stp-end-focus
+   *     backend: {
+   *       resources: {
+   *         cpu: 1,
+   *         memory: 2048
+   *       }
+   *     },
+   *     database: {
+   *       engine: {
+   *         type: 'postgres',
+   *         properties: {
+   *           version: '16.6',
+   *           primaryInstance: {
+   *             instanceSize: 'db.t4g.small'
+   *           }
+   *         }
+   *       }
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   appDirectory: string;
   /**
@@ -60,6 +189,42 @@ interface ConvexProps {
    *
    * Set `enabled: false` if your CI/CD pipeline deploys functions separately, or set `command`
    * when your project uses a custom package-manager command.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       # stp-focus
+   *       functionsDeployment:
+   *         enabled: true
+   *         command: pnpm convex deploy --codegen disable
+   *         workingDirectory: ./
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     // stp-focus
+   *     functionsDeployment: {
+   *       enabled: true,
+   *       command: 'pnpm convex deploy --codegen disable',
+   *       workingDirectory: './'
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   functionsDeployment?: ConvexFunctionsDeploymentConfig;
   /**
@@ -83,10 +248,104 @@ interface ConvexProps {
    * If `customDomains` is omitted entirely, the ALB's default DNS is used with port-based routing
    * (3210 cloud, 3211 site, 6791 dashboard). Fine for dev/staging; **not recommended for
    * production** — the ALB DNS is unstable across stack recreations, and clients hard-code the URL.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       dashboard:
+   *         enabled: true
+   *       # stp-focus
+   *       customDomains:
+   *         cloud:
+   *           domainName: api.myapp.com
+   *         site:
+   *           domainName: webhooks.myapp.com
+   *         dashboard:
+   *           domainName: convex-admin.myapp.com
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     dashboard: {
+   *       enabled: true
+   *     },
+   *     // stp-focus
+   *     customDomains: {
+   *       cloud: {
+   *         domainName: 'api.myapp.com'
+   *       },
+   *       site: {
+   *         domainName: 'webhooks.myapp.com'
+   *       },
+   *       dashboard: {
+   *         domainName: 'convex-admin.myapp.com'
+   *       }
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   customDomains?: ConvexCustomDomains;
   /**
    * #### Configuration for the Convex backend container (the Rust server process).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       # stp-focus
+   *       backend:
+   *         resources:
+   *           cpu: 2
+   *           memory: 4096
+   *         logging:
+   *           retentionDays: 30
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     // stp-focus
+   *     backend: {
+   *       resources: {
+   *         cpu: 2,
+   *         memory: 4096
+   *       },
+   *       logging: {
+   *         retentionDays: 30
+   *       }
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   backend?: ConvexBackendConfig;
   /**
@@ -97,6 +356,48 @@ interface ConvexProps {
    * Enabled by default. The dashboard is a stateless Next.js app that talks to the backend's
    * REST API using the admin key (which you paste on first login). To opt out, set
    * `dashboard.enabled: false`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       # stp-focus
+   *       dashboard:
+   *         enabled: true
+   *         allowedIpRanges:
+   *           - 203.0.113.0/24
+   *         resources:
+   *           cpu: 0.25
+   *           memory: 512
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     // stp-focus
+   *     dashboard: {
+   *       enabled: true,
+   *       allowedIpRanges: ['203.0.113.0/24'],
+   *       resources: {
+   *         cpu: 0.25,
+   *         memory: 512
+   *       }
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   dashboard?: ConvexDashboardConfig;
   /**
@@ -110,6 +411,52 @@ interface ConvexProps {
    * multi-AZ for HA, or increase storage retention.
    *
    * You cannot bring an existing external database — Convex assumes it owns its Postgres entirely.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       # stp-focus
+   *       database:
+   *         engine:
+   *           type: aurora-postgresql-serverless-v2
+   *           properties:
+   *             version: '16.6'
+   *             minCapacity: 0.5
+   *             maxCapacity: 4
+   *         automatedBackupRetentionDays: 7
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     // stp-focus
+   *     database: {
+   *       engine: {
+   *         type: 'aurora-postgresql-serverless-v2',
+   *         properties: {
+   *           version: '16.6',
+   *           minCapacity: 0.5,
+   *           maxCapacity: 4
+   *         }
+   *       },
+   *       automatedBackupRetentionDays: 7
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   database?: ConvexDatabaseConfig;
   /**
@@ -121,6 +468,40 @@ interface ConvexProps {
    * Each Convex deployment requires five separate buckets internally. By default they are all
    * private, encrypted at rest, with versioning disabled. Use this property to override defaults
    * across all five at once (e.g., enable versioning for prod).
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       # stp-focus
+   *       storage:
+   *         encryption: true
+   *         versioning: true
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     // stp-focus
+   *     storage: {
+   *       encryption: true,
+   *       versioning: true
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   storage?: ConvexStorageConfig;
   /**
@@ -132,6 +513,38 @@ interface ConvexProps {
    * Set `remote: true` to point `stacktape dev` at the deployed AWS backend instead. Local mode
    * is recommended because Convex's save-push-reload loop is noticeably faster over loopback than
    * across the WAN, and avoids 24/7 Fargate + RDS cost per developer.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       # stp-focus
+   *       dev:
+   *         remote: true
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     // stp-focus
+   *     dev: {
+   *       remote: true
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   dev?: DevModeConfig;
   /**
@@ -144,16 +557,135 @@ interface ConvexProps {
    *
    * Recommended for production stages.
    *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       # stp-focus
+   *       deletionProtection: true
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     // stp-focus
+   *     deletionProtection: true
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
+   *
    * @default false
    */
   deletionProtection?: boolean;
   /**
    * #### Alarms for this Convex deployment (backend container, ALB, database). Merged with global
    * alarms from the Stacktape Console.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       # stp-focus
+   *       alarms:
+   *         - trigger:
+   *             type: database-cpu-utilization
+   *             properties:
+   *               thresholdPercent: 85
+   *         - trigger:
+   *             type: application-load-balancer-unhealthy-targets
+   *             properties:
+   *               thresholdPercent: 50
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     // stp-focus
+   *     alarms: [
+   *       {
+   *         trigger: {
+   *           type: 'database-cpu-utilization',
+   *           properties: {
+   *             thresholdPercent: 85
+   *           }
+   *         }
+   *       },
+   *       {
+   *         trigger: {
+   *           type: 'application-load-balancer-unhealthy-targets',
+   *           properties: {
+   *             thresholdPercent: 50
+   *           }
+   *         }
+   *       }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   alarms?: (ApplicationLoadBalancerAlarm | RelationalDatabaseAlarm)[];
   /**
    * #### Global alarm names to exclude from this deployment.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       # stp-focus
+   *       disabledGlobalAlarms:
+   *         - high-db-connections
+   *         - alb-5xx-rate
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     // stp-focus
+   *     disabledGlobalAlarms: ['high-db-connections', 'alb-5xx-rate']
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   disabledGlobalAlarms?: string[];
 }
@@ -161,6 +693,41 @@ interface ConvexProps {
 interface ConvexFunctionsDeploymentConfig {
   /**
    * #### Whether Stacktape should deploy Convex functions after infrastructure deploy.
+   *
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       functionsDeployment:
+   *         # stp-focus
+   *         enabled: false
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     functionsDeployment: {
+   *       // stp-focus
+   *       enabled: false
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    *
    * @default true
    */
@@ -176,6 +743,38 @@ interface ConvexFunctionsDeploymentConfig {
    * `npx convex deploy --codegen disable --typecheck try`
    *
    * Examples: `pnpm convex deploy --codegen disable`, `bunx convex deploy --typecheck disable`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       functionsDeployment:
+   *         # stp-focus
+   *         command: bunx convex deploy --typecheck disable
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     functionsDeployment: {
+   *       // stp-focus
+   *       command: 'bunx convex deploy --typecheck disable'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   command?: string;
   /**
@@ -185,6 +784,38 @@ interface ConvexFunctionsDeploymentConfig {
    *
    * Defaults to the project directory containing `appDirectory` when `appDirectory` points at a
    * `convex/` folder.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./packages/api/convex
+   *       functionsDeployment:
+   *         # stp-focus
+   *         workingDirectory: ./packages/api
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './packages/api/convex',
+   *     functionsDeployment: {
+   *       // stp-focus
+   *       workingDirectory: './packages/api'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   workingDirectory?: string;
 }
@@ -196,6 +827,46 @@ interface ConvexCustomDomains {
    * ---
    *
    * Frontend clients connect here via the `convex-js` client. Example: `api.myapp.com`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       customDomains:
+   *         # stp-focus
+   *         cloud:
+   *           domainName: api.myapp.com
+   *         # stp-end-focus
+   *         site:
+   *           domainName: webhooks.myapp.com
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     customDomains: {
+   *       // stp-focus
+   *       cloud: {
+   *         domainName: 'api.myapp.com'
+   *       },
+   *       // stp-end-focus
+   *       site: {
+   *         domainName: 'webhooks.myapp.com'
+   *       }
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   cloud: DomainConfiguration;
   /**
@@ -205,6 +876,46 @@ interface ConvexCustomDomains {
    *
    * User-defined `httpAction()` routes (webhooks, OAuth callbacks) are served here.
    * Example: `webhooks.myapp.com`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       customDomains:
+   *         cloud:
+   *           domainName: api.myapp.com
+   *         # stp-focus
+   *         site:
+   *           domainName: webhooks.myapp.com
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     customDomains: {
+   *       cloud: {
+   *         domainName: 'api.myapp.com'
+   *       },
+   *       // stp-focus
+   *       site: {
+   *         domainName: 'webhooks.myapp.com'
+   *       }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   site: DomainConfiguration;
   /**
@@ -213,6 +924,56 @@ interface ConvexCustomDomains {
    * ---
    *
    * Example: `convex-admin.myapp.com`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       dashboard:
+   *         enabled: true
+   *       customDomains:
+   *         cloud:
+   *           domainName: api.myapp.com
+   *         site:
+   *           domainName: webhooks.myapp.com
+   *         # stp-focus
+   *         dashboard:
+   *           domainName: convex-admin.myapp.com
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     dashboard: {
+   *       enabled: true
+   *     },
+   *     customDomains: {
+   *       cloud: {
+   *         domainName: 'api.myapp.com'
+   *       },
+   *       site: {
+   *         domainName: 'webhooks.myapp.com'
+   *       },
+   *       // stp-focus
+   *       dashboard: {
+   *         domainName: 'convex-admin.myapp.com'
+   *       }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   dashboard?: DomainConfiguration;
 }
@@ -233,6 +994,45 @@ interface ConvexBackendConfig {
    * cheaper per vCPU and supports `enableWarmPool: true` for faster cold-starts.
    *
    * Convex backend is single-process — scale **vertically** (bigger box), not horizontally.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       backend:
+   *         # stp-focus
+   *         resources:
+   *           cpu: 4
+   *           memory: 8192
+   *           architecture: arm64
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     backend: {
+   *       // stp-focus
+   *       resources: {
+   *         cpu: 4,
+   *         memory: 8192,
+   *         architecture: 'arm64'
+   *       }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   resources?: ContainerWorkloadResourcesConfig;
   /**
@@ -244,6 +1044,38 @@ interface ConvexBackendConfig {
    * Override to test newer/older versions. Image upgrades trigger Convex's in-place migration path.
    *
    * Example: `image: 'ghcr.io/get-convex/convex-backend:0a8d9ae0f0e5c6c9c0c0c0c0'`
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       backend:
+   *         # stp-focus
+   *         image: ghcr.io/get-convex/convex-backend:0a8d9ae0f0e5c6c9c0c0c0c0
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     backend: {
+   *       // stp-focus
+   *       image: 'ghcr.io/get-convex/convex-backend:0a8d9ae0f0e5c6c9c0c0c0c0'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   image?: string;
   /**
@@ -253,6 +1085,41 @@ interface ConvexBackendConfig {
    *
    * Container `stdout`/`stderr` are sent to CloudWatch and retained for 90 days by default.
    * View logs with `stacktape logs <resourceName>`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       backend:
+   *         # stp-focus
+   *         logging:
+   *           retentionDays: 14
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     backend: {
+   *       // stp-focus
+   *       logging: {
+   *         retentionDays: 14
+   *       }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   logging?: ContainerWorkloadContainerLogging;
   /**
@@ -263,6 +1130,38 @@ interface ConvexBackendConfig {
    * Stacktape enables ECS Exec for Convex internally because it is required to generate the managed
    * admin key after the backend starts. This property is kept for compatibility with generic workload
    * controls and may be removed in a future Convex resource revision.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       backend:
+   *         # stp-focus
+   *         enableRemoteSessions: true
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     backend: {
+   *       // stp-focus
+   *       enableRemoteSessions: true
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   enableRemoteSessions?: boolean;
 }
@@ -278,6 +1177,39 @@ interface ConvexDashboardConfig {
    * UI. Disable only if you have a strong reason — self-hosted Convex without the dashboard is
    * operationally painful.
    *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       dashboard:
+   *         # stp-focus
+   *         enabled: false
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     dashboard: {
+   *       // stp-focus
+   *       enabled: false
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
+   *
    * @default true
    */
   enabled?: boolean;
@@ -291,6 +1223,42 @@ interface ConvexDashboardConfig {
    * Convex uses, but if you want defense-in-depth, pin access to your office IPs or VPN range.
    *
    * Example: `allowedIpRanges: ['203.0.113.0/24', '198.51.100.42/32']`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       dashboard:
+   *         enabled: true
+   *         # stp-focus
+   *         allowedIpRanges:
+   *           - 203.0.113.0/24
+   *           - 198.51.100.42/32
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     dashboard: {
+   *       enabled: true,
+   *       // stp-focus
+   *       allowedIpRanges: ['203.0.113.0/24', '198.51.100.42/32']
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   allowedIpRanges?: string[];
   /**
@@ -300,6 +1268,45 @@ interface ConvexDashboardConfig {
    *
    * Defaults to `{ cpu: 0.25, memory: 512 }`. The dashboard is a Next.js app and is very light —
    * `{ cpu: 0.25, memory: 512 }` is plenty for most teams.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       dashboard:
+   *         enabled: true
+   *         # stp-focus
+   *         resources:
+   *           cpu: 0.5
+   *           memory: 1024
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     dashboard: {
+   *       enabled: true,
+   *       // stp-focus
+   *       resources: {
+   *         cpu: 0.5,
+   *         memory: 1024
+   *       }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   resources?: ContainerWorkloadResourcesConfig;
   /**
@@ -309,10 +1316,83 @@ interface ConvexDashboardConfig {
    *
    * Defaults to a known-good version pinned by Stacktape (currently from `ghcr.io/get-convex/convex-dashboard`).
    * Override to test newer/older versions.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       dashboard:
+   *         enabled: true
+   *         # stp-focus
+   *         image: ghcr.io/get-convex/convex-dashboard:0a8d9ae0f0e5c6c9c0c0c0c0
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     dashboard: {
+   *       enabled: true,
+   *       // stp-focus
+   *       image: 'ghcr.io/get-convex/convex-dashboard:0a8d9ae0f0e5c6c9c0c0c0c0'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   image?: string;
   /**
    * #### Logging configuration for the dashboard container.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       dashboard:
+   *         enabled: true
+   *         # stp-focus
+   *         logging:
+   *           retentionDays: 7
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     dashboard: {
+   *       enabled: true,
+   *       // stp-focus
+   *       logging: {
+   *         retentionDays: 7
+   *       }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   logging?: ContainerWorkloadContainerLogging;
 }
@@ -337,6 +1417,53 @@ interface ConvexDatabaseConfig {
    *
    * Convex requires PostgreSQL 13+. To use Aurora Serverless v2 instead (auto-scales 0.5–8 ACU,
    * higher idle cost but elastic), set `{ type: 'aurora-postgresql-serverless-v2', properties: { ... } }`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       database:
+   *         # stp-focus
+   *         engine:
+   *           type: postgres
+   *           properties:
+   *             version: '16.6'
+   *             primaryInstance:
+   *               instanceSize: db.t4g.medium
+   *               multiAz: true
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     database: {
+   *       // stp-focus
+   *       engine: {
+   *         type: 'postgres',
+   *         properties: {
+   *           version: '16.6',
+   *           primaryInstance: {
+   *             instanceSize: 'db.t4g.medium',
+   *             multiAz: true
+   *           }
+   *         }
+   *       }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   engine?: RdsEngine | AuroraServerlessV2Engine | AuroraEngine;
   /**
@@ -347,18 +1474,161 @@ interface ConvexDatabaseConfig {
    * The Convex backend auto-connects internally, so users have no reason to set `internet` here
    * — direct `psql` access to Convex's internal Postgres is almost always wrong (use the dashboard
    * or `npx convex export` instead).
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       database:
+   *         # stp-focus
+   *         accessibility:
+   *           accessibilityMode: scoping-workloads-in-vpc
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     database: {
+   *       // stp-focus
+   *       accessibility: {
+   *         accessibilityMode: 'scoping-workloads-in-vpc'
+   *       }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   accessibility?: DatabaseAccessibility;
   /**
    * #### Days to keep automated daily backups (0–35). Defaults to 1.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       database:
+   *         # stp-focus
+   *         automatedBackupRetentionDays: 14
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     database: {
+   *       // stp-focus
+   *       automatedBackupRetentionDays: 14
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   automatedBackupRetentionDays?: number;
   /**
    * #### When maintenance happens. Format: `Sun:02:00-Sun:04:00` (UTC).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       database:
+   *         # stp-focus
+   *         preferredMaintenanceWindow: Sun:02:00-Sun:04:00
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     database: {
+   *       // stp-focus
+   *       preferredMaintenanceWindow: 'Sun:02:00-Sun:04:00'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   preferredMaintenanceWindow?: string;
   /**
    * #### Database logging (connections, slow queries, errors).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       database:
+   *         # stp-focus
+   *         logging:
+   *           retentionDays: 30
+   *           logTypes:
+   *             - postgresql
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     database: {
+   *       // stp-focus
+   *       logging: {
+   *         retentionDays: 30,
+   *         logTypes: ['postgresql']
+   *       }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   logging?: RelationalDatabaseLogging;
 }
@@ -376,11 +1646,81 @@ interface ConvexStorageConfig {
   /**
    * #### Encrypt stored objects at rest (AES-256).
    *
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       storage:
+   *         # stp-focus
+   *         encryption: true
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     storage: {
+   *       // stp-focus
+   *       encryption: true
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
+   *
    * @default true
    */
   encryption?: boolean;
   /**
    * #### Keep previous versions of overwritten/deleted objects. Useful for recovery; increases storage cost.
+   *
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       storage:
+   *         # stp-focus
+   *         versioning: true
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     storage: {
+   *       // stp-focus
+   *       versioning: true
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    *
    * @default false
    */
@@ -392,6 +1732,61 @@ interface ConvexStorageConfig {
    *
    * Applied to all five buckets. Most useful for the `exports` bucket if you don't want old
    * snapshot exports accumulating indefinitely.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backend:
+   *     type: convex
+   *     properties:
+   *       appDirectory: ./convex
+   *       storage:
+   *         versioning: true
+   *         # stp-focus
+   *         lifecycleRules:
+   *           - type: expiration
+   *             properties:
+   *               prefix: exports/
+   *               daysAfterUpload: 30
+   *           - type: non-current-version-expiration
+   *             properties:
+   *               daysAfterVersioned: 90
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { Convex, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backend = new Convex({
+   *     appDirectory: './convex',
+   *     storage: {
+   *       versioning: true,
+   *       // stp-focus
+   *       lifecycleRules: [
+   *         {
+   *           type: 'expiration',
+   *           properties: {
+   *             prefix: 'exports/',
+   *             daysAfterUpload: 30
+   *           }
+   *         },
+   *         {
+   *           type: 'non-current-version-expiration',
+   *           properties: {
+   *             daysAfterVersioned: 90
+   *           }
+   *         }
+   *       ]
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { backend } };
+   * });
+   * ```
    */
   lifecycleRules?: (
     | Expiration
@@ -436,5 +1831,62 @@ type StpConvex = Convex['properties'] & {
  *   `connectTo`. Required by tooling like `npx convex deploy`, `npx convex env set`, `npx convex export`.
  * - **`instanceSecret`** — the boot secret stored in Secrets Manager. Sensitive. Almost never
  *   needed by user code — exposed for completeness.
+ *
+ * **Example (YAML):**
+ *
+ * ```yaml
+ * resources:
+ *   backend:
+ *     type: convex
+ *     properties:
+ *       appDirectory: ./convex
+ *
+ *   syncWorker:
+ *     type: function
+ *     properties:
+ *       packaging:
+ *         type: stacktape-lambda-buildpack
+ *         properties:
+ *           entryfilePath: ./src/sync.ts
+ *       # stp-focus
+ *       environment:
+ *         - name: CONVEX_URL
+ *           value: $ResourceParam('backend', 'url')
+ *         - name: CONVEX_SITE_URL
+ *           value: $ResourceParam('backend', 'siteUrl')
+ *         - name: CONVEX_ADMIN_KEY
+ *           value: $ResourceParam('backend', 'adminKey')
+ *       # stp-end-focus
+ * ```
+ *
+ * **Example (TypeScript):**
+ *
+ * ```ts
+ * import { Convex, LambdaFunction, $ResourceParam, defineConfig } from 'stacktape';
+ *
+ * export default defineConfig(() => {
+ *   const backend = new Convex({
+ *     appDirectory: './convex'
+ *   });
+ *
+ *   const syncWorker = new LambdaFunction({
+ *     packaging: {
+ *       type: 'stacktape-lambda-buildpack',
+ *       properties: {
+ *         entryfilePath: './src/sync.ts'
+ *       }
+ *     },
+ *     // stp-focus
+ *     environment: {
+ *       CONVEX_URL: $ResourceParam('backend', 'url'),
+ *       CONVEX_SITE_URL: $ResourceParam('backend', 'siteUrl'),
+ *       CONVEX_ADMIN_KEY: $ResourceParam('backend', 'adminKey')
+ *     }
+ *     // stp-end-focus
+ *   });
+ *
+ *   return { resources: { backend, syncWorker } };
+ * });
+ * ```
  */
 type ConvexReferencableParam = 'url' | 'siteUrl' | 'dashboardUrl' | 'adminKey' | 'instanceSecret';

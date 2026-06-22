@@ -19,6 +19,38 @@ interface HostingBucketProps {
    * ---
    *
    * This folder's contents are uploaded to the bucket on every deploy.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       # stp-focus
+   *       uploadDirectoryPath: ./dist
+   *       # stp-end-focus
+   *       hostingContentType: single-page-app
+   *       build:
+   *         command: npm run build
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     // stp-focus
+   *     uploadDirectoryPath: './dist',
+   *     // stp-end-focus
+   *     hostingContentType: 'single-page-app',
+   *     build: { command: 'npm run build' }
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
    */
   uploadDirectoryPath: string;
   /**
@@ -27,6 +59,42 @@ interface HostingBucketProps {
    * ---
    *
    * Runs during the packaging phase, in parallel with other resources. Bundle size is shown in deploy logs.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: single-page-app
+   *       # stp-focus
+   *       build:
+   *         command: npm run build
+   *         workingDirectory: .
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'single-page-app',
+   *     // stp-focus
+   *     build: {
+   *       command: 'npm run build',
+   *       workingDirectory: '.'
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
    */
   build?: HostingBucketBuild;
   /**
@@ -35,10 +103,83 @@ interface HostingBucketProps {
    * ---
    *
    * Used by `stacktape dev`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: single-page-app
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       dev:
+   *         command: npm run dev
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'single-page-app',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     dev: { command: 'npm run dev' }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
    */
   dev?: HostingBucketBuild;
   /**
    * #### Glob patterns for files to skip during upload (relative to `uploadDirectoryPath`).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: static-website
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       excludeFilesPatterns:
+   *         - '**\/*.map'
+   *         - 'stats.html'
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'static-website',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     excludeFilesPatterns: ['**\/*.map', 'stats.html']
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
    */
   excludeFilesPatterns?: string[];
   /**
@@ -61,6 +202,39 @@ interface HostingBucketProps {
    *
    * You can override any preset's behavior using `fileOptions`.
    *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       # stp-focus
+   *       hostingContentType: single-page-app
+   *       # stp-end-focus
+   *       build:
+   *         command: npm run build
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     // stp-focus
+   *     hostingContentType: 'single-page-app',
+   *     // stp-end-focus
+   *     build: { command: 'npm run build' }
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
+   *
    * @default "static-website"
    */
   hostingContentType?: SupportedHeaderPreset;
@@ -70,10 +244,82 @@ interface HostingBucketProps {
    * ---
    *
    * Your domain must be added as a Route53 hosted zone in your AWS account first.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: single-page-app
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       customDomains:
+   *         - domainName: www.example.com
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'single-page-app',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     customDomains: [{ domainName: 'www.example.com' }]
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
    */
   customDomains?: DomainConfiguration[];
   /**
    * #### Disable clean URL normalization (e.g., `/about` → `/about.html`).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./public
+   *       hostingContentType: static-website
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       disableUrlNormalization: true
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './public',
+   *     hostingContentType: 'static-website',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     disableUrlNormalization: true
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
+   *
    * @default false
    */
   disableUrlNormalization?: boolean;
@@ -84,14 +330,135 @@ interface HostingBucketProps {
    *
    * - `onRequest`: Before cache lookup and before forwarding to the bucket.
    * - `onResponse`: Before returning the response to the client.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   authChecker:
+   *     type: edge-lambda-function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: ./edge/auth.ts
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: single-page-app
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       edgeFunctions:
+   *         onRequest: authChecker
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, EdgeLambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const authChecker = new EdgeLambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: './edge/auth.ts' }
+   *     }
+   *   });
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'single-page-app',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     edgeFunctions: { onRequest: 'authChecker' }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { authChecker, frontend } };
+   * });
+   * ```
    */
   edgeFunctions?: EdgeFunctionsConfig;
   /**
    * #### Page to show for 404 errors (e.g., `/error.html`).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: static-website
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       errorDocument: /error.html
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'static-website',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     errorDocument: '/error.html'
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
    */
   errorDocument?: string;
   /**
    * #### Page served for requests to `/`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: static-website
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       indexDocument: /index.html
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'static-website',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     indexDocument: '/index.html'
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
+   *
    * @default /index.html
    */
   indexDocument?: string;
@@ -102,6 +469,45 @@ interface HostingBucketProps {
    *
    * Useful for making API URLs, User Pool IDs, and other dynamic values
    * available to your frontend JavaScript without rebuilding.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiGateway:
+   *     type: http-api-gateway
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: single-page-app
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       injectEnvironment:
+   *         - name: API_URL
+   *           value: $ResourceParam('apiGateway', 'url')
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, HttpApiGateway, defineConfig, $ResourceParam } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiGateway = new HttpApiGateway({});
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'single-page-app',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     injectEnvironment: { API_URL: $ResourceParam('apiGateway', 'url') }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { apiGateway, frontend } };
+   * });
+   * ```
    */
   injectEnvironment?: EnvironmentVar[];
   /**
@@ -110,14 +516,141 @@ interface HostingBucketProps {
    * ---
    *
    * Merges with existing `.env` content if the file already exists.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiGateway:
+   *     type: http-api-gateway
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: single-page-app
+   *       build:
+   *         command: npm run build
+   *       injectEnvironment:
+   *         - name: API_URL
+   *           value: $ResourceParam('apiGateway', 'url')
+   *       # stp-focus
+   *       writeDotenvFilesTo: ./
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, HttpApiGateway, defineConfig, $ResourceParam } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiGateway = new HttpApiGateway({});
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'single-page-app',
+   *     build: { command: 'npm run build' },
+   *     injectEnvironment: { API_URL: $ResourceParam('apiGateway', 'url') },
+   *     // stp-focus
+   *     writeDotenvFilesTo: './'
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { apiGateway, frontend } };
+   * });
+   * ```
    */
   writeDotenvFilesTo?: string;
   /**
    * #### Name of a `web-app-firewall` resource to protect this site. Must have `scope: cdn`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   siteFirewall:
+   *     type: web-app-firewall
+   *     properties:
+   *       scope: cdn
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: single-page-app
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       useFirewall: siteFirewall
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, WebAppFirewall, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const siteFirewall = new WebAppFirewall({ scope: 'cdn' });
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'single-page-app',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     useFirewall: 'siteFirewall'
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { siteFirewall, frontend } };
+   * });
+   * ```
    */
   useFirewall?: string;
   /**
    * #### Set HTTP headers (e.g., `Cache-Control`) for files matching specific patterns.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: single-page-app
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       fileOptions:
+   *         - includePattern: 'assets/**'
+   *           headers:
+   *             - key: Cache-Control
+   *               value: 'public, max-age=31536000, immutable'
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'single-page-app',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     fileOptions: [
+   *       {
+   *         includePattern: 'assets/**',
+   *         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }]
+   *       }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
    */
   fileOptions?: DirectoryUploadFilter[];
   /**
@@ -126,6 +659,56 @@ interface HostingBucketProps {
    * ---
    *
    * Evaluated in order; first match wins. Unmatched requests go to the bucket.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiGateway:
+   *     type: http-api-gateway
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: single-page-app
+   *       build:
+   *         command: npm run build
+   *       # stp-focus
+   *       routeRewrites:
+   *         - path: /api/*
+   *           routeTo:
+   *             type: http-api-gateway
+   *             properties:
+   *               httpApiGatewayName: apiGateway
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, HttpApiGateway, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiGateway = new HttpApiGateway({});
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'single-page-app',
+   *     build: { command: 'npm run build' },
+   *     // stp-focus
+   *     routeRewrites: [
+   *       {
+   *         path: '/api/*',
+   *         routeTo: {
+   *           type: 'http-api-gateway',
+   *           properties: { httpApiGatewayName: 'apiGateway' }
+   *         }
+   *       }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { apiGateway, frontend } };
+   * });
+   * ```
    */
   routeRewrites?: CdnRouteRewrite[];
 }
@@ -135,10 +718,87 @@ type WriteEnvFilesFormat = 'dotenv';
 interface HostingBucketBuild {
   /**
    * #### Command to run (e.g., `npm run build`, `vite build`, `npm run dev`).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   *       hostingContentType: single-page-app
+   *       build:
+   *         # stp-focus
+   *         command: npm run build
+   *         # stp-end-focus
+   *         workingDirectory: .
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './dist',
+   *     hostingContentType: 'single-page-app',
+   *     build: {
+   *       // stp-focus
+   *       command: 'npm run build',
+   *       // stp-end-focus
+   *       workingDirectory: '.'
+   *     }
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
    */
   command: string;
   /**
    * #### Working directory for the command (relative to project root).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   frontend:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./apps/web/dist
+   *       hostingContentType: single-page-app
+   *       build:
+   *         command: npm run build
+   *         # stp-focus
+   *         workingDirectory: ./apps/web
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const frontend = new HostingBucket({
+   *     uploadDirectoryPath: './apps/web/dist',
+   *     hostingContentType: 'single-page-app',
+   *     build: {
+   *       command: 'npm run build',
+   *       // stp-focus
+   *       workingDirectory: './apps/web'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { frontend } };
+   * });
+   * ```
+   *
    * @default "."
    */
   workingDirectory?: string;

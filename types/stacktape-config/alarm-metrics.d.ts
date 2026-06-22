@@ -119,6 +119,92 @@ interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCustomSta
    * - `ELBAuthRefreshTokenSuccess`: The number of times the load balancer successfully refreshed user claims using a refresh token.
    * - `ELBAuthSuccess`: The number of successful authentication actions.
    * - `ELBAuthUserClaimsSizeExceeded`: The number of times a configured IdP returned user claims that exceeded 11K bytes in size.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   webApi:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: stacktape-image-buildpack
+   *         properties:
+   *           entryfilePath: src/index.ts
+   *       resources:
+   *         cpu: 0.25
+   *         memory: 512
+   *   publicLb:
+   *     type: application-load-balancer
+   *     properties:
+   *       alarms:
+   *         - description: Too many 5xx errors returned by the load balancer
+   *           trigger:
+   *             type: application-load-balancer-custom
+   *             properties:
+   *               # stp-focus
+   *               metric: HTTPCode_ELB_5XX_Count
+   *               # stp-end-focus
+   *               threshold: 50
+   *               statistic: sum
+   *               comparisonOperator: GreaterThanThreshold
+   *           evaluation:
+   *             period: 60
+   *             evaluationPeriods: 5
+   *             breachedPeriods: 3
+   *           notificationTargets:
+   *             - type: slack
+   *               properties:
+   *                 conversationId: C0123456789
+   *                 accessToken: $Secret('slack-bot-token')
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { WebService, ApplicationLoadBalancer, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const webApi = new WebService({
+   *     packaging: {
+   *       type: 'stacktape-image-buildpack',
+   *       properties: { entryfilePath: 'src/index.ts' }
+   *     },
+   *     resources: { cpu: 0.25, memory: 512 }
+   *   });
+   *
+   *   const publicLb = new ApplicationLoadBalancer({
+   *     alarms: [
+   *       {
+   *         description: 'Too many 5xx errors returned by the load balancer',
+   *         trigger: {
+   *           type: 'application-load-balancer-custom',
+   *           properties: {
+   *             // stp-focus
+   *             metric: 'HTTPCode_ELB_5XX_Count',
+   *             // stp-end-focus
+   *             threshold: 50,
+   *             statistic: 'sum',
+   *             comparisonOperator: 'GreaterThanThreshold'
+   *           }
+   *         },
+   *         evaluation: { period: 60, evaluationPeriods: 5, breachedPeriods: 3 },
+   *         notificationTargets: [
+   *           {
+   *             type: 'slack',
+   *             properties: {
+   *               conversationId: 'C0123456789',
+   *               accessToken: $Secret('slack-bot-token')
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *
+   *   return { resources: { webApi, publicLb } };
+   * });
+   * ```
    */
   metric: ApplicationLoadBalancerMetric;
   /**
@@ -129,6 +215,92 @@ interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCustomSta
    * The threshold is compared against the calculated value of `statistic(METRIC)`, where:
    * - `statistic` is the function applied to the metric values collected during the evaluation period (default: `avg`).
    * - `METRIC` is the chosen metric.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   webApi:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: stacktape-image-buildpack
+   *         properties:
+   *           entryfilePath: src/index.ts
+   *       resources:
+   *         cpu: 0.25
+   *         memory: 512
+   *   publicLb:
+   *     type: application-load-balancer
+   *     properties:
+   *       alarms:
+   *         - description: Target response time is too high
+   *           trigger:
+   *             type: application-load-balancer-custom
+   *             properties:
+   *               metric: TargetResponseTime
+   *               # stp-focus
+   *               threshold: 2
+   *               # stp-end-focus
+   *               statistic: p95
+   *               comparisonOperator: GreaterThanThreshold
+   *           evaluation:
+   *             period: 60
+   *             evaluationPeriods: 5
+   *             breachedPeriods: 3
+   *           notificationTargets:
+   *             - type: email
+   *               properties:
+   *                 sender: alerts@example.com
+   *                 recipient: oncall@example.com
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { WebService, ApplicationLoadBalancer, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const webApi = new WebService({
+   *     packaging: {
+   *       type: 'stacktape-image-buildpack',
+   *       properties: { entryfilePath: 'src/index.ts' }
+   *     },
+   *     resources: { cpu: 0.25, memory: 512 }
+   *   });
+   *
+   *   const publicLb = new ApplicationLoadBalancer({
+   *     alarms: [
+   *       {
+   *         description: 'Target response time is too high',
+   *         trigger: {
+   *           type: 'application-load-balancer-custom',
+   *           properties: {
+   *             metric: 'TargetResponseTime',
+   *             // stp-focus
+   *             threshold: 2,
+   *             // stp-end-focus
+   *             statistic: 'p95',
+   *             comparisonOperator: 'GreaterThanThreshold'
+   *           }
+   *         },
+   *         evaluation: { period: 60, evaluationPeriods: 5, breachedPeriods: 3 },
+   *         notificationTargets: [
+   *           {
+   *             type: 'email',
+   *             properties: {
+   *               sender: 'alerts@example.com',
+   *               recipient: 'oncall@example.com'
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *   });
+   *
+   *   return { resources: { webApi, publicLb } };
+   * });
+   * ```
    */
   threshold: number;
 }

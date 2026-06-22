@@ -20,6 +20,55 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * - **`stacktape-lambda-buildpack`** (recommended): Point to your source file and Stacktape builds,
    *   bundles, and uploads it automatically.
    * - **`custom-artifact`**: Provide a pre-built zip file. Stacktape handles the upload.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       # stp-focus
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/handlers/api.ts
+   *       # stp-end-focus
+   *       memory: 512
+   *       timeout: 15
+   *       events:
+   *         - type: http-api-gateway
+   *           properties:
+   *             httpApiGatewayName: mainApi
+   *             method: GET
+   *             path: /health
+   *   mainApi:
+   *     type: http-api-gateway
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     // stp-focus
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/handlers/api.ts' }
+   *     },
+   *     // stp-end-focus
+   *     memory: 512,
+   *     timeout: 15,
+   *     events: [
+   *       { type: 'http-api-gateway', properties: { httpApiGatewayName: 'mainApi', method: 'GET', path: '/health' } }
+   *     ]
+   *   });
+   *   const mainApi = new HttpApiGateway({});
+   *   return { resources: { apiFunction, mainApi } };
+   * });
+   * ```
    */
   packaging: LambdaPackaging;
   /**
@@ -29,6 +78,52 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * Stacktape auto-configures permissions for each trigger.
    * The event payload your function receives depends on the trigger type.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   ordersApi:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/orders.ts
+   *       # stp-focus
+   *       events:
+   *         - type: http-api-gateway
+   *           properties:
+   *             httpApiGatewayName: publicApi
+   *             method: POST
+   *             path: /orders
+   *         - type: schedule
+   *           properties:
+   *             scheduleRate: rate(1 hour)
+   *       # stp-end-focus
+   *   publicApi:
+   *     type: http-api-gateway
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const ordersApi = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/orders.ts' } },
+   *     // stp-focus
+   *     events: [
+   *       { type: 'http-api-gateway', properties: { httpApiGatewayName: 'publicApi', method: 'POST', path: '/orders' } },
+   *       { type: 'schedule', properties: { scheduleRate: 'rate(1 hour)' } }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *   const publicApi = new HttpApiGateway({});
+   *   return { resources: { ordersApi, publicApi } };
+   * });
+   * ```
    */
   events?: (
     | HttpApiIntegration
@@ -50,6 +145,48 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * ---
    *
    * Variables from `connectTo` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`) are added automatically.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   worker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/worker.ts
+   *       # stp-focus
+   *       environment:
+   *         - name: STAGE
+   *           value: production
+   *         - name: STRIPE_SECRET_KEY
+   *           value: $Secret('stripe-key')
+   *         - name: MAX_RETRIES
+   *           value: 3
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const worker = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+   *     // stp-focus
+   *     environment: {
+   *       STAGE: 'production',
+   *       STRIPE_SECRET_KEY: $Secret('stripe-key'),
+   *       MAX_RETRIES: 3
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { worker } };
+   * });
+   * ```
    */
   environment?: EnvironmentVar[];
   /**
@@ -59,6 +196,42 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * Auto-detected from your source file extension when using `stacktape-lambda-buildpack`.
    * Override only if you need a specific version.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   reportGenerator:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/report.py
+   *       # stp-focus
+   *       runtime: python3.13
+   *       # stp-end-focus
+   *       memory: 1024
+   *       timeout: 60
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const reportGenerator = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/report.py' } },
+   *     // stp-focus
+   *     runtime: 'python3.13',
+   *     // stp-end-focus
+   *     memory: 1024,
+   *     timeout: 60
+   *   });
+   *   return { resources: { reportGenerator } };
+   * });
+   * ```
    */
   runtime?: LambdaRuntime;
   /**
@@ -69,6 +242,41 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * `arm64` is cheaper per GB-second and often faster. Works with most code out of the box.
    * If using `stacktape-lambda-buildpack`, Stacktape builds for the selected architecture automatically.
    * With `custom-artifact`, you must pre-compile for the target architecture.
+   *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   imageResizer:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/resize.ts
+   *       # stp-focus
+   *       architecture: arm64
+   *       # stp-end-focus
+   *       memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const imageResizer = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/resize.ts' } },
+   *     // stp-focus
+   *     architecture: 'arm64',
+   *     // stp-end-focus
+   *     memory: 1024
+   *   });
+   *   return { resources: { imageResizer } };
+   * });
+   * ```
    *
    * @default "x86_64"
    */
@@ -81,6 +289,40 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * Lambda scales CPU proportionally to memory: 1,769 MB = 1 vCPU, 3,538 MB = 2 vCPUs, etc.
    * If your function is slow, increasing memory gives it more CPU, which often makes it faster
    * and cheaper overall (less execution time).
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   pdfRenderer:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/pdf.ts
+   *       # stp-focus
+   *       memory: 3538
+   *       # stp-end-focus
+   *       timeout: 120
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const pdfRenderer = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/pdf.ts' } },
+   *     // stp-focus
+   *     memory: 3538,
+   *     // stp-end-focus
+   *     timeout: 120
+   *   });
+   *   return { resources: { pdfRenderer } };
+   * });
+   * ```
    */
   memory?: number;
   /**
@@ -89,6 +331,41 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * ---
    *
    * Maximum: 900 seconds (15 minutes). For longer tasks, use a `batch-job` or `worker-service`.
+   *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   dataImporter:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/import.ts
+   *       memory: 512
+   *       # stp-focus
+   *       timeout: 300
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const dataImporter = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/import.ts' } },
+   *     memory: 512,
+   *     // stp-focus
+   *     timeout: 300
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { dataImporter } };
+   * });
+   * ```
    *
    * @default 10
    */
@@ -107,11 +384,103 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * Required when using `volumeMounts` (EFS or S3 Files).
    *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   dbMigrator:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/migrate.ts
+   *       # stp-focus
+   *       joinDefaultVpc: true
+   *       # stp-end-focus
+   *       connectTo:
+   *         - mainDb
+   *   mainDb:
+   *     type: relational-database
+   *     properties:
+   *       credentials:
+   *         masterUserPassword: $Secret('db-password')
+   *       engine:
+   *         type: postgres
+   *         properties:
+   *           version: '16.2'
+   *           primaryInstance:
+   *             instanceSize: db.t3.micro
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, RelationalDatabase, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const mainDb = new RelationalDatabase({
+   *     credentials: { masterUserPassword: $Secret('db-password') },
+   *     engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+   *   });
+   *   const dbMigrator = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/migrate.ts' } },
+   *     // stp-focus
+   *     joinDefaultVpc: true,
+   *     // stp-end-focus
+   *     connectTo: [mainDb]
+   *   });
+   *   return { resources: { dbMigrator, mainDb } };
+   * });
+   * ```
+   *
    * @default false
    */
   joinDefaultVpc?: boolean;
   /**
    * #### Additional tags for this function (on top of stack-level tags). Max 50.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   billingFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/billing.ts
+   *       # stp-focus
+   *       tags:
+   *         - name: team
+   *           value: payments
+   *         - name: cost-center
+   *           value: "4400"
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const billingFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/billing.ts' } },
+   *     // stp-focus
+   *     tags: [
+   *       { name: 'team', value: 'payments' },
+   *       { name: 'cost-center', value: '4400' }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { billingFunction } };
+   * });
+   * ```
    */
   tags?: CloudformationTag[];
   /**
@@ -121,6 +490,49 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * Useful for building event-driven workflows: send successful results to one destination
    * and failures to another for error handling.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   asyncProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/process.ts
+   *       # stp-focus
+   *       destinations:
+   *         onSuccess: $ResourceParam('successTopic', 'arn')
+   *         onFailure: $ResourceParam('deadLetterQueue', 'arn')
+   *       # stp-end-focus
+   *   successTopic:
+   *     type: sns-topic
+   *   deadLetterQueue:
+   *     type: sqs-queue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, SnsTopic, SqsQueue, defineConfig, $ResourceParam } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const asyncProcessor = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/process.ts' } },
+   *     // stp-focus
+   *     destinations: {
+   *       onSuccess: $ResourceParam('successTopic', 'arn'),
+   *       onFailure: $ResourceParam('deadLetterQueue', 'arn')
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   const successTopic = new SnsTopic({});
+   *   const deadLetterQueue = new SqsQueue({});
+   *   return { resources: { asyncProcessor, successTopic, deadLetterQueue } };
+   * });
+   * ```
    */
   destinations?: LambdaFunctionDestinations;
   /**
@@ -129,6 +541,46 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * ---
    *
    * Logs (`stdout`/`stderr`) are auto-sent to CloudWatch. View with `stacktape logs` or in the Stacktape Console.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiHandler:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       # stp-focus
+   *       logging:
+   *         retentionDays: 30
+   *         logForwarding:
+   *           type: datadog
+   *           properties:
+   *             apiKey: $Secret('datadog-api-key')
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiHandler = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     // stp-focus
+   *     logging: {
+   *       retentionDays: 30,
+   *       logForwarding: { type: 'datadog', properties: { apiKey: $Secret('datadog-api-key') } }
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { apiHandler } };
+   * });
+   * ```
    */
   logging?: LambdaFunctionLogging;
   /**
@@ -143,6 +595,52 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * Skip this for background jobs, cron tasks, or data pipelines.
    *
    * **Cost:** You pay for each provisioned instance even when idle. Also increases deploy time by ~2-5 minutes.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   checkoutApi:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/checkout.ts
+   *       memory: 1024
+   *       # stp-focus
+   *       provisionedConcurrency: 5
+   *       # stp-end-focus
+   *       events:
+   *         - type: http-api-gateway
+   *           properties:
+   *             httpApiGatewayName: storeApi
+   *             method: POST
+   *             path: /checkout
+   *   storeApi:
+   *     type: http-api-gateway
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const checkoutApi = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/checkout.ts' } },
+   *     memory: 1024,
+   *     // stp-focus
+   *     provisionedConcurrency: 5,
+   *     // stp-end-focus
+   *     events: [
+   *       { type: 'http-api-gateway', properties: { httpApiGatewayName: 'storeApi', method: 'POST', path: '/checkout' } }
+   *     ]
+   *   });
+   *   const storeApi = new HttpApiGateway({});
+   *   return { resources: { checkoutApi, storeApi } };
+   * });
+   * ```
    */
   provisionedConcurrency?: number;
   /**
@@ -157,6 +655,56 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * - Prevent overwhelming a database with too many connections
    * - Guarantee capacity for critical functions
    * - Throttle expensive downstream API calls
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   legacyDbWriter:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/write.ts
+   *       # stp-focus
+   *       reservedConcurrency: 10
+   *       # stp-end-focus
+   *       connectTo:
+   *         - legacyDb
+   *   legacyDb:
+   *     type: relational-database
+   *     properties:
+   *       credentials:
+   *         masterUserPassword: $Secret('db-password')
+   *       engine:
+   *         type: postgres
+   *         properties:
+   *           version: '16.2'
+   *           primaryInstance:
+   *             instanceSize: db.t3.micro
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, RelationalDatabase, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const legacyDb = new RelationalDatabase({
+   *     credentials: { masterUserPassword: $Secret('db-password') },
+   *     engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+   *   });
+   *   const legacyDbWriter = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/write.ts' } },
+   *     // stp-focus
+   *     reservedConcurrency: 10,
+   *     // stp-end-focus
+   *     connectTo: [legacyDb]
+   *   });
+   *   return { resources: { legacyDbWriter, legacyDb } };
+   * });
+   * ```
    */
   reservedConcurrency?: number;
   /**
@@ -166,6 +714,39 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * Layers are zip archives with additional code/data mounted into the function.
    * Provide the layer ARN (e.g., from AWS console or another stack). Max 5 layers per function.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   monitoredFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/handler.ts
+   *       # stp-focus
+   *       layers:
+   *         - arn:aws:lambda:eu-west-1:464622532012:layer:Datadog-Extension:62
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const monitoredFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/handler.ts' } },
+   *     // stp-focus
+   *     layers: ['arn:aws:lambda:eu-west-1:464622532012:layer:Datadog-Extension:62']
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { monitoredFunction } };
+   * });
+   * ```
    */
   layers?: string[];
   /**
@@ -175,14 +756,148 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * Instead of switching all traffic to the new version instantly, shift it gradually
    * (canary or linear). If issues arise, traffic rolls back automatically.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   paymentApi:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/payment.ts
+   *       # stp-focus
+   *       deployment:
+   *         strategy: Canary10Percent5Minutes
+   *         beforeAllowTrafficFunction: smokeTest
+   *       # stp-end-focus
+   *   smokeTest:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/smoke-test.ts
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const paymentApi = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+   *     // stp-focus
+   *     deployment: {
+   *       strategy: 'Canary10Percent5Minutes',
+   *       beforeAllowTrafficFunction: 'smokeTest'
+   *     }
+   *     // stp-end-focus
+   *   });
+   *   const smokeTest = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/smoke-test.ts' } }
+   *   });
+   *   return { resources: { paymentApi, smokeTest } };
+   * });
+   * ```
    */
   deployment?: LambdaDeploymentConfig;
   /**
    * #### Alarms for this function (merged with global alarms from the Stacktape Console).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   criticalApi:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/critical.ts
+   *       # stp-focus
+   *       alarms:
+   *         - trigger:
+   *             type: lambda-error-rate
+   *             properties:
+   *               thresholdPercent: 5
+   *           notificationTargets:
+   *             - type: email
+   *               properties:
+   *                 sender: alerts@example.com
+   *                 recipient: oncall@example.com
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const criticalApi = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/critical.ts' } },
+   *     // stp-focus
+   *     alarms: [
+   *       {
+   *         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
+   *         notificationTargets: [
+   *           { type: 'email', properties: { sender: 'alerts@example.com', recipient: 'oncall@example.com' } }
+   *         ]
+   *       }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { criticalApi } };
+   * });
+   * ```
    */
   alarms?: LambdaAlarm[];
   /**
    * #### Global alarm names to exclude from this function.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   batchReporter:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/batch.ts
+   *       timeout: 300
+   *       # stp-focus
+   *       disabledGlobalAlarms:
+   *         - lambda-duration-global
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const batchReporter = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/batch.ts' } },
+   *     timeout: 300,
+   *     // stp-focus
+   *     disabledGlobalAlarms: ['lambda-duration-global']
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { batchReporter } };
+   * });
+   * ```
    */
   disabledGlobalAlarms?: string[];
   /**
@@ -192,6 +907,40 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * Simpler and cheaper than an API Gateway for single-function endpoints.
    * URL format: `https://{id}.lambda-url.{region}.on.aws`
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   webhookReceiver:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/webhook.ts
+   *       # stp-focus
+   *       url:
+   *         enabled: true
+   *         authMode: NONE
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const webhookReceiver = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/webhook.ts' } },
+   *     // stp-focus
+   *     url: { enabled: true, authMode: 'NONE' }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { webhookReceiver } };
+   * });
+   * ```
    */
   url?: LambdaUrlConfig;
   /**
@@ -200,6 +949,44 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * ---
    *
    * Caches responses at edge locations worldwide. Reduces function invocations and bandwidth costs.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   ssrFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/render.ts
+   *       memory: 1024
+   *       url:
+   *         enabled: true
+   *       # stp-focus
+   *       cdn:
+   *         enabled: true
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const ssrFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/render.ts' } },
+   *     memory: 1024,
+   *     url: { enabled: true },
+   *     // stp-focus
+   *     cdn: { enabled: true }
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { ssrFunction } };
+   * });
+   * ```
    */
   cdn?: CdnConfiguration;
   /**
@@ -208,6 +995,43 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * ---
    *
    * Increase if your function downloads/processes large files temporarily.
+   *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   videoTranscoder:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/transcode.ts
+   *       memory: 3008
+   *       timeout: 600
+   *       # stp-focus
+   *       storage: 4096
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const videoTranscoder = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/transcode.ts' } },
+   *     memory: 3008,
+   *     timeout: 600,
+   *     // stp-focus
+   *     storage: 4096
+   *     // stp-end-focus
+   *   });
+   *   return { resources: { videoTranscoder } };
+   * });
+   * ```
    *
    * @default 512
    */
@@ -220,6 +1044,49 @@ interface LambdaFunctionProps extends ResourceAccessProps {
    * Unlike `/tmp`, mounted file systems persist independently from the function runtime and can be
    * shared across multiple functions.
    * Requires `joinDefaultVpc: true` (Stacktape will remind you if you forget).
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   sharedDataFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/handler.ts
+   *       joinDefaultVpc: true
+   *       # stp-focus
+   *       volumeMounts:
+   *         - type: efs
+   *           properties:
+   *             efsFilesystemName: sharedStorage
+   *             mountPath: /mnt/data
+   *       # stp-end-focus
+   *   sharedStorage:
+   *     type: efs-filesystem
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, EfsFilesystem, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const sharedDataFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/handler.ts' } },
+   *     joinDefaultVpc: true,
+   *     // stp-focus
+   *     volumeMounts: [
+   *       { type: 'efs', properties: { efsFilesystemName: 'sharedStorage', mountPath: '/mnt/data' } }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *   const sharedStorage = new EfsFilesystem({});
+   *   return { resources: { sharedDataFunction, sharedStorage } };
+   * });
+   * ```
    */
   volumeMounts?: (LambdaEfsMount | LambdaS3FilesMount)[];
 }
@@ -227,10 +1094,89 @@ interface LambdaFunctionProps extends ResourceAccessProps {
 interface LambdaUrlConfig {
   /**
    * #### Enable the function URL.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   publicFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/public.ts
+   *       url:
+   *         # stp-focus
+   *         enabled: true
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const publicFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/public.ts' } },
+   *     url: {
+   *       // stp-focus
+   *       enabled: true
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { publicFunction } };
+   * });
+   * ```
    */
   enabled: boolean;
   /**
    * #### CORS settings for the function URL. Overrides any CORS headers from the function itself.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       url:
+   *         enabled: true
+   *         # stp-focus
+   *         cors:
+   *           enabled: true
+   *           allowedOrigins:
+   *             - https://app.example.com
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     url: {
+   *       enabled: true,
+   *       // stp-focus
+   *       cors: { enabled: true, allowedOrigins: ['https://app.example.com'] }
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
   cors?: LambdaUrlCorsConfig;
   /**
@@ -240,6 +1186,44 @@ interface LambdaUrlConfig {
    *
    * - `NONE` — public, anyone can call it.
    * - `AWS_IAM` — only authenticated AWS users/roles with invoke permission.
+   *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   internalFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/internal.ts
+   *       url:
+   *         enabled: true
+   *         # stp-focus
+   *         authMode: AWS_IAM
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const internalFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/internal.ts' } },
+   *     url: {
+   *       enabled: true,
+   *       // stp-focus
+   *       authMode: 'AWS_IAM'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { internalFunction } };
+   * });
+   * ```
    *
    * @default NONE
    */
@@ -251,6 +1235,45 @@ interface LambdaUrlConfig {
    *
    * Improves Time to First Byte and increases max response size from 6 MB to 20 MB.
    * Requires using the AWS streaming handler pattern in your code.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   streamingFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/stream.ts
+   *       memory: 1024
+   *       url:
+   *         enabled: true
+   *         # stp-focus
+   *         responseStreamEnabled: true
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const streamingFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/stream.ts' } },
+   *     memory: 1024,
+   *     url: {
+   *       enabled: true,
+   *       // stp-focus
+   *       responseStreamEnabled: true
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { streamingFunction } };
+   * });
+   * ```
    */
   responseStreamEnabled?: boolean;
 }
@@ -258,32 +1281,362 @@ interface LambdaUrlConfig {
 interface LambdaUrlCorsConfig {
   /**
    * #### Enable CORS. When `true` with no other settings, uses permissive defaults (`*` for origins and methods).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       url:
+   *         enabled: true
+   *         cors:
+   *           # stp-focus
+   *           enabled: true
+   *           # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     url: {
+   *       enabled: true,
+   *       cors: {
+   *         // stp-focus
+   *         enabled: true
+   *         // stp-end-focus
+   *       }
+   *     }
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
   enabled: boolean;
   /**
    * #### Allowed origins (e.g., `https://example.com`). Use `*` for any origin.
+   *
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       url:
+   *         enabled: true
+   *         cors:
+   *           enabled: true
+   *           # stp-focus
+   *           allowedOrigins:
+   *             - https://app.example.com
+   *             - https://admin.example.com
+   *           # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     url: {
+   *       enabled: true,
+   *       cors: {
+   *         enabled: true,
+   *         // stp-focus
+   *         allowedOrigins: ['https://app.example.com', 'https://admin.example.com']
+   *         // stp-end-focus
+   *       }
+   *     }
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    *
    * @default ["*"]
    */
   allowedOrigins?: string[];
   /**
    * #### Allowed request headers (e.g., `Content-Type`, `Authorization`).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       url:
+   *         enabled: true
+   *         cors:
+   *           enabled: true
+   *           allowedOrigins:
+   *             - https://app.example.com
+   *           # stp-focus
+   *           allowedHeaders:
+   *             - Content-Type
+   *             - Authorization
+   *           # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     url: {
+   *       enabled: true,
+   *       cors: {
+   *         enabled: true,
+   *         allowedOrigins: ['https://app.example.com'],
+   *         // stp-focus
+   *         allowedHeaders: ['Content-Type', 'Authorization']
+   *         // stp-end-focus
+   *       }
+   *     }
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
   allowedHeaders?: string[];
   /**
    * #### Allowed HTTP methods (e.g., `GET`, `POST`).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       url:
+   *         enabled: true
+   *         cors:
+   *           enabled: true
+   *           allowedOrigins:
+   *             - https://app.example.com
+   *           # stp-focus
+   *           allowedMethods:
+   *             - GET
+   *             - POST
+   *             - OPTIONS
+   *           # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     url: {
+   *       enabled: true,
+   *       cors: {
+   *         enabled: true,
+   *         allowedOrigins: ['https://app.example.com'],
+   *         // stp-focus
+   *         allowedMethods: ['GET', 'POST', 'OPTIONS']
+   *         // stp-end-focus
+   *       }
+   *     }
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
   allowedMethods?: HttpMethod[];
   /**
    * #### Allow cookies and credentials in cross-origin requests.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       url:
+   *         enabled: true
+   *         cors:
+   *           enabled: true
+   *           allowedOrigins:
+   *             - https://app.example.com
+   *           # stp-focus
+   *           allowCredentials: true
+   *           # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     url: {
+   *       enabled: true,
+   *       cors: {
+   *         enabled: true,
+   *         allowedOrigins: ['https://app.example.com'],
+   *         // stp-focus
+   *         allowCredentials: true
+   *         // stp-end-focus
+   *       }
+   *     }
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
   allowCredentials?: boolean;
   /**
    * #### Response headers accessible to browser JavaScript.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       url:
+   *         enabled: true
+   *         cors:
+   *           enabled: true
+   *           allowedOrigins:
+   *             - https://app.example.com
+   *           # stp-focus
+   *           exposedResponseHeaders:
+   *             - X-Request-Id
+   *           # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     url: {
+   *       enabled: true,
+   *       cors: {
+   *         enabled: true,
+   *         allowedOrigins: ['https://app.example.com'],
+   *         // stp-focus
+   *         exposedResponseHeaders: ['X-Request-Id']
+   *         // stp-end-focus
+   *       }
+   *     }
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
   exposedResponseHeaders?: string[];
   /**
    * #### How long (seconds) browsers can cache preflight responses.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       url:
+   *         enabled: true
+   *         cors:
+   *           enabled: true
+   *           allowedOrigins:
+   *             - https://app.example.com
+   *           # stp-focus
+   *           maxAge: 600
+   *           # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     url: {
+   *       enabled: true,
+   *       cors: {
+   *         enabled: true,
+   *         allowedOrigins: ['https://app.example.com'],
+   *         // stp-focus
+   *         maxAge: 600
+   *         // stp-end-focus
+   *       }
+   *     }
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
   maxAge?: number;
 }
@@ -297,6 +1650,41 @@ interface LambdaDeploymentConfig {
    * - **Canary**: Send 10% of traffic first, then all traffic after a wait period.
    * - **Linear**: Shift 10% of traffic at regular intervals.
    * - **AllAtOnce**: Instant switch (no gradual rollout).
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   paymentApi:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/payment.ts
+   *       deployment:
+   *         # stp-focus
+   *         strategy: Linear10PercentEvery2Minutes
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const paymentApi = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+   *     deployment: {
+   *       // stp-focus
+   *       strategy: 'Linear10PercentEvery2Minutes'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { paymentApi } };
+   * });
+   * ```
    */
   strategy:
     | 'Canary10Percent5Minutes'
@@ -314,6 +1702,53 @@ interface LambdaDeploymentConfig {
    * ---
    *
    * Must signal success/failure to CodeDeploy. If it fails, the deployment rolls back.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   paymentApi:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/payment.ts
+   *       deployment:
+   *         strategy: Canary10Percent5Minutes
+   *         # stp-focus
+   *         beforeAllowTrafficFunction: preTrafficCheck
+   *         # stp-end-focus
+   *   preTrafficCheck:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/pre-traffic.ts
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const paymentApi = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+   *     deployment: {
+   *       strategy: 'Canary10Percent5Minutes',
+   *       // stp-focus
+   *       beforeAllowTrafficFunction: 'preTrafficCheck'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   const preTrafficCheck = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/pre-traffic.ts' } }
+   *   });
+   *   return { resources: { paymentApi, preTrafficCheck } };
+   * });
+   * ```
    */
   beforeAllowTrafficFunction?: string;
   /**
@@ -322,6 +1757,53 @@ interface LambdaDeploymentConfig {
    * ---
    *
    * Must signal success/failure to CodeDeploy.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   paymentApi:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/payment.ts
+   *       deployment:
+   *         strategy: Canary10Percent5Minutes
+   *         # stp-focus
+   *         afterTrafficShiftFunction: postTrafficCheck
+   *         # stp-end-focus
+   *   postTrafficCheck:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/post-traffic.ts
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const paymentApi = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+   *     deployment: {
+   *       strategy: 'Canary10Percent5Minutes',
+   *       // stp-focus
+   *       afterTrafficShiftFunction: 'postTrafficCheck'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   const postTrafficCheck = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/post-traffic.ts' } }
+   *   });
+   *   return { resources: { paymentApi, postTrafficCheck } };
+   * });
+   * ```
    */
   afterTrafficShiftFunction?: string;
 }
@@ -329,10 +1811,90 @@ interface LambdaDeploymentConfig {
 interface LambdaFunctionDestinations {
   /**
    * #### ARN to receive the result when the function succeeds (SQS, SNS, EventBus, or Lambda ARN).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   asyncWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/worker.ts
+   *       destinations:
+   *         # stp-focus
+   *         onSuccess: $ResourceParam('resultsTopic', 'arn')
+   *         # stp-end-focus
+   *   resultsTopic:
+   *     type: sns-topic
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, SnsTopic, defineConfig, $ResourceParam } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const asyncWorker = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+   *     destinations: {
+   *       // stp-focus
+   *       onSuccess: $ResourceParam('resultsTopic', 'arn')
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   const resultsTopic = new SnsTopic({});
+   *   return { resources: { asyncWorker, resultsTopic } };
+   * });
+   * ```
    */
   onSuccess?: string;
   /**
    * #### ARN to receive error details when the function fails. Useful for dead-letter processing.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   asyncWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/worker.ts
+   *       destinations:
+   *         # stp-focus
+   *         onFailure: $ResourceParam('failureQueue', 'arn')
+   *         # stp-end-focus
+   *   failureQueue:
+   *     type: sqs-queue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, SqsQueue, defineConfig, $ResourceParam } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const asyncWorker = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+   *     destinations: {
+   *       // stp-focus
+   *       onFailure: $ResourceParam('failureQueue', 'arn')
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   const failureQueue = new SqsQueue({});
+   *   return { resources: { asyncWorker, failureQueue } };
+   * });
+   * ```
    */
   onFailure?: string;
 }
@@ -341,11 +1903,87 @@ interface LambdaFunctionLogging extends LogForwardingBase {
   /**
    * #### Disable CloudWatch logging entirely.
    *
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   highVolumeFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/handler.ts
+   *       logging:
+   *         # stp-focus
+   *         disabled: true
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const highVolumeFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/handler.ts' } },
+   *     logging: {
+   *       // stp-focus
+   *       disabled: true
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { highVolumeFunction } };
+   * });
+   * ```
+   *
    * @default false
    */
   disabled?: boolean;
   /**
    * #### How many days to keep logs. Longer retention = higher storage cost.
+   *
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   auditFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/audit.ts
+   *       logging:
+   *         # stp-focus
+   *         retentionDays: 365
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const auditFunction = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/audit.ts' } },
+   *     logging: {
+   *       // stp-focus
+   *       retentionDays: 365
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { auditFunction } };
+   * });
+   * ```
    *
    * @default 180
    */
@@ -355,10 +1993,106 @@ interface LambdaFunctionLogging extends LogForwardingBase {
 interface LambdaEfsMount {
   /**
    * #### The type of the volume mount.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   mediaProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/media.ts
+   *       joinDefaultVpc: true
+   *       volumeMounts:
+   *         # stp-focus
+   *         - type: efs
+   *         # stp-end-focus
+   *           properties:
+   *             efsFilesystemName: mediaStore
+   *             mountPath: /mnt/media
+   *   mediaStore:
+   *     type: efs-filesystem
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, EfsFilesystem, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const mediaProcessor = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+   *     joinDefaultVpc: true,
+   *     volumeMounts: [
+   *       {
+   *         // stp-focus
+   *         type: 'efs',
+   *         // stp-end-focus
+   *         properties: { efsFilesystemName: 'mediaStore', mountPath: '/mnt/media' }
+   *       }
+   *     ]
+   *   });
+   *   const mediaStore = new EfsFilesystem({});
+   *   return { resources: { mediaProcessor, mediaStore } };
+   * });
+   * ```
    */
   type: 'efs';
   /**
    * #### Properties for the EFS volume mount.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   mediaProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/media.ts
+   *       joinDefaultVpc: true
+   *       volumeMounts:
+   *         - type: efs
+   *           # stp-focus
+   *           properties:
+   *             efsFilesystemName: mediaStore
+   *             mountPath: /mnt/media
+   *           # stp-end-focus
+   *   mediaStore:
+   *     type: efs-filesystem
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, EfsFilesystem, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const mediaProcessor = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+   *     joinDefaultVpc: true,
+   *     volumeMounts: [
+   *       {
+   *         type: 'efs',
+   *         // stp-focus
+   *         properties: { efsFilesystemName: 'mediaStore', mountPath: '/mnt/media' }
+   *         // stp-end-focus
+   *       }
+   *     ]
+   *   });
+   *   const mediaStore = new EfsFilesystem({});
+   *   return { resources: { mediaProcessor, mediaStore } };
+   * });
+   * ```
    */
   properties: LambdaEfsMountProps;
 }
@@ -366,11 +2100,116 @@ interface LambdaEfsMount {
 interface LambdaEfsMountProps {
   /**
    * #### Name of the `efs-filesystem` resource defined in your config.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   mediaProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/media.ts
+   *       joinDefaultVpc: true
+   *       volumeMounts:
+   *         - type: efs
+   *           properties:
+   *             # stp-focus
+   *             efsFilesystemName: mediaStore
+   *             # stp-end-focus
+   *             mountPath: /mnt/media
+   *   mediaStore:
+   *     type: efs-filesystem
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, EfsFilesystem, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const mediaProcessor = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+   *     joinDefaultVpc: true,
+   *     volumeMounts: [
+   *       {
+   *         type: 'efs',
+   *         properties: {
+   *           // stp-focus
+   *           efsFilesystemName: 'mediaStore',
+   *           // stp-end-focus
+   *           mountPath: '/mnt/media'
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   const mediaStore = new EfsFilesystem({});
+   *   return { resources: { mediaProcessor, mediaStore } };
+   * });
+   * ```
    */
   efsFilesystemName: string;
 
   /**
    * #### Subdirectory within the EFS filesystem to mount. Omit for full access.
+   *
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   mediaProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/media.ts
+   *       joinDefaultVpc: true
+   *       volumeMounts:
+   *         - type: efs
+   *           properties:
+   *             efsFilesystemName: mediaStore
+   *             # stp-focus
+   *             rootDirectory: /uploads
+   *             # stp-end-focus
+   *             mountPath: /mnt/media
+   *   mediaStore:
+   *     type: efs-filesystem
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, EfsFilesystem, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const mediaProcessor = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+   *     joinDefaultVpc: true,
+   *     volumeMounts: [
+   *       {
+   *         type: 'efs',
+   *         properties: {
+   *           efsFilesystemName: 'mediaStore',
+   *           // stp-focus
+   *           rootDirectory: '/uploads',
+   *           // stp-end-focus
+   *           mountPath: '/mnt/media'
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   const mediaStore = new EfsFilesystem({});
+   *   return { resources: { mediaProcessor, mediaStore } };
+   * });
+   * ```
    *
    * @default "/"
    */
@@ -378,6 +2217,57 @@ interface LambdaEfsMountProps {
 
   /**
    * #### Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/data`).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   mediaProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/media.ts
+   *       joinDefaultVpc: true
+   *       volumeMounts:
+   *         - type: efs
+   *           properties:
+   *             efsFilesystemName: mediaStore
+   *             # stp-focus
+   *             mountPath: /mnt/media
+   *             # stp-end-focus
+   *   mediaStore:
+   *     type: efs-filesystem
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, EfsFilesystem, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const mediaProcessor = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+   *     joinDefaultVpc: true,
+   *     volumeMounts: [
+   *       {
+   *         type: 'efs',
+   *         properties: {
+   *           efsFilesystemName: 'mediaStore',
+   *           // stp-focus
+   *           mountPath: '/mnt/media'
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   const mediaStore = new EfsFilesystem({});
+   *   return { resources: { mediaProcessor, mediaStore } };
+   * });
+   * ```
    */
   mountPath: string;
 }
@@ -385,10 +2275,100 @@ interface LambdaEfsMountProps {
 interface LambdaS3FilesMount {
   /**
    * #### The type of the volume mount.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   datasetReader:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/read.ts
+   *       joinDefaultVpc: true
+   *       volumeMounts:
+   *         # stp-focus
+   *         - type: s3files
+   *         # stp-end-focus
+   *           properties:
+   *             accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap
+   *             mountPath: /mnt/s3data
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const datasetReader = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },
+   *     joinDefaultVpc: true,
+   *     volumeMounts: [
+   *       {
+   *         // stp-focus
+   *         type: 's3files',
+   *         // stp-end-focus
+   *         properties: { accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap', mountPath: '/mnt/s3data' }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { datasetReader } };
+   * });
+   * ```
    */
   type: 's3files';
   /**
    * #### Properties for the S3 Files volume mount.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   datasetReader:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/read.ts
+   *       joinDefaultVpc: true
+   *       volumeMounts:
+   *         - type: s3files
+   *           # stp-focus
+   *           properties:
+   *             accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap
+   *             mountPath: /mnt/s3data
+   *           # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const datasetReader = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },
+   *     joinDefaultVpc: true,
+   *     volumeMounts: [
+   *       {
+   *         type: 's3files',
+   *         // stp-focus
+   *         properties: { accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap', mountPath: '/mnt/s3data' }
+   *         // stp-end-focus
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { datasetReader } };
+   * });
+   * ```
    */
   properties: LambdaS3FilesMountProps;
 }
@@ -396,11 +2376,107 @@ interface LambdaS3FilesMount {
 interface LambdaS3FilesMountProps {
   /**
    * #### ARN of an existing S3 Files access point.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   datasetReader:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/read.ts
+   *       joinDefaultVpc: true
+   *       volumeMounts:
+   *         - type: s3files
+   *           properties:
+   *             # stp-focus
+   *             accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap
+   *             # stp-end-focus
+   *             mountPath: /mnt/s3data
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const datasetReader = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },
+   *     joinDefaultVpc: true,
+   *     volumeMounts: [
+   *       {
+   *         type: 's3files',
+   *         properties: {
+   *           // stp-focus
+   *           accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',
+   *           // stp-end-focus
+   *           mountPath: '/mnt/s3data'
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { datasetReader } };
+   * });
+   * ```
    */
   accessPointArn: string | IntrinsicFunction;
 
   /**
    * #### Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   datasetReader:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/read.ts
+   *       joinDefaultVpc: true
+   *       volumeMounts:
+   *         - type: s3files
+   *           properties:
+   *             accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap
+   *             # stp-focus
+   *             mountPath: /mnt/s3data
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const datasetReader = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },
+   *     joinDefaultVpc: true,
+   *     volumeMounts: [
+   *       {
+   *         type: 's3files',
+   *         properties: {
+   *           accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',
+   *           // stp-focus
+   *           mountPath: '/mnt/s3data'
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { datasetReader } };
+   * });
+   * ```
    */
   mountPath: string;
 }

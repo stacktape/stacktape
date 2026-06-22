@@ -19,6 +19,56 @@ interface SqsQueueProps {
    *
    * Useful for introducing a buffer, e.g., waiting for related data to be available before processing.
    *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   emailQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       delayMessagesSecond: 30
+   *       # stp-end-focus
+   *       visibilityTimeoutSeconds: 60
+   *   emailWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/email-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: emailQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const emailQueue = new SqsQueue({
+   *     // stp-focus
+   *     delayMessagesSecond: 30,
+   *     // stp-end-focus
+   *     visibilityTimeoutSeconds: 60
+   *   });
+   *
+   *   const emailWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/email-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'emailQueue' } }]
+   *   });
+   *
+   *   return { resources: { emailQueue, emailWorker } };
+   * });
+   * ```
+   *
    * @default 0
    */
   delayMessagesSecond?: number;
@@ -29,6 +79,56 @@ interface SqsQueueProps {
    *
    * Messages larger than this limit are rejected. For payloads over 256 KB, store the data in S3 and send the reference.
    *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   uploadEventsQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       maxMessageSizeBytes: 65536
+   *       # stp-end-focus
+   *       messageRetentionPeriodSeconds: 604800
+   *   uploadProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/upload-processor.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: uploadEventsQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const uploadEventsQueue = new SqsQueue({
+   *     // stp-focus
+   *     maxMessageSizeBytes: 65536,
+   *     // stp-end-focus
+   *     messageRetentionPeriodSeconds: 604800
+   *   });
+   *
+   *   const uploadProcessor = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/upload-processor.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'uploadEventsQueue' } }]
+   *   });
+   *
+   *   return { resources: { uploadEventsQueue, uploadProcessor } };
+   * });
+   * ```
+   *
    * @default 262144
    */
   maxMessageSizeBytes?: number;
@@ -38,6 +138,58 @@ interface SqsQueueProps {
    * ---
    *
    * Default is 4 days (345,600s). Increase if consumers might fall behind or be temporarily offline.
+   *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   reportJobsQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       messageRetentionPeriodSeconds: 1209600
+   *       # stp-end-focus
+   *       visibilityTimeoutSeconds: 300
+   *   reportWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/report-worker.ts
+   *       timeout: 240
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: reportJobsQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const reportJobsQueue = new SqsQueue({
+   *     // stp-focus
+   *     messageRetentionPeriodSeconds: 1209600,
+   *     // stp-end-focus
+   *     visibilityTimeoutSeconds: 300
+   *   });
+   *
+   *   const reportWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/report-worker.ts' }
+   *     },
+   *     timeout: 240,
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'reportJobsQueue' } }]
+   *   });
+   *
+   *   return { resources: { reportJobsQueue, reportWorker } };
+   * });
+   * ```
    *
    * @default 345600
    */
@@ -52,6 +204,56 @@ interface SqsQueueProps {
    *
    * Recommended: `20` for most workloads — it's the most cost-effective.
    *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   imageJobsQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       longPollingSeconds: 20
+   *       # stp-end-focus
+   *       visibilityTimeoutSeconds: 120
+   *   imageWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/image-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: imageJobsQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const imageJobsQueue = new SqsQueue({
+   *     // stp-focus
+   *     longPollingSeconds: 20,
+   *     // stp-end-focus
+   *     visibilityTimeoutSeconds: 120
+   *   });
+   *
+   *   const imageWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/image-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'imageJobsQueue' } }]
+   *   });
+   *
+   *   return { resources: { imageJobsQueue, imageWorker } };
+   * });
+   * ```
+   *
    * @default 0
    */
   longPollingSeconds?: number;
@@ -64,6 +266,58 @@ interface SqsQueueProps {
    * visible again and can be processed by another consumer (duplicate processing).
    *
    * Set this higher than your expected processing time. If your tasks take 2 minutes, use at least 150 seconds.
+   *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   videoEncodeQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       visibilityTimeoutSeconds: 900
+   *       # stp-end-focus
+   *       longPollingSeconds: 20
+   *   videoEncoder:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/video-encoder.ts
+   *       timeout: 600
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: videoEncodeQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const videoEncodeQueue = new SqsQueue({
+   *     // stp-focus
+   *     visibilityTimeoutSeconds: 900,
+   *     // stp-end-focus
+   *     longPollingSeconds: 20
+   *   });
+   *
+   *   const videoEncoder = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/video-encoder.ts' }
+   *     },
+   *     timeout: 600,
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'videoEncodeQueue' } }]
+   *   });
+   *
+   *   return { resources: { videoEncodeQueue, videoEncoder } };
+   * });
+   * ```
    *
    * @default 30
    */
@@ -78,6 +332,58 @@ interface SqsQueueProps {
    *
    * Requires either `contentBasedDeduplication: true` or a `MessageDeduplicationId` on each message.
    *
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   transactionsQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       fifoEnabled: true
+   *       # stp-end-focus
+   *       contentBasedDeduplication: true
+   *       visibilityTimeoutSeconds: 60
+   *   transactionProcessor:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/transaction-processor.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: transactionsQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const transactionsQueue = new SqsQueue({
+   *     // stp-focus
+   *     fifoEnabled: true,
+   *     // stp-end-focus
+   *     contentBasedDeduplication: true,
+   *     visibilityTimeoutSeconds: 60
+   *   });
+   *
+   *   const transactionProcessor = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/transaction-processor.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'transactionsQueue' } }]
+   *   });
+   *
+   *   return { resources: { transactionsQueue, transactionProcessor } };
+   * });
+   * ```
+   *
    * @default false
    */
   fifoEnabled?: boolean;
@@ -88,6 +394,58 @@ interface SqsQueueProps {
    *
    * Messages are partitioned by `MessageGroupId` — order is guaranteed within each group but not across groups.
    * Requires `fifoEnabled: true`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   clickstreamQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       fifoEnabled: true
+   *       # stp-focus
+   *       fifoHighThroughput: true
+   *       # stp-end-focus
+   *       contentBasedDeduplication: true
+   *   clickstreamConsumer:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/clickstream-consumer.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: clickstreamQueue
+   *             batchSize: 10
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const clickstreamQueue = new SqsQueue({
+   *     fifoEnabled: true,
+   *     // stp-focus
+   *     fifoHighThroughput: true,
+   *     // stp-end-focus
+   *     contentBasedDeduplication: true
+   *   });
+   *
+   *   const clickstreamConsumer = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/clickstream-consumer.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'clickstreamQueue', batchSize: 10 } }]
+   *   });
+   *
+   *   return { resources: { clickstreamQueue, clickstreamConsumer } };
+   * });
+   * ```
    */
   fifoHighThroughput?: boolean;
   /**
@@ -98,6 +456,57 @@ interface SqsQueueProps {
    * Within the 5-minute deduplication window, identical messages are delivered only once.
    * Saves you from having to generate a unique `MessageDeduplicationId` for each message.
    * Requires `fifoEnabled: true`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   orderEventsQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       fifoEnabled: true
+   *       # stp-focus
+   *       contentBasedDeduplication: true
+   *       # stp-end-focus
+   *       visibilityTimeoutSeconds: 90
+   *   orderEventConsumer:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/order-event-consumer.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: orderEventsQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const orderEventsQueue = new SqsQueue({
+   *     fifoEnabled: true,
+   *     // stp-focus
+   *     contentBasedDeduplication: true,
+   *     // stp-end-focus
+   *     visibilityTimeoutSeconds: 90
+   *   });
+   *
+   *   const orderEventConsumer = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/order-event-consumer.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'orderEventsQueue' } }]
+   *   });
+   *
+   *   return { resources: { orderEventsQueue, orderEventConsumer } };
+   * });
+   * ```
    */
   contentBasedDeduplication?: boolean;
   /**
@@ -107,6 +516,66 @@ interface SqsQueueProps {
    *
    * After `maxReceiveCount` failed attempts, the message is automatically moved to a separate queue
    * so you can investigate and reprocess it. Prevents poison messages from blocking the queue.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   paymentsDlq:
+   *     type: sqs-queue
+   *     properties:
+   *       messageRetentionPeriodSeconds: 1209600
+   *   paymentsQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       redrivePolicy:
+   *         targetSqsQueueName: paymentsDlq
+   *         maxReceiveCount: 5
+   *       # stp-end-focus
+   *       visibilityTimeoutSeconds: 60
+   *   paymentsWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/payments-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: paymentsQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const paymentsDlq = new SqsQueue({ messageRetentionPeriodSeconds: 1209600 });
+   *
+   *   const paymentsQueue = new SqsQueue({
+   *     // stp-focus
+   *     redrivePolicy: {
+   *       targetSqsQueueName: 'paymentsDlq',
+   *       maxReceiveCount: 5
+   *     },
+   *     // stp-end-focus
+   *     visibilityTimeoutSeconds: 60
+   *   });
+   *
+   *   const paymentsWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/payments-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'paymentsQueue' } }]
+   *   });
+   *
+   *   return { resources: { paymentsDlq, paymentsQueue, paymentsWorker } };
+   * });
+   * ```
    */
   redrivePolicy?: SqsQueueRedrivePolicy;
   /**
@@ -115,6 +584,78 @@ interface SqsQueueProps {
    * ---
    *
    * These alarms will be merged with any alarms configured globally in the [console](https://console.stacktape.com/alarms).
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   backlogQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       alarms:
+   *         - trigger:
+   *             type: sqs-queue-received-messages-count
+   *             properties:
+   *               thresholdCount: 1000
+   *           notificationTargets:
+   *             - type: slack
+   *               properties:
+   *                 conversationId: C0123456789
+   *                 accessToken: $Secret('slack-token')
+   *       # stp-end-focus
+   *   backlogWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/backlog-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: backlogQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const backlogQueue = new SqsQueue({
+   *     // stp-focus
+   *     alarms: [
+   *       {
+   *         trigger: {
+   *           type: 'sqs-queue-received-messages-count',
+   *           properties: { thresholdCount: 1000 }
+   *         },
+   *         notificationTargets: [
+   *           {
+   *             type: 'slack',
+   *             properties: {
+   *               conversationId: 'C0123456789',
+   *               accessToken: $Secret('slack-token')
+   *             }
+   *           }
+   *         ]
+   *       }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *
+   *   const backlogWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/backlog-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'backlogQueue' } }]
+   *   });
+   *
+   *   return { resources: { backlogQueue, backlogWorker } };
+   * });
+   * ```
    */
   alarms?: SqsQueueAlarm[];
   /**
@@ -123,6 +664,56 @@ interface SqsQueueProps {
    * ---
    *
    * Provide a list of alarm names as configured in the [console](https://console.stacktape.com/alarms).
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   lowPriorityQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       disabledGlobalAlarms:
+   *         - sqs-queue-not-empty
+   *       # stp-end-focus
+   *       messageRetentionPeriodSeconds: 86400
+   *   lowPriorityWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/low-priority-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: lowPriorityQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const lowPriorityQueue = new SqsQueue({
+   *     // stp-focus
+   *     disabledGlobalAlarms: ['sqs-queue-not-empty'],
+   *     // stp-end-focus
+   *     messageRetentionPeriodSeconds: 86400
+   *   });
+   *
+   *   const lowPriorityWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/low-priority-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'lowPriorityQueue' } }]
+   *   });
+   *
+   *   return { resources: { lowPriorityQueue, lowPriorityWorker } };
+   * });
+   * ```
    */
   disabledGlobalAlarms?: string[];
   /**
@@ -132,6 +723,64 @@ interface SqsQueueProps {
    *
    * These are merged with policies Stacktape auto-generates. Use to grant cross-account access or allow
    * specific AWS services (e.g., SNS) to send messages to this queue.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   crossAccountQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       policyStatements:
+   *         - Effect: Allow
+   *           Principal:
+   *             Service: sns.amazonaws.com
+   *           Action:
+   *             - sqs:SendMessage
+   *       # stp-end-focus
+   *   crossAccountWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/cross-account-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: crossAccountQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const crossAccountQueue = new SqsQueue({
+   *     // stp-focus
+   *     policyStatements: [
+   *       {
+   *         Effect: 'Allow',
+   *         Principal: { Service: 'sns.amazonaws.com' },
+   *         Action: ['sqs:SendMessage']
+   *       }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *
+   *   const crossAccountWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/cross-account-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'crossAccountQueue' } }]
+   *   });
+   *
+   *   return { resources: { crossAccountQueue, crossAccountWorker } };
+   * });
+   * ```
    */
   policyStatements?: SqsQueuePolicyStatement[];
   /**
@@ -140,6 +789,71 @@ interface SqsQueueProps {
    * ---
    *
    * Currently supports EventBridge event bus integration for delivering events directly to the queue.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   appEventBus:
+   *     type: event-bus
+   *   orderQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       # stp-focus
+   *       events:
+   *         - type: event-bus
+   *           properties:
+   *             eventBusName: appEventBus
+   *             eventPattern:
+   *               detail-type:
+   *                 - OrderPlaced
+   *       # stp-end-focus
+   *   orderWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/order-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: orderQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, EventBus, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const appEventBus = new EventBus({});
+   *
+   *   const orderQueue = new SqsQueue({
+   *     // stp-focus
+   *     events: [
+   *       {
+   *         type: 'event-bus',
+   *         properties: {
+   *           eventBusName: 'appEventBus',
+   *           eventPattern: { 'detail-type': ['OrderPlaced'] }
+   *         }
+   *       }
+   *     ]
+   *     // stp-end-focus
+   *   });
+   *
+   *   const orderWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/order-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'orderQueue' } }]
+   *   });
+   *
+   *   return { resources: { appEventBus, orderQueue, orderWorker } };
+   * });
+   * ```
    */
   events?: SqsQueueEventBusIntegration[];
 }
@@ -147,18 +861,266 @@ interface SqsQueueProps {
 interface SqsQueuePolicyStatement {
   /**
    * #### `Allow` or `Deny` access for the specified actions and principal.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   restrictedQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       policyStatements:
+   *         # stp-focus
+   *         - Effect: Deny
+   *         # stp-end-focus
+   *           Principal: "*"
+   *           Action:
+   *             - sqs:DeleteQueue
+   *   restrictedWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/restricted-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: restrictedQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const restrictedQueue = new SqsQueue({
+   *     policyStatements: [
+   *       {
+   *         // stp-focus
+   *         Effect: 'Deny',
+   *         // stp-end-focus
+   *         Principal: '*',
+   *         Action: ['sqs:DeleteQueue']
+   *       }
+   *     ]
+   *   });
+   *
+   *   const restrictedWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/restricted-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'restrictedQueue' } }]
+   *   });
+   *
+   *   return { resources: { restrictedQueue, restrictedWorker } };
+   * });
+   * ```
    */
   Effect: string;
   /**
    * #### SQS actions to allow or deny. E.g., `["sqs:SendMessage"]` or `["sqs:*"]`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   ingestQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       policyStatements:
+   *         - Effect: Allow
+   *           Principal:
+   *             Service: events.amazonaws.com
+   *           # stp-focus
+   *           Action:
+   *             - sqs:SendMessage
+   *             - sqs:GetQueueAttributes
+   *           # stp-end-focus
+   *   ingestWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/ingest-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: ingestQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const ingestQueue = new SqsQueue({
+   *     policyStatements: [
+   *       {
+   *         Effect: 'Allow',
+   *         Principal: { Service: 'events.amazonaws.com' },
+   *         // stp-focus
+   *         Action: ['sqs:SendMessage', 'sqs:GetQueueAttributes']
+   *         // stp-end-focus
+   *       }
+   *     ]
+   *   });
+   *
+   *   const ingestWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/ingest-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'ingestQueue' } }]
+   *   });
+   *
+   *   return { resources: { ingestQueue, ingestWorker } };
+   * });
+   * ```
    */
   Action: string[];
   /**
    * #### Optional conditions for when this statement applies (e.g., restrict by source ARN or IP range).
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   topicBoundQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       policyStatements:
+   *         - Effect: Allow
+   *           Principal: "*"
+   *           Action:
+   *             - sqs:SendMessage
+   *           # stp-focus
+   *           Condition:
+   *             ArnEquals:
+   *               aws:SourceArn: arn:aws:sns:eu-west-1:123456789012:order-events-topic
+   *           # stp-end-focus
+   *   topicBoundWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/topic-bound-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: topicBoundQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const topicBoundQueue = new SqsQueue({
+   *     policyStatements: [
+   *       {
+   *         Effect: 'Allow',
+   *         Principal: '*',
+   *         Action: ['sqs:SendMessage'],
+   *         // stp-focus
+   *         Condition: {
+   *           ArnEquals: {
+   *             'aws:SourceArn': 'arn:aws:sns:eu-west-1:123456789012:order-events-topic'
+   *           }
+   *         }
+   *         // stp-end-focus
+   *       }
+   *     ]
+   *   });
+   *
+   *   const topicBoundWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/topic-bound-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'topicBoundQueue' } }]
+   *   });
+   *
+   *   return { resources: { topicBoundQueue, topicBoundWorker } };
+   * });
+   * ```
    */
   Condition?: any;
   /**
    * #### Who gets access: AWS account ID, IAM ARN, or `"*"` for everyone. E.g., `{ "Service": "sns.amazonaws.com" }`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   partnerQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       policyStatements:
+   *         - Effect: Allow
+   *           # stp-focus
+   *           Principal:
+   *             AWS: arn:aws:iam::210987654321:root
+   *           # stp-end-focus
+   *           Action:
+   *             - sqs:SendMessage
+   *             - sqs:ReceiveMessage
+   *   partnerWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/partner-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: partnerQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const partnerQueue = new SqsQueue({
+   *     policyStatements: [
+   *       {
+   *         Effect: 'Allow',
+   *         // stp-focus
+   *         Principal: { AWS: 'arn:aws:iam::210987654321:root' },
+   *         // stp-end-focus
+   *         Action: ['sqs:SendMessage', 'sqs:ReceiveMessage']
+   *       }
+   *     ]
+   *   });
+   *
+   *   const partnerWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/partner-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'partnerQueue' } }]
+   *   });
+   *
+   *   return { resources: { partnerQueue, partnerWorker } };
+   * });
+   * ```
    */
   Principal: any;
 }
@@ -170,6 +1132,74 @@ interface SqsQueueEventBusIntegration {
   type: 'event-bus';
   /**
    * #### Properties of the integration
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   shipmentQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       events:
+   *         - type: event-bus
+   *           # stp-focus
+   *           properties:
+   *             useDefaultBus: true
+   *             eventPattern:
+   *               source:
+   *                 - logistics-service
+   *               detail-type:
+   *                 - ShipmentDispatched
+   *           # stp-end-focus
+   *   shipmentWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/shipment-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: shipmentQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const shipmentQueue = new SqsQueue({
+   *     events: [
+   *       {
+   *         type: 'event-bus',
+   *         // stp-focus
+   *         properties: {
+   *           useDefaultBus: true,
+   *           eventPattern: {
+   *             source: ['logistics-service'],
+   *             'detail-type': ['ShipmentDispatched']
+   *           }
+   *         }
+   *         // stp-end-focus
+   *       }
+   *     ]
+   *   });
+   *
+   *   const shipmentWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/shipment-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'shipmentQueue' } }]
+   *   });
+   *
+   *   return { resources: { shipmentQueue, shipmentWorker } };
+   * });
+   * ```
    */
   properties: SqsQueueEventBusIntegrationProps;
 }
@@ -181,6 +1211,77 @@ interface SqsQueueEventBusIntegrationProps extends EventBusIntegrationProps {
    * ---
    *
    * Messages in the same group are processed in strict order. Different groups can be processed in parallel.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   auditEventBus:
+   *     type: event-bus
+   *   auditQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       fifoEnabled: true
+   *       contentBasedDeduplication: true
+   *       events:
+   *         - type: event-bus
+   *           properties:
+   *             eventBusName: auditEventBus
+   *             eventPattern:
+   *               detail-type:
+   *                 - UserAction
+   *             # stp-focus
+   *             messageGroupId: audit-events
+   *             # stp-end-focus
+   *   auditWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/audit-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: auditQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, EventBus, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const auditEventBus = new EventBus({});
+   *
+   *   const auditQueue = new SqsQueue({
+   *     fifoEnabled: true,
+   *     contentBasedDeduplication: true,
+   *     events: [
+   *       {
+   *         type: 'event-bus',
+   *         properties: {
+   *           eventBusName: 'auditEventBus',
+   *           eventPattern: { 'detail-type': ['UserAction'] },
+   *           // stp-focus
+   *           messageGroupId: 'audit-events'
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *
+   *   const auditWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/audit-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'auditQueue' } }]
+   *   });
+   *
+   *   return { resources: { auditEventBus, auditQueue, auditWorker } };
+   * });
+   * ```
    */
   messageGroupId?: string;
 }
@@ -188,10 +1289,122 @@ interface SqsQueueEventBusIntegrationProps extends EventBusIntegrationProps {
 interface SqsQueueRedrivePolicy {
   /**
    * #### Name of another `sqs-queue` in your config to use as the dead-letter queue.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   notificationsDlq:
+   *     type: sqs-queue
+   *   notificationsQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       redrivePolicy:
+   *         # stp-focus
+   *         targetSqsQueueName: notificationsDlq
+   *         # stp-end-focus
+   *         maxReceiveCount: 3
+   *   notificationsWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/notifications-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: notificationsQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const notificationsDlq = new SqsQueue({});
+   *
+   *   const notificationsQueue = new SqsQueue({
+   *     redrivePolicy: {
+   *       // stp-focus
+   *       targetSqsQueueName: 'notificationsDlq',
+   *       // stp-end-focus
+   *       maxReceiveCount: 3
+   *     }
+   *   });
+   *
+   *   const notificationsWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/notifications-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'notificationsQueue' } }]
+   *   });
+   *
+   *   return { resources: { notificationsDlq, notificationsQueue, notificationsWorker } };
+   * });
+   * ```
    */
   targetSqsQueueName?: string;
   /**
    * #### ARN of an external SQS queue to use as the dead-letter queue. Use when the DLQ is in another stack or account.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   eventsQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       redrivePolicy:
+   *         # stp-focus
+   *         targetSqsQueueArn: arn:aws:sqs:eu-west-1:123456789012:shared-dead-letter-queue
+   *         # stp-end-focus
+   *         maxReceiveCount: 4
+   *   eventsWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/events-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: eventsQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const eventsQueue = new SqsQueue({
+   *     redrivePolicy: {
+   *       // stp-focus
+   *       targetSqsQueueArn: 'arn:aws:sqs:eu-west-1:123456789012:shared-dead-letter-queue',
+   *       // stp-end-focus
+   *       maxReceiveCount: 4
+   *     }
+   *   });
+   *
+   *   const eventsWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/events-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'eventsQueue' } }]
+   *   });
+   *
+   *   return { resources: { eventsQueue, eventsWorker } };
+   * });
+   * ```
    */
   targetSqsQueueArn?: string;
   /**
@@ -200,6 +1413,62 @@ interface SqsQueueRedrivePolicy {
    * ---
    *
    * A typical starting value is `3`–`5`. Set lower for fast-failing workloads, higher for retryable transient errors.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   jobsDlq:
+   *     type: sqs-queue
+   *   jobsQueue:
+   *     type: sqs-queue
+   *     properties:
+   *       redrivePolicy:
+   *         targetSqsQueueName: jobsDlq
+   *         # stp-focus
+   *         maxReceiveCount: 3
+   *         # stp-end-focus
+   *   jobsWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/jobs-worker.ts
+   *       events:
+   *         - type: sqs
+   *           properties:
+   *             sqsQueueName: jobsQueue
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { SqsQueue, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const jobsDlq = new SqsQueue({});
+   *
+   *   const jobsQueue = new SqsQueue({
+   *     redrivePolicy: {
+   *       targetSqsQueueName: 'jobsDlq',
+   *       // stp-focus
+   *       maxReceiveCount: 3
+   *       // stp-end-focus
+   *     }
+   *   });
+   *
+   *   const jobsWorker = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: { entryfilePath: 'src/jobs-worker.ts' }
+   *     },
+   *     events: [{ type: 'sqs', properties: { sqsQueueName: 'jobsQueue' } }]
+   *   });
+   *
+   *   return { resources: { jobsDlq, jobsQueue, jobsWorker } };
+   * });
+   * ```
    */
   maxReceiveCount: number;
 }
