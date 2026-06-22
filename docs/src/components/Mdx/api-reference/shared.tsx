@@ -15,6 +15,7 @@ import { apiReferenceData, type ApiReferenceGeneratedDefinition } from '@/genera
 import { typographyCss } from '@/styles/global';
 import { colors, fontFamilyMono } from '@/styles/variables';
 import type { NormalizedProperty, NormalizedTypeInfo, NormalizedUnionBranch } from '@/utils/api-reference-extractor';
+import { CodeBlockNew } from '../CodeBlockNew';
 
 export const apiReferenceDefinitions = apiReferenceData as Record<string, ApiReferenceGeneratedDefinition>;
 
@@ -530,6 +531,17 @@ export function PropertyDescription({
           }}
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(property.longDescription) }}
         />
+      )}
+      {property.examples && property.examples.length > 0 && !compact && (
+        <div css={{ marginTop: '10px' }}>
+          <CodeBlockNew
+            tabs={property.examples.map((example) => ({
+              label: example.lang === 'yaml' ? 'YAML' : 'TypeScript',
+              lang: example.lang,
+              code: example.code
+            }))}
+          />
+        </div>
       )}
     </Fragment>
   );

@@ -31,7 +31,10 @@ type RawSchema = {
   default?: unknown;
   additionalProperties?: unknown;
   _MdxDesc?: { sd?: string; ld?: string };
+  _examples?: { lang: string; code: string }[];
 };
+
+export type PropertyExample = { lang: string; code: string };
 
 type Definitions = Record<string, RawSchema>;
 
@@ -68,6 +71,8 @@ export type NormalizedProperty = {
   typeInfo: NormalizedTypeInfo;
   /** Set if this property was inherited from a parent type via allOf or `extends`. */
   inheritedFrom?: string;
+  /** Working YAML + TypeScript config examples (with `[!code focus-*]` markers) for this property. */
+  examples?: PropertyExample[];
 };
 
 export type NormalizedDefinition = {
@@ -274,7 +279,8 @@ const extractDirectProperties = (
       longDescription: ld,
       defaultValue: stringifyDefault(propSchema.default),
       typeInfo: buildTypeInfo(propSchema, definitions),
-      inheritedFrom
+      inheritedFrom,
+      ...(propSchema._examples?.length ? { examples: propSchema._examples } : {})
     });
   }
   return result;
