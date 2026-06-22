@@ -18,7 +18,8 @@
     "publish:llms": "bun scripts/publish-llms.ts",
     "sync:seo": "bun scripts/sync-seo-to-out.ts",
     "gen:docs": "bun ../../docs-gen/src/cli.ts --projectPath .",
-    "gen:api-ref": "bun scripts/generate-api-reference-data.ts"
+    "gen:api-ref": "bun scripts/generate-api-reference-data.ts",
+    "validate:snippets": "bun scripts/validate-doc-snippets.ts"
   },
   "dependencies": {
     "@calcom/embed-react": "^1.5.3",
