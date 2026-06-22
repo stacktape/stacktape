@@ -1,4 +1,5 @@
-import { box, colors } from '../../styles/variables';
+import { colors } from '../../styles/variables';
+import { typographyCss } from '../../styles/global';
 import { PropertyInfo } from './PropertiesTable';
 
 export type CommandArg = {
@@ -11,63 +12,95 @@ export type CommandArg = {
   allowedTypes: string[];
 };
 
+const ROW_DIVIDER = '1px solid rgba(255, 255, 255, 0.06)';
+
 export function CliCommandsApiReference({ command, sortedArgs = [] }: { command: string; sortedArgs?: CommandArg[] }) {
+  const validArgs = sortedArgs.filter(
+    (arg): arg is CommandArg => arg != null && typeof arg === 'object' && 'name' in arg
+  );
+  const hasMalformedArgs = sortedArgs.length !== validArgs.length;
+
   return (
     <div
       id={`api-ref-${command}`}
       css={{
-        ...box,
-        background: colors.backgroundColor,
-        marginBottom: '15px',
-        marginTop: '12px'
+        margin: '24px 0',
+        background: colors.elementBackground,
+        borderRadius: '8px',
+        boxShadow:
+          '0 2px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+        overflow: 'hidden'
       }}
     >
       <div
         css={{
           display: 'flex',
-          padding: '12px',
-          background: colors.backgroundColor,
-          fontWeight: 'bold',
-          fontSize: '14px'
+          alignItems: 'baseline',
+          gap: '8px',
+          padding: '12px 16px',
+          borderBottom: ROW_DIVIDER
         }}
       >
-        <p css={{ textAlign: 'left', width: '50%' }}>Options</p>
+        <span
+          css={{
+            ...typographyCss,
+            fontSize: '15px',
+            fontWeight: 600,
+            lineHeight: 1.2,
+            color: colors.fontColorPrimary,
+            letterSpacing: '0.2px'
+          }}
+        >
+          Options
+        </span>
+        <span
+          css={{
+            ...typographyCss,
+            fontSize: '12px',
+            fontWeight: 500,
+            lineHeight: 1.2,
+            color: colors.fontColorTernary,
+            textTransform: 'uppercase',
+            letterSpacing: '0.6px'
+          }}
+        >
+          CLI reference
+        </span>
       </div>
+
       <div>
-        {sortedArgs.length > 0 ? (
+        {validArgs.length > 0 ? (
           // Defensive: a malformed sortedArgs prop (e.g. an array of strings instead of
           // CommandArg objects, which the docs generation pipeline has accidentally produced)
-          // would otherwise crash the production build's prerender pass. Filter out anything
-          // that isn't a recognizable arg object and render a small inline warning instead.
-          sortedArgs
-            .filter((arg): arg is CommandArg => arg != null && typeof arg === 'object' && 'name' in arg)
-            .map((arg, idx, validArgs) => {
-              const { name, required, shortDescription, longDescription, alias, allowedValues, allowedTypes } = arg;
-              const safeAllowedTypes = Array.isArray(allowedTypes) && allowedTypes.length > 0 ? allowedTypes : ['string'];
-              return (
-                <PropertyInfo
-                  key={name}
-                  propertyName={`--${name}${alias ? ` (-${alias})` : ''}`}
-                  idx={idx}
-                  isLast={validArgs.length - 1 === idx}
-                  propertyRequired={required}
-                  shortDescription={shortDescription}
-                  longDescription={longDescription}
-                  propertyTypeInfo={{
-                    allowedTypes: [{ typeName: safeAllowedTypes[0], enumeratedValues: allowedValues }],
-                    isArray: false
-                  }}
-                />
-              );
-            })
+          // would otherwise crash the production build's prerender pass.
+          validArgs.map((arg, idx) => {
+            const { name, required, shortDescription, longDescription, alias, allowedValues, allowedTypes } = arg;
+            const safeAllowedTypes = Array.isArray(allowedTypes) && allowedTypes.length > 0 ? allowedTypes : ['string'];
+            return (
+              <PropertyInfo
+                key={name}
+                propertyName={`--${name}${alias ? ` (-${alias})` : ''}`}
+                idx={idx}
+                isLast={validArgs.length - 1 === idx}
+                propertyRequired={required}
+                shortDescription={shortDescription}
+                longDescription={longDescription}
+                propertyTypeInfo={{
+                  allowedTypes: [{ typeName: safeAllowedTypes[0], enumeratedValues: allowedValues }],
+                  isArray: false
+                }}
+              />
+            );
+          })
         ) : (
-          <p css={{ padding: '10px' }}>No available options.</p>
+          <p css={{ ...typographyCss, padding: '14px 16px', fontSize: '13.5px', color: colors.fontColorTernary }}>
+            No available options.
+          </p>
         )}
-        {sortedArgs.some((arg) => arg == null || typeof arg !== 'object' || !('name' in arg)) && (
-          <p css={{ padding: '10px', color: '#e25a4d', fontSize: '12px' }}>
-            Some options could not be displayed because the sortedArgs payload contained entries
-            that were not in the expected CommandArg shape. Re-generate this page via the docs
-            pipeline to refresh the reference data.
+        {hasMalformedArgs && (
+          <p css={{ ...typographyCss, padding: '12px 16px', fontSize: '12.5px', lineHeight: 1.6, color: colors.error }}>
+            Some options could not be displayed because the sortedArgs payload contained entries that were not in the
+            expected CommandArg shape. Re-generate this page via the docs pipeline to refresh the reference data.
           </p>
         )}
       </div>

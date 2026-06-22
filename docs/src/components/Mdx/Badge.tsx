@@ -10,6 +10,7 @@ export function Badge({
   border,
   fontSize,
   padding,
+  css: cssOverride,
   ...props
 }: {
   children: React.ReactNode;
@@ -19,32 +20,43 @@ export function Badge({
   border?: string;
   fontSize?: string;
   padding?: string;
+  css?: any;
   [anyProp: string]: any;
 }) {
   const textColor = colorFn(backgroundColor).luminosity() < 0.5 ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.95)';
+  const interactive = Boolean(onClick || hoverBackgroundColor);
 
   return (
     <span
-      css={{
-        ...typographyCss,
-        padding: padding || '2px 7px',
-        background: backgroundColor,
-        border: border || `1px solid ${colors.darkerBackground}`,
-        color: textColor,
-        borderRadius: '3px',
-        minWidth: '14px',
-        fontWeight: 400,
-        fontSize: fontSize || '0.85rem',
-        alignSelf: 'flex-start',
-        marginLeft: '3px',
-        marginRight: '3px',
-        whiteSpace: 'nowrap',
-        overflowX: 'scroll',
-        alignItems: 'center',
-        userSelect: onClick || hoverBackgroundColor ? 'none' : 'initial',
-        cursor: onClick || hoverBackgroundColor ? 'pointer' : 'initial',
-        textDecoration: 'none'
-      }}
+      // Merge any caller-provided `css` (array form) instead of letting a spread `{...props}`
+      // silently clobber the badge's own styling — that footgun previously stripped primitive
+      // type badges of their pill styling, typography, and nowrap.
+      css={[
+        {
+          ...typographyCss,
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: padding || '1px 7px',
+          background: backgroundColor,
+          border: border || `1px solid ${colors.darkerBackground}`,
+          color: textColor,
+          borderRadius: '4px',
+          minWidth: '14px',
+          fontWeight: 500,
+          fontSize: fontSize || '0.8rem',
+          lineHeight: 1.4,
+          whiteSpace: 'nowrap',
+          verticalAlign: 'middle',
+          userSelect: interactive ? 'none' : 'initial',
+          cursor: interactive ? 'pointer' : 'initial',
+          textDecoration: 'none',
+          ...(hoverBackgroundColor && {
+            transition: 'background 150ms ease',
+            '&:hover': { background: hoverBackgroundColor }
+          })
+        },
+        cssOverride
+      ]}
       onClick={onClick}
       {...props}
     >

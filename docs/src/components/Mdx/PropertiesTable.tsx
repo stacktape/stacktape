@@ -12,6 +12,7 @@ import {
 } from '@/utils/schema-extractor';
 import configSchema from '../../../../@generated/schemas/config-schema.json';
 import { colors, fontFamily, fontFamilyMono } from '../../styles/variables';
+import { typographyCss } from '../../styles/global';
 import { Badge } from './Badge';
 
 const buildApiReferenceTableId = ({ definitionName }: { definitionName: string }) => {
@@ -66,9 +67,7 @@ function PropertyTypeBadgeLine({
                 </Badge>
               </a>
             ) : (
-              <Badge css={{ wordBreak: 'break-all' }} backgroundColor={colors.gray}>
-                {badgeText}
-              </Badge>
+              <Badge backgroundColor={colors.gray}>{badgeText}</Badge>
             )}
             {!isLast && <span css={{ color: colors.fontColorTernary, margin: '0 4px' }}>or</span>}
           </Fragment>
@@ -136,6 +135,7 @@ function ExpandableView({
       />
       <div
         css={{
+          ...typographyCss,
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
@@ -166,6 +166,7 @@ function ExpandableView({
       {shouldShowPossibleValuesList && (
         <div
           css={{
+            ...typographyCss,
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
