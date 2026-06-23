@@ -53,44 +53,6 @@
     "description": "Production-style customer support agent running on AWS Bedrock AgentCore Runtime.\nUses AgentCore Memory for persistent customer context and AgentCore Gateway for governed access to support tools.\nExposes Lambda-backed tools for looking up customer status and creating support tickets, with tickets stored in DynamoDB.\n"
   },
   {
-    "name": "AgentCore Research Assistant",
-    "tags": ["Javascript", "Docker", "AI", "AgentCore"],
-    "icon": "docker.svg",
-    "priority": 0,
-    "starterProjectId": "agentcore-research-assistant",
-    "projectType": "es",
-    "usedResources": [
-      {
-        "name": "researchBrowser",
-        "type": "agentcore-browser",
-        "containerNames": []
-      },
-      {
-        "name": "researchMemory",
-        "type": "agentcore-memory",
-        "containerNames": []
-      },
-      {
-        "name": "researchAgent",
-        "type": "agentcore-runtime",
-        "containerNames": []
-      }
-    ],
-    "usedResourceTypes": ["agentcore-browser", "agentcore-memory", "agentcore-runtime"],
-    "isServerSideRenderedWebsite": false,
-    "githubLink": "https://github.com/stacktape/starter-agentcore-research-assistant",
-    "isWebsite": false,
-    "isSpaWebsite": false,
-    "isStaticWebsite": false,
-    "hasPrisma": false,
-    "hasNextJs": false,
-    "hasTypescript": false,
-    "hasReact": false,
-    "isRestApi": false,
-    "hasCognito": false,
-    "description": "Research assistant for competitive analysis, vendor due diligence, and market scans.\nRuns on AWS Bedrock AgentCore Runtime with AgentCore Browser for managed web automation.\nUses AgentCore Memory so follow-up research questions can build on prior findings.\n"
-  },
-  {
     "name": "AgentCore Data Analyst",
     "tags": ["Javascript", "Docker", "AI", "AgentCore"],
     "icon": "docker.svg",
@@ -132,6 +94,44 @@
     "isRestApi": false,
     "hasCognito": false,
     "description": "Data analysis agent for billing reviews, CSV exploration, KPI summaries, and report generation.\nRuns on AWS Bedrock AgentCore Runtime and connects to AgentCore Code Interpreter for sandboxed Python/JavaScript analysis.\nUses AgentCore Memory for analysis context and an S3 bucket for durable report outputs.\n"
+  },
+  {
+    "name": "AgentCore Research Assistant",
+    "tags": ["Javascript", "Docker", "AI", "AgentCore"],
+    "icon": "docker.svg",
+    "priority": 0,
+    "starterProjectId": "agentcore-research-assistant",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "researchBrowser",
+        "type": "agentcore-browser",
+        "containerNames": []
+      },
+      {
+        "name": "researchMemory",
+        "type": "agentcore-memory",
+        "containerNames": []
+      },
+      {
+        "name": "researchAgent",
+        "type": "agentcore-runtime",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["agentcore-browser", "agentcore-memory", "agentcore-runtime"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-agentcore-research-assistant",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": false,
+    "hasCognito": false,
+    "description": "Research assistant for competitive analysis, vendor due diligence, and market scans.\nRuns on AWS Bedrock AgentCore Runtime with AgentCore Browser for managed web automation.\nUses AgentCore Memory so follow-up research questions can build on prior findings.\n"
   },
   {
     "name": "AI Agent API",
@@ -232,12 +232,12 @@
     "projectType": "es",
     "usedResources": [
       {
-        "name": "webService",
-        "type": "web-service",
+        "name": "web",
+        "type": "astro-web",
         "containerNames": []
       }
     ],
-    "usedResourceTypes": ["web-service"],
+    "usedResourceTypes": ["astro-web"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-astro-ssr",
     "isWebsite": false,
@@ -695,6 +695,67 @@
     "description": "Retrieval-Augmented Generation (RAG) API for question answering over your documents.\nUses Amazon Bedrock for embeddings and LLM responses, with\n  DynamoDB for vector storage and\n  S3 for document uploads.\nRuns serverlessly in AWS Lambda. Upload documents,\n  then ask questions — the API retrieves relevant context and generates answers.\n"
   },
   {
+    "name": "S3 Files Dataset Reporting",
+    "tags": ["Typescript", "Lambda", "Event-Driven", "REST API"],
+    "icon": "typescript.svg",
+    "priority": 0,
+    "starterProjectId": "s3files-dataset-reporting",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "buildCatalog",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "datasetApi",
+        "type": "function",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["function"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-s3files-dataset-reporting",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": true,
+    "hasCognito": false,
+    "description": "Scheduled dataset catalog and reporting pipeline backed by Amazon S3 Files.\nA scheduled Lambda scans CSV, JSON, and JSONL files from a mounted /raw directory and writes a shared catalog report back to the mounted file system.\nAn HTTP Lambda reads the same mounted workspace to return catalog metadata and quick dataset samples without downloading S3 objects at runtime.\n"
+  },
+  {
+    "name": "S3 Files Model Inference API",
+    "tags": ["Typescript", "Lambda", "AI", "REST API"],
+    "icon": "typescript.svg",
+    "priority": 0,
+    "starterProjectId": "s3files-model-inference-api",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "inferenceApi",
+        "type": "function",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["function"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-s3files-model-inference-api",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": true,
+    "hasCognito": false,
+    "description": "Serverless model inference API that mounts model artifacts from Amazon S3 Files.\nKeeps model manifests, labels, and lightweight scoring data on the mounted file system instead of bundling them into the Lambda package or downloading them at startup.\nGood fit for model weights, embeddings, label maps, and other shared inference assets that need to be updated independently from application code.\n"
+  },
+  {
     "name": "SvelteKit Serverless",
     "tags": ["website", "Server side rendered website", "Typescript", "Svelte", "Lambda"],
     "icon": "svelte.svg",
@@ -888,6 +949,54 @@
     "isRestApi": true,
     "hasCognito": false,
     "description": "HTTP API built with ASP.NET Core (.NET 9).\nRuns in a Docker web service with a Postgres\n  relational database. Uses Entity Framework Core for\n  database access.\n"
+  },
+  {
+    "name": "DynamoDB Streams Audit",
+    "tags": ["Typescript", "DynamoDB", "Lambda", "Event-Driven"],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "dynamodb-streams-audit",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "productsTable",
+        "type": "dynamo-db-table",
+        "containerNames": []
+      },
+      {
+        "name": "auditTable",
+        "type": "dynamo-db-table",
+        "containerNames": []
+      },
+      {
+        "name": "processStream",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "api",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "apiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-dynamodb-streams-audit",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "hasCognito": false,
+    "description": "Change data capture with DynamoDB Streams for automatic audit logging.\nEvery INSERT, MODIFY, and REMOVE on the products table is captured and written to an audit table with before/after\n  images.\nIncludes a REST API for product CRUD and querying the audit trail.\n"
   },
   {
     "name": "Event-Driven Pipeline",
@@ -1121,6 +1230,54 @@
     "isRestApi": false,
     "hasCognito": false,
     "description": "GraphQL API built with graphql-yoga and DynamoDB storage.\nRuns serverlessly in AWS Lambda behind an HTTP API Gateway. Pay only for requests you receive.\n"
+  },
+  {
+    "name": "Kinesis Real-Time Analytics",
+    "tags": ["Typescript", "Kinesis", "DynamoDB", "Lambda", "Event-Driven"],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "kinesis-realtime-analytics",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "analyticsTable",
+        "type": "dynamo-db-table",
+        "containerNames": []
+      },
+      {
+        "name": "processEvents",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "api",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "apiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      },
+      {
+        "name": "eventStream",
+        "type": "kinesis-stream",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway", "kinesis-stream"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-kinesis-realtime-analytics",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "hasCognito": false,
+    "description": "Real-time event streaming and analytics with Kinesis.\nSend events (pageviews, clicks) to a Kinesis stream, consume them in batches, and aggregate counts by type and hour in\n  DynamoDB.\nQuery aggregated analytics via the REST API.\n"
   },
   {
     "name": "Lambda API with DynamoDB",
@@ -1523,6 +1680,145 @@
     "description": "HTTP API built with Rust using the AWS Lambda Rust Runtime.\nRuns serverlessly in AWS Lambda with minimal cold\n  starts and extremely low memory usage. Requires cargo-lambda for building.\n"
   },
   {
+    "name": "S3 Image Processor",
+    "tags": ["Typescript", "S3", "Lambda", "Event-Driven"],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "s3-image-processor",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "imagesBucket",
+        "type": "bucket",
+        "containerNames": []
+      },
+      {
+        "name": "processImage",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "api",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "apiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["bucket", "function", "http-api-gateway"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-s3-image-processor",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "hasCognito": false,
+    "description": "Automatic image processing triggered by S3 uploads.\nUpload images via presigned URLs — an S3 event triggers a Lambda that resizes each image to three sizes (thumbnail, medium, large) using sharp.\nIncludes an API to generate upload URLs and list processed images.\n"
+  },
+  {
+    "name": "Scheduled Health Checker",
+    "tags": ["Typescript", "DynamoDB", "Lambda", "Event-Driven"],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "scheduled-health-checker",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "monitorsTable",
+        "type": "dynamo-db-table",
+        "containerNames": []
+      },
+      {
+        "name": "checkHealth",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "api",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "apiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-scheduled-health-checker",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "hasCognito": false,
+    "description": "Uptime monitoring service with scheduled\n  health checks.\nA Lambda runs every 5 minutes to check all monitored URLs, recording status, latency, and response codes in\n  DynamoDB.\nManage monitors and view check history via the REST API.\n"
+  },
+  {
+    "name": "SNS Notification Fan-Out",
+    "tags": ["Typescript", "SNS", "DynamoDB", "Lambda", "Event-Driven"],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "sns-notification-fanout",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "notificationsTable",
+        "type": "dynamo-db-table",
+        "containerNames": []
+      },
+      {
+        "name": "logNotification",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "storeNotification",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "api",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "apiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      },
+      {
+        "name": "notificationTopic",
+        "type": "sns-topic",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway", "sns-topic"],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-sns-notification-fanout",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "hasCognito": false,
+    "description": "Pub/sub notification fan-out using SNS topics.\nPublish a notification and multiple Lambda\n  subscribers process it independently — one logs it, another stores it in\n  DynamoDB.\nDemonstrates the fan-out pattern for decoupled event processing.\n"
+  },
+  {
     "name": "SolidStart Serverless",
     "tags": ["website", "Server side rendered website", "Typescript", "SolidJS", "Lambda"],
     "icon": "typescript.svg",
@@ -1689,241 +1985,6 @@
     "isRestApi": false,
     "hasCognito": false,
     "description": "Reliable webhook receiver with async processing using\n  Lambda and\n  SQS.\nAccepts webhooks immediately (fast 200 response), then processes them asynchronously via a queue. Prevents timeouts\n  and ensures no events are lost.\nPerfect for receiving Stripe, GitHub, Shopify, or any third-party webhooks.\n"
-  },
-  {
-    "name": "DynamoDB Streams Audit",
-    "tags": ["Typescript", "DynamoDB", "Lambda", "Event-Driven"],
-    "icon": "typescript.svg",
-    "priority": 1,
-    "starterProjectId": "dynamodb-streams-audit",
-    "projectType": "es",
-    "usedResources": [
-      {
-        "name": "productsTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "auditTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "processStream",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
-    ],
-    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
-    "isServerSideRenderedWebsite": false,
-    "githubLink": "https://github.com/stacktape/starter-dynamodb-streams-audit",
-    "isWebsite": false,
-    "isSpaWebsite": false,
-    "isStaticWebsite": false,
-    "hasPrisma": false,
-    "hasNextJs": false,
-    "hasTypescript": true,
-    "hasReact": false,
-    "isRestApi": true,
-    "hasCognito": false,
-    "description": "Change data capture with DynamoDB Streams for automatic audit logging.\nEvery INSERT, MODIFY, and REMOVE on the products table is captured and written to an audit table with before/after images.\nIncludes a REST API for product CRUD and querying the audit trail.\n"
-  },
-  {
-    "name": "Kinesis Real-Time Analytics",
-    "tags": ["Typescript", "Kinesis", "DynamoDB", "Lambda", "Event-Driven"],
-    "icon": "typescript.svg",
-    "priority": 1,
-    "starterProjectId": "kinesis-realtime-analytics",
-    "projectType": "es",
-    "usedResources": [
-      {
-        "name": "eventStream",
-        "type": "kinesis-stream",
-        "containerNames": []
-      },
-      {
-        "name": "analyticsTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "processEvents",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
-    ],
-    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway", "kinesis-stream"],
-    "isServerSideRenderedWebsite": false,
-    "githubLink": "https://github.com/stacktape/starter-kinesis-realtime-analytics",
-    "isWebsite": false,
-    "isSpaWebsite": false,
-    "isStaticWebsite": false,
-    "hasPrisma": false,
-    "hasNextJs": false,
-    "hasTypescript": true,
-    "hasReact": false,
-    "isRestApi": false,
-    "hasCognito": false,
-    "description": "Real-time event streaming and analytics with Kinesis.\nSend events (pageviews, clicks) to a Kinesis stream, consume them in batches, and aggregate counts by type and hour in DynamoDB.\nQuery aggregated analytics via the REST API.\n"
-  },
-  {
-    "name": "S3 Image Processor",
-    "tags": ["Typescript", "S3", "Lambda", "Event-Driven"],
-    "icon": "typescript.svg",
-    "priority": 1,
-    "starterProjectId": "s3-image-processor",
-    "projectType": "es",
-    "usedResources": [
-      {
-        "name": "imagesBucket",
-        "type": "bucket",
-        "containerNames": []
-      },
-      {
-        "name": "processImage",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
-    ],
-    "usedResourceTypes": ["bucket", "function", "http-api-gateway"],
-    "isServerSideRenderedWebsite": false,
-    "githubLink": "https://github.com/stacktape/starter-s3-image-processor",
-    "isWebsite": false,
-    "isSpaWebsite": false,
-    "isStaticWebsite": false,
-    "hasPrisma": false,
-    "hasNextJs": false,
-    "hasTypescript": true,
-    "hasReact": false,
-    "isRestApi": false,
-    "hasCognito": false,
-    "description": "Automatic image processing triggered by S3 uploads.\nUpload images via presigned URLs — an S3 event triggers a Lambda that resizes each image to three sizes (thumbnail, medium, large) using sharp.\nIncludes an API to generate upload URLs and list processed images.\n"
-  },
-  {
-    "name": "Scheduled Health Checker",
-    "tags": ["Typescript", "DynamoDB", "Lambda", "Event-Driven"],
-    "icon": "typescript.svg",
-    "priority": 1,
-    "starterProjectId": "scheduled-health-checker",
-    "projectType": "es",
-    "usedResources": [
-      {
-        "name": "monitorsTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "checkHealth",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
-    ],
-    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
-    "isServerSideRenderedWebsite": false,
-    "githubLink": "https://github.com/stacktape/starter-scheduled-health-checker",
-    "isWebsite": false,
-    "isSpaWebsite": false,
-    "isStaticWebsite": false,
-    "hasPrisma": false,
-    "hasNextJs": false,
-    "hasTypescript": true,
-    "hasReact": false,
-    "isRestApi": true,
-    "hasCognito": false,
-    "description": "Uptime monitoring service with scheduled health checks.\nA Lambda runs every 5 minutes to check all monitored URLs, recording status, latency, and response codes.\nManage monitors and view check history via the REST API.\n"
-  },
-  {
-    "name": "SNS Notification Fan-Out",
-    "tags": ["Typescript", "SNS", "DynamoDB", "Lambda", "Event-Driven"],
-    "icon": "typescript.svg",
-    "priority": 1,
-    "starterProjectId": "sns-notification-fanout",
-    "projectType": "es",
-    "usedResources": [
-      {
-        "name": "notificationTopic",
-        "type": "sns-topic",
-        "containerNames": []
-      },
-      {
-        "name": "notificationsTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "logNotification",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "storeNotification",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
-    ],
-    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway", "sns-topic"],
-    "isServerSideRenderedWebsite": false,
-    "githubLink": "https://github.com/stacktape/starter-sns-notification-fanout",
-    "isWebsite": false,
-    "isSpaWebsite": false,
-    "isStaticWebsite": false,
-    "hasPrisma": false,
-    "hasNextJs": false,
-    "hasTypescript": true,
-    "hasReact": false,
-    "isRestApi": false,
-    "hasCognito": false,
-    "description": "Pub/sub notification fan-out using SNS topics.\nPublish a notification and multiple Lambda subscribers process it independently — one logs it, another stores it in DynamoDB.\nDemonstrates the fan-out pattern for decoupled event processing.\n"
   },
   {
     "name": "Discord Bot",

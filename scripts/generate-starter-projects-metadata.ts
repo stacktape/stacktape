@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { STARTER_PROJECTS_METADATA_FOLDER_NAME, STARTER_PROJECTS_SOURCE_PATH } from '@shared/naming/project-fs-paths';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { logInfo, logSuccess, logWarn } from '@shared/utils/logging';
 import { getUniqueDuplicates, hasDuplicates } from '@shared/utils/misc';
-import { remove, writeJson } from 'fs-extra';
+import { pathExists, remove, writeJson } from 'fs-extra';
 import { getAllStarterProjectIds } from './generate-starter-project';
 import { getStarterProjectMetadata, prettierFix } from './starter-projects/utils';
 
@@ -12,7 +12,21 @@ export const generateStarterProjectsMetadata = async ({ distFolderPath }: { dist
   const distPath = join(distFolderPath, STARTER_PROJECTS_METADATA_FOLDER_NAME);
   await remove(distPath);
 
-  const starterProjects = await getAllStarterProjectIds();
+  // Only folders exposing `.project/_metadata.yml` are publishable starters. In-progress projects
+  // (no metadata yet) are skipped so generation never crashes on a half-finished starter.
+  const allStarterProjects = await getAllStarterProjectIds();
+  const withMetadataFlag = await Promise.all(
+    allStarterProjects.map(async (name) => ({
+      name,
+      hasMetadata: await pathExists(join(STARTER_PROJECTS_SOURCE_PATH, name, '.project', '_metadata.yml'))
+    }))
+  );
+  const starterProjects = withMetadataFlag.filter((p) => p.hasMetadata).map((p) => p.name);
+  const skipped = withMetadataFlag.filter((p) => !p.hasMetadata).map((p) => p.name);
+  if (skipped.length) {
+    logWarn(`Skipping starter projects without .project/_metadata.yml: ${skipped.join(', ')}`);
+  }
+
   const metadata = await Promise.all(
     starterProjects.map(async (starterProjectName) => {
       return getStarterProjectMetadata({ absoluteProjectPath: join(STARTER_PROJECTS_SOURCE_PATH, starterProjectName) });
