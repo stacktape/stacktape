@@ -1,14 +1,12 @@
-import { merge } from 'lodash';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { useEffect } from 'react';
+import merge from 'lodash/merge';
 import { Menu } from 'react-feather';
 import { BiLogoGithub, BiRightArrowAlt } from 'react-icons/bi';
 import { onMaxW650, onMaxW795 } from '@/styles/responsive';
 import { colors, pageLayout } from '@/styles/variables';
 import { trackAnalyticsEvent } from '@/utils/analytics';
-import { useGlobalStore } from '../../../global-state';
+import { toggleMobileNav } from '@/stores/mobile-nav';
+import { Img as Image } from '@/components/Img';
+import { Anchor as Link } from '@/components/Anchor';
 import StacktapeFullLogo from '../../../static/assets/logo-full-dark.svg';
 import StacktapeLogo from '../../../static/assets/logo.svg';
 import { Button } from '../Button/Button';
@@ -94,19 +92,6 @@ function DesktopNavigationItems() {
 }
 
 function MobileNavItems() {
-  const toggleMobileNavigation = useGlobalStore((store) => store.toggleMobileNavigation);
-  const router = useRouter();
-
-  useEffect(() => {
-    const handleRouteChange = () => {
-      toggleMobileNavigation(false);
-    };
-    router.events.on('routeChangeStart', handleRouteChange);
-    return () => {
-      router.events.off('routeChangeStart', handleRouteChange);
-    };
-  }, [router.events, toggleMobileNavigation]);
-
   return (
     <div css={{ display: 'none', width: '100%', [onMaxW795]: { display: 'flex', justifyContent: 'space-between' } }}>
       <Link css={{}} href="https://stacktape.com">
@@ -122,7 +107,7 @@ function MobileNavItems() {
             }
           }}
           icon={<Menu size={27} />}
-          onClick={() => toggleMobileNavigation()}
+          onClick={() => toggleMobileNav()}
         />
       </div>
     </div>

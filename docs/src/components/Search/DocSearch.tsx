@@ -1,6 +1,11 @@
 import type { DocSearchProps } from '@docsearch/react';
-import { DocSearch as DocSearchComponent } from '@docsearch/react';
+import * as docSearchNs from '@docsearch/react';
 import { Global } from '@emotion/react';
+
+// @docsearch/react v3 resolves as ESM in the client build but CJS during SSR/prerender. A namespace
+// import + fallback chain picks the component in every interop shape (named, cjs-lexer, default).
+const DocSearchComponent: typeof import('@docsearch/react').DocSearch =
+  (docSearchNs as any).DocSearch ?? (docSearchNs as any).default?.DocSearch ?? (docSearchNs as any).default;
 import config from '../../../config';
 import { colors, fontFamily, onMaxW750 } from '../../styles/variables';
 import '@docsearch/css';

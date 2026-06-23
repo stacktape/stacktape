@@ -1,0 +1,85 @@
+---
+import { getCollection, render } from 'astro:content';
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
+
+import DocsLayout from '@/layouts/DocsLayout.astro';
+import reactMdxComponents from '@/components/mdx-react-components';
+import CodeBlock from '@/components/mdx-islands/CodeBlock.astro';
+import Tabs from '@/components/mdx-islands/Tabs.astro';
+import ApiReference from '@/components/mdx-islands/ApiReference.astro';
+import ConsoleScreenshot from '@/components/mdx-islands/ConsoleScreenshot.astro';
+import StatStrip from '@/components/mdx-islands/StatStrip.astro';
+import StarterProjectGallery from '@/components/mdx-islands/StarterProjectGallery.astro';
+
+import { entryToUrlSlug, getAllDocPages, getTitleFromSlug } from '@/utils/docs-data';
+import {
+  buildBreadcrumb,
+  buildCanonical,
+  buildFullTitle,
+  extractFaqItems,
+  mdToPlainText,
+  type DocsSeo
+} from '@/utils/seo';
+import config from '../../config';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('docs');
+  return entries.map((entry) => {
+    const slug = entryToUrlSlug(entry.id);
+    return { params: { slug: slug.length ? slug.join('/') : undefined }, props: { entry } };
+  });
+}
+
+const { entry } = Astro.props;
+const slug = entryToUrlSlug(entry.id);
+
+const { Content, headings } = await render(entry);
+
+const [allDocPages] = await Promise.all([getAllDocPages()]);
+
+const frontmatter = entry.data as { title?: string; seoTitle?: string; seoDescription?: string };
+const pageTitle = frontmatter.title || getTitleFromSlug(slug);
+
+const tableOfContents: TableOfContentsItem[] = headings.map((h) => ({
+  level: h.depth,
+  text: h.text,
+  href: `#${h.slug}`
+}));
+
+let dateModified: string | undefined;
+try {
+  if (entry.filePath) dateModified = new Date(statSync(join(process.cwd(), entry.filePath)).mtimeMs).toISOString();
+} catch {
+  /* mtime is best-effort */
+}
+
+const seo: DocsSeo = {
+  title: buildFullTitle(frontmatter.seoTitle, pageTitle),
+  description: mdToPlainText(frontmatter.seoDescription || config.metadata.description),
+  canonical: buildCanonical(slug),
+  faqItems: extractFaqItems(entry.body ?? ''),
+  breadcrumb: buildBreadcrumb(slug, allDocPages),
+  dateModified
+};
+
+const components = {
+  ...reactMdxComponents,
+  CodeBlock,
+  Tabs,
+  ApiReference,
+  ConsoleScreenshot,
+  StatStrip,
+  StarterProjectGallery
+};
+---
+
+<DocsLayout
+  title={pageTitle}
+  seo={seo}
+  allDocPages={allDocPages}
+  tableOfContents={tableOfContents}
+  currentPath={Astro.url.pathname}
+>
+  <Content components={components} />
+</DocsLayout>

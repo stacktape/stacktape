@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { Img as Image } from '@/components/Img';
 import { BiChevronRight, BiLogoGithub } from 'react-icons/bi';
 import { LuArrowUpRight } from 'react-icons/lu';
 import allStarterProjects from '../../../../starter-projects-metadata.json';

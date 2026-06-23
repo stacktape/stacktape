@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Placement } from 'tippy.js';
-import { merge } from 'lodash';
+import merge from 'lodash/merge';
 import { useEffect, useState } from 'react';
 import PulseLoader from 'react-spinners/PulseLoader';
 import { iconButtonStyle } from '../../styles/variables';

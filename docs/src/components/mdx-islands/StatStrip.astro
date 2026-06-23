@@ -1,0 +1,8 @@
+---
+import { StatStrip } from '@/components/Mdx/Landing.tsx';
+
+// StatStrip animates its numbers (useCountUp) once scrolled into view (useInView), so it must
+// hydrate — rendered statically it stays frozen at the initial 0.
+const { stats } = Astro.props as { stats: unknown[] };
+---
+<StatStrip client:visible stats={stats} />

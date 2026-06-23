@@ -33,6 +33,7 @@ compiled-template.yaml
 scripts/simon
 scripts/e2e-mcp/results/
 docs/node_modules
+docs/.astro
 docs/.docs-gen/artifacts/
 docs/.docs-gen/logs/
 docs/.docs-gen/state.sqlite*
@@ -41,10 +42,9 @@ docs/.next
 docs/public/_timestamps.json
 docs/public/llms.txt
 docs/public/llms-full.txt
-docs/public/robots.txt
-docs/public/sitemap.xml
-docs/public/sitemap-0.xml
+docs/public/stacktape
 docs/out
+docs/dist
 __dist
 .next
 .env.local

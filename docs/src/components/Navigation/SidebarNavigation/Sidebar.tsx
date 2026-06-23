@@ -1,4 +1,4 @@
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useSessionStorage } from 'react-use';
 import { borderLight, growDownAnimation, pageLayout, prettyScrollBar } from '@/styles/variables';
@@ -7,10 +7,12 @@ import { ContentTree } from './ContentTree';
 
 export function SidebarNavigation({
   showOnSm,
-  allDocPages
+  allDocPages,
+  pathname
 }: {
   showOnSm: boolean;
   allDocPages: MdxPageDataForNavigation[];
+  pathname?: string;
 }) {
   const [persistedScrollPosition, setPersistedScrollPosition] = useSessionStorage('_stp-sidebar-scroll-pos', 0);
   const ref = useRef(null);
@@ -77,7 +79,7 @@ export function SidebarNavigation({
         }
         onScroll={saveScrollPosition}
       >
-        <ContentTree allDocPages={allDocPages} />
+        <ContentTree allDocPages={allDocPages} pathname={pathname} />
         <div css={{ height: '25px' }} />
       </div>
     </nav>

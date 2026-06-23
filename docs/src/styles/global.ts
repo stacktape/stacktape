@@ -56,6 +56,10 @@ export const globalCss: Css = {
     ...prettyScrollBar
   },
   body: {
+    // Base font for the whole document so bare <div>/<span> text inherits Geist. The old app set
+    // this via next/font's className on the root; without it everything falls back to the browser
+    // default (Times New Roman).
+    fontFamily,
     color: colors.brandGreen,
     ...pageBackgroundPattern,
     width: '100%'

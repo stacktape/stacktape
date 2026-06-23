@@ -1,13 +1,12 @@
-import { Geist, Geist_Mono } from 'next/font/google';
+// Geist + Geist Mono are loaded via a <link> stylesheet in the layout head (Google Fonts).
+// These stubs preserve the shape the rest of the styles read (`geistFont.style.fontFamily`),
+// replacing the old next/font/google integration.
+export const geistFont = {
+  style: { fontFamily: 'Geist' },
+  className: ''
+};
 
-export const geistFont = Geist({
-  subsets: ['latin'],
-  display: 'swap',
-  weight: ['400', '500', '600', '700']
-});
-
-export const geistMonoFont = Geist_Mono({
-  subsets: ['latin'],
-  display: 'swap',
-  weight: ['400', '500', '600', '700']
-});
+export const geistMonoFont = {
+  style: { fontFamily: 'Geist Mono' },
+  className: ''
+};

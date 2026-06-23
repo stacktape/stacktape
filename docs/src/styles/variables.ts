@@ -217,6 +217,9 @@ export const activeListItemCss: Css = {
 export const tabButtonStyle: Css = {
   position: 'relative',
   fontSize: '12.5px',
+  // Explicit line-height — otherwise these inherit the global `button` typography line-height (1.9),
+  // which makes the code-block tab pills noticeably too tall.
+  lineHeight: 1.2,
   fontWeight: 600,
   padding: '4px 10px',
   borderRadius: '6px',

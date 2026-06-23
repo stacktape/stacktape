@@ -76,7 +76,39 @@ type RenderWithShikiProps = {
   extraTransformers?: unknown[];
 };
 
-const shikiRuntimePromise = import('shiki').then(({ codeToHtml }) => ({ codeToHtml }) satisfies ShikiRuntime);
+// Every language the docs use, preloaded once when the highlighter is created. Loading grammars up
+// front (instead of Shiki's default lazy per-language dynamic import) avoids Vite dev's "Failed to
+// fetch dynamically imported module" — a lazily-loaded grammar otherwise 404s after Vite
+// re-optimizes deps mid-session. Unknown languages fall back to plain text.
+const SHIKI_LANGS = [
+  'typescript',
+  'tsx',
+  'javascript',
+  'jsx',
+  'json',
+  'jsonc',
+  'yaml',
+  'bash',
+  'shell',
+  'dockerfile',
+  'toml',
+  'python',
+  'sql'
+] as const;
+
+const shikiRuntimePromise = import('shiki').then(async ({ createHighlighter }) => {
+  const highlighter = await createHighlighter({ themes: [SHIKI_THEME], langs: SHIKI_LANGS as unknown as string[] });
+  const loadedLangs = new Set(highlighter.getLoadedLanguages());
+  return {
+    codeToHtml: (code, options) =>
+      Promise.resolve(
+        highlighter.codeToHtml(code, {
+          ...options,
+          lang: loadedLangs.has(options.lang) ? options.lang : 'text'
+        })
+      )
+  } satisfies ShikiRuntime;
+});
 const twoslashRuntimeCache = new Map<string, Promise<TwoslashRuntime>>();
 
 const fadeIn = keyframes`
@@ -99,10 +131,6 @@ const getDefaultTypesBaseUrl = () => {
 
 const isTwoslashLanguage = (lang?: string | null) => {
   return ['typescript', 'tsx', 'javascript', 'jsx'].includes(normalizeLanguage(lang));
-};
-
-const isTwoslashError = (error: unknown) => {
-  return error instanceof Error && error.name === 'TwoslashError';
 };
 
 const isStacktapeTypescriptConfig = (tab: CodeTab) => {
@@ -898,25 +926,21 @@ export function CodeBlockNew({
               focusedLineSpecs: processedCode.focusedLineSpecs
             });
           }
-        } catch (error) {
-          if (!shouldUseTwoslash || !isTwoslashError(error)) {
-            throw error;
-          }
-
+        } catch {
+          // Any decorated-render failure (twoslash type loading, the YAML hover transformer, etc.)
+          // degrades to plain Shiki highlighting rather than dropping to unstyled text. Note the
+          // empty transformer list — the extra transformer may itself be the cause of the failure.
           html = await renderWithShiki({
             runtime,
             code: processedCode.renderCode,
             language: normalizedLanguage,
             highlightedLineNumbers: processedCode.highlightedLineNumbers,
             useTwoslash: false,
-            extraTransformers
+            extraTransformers: []
           });
         }
 
         if (isCancelled) return;
-        if (typeof window !== 'undefined' && processedCode.renderCode.includes('stacktape dev')) {
-          console.info('[debug-codeblock] rendered html:', html);
-        }
         setRenderedHtml(html);
       } catch (error) {
         if (isCancelled) return;

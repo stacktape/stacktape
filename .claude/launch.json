@@ -4,9 +4,9 @@
     {
       "name": "docs",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "cd /d C:\\Projects\\stacktape\\docs && bun run dev:next"],
-      "port": 9001,
-      "autoPort": true
+      "runtimeArgs": ["/c", "cd /d C:\\Projects\\stacktape\\docs && bun astro preview --port 9013"],
+      "port": 9013,
+      "autoPort": false
     }
   ]
 }

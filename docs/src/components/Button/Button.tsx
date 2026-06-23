@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { Placement } from 'tippy.js';
 import merge from 'lodash/merge';
-import Image from 'next/image';
-import Link from 'next/link';
+import { Img as Image } from '@/components/Img';
+import { Anchor as Link } from '@/components/Anchor';
 import { useEffect, useState } from 'react';
 import PulseLoader from 'react-spinners/PulseLoader';
 import {

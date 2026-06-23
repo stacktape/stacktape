@@ -1,0 +1,28 @@
+---
+import DocsLayout from '@/layouts/DocsLayout.astro';
+import { getAllDocPages } from '@/utils/docs-data';
+import { SITE_URL, type DocsSeo } from '@/utils/seo';
+
+// Emits out/404.html — the Stacktape CDN serves this as its errorDocument for unknown URLs
+// (the old Next.js static export emitted a default 404.html; Astro only does so with this page).
+const allDocPages = await getAllDocPages();
+
+const seo: DocsSeo = {
+  title: 'Page not found | Stacktape Docs',
+  description: "The page you're looking for could not be found.",
+  canonical: `${SITE_URL}/404/`,
+  faqItems: [],
+  breadcrumb: [{ name: 'Docs', url: `${SITE_URL}/` }]
+};
+---
+
+<DocsLayout
+  title="Page not found"
+  seo={seo}
+  allDocPages={allDocPages}
+  tableOfContents={[]}
+  currentPath="/404/"
+>
+  <p>Sorry, we couldn't find the page you were looking for. It may have moved or no longer exists.</p>
+  <p>Head back to the <a href="/">documentation home</a>, or use the search box in the header to find what you need.</p>
+</DocsLayout>

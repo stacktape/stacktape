@@ -1,15 +1,19 @@
+import { useStore } from '@nanostores/react';
 import { onMaxW795 } from '@/styles/responsive';
 import { colors } from '@/styles/variables';
+import { $mobileNavOpen } from '@/stores/mobile-nav';
 import { DocSearch } from '../../Search/DocSearch';
 import { SidebarNavigation } from '../SidebarNavigation/Sidebar';
 
 export function MobileHamburgerNavigation({
-  isOpen,
-  allDocPages
+  allDocPages,
+  pathname
 }: {
-  isOpen: boolean;
   allDocPages: MdxPageDataForNavigation[];
+  pathname?: string;
 }) {
+  const isOpen = useStore($mobileNavOpen);
+
   const mobileDividerStyle = {
     border: 'none',
     borderTop: `1px solid ${colors.borderColorLight}`,
@@ -31,7 +35,7 @@ export function MobileHamburgerNavigation({
       <hr css={mobileDividerStyle} />
       <DocSearch />
       <hr css={mobileDividerStyle} />
-      <SidebarNavigation allDocPages={allDocPages} showOnSm />
+      <SidebarNavigation allDocPages={allDocPages} pathname={pathname} showOnSm />
     </div>
   );
 }

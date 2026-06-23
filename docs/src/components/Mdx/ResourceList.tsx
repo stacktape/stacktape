@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import {
   ArchitectureServiceAmazonAPIGateway,
   ArchitectureServiceAmazonCognito,
@@ -20,7 +21,7 @@ import {
   ResourceAWSLambdaLambdaFunction
 } from 'aws-react-icons';
 import { capitalCase } from 'change-case';
-import Image from 'next/image';
+import { Img as Image } from '@/components/Img';
 import { BiAtom } from 'react-icons/bi';
 import { colors } from '@/styles/variables';
 import resources from '../../../.resources.json';
@@ -295,7 +296,7 @@ export function ResourceList() {
         .map((resource) => (
           <NavBox
             key={resource.type}
-            icon={resource.icon({ size: 28 })}
+            icon={createElement(resource.icon, { size: 28 })}
             text={resource.prettyType}
             url={`${resource.category}s/${resource.type}${resource.type.endsWith('s') ? 'es' : 's'}`}
           />

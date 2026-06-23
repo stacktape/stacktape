@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Children, cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { keyframes } from '@emotion/react';
 import {
   LuArrowRight,
@@ -398,19 +398,22 @@ export function FeatureGrid({ items, columns = 3 }: { items: Feature[]; columns?
 // Steps (numbered vertical timeline; children may include CodeBlocks)
 // ────────────────────────────────────────────────────────────────────────────
 
-export function Step({
-  title,
-  children,
-  _index = 0,
-  _last = false
-}: {
-  title: string;
-  children?: ReactNode;
-  _index?: number;
-  _last?: boolean;
-}) {
+// Numbering + the "last step has no connector / bottom padding" are driven by CSS (a counter and
+// :last-of-type) rather than by the parent injecting `_index`/`_last` props. Astro renders MDX
+// children as opaque wrapped nodes, so a <Steps> parent can't clone its <Step> children to pass
+// those props — every Step would otherwise render as step "1".
+export function Step({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div css={{ display: 'flex', gap: '16px' }}>
+    <div
+      className="stp-step"
+      css={{
+        display: 'flex',
+        gap: '16px',
+        counterIncrement: 'stp-step',
+        '&:last-of-type .stp-step-connector': { display: 'none' },
+        '&:last-of-type .stp-step-body': { paddingBottom: 0 }
+      }}
+    >
       <div css={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div
           css={{
@@ -425,18 +428,16 @@ export function Step({
             fontSize: '14px',
             color: '#06201d',
             background: brandGradient,
-            boxShadow: '0 4px 12px rgba(54,190,190,0.3)'
+            boxShadow: '0 4px 12px rgba(54,190,190,0.3)',
+            '&::before': { content: 'counter(stp-step)' }
           }}
-        >
-          {_index + 1}
-        </div>
-        {!_last && (
-          <div
-            css={{ width: '2px', flex: 1, minHeight: '24px', background: 'rgba(54,190,190,0.22)', marginTop: '4px' }}
-          />
-        )}
+        />
+        <div
+          className="stp-step-connector"
+          css={{ width: '2px', flex: 1, minHeight: '24px', background: 'rgba(54,190,190,0.22)', marginTop: '4px' }}
+        />
       </div>
-      <div css={{ flex: 1, paddingBottom: _last ? 0 : '14px', minWidth: 0 }}>
+      <div className="stp-step-body" css={{ flex: 1, paddingBottom: '14px', minWidth: 0 }}>
         <h3 css={{ fontSize: '1.05rem', fontWeight: 650, margin: '4px 0 8px 0', color: colors.fontColorPrimary }}>
           {title}
         </h3>
@@ -447,12 +448,16 @@ export function Step({
 }
 
 export function Steps({ children }: { children: ReactNode }) {
-  const items = Children.toArray(children).filter(isValidElement);
   return (
-    <div css={{ fontFamily, margin: '26px 0' }}>
-      {items.map((child, idx) =>
-        cloneElement(child as any, { _index: idx, _last: idx === items.length - 1, key: idx })
-      )}
+    <div
+      css={{
+        fontFamily,
+        margin: '26px 0',
+        counterReset: 'stp-step',
+        h3: { marginTop: 0 }
+      }}
+    >
+      {children}
     </div>
   );
 }

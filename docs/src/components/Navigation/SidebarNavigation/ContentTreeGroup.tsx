@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createElement, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight } from 'react-feather';
 import { colors, fontFamily } from '../../../styles/variables';
 import { ContentTreeNode } from './ContentTreeNode';
@@ -161,7 +161,7 @@ export function ContentTreeGroup({ group }: { group: NavGroup }) {
           }
         }}
       >
-        {group.icon && group.icon({ size: 16 })}
+        {group.icon && createElement(group.icon, { size: 16 })}
         <span css={{ flex: 1 }}>{group.title}</span>
         <ChevronRight
           size={14}

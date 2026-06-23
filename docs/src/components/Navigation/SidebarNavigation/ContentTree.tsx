@@ -1,13 +1,26 @@
-import { useRouter } from 'next/router';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ContentTreeGroup } from './ContentTreeGroup';
 import { createExpansionStore, ExpansionStoreContext } from './expansion-store';
 import { getNavigationTree } from './navigation-data';
 
-export function ContentTree({ allDocPages }: { allDocPages: MdxPageDataForNavigation[] }) {
+export function ContentTree({
+  allDocPages,
+  pathname: initialPathname = '/'
+}: {
+  allDocPages: MdxPageDataForNavigation[];
+  pathname?: string;
+}) {
   const navigationTree = useMemo(() => getNavigationTree(allDocPages || []), [allDocPages]);
-  const router = useRouter();
-  const pathname = router.asPath || '/';
+
+  // The sidebar uses `transition:persist`, so it is NOT re-mounted on navigation and never receives
+  // an updated `pathname` prop. Track it in state and refresh from Astro's view-transition
+  // navigation event so the active-page highlight + auto-expanded branch follow the route.
+  const [pathname, setPathname] = useState(initialPathname);
+  useEffect(() => {
+    const update = () => setPathname(window.location.pathname);
+    document.addEventListener('astro:page-load', update);
+    return () => document.removeEventListener('astro:page-load', update);
+  }, []);
 
   // The store is created exactly once per ContentTree mount. Subsequent prop changes (route,
   // tree shape) are pushed in via setters — they trigger a recompute and notify subscribers,

@@ -1,0 +1,5 @@
+---
+import { ApiReference } from '@/components/Mdx/api-reference/index.tsx';
+const { definitionName } = Astro.props as { definitionName: string };
+---
+<ApiReference client:visible definitionName={definitionName} />

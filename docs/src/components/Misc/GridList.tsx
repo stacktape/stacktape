@@ -1,4 +1,4 @@
-import { merge } from 'lodash';
+import merge from 'lodash/merge';
 
 export function GridList({ children, rootCss, minItemWidth }: { children: any; rootCss?: Css; minItemWidth?: string }) {
   return (

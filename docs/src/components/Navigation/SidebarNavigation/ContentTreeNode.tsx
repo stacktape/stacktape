@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { createElement, memo } from 'react';
 import { ChevronRight } from 'react-feather';
 import { Link } from '@/components/Mdx/Link';
 import { colors, fontFamily } from '@/styles/variables';
@@ -131,7 +131,7 @@ function ContentTreeNodeInner({ item, depth }: { item: NavItem; depth: number })
   // Subgroup icon — only rendered on virtual subgroup nodes that have a configured icon
   // (e.g. Resources/Compute, Packaging/Containers). Real pages and unconfigured virtual nodes
   // skip it.
-  const iconEl = item.icon ? <span css={iconWrapStyles}>{item.icon({ size: 14 })}</span> : null;
+  const iconEl = item.icon ? <span css={iconWrapStyles}>{createElement(item.icon, { size: 14 })}</span> : null;
 
   return (
     <>

@@ -42,8 +42,10 @@ export const slugToTitle = (segment: string) =>
 export const buildFullTitle = (seoTitle: string | undefined, pageTitle: string) =>
   seoTitle && seoTitle.trim() ? seoTitle.trim() : `${pageTitle} | ${TITLE_SUFFIX}`;
 
+// Trailing slash to match Astro's `trailingSlash: 'always'` — the canonical/OG URL must equal the
+// served URL, otherwise every page advertises a URL that redirects.
 export const buildCanonical = (slug: string[]) =>
-  slug.length === 0 ? `${SITE_URL}/` : `${SITE_URL}/${slug.join('/')}`;
+  slug.length === 0 ? `${SITE_URL}/` : `${SITE_URL}/${slug.join('/')}/`;
 
 /**
  * Extract `{ question, answer }` pairs from the `## FAQ` section of a frontmatter-stripped MDX
@@ -94,7 +96,8 @@ export const buildBreadcrumb = (
   for (const segment of slug) {
     acc.push(segment);
     const path = `/${acc.join('/')}`;
-    items.push({ name: titleByUrl.get(path) || slugToTitle(segment), url: `${SITE_URL}${path}` });
+    // Trailing slash to match the served (trailingSlash: 'always') URLs the breadcrumb points at.
+    items.push({ name: titleByUrl.get(path) || slugToTitle(segment), url: `${SITE_URL}${path}/` });
   }
   return items;
 };
