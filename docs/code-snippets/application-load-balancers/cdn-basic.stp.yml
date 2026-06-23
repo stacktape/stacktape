@@ -1,8 +1,0 @@
-resources:
-  myLoadBalancer:
-    type: 'application-load-balancer'
-    properties:
-      # {start-highlight}
-      cdn:
-        enabled: true
-      # {stop-highlight}

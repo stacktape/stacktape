@@ -1,5 +1,0 @@
-resources:
-  mainTopic:
-    type: sns-topic
-    properties:
-      fifoEnabled: true

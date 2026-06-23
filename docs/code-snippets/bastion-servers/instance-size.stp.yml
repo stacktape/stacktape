@@ -1,7 +1,0 @@
-resources:
-  myBastion:
-    type: bastion
-    properties:
-      # {start-highlight}
-      instanceSize: c5.large
-      # {stop-highlight}

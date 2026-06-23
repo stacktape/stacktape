@@ -1,9 +1,0 @@
-resources:
-  myApiGateway:
-    type: http-api-gateway
-    properties:
-      cdn:
-        enabled: true
-        # {start-highlight}
-        cloudfrontPriceClass: PriceClass_200
-        # {stop-highlight}

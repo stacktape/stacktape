@@ -1,5 +1,0 @@
-resources:
-  mainQueue:
-    type: sqs-queue
-    properties:
-      visibilityTimeoutSeconds: 300

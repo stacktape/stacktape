@@ -1,3 +1,0 @@
-directives:
-  - name: myDirective
-    filePath: path/to/my/directive.ts:functionName

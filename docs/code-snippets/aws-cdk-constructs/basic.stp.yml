@@ -1,8 +1,0 @@
-resources:
-  myConstruct:
-    type: aws-cdk-construct
-    properties:
-      entryfilePath: my-construct.ts
-      exportName: MyConstruct
-      constructProperties:
-        visibilityTimeout: 50

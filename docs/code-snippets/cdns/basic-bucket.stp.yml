@@ -1,8 +1,0 @@
-resources:
-  myBucket:
-    type: bucket
-    properties:
-      # {start-highlight}
-      cdn:
-        enabled: true
-      # {stop-highlight}

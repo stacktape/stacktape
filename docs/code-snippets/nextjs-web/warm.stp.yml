@@ -1,6 +1,0 @@
-resources:
-  web:
-    type: nextjs-web
-    properties:
-      appDirectory: ./
-      warmServerInstances: 5

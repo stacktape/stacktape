@@ -1,8 +1,0 @@
-resources:
-  myBus:
-    type: event-bus
-    properties:
-      # {start-highlight}
-      archivation:
-        enabled: true
-      # {stop-highlight}

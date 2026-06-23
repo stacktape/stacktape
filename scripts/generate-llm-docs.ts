@@ -45,7 +45,6 @@ type ManifestEntry = Omit<LlmDocPage, 'content'> & {
 
 const DOCS_SOURCE_DIR = join(process.cwd(), 'docs', 'docs');
 const TYPES_DIR = join(process.cwd(), 'types', 'stacktape-config');
-const SNIPPETS_DIR = join(process.cwd(), 'docs', 'code-snippets');
 const DIST_DIR = LLM_DOCS_FOLDER_PATH;
 const API_REFERENCE_DATA_PATH = join(process.cwd(), 'docs', 'src', 'generated', 'api-reference-data.ts');
 const RESOURCES_JSON_PATH = join(process.cwd(), 'docs', '.resources.json');
@@ -358,41 +357,6 @@ const referenceableParamsFromTypeDeclaration = (resourceType: string): Record<st
   return undefined;
 };
 
-const inferLanguageFromPath = (filePath: string): string => {
-  const ext = filePath.split('.').pop()?.toLowerCase();
-  const map: Record<string, string> = {
-    yml: 'yaml',
-    yaml: 'yaml',
-    ts: 'typescript',
-    tsx: 'tsx',
-    js: 'javascript',
-    jsx: 'jsx',
-    json: 'json',
-    py: 'python',
-    sh: 'bash',
-    sql: 'sql'
-  };
-  return ext ? map[ext] || ext : 'text';
-};
-
-const embedSnippets = async (body: string): Promise<string> => {
-  const regex = /`embed:([^`]+)`/g;
-  const replacements: Array<{ marker: string; replacement: string }> = [];
-  for (const match of body.matchAll(regex)) {
-    const snippetPath = match[1];
-    const fullPath = join(SNIPPETS_DIR, snippetPath);
-    if (!(await pathExists(fullPath))) {
-      throw new Error(`Embedded snippet not found: ${snippetPath}`);
-    }
-    const content = (await readFile(fullPath, 'utf-8')).trim();
-    replacements.push({
-      marker: match[0],
-      replacement: `\`\`\`${inferLanguageFromPath(snippetPath)}\n${content}\n\`\`\``
-    });
-  }
-  return replacements.reduce((acc, { marker, replacement }) => acc.replace(marker, replacement), body);
-};
-
 const parseJsLiteral = <T>(value: string): T | undefined => {
   try {
     // MDX component props are authored as JS object/array literals. Evaluate only local docs source.
@@ -590,8 +554,7 @@ const transformComponents = (body: string): string => {
 };
 
 const cleanMdxForLlms = async (body: string): Promise<string> => {
-  let result = await embedSnippets(body);
-  result = transformComponents(result);
+  let result = transformComponents(body);
 
   result = result
     .replace(/<\/?(?:Divider|PreviousNext|NegativeMargin)[^>]*>/g, '')
@@ -692,12 +655,7 @@ const buildChunks = (page: LlmDocPage): LlmDocChunk[] => {
 };
 
 const buildDocsPages = async (): Promise<LlmDocPage[]> => {
-  // `intro-variants/*` are experimental landing-page A/B drafts (bespoke marketing components like
-  // <CodeToCloud/>, <BentoShowcase/>, ...), not documentation — exclude them from the LLM docs.
-  const files = await listFiles(
-    DOCS_SOURCE_DIR,
-    (filePath) => filePath.endsWith('.mdx') && !filePath.replaceAll('\\', '/').includes('/intro-variants/')
-  );
+  const files = await listFiles(DOCS_SOURCE_DIR, (filePath) => filePath.endsWith('.mdx'));
   const pages: LlmDocPage[] = [];
 
   for (const filePath of files) {
