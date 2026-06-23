@@ -25,34 +25,18 @@ import { ConsoleScreenshot } from './ConsoleScreenshot';
 import { FeatureComparisonTable } from './FeatureComparisonTable';
 import { Tabs, Tab } from './Tabs';
 import {
-  AnimatedTerminal,
   ButtonRow,
   CTAButton,
   CTASection,
-  CodeToCloud,
-  CompareCards,
   FeatureGrid,
   LandingHero,
-  ResourceGalaxy,
+  OpenSourceBanner,
+  PricingColumns,
   StatStrip,
   Step,
   Steps,
-  UseCaseExplorer
+  Testimonials
 } from './Landing';
-import {
-  ArchCanvas,
-  BentoShowcase,
-  CommandPalette,
-  ConsoleMock,
-  DeployPipeline,
-  DiffCompare,
-  LogoMarquee,
-  RadialHub,
-  StackBuilder,
-  StoryBand,
-  StoryScroll
-} from './Landing2';
-import { OpenSourceBanner, PricingColumns, ResourceColumns, Testimonials, VideoEmbed } from './Landing3';
 
 const getNameFromProps = (props) => {
   let name = props.children;
@@ -269,30 +253,12 @@ export const MdxComponents = {
   ButtonRow,
   StatStrip,
   FeatureGrid,
-  ResourceGalaxy,
-  CodeToCloud,
-  AnimatedTerminal,
   Steps,
   Step,
-  CompareCards,
-  UseCaseExplorer,
   CTASection,
-  ArchCanvas,
-  DiffCompare,
-  BentoShowcase,
-  StackBuilder,
-  DeployPipeline,
-  ConsoleMock,
-  LogoMarquee,
-  RadialHub,
-  StoryScroll,
-  StoryBand,
-  CommandPalette,
   OpenSourceBanner,
   Testimonials,
-  PricingColumns,
-  ResourceColumns,
-  VideoEmbed
+  PricingColumns
 };
 
 // <hr

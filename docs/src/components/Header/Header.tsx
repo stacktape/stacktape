@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
 import { Menu } from 'react-feather';
-import { BiRightArrowAlt } from 'react-icons/bi';
+import { BiLogoGithub, BiRightArrowAlt } from 'react-icons/bi';
 import { onMaxW650, onMaxW795 } from '@/styles/responsive';
 import { colors, pageLayout } from '@/styles/variables';
 import { trackAnalyticsEvent } from '@/utils/analytics';
@@ -43,32 +43,17 @@ function SignUpButton() {
   );
 }
 
-function BookDemoButton({
-  buttonWidth,
-  rootCss,
-  source = 'overview',
-  text = 'Book a demo',
-  visualType = 'secondary',
-  dataCalLink = 'stacktape/30min'
-}: {
-  buttonWidth?: number;
-  rootCss?: Css;
-  source?: string;
-  text?: string;
-  visualType?: 'primary' | 'secondary';
-  dataCalLink?: string;
-}) {
+function StarOnGithubButton({ buttonWidth, rootCss }: { buttonWidth?: number; rootCss?: Css }) {
   return (
     <div css={merge({ display: 'flex', alignItems: 'center', width: buttonWidth || '100%' }, rootCss)}>
       <Button
-        visualType={visualType}
+        visualType="secondary"
         height="38px"
-        onClick={() => trackAnalyticsEvent('schedule-demo', { source })}
-        dataCalLink={dataCalLink}
-        data-cal-config={JSON.stringify({
-          theme: 'dark'
-        })}
-        text={text}
+        width="100%"
+        linkTo="https://github.com/stacktape/stacktape"
+        onClick={() => trackAnalyticsEvent('star-github', { source: 'header' })}
+        icon={<BiLogoGithub size={20} />}
+        text="GitHub"
       />
     </div>
   );
@@ -102,7 +87,7 @@ function DesktopNavigationItems() {
       <div css={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
         <DocSearch />
         <SignUpButton />
-        <BookDemoButton source="header" buttonWidth={150} />
+        <StarOnGithubButton buttonWidth={210} />
       </div>
     </div>
   );
