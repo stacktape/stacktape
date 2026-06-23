@@ -1,27 +1,62 @@
 ---
 title: 'Introduction'
 order: 1
-seoTitle: 'Stacktape — TypeScript IaC + PaaS for AWS'
-seoDescription: 'Stacktape deploys Lambda functions, containers, databases, and 30+ AWS resources from a single TypeScript file. Your AWS account, your control, zero DevOps overhead.'
+seoTitle: 'Stacktape — PaaS 2.0 that deploys to your own AWS account'
+seoDescription: 'From scratch to production-grade AWS infrastructure in a day, with no DevOps knowledge required. Containers and serverless, 30+ AWS resources, defined in TypeScript and deployed to your own AWS account.'
 ---
 
-# Stacktape
+<LandingHero
+  eyebrow="PaaS 2.0 · deploys to your own AWS account"
+  title="From scratch to production-grade AWS infra in a day."
+  accent="No DevOps knowledge required."
+  subtitle="Stacktape gives you the speed of a PaaS with the control and cost structure of raw AWS. Define your infrastructure in TypeScript, deploy it with one command, and own every byte — it all runs in the AWS account you control."
+>
+  <ButtonRow>
+    <CTAButton href="/getting-started/configure-your-stack" variant="primary" icon="arrow">Get started</CTAButton>
+    <CTAButton href="https://github.com/stacktape/stacktape" variant="secondary">Star on GitHub</CTAButton>
+    <CTAButton href="/starter-projects" variant="ghost">Browse examples</CTAButton>
+  </ButtonRow>
+</LandingHero>
 
-**The fastest way to ship production AWS infrastructure. Define it in TypeScript, deploy it in one command, and own every byte — it runs in your AWS account.**
+<OpenSourceBanner />
 
-Stacktape gives you the speed of a PaaS (Heroku, Vercel, Render) with the control and cost structure of raw AWS. You write a TypeScript file, run `stacktape deploy`, and Stacktape provisions every resource — Lambda, ECS, RDS, DynamoDB, S3, CloudFront, ALB, EventBridge, Step Functions, and 30+ more — with sensible defaults, automatic IAM, and full override access when you need it. No CloudFormation YAML, no Terraform modules, no DevOps team required.
+## What you get out of the box
+
+<StatStrip
+  stats={[
+    { value: 30, suffix: '+', label: 'AWS resource types' },
+    { value: 97, suffix: '%', label: 'Shorter than raw IaC' },
+    { value: 1, label: 'Command to deploy' },
+    { display: '$0', label: 'Vendor markup on compute' }
+  ]}
+/>
+
+## Everything you need, in one framework
+
+<FeatureGrid
+  items={[
+    { icon: 'container', title: 'Containers & serverless', text: 'Deploy Lambda functions and containers side by side — Fargate for steady workloads, Lambda for spiky ones, EC2 when you need raw control.' },
+    { icon: 'boxes', title: 'Full power of AWS', text: 'SQL and NoSQL databases, load balancers, API gateways, Redis, MongoDB Atlas, queues, buckets and more — all first-class building blocks.' },
+    { icon: 'layers', title: 'Risk-free', text: 'Extend, override or eject anytime. Everything compiles to plain CloudFormation you can inspect and take with you.' },
+    { icon: 'code', title: 'Infrastructure as code', text: 'TypeScript, YAML or JSON — about 97% shorter than writing the equivalent CloudFormation by hand.' },
+    { icon: 'git', title: 'Built-in CI/CD', text: 'Push-to-deploy and isolated preview deployments for every pull request, straight out of the box.' },
+    { icon: 'refresh', title: 'Development mode', text: 'Run services locally while connected to real cloud resources — test changes without redeploying every time.' },
+    { icon: 'bolt', title: 'Smart builds', text: 'Zero-config, optimized parallel builds with advanced caching for every function and container.' },
+    { icon: 'shield', title: 'Security built in', text: 'Secret management, least-privilege permissions and private networking — configured by default.' },
+    { icon: 'wallet', title: 'Cost optimization', text: 'A detailed cost breakdown across all your stacks and accounts. Billed by AWS, with no markup.' }
+  ]}
+/>
 
 ## A real Stacktape config
 
-A complete HTTP API backed by DynamoDB, with auto-generated IAM and environment variables — 22 lines:
+A complete HTTP API backed by DynamoDB, with CORS, a custom domain per stage, auto-generated IAM and environment variables:
 
 <CodeBlock
   intellisense
-  tabs={[
-    {
-      label: 'stacktape.ts',
-      lang: 'typescript',
-      code: `import {
+  tabs={[{
+    label: 'stacktape.ts',
+    lang: 'typescript',
+    code: `import {
   defineConfig,
   DynamoDbTable,
   HttpApiGateway,
@@ -30,58 +65,255 @@ A complete HTTP API backed by DynamoDB, with auto-generated IAM and environment 
   StacktapeLambdaBuildpackPackaging
 } from 'stacktape';
 
-export default defineConfig(() => {
-  const api = new HttpApiGateway({});
-
-  const usersTable = new DynamoDbTable({
+export default defineConfig(({ stage }) => {
+  const database = new DynamoDbTable({
     primaryKey: { partitionKey: { name: 'id', type: 'string' } }
   });
 
-  const createUser = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/create-user.ts' }),
-    connectTo: [usersTable],
-    events: [new HttpApiIntegration({ httpApiGatewayName: 'api', method: 'POST', path: '/users' })]
+  const api = new HttpApiGateway({
+    cors: { enabled: true },
+    customDomains: [{ domainName: stage === 'production' ? 'acme.com' : stage + '-acme.com' }]
   });
 
-  return { resources: { api, usersTable, createUser } };
+  const myFunction = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    events: [new HttpApiIntegration({ httpApiGatewayName: api.resourceName, method: 'GET', path: '/' })],
+    connectTo: [database],
+    environment: { TABLE_NAME: database.name }
+  });
+
+  return { resources: { api, myFunction, database } };
 });
 `
+  }]}
+/>
+
+Run `stacktape deploy` and you get a live API Gateway endpoint with your custom domain, a DynamoDB table, and a Lambda with the table name injected and IAM scoped to exactly what it needs — no console clicking, no IAM JSON.
+
+## Quick start
+
+<Steps>
+  <Step title="Install Stacktape">
+    Install globally, or locally to your project.
+    <CodeBlock tabs={[
+      { label: 'npm (global)', lang: 'bash', code: `npm install -g stacktape` },
+      { label: 'npm (local)', lang: 'bash', code: `npm install stacktape` },
+      { label: 'bun (global)', lang: 'bash', code: `bun add -g stacktape` },
+      { label: 'bun (local)', lang: 'bash', code: `bun add stacktape` },
+      { label: 'pnpm (global)', lang: 'bash', code: `pnpm add -g stacktape` },
+      { label: 'pnpm (local)', lang: 'bash', code: `pnpm add stacktape` }
+    ]} />
+  </Step>
+  <Step title="Initialize a project">
+    Scaffold a starter, or drop a `stacktape.ts` into an existing repo.
+    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape init` }]} />
+  </Step>
+  <Step title="Deploy to AWS">
+    Pick a stage and a region — Stacktape builds, packages and provisions everything into your account.
+    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape deploy --stage dev --region us-east-1 --projectName {your-project-name}` }]} />
+  </Step>
+</Steps>
+
+That's it — your app is now running on AWS. 🎉
+
+## Configuration in TypeScript, YAML or JSON
+
+Stacktape supports three configuration formats. Use TypeScript for full type-safety and autocomplete, or YAML/JSON if you prefer.
+
+<CodeBlock
+  tabs={[
+    { label: 'stacktape.ts (recommended)', lang: 'typescript', code: `import { defineConfig } from 'stacktape';
+
+export default defineConfig(({ stage }) => ({
+  resources: {
+    // Your resources here
+  }
+}));` },
+    { label: 'stacktape.yml', lang: 'yaml', code: `resources:
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts` },
+    { label: 'stacktape.json', lang: 'json', code: `{
+  "resources": {
+    "myFunction": {
+      "type": "function",
+      "properties": {}
     }
+  }
+}` }
   ]}
 />
 
-Run `stacktape deploy --stage prod` and you get a live API Gateway endpoint, a DynamoDB table, a Lambda with the table's name injected as `STP_USERS_TABLE_NAME` and IAM that lets it `GetItem` / `PutItem` — nothing else. No console clicking, no IAM JSON.
+## A development workflow built for speed
 
-## What you can build with Stacktape
+### Local development
 
-<NavBoxGrid columns={2}>
-  <NavBox text="Fullstack web apps" url="/resources/frontend/nextjs" description="Next.js, Astro, Remix, SvelteKit, SolidStart, Nuxt, TanStack Start — deployed to AWS with global CDN and zero config." />
-  <NavBox text="Serverless APIs" url="/resources/compute/lambda-function" description="Lambda + API Gateway, with DynamoDB, RDS, Redis, or OpenSearch wired in via connectTo." />
-  <NavBox text="Long-running services" url="/resources/compute/web-service" description="Container workloads on Fargate or EC2 — web services, workers, multi-container stacks, batch jobs." />
-  <NavBox text="Event-driven pipelines" url="/resources/triggers/overview" description="SQS, SNS, EventBridge, Kinesis, DynamoDB Streams, S3 events, schedules — declarative wiring, automatic IAM." />
-  <NavBox text="AI agents on AWS Bedrock" url="/resources/ai/agentcore-runtime" description="AgentCore runtimes, memory, gateways, browsers, and code interpreters — production agents in a few lines of config." />
-  <NavBox text="Workflows and orchestration" url="/resources/orchestration/state-machine" description="Step Functions state machines for multi-step workflows with retries, parallelism, and human-in-the-loop." />
-</NavBoxGrid>
+Run your services in development mode to iterate faster — your code runs locally, connected to real cloud resources, so you can test changes without redeploying every time.
 
-## Why Stacktape
+<CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape dev --stage dev --region us-east-1` }]} />
 
-- **Your AWS account, your costs.** Stacktape provisions everything inside the AWS account you own. No middleman markup, no per-seat pricing on compute. Pay AWS rates, see line-item costs in the Console.
-- **Containers AND serverless, side by side.** Use Lambda for spiky workloads, Fargate for steady ones, EC2 when you need GPUs or raw control — all in the same `stacktape.ts`.
-- **Sensible defaults, full overrides.** Stacktape picks production-ready settings (HTTPS, encrypted storage, least-privilege IAM, VPC isolation where appropriate). When you need to override something, you can: every resource accepts raw CloudFormation overrides, and you can drop CDK constructs or hand-written CloudFormation inline.
-- **No redeploy loop.** Run `stacktape dev` once and your code runs locally against real cloud resources. Edit, save, hit your endpoint — no `deploy`, no `terraform apply`. Lambda, container, schedule, and queue handlers all hot-reload.
-- **CI/CD and observability built in.** [Push-to-deploy](/ci-cd-and-gitops/gitops-with-console), PR preview stages, [live logs](/observability/logs), [metrics](/observability/metrics), [alarms](/observability/alarms), [issue tracking](/observability/issues), and [per-resource cost dashboards](/managing-costs/per-resource-breakdown) come with the Console. Free tier covers most teams.
-- **Open source core.** The CLI, the resource library, and the deployment engine are MIT-licensed. [Paid Console plans](/stacktape-console/billing-and-subscription) add hosted CI/CD, GitOps, team management, and observability — but the CLI alone gets you production deploys.
+### Scripts & migrations
 
-## Get started
+Define reusable scripts in your config — they run with the same connectivity and secrets your app has.
 
-<NavBoxGrid columns={3}>
-  <NavBox text="Install and configure" url="/getting-started/configure-your-stack" description="Bootstrap your first stacktape.ts in 2 minutes." />
-  <NavBox text="Use dev mode" url="/getting-started/use-the-dev-mode" description="The local + cloud loop with no redeploys." />
-  <NavBox text="Deploy your first stage" url="/getting-started/deploy-your-first-stage" description="`stacktape deploy` and see a real stack come up." />
-</NavBoxGrid>
+<CodeBlock
+  intellisense
+  tabs={[{
+    label: 'stacktape.ts',
+    lang: 'typescript',
+    code: `import { defineConfig, LocalScript, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
-<NavBoxGrid columns={3}>
-  <NavBox text="Browse resources" url="/resources/compute/lambda-function" description="Every supported AWS resource type." />
-  <NavBox text="Stacktape Console" url="/stacktape-console/console-overview" description="GitOps, logs, metrics, costs, secrets, guardrails." />
-  <NavBox text="Use with AI" url="/using-with-ai/overview" description="MCP server, agent mode, AI config generation." />
-</NavBoxGrid>
+export default defineConfig(() => {
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
+  });
+
+  return {
+    resources: { database },
+    scripts: {
+      migrate: new LocalScript({
+        executeCommand: 'npm run migrate',
+        connectTo: [database],
+        environment: { DATABASE_URL: database.connectionString }
+      })
+    }
+  };
+});
+`
+  }]}
+/>
+
+<CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape script:run --scriptName migrate --stage dev --region us-east-1` }]} />
+
+## Private networking
+
+Increase security by keeping your database private (VPC-only):
+
+<CodeBlock
+  intellisense
+  tabs={[{
+    label: 'stacktape.ts',
+    lang: 'typescript',
+    code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const mainDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      primaryInstance: {
+        instanceSize: stage === 'production' ? 'db.t4g.medium' : 'db.t4g.micro',
+        multiAz: stage === 'production'
+      },
+      version: '18.1'
+    }),
+    credentials: {
+      masterUserName: 'master-user',
+      masterUserPassword: $Secret('my-secret-password')
+    },
+    accessibility: { accessibilityMode: 'vpc', forceDisablePublicIp: true }
+  });
+
+  return { resources: { mainDatabase } };
+});
+`
+  }]}
+/>
+
+Then add a bastion resource, so you can perform management tasks through a secure tunnel:
+
+<CodeBlock
+  intellisense
+  tabs={[{
+    label: 'stacktape.ts',
+    lang: 'typescript',
+    code: `import { Bastion, LocalScriptWithBastionTunneling, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
+const mainDatabase = new RelationalDatabase({
+  engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+  credentials: { masterUserPassword: $Secret('database.password') }
+});
+
+const bastion = new Bastion({});
+
+const migrationScript = new LocalScriptWithBastionTunneling({
+  executeCommand: 'prisma migrate',
+  connectTo: [mainDatabase]
+});
+`
+  }]}
+/>
+
+## Override & extend
+
+Need more control? Override or transform any AWS resource:
+
+<CodeBlock
+  intellisense
+  tabs={[{
+    label: 'stacktape.ts',
+    lang: 'typescript',
+    code: `import { LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+const myFunction = new LambdaFunction({
+  // ... standard config
+  packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+  overrides: {
+    lambda: { Description: 'Overridden description' }
+  },
+  transforms: {
+    lambda: (props: any) => ({ ...props, MemorySize: (props.MemorySize ?? 128) * 2 })
+  }
+});
+`
+  }]}
+/>
+
+Or drop in raw CloudFormation and AWS CDK constructs alongside your Stacktape resources:
+
+<CodeBlock
+  intellisense
+  tabs={[{
+    label: 'stacktape.ts',
+    lang: 'typescript',
+    code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const myFunction = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' })
+  });
+
+  return {
+    resources: { myFunction },
+    cloudformationResources: {
+      mySnsTopic: {
+        Type: 'AWS::SNS::Topic',
+        Properties: { TopicName: 'my-test-topic', DisplayName: 'My Test Topic' }
+      }
+    }
+  };
+});
+`
+  }]}
+/>
+
+## Open-source core, paid Console
+
+Use Stacktape core completely free, or add the hosted Console when you want CI/CD, GitOps and observability.
+
+<PricingColumns />
+
+## Loved by teams shipping on AWS
+
+<Testimonials />
+
+<CTASection
+  title="Ready to simplify your AWS deployments?"
+  subtitle="From scratch to production-grade AWS infra in a day — no DevOps knowledge required."
+>
+  <CTAButton href="/getting-started/configure-your-stack" variant="primary" icon="arrow">Get started</CTAButton>
+  <CTAButton href="/starter-projects" variant="ghost">Browse examples</CTAButton>
+</CTASection>
