@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/assets/cover.png" alt="Stacktape — deploy containers, serverless, and 30+ AWS resources to your own AWS account, managed from the console and CLI" width="900" />
+</p>
+
 ## Stacktape - PaaS 2.0 that deploys to your own AWS account
 
 <div align="center">

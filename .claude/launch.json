@@ -7,6 +7,12 @@
       "runtimeArgs": ["/c", "cd /d C:\\Projects\\stacktape\\docs && bun astro preview --port 9013"],
       "port": 9013,
       "autoPort": false
+    },
+    {
+      "name": "readme-cover",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8099", "--directory", ".github/readme-cover"],
+      "port": 8099
     }
   ]
 }
