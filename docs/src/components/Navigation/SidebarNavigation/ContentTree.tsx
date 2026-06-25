@@ -47,7 +47,7 @@ export function ContentTree({
 
   return (
     <ExpansionStoreContext.Provider value={store}>
-      <div css={{ width: '100%' }}>
+      <div className="w-full">
         {navigationTree.map((group) => (
           <ContentTreeGroup key={group.id} group={group} />
         ))}

@@ -1,6 +1,5 @@
 import type { TippyProps } from '@tippyjs/react';
 import Tippy from '@tippyjs/react';
-import { typographyCss } from '@/styles/global';
 
 export function WithTooltip({
   placement,
@@ -11,7 +10,7 @@ export function WithTooltip({
 }: {
   placement?: TippyProps['placement'];
   tooltipText: ReactNode;
-  tooltipWidth?: Css['width'];
+  tooltipWidth?: string | number;
   trigger?: 'click' | 'hover';
   children: ReactNode;
 }) {
@@ -32,19 +31,8 @@ export function WithTooltip({
       })}
       content={
         <div
-          css={{
-            ...typographyCss,
-            ...(tooltipWidth && { width: tooltipWidth }),
-            textAlign: 'left',
-            padding: '5px 10px 5px 10px',
-            p: {
-              marginBottom: '10px',
-              textAlign: 'left'
-            },
-            'p:last-child': {
-              marginBottom: '0px'
-            }
-          }}
+          className="stp-typography text-left py-[5px] px-[10px] [&_p]:mb-[10px] [&_p]:text-left [&_p:last-child]:mb-0"
+          style={tooltipWidth ? { width: tooltipWidth } : undefined}
         >
           {tooltipText}
         </div>

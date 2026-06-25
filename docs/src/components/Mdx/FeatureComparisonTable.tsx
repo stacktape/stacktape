@@ -1,5 +1,3 @@
-import { colors } from '../../styles/variables';
-
 type FeatureRow = {
   name: string;
   values: Record<string, string | boolean>;
@@ -13,47 +11,8 @@ export function FeatureComparisonTable({
   features: FeatureRow[];
 }) {
   return (
-    <div
-      css={{
-        margin: '25px 0 30px 0',
-        overflowX: 'auto',
-        borderRadius: '8px',
-        border: `1px solid rgba(255, 255, 255, 0.1)`,
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
-      }}
-    >
-      <table
-        css={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          fontSize: '0.875rem',
-          'th, td': {
-            padding: '10px 14px',
-            textAlign: 'left',
-            borderBottom: `1px solid rgba(255, 255, 255, 0.06)`
-          },
-          th: {
-            fontWeight: 600,
-            fontSize: '12px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            color: colors.lightGray,
-            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-            position: 'sticky',
-            top: 0
-          },
-          'td:first-of-type': {
-            fontWeight: 500,
-            color: colors.fontColorPrimary
-          },
-          'tr:last-child td': {
-            borderBottom: 'none'
-          },
-          'tr:hover td': {
-            backgroundColor: 'rgba(255, 255, 255, 0.02)'
-          }
-        }}
-      >
+    <div className="mx-0 mt-[25px] mb-[30px] overflow-x-auto rounded-[8px] border border-[rgba(255,255,255,0.1)] shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+      <table className="w-full border-collapse text-[0.875rem] [&_th]:px-[14px] [&_th]:py-[10px] [&_th]:text-left [&_th]:border-b [&_th]:border-b-[rgba(255,255,255,0.06)] [&_td]:px-[14px] [&_td]:py-[10px] [&_td]:text-left [&_td]:border-b [&_td]:border-b-[rgba(255,255,255,0.06)] [&_th]:font-semibold [&_th]:text-[12px] [&_th]:uppercase [&_th]:tracking-[0.5px] [&_th]:text-light-gray [&_th]:bg-[rgba(255,255,255,0.03)] [&_th]:sticky [&_th]:top-0 [&_td:first-of-type]:font-medium [&_td:first-of-type]:text-fc-primary [&_tr:last-child_td]:border-b-0 [&_tr:hover_td]:bg-[rgba(255,255,255,0.02)]">
         <thead>
           <tr>
             <th>Feature</th>
@@ -84,13 +43,13 @@ export function FeatureComparisonTable({
 
 const CellValue = ({ value }: { value: string | boolean | undefined }) => {
   if (value === true) {
-    return <span css={{ color: colors.success, fontSize: '16px' }}>&#10003;</span>;
+    return <span className="text-success text-[16px]">&#10003;</span>;
   }
   if (value === false) {
-    return <span css={{ color: '#666', fontSize: '16px' }}>&#10005;</span>;
+    return <span className="text-[#666] text-[16px]">&#10005;</span>;
   }
   if (value === undefined || value === null) {
-    return <span css={{ color: '#555' }}>—</span>;
+    return <span className="text-[#555]">—</span>;
   }
   return <span>{value}</span>;
 };

@@ -10,11 +10,21 @@ import {
   BiLogoGit,
   BiTerminal
 } from 'react-icons/bi';
-import { onMaxW650 } from '../../styles/responsive';
+import clsx from 'clsx';
 import { colors } from '../../styles/variables';
 import { Box } from '../Box/Box';
-import { GridList } from '../Misc/GridList';
 import { Link } from './Link';
+
+function Grid({ children, minItemWidth, className }: { children: ReactNode; minItemWidth: string; className?: string }) {
+  return (
+    <div
+      className={clsx('grid w-full gap-[10px] [&>div]:w-full', className)}
+      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${minItemWidth}, 1fr))` }}
+    >
+      {children}
+    </div>
+  );
+}
 
 export function NavBox({
   icon,
@@ -31,30 +41,22 @@ export function NavBox({
     <Link href={url}>
       <Box
         interactive
-        rootCss={{
-          height: '100%',
-          padding: description ? '14px 18px 16px 18px' : '10px 18px 12px 18px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          [onMaxW650]: {
-            width: '100%',
-            marginBottom: '10px'
-          }
-        }}
+        className={clsx(
+          'flex h-full items-center justify-between',
+          description ? 'pt-[14px] pr-[18px] pb-[16px] pl-[18px]' : 'pt-[10px] pr-[18px] pb-[12px] pl-[18px]',
+          'max-[650px]:mb-[10px] max-[650px]:w-full'
+        )}
       >
-        <div css={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
+        <div className="flex flex-1 items-center gap-[14px]">
           {icon}
           <div>
-            <h4 css={{ fontSize: '1rem', margin: 0 }}>{text}</h4>
+            <h4 className="m-0 text-[1rem]">{text}</h4>
             {description && (
-              <p css={{ fontSize: '0.85rem', color: colors.fontColorTernary, margin: '4px 0 0 0', lineHeight: 1.4 }}>
-                {description}
-              </p>
+              <p className="mt-[4px] mr-0 mb-0 ml-0 text-[0.85rem] leading-[1.4] text-fc-ternary">{description}</p>
             )}
           </div>
         </div>
-        <BiChevronRight color={colors.fontColorPrimary} css={{ width: 24, flexShrink: 0 }} size={24} />
+        <BiChevronRight className="w-[24px] shrink-0" color={colors.fontColorPrimary} size={24} />
       </Box>
     </Link>
   );
@@ -63,35 +65,15 @@ export function NavBox({
 export function NavBoxGrid({ children, columns = 2 }: { children: ReactNode; columns?: number }) {
   const minWidth = columns === 3 ? '280px' : columns === 2 ? '320px' : '100%';
   return (
-    <GridList
-      minItemWidth={minWidth}
-      rootCss={{
-        marginTop: '20px',
-        marginBottom: '20px',
-        gap: '12px',
-        [onMaxW650]: {
-          display: 'block',
-          width: '100%'
-        }
-      }}
-    >
+    <Grid minItemWidth={minWidth} className="mt-[20px] mb-[20px] gap-[12px] max-[650px]:block max-[650px]:w-full">
       {children}
-    </GridList>
+    </Grid>
   );
 }
 
 export function GettingStartedOptions() {
   return (
-    <GridList
-      minItemWidth="422px"
-      rootCss={{
-        marginTop: '20px',
-        [onMaxW650]: {
-          display: 'block',
-          width: '100%'
-        }
-      }}
-    >
+    <Grid minItemWidth="422px" className="mt-[20px] max-[650px]:block max-[650px]:w-full">
       <NavBox
         url="/getting-started/basics/"
         icon={<BiBookOpen color={colors.fontColorPrimary} size={30} />}
@@ -112,22 +94,13 @@ export function GettingStartedOptions() {
         icon={<BiCog color={colors.fontColorPrimary} size={30} />}
         text="4. Under the hood"
       />
-    </GridList>
+    </Grid>
   );
 }
 
 export function DeploymentOptions() {
   return (
-    <GridList
-      minItemWidth="422px"
-      rootCss={{
-        marginTop: '20px',
-        [onMaxW650]: {
-          display: 'block',
-          width: '100%'
-        }
-      }}
-    >
+    <Grid minItemWidth="422px" className="mt-[20px] max-[650px]:block max-[650px]:w-full">
       <NavBox
         url="/getting-started/deploying-using-console/"
         icon={<BiLaptop color={colors.fontColorPrimary} size={30} />}
@@ -148,6 +121,6 @@ export function DeploymentOptions() {
         icon={<BiHive color={colors.fontColorPrimary} size={30} />}
         text="8. Deploying using 3rd party CI"
       />
-    </GridList>
+    </Grid>
   );
 }

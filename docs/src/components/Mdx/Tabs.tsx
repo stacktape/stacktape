@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { colors } from '../../styles/variables';
+import clsx from 'clsx';
 
 // Tab renders a labeled panel. The label travels via a data attribute so the (hydrated) Tabs
 // island can read it from the slotted DOM — Astro passes island children as rendered HTML, not as
@@ -32,34 +32,20 @@ export function Tabs({ children }: { children?: ReactNode }) {
   }, [activeIndex, labels]);
 
   return (
-    <div css={{ margin: '20px 0 24px 0' }}>
+    <div className="mt-[20px] mr-0 mb-[24px] ml-0">
       {labels.length > 0 && (
-        <div
-          css={{
-            display: 'flex',
-            gap: '0',
-            borderBottom: `1px solid rgba(255, 255, 255, 0.1)`,
-            marginBottom: '12px'
-          }}
-        >
+        <div className="flex gap-0 border-b border-b-[rgba(255,255,255,0.1)] mb-[12px]">
           {labels.map((label, idx) => (
             <button
               key={`${label}-${idx}`}
               type="button"
               onClick={() => setActiveIndex(idx)}
-              css={{
-                background: 'none',
-                border: 'none',
-                borderBottom: idx === activeIndex ? `2px solid ${colors.primary}` : '2px solid transparent',
-                color: idx === activeIndex ? colors.fontColorPrimary : colors.fontColorTernary,
-                padding: '3px 16px',
-                fontSize: '14px',
-                lineHeight: 1.5,
-                fontWeight: idx === activeIndex ? 600 : 400,
-                cursor: 'pointer',
-                transition: 'color 0.15s, border-color 0.15s',
-                '&:hover': { color: colors.fontColorPrimary }
-              }}
+              className={clsx(
+                'bg-none border-none py-[3px] px-[16px] text-[14px] leading-[1.5] cursor-pointer [transition:color_0.15s,border-color_0.15s] hover:text-fc-primary',
+                idx === activeIndex
+                  ? 'border-b-2 border-b-primary text-fc-primary font-semibold'
+                  : 'border-b-2 border-b-transparent text-fc-ternary font-normal'
+              )}
             >
               {label}
             </button>

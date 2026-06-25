@@ -50,11 +50,7 @@ export default {
     name: 'Stacktape documentation',
     description: 'Your AWS, 97% easier',
     title: 'Stacktape | Your AWS, 97% easier',
-    language: 'en',
     pathPrefix: '/',
-    favicon: 'static/assets/favicon.png',
-    themeColor: '#70C8B6',
-    backgroundColor: '#1B1B1B',
     url: 'https://docs.stacktape.com',
     siteimage: 'https://stacktape.com/cover-images/opengraph.png',
     copyright: 'Copyright © Stacktape 2026'

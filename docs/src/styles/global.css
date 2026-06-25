@@ -1,0 +1,1509 @@
+@import "tailwindcss";
+/* Algolia DocSearch base styles. Imported here (not in DocSearch.tsx) so our custom `:root`
+ * `--docsearch-*` overrides below load AFTER Algolia's defaults and win the cascade — otherwise the
+ * island's CSS chunk loads last and the modal theme regresses to Algolia's defaults. */
+@import "@docsearch/css/dist/style.css";
+
+/*
+ * Design tokens. Mirrors src/styles/variables.ts `colors` + fonts. These generate Tailwind
+ * utilities (e.g. `--color-element` → `bg-element`, `--color-fc-primary` → `text-fc-primary`).
+ * Custom max-width breakpoints are NOT registered here — use arbitrary variants `max-[795px]:`
+ * for the exact pixel media queries the design uses.
+ */
+@theme {
+  --color-brand: rgb(54 190 190);
+  --color-primary: rgb(17 105 105);
+  --color-primary-lighter: rgb(34 166 166);
+  --color-secondary: rgb(34 87 122);
+  --color-bg: rgb(28 33 33);
+  --color-page: rgb(22 28 28);
+  --color-element: rgb(34 40 40);
+  --color-modal: rgb(30 35 35);
+  --color-darker: rgb(22 27 27);
+  --color-input: rgb(20 26 26);
+  --color-input-hover: rgb(25 31 31);
+  --color-hover: rgb(35 40 40);
+  --color-border: rgb(8 13 13);
+  --color-border-light: rgb(47 52 52);
+  --color-fc-primary: rgba(255, 255, 255, 0.87);
+  --color-fc-secondary: rgba(10, 187, 181, 1);
+  --color-fc-light: rgb(140 140 140);
+  --color-fc-lighter: rgb(160 160 160);
+  --color-fc-ternary: #848484;
+  --color-fc-headline: #cecece;
+  --color-light-gray: #a6a5a5;
+  --color-gray: #9a9a9a;
+  --color-dark-grey: #2d2d2d;
+  --color-error: #eb6161;
+  --color-success: rgb(24 153 144);
+  --color-aws-compute: rgb(237 113 0);
+  --color-aws-database: #4d73f4;
+  --color-aws-integration: #f64683;
+  --color-aws-security: #f34446;
+  --color-aws-storage: #5ca034;
+  --color-aws-network: #8e58eb;
+
+  --font-sans: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --animate-hero-glow: hero-glow 7s ease-in-out infinite;
+  --animate-status-pulse: status-pulse 2s infinite;
+  --animate-code-fade-in: code-fade-in 180ms ease-out;
+  --animate-grow-down: grow-down 125ms ease-in-out;
+
+  @keyframes hero-glow {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: translate(-50%, 0) scale(1);
+    }
+    50% {
+      opacity: 0.85;
+      transform: translate(-50%, 0) scale(1.08);
+    }
+  }
+  @keyframes status-pulse {
+    0% {
+      opacity: 0.75;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.35);
+    }
+    100% {
+      opacity: 0.75;
+      transform: scale(1);
+    }
+  }
+  @keyframes code-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes grow-down {
+    0% {
+      transform: scaleY(0);
+    }
+    100% {
+      transform: scaleY(1);
+    }
+  }
+}
+
+/* ───────────────────────────── Base / global document styles ─────────────────────────────
+ * Ported from src/styles/global.ts `globalCss` + `typographyCss` + the grid background pattern.
+ * In @layer base so utility classes on nested React components reliably win over these. */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 70px;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-display: swap;
+  }
+
+  html,
+  body {
+    overflow-anchor: auto;
+    scroll-behavior: smooth;
+    min-width: 320px;
+    position: relative;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-fc-light) transparent;
+  }
+  /* prettyScrollBar — styles the scrollbars of all descendants of html/body */
+  html ::-webkit-scrollbar,
+  body ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  html ::-webkit-scrollbar-track,
+  body ::-webkit-scrollbar-track {
+    background-color: inherit;
+    border-radius: 10px;
+  }
+  html ::-webkit-scrollbar-thumb,
+  body ::-webkit-scrollbar-thumb {
+    background-color: var(--color-fc-light);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  html ::-webkit-scrollbar-thumb:hover,
+  body ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-dark-grey);
+  }
+  html ::-webkit-scrollbar-button,
+  body ::-webkit-scrollbar-button {
+    display: none;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-brand);
+    width: 100%;
+    background-color: var(--color-page);
+    background-image: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(54, 190, 190, 0.02) 3px,
+        rgba(54, 190, 190, 0.02) 5px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 2px,
+        rgba(54, 190, 190, 0.02) 3px,
+        rgba(54, 190, 190, 0.02) 5px
+      );
+    background-attachment: fixed;
+    background-repeat: repeat;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  p,
+  li,
+  a,
+  th,
+  td,
+  input,
+  button,
+  textarea {
+    font-family: var(--font-sans);
+    font-style: normal;
+    font-weight: 500;
+    font-size: 0.925rem;
+    line-height: 1.9;
+    color: var(--color-fc-primary);
+  }
+  @media (max-width: 750px) {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    p,
+    li,
+    a,
+    th,
+    td,
+    input,
+    button,
+    textarea {
+      font-size: 0.85rem;
+    }
+  }
+  h1 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  h3 {
+    font-weight: 600;
+  }
+
+  span {
+    text-rendering: optimizeLegibility;
+  }
+
+  a {
+    text-decoration: none;
+    color: var(--color-brand);
+    transition: color 200ms ease;
+  }
+  a:hover {
+    text-decoration: none;
+    color: var(--color-primary-lighter);
+  }
+
+  pre {
+    border: 0 !important;
+    font-family: var(--font-mono);
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--color-brand);
+    background: rgba(54, 190, 190, 0.13);
+    padding: 0px 5px;
+    border-radius: 4px;
+    /* Disable ligatures so `--` doesn't ligate into a single wider glyph overhanging the bg. */
+    font-variant-ligatures: none;
+    font-feature-settings: "liga" 0, "calt" 0;
+    display: inline-block;
+    vertical-align: baseline;
+    max-width: 100%;
+    word-break: break-all;
+    white-space: normal;
+  }
+  pre code {
+    color: inherit;
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    border: none;
+  }
+
+  img {
+    padding: 10px 0px;
+    max-width: 100%;
+  }
+
+  .highlight-wrapper {
+    margin: 16px 0;
+    padding: 14px 16px;
+    border-left: 4px solid #ed8b00;
+    color: var(--color-bg);
+    background-color: #fbe9d0;
+    align-items: center;
+    display: flex;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(237, 139, 0, 0.15);
+  }
+  .highlight-wrapper * {
+    color: var(--color-bg);
+  }
+  .highlight-wrapper code {
+    font-family: var(--font-mono);
+  }
+
+  *:focus {
+    outline: none;
+  }
+  *:focus-visible {
+    outline: none;
+  }
+
+  input:-webkit-autofill {
+    -webkit-text-fill-color: var(--color-fc-primary);
+    background: transparent;
+  }
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    box-shadow: 0 0 0 30px var(--color-input) inset;
+    transition: background-color 600000s 0s, color 600000s 0s;
+  }
+
+  button,
+  input {
+    background-color: transparent;
+    border: none;
+  }
+  a,
+  button {
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+  }
+}
+
+/* ───────────────────────────── View transitions (unlayered) ─────────────────────────────
+ * Ported verbatim from globalCss. Drives the #main-content cross-fade under <ClientRouter />. */
+#main-content {
+  view-transition-name: main-content;
+}
+::view-transition-old(main-content),
+::view-transition-new(main-content) {
+  animation-duration: 200ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+::view-transition-old(main-content) {
+  animation-name: quick-fade-out;
+}
+::view-transition-new(main-content) {
+  animation-name: quick-fade-in;
+}
+#main-content.view-transition-loading {
+  position: relative;
+}
+#main-content.view-transition-loading::before {
+  content: "";
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(34, 186, 181, 0.3);
+  border-top: 1px solid rgb(34, 186, 181);
+  border-radius: 50%;
+  animation: loading-spinner 0.4s linear infinite;
+  z-index: 100;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(main-content),
+  ::view-transition-new(main-content) {
+    animation-duration: 150ms !important;
+  }
+  #main-content.view-transition-loading::before {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+@keyframes loading-spinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes quick-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes quick-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ───────────────────────────── Tippy tooltips (unlayered) ─────────────────────────────
+ * Ported from src/components/Tooltip/tippy-styles.ts `tippyTooltipStyle`. */
+.tippy-content {
+  background: var(--color-bg) !important;
+  border-radius: 6px !important;
+  word-break: normal;
+}
+.tippy-content * {
+  font-size: 0.85rem;
+}
+.tippy-content p {
+  line-height: 1.5;
+}
+.tippy-content a {
+  font-weight: bold;
+  line-height: 1.5;
+}
+.tippy-content code {
+  color: #b7b7b7;
+  border: 1px solid #b7b7b7;
+  border-radius: 4px;
+  padding: 0px 3px;
+}
+.tippy-content hr {
+  margin: 4px 0px;
+}
+.tippy-content ul {
+  margin-bottom: 10px;
+  padding-left: 15px;
+}
+.tippy-box {
+  background-color: var(--color-bg);
+  outline: 1px solid var(--color-border) !important;
+  box-shadow: 3px 3px 5px rgb(20, 20, 20, 1), -3px -3px 11px rgb(22, 26, 26);
+  border-radius: 6px !important;
+}
+.tippy-box[data-placement^="bottom"] > .tippy-arrow::before {
+  border: 1px solid var(--color-border) !important;
+  top: -8px !important;
+  left: -4px !important;
+  width: 12px !important;
+  height: 12px !important;
+  transform: rotate(45deg) !important;
+  background: var(--color-bg);
+}
+.tippy-box[data-placement^="right"] > .tippy-arrow::before {
+  border: 1px solid var(--color-border) !important;
+  top: 7px !important;
+  left: -8px !important;
+  width: 12px !important;
+  height: 12px !important;
+  transform: rotate(45deg) !important;
+  background: var(--color-bg);
+}
+.tippy-box[data-placement^="left"] > .tippy-arrow::before {
+  border: 1px solid var(--color-border) !important;
+  top: -3px !important;
+  left: 8px !important;
+  width: 12px !important;
+  height: 12px !important;
+  transform: rotate(45deg) !important;
+  background: var(--color-bg);
+}
+.tippy-box[data-placement^="top"] > .tippy-arrow::before {
+  border: 1px solid var(--color-border) !important;
+  left: 5px !important;
+  width: 12px !important;
+  height: 12px !important;
+  transform: rotate(45deg) !important;
+  background: var(--color-bg);
+}
+
+/* ───────────────────────────── Rendered MDX prose (.mdx-content) ─────────────────────────────
+ * Ported from src/components/GlobalStyles.tsx `mdxContentCss`. The MDX body renders as native HTML
+ * styled by these selectors (zero per-element runtime styling). In @layer base so utilities win. */
+@layer base {
+  .mdx-content {
+    flex: 1;
+  }
+  .mdx-content section {
+    margin: 2px 0;
+  }
+  .mdx-content ul,
+  .mdx-content ol {
+    margin: 18px 0;
+    padding: 0 0 0 24px;
+    list-style: none;
+  }
+  @media (max-width: 795px) {
+    .mdx-content ul,
+    .mdx-content ol {
+      padding: 0 0 0 20px;
+    }
+  }
+  .mdx-content ul li {
+    position: relative;
+    margin: 10px 0;
+    padding-left: 0px;
+    line-height: 1.8;
+  }
+  .mdx-content ul li::before {
+    content: "";
+    position: absolute;
+    left: -16px;
+    top: 14px;
+    width: 4px;
+    height: 4px;
+    background-color: var(--color-light-gray);
+    border-radius: 50%;
+    transform: translateY(-50%);
+  }
+  .mdx-content ol li::before {
+    content: counter(list-counter) "." !important;
+    position: absolute;
+    left: -24px;
+    top: 14px;
+    color: var(--color-light-gray);
+    font-size: 14px;
+    font-weight: 500;
+    min-width: 20px;
+    text-align: left;
+    transform: translateY(-50%);
+    width: auto !important;
+    height: auto !important;
+    background-color: transparent !important;
+    border-radius: 0 !important;
+  }
+  .mdx-content ol li {
+    position: relative;
+    margin: 10px 0;
+    padding-left: 0px;
+    line-height: 1.8;
+    counter-increment: list-counter;
+  }
+  .mdx-content ol {
+    counter-reset: list-counter;
+  }
+  .mdx-content ul ul,
+  .mdx-content ol ol,
+  .mdx-content ul ol,
+  .mdx-content ol ul {
+    margin: 6px 0;
+    padding-left: 24px;
+  }
+  .mdx-content ul ul li::before {
+    background-color: var(--color-fc-ternary);
+    width: 3px;
+    height: 3px;
+  }
+  .mdx-content ol ol li::before,
+  .mdx-content ul ol li::before {
+    color: var(--color-fc-ternary) !important;
+    font-size: 13px !important;
+  }
+  .mdx-content li:last-child {
+    margin-bottom: 0;
+  }
+  .mdx-content li:first-child {
+    margin-top: 0;
+  }
+  @media (max-width: 795px) {
+    .mdx-content ul li::before {
+      left: -14px;
+    }
+    .mdx-content ol li::before {
+      left: -20px;
+    }
+  }
+  .mdx-content li p {
+    margin: 8px 0;
+  }
+  .mdx-content li p:first-child {
+    margin-top: 0;
+  }
+  .mdx-content li p:last-child {
+    margin-bottom: 0;
+  }
+  .mdx-content p {
+    margin: 10px 0px;
+    font-size: 0.925rem;
+  }
+  .mdx-content h1 {
+    color: #0ba29d;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.4;
+    margin-bottom: 23px;
+    text-shadow: 2px 2px var(--color-darker);
+    margin-top: 72px;
+  }
+  @media (max-width: 795px) {
+    .mdx-content h1 {
+      font-size: 25px;
+      margin-top: 52px;
+    }
+  }
+  .mdx-content h2 {
+    font-size: 24.5px;
+    font-weight: 700;
+    line-height: 1.4;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px var(--color-darker);
+    margin-top: 60px;
+  }
+  @media (max-width: 795px) {
+    .mdx-content h2 {
+      font-size: 20px;
+      margin-top: 42px;
+    }
+  }
+  .mdx-content h3 {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.4;
+    margin-bottom: 20px;
+    margin-top: 40px;
+  }
+  .mdx-content h4 {
+    text-decoration: underline;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.4;
+    margin-bottom: 10px;
+    margin-top: 17px;
+  }
+  /* rehype-autolink-headings (behavior: 'wrap') wraps heading text in a self-link. */
+  .mdx-content h1 a,
+  .mdx-content h2 a,
+  .mdx-content h3 a,
+  .mdx-content h4 a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .mdx-content blockquote {
+    margin-bottom: 35px;
+    margin-top: -24px;
+  }
+  .mdx-content blockquote p {
+    color: #9b9999;
+    text-align: center;
+    font-size: 14px;
+  }
+  /* Tabs island: before hydration show only the first/active panel. The hydrated Tabs sets inline
+     `display` per panel, which overrides this rule. */
+  .mdx-content .stp-tab-panel ~ .stp-tab-panel {
+    display: none;
+  }
+  .mdx-content img {
+    box-shadow: none !important;
+    width: 100%;
+    height: auto;
+  }
+}
+
+/* ───────────────────────────── Algolia DocSearch theme (unlayered) ─────────────────────────────
+ * Ported from src/components/Search/DocSearch.tsx `docSearchCustomStyles`. */
+:root {
+  --docsearch-primary-color: rgb(34, 136, 132);
+  --docsearch-highlight-color: rgb(34, 136, 132);
+  --docsearch-text-color: rgba(255, 255, 255, 0.87);
+  --docsearch-muted-color: rgba(255, 255, 255, 0.87);
+  --docsearch-searchbox-focus-background: rgb(20, 26, 26);
+  --docsearch-searchbox-background: rgb(20, 26, 26);
+  --docsearch-searchbox-shadow: inset 0 0 0 1px rgb(8, 13, 13);
+  --docsearch-container-background: rgba(0, 0, 0, 0.8);
+  --docsearch-modal-background: rgb(28, 33, 33);
+  --docsearch-modal-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --docsearch-hit-color: rgba(255, 255, 255, 0.87);
+  --docsearch-hit-active-color: rgba(255, 255, 255, 0.87);
+  --docsearch-hit-background: rgb(34, 40, 40);
+  --docsearch-hit-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --docsearch-footer-background: rgb(22, 27, 27);
+  --docsearch-footer-shadow: 0 -1px 0 rgb(8, 13, 13);
+  --docsearch-key-gradient: linear-gradient(to bottom, rgb(34, 40, 40), rgb(22, 27, 27));
+  --docsearch-key-shadow: inset 0 -2px 0 0 rgb(8, 13, 13), inset 0 0 1px 1px rgb(8, 13, 13),
+    0 2px 2px 0 rgba(0, 0, 0, 0.3);
+  --docsearch-logo-color: rgba(255, 255, 255, 0.87);
+  --docsearch-scrollbar-track: rgb(28, 33, 33);
+  --docsearch-scrollbar-thumb: rgb(140, 140, 140);
+}
+.DocSearch * {
+  font-family: var(--font-sans) !important;
+}
+.DocSearch-Button {
+  width: 300px !important;
+  height: 38px !important;
+  background: var(--color-input) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  margin: 0 !important;
+  padding: 0 8px 0 12px !important;
+  transition: background 180ms ease, box-shadow 180ms ease !important;
+  font-family: var(--font-sans) !important;
+  backdrop-filter: blur(10px);
+}
+.DocSearch-Button:hover {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.31), 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+.DocSearch-Button:focus {
+  outline: none !important;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 3px rgba(110, 116, 116, 0.12) !important;
+}
+@media (max-width: 750px) {
+  .DocSearch-Button {
+    width: calc(100% - 40px) !important;
+    margin: 20px 20px 20px 20px !important;
+  }
+}
+.DocSearch-Button-Container {
+  display: flex !important;
+  align-items: center !important;
+}
+.DocSearch-Search-Icon {
+  color: rgba(255, 255, 255, 0.87) !important;
+  width: 16px !important;
+  height: 16px !important;
+}
+.DocSearch-Reset {
+  color: rgba(255, 255, 255, 0.87) !important;
+}
+.DocSearch-Reset:hover {
+  color: rgba(255, 255, 255, 0.87) !important;
+}
+.DocSearch-Close {
+  color: rgba(255, 255, 255, 0.87) !important;
+}
+.DocSearch-Close:hover {
+  color: rgba(255, 255, 255, 0.87) !important;
+}
+.DocSearch-LoadingIndicator svg {
+  color: rgba(255, 255, 255, 0.87) !important;
+}
+.DocSearch-MagnifierLabel {
+  color: rgba(255, 255, 255, 0.87) !important;
+}
+.DocSearch-Label {
+  font-size: 0.9rem !important;
+}
+.DocSearch-Button-Placeholder {
+  color: rgb(160, 160, 160) !important;
+  font-size: 0.9rem !important;
+  padding: 0 8px !important;
+}
+.DocSearch-Button-Keys {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+.DocSearch-Button-Key {
+  background: rgb(22, 27, 27) !important;
+  border: none !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.4) !important;
+  border-radius: 5px !important;
+  color: rgb(160, 160, 160) !important;
+  font-size: 0.85rem !important;
+  padding: 2px 6px !important;
+  min-width: 20px !important;
+  text-align: center;
+}
+.DocSearch-Modal {
+  font-family: var(--font-sans) !important;
+}
+.DocSearch-SearchBar {
+  background-color: var(--color-input) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 4.5px !important;
+}
+.DocSearch-Form {
+  background: var(--color-input) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  margin-bottom: 12px !important;
+}
+.DocSearch-Input {
+  background-color: transparent !important;
+  color: rgba(255, 255, 255, 0.87) !important;
+  font-family: var(--font-sans) !important;
+}
+.DocSearch-Input::placeholder {
+  color: rgb(160, 160, 160) !important;
+}
+.DocSearch-Hit {
+  border-radius: 4px !important;
+  margin: 2px 0 !important;
+}
+.DocSearch-Hit[aria-selected="true"] {
+  background-color: var(--color-primary) !important;
+}
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-Container {
+  background-color: transparent !important;
+}
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-Title {
+  color: rgba(255, 255, 255, 0.87) !important;
+}
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-Path {
+  color: rgb(160, 160, 160) !important;
+}
+.DocSearch-Hit-Container {
+  background: var(--color-element) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  border-radius: 7px !important;
+  padding: 12px !important;
+}
+.DocSearch-Hit-Title {
+  color: rgba(255, 255, 255, 0.87) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 0.925rem !important;
+}
+.DocSearch-Hit-Path {
+  color: rgb(160, 160, 160) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 0.85rem !important;
+}
+.DocSearch-Cancel {
+  color: rgb(160, 160, 160) !important;
+  font-family: var(--font-sans) !important;
+}
+.DocSearch-Cancel:hover {
+  color: rgba(255, 255, 255, 0.87) !important;
+}
+.DocSearch-Footer {
+  background-color: rgb(22, 27, 27) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 0 0 4.5px 4.5px !important;
+}
+.DocSearch-Commands .DocSearch-Commands-Key {
+  background-color: var(--color-element) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 3px !important;
+  color: rgb(160, 160, 160) !important;
+}
+
+/* ───────────────────────────── Shiki / Twoslash code blocks (unlayered) ─────────────────────────────
+ * Ported from src/components/Mdx/CodeBlockNew.tsx <Global> block + the per-line styles that were
+ * applied via the inner element's css prop. Targets Shiki/Twoslash-generated DOM, so it must be
+ * plain global CSS, not utilities. */
+.stacktape-code-block.twoslash {
+  --twoslash-border-color: rgba(147, 153, 178, 0.24);
+  --twoslash-underline-color: #89b4fa;
+  --twoslash-highlighted-border: rgba(245, 194, 231, 0.32);
+  --twoslash-highlighted-bg: rgba(245, 194, 231, 0.12);
+  --twoslash-popup-bg: rgba(30, 30, 46, 0.96);
+  --twoslash-popup-color: #cdd6f4;
+  --twoslash-popup-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  --twoslash-docs-color: #a6adc8;
+  --twoslash-docs-font: inherit;
+  --twoslash-code-font: var(--font-mono);
+  --twoslash-code-bg: rgba(255, 255, 255, 0.08);
+  --twoslash-link-color: #89b4fa;
+  --twoslash-matched-color: #f5e0dc;
+  --twoslash-unmatched-color: #7f849c;
+  --twoslash-cursor-color: rgba(137, 180, 250, 0.45);
+  --twoslash-error-color: #f38ba8;
+  --twoslash-error-bg: rgba(243, 139, 168, 0.14);
+  --twoslash-warn-color: #f9e2af;
+  --twoslash-warn-bg: rgba(249, 226, 175, 0.16);
+  --twoslash-tag-color: #89dceb;
+  --twoslash-tag-bg: rgba(137, 220, 235, 0.14);
+  --twoslash-tag-warn-color: #fab387;
+  --twoslash-tag-warn-bg: rgba(250, 179, 135, 0.14);
+  --twoslash-tag-annotate-color: #a6e3a1;
+  --twoslash-tag-annotate-bg: rgba(166, 227, 161, 0.14);
+}
+.stacktape-code-block.twoslash .twoslash-hover {
+  border-bottom: 1px dotted transparent;
+  transition: border-color 0.2s ease;
+  cursor: help;
+}
+.stacktape-code-block-shell:hover .twoslash-hover,
+.stacktape-code-block.twoslash:hover .twoslash-hover {
+  border-bottom-color: var(--twoslash-underline-color);
+}
+.stacktape-code-block.twoslash .twoslash-popup-container {
+  position: fixed;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  display: inline-flex;
+  flex-direction: column;
+  background: var(--twoslash-popup-bg);
+  color: var(--twoslash-popup-color);
+  border: 1px solid var(--twoslash-border-color);
+  border-radius: 6px;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  z-index: 9999;
+  text-align: left;
+  box-shadow: var(--twoslash-popup-shadow);
+  min-width: 280px;
+  max-width: min(600px, calc(100vw - 40px));
+  font-size: 13px;
+  line-height: 1.5;
+}
+.stacktape-code-block.twoslash .twoslash-popup-container.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.stacktape-code-block.twoslash .twoslash-popup-code {
+  padding: 8px 12px;
+  font-family: var(--twoslash-code-font);
+  font-size: 12.5px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.stacktape-code-block.twoslash .twoslash-popup-code span {
+  white-space: inherit !important;
+}
+.stacktape-code-block.twoslash .twoslash-popup-code + .twoslash-popup-docs {
+  border-top: 1px solid var(--twoslash-border-color);
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs {
+  padding: 10px 12px;
+  color: var(--twoslash-docs-color);
+  font-family: var(--twoslash-docs-font);
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs h1,
+.stacktape-code-block.twoslash .twoslash-popup-docs h2,
+.stacktape-code-block.twoslash .twoslash-popup-docs h3 {
+  margin: 0 0 8px 0;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs h4,
+.stacktape-code-block.twoslash .twoslash-popup-docs h5,
+.stacktape-code-block.twoslash .twoslash-popup-docs h6 {
+  margin: 0 0 8px 0;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs p {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs li {
+  font-size: 12px;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs > *:last-child {
+  margin-bottom: 0;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs code {
+  font-family: var(--twoslash-code-font);
+  background: var(--twoslash-code-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs a {
+  color: var(--twoslash-link-color);
+  text-decoration: none;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs a:hover {
+  text-decoration: underline;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs ul,
+.stacktape-code-block.twoslash .twoslash-popup-docs ol {
+  margin: 0 0 6px 0;
+  padding-left: 20px;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs li {
+  margin-bottom: 2px;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs hr {
+  border: none;
+  border-top: 1px solid var(--twoslash-border-color);
+  margin: 8px 0;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs blockquote {
+  margin: 0 0 6px 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--twoslash-border-color);
+  color: #a8a8a8;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs pre {
+  background: var(--twoslash-code-bg);
+  padding: 6px 8px;
+  border-radius: 3px;
+  margin: 0 0 6px 0;
+  overflow-x: auto;
+  font-family: var(--twoslash-code-font);
+  font-size: 0.9em;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+.stacktape-code-block.twoslash .twoslash-popup-error {
+  color: var(--twoslash-error-color);
+  background-color: var(--twoslash-error-bg);
+  font-size: 0.8em;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs-tags {
+  display: flex;
+  flex-direction: column;
+}
+.stacktape-code-block.twoslash .twoslash-popup-docs-tag-name {
+  margin-right: 0.5em;
+  font-family: var(--twoslash-code-font);
+}
+.stacktape-code-block.twoslash .twoslash-query-line .twoslash-popup-container {
+  position: relative;
+  margin-bottom: 1.4em;
+  transform: translateY(0.6em);
+}
+.stacktape-code-block.twoslash .twoslash-error-line,
+.stacktape-code-block.twoslash .twoslash-tag-line {
+  position: relative;
+  min-width: 100%;
+  width: max-content;
+  margin: 0.2em 0;
+  border-left: 3px solid var(--twoslash-error-color);
+  background-color: var(--twoslash-error-bg);
+  color: var(--twoslash-error-color);
+}
+.stacktape-code-block.twoslash .twoslash-error-line.twoslash-error-level-warning {
+  background-color: var(--twoslash-warn-bg);
+  border-left-color: var(--twoslash-warn-color);
+  color: var(--twoslash-warn-color);
+}
+.stacktape-code-block.twoslash .twoslash-tag-line {
+  border-left-color: var(--twoslash-tag-color);
+  background-color: var(--twoslash-tag-bg);
+  color: var(--twoslash-tag-color);
+}
+.stacktape-code-block.twoslash .twoslash-completion-cursor {
+  position: relative;
+}
+.stacktape-code-block.twoslash .twoslash-completion-cursor .twoslash-completion-list {
+  user-select: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(0, 1.2em);
+  margin: 3px 0 0 -1px;
+  display: inline-block;
+  z-index: 28;
+  box-shadow: var(--twoslash-popup-shadow);
+  background: var(--twoslash-popup-bg);
+  border: none;
+}
+.stacktape-code-block.twoslash .twoslash-completion-list {
+  width: 260px;
+  font-size: 0.8rem;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stacktape-code-block.twoslash .twoslash-completion-list::before {
+  background-color: var(--twoslash-cursor-color);
+  width: 2px;
+  position: absolute;
+  top: -1.6em;
+  height: 1.4em;
+  left: -1px;
+  content: " ";
+}
+.stacktape-code-block.twoslash .twoslash-completion-list li {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  line-height: 1em;
+}
+.stacktape-code-block.twoslash .twoslash-completions-unmatched,
+.stacktape-code-block.twoslash .twoslash-completions-icon {
+  color: var(--twoslash-unmatched-color);
+}
+.stacktape-code-block.twoslash .twoslash-completions-icon {
+  width: 1em;
+  flex: none;
+}
+.stacktape-code-block.twoslash .twoslash-completions-matched {
+  color: var(--twoslash-matched-color);
+}
+.stacktape-code-block.twoslash .deprecated {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+.stacktape-code-block.twoslash .twoslash-highlighted {
+  background-color: var(--twoslash-highlighted-bg);
+  border: 1px solid var(--twoslash-highlighted-border);
+  padding: 1px 2px;
+  margin: -1px -3px;
+  border-radius: 4px;
+}
+
+/* Per-line styles for the rendered Shiki output (was applied via the inner element css prop). */
+.stacktape-code-block.twoslash * {
+  font-family: var(--font-mono);
+}
+.stacktape-code-block.twoslash .stacktape-shiki-pre {
+  display: block;
+  background: transparent !important;
+  margin: 0;
+  padding: 0;
+  min-width: 100%;
+  overflow: visible;
+}
+.stacktape-code-block.twoslash .stacktape-shiki-pre code {
+  display: block;
+}
+.stacktape-code-block.twoslash .stacktape-shiki-pre .line {
+  display: block;
+  width: 100%;
+  padding: 0 18px;
+  line-height: 1.75;
+  min-height: 1.75em;
+  white-space: pre;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+}
+.stacktape-code-block.twoslash .stacktape-shiki-pre .stacktape-highlighted-line {
+  background: linear-gradient(
+    90deg,
+    rgba(137, 180, 250, 0.18) 0%,
+    rgba(137, 180, 250, 0.08) 55%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  border-left: 2px solid rgba(137, 180, 250, 0.8);
+}
+.stacktape-code-block.twoslash .stacktape-shiki-pre .stacktape-focus-placeholder-line {
+  color: var(--color-fc-light);
+  opacity: 0.75;
+}
+.stacktape-code-block.twoslash .stacktape-shiki-pre .line span {
+  white-space: pre;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+}
+
+/* ───────────────────────────── Reusable component classes ─────────────────────────────
+ * Mirror the shared style objects in variables.ts (box, clickableBoxStyle, inputBoxStyle, tab
+ * styles, iconButtonStyle) and the sidebar row / Landing Step patterns. Carry the EXACT CSS the
+ * Emotion objects did so component conversions stay pixel-faithful with zero runtime injection. */
+@layer components {
+  /* `typographyCss` — base prose typography for elements that don't inherit it (e.g. <div>s). */
+  .stp-typography {
+    font-family: var(--font-sans);
+    font-style: normal;
+    font-weight: 500;
+    font-size: 0.925rem;
+    line-height: 1.9;
+    color: var(--color-fc-primary);
+  }
+  @media (max-width: 750px) {
+    .stp-typography {
+      font-size: 0.85rem;
+    }
+  }
+
+  /* Mdx <Link> base (teal inline link). Defined before `.stp-nav-row` so the sidebar row class,
+   * which the same component also receives, wins on the conflicting `color`. */
+  .stp-mdx-link {
+    color: rgb(34, 186, 181);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  @media (max-width: 500px) {
+    .stp-mdx-link {
+      white-space: normal;
+    }
+  }
+
+  /* `box` */
+  .stp-box {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    background: var(--color-element);
+    backdrop-filter: blur(10px);
+  }
+
+  /* Button — `.stp-btn` common root + per-visualType variant. Mirrors Button.tsx `rootStyle` +
+   * `buttonStyle[visualType]`. The disabled opacity is applied inline (it differs per variant). */
+  .stp-btn {
+    border-image-slice: 1;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+    color: var(--color-fc-primary);
+    background-size: 200% auto;
+    padding: 0px 10px 0px 14px;
+  }
+  .stp-btn-primary {
+    background: linear-gradient(135deg, rgb(12, 95, 95), rgb(27, 109, 103));
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(81, 231, 236, 0.5),
+      inset 0 1px 0 rgba(43, 232, 239, 0.4);
+    border: none;
+    transition: all 250ms ease, transform 150ms ease;
+  }
+  .stp-btn-primary:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(81, 231, 236, 0.69),
+      inset 0 1px 0 rgba(43, 232, 239, 0.5), 0 0 0 1px rgba(90, 96, 96, 0.21),
+      inset 0 1px 0 rgba(170, 176, 176, 0.17), inset 0 0 0 1px rgba(90, 96, 96, 0.15);
+  }
+  .stp-btn-primary:active {
+    transform: scale(0.98);
+  }
+  .stp-btn-secondary {
+    background: var(--color-element);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    border: none;
+    transition: all 250ms ease, transform 150ms ease;
+  }
+  .stp-btn-secondary:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.66), 0 0 0 1px rgba(255, 255, 255, 0.11),
+      inset 0 1px 0 rgba(255, 255, 255, 0.17), 0 0 0 1px rgba(90, 96, 96, 0.1),
+      inset 0 1px 0 rgba(140, 146, 146, 0.1), inset 0 0 0 1px rgba(90, 96, 96, 0.08);
+  }
+  .stp-btn-secondary:active {
+    transform: scale(0.98);
+  }
+  .stp-btn-plain {
+    background: transparent;
+    box-shadow: none;
+    border: none;
+    transition: all 250ms ease;
+  }
+  .stp-btn-plain * {
+    font-weight: bold;
+  }
+  .stp-btn-plain:hover {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.26), 0 0 0 1px rgba(90, 96, 96, 0.16),
+      inset 0 1px 0 rgba(150, 156, 156, 0.12), inset 0 0 0 1px rgba(90, 96, 96, 0.1);
+  }
+  .stp-btn-ternary {
+    background: linear-gradient(135deg, rgba(34, 87, 122, 1) 0%, rgba(40, 95, 130, 0.95) 100%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    border: none;
+    transition: all 250ms ease, transform 150ms ease;
+  }
+  .stp-btn-ternary:hover,
+  .stp-btn-negative:hover {
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.44), 0 0 0 1px rgba(255, 255, 255, 0.17),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 0 0 1px rgba(90, 96, 96, 0.12),
+      inset 0 1px 0 rgba(160, 166, 166, 0.11), inset 0 0 0 1px rgba(90, 96, 96, 0.08);
+  }
+  .stp-btn-ternary:active,
+  .stp-btn-negative:active {
+    transform: scale(0.98);
+  }
+  .stp-btn-negative {
+    background: linear-gradient(135deg, rgb(235, 97, 97) 0%, rgb(200, 80, 80) 100%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    border: none;
+    transition: all 250ms ease, transform 150ms ease;
+  }
+
+  /* `clickableBoxStyle` */
+  .stp-clickable-box {
+    background: var(--color-element);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 250ms ease, transform 150ms ease;
+  }
+  .stp-clickable-box:hover {
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 1px rgba(90, 96, 96, 0.18),
+      inset 0 1px 0 rgba(140, 146, 146, 0.16), inset 0 0 0 1px rgba(90, 96, 96, 0.14);
+  }
+  .stp-clickable-box:active {
+    transform: scale(0.993);
+  }
+
+  /* `inputBoxStyle` */
+  .stp-input-box {
+    background: var(--color-input);
+    border: none;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: background 180ms ease, box-shadow 180ms ease, border 180ms ease, transform 160ms ease;
+    backdrop-filter: blur(10px);
+  }
+  .stp-input-box:hover {
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.07);
+  }
+  .stp-input-box:has(input:focus),
+  .stp-input-box:has(textarea:focus) {
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 0 3px rgba(110, 116, 116, 0.12);
+  }
+
+  /* `iconButtonStyle` */
+  .stp-icon-button {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    color: var(--color-fc-primary);
+    justify-content: center;
+    align-items: center;
+    user-select: none;
+    cursor: pointer;
+    transition: all 250ms ease, transform 150ms ease;
+    background: var(--color-element);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    border: none;
+  }
+  .stp-icon-button:hover {
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 1px rgba(90, 96, 96, 0.18),
+      inset 0 1px 0 rgba(140, 146, 146, 0.16), inset 0 0 0 1px rgba(90, 96, 96, 0.14);
+  }
+  .stp-icon-button:active {
+    transform: scale(0.92);
+  }
+
+  /* `tabContainerStyle` */
+  .stp-tab-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 8px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+  }
+
+  /* `tabButtonStyle` (+ `.is-active` color override used by the code-block tab switcher) */
+  .stp-tab-button {
+    position: relative;
+    font-size: 12.5px;
+    line-height: 1.2;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+    color: rgba(190, 190, 190, 0.8);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: color 250ms ease, transform 150ms ease;
+    z-index: 1;
+    outline: none;
+    white-space: nowrap;
+  }
+  .stp-tab-button:hover {
+    color: rgba(220, 220, 220, 0.95);
+  }
+  .stp-tab-button:active {
+    transform: scale(0.97);
+  }
+  .stp-tab-button.is-active,
+  .stp-tab-button.is-active:hover {
+    color: var(--color-fc-primary);
+  }
+
+  /* `prettyScrollBar` for individual scroll containers (sidebar inner, code-block shell). */
+  .stp-pretty-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-fc-light) transparent;
+  }
+  .stp-pretty-scrollbar ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .stp-pretty-scrollbar ::-webkit-scrollbar-track {
+    background-color: inherit;
+    border-radius: 10px;
+  }
+  .stp-pretty-scrollbar ::-webkit-scrollbar-thumb {
+    background-color: var(--color-fc-light);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .stp-pretty-scrollbar ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-dark-grey);
+  }
+  .stp-pretty-scrollbar ::-webkit-scrollbar-button {
+    display: none;
+  }
+
+  /* Sidebar item row (ContentTreeNode). The per-depth left margin is set inline via `style`. */
+  .stp-nav-row {
+    font-family: var(--font-sans);
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 7px 12px 7px 10px;
+    border-radius: 7px;
+    color: var(--color-fc-primary);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 140ms ease, box-shadow 140ms ease, color 140ms ease;
+  }
+  .stp-nav-row:not(.is-active):hover {
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .stp-nav-row.is-active {
+    background: linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47));
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  .stp-nav-row.is-active:hover {
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.49), 0 0 0 1px rgba(220, 220, 220, 0.17),
+      inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  }
+
+  /* Sidebar group header (ContentTreeGroup). */
+  .stp-nav-group-header {
+    font-family: var(--font-sans);
+    margin: 1px 8px 3px;
+    padding: 8px 12px;
+    min-height: 32px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    position: relative;
+    color: var(--color-fc-lighter);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 140ms ease, box-shadow 140ms ease, color 140ms ease;
+  }
+  .stp-nav-group-header:hover {
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: var(--color-fc-primary);
+  }
+
+  /* `gradientText()` brand accent (Landing). */
+  .stp-gradient-text {
+    background: linear-gradient(120deg, #7fe8d4 0%, rgb(54 190 190) 42%, #4aa6dc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  /* Landing <Steps>/<Step> — CSS counter numbering + last-connector hiding (children are opaque
+   * MDX nodes, so numbering can't be done by the parent injecting props). */
+  .stp-steps {
+    counter-reset: stp-step;
+  }
+  .stp-steps h3 {
+    margin-top: 0;
+  }
+  .stp-step {
+    counter-increment: stp-step;
+  }
+  .stp-step:last-of-type .stp-step-connector {
+    display: none;
+  }
+  .stp-step:last-of-type .stp-step-body {
+    padding-bottom: 0;
+  }
+  .stp-step-number::before {
+    content: counter(stp-step);
+  }
+
+  /* api-reference narrow scrollbar (← `narrowScrollbar`). Applied to the scroll container
+   * itself (not descendants). Thin transparent track, muted thumb. */
+  .stp-api-narrow-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+  .stp-api-narrow-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .stp-api-narrow-scrollbar::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+  .stp-api-narrow-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+  }
+  .stp-api-narrow-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.32);
+  }
+  .stp-api-narrow-scrollbar::-webkit-scrollbar-button {
+    display: none;
+  }
+}

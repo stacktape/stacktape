@@ -1,9 +1,9 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import '@/styles/global.css';
 import config from '../../config';
 import type { DocsSeo } from '@/utils/seo';
 import { SITE_NAME } from '@/utils/seo';
-import GlobalStyles from '@/components/GlobalStyles.tsx';
 import { Header } from '@/components/Header/Header.tsx';
 import { Footer } from '@/components/Footer/Footer.tsx';
 import { Divider } from '@/components/Mdx/Divider.tsx';
@@ -121,20 +121,22 @@ const siteJsonLd = [
   </head>
 
   <body>
-    <GlobalStyles />
-
-    <Header client:load transition:persist />
+    {/* Explicit transition:persist names. Without them Astro auto-generates names from element
+        order, which can mismatch across pages (different island counts) → the island re-mounts
+        instead of persisting → the sidebar loses its scroll position + expansion state. Stable
+        names make persistence deterministic on every navigation. */}
+    <Header client:load transition:persist="docs-header" />
 
     <div class="page-wrapper">
       <MobileHamburgerNavigation
         client:load
-        transition:persist
+        transition:persist="docs-mobile-nav"
         allDocPages={allDocPages}
         pathname={currentPath}
       />
       <SidebarNavigation
         client:load
-        transition:persist
+        transition:persist="docs-sidebar"
         allDocPages={allDocPages}
         pathname={currentPath}
         showOnSm={false}

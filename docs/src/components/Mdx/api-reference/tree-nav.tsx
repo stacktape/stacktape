@@ -9,9 +9,9 @@
  * Behavior — strictly mirrors the page nav. Type names are kept verbatim (no humanization).
  * Discriminator values render with the same string color as the code block.
  */
+import clsx from 'clsx';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { ChevronRight } from 'react-feather';
-import { fontFamily } from '@/styles/variables';
 import type { NormalizedProperty, NormalizedUnionBranch } from '@/utils/api-reference-extractor';
 import {
   filterProperties,
@@ -78,7 +78,7 @@ function NodeRow({
   const indent = ROW_BASE_INDENT + depth * DEPTH_STEP;
 
   return (
-    <div css={{ display: 'block' }}>
+    <div className="block">
       <div
         role="button"
         tabIndex={0}
@@ -89,72 +89,29 @@ function NodeRow({
             onClick();
           }
         }}
-        css={{
-          fontFamily,
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          minHeight: `${ROW_MIN_HEIGHT}px`,
-          margin: `1px ${ROW_OUTER_MARGIN_X}px`,
-          paddingTop: `${ROW_PADDING_Y}px`,
-          paddingBottom: `${ROW_PADDING_Y}px`,
+        className={clsx(
+          'font-sans relative flex items-center gap-[8px] min-h-[32px] my-px mx-2 py-[7px] pr-3 rounded-[7px] no-underline cursor-pointer',
+          'transition-[background,box-shadow,color] duration-[140ms] ease-[ease]',
+          "before:content-[''] before:absolute before:left-[6px] before:top-[20%] before:w-[3px] before:h-[60%] before:rounded-[999px] before:bg-[rgba(255,255,255,0.87)] before:transition-opacity before:duration-[150ms] before:ease-[ease]",
+          isActive
+            ? 'before:opacity-100 bg-[linear-gradient(135deg,rgb(60,64,64),rgb(44,47,47))] shadow-[0_4px_12px_rgba(0,0,0,0.45),0_0_0_1px_rgba(190,190,190,0.16),inset_0_1px_0_rgba(255,255,255,0.1)] hover:shadow-[0_5px_14px_rgba(0,0,0,0.49),0_0_0_1px_rgba(220,220,220,0.17),inset_0_1px_0_rgba(255,255,255,0.11)]'
+            : 'before:opacity-0 hover:before:opacity-40 hover:bg-[rgba(255,255,255,0.06)] hover:shadow-[0_6px_14px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.05)]'
+        )}
+        style={{
           paddingLeft: `${indent}px`,
-          paddingRight: `${ROW_PADDING_RIGHT}px`,
-          borderRadius: `${ROW_BORDER_RADIUS}px`,
-          background: isActive ? tokens.activeGradient : 'transparent',
-          boxShadow: isActive ? tokens.activeShadow : 'none',
-          color: tokens.text,
-          textDecoration: 'none',
-          cursor: 'pointer',
-          transition: 'background 140ms ease, box-shadow 140ms ease, color 140ms ease',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            left: '6px',
-            top: '20%',
-            width: '3px',
-            height: '60%',
-            borderRadius: '999px',
-            background: tokens.text,
-            opacity: isActive ? 1 : 0,
-            transition: 'opacity 150ms ease'
-          },
-          '&:hover': isActive
-            ? {
-                boxShadow:
-                  '0 5px 14px rgba(0, 0, 0, 0.49), 0 0 0 1px rgba(220, 220, 220, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.11)'
-              }
-            : {
-                background: 'rgba(255, 255, 255, 0.06)',
-                boxShadow: '0 6px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-              },
-          '&:hover::before': isActive ? undefined : { opacity: 0.4 }
+          color: tokens.text
         }}
       >
-        <div
-          css={{
-            flex: 1,
-            minWidth: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            userSelect: 'none',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
-          }}
-        >
+        <div className="flex flex-1 min-w-0 items-center gap-[8px] select-none overflow-hidden text-ellipsis whitespace-nowrap">
           {label}
         </div>
         {hasChildren && (
           <ChevronRight
             size={CHEVRON_SIZE}
-            css={{
-              flexShrink: 0,
-              opacity: 0.55,
+            className="flex-shrink-0 opacity-55 transition-transform ease-[ease]"
+            style={{
               transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-              transition: `transform ${COLLAPSE_DURATION_MS}ms ease`
+              transitionDuration: `${COLLAPSE_DURATION_MS}ms`
             }}
           />
         )}
@@ -167,13 +124,13 @@ function NestedGroup({ isOpen, children }: { isOpen: boolean; children: ReactNod
   return (
     <div
       aria-hidden={!isOpen}
-      css={{
-        display: 'grid',
+      className="grid transition-[grid-template-rows] ease-[ease]"
+      style={{
         gridTemplateRows: isOpen ? '1fr' : '0fr',
-        transition: `grid-template-rows ${COLLAPSE_DURATION_MS}ms ease`
+        transitionDuration: `${COLLAPSE_DURATION_MS}ms`
       }}
     >
-      <div css={{ overflow: 'hidden', minHeight: 0 }}>{children}</div>
+      <div className="overflow-hidden min-h-0">{children}</div>
     </div>
   );
 }
@@ -189,14 +146,8 @@ function RequiredMark() {
     <span
       title="Required"
       aria-label="Required"
-      css={{
-        color: tokens.required,
-        fontFamily,
-        fontSize: '10.5px',
-        fontWeight: 600,
-        lineHeight: 1,
-        flexShrink: 0
-      }}
+      className="font-sans text-[10.5px] font-semibold leading-none flex-shrink-0"
+      style={{ color: tokens.required }}
     >
       req
     </span>
@@ -207,45 +158,25 @@ function PropertyLabel({ property, showRequired = true }: { property: Normalized
   // The `:` hugs the property name (no gap) so the row reads like an actual TS property
   // declaration. The required tag and type display still get breathing room.
   return (
-    <span
-      css={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        minWidth: 0,
-        overflow: 'hidden',
-        fontSize: '12.5px'
-      }}
-    >
+    <span className="inline-flex items-center min-w-0 overflow-hidden text-[12.5px]">
       <code
         title={property.name}
-        css={{
-          color: tokens.syntax.property,
-          fontSize: '13.5px',
-          fontWeight: 500,
-          fontFamily: tokens.monoFamily,
-          // Don't cap the name width — it should render in full whenever it fits. If the row
-          // gets too tight, the type display (which has `minWidth: 0`) shrinks first.
-          flexShrink: 0,
-          whiteSpace: 'nowrap'
-        }}
+        // Don't cap the name width — it should render in full whenever it fits. If the row
+        // gets too tight, the type display (which has `minWidth: 0`) shrinks first.
+        className="font-mono text-[13.5px] font-medium flex-shrink-0 whitespace-nowrap"
+        style={{ color: tokens.syntax.property }}
       >
         {property.name}
       </code>
-      <span css={{ color: tokens.syntax.punct, fontFamily: tokens.monoFamily, flexShrink: 0, marginRight: '6px' }}>
+      <span className="font-mono flex-shrink-0 mr-[6px]" style={{ color: tokens.syntax.punct }}>
         :
       </span>
       {showRequired && property.required && (
-        <span css={{ marginRight: '6px', display: 'inline-flex', alignItems: 'center' }}>
+        <span className="mr-[6px] inline-flex items-center">
           <RequiredMark />
         </span>
       )}
-      <span
-        css={{
-          minWidth: 0,
-          overflow: 'hidden',
-          opacity: 0.9
-        }}
-      >
+      <span className="min-w-0 overflow-hidden opacity-90">
         <TypeView typeInfo={property.typeInfo} />
       </span>
     </span>
@@ -256,29 +187,16 @@ function DiscriminatorBranchLabel({ branch }: { branch: NormalizedUnionBranch })
   // `type "value"` — no colon, no badge. `type` reads as a plain dim label; the value is the
   // focus, in string-green to match the code block.
   return (
-    <span css={{ display: 'inline-flex', alignItems: 'baseline', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+    <span className="inline-flex items-baseline gap-[8px] min-w-0 overflow-hidden">
       <code
-        css={{
-          color: tokens.syntax.property,
-          fontFamily: tokens.monoFamily,
-          fontSize: '12.5px',
-          fontWeight: 500,
-          flexShrink: 0,
-          lineHeight: 1.3
-        }}
+        className="font-mono text-[12.5px] font-medium flex-shrink-0 leading-[1.3]"
+        style={{ color: tokens.syntax.property }}
       >
         type
       </code>
       <code
-        css={{
-          color: tokens.syntax.string,
-          fontSize: '12.5px',
-          fontFamily: tokens.monoFamily,
-          fontWeight: 600,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap'
-        }}
+        className="font-mono text-[12.5px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap"
+        style={{ color: tokens.syntax.string }}
       >
         &quot;{branch.label}&quot;
       </code>
@@ -290,15 +208,8 @@ function NonDiscriminatedBranchTreeLabel({ branch }: { branch: NormalizedUnionBr
   const display = branch.typeName ?? branch.label;
   return (
     <code
-      css={{
-        color: tokens.syntax.type,
-        fontSize: '12.5px',
-        fontFamily: tokens.monoFamily,
-        fontWeight: 600,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap'
-      }}
+      className="font-mono text-[12.5px] font-semibold overflow-hidden text-ellipsis whitespace-nowrap"
+      style={{ color: tokens.syntax.type }}
     >
       {display}
     </code>
@@ -447,16 +358,9 @@ export function TreeNav({
   const selectionKey = pathKey(selectionPath);
 
   return (
-    <nav aria-label="Properties" css={{ paddingTop: '8px', paddingBottom: '8px' }}>
+    <nav aria-label="Properties" className="py-2">
       {visible.length === 0 ? (
-        <div
-          css={{
-            padding: '20px 16px',
-            color: tokens.mutedText,
-            fontSize: '12.5px',
-            fontFamily
-          }}
-        >
+        <div className="font-sans px-4 py-5 text-[12.5px]" style={{ color: tokens.mutedText }}>
           {emptyHint}
         </div>
       ) : (

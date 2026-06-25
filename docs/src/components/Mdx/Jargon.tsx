@@ -1,4 +1,3 @@
-import merge from 'lodash/merge';
 import jargonData from '../../../docs/jargon.yml';
 import { WithTooltip } from '../Tooltip/WithTooltip';
 
@@ -33,23 +32,11 @@ export function Jargon({ children }: { children: string }) {
 
   return (
     <WithTooltip
-      tooltipText={<div css={{ padding: '5px' }} dangerouslySetInnerHTML={{ __html: description }} />}
+      tooltipText={<div className="p-[5px]" dangerouslySetInnerHTML={{ __html: description }} />}
       trigger="hover"
     >
-      <span css={merge({ cursor: 'help' })}>
-        <em
-          css={{
-            '&:after': {
-              content: '"?"',
-              fontWeight: 'bold',
-              display: 'inline-block',
-              transform: 'translate(0, -0.35em)',
-              fontSize: '90%',
-              color: 'rgb(27 211 176)',
-              marginLeft: '3px'
-            }
-          }}
-        >
+      <span className="cursor-help">
+        <em className="after:ml-[3px] after:inline-block after:[transform:translate(0,-0.35em)] after:text-[90%] after:font-bold after:text-[rgb(27_211_176)] after:content-['?']">
           {wordName}
         </em>
       </span>

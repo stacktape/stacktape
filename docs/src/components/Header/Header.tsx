@@ -1,14 +1,13 @@
-import merge from 'lodash/merge';
+import type { CSSProperties } from 'react';
+import clsx from 'clsx';
 import { Menu } from 'react-feather';
 import { BiLogoGithub, BiRightArrowAlt } from 'react-icons/bi';
-import { onMaxW650, onMaxW795 } from '@/styles/responsive';
-import { colors, pageLayout } from '@/styles/variables';
 import { trackAnalyticsEvent } from '@/utils/analytics';
 import { toggleMobileNav } from '@/stores/mobile-nav';
 import { Img as Image } from '@/components/Img';
 import { Anchor as Link } from '@/components/Anchor';
-import StacktapeFullLogo from '../../../static/assets/logo-full-dark.svg';
-import StacktapeLogo from '../../../static/assets/logo.svg';
+import StacktapeFullLogo from '../../assets/logo-full-dark.svg';
+import StacktapeLogo from '../../assets/logo.svg';
 import { Button } from '../Button/Button';
 import { IconButton } from '../Button/IconButton';
 import { DocSearch } from '../Search/DocSearch';
@@ -18,32 +17,27 @@ function SignUpButton() {
     <Button
       visualType="primary"
       linkTo="https://console.stacktape.com/sign-up"
+      width={150}
+      height="35px"
       onClick={() => trackAnalyticsEvent('sign-up', { source: 'header' })}
       text={
-        <div css={{ margin: '0 auto' }}>
-          <span css={{ alignItems: 'center', justifyContent: 'center', display: 'flex', gap: '10px' }}>
-            <span css={{ paddingLeft: '4px' }}>Sign up</span>
-            <BiRightArrowAlt css={{}} size={22} />
+        <div className="mx-auto">
+          <span className="flex items-center justify-center gap-[10px]">
+            <span className="pl-[4px]">Sign up</span>
+            <BiRightArrowAlt size={22} />
           </span>
         </div>
       }
-      rootCss={{
-        fontSize: '0.95rem',
-        height: '35px',
-        width: 150,
-        [onMaxW650]: {
-          width: '100%',
-          padding: '0px 13px 0px 18px',
-          height: '34px'
-        }
-      }}
+      // width/height come from props (Button applies them inline). The mobile overrides need `!` so
+      // they beat that inline style.
+      rootClassName="text-[0.95rem] max-[650px]:w-full! max-[650px]:h-[34px]! max-[650px]:pt-0 max-[650px]:pr-[13px] max-[650px]:pb-0 max-[650px]:pl-[18px]"
     />
   );
 }
 
-function StarOnGithubButton({ buttonWidth, rootCss }: { buttonWidth?: number; rootCss?: Css }) {
+function StarOnGithubButton({ buttonWidth, style }: { buttonWidth?: number; style?: CSSProperties }) {
   return (
-    <div css={merge({ display: 'flex', alignItems: 'center', width: buttonWidth || '100%' }, rootCss)}>
+    <div className="flex items-center" style={{ width: buttonWidth || '100%', ...style }}>
       <Button
         visualType="secondary"
         height="38px"
@@ -59,30 +53,16 @@ function StarOnGithubButton({ buttonWidth, rootCss }: { buttonWidth?: number; ro
 
 function DesktopNavigationItems() {
   return (
-    <div
-      css={{
-        margin: '0px auto',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        maxWidth: pageLayout.maxPageWidth,
-        [onMaxW795]: { display: 'none' }
-      }}
-    >
+    <div className="mx-auto flex items-center justify-between max-w-[1580px] max-[795px]:hidden">
       <Link href="https://stacktape.com">
         <Image
-          width={230}
-          height={52}
-          css={{
-            marginBottom: '-3px',
-            marginLeft: '-3px',
-            [onMaxW795]: { display: 'none' }
-          }}
+          width={205}
+          className="mb-[-3px] ml-[-3px] max-[795px]:hidden"
           src={StacktapeFullLogo}
           alt="Stacktape"
         />
       </Link>
-      <div css={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+      <div className="flex items-center gap-[10px]">
         <DocSearch />
         <SignUpButton />
         <StarOnGithubButton buttonWidth={210} />
@@ -93,19 +73,14 @@ function DesktopNavigationItems() {
 
 function MobileNavItems() {
   return (
-    <div css={{ display: 'none', width: '100%', [onMaxW795]: { display: 'flex', justifyContent: 'space-between' } }}>
-      <Link css={{}} href="https://stacktape.com">
+    <div className="hidden w-full max-[795px]:flex max-[795px]:justify-between">
+      <Link href="https://stacktape.com">
         <Image width={52} height={52} src={StacktapeLogo} alt="Stacktape" />
       </Link>
-      <div css={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+      <div className="flex items-center gap-[15px]">
         <SignUpButton />
         <IconButton
-          rootCss={{
-            display: 'none',
-            [onMaxW795]: {
-              display: 'flex'
-            }
-          }}
+          rootClassName="hidden max-[795px]:flex"
           icon={<Menu size={27} />}
           onClick={() => toggleMobileNav()}
         />
@@ -117,21 +92,11 @@ function MobileNavItems() {
 export function Header() {
   return (
     <header
-      css={{
-        height: pageLayout.headerHeight,
-        backgroundColor: colors.backgroundColor,
-        boxShadow:
-          '0 2px 8px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.04), inset 0 -1px 0 rgba(255, 255, 255, 0.04)',
-        backdropFilter: 'blur(10px)',
-        position: 'fixed',
-        width: '100%',
-        zIndex: 50,
-        top: 0,
-        left: 0,
-        right: 0,
-        padding: '0px 20px',
-        [onMaxW795]: { padding: '0px 15px' }
-      }}
+      className={clsx(
+        'fixed top-0 left-0 right-0 z-50 h-[54px] w-full px-[20px] max-[795px]:px-[15px]',
+        'bg-bg backdrop-blur-[10px]',
+        'shadow-[0_2px_8px_rgba(0,0,0,0.55),0_1px_0_rgba(255,255,255,0.04),inset_0_-1px_0_rgba(255,255,255,0.04)]'
+      )}
     >
       <DesktopNavigationItems />
       <MobileNavItems />

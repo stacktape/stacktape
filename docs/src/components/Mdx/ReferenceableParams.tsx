@@ -1,4 +1,3 @@
-import { typographyCss } from '@/styles/global';
 import resources from '../../../.resources.json';
 import { marked } from '../../../scripts/utils/marked-mdx-parser';
 import { Link } from './Link';
@@ -26,17 +25,10 @@ export function ReferenceableParams({ resource, resourceType }: { resource?: str
       </p>
       {Object.entries(referenceableParams).map(([paramName, description]) => {
         return (
-          <div key={paramName} css={{ marginTop: '18px', ...typographyCss }}>
-            <span css={{ fontWeight: 'bold' }}>{paramName}</span>
+          <div key={paramName} className="mt-[18px] stp-typography">
+            <span className="font-bold">{paramName}</span>
             <ul>
-              <li
-                css={{
-                  a: {
-                    fontWeight: 'bold'
-                  }
-                }}
-                dangerouslySetInnerHTML={{ __html: marked(description) }}
-              />
+              <li className="[&_a]:font-bold" dangerouslySetInnerHTML={{ __html: marked(description) }} />
               <li>
                 Usage: <code>{`$ResourceParam('<<resource-name>>', '${paramName}')`}</code>
               </li>

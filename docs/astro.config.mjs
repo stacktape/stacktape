@@ -3,6 +3,7 @@ import react from '@astrojs/react';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 import yaml from '@rollup/plugin-yaml';
+import tailwindcss from '@tailwindcss/vite';
 import { join } from 'node:path';
 import { cpSync, existsSync } from 'node:fs';
 
@@ -48,7 +49,7 @@ export default defineConfig({
     rehypePlugins: [rehypeDocsLinks]
   },
   integrations: [
-    react({ babel: { plugins: ['@emotion/babel-plugin'] } }),
+    react(),
     mdx(),
     sitemap({
       filter: (page) => !SITEMAP_EXCLUDE.some((re) => re.test(new URL(page).pathname)),
@@ -69,7 +70,7 @@ export default defineConfig({
     })
   ],
   vite: {
-    plugins: [yaml()],
+    plugins: [yaml(), tailwindcss()],
     resolve: {
       // Force a single React copy. Without this, a mid-session dep re-optimization can momentarily
       // resolve a second React instance for some islands → "Invalid hook call / more than one copy

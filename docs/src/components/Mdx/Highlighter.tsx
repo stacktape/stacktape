@@ -1,4 +1,4 @@
-import { typographyCss } from '@/styles/global';
+import type { CSSProperties } from 'react';
 import { colors } from '../../styles/variables';
 
 export function Highlighter({ type, props }: { type: 'warning' | 'info' | 'tip' | 'error'; icon?: unknown; props: { children: any } }) {
@@ -27,47 +27,15 @@ export function Highlighter({ type, props }: { type: 'warning' | 'info' | 'tip' 
 
   return (
     <div
-      css={{
-        margin: '30px 0',
-        padding: '16px 18px',
-        borderLeft: `4px solid ${highlightColor.border}`,
-        backgroundColor: highlightColor.background,
-        alignItems: 'center',
-        display: 'flex',
-        borderRadius: '8px',
-        lineHeight: 1.6,
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-        backdropFilter: 'blur(8px)'
+      className="my-[30px] flex items-center rounded-[8px] border-l-[4px] border-solid px-[18px] py-[16px] leading-[1.6] shadow-[0_2px_8px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-[8px]"
+      style={{
+        borderLeftColor: highlightColor.border,
+        backgroundColor: highlightColor.background
       }}
     >
       <div
-        css={{
-          ...typographyCss,
-          flex: '1 1 auto',
-          minWidth: 0,
-          alignSelf: 'center',
-          '* > .paragraph': {
-            color: `${highlightColor.font} !important`
-          },
-          '*': {
-            ...typographyCss,
-            color: `${highlightColor.font} !important`
-          },
-          color: `${highlightColor.font} !important`,
-          '.paragraph': {
-            lineHeight: 1.55,
-            '&:first-child': {
-              marginTop: 0
-            },
-            '&:last-child': {
-              marginBottom: 0
-            }
-          },
-          code: {
-            color: `${highlightColor.font} !important`,
-            verticalAlign: 'baseline'
-          }
-        }}
+        className="stp-typography min-w-0 flex-[1_1_auto] self-center text-[color:var(--highlight-font)!important] [&_*]:font-sans [&_*]:not-italic [&_*]:font-medium [&_*]:text-[0.925rem] [&_*]:leading-[1.9] [&_*]:text-[color:var(--highlight-font)!important] max-[750px]:[&_*]:text-[0.85rem] [&_*>.paragraph]:text-[color:var(--highlight-font)!important] [&_.paragraph]:leading-[1.55!important] [&_.paragraph:first-child]:mt-0 [&_.paragraph:last-child]:mb-0 [&_code]:align-baseline [&_code]:text-[color:var(--highlight-font)!important]"
+        style={{ '--highlight-font': highlightColor.font } as CSSProperties}
         // props}
       >
         {props.children}

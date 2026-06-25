@@ -20,7 +20,8 @@ export function MdxImage({
       height={400}
       src={src}
       alt={alt}
-      css={{ ...style, boxShadow: 'none !important', width: '100%', height: 'auto' }}
+      className="h-auto w-full shadow-none!"
+      style={style}
       {...rest}
     />
   );

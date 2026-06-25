@@ -43,6 +43,7 @@ docs/public/_timestamps.json
 docs/public/llms.txt
 docs/public/llms-full.txt
 docs/public/stacktape
+docs/public/static
 docs/out
 docs/dist
 __dist

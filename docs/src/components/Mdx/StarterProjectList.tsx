@@ -2,7 +2,6 @@ import { Img as Image } from '@/components/Img';
 import { BiChevronRight, BiLogoGithub } from 'react-icons/bi';
 import { LuArrowUpRight } from 'react-icons/lu';
 import allStarterProjects from '../../../../starter-projects-metadata.json';
-import { onMaxW650 } from '../../styles/responsive';
 import { colors } from '../../styles/variables';
 import { Box } from '../Box/Box';
 import { Button } from '../Button/Button';
@@ -17,59 +16,28 @@ function List({
   includeShowMore?: boolean;
 }) {
   return (
-    <GridList
-      minItemWidth="382px"
-      rootCss={{
-        marginTop: '20px',
-        [onMaxW650]: {
-          display: 'block',
-          width: '100%'
-        }
-      }}
-    >
+    <GridList minItemWidth="382px" className="mt-5 max-[650px]:block max-[650px]:w-full">
       {starterProjects.map((project) => (
         <Box
           key={project.starterProjectId}
-          rootCss={{
-            height: '100%',
-            padding: '8px 16px 14px 16px',
-            [onMaxW650]: {
-              width: '100%',
-              marginBottom: '10px'
-            }
-          }}
+          className="h-full pt-2 pr-4 pb-[14px] pl-4 max-[650px]:w-full max-[650px]:mb-[10px]"
         >
-          <div
-            css={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              height: '100%'
-            }}
-          >
-            <div
-              css={{
-                width: 'calc(100%)',
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between'
-              }}
-            >
+          <div className="flex justify-between items-center h-full">
+            <div className="w-[calc(100%)] h-full flex flex-col justify-between">
               <div>
-                <div css={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
+                <div className="flex items-center mb-[2px]">
                   <Image
                     src={`/starter-project-icons/${project.icon}`}
                     width={22}
                     height={22}
-                    css={{ padding: 0, marginRight: '10px' }}
+                    className="p-0 mr-[10px]"
                     alt={`${project.name} icon`}
                   />
-                  <h3 css={{ fontSize: '1.05rem' }}>{project.name}</h3>
+                  <h3 className="text-[1.05rem]">{project.name}</h3>
                 </div>
-                {/* <p css={{ lineHeight: 1.6 }}>{project.description}</p> */}
+                {/* <p className="leading-[1.6]">{project.description}</p> */}
               </div>
-              <div css={{ display: 'flex', gap: '13px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <div className="flex gap-[13px] justify-end mt-2">
                 <Button
                   icon={<BiLogoGithub size={20} />}
                   text="View on Github"
@@ -90,12 +58,10 @@ function List({
         </Box>
       ))}
       {includeShowMore && (
-        <Box interactive rootCss={{ '&:hover': { boxShadow: '0 1px 2px 2.5px rgba(19, 24, 24, 0.9)' } }}>
+        <Box interactive className="hover:shadow-[0_1px_2px_2.5px_rgba(19,24,24,0.9)]">
           <Link href="/getting-started/starter-projects/">
-            <div
-              css={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: 95 }}
-            >
-              <p css={{ fontSize: '1rem' }}>Show 25 more</p>
+            <div className="flex justify-center items-center h-full min-h-[95px]">
+              <p className="text-base">Show 25 more</p>
               <BiChevronRight color={colors.fontColorPrimary} size={30} />
             </div>
           </Link>

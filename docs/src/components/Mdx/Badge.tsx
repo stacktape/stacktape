@@ -1,5 +1,6 @@
+import type { CSSProperties } from 'react';
 import colorFn from 'color';
-import { typographyCss } from '@/styles/global';
+import clsx from 'clsx';
 import { colors } from '../../styles/variables';
 
 export function Badge({
@@ -10,7 +11,8 @@ export function Badge({
   border,
   fontSize,
   padding,
-  css: cssOverride,
+  style,
+  className,
   ...props
 }: {
   children: React.ReactNode;
@@ -20,7 +22,8 @@ export function Badge({
   border?: string;
   fontSize?: string;
   padding?: string;
-  css?: any;
+  style?: CSSProperties;
+  className?: string;
   [anyProp: string]: any;
 }) {
   const textColor = colorFn(backgroundColor).luminosity() < 0.5 ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.95)';
@@ -28,35 +31,24 @@ export function Badge({
 
   return (
     <span
-      // Merge any caller-provided `css` (array form) instead of letting a spread `{...props}`
-      // silently clobber the badge's own styling — that footgun previously stripped primitive
-      // type badges of their pill styling, typography, and nowrap.
-      css={[
-        {
-          ...typographyCss,
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: padding || '1px 7px',
-          background: backgroundColor,
-          border: border || `1px solid ${colors.darkerBackground}`,
-          color: textColor,
-          borderRadius: '4px',
-          minWidth: '14px',
-          fontWeight: 500,
-          fontSize: fontSize || '0.8rem',
-          lineHeight: 1.4,
-          whiteSpace: 'nowrap',
-          verticalAlign: 'middle',
-          userSelect: interactive ? 'none' : 'initial',
-          cursor: interactive ? 'pointer' : 'initial',
-          textDecoration: 'none',
-          ...(hoverBackgroundColor && {
-            transition: 'background 150ms ease',
-            '&:hover': { background: hoverBackgroundColor }
-          })
-        },
-        cssOverride
-      ]}
+      className={clsx(
+        'stp-typography',
+        'inline-flex items-center min-w-[14px] rounded-[4px] font-medium leading-[1.4] whitespace-nowrap align-middle no-underline',
+        hoverBackgroundColor &&
+          'transition-[background] duration-150 ease hover:[background:var(--badge-hover-bg)]',
+        className
+      )}
+      style={{
+        padding: padding || '1px 7px',
+        background: backgroundColor,
+        border: border || `1px solid ${colors.darkerBackground}`,
+        color: textColor,
+        fontSize: fontSize || '0.8rem',
+        userSelect: interactive ? 'none' : 'initial',
+        cursor: interactive ? 'pointer' : 'initial',
+        ...(hoverBackgroundColor ? ({ '--badge-hover-bg': hoverBackgroundColor } as CSSProperties) : {}),
+        ...style
+      }}
       onClick={onClick}
       {...props}
     >

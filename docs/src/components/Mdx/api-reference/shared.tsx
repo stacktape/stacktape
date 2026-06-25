@@ -10,9 +10,9 @@
  * Type names are kept verbatim (PascalCase). No humanization.
  */
 import { kebabCase } from 'change-case';
+import clsx from 'clsx';
 import { Fragment, type ReactNode } from 'react';
 import { apiReferenceData, type ApiReferenceGeneratedDefinition } from '@/generated/api-reference-data';
-import { typographyCss } from '@/styles/global';
 import { colors, fontFamilyMono } from '@/styles/variables';
 import type { NormalizedProperty, NormalizedTypeInfo, NormalizedUnionBranch } from '@/utils/api-reference-extractor';
 import { CodeBlockNew } from '../CodeBlockNew';
@@ -149,19 +149,9 @@ export const tokens = {
 /**
  * Narrow custom scrollbar — apply to any scrollable api-ref pane so it doesn't compete with
  * the content. Webkit + Firefox. Track stays transparent; thumb is a thin muted bar.
+ * Class defined in `global.css` (`@layer components`).
  */
-export const narrowScrollbar = {
-  scrollbarWidth: 'thin' as const,
-  scrollbarColor: 'rgba(255, 255, 255, 0.18) transparent',
-  '&::-webkit-scrollbar': { width: '5px', height: '5px' },
-  '&::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
-  '&::-webkit-scrollbar-thumb': {
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderRadius: '999px'
-  },
-  '&::-webkit-scrollbar-thumb:hover': { backgroundColor: 'rgba(255, 255, 255, 0.32)' },
-  '&::-webkit-scrollbar-button': { display: 'none' }
-};
+export const narrowScrollbar = 'stp-api-narrow-scrollbar';
 
 export type SharedRenderProps = {
   definitionName: string;
@@ -273,19 +263,21 @@ export type TypeViewMode = 'inline' | 'pretty';
 
 const PRETTY_BREAK_THRESHOLD = 2;
 
-const Punct = ({ children }: { children: ReactNode }) => <span css={{ color: tokens.syntax.punct }}>{children}</span>;
+const Punct = ({ children }: { children: ReactNode }) => (
+  <span style={{ color: tokens.syntax.punct }}>{children}</span>
+);
 
 const renderLiteral = (value: string | number): ReactNode => {
   if (typeof value === 'string') {
-    return <span css={{ color: tokens.syntax.string }}>{`"${value}"`}</span>;
+    return <span style={{ color: tokens.syntax.string }}>{`"${value}"`}</span>;
   }
-  return <span css={{ color: tokens.syntax.number }}>{String(value)}</span>;
+  return <span style={{ color: tokens.syntax.number }}>{String(value)}</span>;
 };
 
 const renderPrimitiveType = (name: string): ReactNode => {
   // `string` / `number` / `boolean` etc. — built-in primitive, blue. Distinct from yellow
   // (which is reserved for user-defined interfaces / type references).
-  return <span css={{ color: tokens.syntax.primitive }}>{name}</span>;
+  return <span style={{ color: tokens.syntax.primitive }}>{name}</span>;
 };
 
 const isLiteralUnion = (typeInfo: NormalizedTypeInfo): boolean => {
@@ -312,13 +304,13 @@ const renderTypeNode = (typeInfo: NormalizedTypeInfo, mode: TypeViewMode): React
     );
   }
   if (typeInfo.kind === 'reference') {
-    return <span css={{ color: tokens.syntax.type }}>{typeInfo.typeName}</span>;
+    return <span style={{ color: tokens.syntax.type }}>{typeInfo.typeName}</span>;
   }
   if (typeInfo.kind === 'union') {
     const items: ReactNode[] = typeInfo.branches.map((branch, i) => {
       if (branch.typeName)
         return (
-          <span key={i} css={{ color: tokens.syntax.type }}>
+          <span key={i} style={{ color: tokens.syntax.type }}>
             {branch.typeName}
           </span>
         );
@@ -340,7 +332,7 @@ const renderTypeNode = (typeInfo: NormalizedTypeInfo, mode: TypeViewMode): React
       'inline'
     );
   }
-  return <span css={{ color: tokens.syntax.type }}>unknown</span>;
+  return <span style={{ color: tokens.syntax.type }}>unknown</span>;
 };
 
 const joinUnion = (items: ReactNode[], mode: TypeViewMode): ReactNode => {
@@ -352,7 +344,7 @@ const joinUnion = (items: ReactNode[], mode: TypeViewMode): ReactNode => {
     return (
       <>
         {items.map((item, i) => (
-          <span key={i} css={{ display: 'block' }}>
+          <span key={i} className="block">
             <Punct>{'| '}</Punct>
             {item}
           </span>
@@ -378,23 +370,12 @@ export function TypeView({ typeInfo, mode = 'inline' }: { typeInfo: NormalizedTy
   return (
     <span
       title={fullText}
-      css={
+      className={clsx(
+        'font-mono',
         mode === 'inline'
-          ? {
-              fontFamily: tokens.monoFamily,
-              display: 'inline-block',
-              maxWidth: '100%',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              verticalAlign: 'bottom'
-            }
-          : {
-              fontFamily: tokens.monoFamily,
-              whiteSpace: 'normal',
-              wordBreak: 'break-word'
-            }
-      }
+          ? 'inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom'
+          : 'whitespace-normal break-words'
+      )}
     >
       {renderTypeNode(typeInfo, usePretty ? 'pretty' : 'inline')}
     </span>
@@ -408,18 +389,11 @@ export function TypeView({ typeInfo, mode = 'inline' }: { typeInfo: NormalizedTy
 export function RequiredPill() {
   return (
     <span
-      css={{
-        fontFamily: typographyCss.fontFamily,
+      className="font-sans inline-block rounded-[6px] border px-[7px] py-[2px] text-[10.5px] font-semibold leading-[1.2] tracking-[0.4px]"
+      style={{
         backgroundColor: tokens.requiredBg,
         color: tokens.text,
-        border: `1px solid ${tokens.requiredBorder}`,
-        borderRadius: '6px',
-        fontWeight: 600,
-        padding: '2px 7px',
-        display: 'inline-block',
-        fontSize: '10.5px',
-        letterSpacing: '0.4px',
-        lineHeight: 1.2
+        borderColor: tokens.requiredBorder
       }}
     >
       required
@@ -434,21 +408,14 @@ export function TypeBadge({ typeInfo, compact = false }: { typeInfo: NormalizedT
   const accent = isRef || isUnion;
   return (
     <code
-      css={{
+      className={clsx(
+        'inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-[5px] border font-mono font-medium leading-[1.5]',
+        compact ? 'px-[7px] py-px text-[11px]' : 'px-2 py-[2px] text-[11.5px]'
+      )}
+      style={{
         color: accent ? tokens.brand : tokens.mutedText,
         background: accent ? tokens.brandBg : 'rgba(255, 255, 255, 0.04)',
-        border: `1px solid ${accent ? tokens.brandBorder : tokens.subtleBorder}`,
-        padding: compact ? '1px 7px' : '2px 8px',
-        borderRadius: '5px',
-        fontSize: compact ? '11px' : '11.5px',
-        fontFamily: tokens.monoFamily,
-        fontWeight: 500,
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        maxWidth: '100%',
-        display: 'inline-block',
-        lineHeight: 1.5
+        borderColor: accent ? tokens.brandBorder : tokens.subtleBorder
       }}
       title={text}
     >
@@ -460,24 +427,19 @@ export function TypeBadge({ typeInfo, compact = false }: { typeInfo: NormalizedT
 export function PropertyHeading({ property, level = 1 }: { property: NormalizedProperty; level?: number }) {
   const fontSize = level === 1 ? '18px' : level === 2 ? '15px' : '13.5px';
   return (
-    <div css={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+    <div className="flex flex-wrap items-center gap-[10px]">
       <code
-        css={{
-          color: tokens.text,
-          fontSize,
-          fontWeight: 600,
-          fontFamily: tokens.monoFamily,
-          lineHeight: 1.3
-        }}
+        className="font-mono font-semibold leading-[1.3]"
+        style={{ color: tokens.text, fontSize }}
       >
         {property.name}
       </code>
       {property.required && <RequiredPill />}
       <TypeBadge typeInfo={property.typeInfo} />
       {property.defaultValue !== undefined && (
-        <span css={{ color: tokens.dimText, fontSize: '11.5px', fontFamily: typographyCss.fontFamily }}>
+        <span className="font-sans text-[11.5px]" style={{ color: tokens.dimText }}>
           default{' '}
-          <code css={{ color: tokens.mutedText, fontFamily: tokens.monoFamily, fontSize: '11.5px' }}>
+          <code className="font-mono text-[11.5px]" style={{ color: tokens.mutedText }}>
             {property.defaultValue}
           </code>
         </span>
@@ -498,42 +460,24 @@ export function PropertyDescription({
     <Fragment>
       {description && (
         <p
-          css={{
-            color: tokens.text,
-            fontSize: compact ? '13px' : '13.5px',
-            lineHeight: 1.65,
-            margin: '8px 0 0',
-            fontFamily: typographyCss.fontFamily
-          }}
+          className={clsx(
+            'font-sans mt-2 mx-0 mb-0 leading-[1.65]',
+            compact ? 'text-[13px]' : 'text-[13.5px]'
+          )}
+          style={{ color: tokens.text }}
         >
           {description}
         </p>
       )}
       {property.longDescription && !compact && (
         <div
-          css={{
-            marginTop: '8px',
-            color: tokens.mutedText,
-            fontSize: '13px',
-            lineHeight: 1.7,
-            fontFamily: typographyCss.fontFamily,
-            p: { margin: '6px 0' },
-            ul: { margin: '6px 0', paddingLeft: '20px' },
-            li: { margin: '3px 0' },
-            code: {
-              background: 'rgba(255, 255, 255, 0.06)',
-              padding: '1px 5px',
-              borderRadius: '3px',
-              fontSize: '12.5px',
-              fontFamily: tokens.monoFamily
-            },
-            a: { color: tokens.brand }
-          }}
+          className="font-sans mt-2 text-[13px] leading-[1.7] [&_p]:my-[6px] [&_p]:mx-0 [&_ul]:my-[6px] [&_ul]:mx-0 [&_ul]:pl-5 [&_li]:my-[3px] [&_li]:mx-0 [&_code]:bg-[rgba(255,255,255,0.06)] [&_code]:px-[5px] [&_code]:py-px [&_code]:rounded-[3px] [&_code]:text-[12.5px] [&_code]:font-mono [&_a]:text-[rgb(54_190_190)]"
+          style={{ color: tokens.mutedText }}
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(property.longDescription) }}
         />
       )}
       {property.examples && property.examples.length > 0 && !compact && (
-        <div css={{ marginTop: '10px' }}>
+        <div className="mt-[10px]">
           <CodeBlockNew
             tabs={property.examples.map((example) => ({
               label: example.lang === 'yaml' ? 'YAML' : 'TypeScript',
@@ -551,30 +495,18 @@ export function BranchLabel({ branch, size = 'md' }: { branch: NormalizedUnionBr
   const padding = size === 'sm' ? '2px 7px' : size === 'lg' ? '3px 10px' : '2px 9px';
   const fontSize = size === 'sm' ? '11.5px' : size === 'lg' ? '13.5px' : '12.5px';
   return (
-    <span css={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-      <span
-        css={{
-          color: tokens.dimText,
-          fontSize: '11px',
-          fontWeight: 500,
-          fontFamily: typographyCss.fontFamily,
-          lineHeight: 1
-        }}
-      >
+    <span className="inline-flex items-center gap-[6px]">
+      <span className="font-sans text-[11px] font-medium leading-none" style={{ color: tokens.dimText }}>
         type =
       </span>
       <code
-        css={{
+        className="font-mono font-semibold rounded-[6px] border leading-[1.3] tracking-[0.25px]"
+        style={{
           color: tokens.text,
           background: tokens.brandSoft,
-          border: `1px solid ${tokens.brandBorderStrong}`,
+          borderColor: tokens.brandBorderStrong,
           padding,
-          borderRadius: '6px',
-          fontSize,
-          fontWeight: 600,
-          fontFamily: tokens.monoFamily,
-          lineHeight: 1.3,
-          letterSpacing: '0.25px'
+          fontSize
         }}
       >
         &quot;{branch.label}&quot;
@@ -595,17 +527,13 @@ export function NonDiscriminatedBranchLabel({
   const display = branch.typeName ?? branch.label;
   return (
     <code
-      css={{
+      className="font-mono font-semibold rounded-[6px] border leading-[1.3] tracking-[0.25px]"
+      style={{
         color: tokens.text,
         background: tokens.brandSoft,
-        border: `1px solid ${tokens.brandBorderStrong}`,
+        borderColor: tokens.brandBorderStrong,
         padding,
-        borderRadius: '6px',
-        fontSize,
-        fontWeight: 600,
-        fontFamily: tokens.monoFamily,
-        lineHeight: 1.3,
-        letterSpacing: '0.25px'
+        fontSize
       }}
     >
       {display}
@@ -626,50 +554,21 @@ export function VariantShellHeader({
 }) {
   return (
     <div
-      css={{
-        padding: '12px 16px',
-        borderBottom: `1px solid ${tokens.subtleBorder}`,
-        display: 'flex',
-        gap: '10px',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        background: tokens.surfaceSunken
-      }}
+      className="flex flex-wrap items-center gap-[10px] border-b px-4 py-3"
+      style={{ borderBottomColor: tokens.subtleBorder, background: tokens.surfaceSunken }}
     >
-      <code
-        css={{
-          color: tokens.syntax.type,
-          fontSize: '14px',
-          fontWeight: 600,
-          fontFamily: tokens.monoFamily
-        }}
-      >
+      <code className="font-mono text-[14px] font-semibold" style={{ color: tokens.syntax.type }}>
         {definitionName}
       </code>
       {/* Search lives at the far right of the header. `marginLeft: auto` pushes it past
           everything else without a dedicated spacer. */}
-      <div css={{ position: 'relative', flex: '0 1 280px', marginLeft: 'auto' }}>
+      <div className="relative ml-auto flex-[0_1_280px]">
         <input
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search properties…"
-          css={{
-            width: '100%',
-            padding: '7px 12px',
-            border: 'none',
-            borderRadius: '6px',
-            background: 'rgba(20, 26, 26, 0.7)',
-            color: tokens.text,
-            outline: 'none',
-            fontSize: '14px',
-            fontFamily: typographyCss.fontFamily,
-            boxShadow: tokens.insetShadow,
-            transition: 'box-shadow 180ms ease',
-            '&::placeholder': { fontSize: '14px', color: tokens.dimText },
-            ':focus': {
-              boxShadow: `${tokens.insetShadow}, 0 0 0 3px rgba(54, 190, 190, 0.18)`
-            }
-          }}
+          className="w-full rounded-[6px] border-none bg-[rgba(20,26,26,0.7)] px-3 py-[7px] text-[14px] font-sans outline-none shadow-[inset_0_1px_3px_rgba(0,0,0,0.30),0_1px_0_rgba(255,255,255,0.05)] transition-shadow duration-[180ms] ease-[ease] placeholder:text-[14px] placeholder:text-[rgba(255,255,255,0.42)] focus:shadow-[inset_0_1px_3px_rgba(0,0,0,0.30),0_1px_0_rgba(255,255,255,0.05),0_0_0_3px_rgba(54,190,190,0.18)]"
+          style={{ color: tokens.text }}
         />
       </div>
       {rightSlot}
@@ -681,14 +580,8 @@ export function VariantShell({ definitionName, children }: { definitionName: str
   return (
     <section
       id={sectionAnchorId(definitionName)}
-      css={{
-        marginTop: '24px',
-        marginBottom: '28px',
-        borderRadius: '10px',
-        background: tokens.surface,
-        boxShadow: tokens.panelShadow,
-        overflow: 'hidden'
-      }}
+      className="mt-6 mb-7 overflow-hidden rounded-[10px]"
+      style={{ background: tokens.surface, boxShadow: tokens.panelShadow }}
     >
       {children}
     </section>
@@ -698,14 +591,8 @@ export function VariantShell({ definitionName, children }: { definitionName: str
 export function UnknownDefinition({ name }: { name: string }) {
   return (
     <div
-      css={{
-        padding: '14px',
-        color: tokens.text,
-        background: tokens.surface,
-        boxShadow: tokens.panelShadow,
-        borderRadius: '8px',
-        marginTop: '24px'
-      }}
+      className="mt-6 rounded-[8px] p-[14px]"
+      style={{ color: tokens.text, background: tokens.surface, boxShadow: tokens.panelShadow }}
     >
       Unknown definition <code>{name}</code>.
     </div>

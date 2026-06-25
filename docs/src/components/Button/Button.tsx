@@ -1,24 +1,22 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { Placement } from 'tippy.js';
-import merge from 'lodash/merge';
+import clsx from 'clsx';
 import { Img as Image } from '@/components/Img';
 import { Anchor as Link } from '@/components/Anchor';
 import { useEffect, useState } from 'react';
 import PulseLoader from 'react-spinners/PulseLoader';
-import {
-  colors,
-  ellipsis,
-  plainHoverBoxShadow,
-  primaryHoverBoxShadow,
-  secondaryHoverBoxShadow,
-  semanticHoverBoxShadow
-} from '../../styles/variables';
 import { WithTooltip } from '../Tooltip/WithTooltip';
+
+const DISABLED_OPACITY: Record<string, number | undefined> = {
+  primary: 0.6,
+  secondary: 0.6,
+  ternary: 0.8
+};
 
 export function Button({
   text,
   onClick,
-  rootCss,
+  rootClassName,
   linkTo,
   icon,
   type = 'button',
@@ -28,7 +26,7 @@ export function Button({
   iconPosition = 'beginning',
   visualType,
   briefTextAfterClick,
-  buttonCss,
+  buttonClassName,
   width = '100%',
   height = '32.5px',
   form,
@@ -39,23 +37,22 @@ export function Button({
 }: {
   text: string | ReactNode;
   onClick?: (...props: any[]) => any;
-  rootCss?: Css;
+  rootClassName?: string;
   linkTo?: string | null;
   icon?: ReactNode;
   svgIcon?: string;
-  width?: Css['width'];
-  height?: Css['height'];
+  width?: CSSProperties['width'];
+  height?: CSSProperties['height'];
   type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
   isLoading?: boolean;
   iconPosition?: 'beginning' | 'end';
   visualType: 'primary' | 'secondary' | 'ternary' | 'negative' | 'plain';
-  buttonCss?: Css;
+  buttonClassName?: string;
   briefTextAfterClick?: ReactNode;
   disabledTooltipText?: ReactNode;
   form?: string;
   badge?: ReactNode;
-  badgeCss?: Css;
   hasGlowingAnimation?: boolean;
   dataCalLink?: string;
   id?: string;
@@ -76,135 +73,36 @@ export function Button({
   };
 
   const isDisabled = disabled || isLoading || false;
-  const buttonStyle = {
-    primary: {
-      background: 'linear-gradient(135deg, rgb(12, 95, 95), rgb(27, 109, 103))',
-      boxShadow:
-        '0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(81, 231, 236, 0.5), inset 0 1px 0 rgba(43, 232, 239, 0.4)',
-      border: 'none',
-      transition: 'all 250ms ease, transform 150ms ease',
-      '&:hover': {
-        boxShadow: primaryHoverBoxShadow
-      },
-      '&:active': {
-        transform: 'scale(0.98)'
-      },
-      ...(isDisabled && { opacity: 0.6 })
-    },
-    secondary: {
-      background: colors.elementBackground,
-      boxShadow:
-        '0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
-      border: 'none',
-      transition: 'all 250ms ease, transform 150ms ease',
-      '&:hover': {
-        boxShadow: secondaryHoverBoxShadow
-      },
-      '&:active': {
-        transform: 'scale(0.98)'
-      },
-      ...(isDisabled && { opacity: 0.6 })
-    },
-    plain: {
-      background: 'transparent',
-      boxShadow: 'none',
-      border: 'none',
-      transition: 'all 250ms ease',
-      '*': { fontWeight: 'bold' },
-      '&:hover': {
-        boxShadow: plainHoverBoxShadow
-      }
-    },
-    ternary: {
-      background: 'linear-gradient(135deg, rgba(34, 87, 122, 1) 0%, rgba(40, 95, 130, 0.95) 100%)',
-      boxShadow:
-        '0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
-      border: 'none',
-      transition: 'all 250ms ease, transform 150ms ease',
-      '&:hover': {
-        boxShadow: semanticHoverBoxShadow
-      },
-      '&:active': {
-        transform: 'scale(0.98)'
-      },
-      ...(isDisabled && { opacity: 0.8 })
-    },
-    negative: {
-      background: 'linear-gradient(135deg, rgb(235, 97, 97) 0%, rgb(200, 80, 80) 100%)',
-      boxShadow:
-        '0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
-      border: 'none',
-      transition: 'all 250ms ease, transform 150ms ease',
-      '&:hover': {
-        boxShadow: semanticHoverBoxShadow
-      },
-      '&:active': {
-        transform: 'scale(0.98)'
-      }
-    }
-  }[visualType];
-  const rootStyle: Css = {
-    borderImageSlice: 1,
-    borderRadius: '8px',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    textDecoration: 'none',
-    color: colors.fontColorPrimary,
-    backgroundSize: '200% auto',
+  const rootClasses = clsx('stp-button stp-btn', `stp-btn-${visualType}`, rootClassName);
+  const rootStyle: CSSProperties = {
     cursor: isLoading ? 'default' : isDisabled ? 'default' : 'pointer',
     height,
     width,
-    padding: '0px 10px 0px 14px',
-    ...buttonStyle
+    ...(isDisabled && DISABLED_OPACITY[visualType] != null ? { opacity: DISABLED_OPACITY[visualType] } : {})
   };
-  const css = merge(rootStyle, rootCss || ({} as CSSProperties));
+
   const textComponent = (
-    <span
-      css={{
-        margin: 0,
-        textAlign: 'center',
-        fontWeight: 500,
-        color: colors.fontColorPrimary,
-        verticalAlign: 'middle',
-        ...ellipsis
-      }}
-    >
-      {textToShow}
-    </span>
+    <span className="m-0 text-center font-medium text-fc-primary align-middle truncate">{textToShow}</span>
   );
 
   const iconEl = icon ? (
     <span
-      css={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        ...(iconPosition === 'beginning'
-          ? { marginRight: '11px', marginLeft: '5px' }
-          : { marginRight: '2px', marginLeft: '9px' })
-      }}
+      className={clsx(
+        'flex items-center justify-center',
+        iconPosition === 'beginning' ? 'mr-[11px] ml-[5px]' : 'mr-[2px] ml-[9px]'
+      )}
     >
       {icon}
     </span>
   ) : null;
   const svgIconEl = svgIcon ? (
-    <Image src={svgIcon} width={20} height={20} css={{ marginRight: '10px', marginLeft: '5px' }} alt={`${text} icon`} />
+    <Image src={svgIcon} width={20} height={20} className="mr-[10px] ml-[5px]" alt={`${text} icon`} />
   ) : null;
   const isExternalLink = linkTo && linkTo.startsWith('http');
   if (linkTo && !isExternalLink && !isDisabled) {
     return (
-      <Link
-        {...(id && { id })}
-        css={{ display: 'block', width: 'fit-content' }}
-        href={linkTo}
-        onClick={adjustedOnClick}
-      >
-        <button
-          type="button"
-          className="stp-button"
-          css={{ ...css, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
+      <Link {...(id && { id })} className="block w-fit" href={linkTo} onClick={adjustedOnClick}>
+        <button type="button" className={rootClasses} style={rootStyle}>
           {svgIconEl}
           {iconPosition === 'beginning' && iconEl}
           {textComponent}
@@ -218,12 +116,12 @@ export function Button({
       <a
         {...(id && { id })}
         target="_blank"
-        css={{ display: 'block', width: 'fit-content' }}
+        className="block w-fit"
         rel="noopener noreferrer"
         {...(!isDisabled ? { href: linkTo } : {})}
         onClick={adjustedOnClick}
       >
-        <button type="button" className="stp-button" css={css}>
+        <button type="button" className={rootClasses} style={rootStyle}>
           {svgIconEl}
           {iconPosition === 'beginning' && iconEl}
           {textComponent}
@@ -236,31 +134,24 @@ export function Button({
   const ButtonElement = (
     <div
       {...(id && { id })}
-      className="stp-button"
-      css={merge(
-        {
-          position: 'relative',
-          cursor: isDisabled ? 'default' : 'pointer',
-          '*': { cursor: isDisabled ? 'default' : 'pointer' },
-          margin: css.margin
-        },
-        css
-      )}
+      className={clsx(rootClasses, 'relative', isDisabled ? '[&_*]:cursor-default' : '[&_*]:cursor-pointer')}
+      style={{ ...rootStyle, cursor: isDisabled ? 'default' : 'pointer' }}
     >
       <button
         type={type}
         {...(form && { form })}
-        css={merge({ width, height, padding: visualType === 'plain' ? '0px 4px' : '0px 16px' }, buttonCss)}
+        className={buttonClassName}
+        style={{ width, height, padding: visualType === 'plain' ? '0px 4px' : '0px 16px' }}
         disabled={isDisabled}
         onClick={adjustedOnClick}
         {...(dataCalLink && { 'data-cal-link': dataCalLink })}
       >
         {isLoading ? (
-          <div css={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <div className="w-full flex justify-center">
             <PulseLoader size={4} color="#F4F4F5" />
           </div>
         ) : (
-          <div css={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="flex items-center justify-center">
             {svgIconEl}
             {iconPosition === 'beginning' && iconEl}
             {textComponent}

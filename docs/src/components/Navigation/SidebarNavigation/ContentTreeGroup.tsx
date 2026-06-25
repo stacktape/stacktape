@@ -1,12 +1,10 @@
 import { createElement, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight } from 'react-feather';
-import { colors, fontFamily } from '../../../styles/variables';
+import { colors } from '../../../styles/variables';
 import { ContentTreeNode } from './ContentTreeNode';
 import { useExpandedMap, useExpansionToggle, useIsExpanded } from './expansion-store';
 import { buildGuidePath, flattenVisibleItems } from './guide-path';
 import type { NavGroup } from './navigation-data';
-
-const COLLAPSE_DURATION_MS = 220;
 
 // Measures each *visible* row's center y relative to the container. ContentTreeNode renders all
 // descendants unconditionally — collapsed branches stay in the DOM, clamped via
@@ -123,7 +121,7 @@ export function ContentTreeGroup({ group }: { group: NavGroup }) {
   // look out of place since there are no nested branches to organize.
   if (isRootGroup) {
     return (
-      <div css={{ display: 'block', padding: 0, marginBottom: '8px' }}>
+      <div className="block p-0 mb-2">
         {group.children.map((child) => (
           <ContentTreeNode key={child.key} item={child} depth={0} />
         ))}
@@ -132,68 +130,27 @@ export function ContentTreeGroup({ group }: { group: NavGroup }) {
   }
 
   return (
-    <div css={{ display: 'block', padding: 0, position: 'relative', marginBottom: '8px' }}>
-      <div
-        onClick={() => toggle(groupKey)}
-        css={{
-          fontFamily,
-          margin: '1px 8px 3px',
-          padding: '8px 12px',
-          minHeight: '32px',
-          borderRadius: '7px',
-          fontSize: '12px',
-          fontWeight: 600,
-          lineHeight: 1.3,
-          letterSpacing: '0.6px',
-          textTransform: 'uppercase',
-          position: 'relative',
-          color: colors.fontColorLighterGray,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          cursor: 'pointer',
-          userSelect: 'none',
-          transition: 'background 140ms ease, box-shadow 140ms ease, color 140ms ease',
-          '&:hover': {
-            background: 'rgba(255, 255, 255, 0.06)',
-            boxShadow: '0 6px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-            color: colors.fontColorPrimary
-          }
-        }}
-      >
+    <div className="block p-0 relative mb-2">
+      <div onClick={() => toggle(groupKey)} className="stp-nav-group-header">
         {group.icon && createElement(group.icon, { size: 16 })}
-        <span css={{ flex: 1 }}>{group.title}</span>
+        <span className="flex-1">{group.title}</span>
         <ChevronRight
           size={14}
-          css={{
-            opacity: 0.5,
-            transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-            transition: `transform ${COLLAPSE_DURATION_MS}ms ease`
-          }}
+          className="opacity-[0.5] [transition:transform_220ms_ease]"
+          style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
         />
       </div>
       <div
         aria-hidden={!isExpanded}
-        css={{
-          display: 'grid',
-          gridTemplateRows: isExpanded ? '1fr' : '0fr',
-          transition: `grid-template-rows ${COLLAPSE_DURATION_MS}ms ease`
-        }}
+        className="grid [transition:grid-template-rows_220ms_ease]"
+        style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
       >
-        <div
-          ref={childrenContainerRef}
-          css={{
-            position: 'relative',
-            overflow: 'hidden',
-            minHeight: 0,
-            marginLeft: '10px'
-          }}
-        >
+        <div ref={childrenContainerRef} className="relative overflow-hidden min-h-0 ml-[10px]">
           {guide && (
             <svg
               width={guide.width}
               height={guide.height}
-              css={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', overflow: 'visible' }}
+              className="absolute left-0 top-0 pointer-events-none overflow-visible"
             >
               <path d={guide.d} stroke={colors.borderColorLight} strokeWidth={1} fill="none" />
             </svg>

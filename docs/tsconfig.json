@@ -1,15 +1,10 @@
 {
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "@emotion/react",
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@generated/*": ["../@generated/*"]
     },
-    "resolveJsonModule": true,
-    "allowJs": true,
     "strict": false
   },
   "include": [".astro/types.d.ts", "**/*.ts", "**/*.tsx", "**/*.astro", "globals.d.ts"],

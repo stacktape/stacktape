@@ -1,5 +1,3 @@
-import { colors } from '../../styles/variables';
-
 export function Divider(props) {
   const { small, medium, large, rootCss } = props;
   const type = small ? 'small' : medium ? 'medium' : large ? 'large' : 'default';
@@ -12,12 +10,8 @@ export function Divider(props) {
   return (
     <div
       {...props}
-      css={{
-        ...size,
-        height: '1px',
-        backgroundColor: colors.borderColor,
-        ...rootCss
-      }}
+      className="h-px bg-border"
+      style={{ ...size, ...rootCss, ...props.style }}
     />
   );
 }

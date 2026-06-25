@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react';
+import clsx from 'clsx';
 import { motion } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'react-feather';
-import { typographyCss } from '@/styles/global';
-import { colors, interactiveBase, interactiveGlow } from '@/styles/variables';
+import { colors } from '@/styles/variables';
 
 function ExpandableItem({
   title,
   expandedContent,
-  rootCss,
+  rootClassName,
   disableExpand,
   collapsedFromParent,
   setCollapsedFromParent,
@@ -16,7 +16,7 @@ function ExpandableItem({
 }: {
   title: ReactNode;
   expandedContent: ReactNode[];
-  rootCss?: Css;
+  rootClassName?: string;
   disableExpand?: boolean;
   collapsedFromParent?: boolean;
   setCollapsedFromParent?: (collapsed: boolean) => void;
@@ -76,54 +76,23 @@ function ExpandableItem({
 
   return (
     <div
-      css={{
-        ...interactiveBase,
-        ...interactiveGlow.default,
-        background: colors.elementBackground,
-        borderRadius: '8px',
-        margin: '20px 0px 15px 0px',
-        WebkitTapHighlightColor: 'transparent',
-        overflow: 'hidden',
-        '&:hover': {
-          ...interactiveGlow.hover
-        },
-        ...rootCss
-      }}
+      className={clsx(
+        'mx-0 mt-[20px] mb-[15px] cursor-pointer overflow-hidden rounded-[8px] border-none bg-element transition-all duration-[250ms] ease-[ease] [-webkit-tap-highlight-color:transparent]',
+        'shadow-[0_4px_12px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.12)]',
+        'hover:shadow-[0_6px_16px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.18)]',
+        rootClassName
+      )}
     >
       <div
-        css={{
-          cursor: 'pointer',
-          padding: '9px 13px 9px 20px',
-          display: 'flex',
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}
+        className="flex cursor-pointer flex-row items-center justify-between py-[9px] pr-[13px] pl-[20px]"
         role="button"
         tabIndex={0}
         onClick={handleClick}
         onKeyUp={handleClick}
       >
-        <div
-          css={{
-            display: 'flex',
-            flexDirection: 'row',
-            userSelect: 'none',
-            ...typographyCss,
-            fontWeight: 'bold'
-          }}
-        >
-          {title}
-        </div>
+        <div className="stp-typography flex flex-row font-bold select-none">{title}</div>
         <motion.div
-          css={{
-            width: '27px',
-            height: '27px',
-            display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}
+          className="flex h-[27px] w-[27px] flex-row items-center justify-center"
           animate={{ ...(!useChevronRight && { rotate: collapsed ? 0 : 180 }) }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
         >
@@ -146,17 +115,9 @@ function ExpandableItem({
         }}
         style={{ overflow: 'hidden' }}
       >
-        <div
-          ref={contentRef}
-          css={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-            padding: '5px 12px 15px 20px'
-          }}
-        >
+        <div ref={contentRef} className="flex flex-col gap-[4px] pt-[5px] pr-[12px] pb-[15px] pl-[20px]">
           {expandedContent.map((expandedContentItem, idx) => (
-            <div css={{ ...typographyCss, lineHeight: 1.5 }} key={idx}>
+            <div className="stp-typography leading-[1.5]" key={idx}>
               {expandedContentItem}
             </div>
           ))}

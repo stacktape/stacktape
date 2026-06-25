@@ -1,15 +1,14 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { Placement } from 'tippy.js';
-import merge from 'lodash/merge';
+import clsx from 'clsx';
 import { useEffect, useState } from 'react';
 import PulseLoader from 'react-spinners/PulseLoader';
-import { iconButtonStyle } from '../../styles/variables';
 import { WithTooltip } from '../Tooltip/WithTooltip';
 
 export function IconButton({
   icon,
   onClick,
-  rootCss,
+  rootClassName,
   tooltipText,
   briefIconAfterClick,
   size,
@@ -20,7 +19,7 @@ export function IconButton({
   onClick: AnyFunction;
   icon: ReactNode;
   briefIconAfterClick?: ReactNode;
-  rootCss?: Css;
+  rootClassName?: string;
   tooltipText?: string;
   size?: number;
   isLoading?: boolean;
@@ -42,22 +41,14 @@ export function IconButton({
     }
   };
 
+  const style: CSSProperties = {
+    margin: '2px',
+    cursor: isLoading ? 'initial' : 'pointer',
+    ...(size ? { width: size, height: size } : {})
+  };
+
   const ButtonElement = (
-    <div
-      css={merge(
-        {
-          ...iconButtonStyle,
-          width: size || '32px',
-          height: size || '32px',
-          borderRadius: '8px',
-          margin: '2px',
-          cursor: isLoading ? 'initial' : 'pointer'
-        },
-        rootCss || {}
-      )}
-      onClick={adjustedOnClick}
-      role="button"
-    >
+    <div className={clsx('stp-icon-button', rootClassName)} style={style} onClick={adjustedOnClick} role="button">
       {isLoading ? <PulseLoader size={5} color="#F4F4F5" /> : iconToShow}
     </div>
   );

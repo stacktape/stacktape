@@ -32,7 +32,7 @@ import {
 } from '@/components/Mdx/Landing';
 
 function NegativeMargin({ amount }: { amount: number }) {
-  return <div css={{ marginTop: `-${amount || 30}px` }} />;
+  return <div style={{ marginTop: `-${amount || 30}px` }} />;
 }
 
 /**

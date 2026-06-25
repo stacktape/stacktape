@@ -1,19 +1,10 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { css, Global, keyframes } from '@emotion/react';
+import clsx from 'clsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BiCheck, BiCopy } from 'react-icons/bi';
-import { onMaxW500 } from '../../styles/responsive';
-import {
-  box,
-  colors,
-  fontFamilyMono,
-  iconButtonStyle,
-  prettyScrollBar,
-  tabButtonStyle,
-  tabContainerStyle
-} from '../../styles/variables';
+import { colors } from '../../styles/variables';
 import { marked } from 'marked';
 import { convertTypescriptToYaml, convertYamlToTypescript } from '../../utils/yaml-to-typescript';
 import { computeYamlHovers } from './yaml-hover';
@@ -110,11 +101,6 @@ const shikiRuntimePromise = import('shiki').then(async ({ createHighlighter }) =
   } satisfies ShikiRuntime;
 });
 const twoslashRuntimeCache = new Map<string, Promise<TwoslashRuntime>>();
-
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
 
 const normalizeLanguage = (lang?: string | null) => {
   const normalized = (lang || 'text').toLowerCase();
@@ -757,22 +743,11 @@ function TabSwitcher({
   if (tabs.length <= 1) return null;
 
   return (
-    <div css={{ display: 'flex', marginBottom: '8px' }}>
-      <div ref={containerRef} css={{ ...tabContainerStyle, position: 'relative' }}>
+    <div className="flex mb-2">
+      <div ref={containerRef} className="stp-tab-container">
         <div
-          css={{
-            position: 'absolute',
-            top: '3px',
-            height: 'calc(100% - 6px)',
-            background: 'linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47))',
-            boxShadow:
-              '0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-            borderRadius: '6px',
-            transition: 'left 200ms ease, width 200ms ease',
-            zIndex: 0,
-            left: indicatorStyle.left,
-            width: indicatorStyle.width
-          }}
+          className="absolute top-[3px] h-[calc(100%-6px)] z-0 rounded-[6px] bg-[linear-gradient(135deg,rgb(60,64,64),rgb(44,47,47))] shadow-[0_4px_12px_rgba(0,0,0,0.45),0_0_0_1px_rgba(190,190,190,0.16),inset_0_1px_0_rgba(255,255,255,0.1)] [transition:left_200ms_ease,width_200ms_ease]"
+          style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
         />
         {tabs.map((tab, index) => {
           const isActive = activeIndex === index;
@@ -780,11 +755,7 @@ function TabSwitcher({
             <button
               key={index}
               type="button"
-              css={{
-                ...tabButtonStyle,
-                zIndex: 1,
-                color: isActive ? colors.fontColorPrimary : tabButtonStyle.color
-              }}
+              className={clsx('stp-tab-button', isActive && 'is-active')}
               onClick={() => onTabClick(index)}
             >
               {getDisplayTabLabel(tab.label)}
@@ -1053,358 +1024,14 @@ export function CodeBlockNew({
   };
 
   return (
-    <div
-      css={{
-        marginTop: '25px',
-        marginBottom: '30px',
-        overflow: 'visible',
-        width: '100%',
-        fontSize: '13.5px',
-        lineHeight: '1.5'
-      }}
-    >
-      <Global
-        styles={css`
-          .stacktape-code-block.twoslash {
-            --twoslash-border-color: rgba(147, 153, 178, 0.24);
-            --twoslash-underline-color: #89b4fa;
-            --twoslash-highlighted-border: rgba(245, 194, 231, 0.32);
-            --twoslash-highlighted-bg: rgba(245, 194, 231, 0.12);
-            --twoslash-popup-bg: rgba(30, 30, 46, 0.96);
-            --twoslash-popup-color: #cdd6f4;
-            --twoslash-popup-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
-            --twoslash-docs-color: #a6adc8;
-            --twoslash-docs-font: inherit;
-            --twoslash-code-font: ${fontFamilyMono};
-            --twoslash-code-bg: rgba(255, 255, 255, 0.08);
-            --twoslash-link-color: #89b4fa;
-            --twoslash-matched-color: #f5e0dc;
-            --twoslash-unmatched-color: #7f849c;
-            --twoslash-cursor-color: rgba(137, 180, 250, 0.45);
-            --twoslash-error-color: #f38ba8;
-            --twoslash-error-bg: rgba(243, 139, 168, 0.14);
-            --twoslash-warn-color: #f9e2af;
-            --twoslash-warn-bg: rgba(249, 226, 175, 0.16);
-            --twoslash-tag-color: #89dceb;
-            --twoslash-tag-bg: rgba(137, 220, 235, 0.14);
-            --twoslash-tag-warn-color: #fab387;
-            --twoslash-tag-warn-bg: rgba(250, 179, 135, 0.14);
-            --twoslash-tag-annotate-color: #a6e3a1;
-            --twoslash-tag-annotate-bg: rgba(166, 227, 161, 0.14);
-          }
-
-          .stacktape-code-block.twoslash .twoslash-hover {
-            border-bottom: 1px dotted transparent;
-            transition: border-color 0.2s ease;
-            cursor: help;
-          }
-
-          .stacktape-code-block-shell:hover .twoslash-hover,
-          .stacktape-code-block.twoslash:hover .twoslash-hover {
-            border-bottom-color: var(--twoslash-underline-color);
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-container {
-            position: fixed;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            display: inline-flex;
-            flex-direction: column;
-            background: var(--twoslash-popup-bg);
-            color: var(--twoslash-popup-color);
-            border: 1px solid var(--twoslash-border-color);
-            border-radius: 6px;
-            transition: opacity 0.15s ease;
-            pointer-events: none;
-            z-index: 9999;
-            text-align: left;
-            box-shadow: var(--twoslash-popup-shadow);
-            min-width: 280px;
-            max-width: min(600px, calc(100vw - 40px));
-            font-size: 13px;
-            line-height: 1.5;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-container.visible {
-            opacity: 1;
-            pointer-events: auto;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-code {
-            padding: 8px 12px;
-            font-family: var(--twoslash-code-font);
-            font-size: 12.5px;
-            line-height: 1.45;
-            white-space: normal;
-            overflow-wrap: anywhere;
-            word-break: normal;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-code span {
-            white-space: inherit !important;
-          }
-
-          /* Only show separator between code and docs sections */
-          .stacktape-code-block.twoslash .twoslash-popup-code + .twoslash-popup-docs {
-            border-top: 1px solid var(--twoslash-border-color);
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs {
-            padding: 10px 12px;
-            color: var(--twoslash-docs-color);
-            font-family: var(--twoslash-docs-font);
-            font-size: 12px;
-            line-height: 1.5;
-            max-height: 360px;
-            overflow-y: auto;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs h1,
-          .stacktape-code-block.twoslash .twoslash-popup-docs h2,
-          .stacktape-code-block.twoslash .twoslash-popup-docs h3 {
-            margin: 0 0 8px 0;
-            padding: 0;
-            font-size: 15px;
-            font-weight: 600;
-            color: #ffffff;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs h4,
-          .stacktape-code-block.twoslash .twoslash-popup-docs h5,
-          .stacktape-code-block.twoslash .twoslash-popup-docs h6 {
-            margin: 0 0 8px 0;
-            padding: 0;
-            font-size: 14px;
-            font-weight: 600;
-            color: #ffffff;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs p {
-            margin: 0 0 6px 0;
-            font-size: 12px;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs li {
-            font-size: 12px;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs > *:last-child {
-            margin-bottom: 0;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs code {
-            font-family: var(--twoslash-code-font);
-            background: var(--twoslash-code-bg);
-            padding: 1px 5px;
-            border-radius: 3px;
-            font-size: 0.9em;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs a {
-            color: var(--twoslash-link-color);
-            text-decoration: none;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs a:hover {
-            text-decoration: underline;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs ul,
-          .stacktape-code-block.twoslash .twoslash-popup-docs ol {
-            margin: 0 0 6px 0;
-            padding-left: 20px;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs li {
-            margin-bottom: 2px;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs hr {
-            border: none;
-            border-top: 1px solid var(--twoslash-border-color);
-            margin: 8px 0;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs blockquote {
-            margin: 0 0 6px 0;
-            padding-left: 10px;
-            border-left: 3px solid var(--twoslash-border-color);
-            color: #a8a8a8;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs pre {
-            background: var(--twoslash-code-bg);
-            padding: 6px 8px;
-            border-radius: 3px;
-            margin: 0 0 6px 0;
-            overflow-x: auto;
-            font-family: var(--twoslash-code-font);
-            font-size: 0.9em;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs pre code {
-            background: transparent;
-            padding: 0;
-            border-radius: 0;
-            font-size: inherit;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs strong {
-            color: #ffffff;
-            font-weight: 600;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-error {
-            color: var(--twoslash-error-color);
-            background-color: var(--twoslash-error-bg);
-            font-size: 0.8em;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs-tags {
-            display: flex;
-            flex-direction: column;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-docs-tag-name {
-            margin-right: 0.5em;
-            font-family: var(--twoslash-code-font);
-          }
-
-          .stacktape-code-block.twoslash .twoslash-query-line .twoslash-popup-container {
-            position: relative;
-            margin-bottom: 1.4em;
-            transform: translateY(0.6em);
-          }
-
-          .stacktape-code-block.twoslash .twoslash-error-line,
-          .stacktape-code-block.twoslash .twoslash-tag-line {
-            position: relative;
-            min-width: 100%;
-            width: max-content;
-            margin: 0.2em 0;
-            border-left: 3px solid var(--twoslash-error-color);
-            background-color: var(--twoslash-error-bg);
-            color: var(--twoslash-error-color);
-          }
-
-          .stacktape-code-block.twoslash .twoslash-error-line.twoslash-error-level-warning {
-            background-color: var(--twoslash-warn-bg);
-            border-left-color: var(--twoslash-warn-color);
-            color: var(--twoslash-warn-color);
-          }
-
-          .stacktape-code-block.twoslash .twoslash-tag-line {
-            border-left-color: var(--twoslash-tag-color);
-            background-color: var(--twoslash-tag-bg);
-            color: var(--twoslash-tag-color);
-          }
-
-          .stacktape-code-block.twoslash .twoslash-completion-cursor {
-            position: relative;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-completion-cursor .twoslash-completion-list {
-            user-select: none;
-            position: absolute;
-            top: 0;
-            left: 0;
-            transform: translate(0, 1.2em);
-            margin: 3px 0 0 -1px;
-            display: inline-block;
-            z-index: 28;
-            box-shadow: var(--twoslash-popup-shadow);
-            background: var(--twoslash-popup-bg);
-            border: none;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-completion-list {
-            width: 260px;
-            font-size: 0.8rem;
-            padding: 4px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-completion-list::before {
-            background-color: var(--twoslash-cursor-color);
-            width: 2px;
-            position: absolute;
-            top: -1.6em;
-            height: 1.4em;
-            left: -1px;
-            content: ' ';
-          }
-
-          .stacktape-code-block.twoslash .twoslash-completion-list li {
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            gap: 0.25em;
-            line-height: 1em;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-completions-unmatched,
-          .stacktape-code-block.twoslash .twoslash-completions-icon {
-            color: var(--twoslash-unmatched-color);
-          }
-
-          .stacktape-code-block.twoslash .twoslash-completions-icon {
-            width: 1em;
-            flex: none;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-completions-matched {
-            color: var(--twoslash-matched-color);
-          }
-
-          .stacktape-code-block.twoslash .deprecated {
-            text-decoration: line-through;
-            opacity: 0.5;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-highlighted {
-            background-color: var(--twoslash-highlighted-bg);
-            border: 1px solid var(--twoslash-highlighted-border);
-            padding: 1px 2px;
-            margin: -1px -3px;
-            border-radius: 4px;
-          }
-        `}
-      />
-
+    <div className="mt-[25px] mb-[30px] overflow-visible w-full text-[13.5px] leading-[1.5]">
       <TabSwitcher tabs={resolvedTabs} activeIndex={activeIndex >= 0 ? activeIndex : 0} onTabClick={handleTabClick} />
 
-      <div
-        className="stacktape-code-block-shell"
-        css={{
-          overflowX: 'auto',
-          overflowY: 'hidden',
-          ...prettyScrollBar,
-          ...box,
-          [onMaxW500]: {
-            marginTop: '3.5px'
-          },
-          padding: '16px 0 14px 0',
-          position: 'relative',
-          '&:hover .copy-button': {
-            opacity: 1
-          }
-        }}
-      >
+      <div className="stacktape-code-block-shell stp-box stp-pretty-scrollbar group relative overflow-x-auto overflow-y-hidden pt-4 pb-[14px] px-0 max-[500px]:mt-[3.5px]">
         <button
           type="button"
-          className="copy-button"
-          css={{
-            ...iconButtonStyle,
-            position: 'absolute',
-            top: amountOfLines <= 2 ? '7px' : '14px',
-            right: '14px',
-            zIndex: 20,
-            opacity: 0,
-            transition: 'all 250ms ease, opacity 0.2s ease-in-out'
-          }}
+          className="copy-button stp-icon-button absolute right-[14px] z-20 opacity-0 group-hover:opacity-100 [transition:all_250ms_ease,opacity_0.2s_ease-in-out]"
+          style={{ top: amountOfLines <= 2 ? '7px' : '14px' }}
           onClick={handleCopyClick}
         >
           {isCopiedShown ? (
@@ -1415,73 +1042,19 @@ export function CodeBlockNew({
         </button>
 
         {renderError ? (
-          <div css={{ padding: '0 18px 10px 18px' }}>
-            <p css={{ color: colors.fontColorLightGray, fontSize: '0.8rem', marginBottom: '8px' }}>{renderError}</p>
-            <pre css={{ margin: 0, color: colors.fontColorPrimary, fontFamily: fontFamilyMono }}>
-              {processedCode.renderCode}
-            </pre>
+          <div className="pt-0 px-[18px] pb-[10px]">
+            <p className="text-fc-light text-[0.8rem] mb-2">{renderError}</p>
+            <pre className="m-0 text-fc-primary font-mono">{processedCode.renderCode}</pre>
           </div>
         ) : renderedHtml ? (
           <div
             key={animationKey}
             ref={codeContainerRef}
-            className="stacktape-code-block twoslash"
-            css={{
-              animation: `${fadeIn} 180ms ease-out`,
-              display: 'block',
-              '*': {
-                fontFamily: fontFamilyMono
-              },
-              '.stacktape-shiki-pre': {
-                display: 'block',
-                background: 'transparent !important',
-                margin: 0,
-                padding: 0,
-                minWidth: '100%',
-                overflow: 'visible'
-              },
-              '.stacktape-shiki-pre code': {
-                display: 'block'
-              },
-              '.stacktape-shiki-pre .line': {
-                display: 'block',
-                width: '100%',
-                padding: '0 18px',
-                lineHeight: '1.75',
-                minHeight: '1.75em',
-                whiteSpace: 'pre',
-                fontVariantLigatures: 'none',
-                fontFeatureSettings: '"liga" 0, "calt" 0'
-              },
-              '.stacktape-shiki-pre .stacktape-highlighted-line': {
-                background:
-                  'linear-gradient(90deg, rgba(137, 180, 250, 0.18) 0%, rgba(137, 180, 250, 0.08) 55%, rgba(0, 0, 0, 0) 100%)',
-                borderLeft: '2px solid rgba(137, 180, 250, 0.8)'
-              },
-              '.stacktape-shiki-pre .stacktape-focus-placeholder-line': {
-                color: colors.fontColorLightGray,
-                opacity: 0.75
-              },
-              '.stacktape-shiki-pre .line span': {
-                whiteSpace: 'pre',
-                fontVariantLigatures: 'none',
-                fontFeatureSettings: '"liga" 0, "calt" 0'
-              }
-            }}
+            className="stacktape-code-block twoslash block animate-code-fade-in"
             dangerouslySetInnerHTML={{ __html: renderedHtml }}
           />
         ) : (
-          <pre
-            css={{
-              margin: 0,
-              padding: '0 18px',
-              color: colors.fontColorPrimary,
-              fontFamily: fontFamilyMono,
-              whiteSpace: 'pre-wrap'
-            }}
-          >
-            {processedCode.renderCode}
-          </pre>
+          <pre className="m-0 px-[18px] text-fc-primary font-mono whitespace-pre-wrap">{processedCode.renderCode}</pre>
         )}
       </div>
     </div>

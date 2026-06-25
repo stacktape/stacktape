@@ -1,20 +1,18 @@
-import merge from 'lodash/merge';
+import clsx from 'clsx';
 
-export function GridList({ children, rootCss, minItemWidth }: { children: any; rootCss?: Css; minItemWidth?: string }) {
+export function GridList({
+  children,
+  className,
+  minItemWidth
+}: {
+  children: any;
+  className?: string;
+  minItemWidth?: string;
+}) {
   return (
     <div
-      css={merge(
-        {
-          width: '100%',
-          display: 'grid',
-          gridTemplateColumns: `repeat(auto-fill, minmax(${minItemWidth || '1fr'}, 1fr))`,
-          gridGap: '10px',
-          '> div': {
-            width: '100%'
-          }
-        },
-        rootCss || {}
-      )}
+      className={clsx('grid w-full gap-[10px] [&>div]:w-full', className)}
+      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${minItemWidth || '1fr'}, 1fr))` }}
     >
       {children}
     </div>

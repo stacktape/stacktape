@@ -1,6 +1,4 @@
 import type { NormalizedProperty, NormalizedTypeInfo } from '@/utils/api-reference-extractor';
-import { typographyCss } from '../../styles/global';
-import { colors } from '../../styles/variables';
 import { PropertyDescription, PropertyHeading, tokens } from './api-reference/shared';
 
 export type CommandArg = {
@@ -45,39 +43,22 @@ export function CliCommandsApiReference({ command, sortedArgs = [] }: { command:
   return (
     <section
       id={`api-ref-${command}`}
-      css={{
-        marginTop: '24px',
-        marginBottom: '28px',
-        borderRadius: '10px',
-        background: tokens.surface,
-        boxShadow: tokens.panelShadow,
-        overflow: 'hidden'
-      }}
+      className="mt-[24px] mb-[28px] overflow-hidden rounded-[10px]"
+      style={{ background: tokens.surface, boxShadow: tokens.panelShadow }}
     >
       <div
-        css={{
-          padding: '12px 16px',
-          borderBottom: `1px solid ${tokens.subtleBorder}`,
-          background: tokens.surfaceSunken,
-          display: 'flex',
-          alignItems: 'baseline',
-          gap: '10px',
-          flexWrap: 'wrap'
-        }}
+        className="flex flex-wrap items-baseline gap-[10px] border-b border-solid px-[16px] py-[12px]"
+        style={{ borderBottomColor: tokens.subtleBorder, background: tokens.surfaceSunken }}
       >
-        <code css={{ color: tokens.syntax.type, fontSize: '14px', fontWeight: 600, fontFamily: tokens.monoFamily }}>
+        <code
+          className="text-[14px] font-semibold"
+          style={{ color: tokens.syntax.type, fontFamily: tokens.monoFamily }}
+        >
           {command}
         </code>
         <span
-          css={{
-            ...typographyCss,
-            fontSize: '12px',
-            fontWeight: 500,
-            lineHeight: 1.2,
-            color: tokens.dimText,
-            textTransform: 'uppercase',
-            letterSpacing: '0.6px'
-          }}
+          className="stp-typography text-[12px] font-medium uppercase leading-[1.2] tracking-[0.6px]"
+          style={{ color: tokens.dimText }}
         >
           CLI options
         </span>
@@ -89,10 +70,8 @@ export function CliCommandsApiReference({ command, sortedArgs = [] }: { command:
           return (
             <div
               key={arg.name}
-              css={{
-                padding: '14px 16px',
-                ...(idx > 0 && { borderTop: `1px solid ${tokens.subtleBorder}` })
-              }}
+              className="px-[16px] py-[14px]"
+              style={idx > 0 ? { borderTop: `1px solid ${tokens.subtleBorder}` } : undefined}
             >
               <PropertyHeading property={property} level={2} />
               <PropertyDescription property={property} />
@@ -100,13 +79,13 @@ export function CliCommandsApiReference({ command, sortedArgs = [] }: { command:
           );
         })
       ) : (
-        <p css={{ ...typographyCss, padding: '14px 16px', fontSize: '13.5px', color: tokens.mutedText }}>
+        <p className="stp-typography px-[16px] py-[14px] text-[13.5px]" style={{ color: tokens.mutedText }}>
           No available options.
         </p>
       )}
 
       {hasMalformedArgs && (
-        <p css={{ ...typographyCss, padding: '12px 16px', fontSize: '12.5px', lineHeight: 1.6, color: colors.error }}>
+        <p className="stp-typography px-[16px] py-[12px] text-[12.5px] leading-[1.6] text-error">
           Some options could not be displayed because the sortedArgs payload contained entries that were not in the
           expected CommandArg shape. Re-generate this page via the docs pipeline to refresh the reference data.
         </p>

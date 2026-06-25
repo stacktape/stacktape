@@ -1,18 +1,13 @@
-import merge from 'lodash/merge';
-import { box, clickableBoxStyle, colors } from '@/styles/variables';
+import clsx from 'clsx';
 
-export function Box({ children, rootCss, interactive }: { children: any; rootCss?: Css; interactive?: boolean }) {
-  return (
-    <div
-      css={merge(
-        {
-          ...box,
-          ...(interactive && clickableBoxStyle)
-        },
-        rootCss || {}
-      )}
-    >
-      {children}
-    </div>
-  );
+export function Box({
+  children,
+  className,
+  interactive
+}: {
+  children: any;
+  className?: string;
+  interactive?: boolean;
+}) {
+  return <div className={clsx('stp-box', interactive && 'stp-clickable-box', className)}>{children}</div>;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlignRight } from 'react-feather';
-import { onMaxW1200 } from '@/styles/responsive';
-import { colors, pageLayout, prettyScrollBar } from '@/styles/variables';
+import clsx from 'clsx';
+import { colors, pageLayout } from '@/styles/variables';
 
 const ROW_HEIGHT = 26;
 const INDENT_PX = 12;
@@ -188,48 +188,21 @@ export function TableOfContents({ tableOfContents: rawToc }: { tableOfContents: 
 
   return (
     <div
-      css={{
-        ...prettyScrollBar,
-        backgroundColor: 'transparent',
+      className="sticky right-0 w-[305px] min-w-[305px] overflow-y-auto bg-transparent pt-[15px] pr-[10px] pb-0 pl-[15px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-[1200px]:hidden"
+      style={{
         height: `calc(100vh - ${pageLayout.headerHeight}px)`,
-        padding: '15px 10px 0px 15px',
-        position: 'sticky',
-        top: `${pageLayout.headerHeight}px`,
-        right: 0,
-        overflowY: 'auto',
-        scrollbarWidth: 'none',
-        '::-webkit-scrollbar': { display: 'none' },
-        width: '305px',
-        minWidth: '305px',
-        [onMaxW1200]: { display: 'none' }
+        top: `${pageLayout.headerHeight}px`
       }}
     >
-      <p
-        css={{
-          marginLeft: '10px',
-          lineHeight: 1,
-          padding: '7px 24px 7px 5px',
-          color: colors.fontColorPrimary,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          fontSize: '12.5px'
-        }}
-      >
+      <p className="ml-[10px] flex items-center gap-[10px] py-[7px] pr-[24px] pl-[5px] text-[12.5px] leading-[1] text-fc-primary">
         <AlignRight size={15} />
         <span>Contents</span>
       </p>
-      <div css={{ position: 'relative', marginTop: '4px' }}>
+      <div className="relative mt-[4px]">
         <svg
           width={svgWidth}
           height={svgHeight}
-          css={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            pointerEvents: 'none',
-            overflow: 'visible'
-          }}
+          className="pointer-events-none absolute left-0 top-0 overflow-visible"
         >
           {/* The "rail" — full curve in a muted color. */}
           <path d={pathD} stroke={colors.borderColorLight} strokeWidth={1} fill="none" />
@@ -246,47 +219,23 @@ export function TableOfContents({ tableOfContents: rawToc }: { tableOfContents: 
               fill="none"
               strokeDasharray={`${SNAKE_LENGTH} 99999`}
               strokeDashoffset={SNAKE_LENGTH / 2 - activeLen}
-              css={{
-                transition: 'stroke-dashoffset 320ms cubic-bezier(0.4, 0, 0.2, 1)'
-              }}
+              className="[transition:stroke-dashoffset_320ms_cubic-bezier(0.4,0,0.2,1)]"
             />
           )}
         </svg>
-        <ul css={{ margin: 0, padding: 0 }}>
+        <ul className="m-0 p-0">
           {tableOfContents.map((item) => {
             const isActive = activeId === item.href.replace('#', '');
             const itemX = PATH_X_OFFSET + ((item.level || 0) - minLevel) * INDENT_PX;
             return (
-              <li
-                key={item.href}
-                css={{
-                  listStyle: 'none',
-                  height: ROW_HEIGHT,
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
+              <li key={item.href} className="flex list-none items-center" style={{ height: ROW_HEIGHT }}>
                 <a
                   href={item.href}
-                  css={{
-                    display: 'block',
-                    width: '100%',
-                    paddingLeft: itemX + TEXT_GAP,
-                    paddingRight: '12px',
-                    fontSize: '12.5px',
-                    lineHeight: 1.2,
-                    color: isActive ? colors.fontColorPrimary : colors.fontColorLighterGray,
-                    fontWeight: isActive ? 500 : 400,
-                    textDecoration: 'none',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    transition: 'color 140ms ease',
-                    '&:hover': {
-                      color: colors.fontColorPrimary
-                    }
-                  }}
+                  className={clsx(
+                    'block w-full cursor-pointer truncate pr-[12px] text-[12.5px] leading-[1.2] no-underline transition-[color] duration-[140ms] ease-[ease] hover:text-fc-primary',
+                    isActive ? 'font-medium text-fc-primary' : 'font-normal text-fc-lighter'
+                  )}
+                  style={{ paddingLeft: itemX + TEXT_GAP }}
                 >
                   {item.text}
                 </a>
@@ -295,7 +244,7 @@ export function TableOfContents({ tableOfContents: rawToc }: { tableOfContents: 
           })}
         </ul>
       </div>
-      <div css={{ height: '20px' }} />
+      <div className="h-[20px]" />
     </div>
   );
 }

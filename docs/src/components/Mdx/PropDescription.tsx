@@ -1,6 +1,5 @@
 import { definitionHasProperty, getPropertyDescriptionInfo } from '@/utils/schema-extractor';
 import configSchema from '../../../../@generated/schemas/enhanced-config-schema.json';
-import { colors } from '../../styles/variables';
 
 const PropDescription = ({
   definitionName,
@@ -38,16 +37,7 @@ const PropDescription = ({
   const rawHtml = `${desc[descType] || 'No description'}`;
 
   return (
-    <div
-      css={{
-        color: colors.fontColorPrimary,
-        lineHeight: 1.75,
-        fontSize: '15px',
-        letterSpacing: '0.025em',
-        // paddingLeft: '4px',
-        paddingBottom: '6px'
-      }}
-    >
+    <div className="pb-[6px] text-[15px] leading-[1.75] tracking-[0.025em] text-fc-primary">
       <span dangerouslySetInnerHTML={{ __html: rawHtml }} />
     </div>
   );

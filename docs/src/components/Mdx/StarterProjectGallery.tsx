@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { BiLogoGithub } from 'react-icons/bi';
 import { LuArrowUpRight, LuPackage, LuSearch, LuX } from 'react-icons/lu';
+import clsx from 'clsx';
 import allStarterProjects from '../../../../starter-projects-metadata.json';
-import { onMaxW650, onMaxW870 } from '../../styles/responsive';
-import { box, colors, inputBoxStyle } from '../../styles/variables';
+import { colors } from '../../styles/variables';
 import { Img as Image } from '../Img';
 import { Button } from '../Button/Button';
 import { GridList } from '../Misc/GridList';
@@ -71,45 +71,19 @@ const matchesQuery = (p: Project, query: string) => {
     .every((term) => haystack.includes(term));
 };
 
-const chipCss = (active: boolean): Css => ({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  padding: '5px 12px',
-  borderRadius: '999px',
-  fontSize: '0.82rem',
-  fontWeight: 500,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-  color: active ? colors.fontColorPrimary : colors.fontColorLighterGray,
-  background: active ? 'linear-gradient(135deg, rgb(12, 95, 95), rgb(27, 109, 103))' : colors.elementBackground,
-  boxShadow: active
-    ? '0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(81, 231, 236, 0.45), inset 0 1px 0 rgba(43, 232, 239, 0.35)'
-    : '0 2px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
-  border: 'none',
-  transition: 'all 200ms ease',
-  '&:hover': { color: colors.fontColorPrimary }
-});
+const chipClassName = (active: boolean) =>
+  clsx(
+    'inline-flex items-center gap-[6px] py-[5px] px-[12px] rounded-[999px] text-[0.82rem] font-medium cursor-pointer whitespace-nowrap border-none [transition:all_200ms_ease]',
+    active
+      ? 'text-fc-primary [background:linear-gradient(135deg,rgb(12,95,95),rgb(27,109,103))] [box-shadow:0_4px_12px_rgba(0,0,0,0.4),0_0_0_1px_rgba(81,231,236,0.45),inset_0_1px_0_rgba(43,232,239,0.35)]'
+      : 'text-fc-lighter bg-element [box-shadow:0_2px_8px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.12)] hover:text-fc-primary'
+  );
 
 function StarterCard({ project }: { project: Project }) {
   const [iconOk, setIconOk] = useState(true);
   return (
-    <div
-      css={{
-        ...box,
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        padding: '16px 18px',
-        transition: 'transform 200ms ease, box-shadow 200ms ease',
-        '&:hover': {
-          transform: 'translateY(-3px)',
-          boxShadow:
-            '0 8px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.22)'
-        }
-      }}
-    >
-      <div css={{ display: 'flex', alignItems: 'center', gap: '11px', marginBottom: '8px' }}>
+    <div className="stp-box flex flex-col h-full py-[16px] px-[18px] [transition:transform_200ms_ease,box-shadow_200ms_ease] hover:[transform:translateY(-3px)] hover:[box-shadow:0_8px_20px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.22)]">
+      <div className="flex items-center gap-[11px] mb-[8px]">
         {iconOk ? (
           <Image
             src={`/starter-project-icons/${project.icon}`}
@@ -117,72 +91,34 @@ function StarterCard({ project }: { project: Project }) {
             height={26}
             // `!important` is required: the global `.mdx-content img` rule forces `width: 100%`,
             // which otherwise blows the icon up to the full card width.
-            css={{
-              padding: '0 !important',
-              flexShrink: 0,
-              width: '26px !important',
-              height: '26px !important',
-              objectFit: 'contain'
-            }}
+            className="!p-0 shrink-0 !w-[26px] !h-[26px] object-contain"
             alt={`${project.name} icon`}
             onError={() => setIconOk(false)}
           />
         ) : (
-          <span
-            css={{
-              width: 26,
-              height: 26,
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '6px',
-              color: colors.brandGreen,
-              background: 'rgba(0, 0, 0, 0.25)',
-              boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.08)'
-            }}
-          >
+          <span className="w-[26px] h-[26px] shrink-0 flex items-center justify-center rounded-[6px] text-brand [background:rgba(0,0,0,0.25)] [box-shadow:inset_0_0_0_1px_rgba(255,255,255,0.08)]">
             <LuPackage size={15} />
           </span>
         )}
-        <h3 css={{ fontSize: '1.02rem', lineHeight: 1.25, margin: 0 }}>{project.name}</h3>
+        <h3 className="text-[1.02rem] leading-[1.25] m-0">{project.name}</h3>
       </div>
 
-      <p
-        css={{
-          color: colors.fontColorLighterGray,
-          fontSize: '0.88rem',
-          lineHeight: 1.5,
-          margin: '0 0 12px 0',
-          display: '-webkit-box',
-          WebkitLineClamp: 3,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden'
-        }}
-      >
+      <p className="text-fc-lighter text-[0.88rem] leading-[1.5] mt-0 mr-0 mb-[12px] ml-0 [display:-webkit-box] [-webkit-line-clamp:3] [-webkit-box-orient:vertical] overflow-hidden">
         {project.description.replace(/\s+/g, ' ').trim()}
       </p>
 
-      <div css={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
+      <div className="flex flex-wrap gap-[6px] mb-[16px]">
         {project.tags.slice(0, 5).map((tag) => (
           <span
             key={tag}
-            css={{
-              fontSize: '0.72rem',
-              fontWeight: 500,
-              color: colors.fontColorLightGray,
-              padding: '2px 8px',
-              borderRadius: '6px',
-              background: 'rgba(0, 0, 0, 0.22)',
-              boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.06)'
-            }}
+            className="text-[0.72rem] font-medium text-fc-light py-[2px] px-[8px] rounded-[6px] [background:rgba(0,0,0,0.22)] [box-shadow:inset_0_0_0_1px_rgba(255,255,255,0.06)]"
           >
             {tag}
           </span>
         ))}
       </div>
 
-      <div css={{ display: 'flex', gap: '10px', marginTop: 'auto', justifyContent: 'flex-end' }}>
+      <div className="flex gap-[10px] mt-auto justify-end">
         <Button
           icon={<BiLogoGithub size={18} />}
           text="GitHub"
@@ -219,65 +155,37 @@ export function StarterProjectGallery() {
   }, [query, activeCategory]);
 
   return (
-    <div css={{ marginTop: '24px' }}>
-      <div css={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '22px' }}>
-        <label
-          css={{
-            ...inputBoxStyle,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '0 14px',
-            height: '44px',
-            borderRadius: '10px',
-            maxWidth: '460px'
-          }}
-        >
-          <LuSearch size={18} color={colors.fontColorLightGray} css={{ flexShrink: 0 }} />
+    <div className="mt-[24px]">
+      <div className="flex flex-col gap-[14px] mb-[22px]">
+        <label className="stp-input-box flex items-center gap-[10px] px-[14px] h-[44px] rounded-[10px] max-w-[460px]">
+          <LuSearch size={18} color={colors.fontColorLightGray} className="shrink-0" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search starter projects"
             placeholder="Search by name, stack or service (e.g. postgres, next.js, redis)"
-            css={{
-              flex: 1,
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: colors.fontColorPrimary,
-              fontSize: '0.92rem',
-              '::placeholder': { color: colors.fontColorLightGray }
-            }}
+            className="flex-1 bg-transparent border-none outline-none text-fc-primary text-[0.92rem] placeholder:text-fc-light"
           />
           {query && (
             <button
               type="button"
               aria-label="Clear search"
               onClick={() => setQuery('')}
-              css={{
-                display: 'flex',
-                alignItems: 'center',
-                flexShrink: 0,
-                padding: 0,
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: colors.fontColorLightGray
-              }}
+              className="flex items-center shrink-0 p-0 bg-transparent border-none cursor-pointer text-fc-light"
             >
               <LuX size={18} />
             </button>
           )}
         </label>
 
-        <div css={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+        <div className="flex flex-wrap gap-[8px]">
           {visibleCategories.map((category) => (
             <button
               key={category.key}
               type="button"
               aria-pressed={category.key === activeCategory}
               onClick={() => setActiveCategory(category.key)}
-              css={chipCss(category.key === activeCategory)}
+              className={chipClassName(category.key === activeCategory)}
             >
               {category.label}
             </button>
@@ -285,40 +193,29 @@ export function StarterProjectGallery() {
         </div>
       </div>
 
-      <p css={{ color: colors.fontColorLightGray, fontSize: '0.85rem', margin: '0 0 14px 0' }}>
+      <p className="text-fc-light text-[0.85rem] mt-0 mr-0 mb-[14px] ml-0">
         Showing {filtered.length} of {allStarterProjects.length} starter projects
       </p>
 
       {filtered.length > 0 ? (
         <GridList
           minItemWidth="340px"
-          rootCss={{
-            gridGap: '14px',
-            [onMaxW870]: { gridTemplateColumns: '1fr 1fr' },
-            [onMaxW650]: { display: 'block', width: '100%', '> div': { marginBottom: '14px' } }
-          }}
+          className="gap-[14px] max-[870px]:![grid-template-columns:1fr_1fr] max-[650px]:block max-[650px]:w-full max-[650px]:[&>div]:mb-[14px]"
         >
           {filtered.map((project) => (
             <StarterCard key={project.starterProjectId} project={project} />
           ))}
         </GridList>
       ) : (
-        <div
-          css={{
-            ...box,
-            padding: '40px 20px',
-            textAlign: 'center',
-            color: colors.fontColorLighterGray
-          }}
-        >
-          <p css={{ margin: '0 0 12px 0' }}>No starter projects match your filters.</p>
+        <div className="stp-box py-[40px] px-[20px] text-center text-fc-lighter">
+          <p className="mt-0 mr-0 mb-[12px] ml-0">No starter projects match your filters.</p>
           <button
             type="button"
             onClick={() => {
               setQuery('');
               setActiveCategory('all');
             }}
-            css={chipCss(false)}
+            className={chipClassName(false)}
           >
             Clear filters
           </button>

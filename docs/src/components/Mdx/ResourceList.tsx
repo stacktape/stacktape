@@ -23,12 +23,10 @@ import {
 import { capitalCase } from 'change-case';
 import { Img as Image } from '@/components/Img';
 import { BiAtom } from 'react-icons/bi';
-import { colors } from '@/styles/variables';
 import resources from '../../../.resources.json';
-import MongoDbIconSvg from '../../../static/technology-icons/mongodb.svg';
-import NextJsIconSvg from '../../../static/technology-icons/nextjs-icon-dark-bg.svg';
-import UpstashIconSvg from '../../../static/technology-icons/upstash-icon-dark-bg.svg';
-import { onMaxW650 } from '../../styles/responsive';
+import MongoDbIconSvg from '../../assets/technology-icons/mongodb.svg';
+import NextJsIconSvg from '../../assets/technology-icons/nextjs-icon-dark-bg.svg';
+import UpstashIconSvg from '../../assets/technology-icons/upstash-icon-dark-bg.svg';
 import { GridList } from '../Misc/GridList';
 import { NavBox } from './DeploymentOptions';
 
@@ -65,11 +63,7 @@ export const referenceableParams = resources
 function AwsFargate({ size }) {
   return (
     <ArchitectureServiceAWSFargate
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceCompute }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-compute"
       size={size + 12}
     />
   );
@@ -78,30 +72,19 @@ function AwsFargate({ size }) {
 const resourceIcons: { [resourceType: string]: any } = {
   bucket: ({ size }) => (
     <ResourceAmazonSimpleStorageServiceS3Standard
-      css={{
-        margin: '-3px',
-        path: { fill: colors.awsResourceStorage }
-      }}
+      className="m-[-3px] [&_path]:fill-aws-storage"
       size={size + 2}
     />
   ),
   'hosting-bucket': ({ size }) => (
     <ResourceAmazonWorkSpacesFamilyAmazonWorkSpaces
-      css={{
-        margin: '-3px',
-        path: { fill: colors.awsResourceStorage }
-      }}
+      className="m-[-3px] [&_path]:fill-aws-storage"
       size={size + 2}
     />
   ),
   function: ({ size }) => (
     <ResourceAWSLambdaLambdaFunction
-      css={{
-        margin: '-3px',
-        path: {
-          fill: colors.awsResourceCompute
-        }
-      }}
+      className="m-[-3px] [&_path]:fill-aws-compute"
       size={size + 2}
     />
   ),
@@ -111,154 +94,96 @@ const resourceIcons: { [resourceType: string]: any } = {
   'multi-container-workload': AwsFargate,
   'application-load-balancer': ({ size }) => (
     <ArchitectureServiceElasticLoadBalancing
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceNetwork }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-network"
       size={size + 12}
     />
   ),
   'aws-cdk-construct': null,
   'batch-job': ({ size }) => (
     <ArchitectureServiceAWSBatch
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceCompute }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-compute"
       size={size + 12}
     />
   ),
   'deployment-script': null,
   'dynamo-db-table': ({ size }) => (
     <ArchitectureServiceAmazonDynamoDB
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceDatabase }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-database"
       size={size + 12}
     />
   ),
   'edge-lambda-function': ({ size }) => (
     <ResourceAmazonCloudFrontFunctions
-      css={{
-        margin: '-3px',
-        path: {
-          fill: colors.awsResourceCompute
-        }
-      }}
+      className="m-[-3px] [&_path]:fill-aws-compute"
       size={size + 2}
     />
   ),
   'event-bus': ({ size }) => (
     <ResourceAmazonEventBridgeEvent
-      css={{
-        margin: '-3px',
-        path: {
-          fill: colors.awsResourceIntegration
-        }
-      }}
+      className="m-[-3px] [&_path]:fill-aws-integration"
       size={size + 2}
     />
   ),
   'http-api-gateway': ({ size }) => (
     <ArchitectureServiceAmazonAPIGateway
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceNetwork }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-network"
       size={size + 12}
     />
   ),
   'mongo-db-atlas-cluster': ({ size }) => (
-    <Image css={{ padding: '0px' }} width={size} height={size} src={MongoDbIconSvg} alt="mongo-db-icon" />
+    <Image className="p-0" width={size} height={size} src={MongoDbIconSvg} alt="mongo-db-icon" />
   ),
   'nextjs-web': ({ size }) => (
-    <Image css={{ padding: '0px' }} width={size} height={size} src={NextJsIconSvg} alt="nextjs-icon" />
+    <Image className="p-0" width={size} height={size} src={NextJsIconSvg} alt="nextjs-icon" />
   ),
   'open-search-domain': ({ size }) => (
     <ArchitectureServiceAmazonElastiCache
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceDatabase }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-database"
       size={size + 12}
     />
   ),
   'redis-cluster': ({ size }) => (
     <ResourceAmazonElastiCacheElastiCacheforRedis
-      css={{
-        margin: '-3px',
-        path: {
-          fill: colors.awsResourceDatabase
-        }
-      }}
+      className="m-[-3px] [&_path]:fill-aws-database"
       size={size + 2}
     />
   ),
   'relational-database': ({ size }) => (
     <ArchitectureServiceAmazonRDS
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceDatabase }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-database"
       size={size + 12}
     />
   ),
   'sns-topic': ({ size }) => (
     <ArchitectureServiceAmazonSimpleNotificationService
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceIntegration }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-integration"
       size={size + 12}
     />
   ),
   'sqs-queue': ({ size }) => (
     <ArchitectureServiceAmazonSimpleQueueService
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceIntegration }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-integration"
       size={size + 12}
     />
   ),
   'state-machine': ({ size }) => (
     <ArchitectureServiceAWSStepFunctions
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceIntegration }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-integration"
       size={size + 12}
     />
   ),
   'upstash-redis': ({ size }) => (
-    <Image css={{ padding: '0px' }} width={size} height={size} src={UpstashIconSvg} alt="upstash-icon" />
+    <Image className="p-0" width={size} height={size} src={UpstashIconSvg} alt="upstash-icon" />
   ),
   'user-auth-pool': ({ size }) => (
     <ArchitectureServiceAmazonCognito
-      css={{
-        margin: '-6px',
-        'path:first-of-type': { fill: 'transparent' },
-        'path:nth-of-type(2)': { fill: colors.awsResourceSecurity }
-      }}
+      className="m-[-6px] [&_path:first-of-type]:fill-transparent [&_path:nth-of-type(2)]:fill-aws-security"
       size={size + 12}
     />
   ),
   'web-app-firewall': ({ size }) => (
     <ResourceAmazonRoute53ResolverDNSFirewall
-      css={{
-        margin: '-3px',
-        path: { fill: colors.awsResourceSecurity }
-      }}
+      className="m-[-3px] [&_path]:fill-aws-security"
       size={size + 2}
     />
   ),
@@ -278,16 +203,7 @@ export const allResources = resources.map(({ resourceType, category }) => {
 
 export function ResourceList() {
   return (
-    <GridList
-      minItemWidth="422px"
-      rootCss={{
-        marginTop: '20px',
-        [onMaxW650]: {
-          display: 'block',
-          width: '100%'
-        }
-      }}
-    >
+    <GridList minItemWidth="422px" className="mt-5 max-[650px]:block max-[650px]:w-full">
       {allResources
         .filter(
           (resource) =>

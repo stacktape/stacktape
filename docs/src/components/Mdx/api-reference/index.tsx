@@ -15,9 +15,8 @@
  * selects leaves. They expand in place. The breadcrumb at the top of the detail pane lets the
  * user jump back up the path quickly.
  */
-import { useState } from 'react';
-import { typographyCss } from '@/styles/global';
-import { onMaxW795 } from '@/styles/responsive';
+import clsx from 'clsx';
+import { useState, type ReactNode } from 'react';
 import type { NormalizedProperty } from '@/utils/api-reference-extractor';
 import {
   PropertyDescription,
@@ -60,26 +59,20 @@ function Breadcrumb({
 }) {
   if (!resolved) return null;
   return (
-    <div
-      css={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '5px',
-        flexWrap: 'wrap',
-        marginBottom: '14px',
-        fontSize: '11.5px',
-        fontFamily: typographyCss.fontFamily
-      }}
-    >
-      <button type="button" onClick={() => onNavigate([])} css={crumbCss(false)}>
+    <div className="font-sans flex flex-wrap items-center gap-[5px] mb-[14px] text-[11.5px]">
+      <button type="button" onClick={() => onNavigate([])} className={crumbClass(false)}>
         {rootName}
       </button>
       {resolved.breadcrumb.map((crumb, idx) => {
         const isLast = idx === resolved.breadcrumb.length - 1;
         return (
-          <span key={pathKey(crumb.path)} css={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-            <span css={{ color: tokens.fadedText }}>›</span>
-            <button type="button" onClick={() => onNavigate(crumb.path)} css={crumbCss(isLast)}>
+          <span key={pathKey(crumb.path)} className="inline-flex items-center gap-[5px]">
+            <span style={{ color: tokens.fadedText }}>›</span>
+            <button
+              type="button"
+              onClick={() => onNavigate(crumb.path)}
+              className={crumbClass(isLast)}
+            >
               {crumb.kind === 'property' ? crumb.name : crumb.isDiscriminated ? `"${crumb.label}"` : crumb.label}
             </button>
           </span>
@@ -89,17 +82,12 @@ function Breadcrumb({
   );
 }
 
-const crumbCss = (isLast: boolean) => ({
-  background: 'transparent',
-  border: 'none',
-  color: isLast ? tokens.text : tokens.mutedText,
-  fontFamily: tokens.monoFamily,
-  fontSize: '11.5px',
-  fontWeight: isLast ? 600 : 500,
-  cursor: 'pointer',
-  padding: 0,
-  ':hover': { color: tokens.brand }
-});
+const crumbClass = (isLast: boolean) =>
+  clsx(
+    'bg-transparent border-none font-mono text-[11.5px] cursor-pointer p-0 hover:text-[rgb(54_190_190)]',
+    // Base color is a class (not inline style) so the :hover utility above can win.
+    isLast ? 'font-semibold text-fc-primary' : 'font-medium text-[rgba(255,255,255,0.62)]'
+  );
 
 /* --------------------------------------------------------------------------------------------
  * Nested items — shown when the focused node has children (referenced type's properties,
@@ -113,70 +101,27 @@ function NestedPropertyRow({ property, onClick }: { property: NormalizedProperty
     <button
       type="button"
       onClick={onClick}
-      css={{
-        display: 'block',
-        width: '100%',
-        textAlign: 'left',
-        background: 'transparent',
-        border: 'none',
-        borderRadius: '6px',
-        padding: '8px 10px',
-        cursor: 'pointer',
-        color: tokens.text,
-        fontFamily: typographyCss.fontFamily,
-        transition: 'background 140ms ease',
-        ':hover': { background: 'rgba(255, 255, 255, 0.04)' }
-      }}
+      className="font-sans block w-full text-left bg-transparent border-none rounded-[6px] px-[10px] py-2 cursor-pointer transition-[background] duration-[140ms] ease-[ease] hover:bg-[rgba(255,255,255,0.04)]"
+      style={{ color: tokens.text }}
     >
-      <div
-        css={{
-          display: 'flex',
-          alignItems: 'baseline',
-          flexWrap: 'wrap',
-          minWidth: 0
-        }}
-      >
-        <code
-          css={{
-            color: tokens.syntax.property,
-            fontFamily: tokens.monoFamily,
-            fontSize: '13px',
-            fontWeight: 500,
-            flexShrink: 0
-          }}
-        >
+      <div className="flex flex-wrap items-baseline min-w-0">
+        <code className="font-mono text-[13px] font-medium flex-shrink-0" style={{ color: tokens.syntax.property }}>
           {property.name}
         </code>
-        <span
-          css={{
-            color: tokens.syntax.punct,
-            fontFamily: tokens.monoFamily,
-            flexShrink: 0,
-            marginRight: '8px'
-          }}
-        >
+        <span className="font-mono flex-shrink-0 mr-2" style={{ color: tokens.syntax.punct }}>
           :
         </span>
         {property.required && (
-          <span
-            css={{ color: tokens.required, fontSize: '10.5px', fontWeight: 600, flexShrink: 0, marginRight: '8px' }}
-          >
+          <span className="text-[10.5px] font-semibold flex-shrink-0 mr-2" style={{ color: tokens.required }}>
             req
           </span>
         )}
-        <span css={{ minWidth: 0, fontSize: '12.5px' }}>
+        <span className="min-w-0 text-[12.5px]">
           <TypeView typeInfo={property.typeInfo} />
         </span>
       </div>
       {description && (
-        <div
-          css={{
-            marginTop: '4px',
-            color: tokens.mutedText,
-            fontSize: '12.5px',
-            lineHeight: 1.55
-          }}
-        >
+        <div className="mt-1 text-[12.5px] leading-[1.55]" style={{ color: tokens.mutedText }}>
           {description}
         </div>
       )}
@@ -197,60 +142,32 @@ function NestedBranchRow({
     <button
       type="button"
       onClick={onClick}
-      css={{
-        display: 'block',
-        width: '100%',
-        textAlign: 'left',
-        background: 'transparent',
-        border: 'none',
-        borderRadius: '6px',
-        padding: '8px 10px',
-        cursor: 'pointer',
-        color: tokens.text,
-        fontFamily: typographyCss.fontFamily,
-        transition: 'background 140ms ease',
-        ':hover': { background: 'rgba(255, 255, 255, 0.04)' }
-      }}
+      className="font-sans block w-full text-left bg-transparent border-none rounded-[6px] px-[10px] py-2 cursor-pointer transition-[background] duration-[140ms] ease-[ease] hover:bg-[rgba(255,255,255,0.04)]"
+      style={{ color: tokens.text }}
     >
-      <div css={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
+      <div className="flex flex-wrap items-baseline gap-2 min-w-0">
         {isDiscriminated ? (
-          <span css={{ display: 'inline-flex', alignItems: 'baseline', gap: '6px' }}>
-            <code css={{ color: tokens.syntax.property, fontFamily: tokens.monoFamily, fontSize: '12.5px' }}>type</code>
-            <code
-              css={{
-                color: tokens.syntax.string,
-                fontFamily: tokens.monoFamily,
-                fontSize: '13px',
-                fontWeight: 600
-              }}
-            >
+          <span className="inline-flex items-baseline gap-[6px]">
+            <code className="font-mono text-[12.5px]" style={{ color: tokens.syntax.property }}>
+              type
+            </code>
+            <code className="font-mono text-[13px] font-semibold" style={{ color: tokens.syntax.string }}>
               &quot;{branch.label}&quot;
             </code>
           </span>
         ) : (
-          <code
-            css={{
-              color: tokens.syntax.type,
-              fontFamily: tokens.monoFamily,
-              fontSize: '13px',
-              fontWeight: 600
-            }}
-          >
+          <code className="font-mono text-[13px] font-semibold" style={{ color: tokens.syntax.type }}>
             {branch.typeName ?? branch.label}
           </code>
         )}
-        <span css={{ color: tokens.dimText, fontSize: '11.5px', flexShrink: 0 }}>
+        <span className="text-[11.5px] flex-shrink-0" style={{ color: tokens.dimText }}>
           {branch.properties.length} prop{branch.properties.length === 1 ? '' : 's'}
         </span>
       </div>
       {branch.shortDescription && (
         <div
-          css={{
-            marginTop: '4px',
-            color: tokens.mutedText,
-            fontSize: '12.5px',
-            lineHeight: 1.55
-          }}
+          className="mt-1 text-[12.5px] leading-[1.55]"
+          style={{ color: tokens.mutedText }}
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(branch.shortDescription) }}
         />
       )}
@@ -260,19 +177,11 @@ function NestedBranchRow({
 
 function NestedSection({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div css={{ marginTop: '18px' }}>
-      <div
-        css={{
-          color: tokens.dimText,
-          fontSize: '11.5px',
-          fontFamily: typographyCss.fontFamily,
-          marginBottom: '4px',
-          paddingLeft: '10px'
-        }}
-      >
+    <div className="mt-[18px]">
+      <div className="font-sans text-[11.5px] mb-1 pl-[10px]" style={{ color: tokens.dimText }}>
         {label}
       </div>
-      <div css={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>{children}</div>
+      <div className="flex flex-col gap-[2px]">{children}</div>
     </div>
   );
 }
@@ -338,60 +247,35 @@ function NestedItems({ resolved, onNavigate }: { resolved: ResolvedNode; onNavig
 
 function LeafDetail({ property }: { property: NormalizedProperty }) {
   return (
-    <div css={{ fontFamily: typographyCss.fontFamily, fontSize: '13px', lineHeight: 1.65 }}>
+    <div className="font-sans text-[13px] leading-[1.65]">
       {/* Header row: property name + required marker (only when required — never show "optional"). */}
-      <div css={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-        <code
-          css={{
-            color: tokens.text,
-            fontSize: '17px',
-            fontWeight: 600,
-            fontFamily: tokens.monoFamily,
-            lineHeight: 1.3,
-            wordBreak: 'break-word'
-          }}
-        >
+      <div className="flex flex-wrap items-baseline gap-2">
+        <code className="font-mono text-[17px] font-semibold leading-[1.3] break-words" style={{ color: tokens.text }}>
           {property.name}
         </code>
         {property.required && (
-          <span
-            css={{
-              color: tokens.required,
-              fontSize: '10.5px',
-              fontWeight: 600
-            }}
-          >
+          <span className="text-[10.5px] font-semibold" style={{ color: tokens.required }}>
             req
           </span>
         )}
       </div>
 
       {/* Type + default — plain inline labels, no surrounding box. */}
-      <div
-        css={{
-          marginTop: '10px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px',
-          fontSize: '13px',
-          color: tokens.text
-        }}
-      >
-        <div css={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-          <span css={{ color: tokens.dimText, flexShrink: 0 }}>type</span>
-          <span css={{ minWidth: 0, lineHeight: 1.6 }}>
+      <div className="mt-[10px] flex flex-col gap-1 text-[13px]" style={{ color: tokens.text }}>
+        <div className="flex flex-wrap items-baseline gap-2">
+          <span className="flex-shrink-0" style={{ color: tokens.dimText }}>
+            type
+          </span>
+          <span className="min-w-0 leading-[1.6]">
             <TypeView typeInfo={property.typeInfo} mode="pretty" />
           </span>
         </div>
         {property.defaultValue !== undefined && (
-          <div css={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-            <span css={{ color: tokens.dimText, flexShrink: 0 }}>default</span>
-            <code
-              css={{
-                color: tokens.syntax.string,
-                fontFamily: tokens.monoFamily
-              }}
-            >
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="flex-shrink-0" style={{ color: tokens.dimText }}>
+              default
+            </span>
+            <code className="font-mono" style={{ color: tokens.syntax.string }}>
               {property.defaultValue}
             </code>
           </div>
@@ -400,7 +284,7 @@ function LeafDetail({ property }: { property: NormalizedProperty }) {
 
       {/* Description — short + long, full markdown rendering. Same body size as the rest. */}
       {(stripHtml(property.shortDescription) || property.longDescription) && (
-        <div css={{ marginTop: '14px' }}>
+        <div className="mt-[14px]">
           <PropertyDescription property={property} />
         </div>
       )}
@@ -423,28 +307,20 @@ function BranchDetail({
 }) {
   const branchTypeName = branch.typeName ?? branch.label;
   return (
-    <div css={{ fontFamily: typographyCss.fontFamily, fontSize: '13px', lineHeight: 1.65 }}>
-      <div css={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
+    <div className="font-sans text-[13px] leading-[1.65]">
+      <div className="flex flex-wrap items-baseline gap-[10px]">
         <code
-          css={{
-            color: tokens.syntax.type,
-            fontSize: '17px',
-            fontWeight: 600,
-            fontFamily: tokens.monoFamily,
-            lineHeight: 1.3,
-            wordBreak: 'break-word'
-          }}
+          className="font-mono text-[17px] font-semibold leading-[1.3] break-words"
+          style={{ color: tokens.syntax.type }}
         >
           {branchTypeName}
         </code>
         {isDiscriminated && (
-          <span css={{ display: 'inline-flex', alignItems: 'baseline', gap: '6px' }}>
-            <code css={{ color: tokens.syntax.property, fontFamily: tokens.monoFamily, fontSize: '12.5px' }}>
+          <span className="inline-flex items-baseline gap-[6px]">
+            <code className="font-mono text-[12.5px]" style={{ color: tokens.syntax.property }}>
               {property.name}.type
             </code>
-            <code
-              css={{ color: tokens.syntax.string, fontFamily: tokens.monoFamily, fontSize: '12.5px', fontWeight: 600 }}
-            >
+            <code className="font-mono text-[12.5px] font-semibold" style={{ color: tokens.syntax.string }}>
               &quot;{branch.label}&quot;
             </code>
           </span>
@@ -453,12 +329,8 @@ function BranchDetail({
 
       {branch.shortDescription && (
         <div
-          css={{
-            marginTop: '12px',
-            color: tokens.text,
-            fontSize: '13px',
-            lineHeight: 1.65
-          }}
+          className="mt-3 text-[13px] leading-[1.65]"
+          style={{ color: tokens.text }}
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(branch.shortDescription) }}
         />
       )}
@@ -468,15 +340,7 @@ function BranchDetail({
 
 function EmptyHint() {
   return (
-    <div
-      css={{
-        color: tokens.dimText,
-        fontSize: '13px',
-        fontFamily: typographyCss.fontFamily,
-        padding: '20px 4px',
-        lineHeight: 1.6
-      }}
-    >
+    <div className="font-sans text-[13px] leading-[1.6] px-1 py-5" style={{ color: tokens.dimText }}>
       Click a property in the tree to see its description, default value, and full type.
     </div>
   );
@@ -506,27 +370,16 @@ export function ApiReference({ definitionName }: SharedRenderProps) {
         onSearchChange={setSearchQuery}
       />
       <div
-        css={{
-          display: 'grid',
-          // Nav 55% / property info 45%. Nav shows the schema inline + needs the room.
-          gridTemplateColumns: '11fr 9fr',
-          minHeight: '600px',
-          [onMaxW795]: { gridTemplateColumns: '1fr', minHeight: 0 }
-        }}
+        // Nav 55% / property info 45%. Nav shows the schema inline + needs the room.
+        className="grid [grid-template-columns:11fr_9fr] min-h-[600px] max-[795px]:[grid-template-columns:1fr] max-[795px]:min-h-0"
       >
         <div
-          css={{
-            borderRight: `1px solid ${tokens.subtleBorder}`,
-            background: tokens.surfaceSunken,
-            maxHeight: '720px',
-            overflowY: 'auto',
-            ...narrowScrollbar,
-            [onMaxW795]: {
-              borderRight: 'none',
-              borderBottom: `1px solid ${tokens.subtleBorder}`,
-              maxHeight: '380px'
-            }
-          }}
+          className={clsx(
+            'border-r border-solid max-h-[720px] overflow-y-auto',
+            'max-[795px]:border-r-0 max-[795px]:border-b max-[795px]:max-h-[380px]',
+            narrowScrollbar
+          )}
+          style={{ borderColor: tokens.subtleBorder, background: tokens.surfaceSunken }}
         >
           <TreeNav
             properties={definition.properties}
@@ -544,7 +397,7 @@ export function ApiReference({ definitionName }: SharedRenderProps) {
             onSelect={setSelectionPath}
           />
         </div>
-        <div css={{ padding: '20px 22px', maxHeight: '720px', overflowY: 'auto', ...narrowScrollbar }}>
+        <div className={clsx('px-[22px] py-5 max-h-[720px] overflow-y-auto', narrowScrollbar)}>
           <Breadcrumb rootName={definition.definitionName} resolved={resolved} onNavigate={setSelectionPath} />
           {!resolved ? (
             <EmptyHint />

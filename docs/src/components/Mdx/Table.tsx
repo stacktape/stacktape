@@ -1,49 +1,18 @@
-import { box, colors } from '../../styles/variables';
+import clsx from 'clsx';
 
 export function Table(props) {
   return (
     <table
-      css={{
-        ...box,
-        padding: '0',
-        borderRadius: '8px',
-        margin: '20px 0px 16px 0px',
-        borderSpacing: '0',
-        overflowWrap: 'normal',
-        overflow: 'hidden',
-        width: '100%',
-        thead: {
-          fontSize: '14px',
-          color: colors.fontColorPrimary,
-          background: 'rgba(0, 0, 0, 0.2)',
-          tr: {
-            fontWeight: 600,
-            textAlign: 'left',
-            th: {
-              margin: '0',
-              padding: '14px 18px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
-            }
-          }
-        },
-        'tbody tr': {
-          margin: '0',
-          padding: '0',
-          transition: 'background 150ms ease',
-          '&:hover': {
-            background: 'rgba(255, 255, 255, 0.03)'
-          },
-          '&:not(:last-child) td': {
-            borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
-          },
-          td: {
-            fontSize: '14px',
-            margin: '0',
-            padding: '12px 18px',
-            color: colors.fontColorPrimary
-          }
-        }
-      }}
+      className={clsx(
+        'stp-box w-full overflow-hidden p-0 rounded-[8px] mt-[20px] mr-0 mb-[16px] ml-0 [border-spacing:0] [overflow-wrap:normal]',
+        '[&_thead]:text-[14px] [&_thead]:text-fc-primary [&_thead]:bg-[rgba(0,0,0,0.2)]',
+        '[&_thead_tr]:font-semibold [&_thead_tr]:text-left',
+        '[&_thead_tr_th]:m-0 [&_thead_tr_th]:py-[14px] [&_thead_tr_th]:px-[18px] [&_thead_tr_th]:border-b [&_thead_tr_th]:border-b-[rgba(255,255,255,0.08)]',
+        '[&_tbody_tr]:m-0 [&_tbody_tr]:p-0 [&_tbody_tr]:transition-[background] [&_tbody_tr]:duration-150 [&_tbody_tr]:ease-[ease]',
+        '[&_tbody_tr:hover]:bg-[rgba(255,255,255,0.03)]',
+        '[&_tbody_tr:not(:last-child)_td]:border-b [&_tbody_tr:not(:last-child)_td]:border-b-[rgba(255,255,255,0.05)]',
+        '[&_tbody_tr_td]:text-[14px] [&_tbody_tr_td]:m-0 [&_tbody_tr_td]:py-[12px] [&_tbody_tr_td]:px-[18px] [&_tbody_tr_td]:text-fc-primary'
+      )}
       {...props}
     />
   );

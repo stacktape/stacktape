@@ -1,5 +1,5 @@
-import { css } from '@emotion/react';
-import { colors, fontFamily } from '../../styles/variables';
+import clsx from 'clsx';
+import { colors } from '../../styles/variables';
 
 type DecisionNode = {
   question?: string;
@@ -8,78 +8,29 @@ type DecisionNode = {
   children?: DecisionNode[];
 };
 
-const nodeStyle = css({
-  display: 'flex',
-  flexDirection: 'column',
-  paddingLeft: '20px',
-  borderLeft: `2px solid ${colors.primary}33`,
-  marginLeft: '8px'
-});
-
-const questionStyle = css({
-  color: colors.fontColorPrimary,
-  fontWeight: 600,
-  fontSize: '0.925rem',
-  marginBottom: '8px',
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: '8px',
-  '&::before': {
-    content: '"?"',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '20px',
-    height: '20px',
-    borderRadius: '50%',
-    backgroundColor: colors.primary,
-    color: colors.darkerBackground,
-    fontSize: '12px',
-    fontWeight: 700,
-    flexShrink: 0
-  }
-});
-
-const answerStyle = css({
-  color: colors.lightGray,
-  fontSize: '0.875rem',
-  marginBottom: '6px',
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: '8px',
-  '&::before': {
-    content: '"→"',
-    color: colors.primary,
-    fontWeight: 600
-  }
-});
-
-const resultStyle = css({
-  color: colors.primary,
-  fontWeight: 600,
-  fontSize: '0.925rem',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  padding: '6px 12px',
-  backgroundColor: `${colors.primary}15`,
-  borderRadius: '6px',
-  marginTop: '4px',
-  marginBottom: '8px',
-  '&::before': {
-    content: '"✓"',
-    fontWeight: 700
-  }
-});
-
 function DecisionNodeComponent({ node }: { node: DecisionNode }) {
   return (
-    <div css={{ marginBottom: '8px' }}>
-      {node.question && <div css={questionStyle}>{node.question}</div>}
-      {node.answer && <div css={answerStyle}>{node.answer}</div>}
-      {node.result && <div css={resultStyle}>{node.result}</div>}
+    <div className="mb-2">
+      {node.question && (
+        <div className="text-fc-primary font-semibold text-[0.925rem] mb-2 flex items-start gap-2 before:content-['?'] before:inline-flex before:items-center before:justify-center before:w-5 before:h-5 before:rounded-full before:bg-primary before:text-darker before:text-[12px] before:font-bold before:shrink-0">
+          {node.question}
+        </div>
+      )}
+      {node.answer && (
+        <div className="text-light-gray text-[0.875rem] mb-[6px] flex items-start gap-2 before:content-['→'] before:text-primary before:font-semibold">
+          {node.answer}
+        </div>
+      )}
+      {node.result && (
+        <div
+          className="text-primary font-semibold text-[0.925rem] flex items-center gap-2 px-3 py-[6px] rounded-[6px] mt-1 mb-2 before:content-['✓'] before:font-bold"
+          style={{ backgroundColor: `${colors.primary}15` }}
+        >
+          {node.result}
+        </div>
+      )}
       {node.children && node.children.length > 0 && (
-        <div css={nodeStyle}>
+        <div className="flex flex-col pl-5 border-l-2 ml-2" style={{ borderLeftColor: `${colors.primary}33` }}>
           {node.children.map((child, index) => (
             <DecisionNodeComponent key={index} node={child} />
           ))}
@@ -91,15 +42,7 @@ function DecisionNodeComponent({ node }: { node: DecisionNode }) {
 
 export function DecisionTree({ nodes }: { nodes: DecisionNode[] }) {
   return (
-    <div
-      css={{
-        margin: '24px 0',
-        padding: '20px',
-        backgroundColor: colors.elementBackground,
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-      }}
-    >
+    <div className="my-6 p-5 bg-element rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]">
       {nodes.map((node, index) => (
         <DecisionNodeComponent key={index} node={node} />
       ))}
@@ -114,21 +57,14 @@ type FileNode = {
   description?: string;
 };
 
-const fileIconStyle = css({
-  width: '16px',
-  height: '16px',
-  marginRight: '8px',
-  flexShrink: 0
-});
-
 const folderIcon = (
-  <svg css={fileIconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
   </svg>
 );
 
 const fileIcon = (
-  <svg css={fileIconStyle} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
     <polyline points="14 2 14 8 20 8" />
   </svg>
@@ -138,44 +74,25 @@ function FileNodeComponent({ node, isLast, depth }: { node: FileNode; isLast: bo
   const isFolder = node.type === 'folder' || (node.children && node.children.length > 0);
 
   return (
-    <div css={{ marginLeft: depth > 0 ? '20px' : 0 }}>
+    <div className={depth > 0 ? 'ml-5' : undefined}>
       <div
-        css={{
-          display: 'flex',
-          alignItems: 'center',
-          padding: '4px 0',
-          color: isFolder ? colors.primary : colors.fontColorPrimary,
-          fontSize: '0.875rem',
-          fontFamily: "'Geist Mono', monospace",
-          position: 'relative',
-          '&::before':
-            depth > 0
-              ? {
-                  content: isLast ? '"└─"' : '"├─"',
-                  position: 'absolute',
-                  left: '-20px',
-                  color: colors.lightGray
-                }
-              : {}
-        }}
+        className={clsx(
+          'flex items-center py-1 text-[0.875rem] font-mono relative',
+          isFolder ? 'text-primary' : 'text-fc-primary',
+          depth > 0 && 'before:absolute before:left-[-20px] before:text-light-gray',
+          depth > 0 && (isLast ? "before:content-['└─']" : "before:content-['├─']")
+        )}
       >
         {isFolder ? folderIcon : fileIcon}
-        <span css={{ fontWeight: isFolder ? 600 : 400 }}>{node.name}</span>
+        <span className={isFolder ? 'font-semibold' : 'font-normal'}>{node.name}</span>
         {node.description && (
-          <span css={{ marginLeft: '12px', color: colors.lightGray, fontSize: '0.8rem', fontFamily: 'inherit' }}>
-            {node.description}
-          </span>
+          <span className="ml-3 text-light-gray text-[0.8rem] font-[inherit]">{node.description}</span>
         )}
       </div>
       {node.children && node.children.length > 0 && (
-        <div css={{ borderLeft: `1px solid ${colors.lightGray}33`, marginLeft: '8px' }}>
+        <div className="border-l ml-2" style={{ borderLeftColor: `${colors.lightGray}33` }}>
           {node.children.map((child, index) => (
-            <FileNodeComponent
-              key={index}
-              node={child}
-              isLast={index === node.children!.length - 1}
-              depth={depth + 1}
-            />
+            <FileNodeComponent key={index} node={child} isLast={index === node.children!.length - 1} depth={depth + 1} />
           ))}
         </div>
       )}
@@ -185,15 +102,7 @@ function FileNodeComponent({ node, isLast, depth }: { node: FileNode; isLast: bo
 
 export function ProjectStructure({ files }: { files: FileNode[] }) {
   return (
-    <div
-      css={{
-        margin: '24px 0',
-        padding: '16px 20px',
-        backgroundColor: colors.elementBackground,
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-      }}
-    >
+    <div className="my-6 px-5 py-4 bg-element rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]">
       {files.map((file, index) => (
         <FileNodeComponent key={index} node={file} isLast={index === files.length - 1} depth={0} />
       ))}
@@ -209,56 +118,20 @@ type FlowStep = {
 
 export function FlowDiagram({ steps }: { steps: FlowStep[] }) {
   return (
-    <div
-      css={{
-        margin: '24px 0',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0'
-      }}
-    >
+    <div className="my-6 flex flex-col gap-0">
       {steps.map((step, index) => (
-        <div key={index} css={{ display: 'flex', alignItems: 'stretch' }}>
-          <div
-            css={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              marginRight: '16px'
-            }}
-          >
-            <div
-              css={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                backgroundColor: colors.primary,
-                color: colors.darkerBackground,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontFamily,
-                fontWeight: 700,
-                fontSize: '14px',
-                flexShrink: 0
-              }}
-            >
+        <div key={index} className="flex items-stretch">
+          <div className="flex flex-col items-center mr-4">
+            <div className="w-8 h-8 rounded-full bg-primary text-darker flex items-center justify-center font-sans font-bold text-[14px] shrink-0">
               {step.icon || index + 1}
             </div>
             {index < steps.length - 1 && (
-              <div
-                css={{
-                  width: '2px',
-                  flex: 1,
-                  minHeight: '20px',
-                  backgroundColor: `${colors.primary}33`
-                }}
-              />
+              <div className="w-[2px] flex-1 min-h-[20px]" style={{ backgroundColor: `${colors.primary}33` }} />
             )}
           </div>
-          <div css={{ paddingBottom: index < steps.length - 1 ? '20px' : 0 }}>
-            <p css={{ fontWeight: 600, color: colors.fontColorPrimary, marginBottom: '4px' }}>{step.title}</p>
-            {step.description && <p css={{ color: colors.lightGray, fontSize: '0.875rem' }}>{step.description}</p>}
+          <div className={index < steps.length - 1 ? 'pb-5' : undefined}>
+            <p className="font-semibold text-fc-primary mb-1">{step.title}</p>
+            {step.description && <p className="text-light-gray text-[0.875rem]">{step.description}</p>}
           </div>
         </div>
       ))}
