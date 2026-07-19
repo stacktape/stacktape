@@ -202,7 +202,7 @@ export function LandingHero({
           {accent && (
             <>
               {' '}
-              <span className="stp-gradient-text">{accent}</span>
+              <span>{accent}</span>
             </>
           )}
         </h2>
@@ -265,7 +265,7 @@ export function FeatureGrid({ items, columns = 3 }: { items: Feature[]; columns?
       {items.map((item, idx) => (
         <div
           key={idx}
-          className="stp-box p-[20px_20px_22px_20px] [transition:transform_220ms_ease,box-shadow_220ms_ease] hover:-translate-y-[3px] hover:shadow-[0_12px_28px_rgba(0,0,0,0.5),0_0_0_1px_rgba(54,190,190,0.28),inset_0_1px_0_rgba(255,255,255,0.18)]"
+          className="stp-box p-[20px_20px_22px_20px] [transition:box-shadow_220ms_ease] hover:shadow-[0_12px_28px_rgba(0,0,0,0.5),0_0_0_1px_rgba(54,190,190,0.28),inset_0_1px_0_rgba(255,255,255,0.18)]"
         >
           <div className="w-[42px] h-[42px] rounded-[11px] flex items-center justify-center bg-[rgba(54,190,190,0.1)] shadow-[inset_0_0_0_1px_rgba(54,190,190,0.22)] mb-[14px]">
             <Icon name={item.icon} size={21} />

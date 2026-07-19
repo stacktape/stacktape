@@ -2,12 +2,15 @@
 
 import type { ReactNode } from 'react';
 import clsx from 'clsx';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BiCheck, BiCopy } from 'react-icons/bi';
 import { colors } from '../../styles/variables';
 import { marked } from 'marked';
 import { convertTypescriptToYaml, convertYamlToTypescript } from '../../utils/yaml-to-typescript';
 import { computeYamlHovers } from './yaml-hover';
+
+// useLayoutEffect logs a warning during SSR; fall back to useEffect on the server.
+const useIsomorphicLayoutEffect = typeof document !== 'undefined' ? useLayoutEffect : useEffect;
 
 const STACKTAPE_TYPE_FILES = ['index.d.ts', 'types.d.ts', 'plain.d.ts', 'cloudformation.d.ts'] as const;
 const SHIKI_THEME = 'catppuccin-mocha';
@@ -730,30 +733,54 @@ function TabSwitcher({
   onTabClick: (index: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
+  const [hydrated, setHydrated] = useState(false);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const buttons = containerRef.current.querySelectorAll('button');
-    const activeButton = buttons[activeIndex] as HTMLButtonElement | undefined;
+  const updateIndicator = useCallback(() => {
+    const activeButton = buttonRefs.current[activeIndex];
     if (!activeButton) return;
+    // offset* keeps the pill aligned with the container's positioning context (no getBoundingClientRect
+    // rounding drift), matching the console app's Tabs.
     setIndicatorStyle({ left: activeButton.offsetLeft, width: activeButton.offsetWidth });
   }, [activeIndex]);
+
+  // Measure before paint so the hand-off from the static CSS pill to the sliding indicator is seamless.
+  useIsomorphicLayoutEffect(() => {
+    updateIndicator();
+    setHydrated(true);
+  }, [updateIndicator, tabs.length]);
+
+  useEffect(() => {
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [updateIndicator]);
+
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => updateIndicator());
+    observer.observe(container);
+    const activeButton = buttonRefs.current[activeIndex];
+    if (activeButton) observer.observe(activeButton);
+    return () => observer.disconnect();
+  }, [activeIndex, updateIndicator]);
 
   if (tabs.length <= 1) return null;
 
   return (
     <div className="flex mb-2">
-      <div ref={containerRef} className="stp-tab-container">
-        <div
-          className="absolute top-[3px] h-[calc(100%-6px)] z-0 rounded-[6px] bg-[linear-gradient(135deg,rgb(60,64,64),rgb(44,47,47))] shadow-[0_4px_12px_rgba(0,0,0,0.45),0_0_0_1px_rgba(190,190,190,0.16),inset_0_1px_0_rgba(255,255,255,0.1)] [transition:left_200ms_ease,width_200ms_ease]"
-          style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
-        />
+      <div ref={containerRef} className={clsx('stp-tab-container', hydrated && 'is-hydrated')}>
+        <div className="stp-tab-indicator" style={{ left: indicatorStyle.left, width: indicatorStyle.width }} />
         {tabs.map((tab, index) => {
           const isActive = activeIndex === index;
           return (
             <button
               key={index}
+              ref={(el) => {
+                buttonRefs.current[index] = el;
+              }}
               type="button"
               className={clsx('stp-tab-button', isActive && 'is-active')}
               onClick={() => onTabClick(index)}

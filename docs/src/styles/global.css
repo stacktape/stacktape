@@ -1345,7 +1345,7 @@
     font-size: 12.5px;
     line-height: 1.2;
     font-weight: 600;
-    padding: 4px 10px;
+    padding: 7px 10px;
     border-radius: 6px;
     color: rgba(190, 190, 190, 0.8);
     border: none;
@@ -1355,7 +1355,7 @@
     gap: 6px;
     background: transparent;
     cursor: pointer;
-    transition: color 250ms ease, transform 150ms ease;
+    transition: color 250ms ease;
     z-index: 1;
     outline: none;
     white-space: nowrap;
@@ -1363,12 +1363,34 @@
   .stp-tab-button:hover {
     color: rgba(220, 220, 220, 0.95);
   }
-  .stp-tab-button:active {
-    transform: scale(0.97);
-  }
   .stp-tab-button.is-active,
   .stp-tab-button.is-active:hover {
     color: var(--color-fc-primary);
+  }
+
+  /* Sliding active pill. Once the island hydrates it measures the active button and slides here with
+   * a springy ease. Before hydration (and where JS never runs) the indicator is hidden and the active
+   * button shows an identical static pill instead — so SSR never renders a bare, unpadded-looking tab. */
+  .stp-tab-indicator {
+    position: absolute;
+    top: 3px;
+    height: calc(100% - 6px);
+    z-index: 0;
+    border-radius: 6px;
+    background: linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47));
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: left 350ms cubic-bezier(0.34, 1.56, 0.64, 1), width 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    will-change: left, width;
+    pointer-events: none;
+  }
+  .stp-tab-container:not(.is-hydrated) .stp-tab-indicator {
+    display: none;
+  }
+  .stp-tab-container:not(.is-hydrated) .stp-tab-button.is-active {
+    background: linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47));
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
   /* `prettyScrollBar` for individual scroll containers (sidebar inner, code-block shell). */

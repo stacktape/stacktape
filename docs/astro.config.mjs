@@ -7,9 +7,10 @@ import tailwindcss from '@tailwindcss/vite';
 import { join } from 'node:path';
 import { cpSync, existsSync } from 'node:fs';
 
-import remarkGfm from 'remark-gfm';
+import { unified } from '@astrojs/markdown-remark';
 import { remarkDocsTransforms } from './src/utils/remark-docs-transforms.ts';
 import { remarkCodeToComponent } from './src/utils/remark-code-to-component.ts';
+import { remarkFixJsxTemplateIndent } from './src/utils/remark-fix-jsx-template-indent.ts';
 import { rehypeDocsLinks } from './src/utils/rehype-docs-links.ts';
 
 // Mirror the content static dir (the docs/docs/static content tree) into public/static so MDX
@@ -39,14 +40,20 @@ export default defineConfig({
   markdown: {
     // Our own <CodeBlock> island handles syntax highlighting (Shiki + Twoslash in the browser),
     // so disable Astro's compile-time Shiki. Smartquotes would corrupt code/inline text.
+    // Astro 7 replaced `markdown.{remarkPlugins,rehypePlugins,gfm,smartypants}` with a single
+    // `processor` built via `unified({...})` from @astrojs/markdown-remark; the MDX integration
+    // inherits the processor's plugins/options, so these still apply to every .mdx page.
     syntaxHighlight: false,
-    smartypants: false,
-    gfm: true,
-    // Astro auto-injects heading ids and collects `headings` (used for the TOC), so no slug/autolink
-    // plugins are needed. remark order matters: docs transforms → code-to-component (last, so it
-    // converts every resulting code node).
-    remarkPlugins: [remarkGfm, remarkDocsTransforms, remarkCodeToComponent],
-    rehypePlugins: [rehypeDocsLinks]
+    processor: unified({
+      gfm: true,
+      smartypants: false,
+      // Astro auto-injects heading ids and collects `headings` (used for the TOC), so no
+      // slug/autolink plugins are needed. remark order matters: fix-jsx-template-indent (restores
+      // verbatim code in <CodeBlock tabs> template literals, undoing MDX's multi-line dedent) →
+      // docs transforms → code-to-component (last, so it converts every resulting code node).
+      remarkPlugins: [remarkFixJsxTemplateIndent, remarkDocsTransforms, remarkCodeToComponent],
+      rehypePlugins: [rehypeDocsLinks]
+    })
   },
   integrations: [
     react(),

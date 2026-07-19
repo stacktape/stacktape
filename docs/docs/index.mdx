@@ -6,30 +6,18 @@ seoDescription: 'From scratch to production-grade AWS infrastructure in a day, w
 ---
 
 <LandingHero
-  eyebrow="PaaS 2.0 · deploys to your own AWS account"
   title="From scratch to production-grade AWS infra in a day."
   accent="No DevOps knowledge required."
   subtitle="Stacktape gives you the speed of a PaaS with the control and cost structure of raw AWS. Define your infrastructure in TypeScript, deploy it with one command, and own every byte — it all runs in the AWS account you control."
 >
   <ButtonRow>
-    <CTAButton href="/getting-started/configure-your-stack" variant="primary" icon="arrow">Get started</CTAButton>
+    <CTAButton href="/getting-started/configure-your-stack/" variant="primary" icon="arrow">Get started</CTAButton>
     <CTAButton href="https://github.com/stacktape/stacktape" variant="secondary">Star on GitHub</CTAButton>
-    <CTAButton href="/starter-projects" variant="ghost">Browse examples</CTAButton>
+    <CTAButton href="/getting-started/starter-projects/" variant="ghost">Browse examples</CTAButton>
   </ButtonRow>
 </LandingHero>
 
 <OpenSourceBanner />
-
-## What you get out of the box
-
-<StatStrip
-  stats={[
-    { value: 30, suffix: '+', label: 'AWS resource types' },
-    { value: 97, suffix: '%', label: 'Shorter than raw IaC' },
-    { value: 1, label: 'Command to deploy' },
-    { display: '$0', label: 'Vendor markup on compute' }
-  ]}
-/>
 
 ## Everything you need, in one framework
 
@@ -259,14 +247,14 @@ Need more control? Override or transform any AWS resource:
     code: `import { LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 
 const myFunction = new LambdaFunction({
-  // ... standard config
-  packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
-  overrides: {
-    lambda: { Description: 'Overridden description' }
-  },
-  transforms: {
-    lambda: (props: any) => ({ ...props, MemorySize: (props.MemorySize ?? 128) * 2 })
-  }
+    // ... standard config
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    overrides: {
+      lambda: { Description: 'Overridden description' }
+    },
+    transforms: {
+      lambda: (props: any) => ({ ...props, MemorySize: (props.MemorySize ?? 128) * 2 })
+    }
 });
 `
   }]}
@@ -314,6 +302,6 @@ Use Stacktape core completely free, or add the hosted Console when you want CI/C
   title="Ready to simplify your AWS deployments?"
   subtitle="From scratch to production-grade AWS infra in a day — no DevOps knowledge required."
 >
-  <CTAButton href="/getting-started/configure-your-stack" variant="primary" icon="arrow">Get started</CTAButton>
-  <CTAButton href="/getting-started/starter-projects" variant="ghost">Browse examples</CTAButton>
+  <CTAButton href="/getting-started/configure-your-stack/" variant="primary" icon="arrow">Get started</CTAButton>
+  <CTAButton href="/getting-started/starter-projects/" variant="ghost">Browse examples</CTAButton>
 </CTASection>
