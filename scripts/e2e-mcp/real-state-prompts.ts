@@ -155,8 +155,7 @@ export const REAL_STATE_PROMPTS: Prompt[] = [
     ...base,
     id: 'real-preview-console-dev-plan-only',
     category: 'real-state-preview',
-    prompt:
-      'Prepare the diff command for console-app dev in eu-west-1. Do not run it; just plan it through MCP.',
+    prompt: 'Prepare the diff command for console-app dev in eu-west-1. Do not run it; just plan it through MCP.',
     expect: {
       mustCallAnyOf: ['stacktape_cli', 'stacktape_project'],
       mustNotExecute: [

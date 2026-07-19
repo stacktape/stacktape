@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-22T21:40:34.421Z",
+  "generatedAt": "2026-07-19T20:03:17.711Z",
   "version": "0.1",
   "sourceRoots": [
     "docs/docs",
@@ -3623,6 +3623,22 @@
       ]
     },
     {
+      "id": "page:/getting-started/starter-projects",
+      "title": "Starter Projects",
+      "route": "/getting-started/starter-projects",
+      "sourcePath": "docs/docs/getting-started/starter-projects.mdx",
+      "outputPath": "pages/getting-started/starter-projects.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "getting-started",
+        "starter-projects"
+      ],
+      "chunks": [
+        "page:/getting-started/starter-projects#starter-projects"
+      ]
+    },
+    {
       "id": "page:/getting-started/use-the-dev-mode",
       "title": "Use the Dev Mode",
       "route": "/getting-started/use-the-dev-mode",
@@ -3858,14 +3874,21 @@
       "definitionNames": [],
       "tags": [],
       "chunks": [
-        "page:/#stacktape",
+        "page:/#introduction",
+        "page:/#everything-you-need-in-one-framework",
         "page:/#a-real-stacktape-config",
-        "page:/#what-you-can-build-with-stacktape",
-        "page:/#related-pages",
-        "page:/#why-stacktape",
-        "page:/#get-started",
-        "page:/#related-pages-2",
-        "page:/#related-pages-3"
+        "page:/#quick-start",
+        "page:/#install-stacktape",
+        "page:/#initialize-a-project",
+        "page:/#deploy-to-aws",
+        "page:/#configuration-in-typescript-yaml-or-json",
+        "page:/#a-development-workflow-built-for-speed",
+        "page:/#local-development",
+        "page:/#scripts-migrations",
+        "page:/#private-networking",
+        "page:/#override-extend",
+        "page:/#open-source-core-paid-console",
+        "page:/#loved-by-teams-shipping-on-aws"
       ]
     },
     {

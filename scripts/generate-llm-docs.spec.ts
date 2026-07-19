@@ -74,4 +74,14 @@ describe('generated LLM docs corpus', () => {
       expect(obsoleteResourceTypePatterns.some((pattern) => pattern.test(content))).toBe(false);
     }
   });
+
+  test('renders the starter project gallery as useful text', async () => {
+    const content = await readFile(
+      join(LLM_DOCS_FOLDER_PATH, 'pages', 'getting-started', 'starter-projects.md'),
+      'utf-8'
+    );
+
+    expect(content).toContain('stacktape init --starterId <starter-id>');
+    expect(content).not.toContain('<StarterProjectGallery');
+  });
 });

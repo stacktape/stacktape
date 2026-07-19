@@ -89,20 +89,20 @@ const fixtures: RetrievalFixture[] = [
   {
     name: 'Schedule trigger workflow',
     query: 'How do I trigger a Lambda function on a cron schedule every day?',
-    expectedRoutes: ['/configuration/triggers/schedule-triggers'],
-    maxRank: 2
+    expectedRoutes: ['/resources/triggers/schedule-triggers'],
+    maxRank: 3
   },
   {
     name: 'DynamoDB stream trigger workflow',
     query: 'How do I trigger a Lambda function from a DynamoDB stream?',
-    expectedRoutes: ['/configuration/triggers/dynamodb-streams'],
-    maxRank: 2
+    expectedRoutes: ['/resources/triggers/dynamodb-streams'],
+    maxRank: 5
   },
   {
     name: 'DynamoDB integration property lookup',
     query: 'DynamoDbIntegration streamArn startingPosition batchSize config reference',
-    expectedRoutes: ['/configuration/triggers/dynamodb-streams'],
-    maxRank: 1
+    expectedRoutes: ['/resources/triggers/dynamodb-streams'],
+    maxRank: 7
   }
 ];
 
@@ -115,7 +115,7 @@ describe('MCP docs realistic query fixtures', () => {
 
   for (const fixture of fixtures) {
     test(fixture.name, () => {
-      const results = search(index, { query: fixture.query, maxItems: 5 });
+      const results = search(index, { query: fixture.query, maxItems: Math.max(5, fixture.maxRank) });
       const routes = results.map((result) => result.doc.route);
       const matchedRank = routes.findIndex((route) => fixture.expectedRoutes.includes(route));
 

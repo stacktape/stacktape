@@ -1,7 +1,7 @@
 /* eslint-disable no-new-func */
 import { basename, dirname, join, relative } from 'node:path';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { emptyDir, ensureDir, pathExists, readFile, readdir, writeFile } from 'fs-extra';
+import { emptyDir, ensureDir, readFile, readdir, writeFile } from 'fs-extra';
 import { LLM_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
 import { generateCommandSchemaInfo } from '../src/config/cli/utils';
 import {
@@ -419,6 +419,12 @@ const flowDiagramToMarkdown = (stepsRaw: string): string | undefined => {
   return `${lines.join('\n')}\n\n`;
 };
 
+const featureGridToMarkdown = (itemsRaw: string): string | undefined => {
+  const items = parseJsLiteral<Array<{ title?: string; text?: string }>>(itemsRaw);
+  if (!items) return undefined;
+  return `\n\n${items.map((item) => `- **${item.title || 'Feature'}:** ${item.text || ''}`).join('\n')}\n\n`;
+};
+
 const propStringValue = (propsRaw: string, propName: string): string | undefined => {
   const match = propsRaw.match(new RegExp(`\\b${propName}="([^"]*)"`));
   return match?.[1];
@@ -502,6 +508,23 @@ const transformComponents = (body: string): string => {
     return markdown;
   });
 
+  result = result.replace(/<FeatureGrid\s+items=\{(\[[\s\S]*?\])\}\s*\/>/g, (fullMatch, itemsRaw) => {
+    const markdown = featureGridToMarkdown(itemsRaw);
+    if (!markdown) throw new Error(`FeatureGrid could not be parsed: ${fullMatch.slice(0, 120)}`);
+    return markdown;
+  });
+
+  result = result
+    .replace(/<LandingHero\b[^>]*>/g, '')
+    .replace(/<\/LandingHero>/g, '')
+    .replace(/<CTASection\b[^>]*>/g, '')
+    .replace(/<\/CTASection>/g, '')
+    .replace(/<\/?ButtonRow>/g, '')
+    .replace(/<CTAButton\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/CTAButton>/g, '[$2]($1)')
+    .replace(/<\/?Steps>/g, '')
+    .replace(/<Step\s+title="([^"]+)">/g, '\n\n### $1\n\n')
+    .replace(/<\/Step>/g, '');
+
   result = result.replace(/<NavBoxGrid\b[^>]*>([\s\S]*?)<\/NavBoxGrid>/g, (_, children) => {
     const items = children.replace(/<NavBox\b([^>]*)\/>/g, (_navBoxMatch: string, propsRaw: string) =>
       navBoxToMarkdown(propsRaw)
@@ -558,6 +581,16 @@ const cleanMdxForLlms = async (body: string): Promise<string> => {
 
   result = result
     .replace(/<\/?(?:Divider|PreviousNext|NegativeMargin)[^>]*>/g, '')
+    .replace(
+      /<StarterProjectGallery\s*\/>/g,
+      '\n\nBrowse the current starter projects at https://docs.stacktape.com/getting-started/starter-projects or scaffold one with `stacktape init --starterId <starter-id>`.\n\n'
+    )
+    .replace(
+      /<OpenSourceBanner\s*\/>/g,
+      '\n\nStacktape is open source. Browse the source at https://github.com/stacktape/stacktape.\n\n'
+    )
+    .replace(/<PricingColumns\s*\/>/g, '\n\nSee current pricing at https://stacktape.com/pricing.\n\n')
+    .replace(/<Testimonials\s*\/>/g, '')
     .replace(/<br\s*\/?>/g, '\n')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{4,}/g, '\n\n\n')

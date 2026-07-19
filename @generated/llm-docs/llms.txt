@@ -89,6 +89,7 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [Configure Your Stack](/getting-started/configure-your-stack) - source: docs/docs/getting-started/configure-your-stack.mdx
 - [Deploy Your First Stage](/getting-started/deploy-your-first-stage) - source: docs/docs/getting-started/deploy-your-first-stage.mdx
 - [Going to Production](/getting-started/going-to-production) - source: docs/docs/getting-started/going-to-production.mdx
+- [Starter Projects](/getting-started/starter-projects) - source: docs/docs/getting-started/starter-projects.mdx
 - [Use the Dev Mode](/getting-started/use-the-dev-mode) - source: docs/docs/getting-started/use-the-dev-mode.mdx
 - [Using Console UI](/getting-started/using-console-ui) - source: docs/docs/getting-started/using-console-ui.mdx
 - [Database Guardrails](/guardrails/databases) - source: docs/docs/guardrails/databases.mdx

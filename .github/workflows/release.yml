@@ -186,7 +186,7 @@ jobs:
       - name: Publish AI docs
         env:
           STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: bun run publish:ai:docs
+        run: bun run publish:llm:docs
 
       - name: Update package.json versions
         run: |

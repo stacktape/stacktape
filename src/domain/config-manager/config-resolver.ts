@@ -142,7 +142,7 @@ const parseBunErrorOutput = (stderr: string): { message: string; codeFrame: stri
     const trimmed = l.trim();
     return (
       /^(Error|TypeError|ReferenceError|SyntaxError|RangeError|AggregateError|URIError|EvalError):/.test(trimmed) ||
-      /^error:/.test(trimmed)
+      trimmed.startsWith('error:')
     );
   });
   if (errorLineIndex === -1) return null;
