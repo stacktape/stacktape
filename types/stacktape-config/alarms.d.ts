@@ -1785,6 +1785,7 @@ type ComparisonOperator =
   | 'LessThanOrEqualToThreshold';
 
 type AlarmNotificationEventRuleInput = {
+  sourceEventId: string;
   description: string;
   time: string;
   stateValue: string;

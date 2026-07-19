@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const postedMessages: Array<{ channel: string; text: string }> = [];
+const reportedEvents: any[] = [];
 let reportError: Error | undefined;
 
 mock.module('@slack/web-api', () => ({
@@ -21,8 +22,9 @@ mock.module('@shared/trpc/aws-identity-protected', () => ({
   AwsIdentityProtectedClient: class {
     init = async () => undefined;
     reportAlarmEvent = {
-      mutate: async () => {
+      mutate: async (event: any) => {
         if (reportError) throw reportError;
+        reportedEvents.push(event);
         return 'event-1';
       }
     };
@@ -33,6 +35,7 @@ const { default: handleAlarmNotification } = await import('./index');
 
 const createEvent = (includeInHistory: boolean): AlarmNotificationEventRuleInput =>
   ({
+    sourceEventId: 'eventbridge-event-1',
     description: 'threshold exceeded',
     time: new Date().toISOString(),
     stateValue: 'ALARM',
@@ -54,6 +57,7 @@ const createEvent = (includeInHistory: boolean): AlarmNotificationEventRuleInput
 describe('alarm notification handler', () => {
   beforeEach(() => {
     postedMessages.length = 0;
+    reportedEvents.length = 0;
     reportError = undefined;
     process.env.STACKTAPE_TRPC_API_ENDPOINT = 'https://api.example.com';
     process.env.AWS_REGION = 'eu-west-1';
@@ -70,5 +74,11 @@ describe('alarm notification handler', () => {
   test('propagates console routing failures so EventBridge can retry', async () => {
     reportError = new Error('console unavailable');
     await expect(handleAlarmNotification(createEvent(true))).rejects.toThrow('console unavailable');
+  });
+
+  test('forwards the EventBridge event ID to the console', async () => {
+    await handleAlarmNotification(createEvent(true));
+
+    expect(reportedEvents[0]?.sourceEventId).toBe('eventbridge-event-1');
   });
 });

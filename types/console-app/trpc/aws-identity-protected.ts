@@ -29,6 +29,7 @@ export type DeleteDefaultDomainDnsRecordParams = {
 };
 
 export type ReportAlarmEventParams = {
+  sourceEventId?: string;
   type: 'ALARM_TRIGGERED' | 'ALARM_RESOLVED';
   alarmName: string;
   sourceConfigName?: string;

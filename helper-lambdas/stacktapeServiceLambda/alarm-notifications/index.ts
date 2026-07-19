@@ -47,6 +47,7 @@ const reportToConsoleApi = async (event: AlarmNotificationEventRuleInput) => {
   await client.init({ credentials: await defaultProvider()(), region, apiUrl });
 
   await client.reportAlarmEvent.mutate({
+    sourceEventId: event.sourceEventId,
     type: event.stateValue === 'OK' ? 'ALARM_RESOLVED' : 'ALARM_TRIGGERED',
     alarmName: event.alarmConfig?.name || event.alarmAwsResourceName,
     sourceConfigName: event.alarmConfig?.name,

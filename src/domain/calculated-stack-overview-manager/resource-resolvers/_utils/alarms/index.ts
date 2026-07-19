@@ -127,6 +127,7 @@ const getCloudwatchAlarmResource = ({ alarm, resource }: { alarm: AlarmDefinitio
 const getInputTemplate = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
   const alarmAwsResourceName = awsResourceNames.cloudwatchAlarm(globalStateManager.targetStack.stackName, alarm.name);
   const inputTemplate: AlarmNotificationEventRuleInput = {
+    sourceEventId: '<sourceEventId>',
     description: '<description>',
     time: '<time>',
     stateValue: '<stateValue>',
@@ -173,6 +174,7 @@ const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDef
       {
         InputTransformer: {
           InputPathsMap: {
+            sourceEventId: '$.id',
             alarmName: '$.detail.alarmName',
             description: '$.detail.configuration.description',
             time: '$.time',
