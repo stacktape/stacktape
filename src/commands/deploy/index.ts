@@ -129,8 +129,9 @@ const deployLocally = async () => {
 
   await notificationManager.sendDeploymentNotification({
     message: {
-      text: `Deploying stack ${globalStateManager.targetStack.stackName}${useHotswap ? ' (using hotswap)' : ''}.`,
-      type: 'progress'
+      text: 'Deployment started',
+      type: 'progress',
+      details: { deploymentMode: useHotswap ? 'Hotswap' : 'Full deployment' }
     }
   });
 
@@ -195,8 +196,9 @@ const deployLocally = async () => {
 
   await notificationManager.sendDeploymentNotification({
     message: {
-      text: `Stack ${globalStateManager.targetStack.stackName} deployed successfully${useHotswap ? ' (using hotswap)' : ''}.`,
-      type: 'success'
+      text: 'Deployment succeeded',
+      type: 'success',
+      details: { deploymentMode: useHotswap ? 'Hotswap' : 'Full deployment' }
     }
   });
 
