@@ -20,19 +20,29 @@ type Props = {
 };
 
 const { title, seo, allDocPages, tableOfContents, currentPath } = Astro.props;
+const isHome = currentPath === '/';
 
 // Per-page structured data (mirrors the old <DocsHead>): TechArticle + BreadcrumbList (+ FAQPage).
-const pageJsonLd: Record<string, unknown>[] = [
+const pageJsonLd: Record<string, unknown>[] = seo.noindex ? [] : [
   {
     '@context': 'https://schema.org',
     '@type': 'TechArticle',
-    headline: seo.title,
+    headline: title,
     description: seo.description,
     url: seo.canonical,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': seo.canonical },
+    image: config.metadata.siteimage,
     inLanguage: 'en',
+    ...(seo.datePublished && { datePublished: seo.datePublished }),
     ...(seo.dateModified && { dateModified: seo.dateModified }),
     isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: `${config.metadata.url}/` },
-    publisher: { '@type': 'Organization', name: 'Stacktape', url: 'https://stacktape.com' }
+    author: { '@type': 'Organization', name: 'Stacktape', url: 'https://stacktape.com' },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Stacktape',
+      url: 'https://stacktape.com',
+      logo: { '@type': 'ImageObject', url: `${config.metadata.url}/favicon.svg` }
+    }
   },
   {
     '@context': 'https://schema.org',
@@ -45,7 +55,7 @@ const pageJsonLd: Record<string, unknown>[] = [
     }))
   }
 ];
-if (seo.faqItems.length > 0) {
+if (!seo.noindex && seo.faqItems.length > 0) {
   pageJsonLd.push({
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
@@ -58,13 +68,13 @@ if (seo.faqItems.length > 0) {
 }
 
 // Site-level structured data (entity grounding) — mirrors the old _document.
-const siteJsonLd = [
+const siteJsonLd = isHome ? [
   {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: 'Stacktape',
     url: 'https://stacktape.com',
-    logo: config.metadata.siteimage,
+    logo: `${config.metadata.url}/favicon.svg`,
     sameAs: Object.values(config.social)
   },
   { '@context': 'https://schema.org', '@type': 'WebSite', name: config.metadata.name, url: config.metadata.url },
@@ -77,7 +87,7 @@ const siteJsonLd = [
     url: 'https://stacktape.com',
     description: config.metadata.description
   }
-];
+] : [];
 ---
 
 <!doctype html>
@@ -88,24 +98,27 @@ const siteJsonLd = [
 
     <title>{seo.title}</title>
     <meta name="description" content={seo.description} />
-    <link rel="canonical" href={seo.canonical} />
+    {seo.noindex && <meta name="robots" content="noindex, follow" />}
+    {!seo.noindex && <link rel="canonical" href={seo.canonical} />}
 
     <meta property="og:title" content={seo.title} />
     <meta property="og:description" content={seo.description} />
     <meta property="og:url" content={seo.canonical} />
     <meta property="og:site_name" content={config.metadata.name} />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={isHome ? 'website' : 'article'} />
     <meta property="og:image" content={config.metadata.siteimage} />
+    <meta property="og:image:alt" content="Stacktape — deploy applications to your own AWS account" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta property="twitter:domain" content="docs.stacktape.com" />
+    <meta name="twitter:domain" content="docs.stacktape.com" />
+    <meta name="twitter:url" content={seo.canonical} />
     <meta name="twitter:image" content={config.metadata.siteimage} />
+    <meta name="twitter:image:alt" content="Stacktape — deploy applications to your own AWS account" />
     <meta name="twitter:title" content={seo.title} />
     <meta name="twitter:description" content={seo.description} />
 
     <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

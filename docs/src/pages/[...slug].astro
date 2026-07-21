@@ -1,7 +1,5 @@
 ---
 import { getCollection, render } from 'astro:content';
-import { statSync } from 'node:fs';
-import { join } from 'node:path';
 
 import DocsLayout from '@/layouts/DocsLayout.astro';
 import reactMdxComponents from '@/components/mdx-react-components';
@@ -22,6 +20,7 @@ import {
   type DocsSeo
 } from '@/utils/seo';
 import config from '../../config';
+import { getGitDates } from '@/utils/git-dates';
 
 export async function getStaticPaths() {
   const entries = await getCollection('docs');
@@ -47,20 +46,15 @@ const tableOfContents: TableOfContentsItem[] = headings.map((h) => ({
   href: `#${h.slug}`
 }));
 
-let dateModified: string | undefined;
-try {
-  if (entry.filePath) dateModified = new Date(statSync(join(process.cwd(), entry.filePath)).mtimeMs).toISOString();
-} catch {
-  /* mtime is best-effort */
-}
-
+const gitDates = getGitDates(entry.filePath);
 const seo: DocsSeo = {
   title: buildFullTitle(frontmatter.seoTitle, pageTitle),
   description: mdToPlainText(frontmatter.seoDescription || config.metadata.description),
   canonical: buildCanonical(slug),
   faqItems: extractFaqItems(entry.body ?? ''),
   breadcrumb: buildBreadcrumb(slug, allDocPages),
-  dateModified
+  datePublished: gitDates?.datePublished,
+  dateModified: gitDates?.dateModified
 };
 
 const components = {

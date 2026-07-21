@@ -201,7 +201,7 @@ No. The `domain:add` command only accepts root domains (e.g. `mydomain.com`). En
 
 ### What happens if my domain is not yet registered?
 
-If the domain is not registered (not purchased from any registrar), the command exits immediately and prints a hint to register it. You can register via [Route 53](https://us-east-1.console.aws.amazon.com/route53/home#DomainRegistration) (prices start at $3/year for `.click` domains) or any other domain registrar. After registration, re-run `domain:add`.
+If the domain is not registered (not purchased from any registrar), the command exits immediately and prints a hint to register it. You can register it with [Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html) or any other domain registrar. Registration prices vary by top-level domain; see the [current Route 53 prices](https://aws.amazon.com/route53/pricing/#Domain_Names). After registration, re-run `domain:add`.
 
 ### Do I need to run this command in every region?
 

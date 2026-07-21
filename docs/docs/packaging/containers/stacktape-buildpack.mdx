@@ -69,12 +69,12 @@ The `entryfilePath` is the only required property. It points to your application
 
 ## Supported languages
 
-The container buildpack explicitly documents support for JavaScript, TypeScript, Python, Java, and Go. The `languageSpecificConfig` type union also exposes Ruby, PHP, and .NET version and project options. The optional `languageSpecificConfig` property lets you tune behavior per language. Several language-specific properties have documented defaults: Node.js 18, Python 3.9, Java 11, Ruby 3.3, PHP 8.3, .NET 8, and `outputModuleFormat: 'cjs'`.
+The container buildpack explicitly documents support for JavaScript, TypeScript, Python, Java, and Go. The `languageSpecificConfig` type union also exposes Ruby, PHP, and .NET version and project options. The optional `languageSpecificConfig` property lets you tune behavior per language. Current defaults are Node.js 24, Python 3.12, Java 11, Ruby 3.3, PHP 8.3, and .NET 8. Node.js 24 builds use ES Module output by default.
 
 | Language | Default version | Key options |
 |---|---|---|
-| JavaScript / TypeScript | Node.js 18 | Module format, bundle exclusions, source maps, decorator metadata |
-| Python | 3.9 | WSGI/ASGI server mode, dependency file, minification |
+| JavaScript / TypeScript | Node.js 24 | Module format, bundle exclusions, source maps, decorator metadata |
+| Python | 3.12 | WSGI/ASGI server mode, dependency file, minification |
 | Java | 11 | Maven or Gradle, build file path |
 | Go | — | No language-specific options |
 | Ruby | 3.3 | `rubyVersion` |
@@ -125,11 +125,11 @@ The `dependenciesToExcludeFromBundle: ['@prisma/client']` shown above is just an
 
 ### Module format
 
-The `outputModuleFormat` property controls whether the bundle output is CommonJS (`'cjs'`, the default) or ES Modules (`'esm'`). ESM enables top-level `await`, but some npm packages don't support ESM and error stack traces may be less readable. Stick with `'cjs'` unless you specifically need ESM features.
+The `outputModuleFormat` property controls whether the bundle output is CommonJS (`'cjs'`) or ES Modules (`'esm'`). Node.js 24 and later use ESM output; with earlier Node.js versions the default is CommonJS. ESM enables top-level `await`, but some npm packages don't support it and error stack traces may be less readable.
 
 ### Node.js version
 
-Set `nodeVersion` to choose the Node.js major version used in the container. Supported values: `16`, `17`, `18`, `19`, `20`, `21`, `22`, `23`, `24`. The default is `18`. For new projects, choose a currently supported Node.js LTS version that your application and dependencies support.
+Set `nodeVersion` to choose the Node.js major version used in the container. Supported values: `16`, `17`, `18`, `19`, `20`, `21`, `22`, `23`, `24`. The default is `24`. Choose a version your application and dependencies support.
 
 ### TypeScript decorator metadata
 
@@ -195,7 +195,7 @@ The `entryfilePath` must use the `module/file.py:app` format when `runAppAs` is 
 
 ### Python version
 
-Supported Python versions: `2.7`, `3.6`, `3.7`, `3.8`, `3.9`, `3.11`, `3.12`, `3.13`, `3.14`. The default is `3.9`. For new projects, pick a currently supported Python version that your framework and dependencies support.
+Supported Python versions: `2.7`, `3.6`, `3.7`, `3.8`, `3.9`, `3.11`, `3.12`, `3.13`, `3.14`. The default is `3.12`. For new projects, pick a currently supported Python version that your framework and dependencies support.
 
 ### Dependency management
 

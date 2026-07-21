@@ -321,7 +321,7 @@ Backups are recommended for production clusters where the cache contains data th
 
 ## Logging
 
-Stacktape enables slow-query logging for Redis clusters by default. Slow query logs are sent to CloudWatch and retained for 90 days. View them with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
+Stacktape enables slow-query logging for Redis clusters by default. Slow query logs are sent to CloudWatch and retained for 30 days. View them with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
 You can customize the log format (`json` or `text`), retention period, or disable logging entirely:
 
@@ -353,7 +353,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `format` property controls whether logs are emitted as `json` (default) or `text`. The `retentionDays` property defaults to `90` and accepts one of these values: `1`, `3`, `5`, `7`, `14`, `30`, `60`, `90`, `120`, `150`, `180`, `365`, `400`, `545`, `731`, `1827`, or `3653`. Set `logging.disabled: true` to turn off slow-query logging entirely.
+The `format` property controls whether logs are emitted as `json` (default) or `text`. The `retentionDays` property defaults to `30` and accepts one of these values: `1`, `3`, `5`, `7`, `14`, `30`, `60`, `90`, `120`, `150`, `180`, `365`, `400`, `545`, `731`, `1827`, or `3653`. Set `logging.disabled: true` to turn off slow-query logging entirely.
 
 Log forwarding to external services is also supported — see [log forwarding](/observability/log-forwarding) for details.
 

@@ -12,6 +12,7 @@ import { remarkDocsTransforms } from './src/utils/remark-docs-transforms.ts';
 import { remarkCodeToComponent } from './src/utils/remark-code-to-component.ts';
 import { remarkFixJsxTemplateIndent } from './src/utils/remark-fix-jsx-template-indent.ts';
 import { rehypeDocsLinks } from './src/utils/rehype-docs-links.ts';
+import { getGitLastModified } from './src/utils/git-dates.ts';
 
 // Mirror the content static dir (the docs/docs/static content tree) into public/static so MDX
 // images referenced as `/static/...` resolve. cwd is the docs/ project root, so this is
@@ -61,18 +62,10 @@ export default defineConfig({
     sitemap({
       filter: (page) => !SITEMAP_EXCLUDE.some((re) => re.test(new URL(page).pathname)),
       serialize(item) {
-        const path = new URL(item.url).pathname;
-        let priority = 0.6;
-        let changefreq = 'weekly';
-        if (path === '/') priority = 1.0;
-        else if (/^\/getting-started(\/|$)/.test(path)) priority = 0.9;
-        else if (/^\/(resources|configuration|deployment-and-lifecycle|packaging|observability)(\/|$)/.test(path))
-          priority = 0.8;
-        else if (/^\/cli\//.test(path)) {
-          priority = 0.4;
-          changefreq = 'monthly';
-        }
-        return { ...item, changefreq, priority };
+        const pathname = new URL(item.url).pathname;
+        const sourcePath = pathname === '/' ? 'docs/index.mdx' : `docs${pathname.replace(/\/$/, '')}.mdx`;
+        const lastModified = getGitLastModified(sourcePath);
+        return lastModified ? { ...item, lastmod: new Date(lastModified) } : item;
       }
     })
   ],

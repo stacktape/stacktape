@@ -1,23 +1,33 @@
 User-agent: *
 Allow: /
 
-# Explicitly welcome the major AI crawlers so docs stay citable in AI answer engines.
-User-agent: GPTBot
-Allow: /
-
+# Search and user-request crawlers used to discover, retrieve, and cite documentation.
 User-agent: OAI-SearchBot
 Allow: /
 
 User-agent: ChatGPT-User
 Allow: /
 
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# Additional AI crawlers. These permissions are separate from search ranking guarantees.
+User-agent: GPTBot
+Allow: /
+
 User-agent: ClaudeBot
 Allow: /
 
 User-agent: anthropic-ai
-Allow: /
-
-User-agent: PerplexityBot
 Allow: /
 
 User-agent: Google-Extended

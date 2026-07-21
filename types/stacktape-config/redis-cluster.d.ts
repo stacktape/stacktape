@@ -866,7 +866,7 @@ interface RedisLogging extends LogForwardingBase {
    * });
    * ```
    *
-   * @default 90
+   * @default 30
    */
   retentionDays?: 1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1827 | 3653;
 }

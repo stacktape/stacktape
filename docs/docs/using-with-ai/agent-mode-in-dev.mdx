@@ -46,6 +46,10 @@ stacktape dev --agent --agentPort 9900 --stage dev --region eu-west-1
 
 Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — use `--freshDb` to wipe it for a clean slate.
 
+<Warning title="Keep the agent port private">
+The agent HTTP API has no application-level authentication and the server does not explicitly restrict its listener to the loopback interface. Do not expose the port through a public interface, port forward, tunnel, or permissive container/network configuration. Anyone who can reach it may be able to rebuild workloads, query local data, stop the session, or call AWS APIs with the dev agent's credentials.
+</Warning>
+
 <Tip>
 
 AI coding assistants can call `GET /` on the agent server to receive a full endpoint listing dynamically. Use `GET /?compact=true` for a shorter LLM-oriented response — it includes the current phase, workload names, available local resources with their primary query/schema endpoints, core action templates (rebuild, logs, env, aws, stop), and a pointer to `GET /` for full docs.
@@ -480,6 +484,8 @@ For MCP-based assistant setup, see the [Stacktape MCP server](/using-with-ai/mcp
 ## Security
 
 Stacktape advertises the agent URL as `http://localhost:{port}`. The server sets `Access-Control-Allow-Origin: null` and returns `403` for OPTIONS preflight requests. The implementation comments describe this as blocking browser-based cross-origin requests while keeping curl, scripts, and local tools usable.
+
+These CORS controls are not authentication. The HTTP server listens on the configured port without an explicit loopback-only host binding, so use host firewall and network settings to keep the port local and trusted.
 
 The `/aws/sdk` endpoint uses credentials returned by `getDevAgentCredentials()`. If no access key and secret key are available, the endpoint returns an error (`AWS credentials not available`). The startup message describes this access as scoped to stack resources via IAM role. Treat the endpoint as having whatever permissions those credentials grant — avoid exposing the agent port to untrusted networks.
 

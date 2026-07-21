@@ -11,6 +11,15 @@ seoDescription: 'Set up the Stacktape MCP server so AI coding assistants like Cl
 
 The Stacktape MCP server gives AI coding assistants structured access to Stacktape documentation, CLI commands, project inspection, and dev mode control. Instead of copying CLI output back and forth, your assistant calls Stacktape tools directly and receives typed JSON responses it can reason about.
 
+## Quick start
+
+1. Confirm that the current Stacktape CLI is available: `stacktape --version`.
+2. From your project directory, run `stacktape mcp:add` and select your AI client.
+3. Restart the client or reload the workspace so it reads the new MCP configuration.
+4. Ask: “Use Stacktape tools to inspect this project and explain how it is deployed.”
+
+A working integration exposes `stacktape_docs`, `stacktape_project`, `stacktape_cli`, and `stacktape_dev`. The assistant should start with `stacktape_project` for an unfamiliar repository and use `stacktape_cli` with `action: "plan"` before any execution.
+
 ## When to use
 
 Use the MCP server when your AI coding assistant supports the [Model Context Protocol](https://modelcontextprotocol.io). The structured tool interface is better than raw CLI output for several workflows:
@@ -248,7 +257,7 @@ Common parameters accepted by `plan` and `run`:
 | `secretValue` | string | Secret value for `secret:set` (masked in tool output) |
 | `secretFile` | string | Path to a file containing the secret value |
 | `hotSwap` | boolean | Request hotswap deployment when supported |
-| `confirm` | boolean | Required for mutating/destructive commands in `run` |
+| `confirm` | boolean | Required for mutating commands. Destructive commands also require direct user confirmation through MCP elicitation; this flag alone cannot authorize them. |
 | `timeoutMs` | number | Command timeout in milliseconds for `run` |
 
 The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `secrets`) and `safety` (e.g. `readOnly`, `mutating`, `destructive`) to filter results.
@@ -274,14 +283,16 @@ The MCP server classifies every CLI command into a safety level and enforces per
 
 | Safety level | Behavior | Examples |
 |-------------|----------|---------|
-| `readOnly` | Executes without confirmation | `diff`, `synth`, `info:stack`, `info:stacks`, `logs`, `metrics`, `alarms` |
+| `readOnly` | Executes without confirmation | `diff`, `info:stack`, `info:stacks`, `logs`, `metrics`, `alarms` |
 | `diagnostic` | Executes without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch` |
-| `local` | Executes without confirmation | `package` |
+| `local` | Executes without confirmation | `synth`, `validate`, `package` |
 | `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret:set`](/cli/secret-set), [`rollback`](/cli/rollback) |
 | `destructive` | Requires direct user confirmation through MCP form elicitation; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret:delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion:session` |
 
 For destructive commands, the MCP server uses the MCP elicitation protocol to prompt the user directly through their AI client's UI. If the client does not support form elicitation, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
+
+<Warning>`diagnostic` describes the command category, not a guarantee that an individual query is read-only. SQL, Redis, DynamoDB, and OpenSearch query commands run without an MCP confirmation prompt and can change data when given mutating input. Review the planned command and query before it runs, especially against production stages.</Warning>
 
 Commands marked as `sensitiveOutput` in CLI metadata have their output masked before being returned. The MCP planning guidance specifically warns assistants not to display `secret:get` or private `param:get` values in chat. The MCP server also redacts known credential patterns (Stacktape API keys, GitHub tokens, Slack tokens, database connection strings with passwords) from all tool responses.
 
@@ -299,9 +310,9 @@ For CI environments, the MCP server's safety guidance tells assistants to ask us
 The MCP server starts when your AI client launches the `stacktape mcp` command as a child process using stdio transport. The startup sequence is:
 
 1. The client spawns `stacktape mcp` as a child process.
-2. The server builds a search index from generated LLM documentation files bundled with the CLI.
-3. Four tools (docs, project, CLI, dev) are registered with the MCP protocol.
-4. The assistant sends JSON-RPC tool calls over stdin; the server executes them and returns structured JSON over stdout.
+2. The server registers and connects four tools (docs, project, CLI, and dev) so they are discoverable immediately.
+3. The bundled documentation search index initializes asynchronously. If indexing fails, operational tools remain available and `stacktape_docs` reports the indexing error.
+4. The assistant sends MCP tool calls over stdin; the server executes them and returns structured JSON over stdout.
 
 For CLI execution, the MCP server validates the command against CLI metadata, applies safety policy, spawns a Stacktape CLI subprocess, streams its JSONL output, and returns a consolidated response. Tool responses are capped at 30,000 characters. Large `rawTail` output is shortened by keeping the beginning and end. Other large payloads are compacted by dropping or shrinking bulky fields (such as truncating answer text, limiting reference and snippet counts, and shortening data content). If compaction is still insufficient, the server returns `RESPONSE_TOO_LARGE`.
 

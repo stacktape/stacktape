@@ -46,7 +46,7 @@ The MCP server exposes four focused tools that AI agents use to search docs, ins
 
 ## How it works
 
-When an MCP-compatible client starts the server, Stacktape builds a lexical search index from its generated documentation, then listens for tool calls over stdio using the MCP protocol. Infrastructure operations and diagnostics (`stacktape_cli`) execute Stacktape CLI commands with validation and safety gates. Documentation queries (`stacktape_docs`) search the local lexical index. Project scanning (`stacktape_project`) reads local config files and package scripts. Dev-mode follow-up operations like status checks, log reading, rebuilds, and stop (`stacktape_dev`) communicate with the dev agent API started by [`stacktape dev`](/cli/dev).
+When an MCP-compatible client starts the server, Stacktape registers the four tools and begins listening over stdio immediately, then initializes its bundled documentation index asynchronously. Infrastructure operations and diagnostics (`stacktape_cli`) execute Stacktape CLI commands with validation and safety gates. Documentation queries (`stacktape_docs`) search the local lexical index. Project scanning (`stacktape_project`) reads local config files and package scripts. Dev-mode follow-up operations like status checks, log reading, rebuilds, and stop (`stacktape_dev`) communicate with the dev agent API started by [`stacktape dev`](/cli/dev).
 
 `stacktape mcp` itself does not require an API key. Operations that run Stacktape CLI commands requiring account access — such as deploy, delete, diagnostics, and starting dev mode — need credentials configured with [`stacktape login`](/cli/login).
 

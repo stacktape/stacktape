@@ -1,8 +1,8 @@
 import { Img as Image } from '@/components/Img';
 import { BiChevronRight, BiLogoGithub } from 'react-icons/bi';
 import { LuArrowUpRight } from 'react-icons/lu';
-import allStarterProjects from '../../../../starter-projects-metadata.json';
 import { colors } from '../../styles/variables';
+import { publicStarterProjects } from '../../utils/starter-projects';
 import { Box } from '../Box/Box';
 import { Button } from '../Button/Button';
 import { GridList } from '../Misc/GridList';
@@ -12,7 +12,7 @@ function List({
   starterProjects,
   includeShowMore
 }: {
-  starterProjects: (typeof allStarterProjects)[0][];
+  starterProjects: (typeof publicStarterProjects)[0][];
   includeShowMore?: boolean;
 }) {
   return (
@@ -72,13 +72,13 @@ function List({
 }
 
 export function StarterProjectList() {
-  return <List starterProjects={allStarterProjects} />;
+  return <List starterProjects={publicStarterProjects} />;
 }
 
 export function StarterProjectListShort() {
   return (
     <List
-      starterProjects={allStarterProjects.filter((project) =>
+      starterProjects={publicStarterProjects.filter((project) =>
         [
           'expressjs-api-postgres',
           'nextjs-ssr-website-lambda',

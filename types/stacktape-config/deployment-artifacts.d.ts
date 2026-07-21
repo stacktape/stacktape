@@ -324,11 +324,11 @@ interface EsLanguageSpecificConfig {
   * });
   * ```
    *
-   * @default 'cjs'
+   * @default 'cjs' for Node.js 23 and earlier. Node.js 24 and later use ESM output.
    */
   outputModuleFormat?: 'cjs' | 'esm';
   /**
-   * #### The major version of Node.js to use.
+   * #### The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value.
    *
   *
   * ---
@@ -375,7 +375,7 @@ interface EsLanguageSpecificConfig {
   * });
   * ```
    *
-   * @default 18
+   * @default 24
    */
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /**
@@ -852,7 +852,7 @@ interface PyLanguageSpecificConfig {
    */
   uvOnlyGroups?: string[];
   /**
-   * #### The version of Python to use.
+   * #### The Python version the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value.
    *
   *
   * ---
@@ -899,7 +899,7 @@ interface PyLanguageSpecificConfig {
   * });
   * ```
    *
-   * @default 3.9
+   * @default 3.12
    */
   pythonVersion?: SupportedPythonVersion;
   /**

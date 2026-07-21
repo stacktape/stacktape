@@ -288,7 +288,7 @@ export default defineConfig(() => {
   ]}
 />
 
-`nodeVersion` selects the Node.js major version for the build; `outputModuleFormat` switches between `'cjs'` (default, CommonJS) and `'esm'` (ES Modules, enables top-level `await`). Some npm packages do not support ESM.
+`nodeVersion` selects the Node.js major version for the build; keep it aligned with the function's `runtime`. `outputModuleFormat` switches between `'cjs'` (CommonJS) and `'esm'` (ES Modules, enables top-level `await`). Node.js 24 and later use ESM output automatically; earlier versions default to CommonJS. Some npm packages do not support ESM.
 
 ### Custom artifact
 
@@ -758,7 +758,7 @@ export default defineConfig(() => {
 
 Lambda function logs from `stdout` and `stderr` are sent to CloudWatch Logs automatically. View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
-`logging.retentionDays` defaults to `180`. Set a shorter retention for high-volume functions when old logs are not needed; keep longer retention for audit-heavy production paths. Setting `logging.disabled: true` disables CloudWatch logging entirely — use this only when another observability path captures the same data.
+`logging.retentionDays` defaults to `90`. Set a shorter retention for high-volume functions when old logs are not needed; keep longer retention for audit-heavy production paths. Setting `logging.disabled: true` disables CloudWatch logging entirely — use this only when another observability path captures the same data.
 
 Lambda functions also support log forwarding to external services (HTTP endpoints, Datadog, Highlight.io) through the `logging.logForwarding` property. See [log forwarding](/observability/log-forwarding) for configuration details.
 

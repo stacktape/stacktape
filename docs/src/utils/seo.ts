@@ -14,7 +14,9 @@ export type DocsSeo = {
   canonical: string;
   faqItems: FaqItem[];
   breadcrumb: BreadcrumbItem[];
+  datePublished?: string;
   dateModified?: string;
+  noindex?: boolean;
 };
 
 /** Flatten markdown + inline HTML to plain text — required for <title>, meta, and JSON-LD text. */

@@ -48,12 +48,12 @@ export default {
   domain: 'stacktape.com',
   metadata: {
     name: 'Stacktape documentation',
-    description: 'Your AWS, 97% easier',
+    description: 'Deploy production-grade serverless and container applications to your own AWS account with a type-safe, developer-friendly infrastructure framework.',
     title: 'Stacktape | Your AWS, 97% easier',
     pathPrefix: '/',
     url: 'https://docs.stacktape.com',
     siteimage: 'https://stacktape.com/cover-images/opengraph.png',
-    copyright: 'Copyright © Stacktape 2026'
+    copyright: `Copyright © Stacktape ${new Date().getFullYear()}`
   },
   sidebar: {
     forcedNavOrder: [

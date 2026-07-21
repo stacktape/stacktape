@@ -1,10 +1,11 @@
 import type { DocSearchProps } from '@docsearch/react';
 import * as docSearchNs from '@docsearch/react';
 
-// @docsearch/react v3 resolves as ESM in the client build but CJS during SSR/prerender. A namespace
-// import + fallback chain picks the component in every interop shape (named, cjs-lexer, default).
+// The package points ESM builds at its named export but SSR at a UMD/CJS entry. Read the default
+// export reflectively so Vite does not warn about a statically impossible ESM `.default` access.
+const defaultExport = Reflect.get(docSearchNs, 'default');
 const DocSearchComponent: typeof import('@docsearch/react').DocSearch =
-  (docSearchNs as any).DocSearch ?? (docSearchNs as any).default?.DocSearch ?? (docSearchNs as any).default;
+  (docSearchNs as any).DocSearch ?? defaultExport?.DocSearch ?? defaultExport;
 import config from '../../../config';
 
 // The DocSearch theme overrides (the `.DocSearch-*` selectors + `:root` custom properties) now live

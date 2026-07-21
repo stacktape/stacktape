@@ -4,6 +4,7 @@ import { LuArrowUpRight, LuPackage, LuSearch, LuX } from 'react-icons/lu';
 import clsx from 'clsx';
 import allStarterProjects from '../../../../starter-projects-metadata.json';
 import { colors } from '../../styles/variables';
+import { publicStarterProjects } from '../../utils/starter-projects';
 import { Img as Image } from '../Img';
 import { Button } from '../Button/Button';
 import { GridList } from '../Misc/GridList';
@@ -145,13 +146,13 @@ export function StarterProjectGallery() {
   const [activeCategory, setActiveCategory] = useState('all');
 
   const visibleCategories = useMemo(
-    () => categories.filter((c) => c.key === 'all' || allStarterProjects.some((p) => c.match(p))),
+    () => categories.filter((c) => c.key === 'all' || publicStarterProjects.some((p) => c.match(p))),
     []
   );
 
   const filtered = useMemo(() => {
     const category = categories.find((c) => c.key === activeCategory) ?? categories[0];
-    return allStarterProjects.filter((p) => category.match(p) && matchesQuery(p, query));
+    return publicStarterProjects.filter((p) => category.match(p) && matchesQuery(p, query));
   }, [query, activeCategory]);
 
   return (
@@ -194,7 +195,7 @@ export function StarterProjectGallery() {
       </div>
 
       <p className="text-fc-light text-[0.85rem] mt-0 mr-0 mb-[14px] ml-0">
-        Showing {filtered.length} of {allStarterProjects.length} starter projects
+        Showing {filtered.length} of {publicStarterProjects.length} starter projects
       </p>
 
       {filtered.length > 0 ? (
