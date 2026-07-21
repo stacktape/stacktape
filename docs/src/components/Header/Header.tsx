@@ -45,7 +45,7 @@ function StarOnGithubButton({ buttonWidth, style }: { buttonWidth?: number; styl
         linkTo="https://github.com/stacktape/stacktape"
         onClick={() => trackAnalyticsEvent('star-github', { source: 'header' })}
         icon={<BiLogoGithub size={20} />}
-        text="GitHub"
+        text={<span style={{ paddingRight: '11px' }}>Github</span>}
       />
     </div>
   );
@@ -55,12 +55,7 @@ function DesktopNavigationItems() {
   return (
     <div className="mx-auto flex items-center justify-between max-w-[1580px] max-[795px]:hidden">
       <Link href="https://stacktape.com">
-        <Image
-          width={205}
-          className="mb-[-3px] ml-[-3px] max-[795px]:hidden"
-          src={StacktapeFullLogo}
-          alt="Stacktape"
-        />
+        <Image width={205} className="mb-[-3px] ml-[-3px] max-[795px]:hidden" src={StacktapeFullLogo} alt="Stacktape" />
       </Link>
       <div className="flex items-center gap-[10px]">
         <DocSearch />
