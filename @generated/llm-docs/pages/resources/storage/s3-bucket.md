@@ -393,61 +393,29 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `name` | AWS (physical) name of the bucket | `$ResourceParam("<<resource-name>>", "name")` |
 | `arn` | Arn of the bucket | `$ResourceParam("<<resource-name>>", "arn")` |
-| `cdnDomain` | Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
-| `cdnUrl` | Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
-| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
+| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
+| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
+| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
 
 
 ## API Reference
 
 
-## API Reference: `BucketProps`
-```typescript
-import type { AbortIncompleteMultipartUpload, BucketAccessibility, BucketCdnConfiguration, BucketCorsConfig, ClassTransition, DirectoryUpload, Expiration, NonCurrentVersionClassTransition, NonCurrentVersionExpiration } from 'stacktape';
+### Definition: `BucketProps`
 
-type BucketProps = {
-  /** Who can read/write to this bucket: private (default), public-read, or public-read-write. */
-  accessibility?: BucketAccessibility;
-  /** Put a CDN (CloudFront) in front of this bucket for faster downloads and lower bandwidth costs. */
-  cdn?: BucketCdnConfiguration;
-  /** CORS settings for browser-based access to the bucket. */
-  cors?: BucketCorsConfig;
-  /** Sync a local directory to this bucket on every deploy. */
-  directoryUpload?: DirectoryUpload;
-  /** Send events (object created, deleted, etc.) to EventBridge for event-driven workflows. */
-  enableEventBusNotifications?: boolean;
-  /** Encrypt stored objects at rest (AES-256). */
-  encryption?: boolean;
-  /** Auto-delete or move objects to cheaper storage classes over time. */
-  lifecycleRules?: Array<BucketLifecycleRules>;
-  /** Keep previous versions of overwritten/deleted objects. Helps recover from mistakes. */
-  versioning?: boolean;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/bucket` with definition name `BucketProps`.
 
-/** Union choices used by the properties above. */
-type BucketLifecycleRules =
-  | Expiration
-  | NonCurrentVersionExpiration
-  | ClassTransition
-  | NonCurrentVersionClassTransition
-  | AbortIncompleteMultipartUpload;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `accessibility` | no | `BucketAccessibility` | Who can read/write to this bucket: `private` (default), `public-read`, or `public-read-write`. | - |
-| `cdn` | no | `BucketCdnConfiguration` | Put a CDN (CloudFront) in front of this bucket for faster downloads and lower bandwidth costs. | - |
-| `cors` | no | `BucketCorsConfig` | CORS settings for browser-based access to the bucket. | - |
-| `directoryUpload` | no | `DirectoryUpload` | Sync a local directory to this bucket on every deploy. **Warning:** Replaces all existing bucket contents. Don&#39;t use for buckets
-with user-uploaded or application-generated files. | - |
-| `enableEventBusNotifications` | no | `boolean` | Send events (object created, deleted, etc.) to EventBridge for event-driven workflows. | `false` |
-| `encryption` | no | `boolean` | Encrypt stored objects at rest (AES-256). | - |
-| `lifecycleRules` | no | `Array<expiration \| non-current-version-expiration \| class-transition \| non-current-version-class-transition \| abort-incomplete-multipart-upload>` | Auto-delete or move objects to cheaper storage classes over time. Use to control storage costs: expire old files, archive infrequently accessed data,
-or clean up incomplete uploads. | - |
-| `versioning` | no | `boolean` | Keep previous versions of overwritten/deleted objects. Helps recover from mistakes. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `accessibility` | no | `BucketAccessibility` | - |
+| `cdn` | no | `BucketCdnConfiguration` | - |
+| `cors` | no | `BucketCorsConfig` | - |
+| `directoryUpload` | no | `DirectoryUpload` | - |
+| `enableEventBusNotifications` | no | `boolean` | `false` |
+| `encryption` | no | `boolean` | - |
+| `lifecycleRules` | no | `Array<expiration \| non-current-version-expiration \| class-transition \| non-current-version-class-transition \| abort-incomplete-multipart-upload>` | - |
+| `versioning` | no | `boolean` | - |
 
 
 ## FAQ

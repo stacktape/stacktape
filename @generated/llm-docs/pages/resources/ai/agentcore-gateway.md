@@ -414,32 +414,20 @@ Like all Stacktape resources, the AgentCore Gateway supports [CloudFormation ove
 ## API Reference
 
 
-## API Reference: `AgentCoreGatewayProps`
-```typescript
-import type { AgentCoreGatewayTool, AgentCoreJwtAuthorizerConfig, CloudformationTag } from 'stacktape';
+### Definition: `AgentCoreGatewayProps`
 
-type AgentCoreGatewayProps = {
-  authorizer?: AgentCoreJwtAuthorizerConfig;
-  description?: string;
-  exceptionLevel?: "DEBUG";
-  instructions?: string;
-  searchType?: string;
-  supportedVersions?: Array<string>;
-  tags?: Array<CloudformationTag>;
-  tools?: Array<AgentCoreGatewayTool>;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/agentcore` with definition name `AgentCoreGatewayProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `authorizer` | no | `AgentCoreJwtAuthorizerConfig` | - | - |
-| `description` | no | `string` | - | - |
-| `exceptionLevel` | no | `string = "DEBUG"` | - | - |
-| `instructions` | no | `string` | - | - |
-| `searchType` | no | `string` | - | - |
-| `supportedVersions` | no | `Array<string>` | - | - |
-| `tags` | no | `Array<CloudformationTag>` | - | - |
-| `tools` | no | `Array<AgentCoreGatewayTool>` | - | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `authorizer` | no | `AgentCoreJwtAuthorizerConfig` | - |
+| `description` | no | `string` | - |
+| `exceptionLevel` | no | `string = "DEBUG"` | - |
+| `instructions` | no | `string` | - |
+| `searchType` | no | `string` | - |
+| `supportedVersions` | no | `Array<string>` | - |
+| `tags` | no | `Array<CloudformationTag>` | - |
+| `tools` | no | `Array<AgentCoreGatewayTool>` | - |
 
 
 ## Referenceable parameters

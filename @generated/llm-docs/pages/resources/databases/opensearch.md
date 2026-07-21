@@ -291,13 +291,13 @@ The available referenceable parameters for an OpenSearch domain are `domainEndpo
 
 ## Logging
 
-The `logging` property configures three types of OpenSearch logs sent to CloudWatch: error logs, search slow logs, and index slow logs. Within each configured log type, `disabled` defaults to `false` and `retentionDays` defaults to `14`. Only log types you explicitly include under `logging` are configured.
+The `logging` property configures three types of OpenSearch logs sent to CloudWatch: error logs, search slow logs, and index slow logs. All three are enabled unless explicitly disabled. Error logs default to 30 days of retention; search slow logs and index slow logs default to 5 days. Set `disabled: true` on an individual log type to avoid creating its CloudWatch log group.
 
 | Log type | What it captures | Default retention |
 |----------|-----------------|-------------------|
-| Error logs | Script compilation errors, invalid queries, indexing issues, snapshot failures | 14 days |
-| Search slow logs | Queries exceeding thresholds configured in OpenSearch index settings | 14 days |
-| Index slow logs | Indexing operations exceeding thresholds configured in OpenSearch index settings | 14 days |
+| Error logs | Script compilation errors, invalid queries, indexing issues, snapshot failures | 30 days |
+| Search slow logs | Queries exceeding thresholds configured in OpenSearch index settings | 5 days |
+| Index slow logs | Indexing operations exceeding thresholds configured in OpenSearch index settings | 5 days |
 
 You can disable individual log types or change their retention period. Retention must be one of the supported CloudWatch retention values: `1`, `3`, `5`, `7`, `14`, `30`, `60`, `90`, `120`, `150`, `180`, `365`, `400`, `545`, `731`, `1827`, or `3653` days.
 
@@ -393,35 +393,18 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 ## API Reference
 
 
-## API Reference: `OpenSearchDomainProps`
-```typescript
-import type { OpenSearchAccessibility, OpenSearchClusterConfig, OpenSearchLogConfiguration, OpenSearchStorage } from 'stacktape';
+### Definition: `OpenSearchDomainProps`
 
-type OpenSearchDomainProps = {
-  /** Network access mode: public internet (default), VPC-only, or VPC with security-group scoping. */
-  accessibility?: OpenSearchAccessibility;
-  /** Instance types, counts, and cluster topology (data nodes, master nodes, warm storage). */
-  clusterConfig?: OpenSearchClusterConfig;
-  /** Error logs, search slow logs, and indexing slow logs. Sent to CloudWatch automatically. */
-  logging?: OpenSearchLogConfiguration;
-  /** EBS volume size, IOPS, and throughput per data node. Only for EBS-backed instance types. */
-  storage?: OpenSearchStorage;
-  /** Name of a user-pool resource in your config. Enables login to OpenSearch Dashboards via Cognito. */
-  userPool?: string;
-  /** OpenSearch engine version. Pin this to avoid surprises when the default changes. */
-  version?: "1.0" | "1.1" | "1.2" | "1.3" | "2.11" | "2.13" | "2.15" | "2.17" | "2.3" | "2.5" | "2.7" | "2.9";
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/open-search-domain` with definition name `OpenSearchDomainProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `accessibility` | no | `OpenSearchAccessibility` | Network access mode: public internet (default), VPC-only, or VPC with security-group scoping. Even in `internet` mode, access requires IAM credentials. VPC modes add network-level isolation.
-**Warning:** you cannot switch between `internet` and `vpc`/`scoping-workloads-in-vpc` after creation. | - |
-| `clusterConfig` | no | `OpenSearchClusterConfig` | Instance types, counts, and cluster topology (data nodes, master nodes, warm storage). Defaults to a single `m4.large.search` node if not specified. | - |
-| `logging` | no | `OpenSearchLogConfiguration` | Error logs, search slow logs, and indexing slow logs. Sent to CloudWatch automatically. | - |
-| `storage` | no | `OpenSearchStorage` | EBS volume size, IOPS, and throughput per data node. Only for EBS-backed instance types. `iops` and `throughput` settings only apply to GP3 volumes. | - |
-| `userPool` | no | `string` | Name of a `user-pool` resource in your config. Enables login to OpenSearch Dashboards via Cognito. | - |
-| `version` | no | `string: "1.0" \| "1.1" \| "1.2" \| "1.3" \| "2.11" \| "2.13" \| "2.15" \| "2.17" \| "2.3" \| "2.5" \| "2.7" \| "2.9"` | OpenSearch engine version. Pin this to avoid surprises when the default changes. | `'2.17'` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `accessibility` | no | `OpenSearchAccessibility` | - |
+| `clusterConfig` | no | `OpenSearchClusterConfig` | - |
+| `logging` | no | `OpenSearchLogConfiguration` | - |
+| `storage` | no | `OpenSearchStorage` | - |
+| `userPool` | no | `string` | - |
+| `version` | no | `string: "1.0" \| "1.1" \| "1.2" \| "1.3" \| "2.11" \| "2.13" \| "2.15" \| "2.17" \| "2.3" \| "2.5" \| "2.7" \| "2.9"` | `'2.17'` |
 
 
 ## FAQ

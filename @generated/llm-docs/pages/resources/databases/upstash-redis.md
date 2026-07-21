@@ -215,17 +215,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 ## API Reference
 
 
-## API Reference: `UpstashRedisProps`
-```typescript
-type UpstashRedisProps = {
-  /** Auto-remove old keys when memory is full. Prioritizes keys with TTL set. Enable for cache use cases. */
-  enableEviction?: boolean;
-};
-```
+### Definition: `UpstashRedisProps`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `enableEviction` | no | `boolean` | Auto-remove old keys when memory is full. Prioritizes keys with TTL set. Enable for cache use cases. Without eviction, writes fail once the memory limit is reached. Enable this for caching workloads. | `false` |
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/upstash-redis` with definition name `UpstashRedisProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `enableEviction` | no | `boolean` | `false` |
 
 
 ## FAQ

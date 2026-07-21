@@ -340,51 +340,31 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `domain` | Default domain name | `$ResourceParam("<<resource-name>>", "domain")` |
 | `url` | Default URL | `$ResourceParam("<<resource-name>>", "url")` |
-| `customDomains` | Comma-separated list of custom domain names assigned to the HTTP Api Gateway (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
-| `customDomainUrls` | Comma-separated list of custom domain name URLs (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
-| `customDomainUrl` | URL of the first custom domain name connected to this resource (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
-| `cdnDomain` | Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
-| `cdnUrl` | Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
-| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+| `customDomains` | Comma-separated list of custom domain names assigned to the HTTP Api Gateway (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
+| `customDomainUrls` | Comma-separated list of custom domain name URLs (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
+| `customDomainUrl` | URL of the first custom domain name connected to this resource (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
+| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
+| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
+| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
+| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
 
 
 ## API Reference
 
 
-## API Reference: `HttpApiGatewayProps`
-```typescript
-import type { CdnConfiguration, DomainConfiguration, HttpApiAccessLogsConfig, HttpApiCorsConfig, HttpApiGatewayAlarm } from 'stacktape';
+### Definition: `HttpApiGatewayProps`
 
-type HttpApiGatewayProps = {
-  /** Alarms for this API Gateway (merged with global alarms from the Stacktape Console). */
-  alarms?: Array<HttpApiGatewayAlarm>;
-  /** Put a CDN (CloudFront) in front of this API for caching and lower latency worldwide. */
-  cdn?: CdnConfiguration;
-  /** CORS settings. Overrides any CORS headers from your application code. */
-  cors?: HttpApiCorsConfig;
-  /** Custom domains (e.g., api.example.com). Stacktape auto-creates DNS records and TLS certificates. */
-  customDomains?: Array<DomainConfiguration>;
-  /** Global alarm names to exclude from this API Gateway. */
-  disabledGlobalAlarms?: Array<string>;
-  /** Access logging (request ID, IP, method, status, etc.). Viewable with stacktape logs. */
-  logging?: HttpApiAccessLogsConfig;
-  /** Lambda event payload format. 2.0 is simpler and recommended for new projects. */
-  payloadFormat?: "1.0" | "2.0";
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/http-api-gateway` with definition name `HttpApiGatewayProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `alarms` | no | `Array<HttpApiGatewayAlarm>` | Alarms for this API Gateway (merged with global alarms from the Stacktape Console). | - |
-| `cdn` | no | `CdnConfiguration` | Put a CDN (CloudFront) in front of this API for caching and lower latency worldwide. | - |
-| `cors` | no | `HttpApiCorsConfig` | CORS settings. Overrides any CORS headers from your application code. | - |
-| `customDomains` | no | `Array<DomainConfiguration>` | Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. Your domain must be added as a Route53 hosted zone in your AWS account first. | - |
-| `disabledGlobalAlarms` | no | `Array<string>` | Global alarm names to exclude from this API Gateway. | - |
-| `logging` | no | `HttpApiAccessLogsConfig` | Access logging (request ID, IP, method, status, etc.). Viewable with `stacktape logs`. | - |
-| `payloadFormat` | no | `string: "1.0" \| "2.0"` | Lambda event payload format. `2.0` is simpler and recommended for new projects. Only used if not overridden at the integration level. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `alarms` | no | `Array<HttpApiGatewayAlarm>` | - |
+| `cdn` | no | `CdnConfiguration` | - |
+| `cors` | no | `HttpApiCorsConfig` | - |
+| `customDomains` | no | `Array<DomainConfiguration>` | - |
+| `disabledGlobalAlarms` | no | `Array<string>` | - |
+| `logging` | no | `HttpApiAccessLogsConfig` | - |
+| `payloadFormat` | no | `string: "1.0" \| "2.0"` | - |
 
 
 ## FAQ

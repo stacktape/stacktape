@@ -219,39 +219,21 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | Parameter | Description | Usage |
 | --- | --- | --- |
 | `domain` | default domain name of load balancer | `$ResourceParam("<<resource-name>>", "domain")` |
-| `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
+| `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
 
 
 ## API Reference
 
 
-## API Reference: `NetworkLoadBalancerProps`
-```typescript
-import type { NetworkLoadBalancerListener } from 'stacktape';
+### Definition: `NetworkLoadBalancerProps`
 
-type NetworkLoadBalancerProps = {
-  /** Listeners define which ports and protocols (TCP/TLS) this load balancer accepts traffic on. */
-  listeners: Array<NetworkLoadBalancerListener>;
-  /** Custom domains. */
-  customDomains?: NetworkLoadBalancerCustomDomains;
-  /** internet (public) or internal (VPC-only). */
-  interface?: "internal" | "internet";
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/network-load-balancer` with definition name `NetworkLoadBalancerProps`.
 
-/** Union choices used by the properties above. */
-type NetworkLoadBalancerCustomDomains =
-  | "option-1"
-  | "option-2";
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `listeners` | yes | `Array<NetworkLoadBalancerListener>` | Listeners define which ports and protocols (TCP/TLS) this load balancer accepts traffic on. | - |
-| `customDomains` | no | `option-1 \| option-2` | Custom domains. By default, Stacktape creates DNS records and TLS certificates for each domain.
-If you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`.
-
-Backward compatible format `string[]` is still supported. | - |
-| `interface` | no | `string: "internal" \| "internet"` | `internet` (public) or `internal` (VPC-only). | `internet` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `listeners` | yes | `Array<NetworkLoadBalancerListener>` | - |
+| `customDomains` | no | `option-1 \| option-2` | - |
+| `interface` | no | `string: "internal" \| "internet"` | `internet` |
 
 
 ## FAQ

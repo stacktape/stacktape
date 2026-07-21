@@ -581,86 +581,38 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
-| `connectionString` | Fully-formed connection string that can be used to access the primary instance.
-For aurora databases, this is connectionString to cluster endpoint, which can be used for both reads and writes.
-Includes **host**, **port**, **username**, **password** and **dbName**. | `$ResourceParam("<<resource-name>>", "connectionString")` |
-| `jdbcConnectionString` | Fully-formed connection string in JDBC form that can be used to access the primary instance.
-Includes **host**, **port**, **username**, **password** and **dbName**. | `$ResourceParam("<<resource-name>>", "jdbcConnectionString")` |
-| `host` | Hostname (address) of the primary instance that can be used for both reads and writes.
-For aurora databases, this is hostname of a cluster endpoint, which can be used for both reads and writes. | `$ResourceParam("<<resource-name>>", "host")` |
+| `connectionString` | Fully-formed connection string that can be used to access the primary instance. For aurora databases, this is connectionString to cluster endpoint, which can be used for both reads and writes. Includes **host**, **port**, **username**, **password** and **dbName**. | `$ResourceParam("<<resource-name>>", "connectionString")` |
+| `jdbcConnectionString` | Fully-formed connection string in JDBC form that can be used to access the primary instance. Includes **host**, **port**, **username**, **password** and **dbName**. | `$ResourceParam("<<resource-name>>", "jdbcConnectionString")` |
+| `host` | Hostname (address) of the primary instance that can be used for both reads and writes. For aurora databases, this is hostname of a cluster endpoint, which can be used for both reads and writes. | `$ResourceParam("<<resource-name>>", "host")` |
 | `port` | Port of the database. | `$ResourceParam("<<resource-name>>", "port")` |
 | `dbName` | Name of the automatically created database (can be configured using the `dbName` property). | `$ResourceParam("<<resource-name>>", "dbName")` |
-| `readerHost` | Hostname (address) used for reads only. (only available for `aurora-postgresql` and `aurora-mysql` engines).
-If you have multiple instances, it is advised to use readerHost for reads to offload the primary (read/write) host.
-ReaderHost automatically balances requests between available instances. Connections are auto-balanced among available reader hosts. | `$ResourceParam("<<resource-name>>", "readerHost")` |
+| `readerHost` | Hostname (address) used for reads only. (only available for `aurora-postgresql` and `aurora-mysql` engines). If you have multiple instances, it is advised to use readerHost for reads to offload the primary (read/write) host. ReaderHost automatically balances requests between available instances. Connections are auto-balanced among available reader hosts. | `$ResourceParam("<<resource-name>>", "readerHost")` |
 | `readerConnectionString` | Same as **connectionString** but targets readerHosts (only available for `aurora-postgresql` and `aurora-mysql` engines). Connections are auto-balanced among available reader hosts. | `$ResourceParam("<<resource-name>>", "readerConnectionString")` |
 | `readerJdbcConnectionString` | Same as **readerConnectionString** but in JDBC format (only available for `aurora-postgresql` and `aurora-mysql` engines). | `$ResourceParam("<<resource-name>>", "readerJdbcConnectionString")` |
-| `readReplicaHosts` | Comma-separated list of read replica hostnames (only available if read replicas are configured).
-Read replicas can only be used for read operations. | `$ResourceParam("<<resource-name>>", "readReplicaHosts")` |
-| `readReplicaConnectionStrings` | Comma-separated list of connection strings (URLs) used to connect to read replicas
-(only available when read replicas are configured). Read replicas can only be used for read operations. | `$ResourceParam("<<resource-name>>", "readReplicaConnectionStrings")` |
+| `readReplicaHosts` | Comma-separated list of read replica hostnames (only available if read replicas are configured). Read replicas can only be used for read operations. | `$ResourceParam("<<resource-name>>", "readReplicaHosts")` |
+| `readReplicaConnectionStrings` | Comma-separated list of connection strings (URLs) used to connect to read replicas (only available when read replicas are configured). Read replicas can only be used for read operations. | `$ResourceParam("<<resource-name>>", "readReplicaConnectionStrings")` |
 | `readReplicaJdbcConnectionStrings` | Same as **readReplicaConnectionStrings** but in JDBC format (only available when read replicas are configured). | `$ResourceParam("<<resource-name>>", "readReplicaJdbcConnectionStrings")` |
 
 
 ## API Reference
 
 
-## API Reference: `RelationalDatabaseProps`
-```typescript
-import type { AuroraEngine, AuroraServerlessEngine, AuroraServerlessV2Engine, DatabaseAccessibility, DevModeConfig, RdsEngine, RelationalDatabaseAlarm, RelationalDatabaseCredentials, RelationalDatabaseLogging } from 'stacktape';
+### Definition: `RelationalDatabaseProps`
 
-type RelationalDatabaseProps = {
-  /** Master user credentials (username and password). */
-  credentials: RelationalDatabaseCredentials;
-  /** Database engine: what type of database and how it runs. */
-  engine: RelationalDatabaseEngine;
-  /** Who can connect to this database (network-level access control). */
-  accessibility?: DatabaseAccessibility;
-  /** Alarms for this database (merged with global alarms from the Stacktape Console). */
-  alarms?: Array<RelationalDatabaseAlarm>;
-  /** Days to keep automated daily backups (0-35). Set to 0 to disable (RDS only). */
-  automatedBackupRetentionDays?: number;
-  /** Prevent accidental deletion of the database. Must be disabled before deleting. */
-  deletionProtection?: boolean;
-  /** Dev mode: runs locally in Docker by default. Set remote: true to use the deployed database. */
-  dev?: DevModeConfig;
-  /** Global alarm names to exclude from this database. */
-  disabledGlobalAlarms?: Array<string>;
-  /** Database logging (connections, slow queries, errors). */
-  logging?: RelationalDatabaseLogging;
-  /** When maintenance (patching, upgrades) happens. Format: Sun:02:00-Sun:04:00 (UTC). */
-  preferredMaintenanceWindow?: string;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/relational-database` with definition name `RelationalDatabaseProps`.
 
-/** Union choices used by the properties above. */
-type RelationalDatabaseEngine =
-  | AuroraEngine
-  | AuroraServerlessEngine
-  | AuroraServerlessV2Engine
-  | RdsEngine;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `credentials` | yes | `RelationalDatabaseCredentials` | Master user credentials (username and password). Included in the auto-generated connection string. Store the password in a Stacktape secret
-to avoid exposing it in your config file. | - |
-| `engine` | yes | `AuroraEngine \| AuroraServerlessEngine \| AuroraServerlessV2Engine \| RdsEngine` | Database engine: what type of database and how it runs. **RDS** (`postgres`, `mysql`, `mariadb`, etc.): Single-node, fixed-size. Simple and predictable pricing.
-**Aurora** (`aurora-postgresql`, `aurora-mysql`): High-performance clustered DB with auto-failover.
-Up to 5x faster than standard MySQL / 3x faster than standard PostgreSQL.
-**Aurora Serverless v2** (`aurora-postgresql-serverless-v2`): Auto-scales from 0.5 to 128 ACUs.
-**Recommended for most new projects** — pay only for what you use. | - |
-| `accessibility` | no | `DatabaseAccessibility` | Who can connect to this database (network-level access control). Default is `internet` — anyone with credentials can connect (fine for development).
-For production, use `scoping-workloads-in-vpc` to restrict access to only resources
-that list this database in their `connectTo`. | - |
-| `alarms` | no | `Array<RelationalDatabaseAlarm>` | Alarms for this database (merged with global alarms from the Stacktape Console). | - |
-| `automatedBackupRetentionDays` | no | `number` | Days to keep automated daily backups (0-35). Set to 0 to disable (RDS only). | `1` |
-| `deletionProtection` | no | `boolean` | Prevent accidental deletion of the database. Must be disabled before deleting. | `false` |
-| `dev` | no | `DevModeConfig` | Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed database. | - |
-| `disabledGlobalAlarms` | no | `Array<string>` | Global alarm names to exclude from this database. | - |
-| `logging` | no | `RelationalDatabaseLogging` | Database logging (connections, slow queries, errors). Logs are sent to CloudWatch and retained for 90 days by default.
-Available log types vary by engine. | - |
-| `preferredMaintenanceWindow` | no | `string` | When maintenance (patching, upgrades) happens. Format: `Sun:02:00-Sun:04:00` (UTC). The database may be briefly unavailable during this window.
-Use multi-AZ or Aurora to minimize downtime. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `credentials` | yes | `RelationalDatabaseCredentials` | - |
+| `engine` | yes | `AuroraEngine \| AuroraServerlessEngine \| AuroraServerlessV2Engine \| RdsEngine` | - |
+| `accessibility` | no | `DatabaseAccessibility` | - |
+| `alarms` | no | `Array<RelationalDatabaseAlarm>` | - |
+| `automatedBackupRetentionDays` | no | `number` | `1` |
+| `deletionProtection` | no | `boolean` | `false` |
+| `dev` | no | `DevModeConfig` | - |
+| `disabledGlobalAlarms` | no | `Array<string>` | - |
+| `logging` | no | `RelationalDatabaseLogging` | - |
+| `preferredMaintenanceWindow` | no | `string` | - |
 
 
 ## FAQ

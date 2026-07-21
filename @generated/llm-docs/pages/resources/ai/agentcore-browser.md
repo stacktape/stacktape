@@ -167,22 +167,15 @@ Use [`$ResourceParam()`](/configuration/directives) to reference browser resourc
 ## API Reference
 
 
-## API Reference: `AgentCoreBrowserProps`
-```typescript
-import type { CloudformationTag } from 'stacktape';
+### Definition: `AgentCoreBrowserProps`
 
-type AgentCoreBrowserProps = {
-  description?: string;
-  recording?: unknown;
-  tags?: Array<CloudformationTag>;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/agentcore` with definition name `AgentCoreBrowserProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `description` | no | `string` | - | - |
-| `recording` | no | `unknown` | - | - |
-| `tags` | no | `Array<CloudformationTag>` | - | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `description` | no | `string` | - |
+| `recording` | no | `unknown` | - |
+| `tags` | no | `Array<CloudformationTag>` | - |
 
 
 ## FAQ

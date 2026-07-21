@@ -69,14 +69,12 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `domain` | Web service default domain name | `$ResourceParam("<<resource-name>>", "domain")` |
 | `url` | Web service default URL | `$ResourceParam("<<resource-name>>", "url")` |
-| `customDomains` | Comma-separated list of custom domain names assigned to the Web Service (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
-| `customDomainUrls` | Comma-separated list of custom domain name URLs (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
-| `cdnDomain` | Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
-| `cdnUrl` | Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
-| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+| `customDomains` | Comma-separated list of custom domain names assigned to the Web Service (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
+| `customDomainUrls` | Comma-separated list of custom domain name URLs (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
+| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
+| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
+| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
+| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
 
 
 ### Private service
@@ -87,7 +85,7 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
-| `address` | service `host:port` pair accessible only to other resources of stack([web-services](/compute-resources/web-services/), [multi-container-workloads](/compute-resources/multi-container-workloads/)) | `$ResourceParam("<<resource-name>>", "address")` |
+| `address` | service `host:port` pair accessible only to other resources of stack([web-services](/resources/compute/web-service/), [multi-container-workloads](/resources/compute/multi-container-workload/)) | `$ResourceParam("<<resource-name>>", "address")` |
 
 
 ### Batch job
@@ -202,12 +200,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `name` | AWS (physical) name of the bucket | `$ResourceParam("<<resource-name>>", "name")` |
 | `arn` | Arn of the bucket | `$ResourceParam("<<resource-name>>", "arn")` |
-| `cdnDomain` | Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
-| `cdnUrl` | Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
-| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
+| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
+| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
+| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
 
 
 ## Databases
@@ -224,24 +220,16 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
-| `connectionString` | Fully-formed connection string that can be used to access the primary instance.
-For aurora databases, this is connectionString to cluster endpoint, which can be used for both reads and writes.
-Includes **host**, **port**, **username**, **password** and **dbName**. | `$ResourceParam("<<resource-name>>", "connectionString")` |
-| `jdbcConnectionString` | Fully-formed connection string in JDBC form that can be used to access the primary instance.
-Includes **host**, **port**, **username**, **password** and **dbName**. | `$ResourceParam("<<resource-name>>", "jdbcConnectionString")` |
-| `host` | Hostname (address) of the primary instance that can be used for both reads and writes.
-For aurora databases, this is hostname of a cluster endpoint, which can be used for both reads and writes. | `$ResourceParam("<<resource-name>>", "host")` |
+| `connectionString` | Fully-formed connection string that can be used to access the primary instance. For aurora databases, this is connectionString to cluster endpoint, which can be used for both reads and writes. Includes **host**, **port**, **username**, **password** and **dbName**. | `$ResourceParam("<<resource-name>>", "connectionString")` |
+| `jdbcConnectionString` | Fully-formed connection string in JDBC form that can be used to access the primary instance. Includes **host**, **port**, **username**, **password** and **dbName**. | `$ResourceParam("<<resource-name>>", "jdbcConnectionString")` |
+| `host` | Hostname (address) of the primary instance that can be used for both reads and writes. For aurora databases, this is hostname of a cluster endpoint, which can be used for both reads and writes. | `$ResourceParam("<<resource-name>>", "host")` |
 | `port` | Port of the database. | `$ResourceParam("<<resource-name>>", "port")` |
 | `dbName` | Name of the automatically created database (can be configured using the `dbName` property). | `$ResourceParam("<<resource-name>>", "dbName")` |
-| `readerHost` | Hostname (address) used for reads only. (only available for `aurora-postgresql` and `aurora-mysql` engines).
-If you have multiple instances, it is advised to use readerHost for reads to offload the primary (read/write) host.
-ReaderHost automatically balances requests between available instances. Connections are auto-balanced among available reader hosts. | `$ResourceParam("<<resource-name>>", "readerHost")` |
+| `readerHost` | Hostname (address) used for reads only. (only available for `aurora-postgresql` and `aurora-mysql` engines). If you have multiple instances, it is advised to use readerHost for reads to offload the primary (read/write) host. ReaderHost automatically balances requests between available instances. Connections are auto-balanced among available reader hosts. | `$ResourceParam("<<resource-name>>", "readerHost")` |
 | `readerConnectionString` | Same as **connectionString** but targets readerHosts (only available for `aurora-postgresql` and `aurora-mysql` engines). Connections are auto-balanced among available reader hosts. | `$ResourceParam("<<resource-name>>", "readerConnectionString")` |
 | `readerJdbcConnectionString` | Same as **readerConnectionString** but in JDBC format (only available for `aurora-postgresql` and `aurora-mysql` engines). | `$ResourceParam("<<resource-name>>", "readerJdbcConnectionString")` |
-| `readReplicaHosts` | Comma-separated list of read replica hostnames (only available if read replicas are configured).
-Read replicas can only be used for read operations. | `$ResourceParam("<<resource-name>>", "readReplicaHosts")` |
-| `readReplicaConnectionStrings` | Comma-separated list of connection strings (URLs) used to connect to read replicas
-(only available when read replicas are configured). Read replicas can only be used for read operations. | `$ResourceParam("<<resource-name>>", "readReplicaConnectionStrings")` |
+| `readReplicaHosts` | Comma-separated list of read replica hostnames (only available if read replicas are configured). Read replicas can only be used for read operations. | `$ResourceParam("<<resource-name>>", "readReplicaHosts")` |
+| `readReplicaConnectionStrings` | Comma-separated list of connection strings (URLs) used to connect to read replicas (only available when read replicas are configured). Read replicas can only be used for read operations. | `$ResourceParam("<<resource-name>>", "readReplicaConnectionStrings")` |
 | `readReplicaJdbcConnectionStrings` | Same as **readReplicaConnectionStrings** but in JDBC format (only available when read replicas are configured). | `$ResourceParam("<<resource-name>>", "readReplicaJdbcConnectionStrings")` |
 
 
@@ -255,7 +243,7 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `name` | AWS (physical) name of the table | `$ResourceParam("<<resource-name>>", "name")` |
 | `arn` | Arn of the table | `$ResourceParam("<<resource-name>>", "arn")` |
-| `streamArn` | Arn of [DynamoDb stream](/resources/dynamo-db-tables/#item-change-streaming) (available only if `streamType` is configured) | `$ResourceParam("<<resource-name>>", "streamArn")` |
+| `streamArn` | Arn of [DynamoDb stream](/resources/databases/dynamodb/#streams) (available only if `streamType` is configured) | `$ResourceParam("<<resource-name>>", "streamArn")` |
 
 
 ### Redis cluster
@@ -266,11 +254,8 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
-| `host` | In case of NON-sharded cluster(default), this is a hostname of the primary instance that can be used for both reads and writes.
-In case of sharded cluster, this is cluster's configuration endpoint that can be used for all operations. | `$ResourceParam("<<resource-name>>", "host")` |
-| `readerHost` | Hostname (address) that can be used for reads only. (only available for NON-sharded clusters).
-If you use multiple replicas, it is advised to use readerHost for read operations to offload the primary host.
-ReaderHost automatically balances requests between available read replicas. | `$ResourceParam("<<resource-name>>", "readerHost")` |
+| `host` | In case of NON-sharded cluster(default), this is a hostname of the primary instance that can be used for both reads and writes. In case of sharded cluster, this is cluster's configuration endpoint that can be used for all operations. | `$ResourceParam("<<resource-name>>", "host")` |
+| `readerHost` | Hostname (address) that can be used for reads only. (only available for NON-sharded clusters). If you use multiple replicas, it is advised to use readerHost for read operations to offload the primary host. ReaderHost automatically balances requests between available read replicas. | `$ResourceParam("<<resource-name>>", "readerHost")` |
 | `port` | Port of the cluster. | `$ResourceParam("<<resource-name>>", "port")` |
 | `sharding` | Indicates whether cluster is sharded. Available values: `enabled` or `disabled`. | `$ResourceParam("<<resource-name>>", "sharding")` |
 
@@ -329,12 +314,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `name` | AWS (physical) name of the bucket | `$ResourceParam("<<resource-name>>", "name")` |
 | `arn` | Arn of the bucket | `$ResourceParam("<<resource-name>>", "arn")` |
-| `cdnDomain` | Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
-| `cdnUrl` | Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
-| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
+| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
+| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
+| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
 
 
 ## Networking
@@ -351,15 +334,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `domain` | Default domain name | `$ResourceParam("<<resource-name>>", "domain")` |
 | `url` | Default URL | `$ResourceParam("<<resource-name>>", "url")` |
-| `customDomains` | Comma-separated list of custom domain names assigned to the HTTP Api Gateway (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
-| `customDomainUrls` | Comma-separated list of custom domain name URLs (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
-| `customDomainUrl` | URL of the first custom domain name connected to this resource (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
-| `cdnDomain` | Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
-| `cdnUrl` | Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
-| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+| `customDomains` | Comma-separated list of custom domain names assigned to the HTTP Api Gateway (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
+| `customDomainUrls` | Comma-separated list of custom domain name URLs (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
+| `customDomainUrl` | URL of the first custom domain name connected to this resource (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
+| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
+| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
+| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
+| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
 
 
 ### Application Load Balancer
@@ -371,13 +352,11 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | Parameter | Description | Usage |
 | --- | --- | --- |
 | `domain` | default domain name of load balancer | `$ResourceParam("<<resource-name>>", "domain")` |
-| `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
-| `cdnDomain` | Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
-| `cdnUrl` | Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
-| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+| `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
+| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
+| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
+| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
+| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
 
 
 ### Network Load Balancer
@@ -389,7 +368,7 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | Parameter | Description | Usage |
 | --- | --- | --- |
 | `domain` | default domain name of load balancer | `$ResourceParam("<<resource-name>>", "domain")` |
-| `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
+| `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
 
 
 ## Messaging and orchestration

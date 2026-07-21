@@ -6,6 +6,16 @@
 
 Stacktape includes built-in support for AI coding assistants through an MCP server for deploying, inspecting, and debugging stacks from your editor; an agent mode that exposes an HTTP API for iterative local development; and an [`mcp:add`](/cli/mcp-add) command for registering the MCP server with supported editors. AI coding assistants can also use Stacktape docs and project context to help draft or edit `stacktape.ts` configuration files.
 
+## Start here
+
+For most users, the shortest path is:
+
+```bash
+stacktape mcp:add
+```
+
+Select your coding assistant, reload its workspace, and ask it to “use Stacktape tools to inspect this project.” The assistant should discover four tools: `stacktape_docs`, `stacktape_project`, `stacktape_cli`, and `stacktape_dev`. See [MCP server setup](/using-with-ai/mcp-server-setup) for verification, permissions, and troubleshooting.
+
 ## The AI-assisted development workflow
 
 An AI coding assistant working with Stacktape follows a build-test-deploy loop. The assistant writes your infrastructure config, starts a local dev environment, implements application code, reads logs to fix errors, and deploys when everything works. What makes this effective is the **feedback loop** — the AI observes what's happening and iterates until the stack works correctly.
@@ -48,14 +58,14 @@ The MCP server categorizes every CLI command by safety level and enforces approp
 
 | Safety level | Behavior | Examples |
 |---|---|---|
-| `readOnly` | Runs without confirmation | `info:stack`, `info:stacks`, `metrics` |
-| `diagnostic` | Runs without confirmation | `logs`, `query:sql`, `query:redis` |
-| `local` | Runs without confirmation | `synth`, `package` |
+| `readOnly` | Runs without confirmation | `info:stack`, `info:stacks`, `logs`, `metrics` |
+| `diagnostic` | Runs without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch` |
+| `local` | Runs without confirmation | `synth`, `validate`, `package` |
 | `mutating` | Requires explicit user approval (`confirm: true`) | `deploy`, `secret:set`, `domain:add` |
 | `destructive` | Requires direct user confirmation through MCP form elicitation | `delete`, `secret:delete` |
 | `interactive` | Rejected — must use user's terminal or `stacktape_dev` | `dev`, `init` |
 
-Read-only and diagnostic commands are safe for the assistant to run freely — they inspect state without changing it. Mutating commands require the user to explicitly approve execution in the current conversation. Destructive commands go further: the assistant cannot supply confirmation on its own. Instead, the MCP server uses form elicitation to present a confirmation dialog directly to the user, and the operation only proceeds if the user confirms through that dialog. If the MCP client does not support elicitation, destructive commands are refused entirely and the user is told to run them in their own terminal.
+Read-only commands run without confirmation. Diagnostic database commands also run without confirmation, but their query text can still modify data; review SQL, Redis, DynamoDB, and OpenSearch operations carefully. Mutating commands require the user to explicitly approve execution in the current conversation. Destructive commands go further: the assistant cannot supply confirmation on its own. Instead, the MCP server uses form elicitation to present a confirmation dialog directly to the user, and the operation only proceeds if the user confirms through that dialog. If the MCP client does not support elicitation, destructive commands are refused entirely and the user is told to run them in their own terminal.
 
 Interactive commands like [`stacktape dev`](/cli/dev) and [`stacktape init`](/cli/init) require a terminal UI and are rejected by `stacktape_cli`. Dev mode lifecycle is handled through the dedicated `stacktape_dev` tool instead.
 
@@ -102,7 +112,7 @@ The [`stacktape mcp:add`](/cli/mcp-add) command automates MCP server registratio
 stacktape mcp:add
 ```
 
-The [`stacktape mcp`](/cli/mcp) command starts a local stdio MCP server that any MCP-compatible client can connect to.
+The [`stacktape mcp`](/cli/mcp) command starts a local stdio MCP server. Clients that support launching local stdio MCP servers can connect to it.
 
 For per-assistant setup walkthroughs, see [AI coding assistant integrations](/using-with-ai/ai-coding-assistant-integrations).
 

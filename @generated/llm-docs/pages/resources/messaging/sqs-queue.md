@@ -408,69 +408,25 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 ## API Reference
 
 
-## API Reference: `SqsQueueProps`
-```typescript
-import type { SqsQueueAlarm, SqsQueueEventBusIntegration, SqsQueuePolicyStatement, SqsQueueRedrivePolicy } from 'stacktape';
+### Definition: `SqsQueueProps`
 
-type SqsQueueProps = {
-  /** Additional alarms associated with this resource. */
-  alarms?: Array<SqsQueueAlarm>;
-  /** Automatically deduplicates messages based on their content (SHA-256 hash of the body). */
-  contentBasedDeduplication?: boolean;
-  /** Delay (in seconds) before new messages become visible to consumers. Range: 0–900. */
-  delayMessagesSecond?: number;
-  /** Disables globally configured alarms for this resource. */
-  disabledGlobalAlarms?: Array<string>;
-  /** A list of event sources that trigger message delivery to this queue. */
-  events?: Array<SqsQueueEventBusIntegration>;
-  /** Creates a FIFO queue that guarantees message order and exactly-once delivery. */
-  fifoEnabled?: boolean;
-  /** Enables high-throughput mode for FIFO queues (up to ~70,000 msg/s per queue). */
-  fifoHighThroughput?: boolean;
-  /** Seconds the queue waits for messages before returning an empty response. Range: 0–20. */
-  longPollingSeconds?: number;
-  /** Maximum message size in bytes. Range: 1,024 (1 KB) to 262,144 (256 KB). */
-  maxMessageSizeBytes?: number;
-  /** How long unprocessed messages stay in the queue before being deleted. Range: 60s to 1,209,600s (14 days). */
-  messageRetentionPeriodSeconds?: number;
-  /** Custom access-control statements added to the queue&#39;s resource policy. */
-  policyStatements?: Array<SqsQueuePolicyStatement>;
-  /** Moves messages that fail processing too many times to a dead-letter queue for inspection. */
-  redrivePolicy?: SqsQueueRedrivePolicy;
-  /** How long (seconds) a message is hidden from other consumers after being received. Range: 0–43,200 (12 hours). */
-  visibilityTimeoutSeconds?: number;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/sqs-queue` with definition name `SqsQueueProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `alarms` | no | `Array<SqsQueueAlarm>` | Additional alarms associated with this resource. These alarms will be merged with any alarms configured globally in the [console](https://console.stacktape.com/alarms). | - |
-| `contentBasedDeduplication` | no | `boolean` | Automatically deduplicates messages based on their content (SHA-256 hash of the body). Within the 5-minute deduplication window, identical messages are delivered only once.
-Saves you from having to generate a unique `MessageDeduplicationId` for each message.
-Requires `fifoEnabled: true`. | - |
-| `delayMessagesSecond` | no | `number` | Delay (in seconds) before new messages become visible to consumers. Range: 0–900. Useful for introducing a buffer, e.g., waiting for related data to be available before processing. | `0` |
-| `disabledGlobalAlarms` | no | `Array<string>` | Disables globally configured alarms for this resource. Provide a list of alarm names as configured in the [console](https://console.stacktape.com/alarms). | - |
-| `events` | no | `Array<SqsQueueEventBusIntegration>` | A list of event sources that trigger message delivery to this queue. Currently supports EventBridge event bus integration for delivering events directly to the queue. | - |
-| `fifoEnabled` | no | `boolean` | Creates a FIFO queue that guarantees message order and exactly-once delivery. Use when processing order matters (e.g., financial transactions, sequential workflows).
-FIFO queues have lower throughput (~300 msg/s without batching, ~3,000 with) compared to standard queues.
-
-Requires either `contentBasedDeduplication: true` or a `MessageDeduplicationId` on each message. | `false` |
-| `fifoHighThroughput` | no | `boolean` | Enables high-throughput mode for FIFO queues (up to ~70,000 msg/s per queue). Messages are partitioned by `MessageGroupId` — order is guaranteed within each group but not across groups.
-Requires `fifoEnabled: true`. | - |
-| `longPollingSeconds` | no | `number` | Seconds the queue waits for messages before returning an empty response. Range: 0–20. Set to `1`–`20` to enable long polling, which reduces costs by making fewer API calls.
-With short polling (`0`), the consumer gets an immediate (often empty) response and must poll again.
-
-Recommended: `20` for most workloads — it&#39;s the most cost-effective. | `0` |
-| `maxMessageSizeBytes` | no | `number` | Maximum message size in bytes. Range: 1,024 (1 KB) to 262,144 (256 KB). Messages larger than this limit are rejected. For payloads over 256 KB, store the data in S3 and send the reference. | `262144` |
-| `messageRetentionPeriodSeconds` | no | `number` | How long unprocessed messages stay in the queue before being deleted. Range: 60s to 1,209,600s (14 days). Default is 4 days (345,600s). Increase if consumers might fall behind or be temporarily offline. | `345600` |
-| `policyStatements` | no | `Array<SqsQueuePolicyStatement>` | Custom access-control statements added to the queue&#39;s resource policy. These are merged with policies Stacktape auto-generates. Use to grant cross-account access or allow
-specific AWS services (e.g., SNS) to send messages to this queue. | - |
-| `redrivePolicy` | no | `SqsQueueRedrivePolicy` | Moves messages that fail processing too many times to a dead-letter queue for inspection. After `maxReceiveCount` failed attempts, the message is automatically moved to a separate queue
-so you can investigate and reprocess it. Prevents poison messages from blocking the queue. | - |
-| `visibilityTimeoutSeconds` | no | `number` | How long (seconds) a message is hidden from other consumers after being received. Range: 0–43,200 (12 hours). After a consumer picks up a message, it must delete it before this timeout expires — otherwise it becomes
-visible again and can be processed by another consumer (duplicate processing).
-
-Set this higher than your expected processing time. If your tasks take 2 minutes, use at least 150 seconds. | `30` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `alarms` | no | `Array<SqsQueueAlarm>` | - |
+| `contentBasedDeduplication` | no | `boolean` | - |
+| `delayMessagesSecond` | no | `number` | `0` |
+| `disabledGlobalAlarms` | no | `Array<string>` | - |
+| `events` | no | `Array<SqsQueueEventBusIntegration>` | - |
+| `fifoEnabled` | no | `boolean` | `false` |
+| `fifoHighThroughput` | no | `boolean` | - |
+| `longPollingSeconds` | no | `number` | `0` |
+| `maxMessageSizeBytes` | no | `number` | `262144` |
+| `messageRetentionPeriodSeconds` | no | `number` | `345600` |
+| `policyStatements` | no | `Array<SqsQueuePolicyStatement>` | - |
+| `redrivePolicy` | no | `SqsQueueRedrivePolicy` | - |
+| `visibilityTimeoutSeconds` | no | `number` | `30` |
 
 
 ## FAQ

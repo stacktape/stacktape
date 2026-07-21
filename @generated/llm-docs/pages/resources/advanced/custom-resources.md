@@ -404,50 +404,19 @@ Custom resources are not listed among Stacktape [referenceable parameters](/conf
 ## API Reference
 
 
-## API Reference: `CustomResourceDefinitionProps`
-```typescript
-import type { CustomArtifactLambdaPackaging, EnvironmentVar, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
+### Definition: `CustomResourceDefinitionProps`
 
-type CustomResourceDefinitionProps = {
-  /** How the Lambda function code is packaged and deployed. */
-  packaging: CustomResourceDefinitionPackaging;
-  /** Give this resource access to other resources in your stack. */
-  connectTo?: Array<string>;
-  /** Environment variables injected into the Lambda function. Use $ResourceParam() for dynamic values. */
-  environment?: Array<EnvironmentVar>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. */
-  memory?: number;
-  /** Lambda runtime. Auto-detected from file extension if not specified. */
-  runtime?: "dotnet6" | "dotnet7" | "dotnet8" | "java11" | "java17" | "java8" | "java8.al2" | "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "provided.al2" | "provided.al2023" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.8" | "python3.9" | "ruby3.3";
-  /** Max execution time in seconds. Max: 900. */
-  timeout?: number;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/custom-resource` with definition name `CustomResourceDefinitionProps`.
 
-/** Union choices used by the properties above. */
-type CustomResourceDefinitionPackaging =
-  | StpBuildpackLambdaPackaging
-  | CustomArtifactLambdaPackaging;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | How the Lambda function code is packaged and deployed. | - |
-| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
-
-**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
-**Opens network access** (security group rules for databases, Redis)
-**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
-
-Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
-resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
-| `environment` | no | `Array<EnvironmentVar>` | Environment variables injected into the Lambda function. Use `$ResourceParam()` for dynamic values. | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
-accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
-| `memory` | no | `number` | Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. | - |
-| `runtime` | no | `string: "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.8" \| "python3.9" \| "ruby3.3"` | Lambda runtime. Auto-detected from file extension if not specified. | - |
-| `timeout` | no | `number` | Max execution time in seconds. Max: 900. | `10` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `environment` | no | `Array<EnvironmentVar>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `memory` | no | `number` | - |
+| `runtime` | no | `string: "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.8" \| "python3.9" \| "ruby3.3"` | - |
+| `timeout` | no | `number` | `10` |
 
 
 ## FAQ

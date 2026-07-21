@@ -190,20 +190,14 @@ This is particularly useful for passing the code interpreter's ID into a runtime
 ## API Reference
 
 
-## API Reference: `AgentCoreCodeInterpreterProps`
-```typescript
-import type { CloudformationTag } from 'stacktape';
+### Definition: `AgentCoreCodeInterpreterProps`
 
-type AgentCoreCodeInterpreterProps = {
-  description?: string;
-  tags?: Array<CloudformationTag>;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/agentcore` with definition name `AgentCoreCodeInterpreterProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `description` | no | `string` | - | - |
-| `tags` | no | `Array<CloudformationTag>` | - | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `description` | no | `string` | - |
+| `tags` | no | `Array<CloudformationTag>` | - |
 
 
 ## FAQ

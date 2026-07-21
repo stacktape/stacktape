@@ -170,19 +170,11 @@ The `handler` property uses `filepath:functionName` syntax and points at the fil
 The most common cause is a `handler` path that doesn't match the file structure inside your zip. Unzip the artifact locally and confirm the handler file exists at the path Lambda will see — a mismatch typically surfaces as a module-not-found or handler-not-found error at invocation time. Use [`stacktape logs`](/cli/logs) to view the error.
 
 
-## API Reference: `CustomArtifactLambdaPackagingProps`
-```typescript
-type CustomArtifactLambdaPackagingProps = {
-  /** The path to a pre-built deployment package. */
-  packagePath: string;
-  /** The handler function to be executed when the Lambda is invoked. */
-  handler?: string;
-};
-```
+### Definition: `CustomArtifactLambdaPackagingProps`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `packagePath` | yes | `string` | The path to a pre-built deployment package. If the path points to a directory or a non-zip file, Stacktape will automatically zip it for you. | - |
-| `handler` | no | `string` | The handler function to be executed when the Lambda is invoked. The syntax is `{{filepath}}:{{functionName}}`.
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/deployment-artifacts` with definition name `CustomArtifactLambdaPackagingProps`.
 
-Example: `my-lambda/index.js:default` | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `packagePath` | yes | `string` | - |
+| `handler` | no | `string` | - |

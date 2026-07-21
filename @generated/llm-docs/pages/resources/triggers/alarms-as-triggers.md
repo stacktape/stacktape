@@ -98,17 +98,13 @@ Most trigger types compare a CloudWatch metric against a configured threshold. T
 - **No batching or retry configuration.** Unlike stream and queue integrations (`sqs`, `kinesis-stream`, `dynamo-db-stream`), alarm triggers do not expose `batchSize`, `maxBatchWindowSeconds`, or retry properties in `AlarmIntegrationProps`.
 
 
-## API Reference: `AlarmIntegrationProps`
-```typescript
-type AlarmIntegrationProps = {
-  /** The name of the alarm (defined in the alarms section) that will trigger the function. */
-  alarmName: string;
-};
-```
+### Definition: `AlarmIntegrationProps`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `alarmName` | yes | `string` | The name of the alarm (defined in the `alarms` section) that will trigger the function. | - |
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `AlarmIntegrationProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `alarmName` | yes | `string` | - |
 
 
 ## FAQ

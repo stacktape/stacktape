@@ -346,34 +346,20 @@ Stacktape alarm state changes can be used as event sources for [Lambda functions
 ## API reference
 
 
-## API Reference: `AlarmDefinition`
+### Definition: `AlarmDefinition`
 
-Source: `types/stacktape-config/alarms.d.ts`
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/alarms` with definition name `AlarmDefinition`.
 
-```typescript
-interface AlarmDefinition extends AlarmDefinitionBase {
-  /**
-   * #### A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`).
-   */
-  name: string;
-  /**
-   * #### The metric and threshold that fires this alarm.
-   *
-   * ---
-   *
-   * `type` selects what to monitor (error rate, CPU, latency, etc.) and `properties` set the threshold.
-   */
-  trigger: AlarmTrigger;
-  /**
-   * #### Only activate this alarm for these services. If omitted, applies to all services.
-   */
-  forServices?: string[];
-  /**
-   * #### Only activate this alarm for these stages (e.g., `production`). If omitted, applies to all stages.
-   */
-  forStages?: string[];
-}
-```
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `name` | yes | `string` | - |
+| `trigger` | yes | `application-load-balancer-custom \| application-load-balancer-error-rate \| application-load-balancer-unhealthy-targets \| sqs-queue-received-messages-count \| sqs-queue-not-empty \| lambda-error-rate \| lambda-duration \| http-api-gateway-error-rate \| http-api-gateway-latency \| database-read-latency \| database-write-latency \| database-cpu-utilization \| database-free-storage \| database-free-memory \| database-connection-count` | - |
+| `description` | no | `string` | - |
+| `evaluation` | no | `AlarmEvaluation` | - |
+| `forServices` | no | `Array<string>` | - |
+| `forStages` | no | `Array<string>` | - |
+| `includeInHistory` | no | `boolean` | `true` |
+| `notificationTargets` | no | `Array<ms-teams \| slack \| email \| discord \| webhook>` | - |
 
 
 ## FAQ

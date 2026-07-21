@@ -244,22 +244,14 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 ## API Reference
 
 
-## API Reference: `EventBusProps`
-```typescript
-import type { EventBusArchivation } from 'stacktape';
+### Definition: `EventBusProps`
 
-type EventBusProps = {
-  /** Archive events to store and replay them later. Useful for debugging, testing, or error recovery. */
-  archivation?: EventBusArchivation;
-  /** Partner event source name. Only needed for receiving events from third-party SaaS integrations. */
-  eventSourceName?: string;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/event-bus` with definition name `EventBusProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `archivation` | no | `EventBusArchivation` | Archive events to store and replay them later. Useful for debugging, testing, or error recovery. | - |
-| `eventSourceName` | no | `string` | Partner event source name. Only needed for receiving events from third-party SaaS integrations. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `archivation` | no | `EventBusArchivation` | - |
+| `eventSourceName` | no | `string` | - |
 
 
 ## FAQ

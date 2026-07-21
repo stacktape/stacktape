@@ -251,51 +251,12 @@ Always prefer a native Stacktape resource when one exists. Many native resources
 ## API Reference
 
 
-## API Reference: `AwsCdkConstructProps`
-```typescript
-type AwsCdkConstructProps = {
-  /** Path to the file containing your CDK construct class. */
-  entryfilePath: string;
-  /** Custom props passed to the construct's constructor. */
-  constructProperties?: unknown;
-  /** Name of the exported construct class from the entry file. */
-  exportName?: string;
-};
-```
+### Definition: `AwsCdkConstructProps`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `entryfilePath` | yes | `string` | Path to the file containing your CDK construct class. Supports `.js` and `.ts` files. The file must export a class that extends `Construct` from `aws-cdk-lib`. | - |
-| `constructProperties` | no | `unknown` | Custom props passed to the construct's constructor. This object is forwarded as the third argument (`props`) to your construct class. Use `$ResourceParam()` and `$Secret()`
-directives here to pass dynamic values from other resources in your stack.
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/aws-cdk-construct` with definition name `AwsCdkConstructProps`.
 
-**Example (YAML):**
-
-```yaml
-resources:
-  notifications:
-    type: aws-cdk-construct
-    properties:
-      entryfilePath: cdk/notification-topic.ts
-      constructProperties:
-        displayName: Production Alerts
-        emailSubscription: $Secret('alerts-email')
-```
-
-**Example (TypeScript):**
-
-```ts
-import { AwsCdkConstruct, $Secret, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const notifications = new AwsCdkConstruct({
-    entryfilePath: 'cdk/notification-topic.ts',
-    constructProperties: {
-      displayName: 'Production Alerts',
-      emailSubscription: $Secret('alerts-email')
-    }
-  });
-  return { resources: { notifications } };
-});
-``` | - |
-| `exportName` | no | `string` | Name of the exported construct class from the entry file. Must match the exact export name. Use this when the file has multiple exports or uses named exports. | `default` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `entryfilePath` | yes | `string` | - |
+| `constructProperties` | no | `unknown` | - |
+| `exportName` | no | `string` | `default` |

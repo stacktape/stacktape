@@ -269,28 +269,15 @@ Yes. Multiple resources can reference the same image tag, and each pulls indepen
 ## API reference
 
 
-## API Reference: `PrebuiltImageCwPackagingProps`
+### Definition: `PrebuiltImageCwPackagingProps`
+
 Configures a pre-built container image.
 
-```typescript
-type PrebuiltImageCwPackagingProps = {
-  /** The name or URL of the container image. */
-  image: string;
-  /** A command to be executed when the container starts. */
-  command?: Array<string>;
-  /** A script to be executed when the container starts. */
-  entryPoint?: Array<string>;
-  /** The ARN of a secret containing credentials for a private container registry. */
-  repositoryCredentialsSecretArn?: string;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/deployment-artifacts` with definition name `PrebuiltImageCwPackagingProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `image` | yes | `string` | The name or URL of the container image. | - |
-| `command` | no | `Array<string>` | A command to be executed when the container starts. This overrides the `CMD` instruction in the Dockerfile.
-
-Example: `['/app/start.sh']` | - |
-| `entryPoint` | no | `Array<string>` | A script to be executed when the container starts. This overrides the `ENTRYPOINT` instruction in the Dockerfile. | - |
-| `repositoryCredentialsSecretArn` | no | `string` | The ARN of a secret containing credentials for a private container registry. The secret must be a JSON object with `username` and `password` keys.
-You can create secrets using the `stacktape secret:create` command. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `image` | yes | `string` | - |
+| `command` | no | `Array<string>` | - |
+| `entryPoint` | no | `Array<string>` | - |
+| `repositoryCredentialsSecretArn` | no | `string` | - |

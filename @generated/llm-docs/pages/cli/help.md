@@ -36,18 +36,13 @@ Without `--command`, the output lists every CLI command with its configured desc
 
 The `help` command accepts a single optional flag. The reference below lists its name, alias, type, and whether it is required.
 
-<CliCommandsApiReference command="help" sortedArgs={[
-  {
-    "name": "command",
-    "required": false,
-    "alias": "cmd",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Command</p>\n",
-    "longDescription": "<p>This argument has different meanings depending on the command:</p>\n<ul>\n<li>With <code>stacktape help</code>, it specifies a command to show detailed help for.</li>\n<li>With <code>stacktape container:session</code>, it specifies a command to run inside the container to start the interactive session.</li>\n</ul>\n"
-  }
-]} />
+
+## CLI Options: `stacktape help`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--command (-cmd)` | no | `string` | Command This argument has different meanings depending on the command: With `stacktape help`, it specifies a command to show detailed help for. With `stacktape container:session`, it specifies a command to run inside the container to start the interactive session. | - |
+
 
 ## Examples
 

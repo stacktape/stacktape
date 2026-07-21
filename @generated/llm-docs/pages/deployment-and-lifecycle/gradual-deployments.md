@@ -274,25 +274,15 @@ Gradual deployments themselves don't add AWS costs beyond what you pay for the u
 | Linear naming | `Linear10PercentEvery1Minute` (no "s") | `Linear10PercentEvery1Minutes` (with "s") |
 
 
-## API Reference: `LambdaDeploymentConfig`
-```typescript
-type LambdaDeploymentConfig = {
-  /** How traffic shifts from the old version to the new one. */
-  strategy: "AllAtOnce" | "Canary10Percent10Minutes" | "Canary10Percent15Minutes" | "Canary10Percent30Minutes" | "Canary10Percent5Minutes" | "Linear10PercentEvery10Minutes" | "Linear10PercentEvery1Minute" | "Linear10PercentEvery2Minutes" | "Linear10PercentEvery3Minutes";
-  /** Function to run after all traffic has shifted (e.g., post-deploy validation). */
-  afterTrafficShiftFunction?: string;
-  /** Function to run before traffic shifting begins (e.g., smoke tests). */
-  beforeAllowTrafficFunction?: string;
-};
-```
+### Definition: `LambdaDeploymentConfig`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `strategy` | yes | `string: "AllAtOnce" \| "Canary10Percent10Minutes" \| "Canary10Percent15Minutes" \| "Canary10Percent30Minutes" \| "Canary10Percent5Minutes" \| "Linear10PercentEvery10Minutes" \| "Linear10PercentEvery1Minute" \| "Linear10PercentEvery2Minutes" \| "Linear10PercentEvery3Minutes"` | How traffic shifts from the old version to the new one. **Canary**: Send 10% of traffic first, then all traffic after a wait period.
-**Linear**: Shift 10% of traffic at regular intervals.
-**AllAtOnce**: Instant switch (no gradual rollout). | - |
-| `afterTrafficShiftFunction` | no | `string` | Function to run after all traffic has shifted (e.g., post-deploy validation). Must signal success/failure to CodeDeploy. | - |
-| `beforeAllowTrafficFunction` | no | `string` | Function to run before traffic shifting begins (e.g., smoke tests). Must signal success/failure to CodeDeploy. If it fails, the deployment rolls back. | - |
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/function` with definition name `LambdaDeploymentConfig`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `strategy` | yes | `string: "AllAtOnce" \| "Canary10Percent10Minutes" \| "Canary10Percent15Minutes" \| "Canary10Percent30Minutes" \| "Canary10Percent5Minutes" \| "Linear10PercentEvery10Minutes" \| "Linear10PercentEvery1Minute" \| "Linear10PercentEvery2Minutes" \| "Linear10PercentEvery3Minutes"` | - |
+| `afterTrafficShiftFunction` | no | `string` | - |
+| `beforeAllowTrafficFunction` | no | `string` | - |
 
 
 The API reference above covers **Lambda deployment configuration only**. Container workloads use `ContainerWorkloadDeploymentConfig`, which has the same `strategy`, `beforeAllowTrafficFunction`, and `afterTrafficShiftFunction` properties plus `testListenerPort`. For the container deployment API reference, see the [web service](/resources/compute/web-service) and [multi-container workload](/resources/compute/multi-container-workload) pages.

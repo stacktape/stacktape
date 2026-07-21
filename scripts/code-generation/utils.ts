@@ -7,17 +7,17 @@ import { readJson, writeJSON } from 'fs-extra';
 import { compile as compileJsonSchemaToTypescript } from 'json-schema-to-typescript';
 import { buildGenerator, getProgramFromFiles } from 'typescript-json-schema';
 
-export const getJsonSchemaGenerator = async () => {
+export const getJsonSchemaGenerator = async (rootDir = process.cwd()) => {
   const [srcFiles, typeFiles] = await Promise.all([
-    fastGlob('src/**/*', { dot: true }),
-    fastGlob('types/**/*', { dot: true })
+    fastGlob('src/**/*', { cwd: rootDir, dot: true }),
+    fastGlob('types/**/*', { cwd: rootDir, dot: true })
   ]);
   let jsonSchemaGenerator: JsonSchemaGenerator;
   logInfo('Building JSON schema generator');
   try {
     const tsProgram = getProgramFromFiles(
-      [...srcFiles, ...typeFiles].filter((f) => f.endsWith('.ts')).map((f) => join(process.cwd(), f)),
-      { ...(await readJson(join(process.cwd(), 'tsconfig.json'))).compilerOptions }
+      [...srcFiles, ...typeFiles].filter((f) => f.endsWith('.ts')).map((f) => join(rootDir, f)),
+      { ...(await readJson(join(rootDir, 'tsconfig.json'))).compilerOptions }
     );
 
     jsonSchemaGenerator = buildGenerator(tsProgram, {

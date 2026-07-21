@@ -12,58 +12,16 @@ You can find issue IDs by running [`issues:list`](/cli/issues-list). This comman
 
 ## Flags Reference
 
-<CliCommandsApiReference command="issues:ignore" sortedArgs={[
-  {
-    "name": "issueId",
-    "required": true,
-    "alias": "iid",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Issue ID</p>\n",
-    "longDescription": "<p>The ID of the issue to act on.</p>\n"
-  },
-  {
-    "name": "agent",
-    "required": false,
-    "alias": "ag",
-    "allowedTypes": [
-      "boolean"
-    ],
-    "shortDescription": "<p> Agent Mode</p>\n",
-    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
-  },
-  {
-    "name": "logLevel",
-    "required": false,
-    "alias": "ll",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "info",
-      "debug",
-      "error"
-    ],
-    "shortDescription": "<p> Log Level</p>\n",
-    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
-  },
-  {
-    "name": "outputFormat",
-    "required": false,
-    "alias": "ofmt",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "jsonl",
-      "plain",
-      "tty"
-    ],
-    "shortDescription": "<p> Output Format</p>\n",
-    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
-  }
-]} />
+
+## CLI Options: `stacktape issues:ignore`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--issueId (-iid)` | yes | `string` | Issue ID The ID of the issue to act on. | - |
+| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption: Uses strict JSONL/NDJSON output (one JSON object per line) Disables interactive terminal UI Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
+| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console. `info`: Basic information about the operation. `error`: Only errors. `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format: `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+
 
 ## Examples
 

@@ -360,49 +360,24 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `name` | AWS (physical) name of the table | `$ResourceParam("<<resource-name>>", "name")` |
 | `arn` | Arn of the table | `$ResourceParam("<<resource-name>>", "arn")` |
-| `streamArn` | Arn of [DynamoDb stream](/resources/dynamo-db-tables/#item-change-streaming) (available only if `streamType` is configured) | `$ResourceParam("<<resource-name>>", "streamArn")` |
+| `streamArn` | Arn of [DynamoDb stream](/resources/databases/dynamodb/#streams) (available only if `streamType` is configured) | `$ResourceParam("<<resource-name>>", "streamArn")` |
 
 
 ## API Reference
 
 
-## API Reference: `DynamoDbTableProps`
-```typescript
-import type { DevModeConfig, DynamoDbProvisionedThroughput, DynamoDbTableGlobalSecondaryIndex, DynamoDbTablePrimaryKey } from 'stacktape';
+### Definition: `DynamoDbTableProps`
 
-type DynamoDbTableProps = {
-  /** The primary key that uniquely identifies each item. */
-  primaryKey: DynamoDbTablePrimaryKey;
-  /** Dev mode: runs locally in Docker by default. Set remote: true to use the deployed table. */
-  dev?: DevModeConfig;
-  /** Enable continuous backups with point-in-time recovery (restore to any second in the last 35 days). */
-  enablePointInTimeRecovery?: boolean;
-  /** Fixed-capacity mode with predictable pricing. Omit for on-demand (pay-per-request) mode. */
-  provisionedThroughput?: DynamoDbProvisionedThroughput;
-  /** Additional indexes for querying by attributes other than the primary key. */
-  secondaryIndexes?: Array<DynamoDbTableGlobalSecondaryIndex>;
-  /** Stream item changes to trigger functions or batch jobs in real time. */
-  streamType?: "KEYS_ONLY" | "NEW_AND_OLD_IMAGES" | "NEW_IMAGE" | "OLD_IMAGE";
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/dynamo-db-table` with definition name `DynamoDbTableProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `primaryKey` | yes | `DynamoDbTablePrimaryKey` | The primary key that uniquely identifies each item. **Simple key**: Just a `partitionKey` (e.g., `userId`).
-**Composite key**: `partitionKey` + `sortKey` (e.g., `userId` + `createdAt`).
-
-
-  **Cannot be changed after creation.** Every item must include the primary key attribute(s). | - |
-| `dev` | no | `DevModeConfig` | Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed table. | - |
-| `enablePointInTimeRecovery` | no | `boolean` | Enable continuous backups with point-in-time recovery (restore to any second in the last 35 days). Restores always create a new table. Adds ~20% to storage cost. | - |
-| `provisionedThroughput` | no | `DynamoDbProvisionedThroughput` | Fixed-capacity mode with predictable pricing. Omit for on-demand (pay-per-request) mode. **On-demand** (default, no config): Pay per read/write. Best for unpredictable or variable traffic.
-**Provisioned**: Set fixed read/write capacity. Cheaper at steady, predictable load. Can auto-scale. | - |
-| `secondaryIndexes` | no | `Array<DynamoDbTableGlobalSecondaryIndex>` | Additional indexes for querying by attributes other than the primary key. Without indexes, you can only query by primary key. Add a secondary index to query by
-any attribute (e.g., query orders by `status` or users by `email`). | - |
-| `streamType` | no | `string: "KEYS_ONLY" \| "NEW_AND_OLD_IMAGES" \| "NEW_IMAGE" \| "OLD_IMAGE"` | Stream item changes to trigger functions or batch jobs in real time. `KEYS_ONLY`: Only key attributes of the changed item.
-`NEW_IMAGE`: The full item after the change.
-`OLD_IMAGE`: The full item before the change.
-`NEW_AND_OLD_IMAGES`: Both before and after — useful for change tracking and auditing. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `primaryKey` | yes | `DynamoDbTablePrimaryKey` | - |
+| `dev` | no | `DevModeConfig` | - |
+| `enablePointInTimeRecovery` | no | `boolean` | - |
+| `provisionedThroughput` | no | `DynamoDbProvisionedThroughput` | - |
+| `secondaryIndexes` | no | `Array<DynamoDbTableGlobalSecondaryIndex>` | - |
+| `streamType` | no | `string: "KEYS_ONLY" \| "NEW_AND_OLD_IMAGES" \| "NEW_IMAGE" \| "OLD_IMAGE"` | - |
 
 
 ## FAQ

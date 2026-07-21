@@ -48,11 +48,11 @@ describe('MCP docs lexical index', () => {
 
     expect(response.references).toHaveLength(1);
     expect(response.references[0]).toEqual({
-      title: 'Lambda Function',
+      title: 'LambdaFunctionProps API Reference',
       route: '/config-reference/function',
       docKind: 'config-reference',
       sourcePath: 'types/stacktape-config/functions.d.ts',
-      headingPath: ['Lambda Function', 'Lambda Function']
+      headingPath: ['LambdaFunctionProps API Reference', 'Property: `timeout`']
     });
   });
 });

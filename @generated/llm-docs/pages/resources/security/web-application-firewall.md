@@ -311,50 +311,21 @@ Use these with the [`$ResourceParam` directive](/configuration/directives) — f
 ## API Reference
 
 
-## API Reference: `WebAppFirewallProps`
-```typescript
-import type { CustomResponseBodies, CustomRuleGroup, ManagedRuleGroup, RateBasedStatement } from 'stacktape';
+### Definition: `WebAppFirewallProps`
 
-type WebAppFirewallProps = {
-  /** cdn for CloudFront-attached resources, regional for ALBs, User Pools, or direct API Gateways. */
-  scope: "cdn" | "regional";
-  /** Seconds a solved CAPTCHA stays valid before requiring re-verification. */
-  captchaImmunityTime?: number;
-  /** Seconds a solved challenge stays valid before requiring re-verification. */
-  challengeImmunityTime?: number;
-  /** Custom response bodies for Block actions. Map of key → content type + body. */
-  customResponseBodies?: CustomResponseBodies;
-  /** What happens when no rule matches a request. */
-  defaultAction?: "Allow" | "Block";
-  /** Disable CloudWatch metrics for the firewall. */
-  disableMetrics?: boolean;
-  /** Firewall rules: managed rule groups (AWS presets), custom rule groups, or rate-based rules. */
-  rules?: Array<WebAppFirewallRules>;
-  /** Save samples of matched requests for inspection in the AWS WAF console. */
-  sampledRequestsEnabled?: boolean;
-  /** Domains accepted in WAF tokens. Enables token sharing across multiple protected websites. */
-  tokenDomains?: Array<string>;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/web-app-firewall` with definition name `WebAppFirewallProps`.
 
-/** Union choices used by the properties above. */
-type WebAppFirewallRules =
-  | ManagedRuleGroup
-  | CustomRuleGroup
-  | RateBasedStatement;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `scope` | yes | `string: "cdn" \| "regional"` | `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways. | - |
-| `captchaImmunityTime` | no | `number` | Seconds a solved CAPTCHA stays valid before requiring re-verification. | `300` |
-| `challengeImmunityTime` | no | `number` | Seconds a solved challenge stays valid before requiring re-verification. | `300` |
-| `customResponseBodies` | no | `CustomResponseBodies` | Custom response bodies for `Block` actions. Map of key → content type + body. | - |
-| `defaultAction` | no | `string: "Allow" \| "Block"` | What happens when no rule matches a request. **`Allow`** (recommended): Allow all traffic, block only what rules catch.
-**`Block`**: Block all traffic, allow only what rules explicitly permit (returns 403). | `Allow` |
-| `disableMetrics` | no | `boolean` | Disable CloudWatch metrics for the firewall. | `false` |
-| `rules` | no | `Array<managed-rule-group \| custom-rule-group \| rate-based-rule>` | Firewall rules: managed rule groups (AWS presets), custom rule groups, or rate-based rules. If omitted, Stacktape uses `AWSManagedRulesCommonRuleSet` + `AWSManagedRulesKnownBadInputsRuleSet` by default. | - |
-| `sampledRequestsEnabled` | no | `boolean` | Save samples of matched requests for inspection in the AWS WAF console. | `false` |
-| `tokenDomains` | no | `Array<string>` | Domains accepted in WAF tokens. Enables token sharing across multiple protected websites. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `scope` | yes | `string: "cdn" \| "regional"` | - |
+| `captchaImmunityTime` | no | `number` | `300` |
+| `challengeImmunityTime` | no | `number` | `300` |
+| `customResponseBodies` | no | `CustomResponseBodies` | - |
+| `defaultAction` | no | `string: "Allow" \| "Block"` | `Allow` |
+| `disableMetrics` | no | `boolean` | `false` |
+| `rules` | no | `Array<managed-rule-group \| custom-rule-group \| rate-based-rule>` | - |
+| `sampledRequestsEnabled` | no | `boolean` | `false` |
+| `tokenDomains` | no | `Array<string>` | - |
 
 
 ## FAQ

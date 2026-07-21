@@ -71,9 +71,14 @@ The `mcp:add` command checks project-level config paths first, then global paths
 
 ## What the MCP server provides
 
-The [`stacktape mcp:add`](/cli/mcp-add) command writes config that tells the AI assistant to run `stacktape mcp` as a local MCP server process. Separately, the Stacktape Console hosts an HTTP-based MCP endpoint (`POST /mcp`) using Streamable HTTP transport for web-based integrations.
+The [`stacktape mcp:add`](/cli/mcp-add) command writes config that tells the AI assistant to run `stacktape mcp` as a local stdio server. That server exposes documentation search, project inspection, validated CLI planning and execution, and dev-mode control. For the authoritative tool list, safety gates, and authentication behavior, see [MCP server setup](/using-with-ai/mcp-server-setup).
 
-For the current tool list and server behavior, see [MCP server setup](/using-with-ai/mcp-server-setup).
+Once configured, useful first prompts include:
+
+- “Use Stacktape tools to inspect this repository and identify its config file, stage, and region.”
+- “Search the Stacktape docs for the right resource type for this workload and cite the relevant pages.”
+- “Plan a Stacktape deployment for this project. Do not execute it.”
+- “Start Stacktape dev mode, wait until it is ready, and show me errors from the API workload.”
 
 ## Manual setup
 
@@ -226,7 +231,7 @@ Re-run [`stacktape mcp:add`](/cli/mcp-add) only if you want to change which clie
 
 ### What is MCP and why does Stacktape use it?
 
-[MCP (Model Context Protocol)](https://modelcontextprotocol.io) is an open standard for connecting AI assistants to external tools. For these coding-assistant integrations, the generated config tells the assistant to run `stacktape mcp` as a local MCP server. MCP can also be served over HTTP transports — the Stacktape Console hosts a separate HTTP-based MCP endpoint for web-based integrations.
+[MCP (Model Context Protocol)](https://modelcontextprotocol.io) is an open standard for connecting AI assistants to external tools. Stacktape's coding-assistant integration uses local stdio transport: the generated config tells the assistant to launch `stacktape mcp` as a child process and exchange MCP messages over stdin and stdout.
 
 ### Which AI coding assistants work with Stacktape?
 

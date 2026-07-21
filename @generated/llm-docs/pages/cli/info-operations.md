@@ -54,87 +54,19 @@ stacktape info:operations --agent
 
 ## Flags reference
 
-<CliCommandsApiReference command="info:operations" sortedArgs={[
-  {
-    "name": "agent",
-    "required": false,
-    "alias": "ag",
-    "allowedTypes": [
-      "boolean"
-    ],
-    "shortDescription": "<p> Agent Mode</p>\n",
-    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
-  },
-  {
-    "name": "currentUserOnly",
-    "required": false,
-    "allowedTypes": [
-      "boolean"
-    ],
-    "shortDescription": "<p> Current User Only</p>\n",
-    "longDescription": "<p>If <code>true</code>, only returns records created by the user that owns the active API key.</p>\n"
-  },
-  {
-    "name": "limit",
-    "required": false,
-    "alias": "lim",
-    "allowedTypes": [
-      "number"
-    ],
-    "shortDescription": "<p> Limit</p>\n",
-    "longDescription": "<p>Maximum number of items to return.</p>\n"
-  },
-  {
-    "name": "logLevel",
-    "required": false,
-    "alias": "ll",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "info",
-      "debug",
-      "error"
-    ],
-    "shortDescription": "<p> Log Level</p>\n",
-    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
-  },
-  {
-    "name": "outputFormat",
-    "required": false,
-    "alias": "ofmt",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "jsonl",
-      "plain",
-      "tty"
-    ],
-    "shortDescription": "<p> Output Format</p>\n",
-    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
-  },
-  {
-    "name": "projectName",
-    "required": false,
-    "alias": "prj",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Project Name</p>\n",
-    "longDescription": "<p>The name of the Stacktape project for this operation.</p>\n"
-  },
-  {
-    "name": "stage",
-    "required": false,
-    "alias": "s",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Stage</p>\n",
-    "longDescription": "<p>The stage for the operation (e.g., <code>production</code>, <code>staging</code>, <code>dev-john</code>). You can set a default stage using the <code>defaults:configure</code> command. The maximum length is 12 characters.</p>\n"
-  }
-]} />
+
+## CLI Options: `stacktape info:operations`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption: Uses strict JSONL/NDJSON output (one JSON object per line) Disables interactive terminal UI Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
+| `--currentUserOnly` | no | `boolean` | Current User Only If `true`, only returns records created by the user that owns the active API key. | - |
+| `--limit (-lim)` | no | `number` | Limit Maximum number of items to return. | - |
+| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console. `info`: Basic information about the operation. `error`: Only errors. `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format: `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+| `--projectName (-prj)` | no | `string` | Project Name The name of the Stacktape project for this operation. | - |
+| `--stage (-s)` | no | `string` | Stage The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
+
 
 ## Related commands
 

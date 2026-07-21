@@ -79,182 +79,26 @@ stacktape metrics --stage prod --region eu-west-1 --resourceName myApi --metric 
 
 ## Flags reference
 
-<CliCommandsApiReference command="metrics" sortedArgs={[
-  {
-    "name": "metric",
-    "required": true,
-    "alias": "met",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Metric Name</p>\n",
-    "longDescription": "<p>CloudWatch metric name (e.g., Invocations, Errors, CPUUtilization).</p>\n"
-  },
-  {
-    "name": "region",
-    "required": true,
-    "alias": "r",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "us-east-2",
-      "us-east-1",
-      "us-west-1",
-      "us-west-2",
-      "ap-east-1",
-      "ap-south-1",
-      "ap-northeast-3",
-      "ap-northeast-2",
-      "ap-southeast-1",
-      "ap-southeast-2",
-      "ap-northeast-1",
-      "ca-central-1",
-      "eu-central-1",
-      "eu-west-1",
-      "eu-west-2",
-      "eu-west-3",
-      "eu-north-1",
-      "me-south-1",
-      "sa-east-1",
-      "af-south-1",
-      "eu-south-1"
-    ],
-    "shortDescription": "<p> AWS Region</p>\n",
-    "longDescription": "<p>The AWS region for the operation. For a list of available regions, see the <a href=\"https://docs.aws.amazon.com/general/latest/gr/rande.html\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">AWS documentation</a>.</p>\n"
-  },
-  {
-    "name": "resourceName",
-    "required": true,
-    "alias": "rn",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Resource Name</p>\n",
-    "longDescription": "<p>The name of the resource as defined in your Stacktape configuration.</p>\n"
-  },
-  {
-    "name": "stage",
-    "required": true,
-    "alias": "s",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Stage</p>\n",
-    "longDescription": "<p>The stage for the operation (e.g., <code>production</code>, <code>staging</code>, <code>dev-john</code>). You can set a default stage using the <code>defaults:configure</code> command. The maximum length is 12 characters.</p>\n"
-  },
-  {
-    "name": "agent",
-    "required": false,
-    "alias": "ag",
-    "allowedTypes": [
-      "boolean"
-    ],
-    "shortDescription": "<p> Agent Mode</p>\n",
-    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
-  },
-  {
-    "name": "awsAccount",
-    "required": false,
-    "alias": "aa",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> AWS Account</p>\n",
-    "longDescription": "<p>The name of the AWS account to use for the operation. The account must first be connected in the <a href=\"https://console.stacktape.com/aws-accounts\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Stacktape console</a>.</p>\n"
-  },
-  {
-    "name": "help",
-    "required": false,
-    "alias": "h",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Show Help</p>\n",
-    "longDescription": "<p>If provided, the command will not execute and will instead print help information.</p>\n"
-  },
-  {
-    "name": "logLevel",
-    "required": false,
-    "alias": "ll",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "info",
-      "debug",
-      "error"
-    ],
-    "shortDescription": "<p> Log Level</p>\n",
-    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
-  },
-  {
-    "name": "outputFormat",
-    "required": false,
-    "alias": "ofmt",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "jsonl",
-      "plain",
-      "tty"
-    ],
-    "shortDescription": "<p> Output Format</p>\n",
-    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
-  },
-  {
-    "name": "period",
-    "required": false,
-    "alias": "per",
-    "allowedTypes": [
-      "number"
-    ],
-    "shortDescription": "<p> Metric Period</p>\n",
-    "longDescription": "<p>Aggregation period in seconds (default: 300).</p>\n"
-  },
-  {
-    "name": "profile",
-    "required": false,
-    "alias": "p",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> AWS Profile</p>\n",
-    "longDescription": "<p>The AWS profile to use for the command. You can manage profiles using the <code>aws-profile:*</code> commands and set a default profile with <code>defaults:configure</code>.</p>\n"
-  },
-  {
-    "name": "projectName",
-    "required": false,
-    "alias": "prj",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Project Name</p>\n",
-    "longDescription": "<p>The name of the Stacktape project for this operation.</p>\n"
-  },
-  {
-    "name": "startTime",
-    "required": false,
-    "alias": "st",
-    "allowedTypes": [
-      "number",
-      "string"
-    ],
-    "shortDescription": "<p> Start Time</p>\n",
-    "longDescription": "<p>The start time from which to print logs. This can be any format accepted by the JavaScript <code>Date</code> constructor.</p>\n"
-  },
-  {
-    "name": "stat",
-    "required": false,
-    "alias": "st",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Metric Statistic</p>\n",
-    "longDescription": "<p>Statistic to retrieve: Sum, Average, Maximum, Minimum, p99 (default: Average).</p>\n"
-  }
-]} />
+
+## CLI Options: `stacktape metrics`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--metric (-met)` | yes | `string` | Metric Name CloudWatch metric name (e.g., Invocations, Errors, CPUUtilization). | - |
+| `--region (-r)` | yes | `string` | AWS Region The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `--resourceName (-rn)` | yes | `string` | Resource Name The name of the resource as defined in your Stacktape configuration. | - |
+| `--stage (-s)` | yes | `string` | Stage The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
+| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption: Uses strict JSONL/NDJSON output (one JSON object per line) Disables interactive terminal UI Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
+| `--awsAccount (-aa)` | no | `string` | AWS Account The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts). | - |
+| `--help (-h)` | no | `string` | Show Help If provided, the command will not execute and will instead print help information. | - |
+| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console. `info`: Basic information about the operation. `error`: Only errors. `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format: `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+| `--period (-per)` | no | `number` | Metric Period Aggregation period in seconds (default: 300). | - |
+| `--profile (-p)` | no | `string` | AWS Profile The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
+| `--projectName (-prj)` | no | `string` | Project Name The name of the Stacktape project for this operation. | - |
+| `--startTime (-st)` | no | `number \| string` | Start Time The start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor. | - |
+| `--stat (-st)` | no | `string` | Metric Statistic Statistic to retrieve: Sum, Average, Maximum, Minimum, p99 (default: Average). | - |
+
 
 ## Related commands
 

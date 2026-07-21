@@ -353,46 +353,22 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 ## API Reference
 
 
-## API Reference: `MongoDbAtlasClusterProps`
-```typescript
-import type { MongoDbAdminUserCredentials, MongoDbAutoScaling, MongoDbBiConnector, MongoDbReplication } from 'stacktape';
+### Definition: `MongoDbAtlasClusterProps`
 
-type MongoDbAtlasClusterProps = {
-  /** Instance size. M2/M5 = shared (cheapest). M10+ = dedicated (more features, auto-scaling, backups). */
-  clusterTier: "M10" | "M100" | "M140" | "M2" | "M20" | "M200" | "M200 Low-CPU (R200)" | "M200_NVME" | "M30" | "M300" | "M300 Low-CPU (R300)" | "M40" | "M40 Low-CPU (R40)" | "M400" | "M400 Low-CPU (R400)" | "M400_NVME" | "M40_NVME" | "M5" | "M50" | "M50 Low-CPU (R50)" | "M50_NVME" | "M60" | "M60 Low-CPU (R60)" | "M60_NVME" | "M700" | "M700 Low-CPU (R700)" | "M80" | "M80 Low-CPU (R80)" | "M80_NVME";
-  /** Admin user for direct database access (e.g., from your local machine or admin tools). */
-  adminUserCredentials?: MongoDbAdminUserCredentials;
-  /** Auto-scale tier and/or storage based on CPU/memory usage. Set min/max tier to control costs. */
-  autoScaling?: MongoDbAutoScaling;
-  /** BI Connector for SQL-based access to MongoDB data. CPU-intensive — may degrade M10/M20 performance. */
-  biConnector?: MongoDbBiConnector;
-  /** Disk size in GB. Not available for shared tiers (M2/M5). M10+ auto-scales storage by default. */
-  diskSizeGB?: number;
-  /** Enable daily snapshots (18:00 UTC). M10+ only — M2/M5 get automatic snapshots with different rules. */
-  enableBackups?: boolean;
-  /** Restore to any second within the last 7 days. Requires enableBackups: true and M10+. */
-  enablePointInTimeRecovery?: boolean;
-  /** Number of shards. More than 1 enables sharded mode for horizontal scaling. Requires M30+. */
-  numShards?: number;
-  /** Node count configuration: electable, read-only, and analytics nodes. Default: 3 electable nodes. */
-  replication?: MongoDbReplication;
-  /** MongoDB engine version. */
-  version?: "5.0" | "6.0" | "7.0";
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/mongo-db-atlas-cluster` with definition name `MongoDbAtlasClusterProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `clusterTier` | yes | `string: "M10" \| "M100" \| "M140" \| "M2" \| "M20" \| "M200" \| "M200 Low-CPU (R200)" \| "M200_NVME" \| "M30" \| "M300" \| "M300 Low-CPU (R300)" \| "M40" \| "M40 Low-CPU (R40)" \| "M400" \| "M400 Low-CPU (R400)" \| "M400_NVME" \| "M40_NVME" \| "M5" \| "M50" \| "M50 Low-CPU (R50)" \| "M50_NVME" \| "M60" \| "M60 Low-CPU (R60)" \| "M60_NVME" \| "M700" \| "M700 Low-CPU (R700)" \| "M80" \| "M80 Low-CPU (R80)" \| "M80_NVME"` | Instance size. M2/M5 = shared (cheapest). M10+ = dedicated (more features, auto-scaling, backups). | - |
-| `adminUserCredentials` | no | `MongoDbAdminUserCredentials` | Admin user for direct database access (e.g., from your local machine or admin tools). Not required for app-to-database access via `connectTo` — that&#39;s handled automatically. | - |
-| `autoScaling` | no | `MongoDbAutoScaling` | Auto-scale tier and/or storage based on CPU/memory usage. Set min/max tier to control costs. Scales up when CPU or memory exceeds 75% for 1 hour. Scales down when both are below 50% for 24 hours. | - |
-| `biConnector` | no | `MongoDbBiConnector` | BI Connector for SQL-based access to MongoDB data. CPU-intensive — may degrade M10/M20 performance. | - |
-| `diskSizeGB` | no | `number` | Disk size in GB. Not available for shared tiers (M2/M5). M10+ auto-scales storage by default. | - |
-| `enableBackups` | no | `boolean` | Enable daily snapshots (18:00 UTC). M10+ only — M2/M5 get automatic snapshots with different rules. | - |
-| `enablePointInTimeRecovery` | no | `boolean` | Restore to any second within the last 7 days. Requires `enableBackups: true` and M10+. | - |
-| `numShards` | no | `number` | Number of shards. More than 1 enables sharded mode for horizontal scaling. Requires M30+. | `1` |
-| `replication` | no | `MongoDbReplication` | Node count configuration: electable, read-only, and analytics nodes. Default: 3 electable nodes. | - |
-| `version` | no | `string: "5.0" \| "6.0" \| "7.0"` | MongoDB engine version. | `7.0` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `clusterTier` | yes | `string: "M10" \| "M100" \| "M140" \| "M2" \| "M20" \| "M200" \| "M200 Low-CPU (R200)" \| "M200_NVME" \| "M30" \| "M300" \| "M300 Low-CPU (R300)" \| "M40" \| "M40 Low-CPU (R40)" \| "M400" \| "M400 Low-CPU (R400)" \| "M400_NVME" \| "M40_NVME" \| "M5" \| "M50" \| "M50 Low-CPU (R50)" \| "M50_NVME" \| "M60" \| "M60 Low-CPU (R60)" \| "M60_NVME" \| "M700" \| "M700 Low-CPU (R700)" \| "M80" \| "M80 Low-CPU (R80)" \| "M80_NVME"` | - |
+| `adminUserCredentials` | no | `MongoDbAdminUserCredentials` | - |
+| `autoScaling` | no | `MongoDbAutoScaling` | - |
+| `biConnector` | no | `MongoDbBiConnector` | - |
+| `diskSizeGB` | no | `number` | - |
+| `enableBackups` | no | `boolean` | - |
+| `enablePointInTimeRecovery` | no | `boolean` | - |
+| `numShards` | no | `number` | `1` |
+| `replication` | no | `MongoDbReplication` | - |
+| `version` | no | `string: "5.0" \| "6.0" \| "7.0"` | `7.0` |
 
 
 ## FAQ

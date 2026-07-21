@@ -524,97 +524,23 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 ## API Reference
 
 
-## API Reference: `ConvexProps`
-```typescript
-import type { ApplicationLoadBalancerAlarm, ConvexBackendConfig, ConvexCustomDomains, ConvexDashboardConfig, ConvexDatabaseConfig, ConvexFunctionsDeploymentConfig, ConvexStorageConfig, DevModeConfig, RelationalDatabaseAlarm } from 'stacktape';
+### Definition: `ConvexProps`
 
-type ConvexProps = {
-  /** Path to the convex/ directory in your project. */
-  appDirectory: string;
-  /** Alarms for this Convex deployment (backend container, ALB, database). Merged with global
-alarms from the Stacktape Console. */
-  alarms?: Array<ConvexAlarms>;
-  /** Configuration for the Convex backend container (the Rust server process). */
-  backend?: ConvexBackendConfig;
-  /** Custom domains for the Convex backend. */
-  customDomains?: ConvexCustomDomains;
-  /** Configuration for the Convex admin dashboard. */
-  dashboard?: ConvexDashboardConfig;
-  /** Override the PostgreSQL database that backs the Convex deployment. */
-  database?: ConvexDatabaseConfig;
-  /** Prevent accidental deletion of the database and the five storage buckets. */
-  deletionProtection?: boolean;
-  /** Dev mode: runs the convex-backend locally in Docker by default with SQLite + local
-filesystem storage. */
-  dev?: DevModeConfig;
-  /** Global alarm names to exclude from this deployment. */
-  disabledGlobalAlarms?: Array<string>;
-  /** How Stacktape deploys Convex functions after infrastructure is ready. */
-  functionsDeployment?: ConvexFunctionsDeploymentConfig;
-  /** Shared configuration applied to all five Convex S3 buckets (modules, files, search,
-exports, snapshot_imports). */
-  storage?: ConvexStorageConfig;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/convex` with definition name `ConvexProps`.
 
-/** Union choices used by the properties above. */
-type ConvexAlarms =
-  | ApplicationLoadBalancerAlarm
-  | RelationalDatabaseAlarm;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `appDirectory` | yes | `string` | Path to the `convex/` directory in your project. After each `stacktape deploy`, Stacktape runs `npx convex deploy` from the parent project directory
-against the freshly-deployed backend.
-
-Example: `appDirectory: './convex'` | - |
-| `alarms` | no | `Array<ApplicationLoadBalancerAlarm \| RelationalDatabaseAlarm>` | Alarms for this Convex deployment (backend container, ALB, database). Merged with global
-alarms from the Stacktape Console. | - |
-| `backend` | no | `ConvexBackendConfig` | Configuration for the Convex backend container (the Rust server process). | - |
-| `customDomains` | no | `ConvexCustomDomains` | Custom domains for the Convex backend. Convex exposes two distinct origins that the outside world reaches:
-
-**`cloud`** — the API + WebSocket endpoint (`CONVEX_CLOUD_ORIGIN`). All client traffic
-(queries, mutations, actions, reactive subscriptions) hits this URL via the `convex-js`
-client. Required.
-**`site`** — the HTTP-actions endpoint (`CONVEX_SITE_ORIGIN`). User-defined `httpAction()`
-routes (webhooks, OAuth callbacks, etc.) live here. Kept separate from `cloud` so webhook
-URLs don&#39;t collide with internal API paths. Required.
-**`dashboard`** — required when `dashboard.enabled` is `true`. The dashboard serves at this domain.
-
-Each domain must have a Route53 hosted zone in your AWS account. Stacktape provisions free
-TLS certificates and DNS records automatically.
-
-If `customDomains` is omitted entirely, the ALB&#39;s default DNS is used with port-based routing
-(3210 cloud, 3211 site, 6791 dashboard). Fine for dev/staging; **not recommended for
-production** — the ALB DNS is unstable across stack recreations, and clients hard-code the URL. | - |
-| `dashboard` | no | `ConvexDashboardConfig` | Configuration for the Convex admin dashboard. Enabled by default. The dashboard is a stateless Next.js app that talks to the backend&#39;s
-REST API using the admin key (which you paste on first login). To opt out, set
-`dashboard.enabled: false`. | - |
-| `database` | no | `ConvexDatabaseConfig` | Override the PostgreSQL database that backs the Convex deployment. Defaults to a single-AZ RDS PostgreSQL `db.t4g.micro` instance (cheapest production-viable
-option, ~$13/month). The shape mirrors a subset of [`relational-database`](/resources/relational-databases/) — override only what
-you need. Common reasons to override: bump to Aurora Serverless v2 for auto-scaling, enable
-multi-AZ for HA, or increase storage retention.
-
-You cannot bring an existing external database — Convex assumes it owns its Postgres entirely. | - |
-| `deletionProtection` | no | `boolean` | Prevent accidental deletion of the database and the five storage buckets. When `true`, Stacktape sets `deletionProtection` on the underlying RDS instance and retention
-policies on the buckets. You must set this to `false` and redeploy before you can delete the stack.
-
-Recommended for production stages. | `false` |
-| `dev` | no | `DevModeConfig` | Dev mode: runs the convex-backend locally in Docker by default with SQLite + local
-filesystem storage. Set `remote: true` to point `stacktape dev` at the deployed AWS backend instead. Local mode
-is recommended because Convex&#39;s save-push-reload loop is noticeably faster over loopback than
-across the WAN, and avoids 24/7 Fargate + RDS cost per developer. | - |
-| `disabledGlobalAlarms` | no | `Array<string>` | Global alarm names to exclude from this deployment. | - |
-| `functionsDeployment` | no | `ConvexFunctionsDeploymentConfig` | How Stacktape deploys Convex functions after infrastructure is ready. By default, Stacktape runs `npx convex deploy --codegen disable --typecheck try` from the
-project directory containing `appDirectory`, with `CONVEX_SELF_HOSTED_URL` and
-`CONVEX_SELF_HOSTED_ADMIN_KEY` injected automatically.
-
-Set `enabled: false` if your CI/CD pipeline deploys functions separately, or set `command`
-when your project uses a custom package-manager command. | - |
-| `storage` | no | `ConvexStorageConfig` | Shared configuration applied to all five Convex S3 buckets (`modules`, `files`, `search`,
-`exports`, `snapshot_imports`). Each Convex deployment requires five separate buckets internally. By default they are all
-private, encrypted at rest, with versioning disabled. Use this property to override defaults
-across all five at once (e.g., enable versioning for prod). | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `appDirectory` | yes | `string` | - |
+| `alarms` | no | `Array<ApplicationLoadBalancerAlarm \| RelationalDatabaseAlarm>` | - |
+| `backend` | no | `ConvexBackendConfig` | - |
+| `customDomains` | no | `ConvexCustomDomains` | - |
+| `dashboard` | no | `ConvexDashboardConfig` | - |
+| `database` | no | `ConvexDatabaseConfig` | - |
+| `deletionProtection` | no | `boolean` | `false` |
+| `dev` | no | `DevModeConfig` | - |
+| `disabledGlobalAlarms` | no | `Array<string>` | - |
+| `functionsDeployment` | no | `ConvexFunctionsDeploymentConfig` | - |
+| `storage` | no | `ConvexStorageConfig` | - |
 
 
 ## FAQ

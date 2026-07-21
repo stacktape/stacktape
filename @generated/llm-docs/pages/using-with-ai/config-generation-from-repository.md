@@ -28,7 +28,7 @@ AI Config Generation is not the right fit for every project. Skip it when the ov
 
 ## How it works
 
-When you start generation, the Console creates a temporary project for the selected repository and branch, then invokes the AI generation pipeline. Input controls are disabled while the pipeline is running. Once generation completes, the temporary project is deleted automatically. You can then save the resulting configuration to the selected template in the config editor.
+When you start generation, the Console processes the selected repository and branch through its AI generation pipeline. Input controls are disabled while the pipeline is running. When generation completes, you can review the result and save it to the selected template in the config editor.
 
 ## Using the generator
 
@@ -102,7 +102,7 @@ If initialization fails, the Console shows "Failed to initialize AI config gener
 
 ### Is my repository data safe?
 
-The generation pipeline runs on Stacktape's infrastructure. A temporary project is created for the selected repository and branch, then deleted automatically once generation completes.
+The generation pipeline runs on Stacktape's infrastructure, and private repositories require access through a connected Git provider. Do not commit secrets or production credentials to the repository. For current details about data handling and retention, consult Stacktape's privacy terms or contact support; this page does not make a retention guarantee.
 
 ### Does the generator produce a production-ready config?
 

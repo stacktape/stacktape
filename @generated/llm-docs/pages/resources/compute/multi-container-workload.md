@@ -720,49 +720,20 @@ If the container has `essential: true` (the default), ECS stops the entire task 
 ## API Reference
 
 
-## API Reference: `ContainerWorkloadProps`
-```typescript
-import type { ContainerWorkloadContainer, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, StpIamRoleStatement } from 'stacktape';
+### Definition: `ContainerWorkloadProps`
 
-type ContainerWorkloadProps = {
-  /** Containers in this workload. They share compute resources and scale together. */
-  containers: Array<ContainerWorkloadContainer>;
-  /** CPU, memory, and compute engine (Fargate or EC2). */
-  resources: ContainerWorkloadResourcesConfig;
-  /** Give this resource access to other resources in your stack. */
-  connectTo?: Array<string>;
-  /** Gradual traffic shifting (canary/linear) for safe deployments. Requires an ALB integration. */
-  deployment?: ContainerWorkloadDeploymentConfig;
-  /** Enable stacktape container:session for interactive shell access to running containers. */
-  enableRemoteSessions?: boolean;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Auto-scaling: how many instances and when to add/remove them. */
-  scaling?: ContainerWorkloadScaling;
-  /** Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP. */
-  usePrivateSubnetsWithNAT?: boolean;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/multi-container-workload` with definition name `ContainerWorkloadProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `containers` | yes | `Array<ContainerWorkloadContainer>` | Containers in this workload. They share compute resources and scale together. | - |
-| `resources` | yes | `ContainerWorkloadResourcesConfig` | CPU, memory, and compute engine (Fargate or EC2). **Fargate** (set `cpu` + `memory`): Serverless, no servers to manage.
-**EC2** (set `instanceTypes`): Choose specific instance types for more control or GPU access. | - |
-| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
-
-**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
-**Opens network access** (security group rules for databases, Redis)
-**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
-
-Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
-resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
-| `deployment` | no | `ContainerWorkloadDeploymentConfig` | Gradual traffic shifting (canary/linear) for safe deployments. Requires an ALB integration. | - |
-| `enableRemoteSessions` | no | `boolean` | Enable `stacktape container:session` for interactive shell access to running containers. | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
-accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
-| `scaling` | no | `ContainerWorkloadScaling` | Auto-scaling: how many instances and when to add/remove them. | - |
-| `usePrivateSubnetsWithNAT` | no | `boolean` | Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP. Useful for IP whitelisting with third-party APIs. NAT Gateway costs ~$32/month per AZ + data processing fees. | `false` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `containers` | yes | `Array<ContainerWorkloadContainer>` | - |
+| `resources` | yes | `ContainerWorkloadResourcesConfig` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `deployment` | no | `ContainerWorkloadDeploymentConfig` | - |
+| `enableRemoteSessions` | no | `boolean` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `scaling` | no | `ContainerWorkloadScaling` | - |
+| `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |
 
 
 ## Referenceable parameters

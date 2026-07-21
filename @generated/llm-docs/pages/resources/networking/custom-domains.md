@@ -162,29 +162,15 @@ Each root domain (e.g., `example.com` and `mycompany.io`) needs its own Route53 
 ## API Reference
 
 
-## API Reference: `DomainConfiguration`
-```typescript
-type DomainConfiguration = {
-  /** Your domain name (e.g., mydomain.com or api.mydomain.com). */
-  domainName: string;
-  /** Use your own TLS certificate instead of the auto-generated one. */
-  customCertificateArn?: string;
-  /** Skip DNS record creation for this domain. */
-  disableDnsRecordCreation?: boolean;
-};
-```
+### Definition: `DomainConfiguration`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `domainName` | yes | `string` | Your domain name (e.g., `mydomain.com` or `api.mydomain.com`). Don&#39;t include the protocol (`https://`). The domain must have a Route53 hosted zone
-in your AWS account, with your registrar&#39;s nameservers pointing to it.
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/helpers` with definition name `DomainConfiguration`.
 
-Stacktape automatically creates a DNS record and provisions a free TLS certificate. | - |
-| `customCertificateArn` | no | `string` | Use your own TLS certificate instead of the auto-generated one. Provide the ARN of an ACM certificate from your AWS account.
-Only needed if you have specific certificate requirements (e.g., EV/OV certs).
-By default, Stacktape provisions and renews free certificates automatically. | - |
-| `disableDnsRecordCreation` | no | `boolean` | Skip DNS record creation for this domain. Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).
-Stacktape will still provision the TLS certificate but won&#39;t touch your DNS. | `false` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `domainName` | yes | `string` | - |
+| `customCertificateArn` | no | `string` | - |
+| `disableDnsRecordCreation` | no | `boolean` | `false` |
 
 
 ## FAQ

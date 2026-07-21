@@ -198,21 +198,14 @@ Underneath, CloudWatch Logs triggers use AWS subscription filters to deliver log
 ## API reference
 
 
-## API Reference: `CloudwatchLogIntegrationProps`
-```typescript
-type CloudwatchLogIntegrationProps = {
-  /** The ARN of the log group to watch for new records. */
-  logGroupArn: string;
-  /** A filter pattern to apply to the log records. */
-  filter?: string;
-};
-```
+### Definition: `CloudwatchLogIntegrationProps`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `logGroupArn` | yes | `string` | The ARN of the log group to watch for new records. | - |
-| `filter` | no | `string` | A filter pattern to apply to the log records. Only logs that match this pattern will trigger the function.
-For details on the syntax, see the [AWS documentation on filter and pattern syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `CloudwatchLogIntegrationProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `logGroupArn` | yes | `string` | - |
+| `filter` | no | `string` | - |
 
 
 ## FAQ

@@ -552,65 +552,24 @@ Available CDN parameters:
 Because CDN is configured as a nested property on a parent resource, the API reference below documents `CdnConfiguration`, not a standalone resource props type. The full configuration reference for `CdnConfiguration` and all nested types is below.
 
 
-## API Reference: `CdnConfiguration`
-```typescript
-import type { CdnCachingOptions, CdnForwardingOptions, CdnRouteRewrite, DomainConfiguration, EdgeFunctionsConfig } from 'stacktape';
+### Definition: `CdnConfiguration`
 
-type CdnConfiguration = {
-  /** Enable CDN (CloudFront) for faster global delivery and lower bandwidth costs. */
-  enabled: boolean;
-  /** Control how long and what gets cached at the CDN edge. */
-  cachingOptions?: CdnCachingOptions;
-  /** Which regions the CDN serves from. Fewer regions = lower cost, but slower for distant users. */
-  cloudfrontPriceClass?: "PriceClass_100" | "PriceClass_200" | "PriceClass_All";
-  /** Custom domains (e.g., cdn.example.com). Stacktape auto-creates DNS records and TLS certificates. */
-  customDomains?: Array<DomainConfiguration>;
-  /** Prepend a path prefix to all requests forwarded to the origin. */
-  defaultRoutePrefix?: string;
-  /** Skip clearing the CDN cache after each deploy. */
-  disableInvalidationAfterDeploy?: boolean;
-  /** Run edge functions on CDN requests/responses (URL rewrites, auth, A/B testing). */
-  edgeFunctions?: EdgeFunctionsConfig;
-  /** Page to show for 404 errors (e.g., /error.html). */
-  errorDocument?: string;
-  /** Control which headers, cookies, and query params are forwarded to your origin. */
-  forwardingOptions?: CdnForwardingOptions;
-  /** Page served for requests to /. */
-  indexDocument?: string;
-  /** Route specific URL patterns to different origins (e.g., /api/* → Lambda, /assets/* → S3). */
-  routeRewrites?: Array<CdnRouteRewrite>;
-  /** Name of a web-app-firewall resource to protect this CDN from common web exploits. */
-  useFirewall?: string;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/cdn` with definition name `CdnConfiguration`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `enabled` | yes | `boolean` | Enable CDN (CloudFront) for faster global delivery and lower bandwidth costs. Caches responses at edge locations worldwide so users get content from the nearest server.
-The CDN itself has no monthly fee — you pay per request (~$0.01/10k) and per GB transferred. | `false` |
-| `cachingOptions` | no | `CdnCachingOptions` | Control how long and what gets cached at the CDN edge. When the origin response has no `Cache-Control` header, defaults apply:
-
-**Bucket origins**: cached for 6 months (or until invalidated on deploy).
-**API Gateway / Load Balancer origins**: not cached. | - |
-| `cloudfrontPriceClass` | no | `string: "PriceClass_100" \| "PriceClass_200" \| "PriceClass_All"` | Which regions the CDN serves from. Fewer regions = lower cost, but slower for distant users. **`PriceClass_100`**: North America + Europe. Cheapest option. Good if your users are in the US/EU.
-**`PriceClass_200`**: Adds Asia, Middle East, Africa.
-**`PriceClass_All`** (default): All regions worldwide, including South America and Oceania.
-
-The CDN itself has no monthly base cost - you only pay per request and per GB transferred.
-The price class controls which edge locations are used, and some regions cost more per request. | `PriceClass_All` |
-| `customDomains` | no | `Array<DomainConfiguration>` | Custom domains (e.g., `cdn.example.com`). Stacktape auto-creates DNS records and TLS certificates. Your domain must be added as a Route53 hosted zone in your AWS account first. | - |
-| `defaultRoutePrefix` | no | `string` | Prepend a path prefix to all requests forwarded to the origin. E.g., with prefix `/v2`, a request for `/users` is forwarded to the origin as `/v2/users`. | - |
-| `disableInvalidationAfterDeploy` | no | `boolean` | Skip clearing the CDN cache after each deploy. By default, all cached content is flushed on every deploy so users see the latest version.
-Set to `true` if you manage cache invalidation yourself or want to keep cached content between deploys. | `false` |
-| `edgeFunctions` | no | `EdgeFunctionsConfig` | Run edge functions on CDN requests/responses (URL rewrites, auth, A/B testing). `onRequest`: Before cache lookup — modify the request, add auth, or return early.
-`onResponse`: Before returning to the client — modify headers, add cookies. | - |
-| `errorDocument` | no | `string` | Page to show for 404 errors (e.g., `/error.html`). | `/404.html` |
-| `forwardingOptions` | no | `CdnForwardingOptions` | Control which headers, cookies, and query params are forwarded to your origin. By default, all headers/cookies/query params are forwarded. Use this to restrict
-what reaches your app (e.g., strip cookies for static content). | - |
-| `indexDocument` | no | `string` | Page served for requests to `/`. | `/index.html` |
-| `routeRewrites` | no | `Array<CdnRouteRewrite>` | Route specific URL patterns to different origins (e.g., `/api/*` → Lambda, `/assets/*` → S3). Evaluated in order; first match wins. Unmatched requests go to the default origin.
-Each route can have its own caching and forwarding settings. | - |
-| `useFirewall` | no | `string` | Name of a `web-app-firewall` resource to protect this CDN from common web exploits. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `enabled` | yes | `boolean` | `false` |
+| `cachingOptions` | no | `CdnCachingOptions` | - |
+| `cloudfrontPriceClass` | no | `string: "PriceClass_100" \| "PriceClass_200" \| "PriceClass_All"` | `PriceClass_All` |
+| `customDomains` | no | `Array<DomainConfiguration>` | - |
+| `defaultRoutePrefix` | no | `string` | - |
+| `disableInvalidationAfterDeploy` | no | `boolean` | `false` |
+| `edgeFunctions` | no | `EdgeFunctionsConfig` | - |
+| `errorDocument` | no | `string` | `/404.html` |
+| `forwardingOptions` | no | `CdnForwardingOptions` | - |
+| `indexDocument` | no | `string` | `/index.html` |
+| `routeRewrites` | no | `Array<CdnRouteRewrite>` | - |
+| `useFirewall` | no | `string` | - |
 
 
 ## FAQ

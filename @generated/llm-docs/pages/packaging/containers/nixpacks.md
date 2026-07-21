@@ -582,34 +582,16 @@ Use `startOnlyIncludeFiles` to include only the files needed at runtime (e.g., c
 ## API reference
 
 
-## API Reference: `NixpacksCwImagePackagingProps`
-```typescript
-import type { NixpacksPhase } from 'stacktape';
+### Definition: `NixpacksCwImagePackagingProps`
 
-type NixpacksCwImagePackagingProps = {
-  /** The path to the source code directory. */
-  sourceDirectoryPath: string;
-  /** The base image to use for building the application. */
-  buildImage?: string;
-  /** The build phases for the application. */
-  phases?: Array<NixpacksPhase>;
-  /** A list of providers to use for determining the build and runtime environments. */
-  providers?: Array<string>;
-  /** The command to execute when starting the application. */
-  startCmd?: string;
-  /** A list of file paths to include in the runtime environment; all other files will be excluded. */
-  startOnlyIncludeFiles?: Array<string>;
-  /** The base image to use for running the application. */
-  startRunImage?: string;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/deployment-artifacts` with definition name `NixpacksCwImagePackagingProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `sourceDirectoryPath` | yes | `string` | The path to the source code directory. | - |
-| `buildImage` | no | `string` | The base image to use for building the application. For more details, see the [Nixpacks documentation](https://nixpacks.com/docs/configuration/file#build-image). | - |
-| `phases` | no | `Array<NixpacksPhase>` | The build phases for the application. | - |
-| `providers` | no | `Array<string>` | A list of providers to use for determining the build and runtime environments. | - |
-| `startCmd` | no | `string` | The command to execute when starting the application. This overrides the default start command inferred by Nixpacks. | - |
-| `startOnlyIncludeFiles` | no | `Array<string>` | A list of file paths to include in the runtime environment; all other files will be excluded. | - |
-| `startRunImage` | no | `string` | The base image to use for running the application. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `sourceDirectoryPath` | yes | `string` | - |
+| `buildImage` | no | `string` | - |
+| `phases` | no | `Array<NixpacksPhase>` | - |
+| `providers` | no | `Array<string>` | - |
+| `startCmd` | no | `string` | - |
+| `startOnlyIncludeFiles` | no | `Array<string>` | - |
+| `startRunImage` | no | `string` | - |

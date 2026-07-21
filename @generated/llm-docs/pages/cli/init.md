@@ -110,127 +110,22 @@ stacktape init --agent
 
 ## All flags
 
-<CliCommandsApiReference command="init" sortedArgs={[
-  {
-    "name": "agent",
-    "required": false,
-    "alias": "ag",
-    "allowedTypes": [
-      "boolean"
-    ],
-    "shortDescription": "<p> Agent Mode</p>\n",
-    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>Uses strict JSONL/NDJSON output (one JSON object per line)</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)\nFor dev command: also enables HTTP server for programmatic control.</li>\n</ul>\n"
-  },
-  {
-    "name": "configFormat",
-    "required": false,
-    "alias": "cf",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "yaml",
-      "typescript"
-    ],
-    "shortDescription": "<p> Config Format</p>\n",
-    "longDescription": "<p>Format (language) used for the generated config. Options are typescript or yaml.</p>\n"
-  },
-  {
-    "name": "infrastructureType",
-    "required": false,
-    "alias": "it",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "low-cost",
-      "standard",
-      "production"
-    ],
-    "shortDescription": "<p> Infrastructure Type</p>\n",
-    "longDescription": "<p>The infrastructure tier for the generated configuration. Affects resource sizing, scaling, security, and cost:</p>\n<ul>\n<li><strong>low-cost</strong>: Minimal resources, single instances, no WAF/VPC. Best for development and experimentation.</li>\n<li><strong>standard</strong>: Balanced defaults with serverless databases and moderate scaling. Best for staging and small production workloads.</li>\n<li><strong>production</strong>: High-availability setup with Aurora, WAF, VPC, bastions, backups, and deletion protection.</li>\n</ul>\n"
-  },
-  {
-    "name": "initializeProjectTo",
-    "required": false,
-    "alias": "ipt",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Initialize Project To</p>\n",
-    "longDescription": "<p>The directory where the starter project should be initialized. If the directory is not empty, its contents will be deleted.</p>\n"
-  },
-  {
-    "name": "logLevel",
-    "required": false,
-    "alias": "ll",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "info",
-      "debug",
-      "error"
-    ],
-    "shortDescription": "<p> Log Level</p>\n",
-    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
-  },
-  {
-    "name": "outputFormat",
-    "required": false,
-    "alias": "ofmt",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "jsonl",
-      "plain",
-      "tty"
-    ],
-    "shortDescription": "<p> Output Format</p>\n",
-    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.\nIf not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.</li>\n</ul>\n"
-  },
-  {
-    "name": "projectDirectory",
-    "required": false,
-    "alias": "pd",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Project Directory</p>\n",
-    "longDescription": "<p>The root directory where the project configuration should be generated.</p>\n"
-  },
-  {
-    "name": "starterId",
-    "required": false,
-    "alias": "sid",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Starter ID</p>\n",
-    "longDescription": "<p>The identifier of the starter project to initialize.</p>\n"
-  },
-  {
-    "name": "starterProject",
-    "required": false,
-    "alias": "sp",
-    "allowedTypes": [
-      "boolean"
-    ],
-    "shortDescription": "<p> Starter Project</p>\n",
-    "longDescription": "<p>If <code>true</code>, initializes from a starter project template instead of running the default wizard flow.</p>\n"
-  },
-  {
-    "name": "templateId",
-    "required": false,
-    "alias": "ti",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Template ID</p>\n",
-    "longDescription": "<p>The ID of the template to download. You can find a list of available templates on the <a href=\"https://console.stacktape.com/templates\" style=\"font-weight: bold;\" target=\"_blank\" rel=\"noreferrer\" onclick=\"event.stopPropagation();\">Config Builder page</a>.</p>\n"
-  }
-]} />
+
+## CLI Options: `stacktape init`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption: Uses strict JSONL/NDJSON output (one JSON object per line) Disables interactive terminal UI Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
+| `--configFormat (-cf)` | no | `string` | Config Format Format (language) used for the generated config. Options are typescript or yaml. | `yaml`, `typescript` |
+| `--infrastructureType (-it)` | no | `string` | Infrastructure Type The infrastructure tier for the generated configuration. Affects resource sizing, scaling, security, and cost: **low-cost**: Minimal resources, single instances, no WAF/VPC. Best for development and experimentation. **standard**: Balanced defaults with serverless databases and moderate scaling. Best for staging and small production workloads. **production**: High-availability setup with Aurora, WAF, VPC, bastions, backups, and deletion protection. | `low-cost`, `standard`, `production` |
+| `--initializeProjectTo (-ipt)` | no | `string` | Initialize Project To The directory where the starter project should be initialized. If the directory is not empty, its contents will be deleted. | - |
+| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console. `info`: Basic information about the operation. `error`: Only errors. `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format: `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+| `--projectDirectory (-pd)` | no | `string` | Project Directory The root directory where the project configuration should be generated. | - |
+| `--starterId (-sid)` | no | `string` | Starter ID The identifier of the starter project to initialize. | - |
+| `--starterProject (-sp)` | no | `boolean` | Starter Project If `true`, initializes from a starter project template instead of running the default wizard flow. | - |
+| `--templateId (-ti)` | no | `string` | Template ID The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+
 
 ## Related commands
 

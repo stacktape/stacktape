@@ -23,18 +23,13 @@ For automatically-run upgrades (native and global installs), Stacktape executes 
 
 ## Flags
 
-<CliCommandsApiReference command="upgrade" sortedArgs={[
-  {
-    "name": "newVersion",
-    "required": false,
-    "alias": "nv",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> New Version</p>\n",
-    "longDescription": "<p>The version of Stacktape to install.</p>\n"
-  }
-]} />
+
+## CLI Options: `stacktape upgrade`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--newVersion (-nv)` | no | `string` | New Version The version of Stacktape to install. | - |
+
 
 When run without flags, Stacktape resolves and installs the latest published version automatically.
 

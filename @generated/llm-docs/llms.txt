@@ -1,8 +1,22 @@
 # Stacktape Documentation
 
-Stacktape is a deployment and infrastructure framework for defining application infrastructure in TypeScript or YAML and deploying it to AWS.
+> Stacktape is an open-source infrastructure framework for defining serverless and container applications in TypeScript or YAML and deploying them to the user’s own AWS account.
 
-## Docs Pages
+Use the concise index below to locate the canonical documentation page for a task. For a single-file corpus that includes page content and generated TypeScript configuration reference, use [llms-full.txt](/llms-full.txt).
+
+## Start Here
+- [Configure Your Stack](/getting-started/configure-your-stack): Define your first Stacktape project and resources.
+- [Deploy Your First Stage](/getting-started/deploy-your-first-stage): Deploy a stage to your own AWS account.
+- [Resources](/configuration/resources): Understand resource syntax and the available resource catalog.
+- [Connecting Resources](/configuration/connecting-resources): Wire resources together with IAM permissions and environment variables.
+- [Lambda Function](/resources/compute/lambda-function): Configure and deploy AWS Lambda functions.
+- [Web Service](/resources/compute/web-service): Run containerized HTTP services on AWS.
+- [Dev Mode Overview](/local-development/dev-mode-overview): Develop locally while connected to cloud resources.
+- [Deploying Stacks](/deployment-and-lifecycle/deploying-stacks): Understand deployments, stages, and lifecycle behavior.
+- [MCP Server Setup](/using-with-ai/mcp-server-setup): Connect an AI coding assistant to Stacktape tools using MCP.
+- [Going to Production](/getting-started/going-to-production): Review production readiness, security, cost, and reliability.
+
+## Complete Documentation Index
 - [Build Runners](/ci-cd-and-gitops/build-runners) - source: docs/docs/ci-cd-and-gitops/build-runners.mdx
 - [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) - source: docs/docs/ci-cd-and-gitops/custom-ci-cd.mdx
 - [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) - source: docs/docs/ci-cd-and-gitops/gitops-with-console.mdx
@@ -198,48 +212,7 @@ Stacktape is a deployment and infrastructure framework for defining application 
 - [MCP Server Setup](/using-with-ai/mcp-server-setup) - source: docs/docs/using-with-ai/mcp-server-setup.mdx
 - [Using Stacktape with AI](/using-with-ai/overview) - source: docs/docs/using-with-ai/overview.mdx
 
-## Config Reference
-- [Agent Core Runtime](/config-reference/agentcore)
-- [Alarm Definition Base](/config-reference/alarms)
-- [Application Load Balancer](/config-reference/application-load-balancer) - resource type: application-load-balancer
-- [Astro Web](/config-reference/astro-web) - resource type: astro-web
-- [Aws Cdk Construct](/config-reference/aws-cdk-construct) - resource type: aws-cdk-construct
-- [Bastion](/config-reference/bastion) - resource type: bastion
-- [Batch Job](/config-reference/batch-job) - resource type: batch-job
-- [Bucket](/config-reference/bucket) - resource type: bucket
-- [Cdn Configuration](/config-reference/cdn) - resource type: cdn
-- [Convex](/config-reference/convex)
-- [Custom Resource Definition](/config-reference/custom-resource) - resource type: custom-resource
-- [Deployment Script](/config-reference/deployment-script) - resource type: deployment-script
-- [Dynamo Db Table](/config-reference/dynamo-db-table) - resource type: dynamo-db-table
-- [Edge Lambda Function](/config-reference/edge-lambda-function) - resource type: edge-lambda-function
-- [Efs Filesystem](/config-reference/efs-filesystem) - resource type: efs-filesystem
-- [Event Bus](/config-reference/event-bus) - resource type: event-bus
-- [Container Workload Load Balancer Integration](/config-reference/events)
-- [Lambda Function](/config-reference/function) - resource type: function
-- [Hosting Bucket](/config-reference/hosting-bucket) - resource type: hosting-bucket
-- [Http Api Gateway](/config-reference/http-api-gateway) - resource type: http-api-gateway
-- [Kinesis Stream](/config-reference/kinesis-stream) - resource type: kinesis-stream
-- [Log Forwarding Base](/config-reference/log-forwarding)
-- [Mongo Db Atlas Cluster](/config-reference/mongo-db-atlas-cluster) - resource type: mongo-db-atlas-cluster
-- [Container Workload](/config-reference/multi-container-workload) - resource type: multi-container-workload
-- [Network Load Balancer](/config-reference/network-load-balancer) - resource type: network-load-balancer
-- [Nextjs Web](/config-reference/nextjs-web) - resource type: nextjs-web
-- [Nuxt Web](/config-reference/nuxt-web) - resource type: nuxt-web
-- [Open Search Domain](/config-reference/open-search-domain) - resource type: open-search-domain
-- [Private Service](/config-reference/private-service) - resource type: private-service
-- [Redis Cluster](/config-reference/redis-cluster) - resource type: redis-cluster
-- [Relational Database](/config-reference/relational-database) - resource type: relational-database
-- [Remix Web](/config-reference/remix-web) - resource type: remix-web
-- [Sns Topic](/config-reference/sns-topic) - resource type: sns-topic
-- [Solid Start Web](/config-reference/solidstart-web) - resource type: solidstart-web
-- [Sqs Queue](/config-reference/sqs-queue) - resource type: sqs-queue
-- [Stacktape Config](/config-reference/stacktape-config) - resource type: stacktape-config
-- [State Machine](/config-reference/state-machine) - resource type: state-machine
-- [Svelte Kit Web](/config-reference/sveltekit-web) - resource type: sveltekit-web
-- [Tan Stack Web](/config-reference/tanstack-web) - resource type: tanstack-web
-- [Upstash Redis](/config-reference/upstash-redis) - resource type: upstash-redis
-- [User Auth Pool](/config-reference/user-auth-pool) - resource type: user-auth-pool
-- [Web App Firewall](/config-reference/web-app-firewall) - resource type: web-app-firewall
-- [Web Service](/config-reference/web-service) - resource type: web-service
-- [Worker Service](/config-reference/worker-service) - resource type: worker-service
+## Machine-Readable Reference
+- [Full documentation and generated configuration reference](/llms-full.txt): all guide content plus the property-level API reference in one file.
+- [Configuration API reference](/llms-api-reference.txt): API-reference definitions, properties, defaults, union choices, descriptions, and examples without the narrative guides.
+- [XML sitemap](/sitemap-index.xml): canonical crawlable documentation URLs.

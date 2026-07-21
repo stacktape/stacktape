@@ -280,54 +280,20 @@ Use a [web-service](/resources/compute/web-service) when you need a persistent H
 ## API Reference
 
 
-## API Reference: `SolidStartWebProps`
-```typescript
-import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
+### Definition: `SolidStartWebProps`
 
-type SolidStartWebProps = {
-  /** Directory containing your app.config.ts. For monorepos, point to the SolidStart workspace. */
-  appDirectory?: string;
-  /** Override the default vinxi build command. */
-  buildCommand?: string;
-  /** CDN cache controls for SSR routes and specific path patterns. */
-  cdn?: SsrWebCdnConfig;
-  /** Give this resource access to other resources in your stack. */
-  connectTo?: Array<string>;
-  /** Attach custom domains with auto-managed DNS records and TLS certificates. */
-  customDomains?: Array<DomainConfiguration>;
-  /** Dev server config for stacktape dev. Defaults to vinxi dev. */
-  dev?: SsrWebDevConfig;
-  /** Environment variables for the SSR function. Use $ResourceParam() or $Secret() for dynamic values. */
-  environment?: Array<EnvironmentVar>;
-  /** Set custom headers (e.g., Cache-Control) for static files matching a pattern. */
-  fileOptions?: Array<DirectoryUploadFilter>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
-  serverLambda?: SsrWebServerLambdaConfig;
-  /** Name of a web-app-firewall resource to protect this app. Firewall scope must be cdn. */
-  useFirewall?: string;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/solidstart-web` with definition name `SolidStartWebProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `appDirectory` | no | `string` | Directory containing your `app.config.ts`. For monorepos, point to the SolidStart workspace. | `.` |
-| `buildCommand` | no | `string` | Override the default `vinxi build` command. | - |
-| `cdn` | no | `SsrWebCdnConfig` | CDN cache controls for SSR routes and specific path patterns. | - |
-| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
-
-**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
-**Opens network access** (security group rules for databases, Redis)
-**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
-
-Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
-resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
-| `customDomains` | no | `Array<DomainConfiguration>` | Attach custom domains with auto-managed DNS records and TLS certificates. **Prerequisite:** A Route 53 hosted zone for your domain must exist in your AWS account. | - |
-| `dev` | no | `SsrWebDevConfig` | Dev server config for `stacktape dev`. Defaults to `vinxi dev`. | - |
-| `environment` | no | `Array<EnvironmentVar>` | Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. | - |
-| `fileOptions` | no | `Array<DirectoryUploadFilter>` | Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
-accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
-| `serverLambda` | no | `SsrWebServerLambdaConfig` | Customize the SSR Lambda function (memory, timeout, VPC, logging). | - |
-| `useFirewall` | no | `string` | Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `appDirectory` | no | `string` | `.` |
+| `buildCommand` | no | `string` | - |
+| `cdn` | no | `SsrWebCdnConfig` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `customDomains` | no | `Array<DomainConfiguration>` | - |
+| `dev` | no | `SsrWebDevConfig` | - |
+| `environment` | no | `Array<EnvironmentVar>` | - |
+| `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `serverLambda` | no | `SsrWebServerLambdaConfig` | - |
+| `useFirewall` | no | `string` | - |

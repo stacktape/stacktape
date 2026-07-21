@@ -290,71 +290,21 @@ Cost depends on vCPU, memory, GPU needs, runtime, and whether on-demand or Spot 
 ## API Reference
 
 
-## API Reference: `BatchJobProps`
-```typescript
-import type { ApplicationLoadBalancerIntegration, BatchJobContainer, BatchJobLogging, BatchJobResources, BatchJobRetryConfiguration, CloudwatchLogIntegration, DynamoDbIntegration, EventBusIntegration, HttpApiIntegration, KinesisIntegration, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpIamRoleStatement } from 'stacktape';
+### Definition: `BatchJobProps`
 
-type BatchJobProps = {
-  /** Docker container image and environment for the job. */
-  container: BatchJobContainer;
-  /** CPU, memory, and GPU requirements. AWS auto-provisions a matching instance. */
-  resources: BatchJobResources;
-  /** Give this resource access to other resources in your stack. */
-  connectTo?: Array<string>;
-  /** Events that trigger this job (schedules, HTTP requests, S3 uploads, SQS messages, etc.). */
-  events?: Array<BatchJobEvents>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with stacktape logs. */
-  logging?: BatchJobLogging;
-  /** Auto-retry on failure, timeout, or Spot interruption. */
-  retryConfig?: BatchJobRetryConfiguration;
-  /** Max run time in seconds. The job is killed if it exceeds this, then retried if retryConfig is set. */
-  timeout?: number;
-  /** Use discounted spare AWS capacity. Saves up to 90%, but jobs can be interrupted. */
-  useSpotInstances?: boolean;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/batch-job` with definition name `BatchJobProps`.
 
-/** Union choices used by the properties above. */
-type BatchJobEvents =
-  | ApplicationLoadBalancerIntegration
-  | SnsIntegration
-  | SqsIntegration
-  | KinesisIntegration
-  | DynamoDbIntegration
-  | S3Integration
-  | ScheduleIntegration
-  | CloudwatchLogIntegration
-  | HttpApiIntegration
-  | EventBusIntegration;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `container` | yes | `BatchJobContainer` | Docker container image and environment for the job. | - |
-| `resources` | yes | `BatchJobResources` | CPU, memory, and GPU requirements. AWS auto-provisions a matching instance. | - |
-| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
-
-**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
-**Opens network access** (security group rules for databases, Redis)
-**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
-
-Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
-resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
-| `events` | no | `Array<application-load-balancer \| sns \| sqs \| kinesis-stream \| dynamo-db-stream \| s3 \| schedule \| cloudwatch-log \| http-api-gateway \| event-bus>` | Events that trigger this job (schedules, HTTP requests, S3 uploads, SQS messages, etc.). | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
-accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
-| `logging` | no | `BatchJobLogging` | Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. | - |
-| `retryConfig` | no | `BatchJobRetryConfiguration` | Auto-retry on failure, timeout, or Spot interruption. | - |
-| `timeout` | no | `number` | Max run time in seconds. The job is killed if it exceeds this, then retried if `retryConfig` is set. | - |
-| `useSpotInstances` | no | `boolean` | Use discounted spare AWS capacity. Saves up to 90%, but jobs can be interrupted. **Use this when:** Your job can safely be restarted from the beginning (e.g., data imports,
-image processing, ML training with checkpoints). Combine with `retryConfig` to auto-retry
-on interruption.
-
-**Don&#39;t use when:** Your job has side effects that can&#39;t be repeated (e.g., sending emails,
-charging payments) or must finish within a strict deadline.
-
-If interrupted, your container gets a `SIGTERM` and 120 seconds to shut down gracefully. | `false` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `container` | yes | `BatchJobContainer` | - |
+| `resources` | yes | `BatchJobResources` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `events` | no | `Array<application-load-balancer \| sns \| sqs \| kinesis-stream \| dynamo-db-stream \| s3 \| schedule \| cloudwatch-log \| http-api-gateway \| event-bus>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `logging` | no | `BatchJobLogging` | - |
+| `retryConfig` | no | `BatchJobRetryConfiguration` | - |
+| `timeout` | no | `number` | - |
+| `useSpotInstances` | no | `boolean` | `false` |
 
 
 ## Referenceable parameters

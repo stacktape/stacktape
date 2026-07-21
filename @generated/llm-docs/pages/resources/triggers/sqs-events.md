@@ -184,27 +184,16 @@ If your producer sends JSON, parse `record.body` in the handler. If it sends pla
 ## API reference
 
 
-## API Reference: `SqsIntegrationProps`
-```typescript
-type SqsIntegrationProps = {
-  /** The maximum number of records to process in a single batch. */
-  batchSize?: number;
-  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
-  maxBatchWindowSeconds?: number;
-  /** The ARN of an existing SQS queue. */
-  sqsQueueArn?: string;
-  /** The name of an SQS queue defined in your stack&#39;s resources. */
-  sqsQueueName?: string;
-};
-```
+### Definition: `SqsIntegrationProps`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `batchSize` | no | `number` | The maximum number of records to process in a single batch. Maximum is 10,000. | `10` |
-| `maxBatchWindowSeconds` | no | `number` | The maximum time (in seconds) to wait before invoking the function with a batch of records. Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available. | - |
-| `sqsQueueArn` | no | `string` | The ARN of an existing SQS queue. Use this to consume messages from a queue that is not managed by your stack.
-You must specify either `sqsQueueName` or `sqsQueueArn`. | - |
-| `sqsQueueName` | no | `string` | The name of an SQS queue defined in your stack&#39;s resources. You must specify either `sqsQueueName` or `sqsQueueArn`. | - |
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `SqsIntegrationProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `batchSize` | no | `number` | `10` |
+| `maxBatchWindowSeconds` | no | `number` | - |
+| `sqsQueueArn` | no | `string` | - |
+| `sqsQueueName` | no | `string` | - |
 
 
 ## FAQ

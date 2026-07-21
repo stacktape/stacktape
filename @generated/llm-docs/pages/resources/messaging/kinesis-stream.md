@@ -417,33 +417,17 @@ A Kinesis stream exposes the following parameters via the [`$ResourceParam` dire
 ## API Reference
 
 
-## API Reference: `KinesisStreamProps`
-```typescript
-import type { KinesisStreamEncryption } from 'stacktape';
+### Definition: `KinesisStreamProps`
 
-type KinesisStreamProps = {
-  /** How the stream scales. */
-  capacityMode?: "ON_DEMAND" | "PROVISIONED";
-  /** Give each consumer its own dedicated 2 MB/s read throughput (instead of sharing). */
-  enableEnhancedFanOut?: boolean;
-  /** Encrypt data at rest using a KMS key. */
-  encryption?: KinesisStreamEncryption;
-  /** How long records stay in the stream (hours). Range: 24–8,760 (365 days). Beyond 24h costs extra. */
-  retentionPeriodHours?: number;
-  /** Number of shards. Only used when capacityMode is PROVISIONED. */
-  shardCount?: number;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/kinesis-stream` with definition name `KinesisStreamProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `capacityMode` | no | `string: "ON_DEMAND" \| "PROVISIONED"` | How the stream scales. **`ON_DEMAND`**: Auto-scales, pay per GB. Recommended for most use cases.
-**`PROVISIONED`**: You choose a fixed number of shards (1 MB/s write, 2 MB/s read each). More predictable costs. | `ON_DEMAND` |
-| `enableEnhancedFanOut` | no | `boolean` | Give each consumer its own dedicated 2 MB/s read throughput (instead of sharing). Use when you have multiple consumers reading from the same stream and need low latency.
-Enhanced fan-out consumers are auto-created when a Lambda uses `autoCreateConsumer: true`. | `false` |
-| `encryption` | no | `KinesisStreamEncryption` | Encrypt data at rest using a KMS key. | - |
-| `retentionPeriodHours` | no | `number` | How long records stay in the stream (hours). Range: 24–8,760 (365 days). Beyond 24h costs extra. | `24` |
-| `shardCount` | no | `number` | Number of shards. Only used when `capacityMode` is `PROVISIONED`. Each shard: 1 MB/s write (1,000 records/s), 2 MB/s read (shared across consumers). | `1` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `capacityMode` | no | `string: "ON_DEMAND" \| "PROVISIONED"` | `ON_DEMAND` |
+| `enableEnhancedFanOut` | no | `boolean` | `false` |
+| `encryption` | no | `KinesisStreamEncryption` | - |
+| `retentionPeriodHours` | no | `number` | `24` |
+| `shardCount` | no | `number` | `1` |
 
 
 ## FAQ

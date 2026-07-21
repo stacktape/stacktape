@@ -234,28 +234,18 @@ Or pass the ARN to a [deployment script](/resources/advanced/deployment-scripts)
 ## API Reference
 
 
-## API Reference: `AgentCoreMemoryProps`
-```typescript
-import type { CloudformationTag } from 'stacktape';
+### Definition: `AgentCoreMemoryProps`
 
-type AgentCoreMemoryProps = {
-  description?: string;
-  encryptionKeyArn?: string;
-  eventExpiryDuration?: number;
-  expirationDays?: number;
-  memoryStrategies?: Array<unknown>;
-  tags?: Array<CloudformationTag>;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/agentcore` with definition name `AgentCoreMemoryProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `description` | no | `string` | - | - |
-| `encryptionKeyArn` | no | `string` | - | - |
-| `eventExpiryDuration` | no | `number` | - | - |
-| `expirationDays` | no | `number` | - | - |
-| `memoryStrategies` | no | `Array<unknown>` | - | - |
-| `tags` | no | `Array<CloudformationTag>` | - | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `description` | no | `string` | - |
+| `encryptionKeyArn` | no | `string` | - |
+| `eventExpiryDuration` | no | `number` | - |
+| `expirationDays` | no | `number` | - |
+| `memoryStrategies` | no | `Array<unknown>` | - |
+| `tags` | no | `Array<CloudformationTag>` | - |
 
 
 ## FAQ

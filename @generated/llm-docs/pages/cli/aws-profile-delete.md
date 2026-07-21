@@ -16,23 +16,13 @@ The command is fully interactive — it reads all profiles configured in your AW
 
 ## Arguments reference
 
-<CliCommandsApiReference command="aws-profile:delete" sortedArgs={[
-  {
-    "name": "logLevel",
-    "required": false,
-    "alias": "ll",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "info",
-      "debug",
-      "error"
-    ],
-    "shortDescription": "<p> Log Level</p>\n",
-    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
-  }
-]} />
+
+## CLI Options: `stacktape aws-profile:delete`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console. `info`: Basic information about the operation. `error`: Only errors. `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+
 
 ## Examples
 

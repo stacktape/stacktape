@@ -333,63 +333,23 @@ Use [static hosting](/resources/frontend/static-hosting) when the site can be bu
 ## API Reference
 
 
-## API Reference: `NextjsWebProps`
-```typescript
-import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, NextjsServerLambdaProperties, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';
+### Definition: `NextjsWebProps`
 
-type NextjsWebProps = {
-  /** Directory containing your next.config.js. For monorepos, point to the Next.js workspace. */
-  appDirectory: string;
-  /** Override the default next build command. */
-  buildCommand?: string;
-  /** CDN cache controls for SSR routes and specific path patterns. */
-  cdn?: SsrWebCdnConfig;
-  /** Give this resource access to other resources in your stack. */
-  connectTo?: Array<string>;
-  /** Attach custom domains with auto-managed DNS records and TLS certificates. */
-  customDomains?: Array<DomainConfiguration>;
-  /** Dev server config for stacktape dev. Defaults to next dev. */
-  dev?: unknown;
-  /** Environment variables for the SSR function. Use $ResourceParam() or $Secret() for dynamic values. */
-  environment?: Array<EnvironmentVar>;
-  /** Set custom headers (e.g., Cache-Control) for static files matching a pattern. */
-  fileOptions?: Array<DirectoryUploadFilter>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
-  serverLambda?: NextjsServerLambdaProperties;
-  /** Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default). */
-  streamingEnabled?: boolean;
-  /** Run SSR at CloudFront edge locations for lower latency worldwide. */
-  useEdgeLambda?: boolean;
-  /** Name of a web-app-firewall resource to protect this app. Firewall scope must be cdn. */
-  useFirewall?: string;
-  /** Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts. */
-  warmServerInstances?: number;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/nextjs-web` with definition name `NextjsWebProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `appDirectory` | yes | `string` | Directory containing your `next.config.js`. For monorepos, point to the Next.js workspace. | - |
-| `buildCommand` | no | `string` | Override the default `next build` command. | - |
-| `cdn` | no | `SsrWebCdnConfig` | CDN cache controls for SSR routes and specific path patterns. | - |
-| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
-
-**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
-**Opens network access** (security group rules for databases, Redis)
-**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
-
-Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
-resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
-| `customDomains` | no | `Array<DomainConfiguration>` | Attach custom domains with auto-managed DNS records and TLS certificates. **Prerequisite:** A Route 53 hosted zone for your domain must exist in your AWS account. | - |
-| `dev` | no | `unknown` | Dev server config for `stacktape dev`. Defaults to `next dev`. | - |
-| `environment` | no | `Array<EnvironmentVar>` | Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. | - |
-| `fileOptions` | no | `Array<DirectoryUploadFilter>` | Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
-accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
-| `serverLambda` | no | `NextjsServerLambdaProperties` | Customize the SSR Lambda function (memory, timeout, VPC, logging). | - |
-| `streamingEnabled` | no | `boolean` | Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default). Not compatible with `useEdgeLambda: true`. | `false` |
-| `useEdgeLambda` | no | `boolean` | Run SSR at CloudFront edge locations for lower latency worldwide. **Trade-offs:** Slower deploys, no `warmServerInstances`, no response streaming. | `false` |
-| `useFirewall` | no | `string` | Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. | - |
-| `warmServerInstances` | no | `number` | Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts. A separate &quot;warmer&quot; function periodically pings the SSR Lambda. Not available with `useEdgeLambda: true`. | `0` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `appDirectory` | yes | `string` | - |
+| `buildCommand` | no | `string` | - |
+| `cdn` | no | `SsrWebCdnConfig` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `customDomains` | no | `Array<DomainConfiguration>` | - |
+| `dev` | no | `unknown` | - |
+| `environment` | no | `Array<EnvironmentVar>` | - |
+| `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `serverLambda` | no | `NextjsServerLambdaProperties` | - |
+| `streamingEnabled` | no | `boolean` | `false` |
+| `useEdgeLambda` | no | `boolean` | `false` |
+| `useFirewall` | no | `string` | - |
+| `warmServerInstances` | no | `number` | `0` |

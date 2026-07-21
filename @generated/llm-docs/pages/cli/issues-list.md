@@ -18,93 +18,19 @@ stacktape issues:list --projectName my-app --stage production --issueStatus OPEN
 
 ## Flags reference
 
-<CliCommandsApiReference command="issues:list" sortedArgs={[
-  {
-    "name": "agent",
-    "required": false,
-    "alias": "ag",
-    "allowedTypes": [
-      "boolean"
-    ],
-    "shortDescription": "<p> Agent Mode</p>\n",
-    "longDescription": "<p>Optimizes CLI output for programmatic/LLM consumption:</p>\n<ul>\n<li>For <code>issues:list</code>, prints the returned issues as a pretty-printed JSON array (not JSONL) instead of a table</li>\n<li>Disables interactive terminal UI</li>\n<li>Automatically confirms operations (equivalent to --autoConfirmOperation)</li>\n</ul>\n"
-  },
-  {
-    "name": "issueStatus",
-    "required": false,
-    "alias": "is",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "OPEN",
-      "RESOLVED",
-      "IGNORED"
-    ],
-    "shortDescription": "<p> Issue Status Filter</p>\n",
-    "longDescription": "<p>Filter issues by status (OPEN, RESOLVED, IGNORED).</p>\n"
-  },
-  {
-    "name": "limit",
-    "required": false,
-    "alias": "lim",
-    "allowedTypes": [
-      "number"
-    ],
-    "shortDescription": "<p> Limit</p>\n",
-    "longDescription": "<p>Maximum number of items to return.</p>\n"
-  },
-  {
-    "name": "logLevel",
-    "required": false,
-    "alias": "ll",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "info",
-      "debug",
-      "error"
-    ],
-    "shortDescription": "<p> Log Level</p>\n",
-    "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
-  },
-  {
-    "name": "outputFormat",
-    "required": false,
-    "alias": "ofmt",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "jsonl",
-      "plain",
-      "tty"
-    ],
-    "shortDescription": "<p> Output Format</p>\n",
-    "longDescription": "<p>Controls the CLI output format:</p>\n<ul>\n<li><code>jsonl</code>: Machine-readable output, disables interactive UI. For <code>issues:list</code>, the command prints a single pretty-printed JSON array of issues (not one object per line).</li>\n<li><code>plain</code>: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.</li>\n<li><code>tty</code>: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.</li>\n</ul>\n<p>If not specified, the format is auto-detected from the environment. <code>--agent</code> selects the machine-readable output for this command.</p>\n"
-  },
-  {
-    "name": "projectName",
-    "required": false,
-    "alias": "prj",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Project Name</p>\n",
-    "longDescription": "<p>The name of the Stacktape project for this operation.</p>\n"
-  },
-  {
-    "name": "stage",
-    "required": false,
-    "alias": "s",
-    "allowedTypes": [
-      "string"
-    ],
-    "shortDescription": "<p> Stage</p>\n",
-    "longDescription": "<p>The stage for the operation (e.g., <code>production</code>, <code>staging</code>, <code>dev-john</code>). You can set a default stage using the <code>defaults:configure</code> command. The maximum length is 12 characters.</p>\n"
-  }
-]} />
+
+## CLI Options: `stacktape issues:list`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption: For `issues:list`, prints the returned issues as a pretty-printed JSON array (not JSONL) instead of a table Disables interactive terminal UI Automatically confirms operations (equivalent to --autoConfirmOperation) | - |
+| `--issueStatus (-is)` | no | `string` | Issue Status Filter Filter issues by status (OPEN, RESOLVED, IGNORED). | `OPEN`, `RESOLVED`, `IGNORED` |
+| `--limit (-lim)` | no | `number` | Limit Maximum number of items to return. | - |
+| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console. `info`: Basic information about the operation. `error`: Only errors. `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format: `jsonl`: Machine-readable output, disables interactive UI. For `issues:list`, the command prints a single pretty-printed JSON array of issues (not one object per line). `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. `--agent` selects the machine-readable output for this command. | `jsonl`, `plain`, `tty` |
+| `--projectName (-prj)` | no | `string` | Project Name The name of the Stacktape project for this operation. | - |
+| `--stage (-s)` | no | `string` | Stage The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
+
 
 ## Examples
 

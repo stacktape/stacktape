@@ -207,43 +207,19 @@ Start with [CDN](/resources/networking/cdn) configuration when caching, origin r
 ## API Reference
 
 
-## API Reference: `EdgeLambdaFunctionProps`
-```typescript
-import type { CustomArtifactLambdaPackaging, LambdaFunctionLogging, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
+### Definition: `EdgeLambdaFunctionProps`
 
-type EdgeLambdaFunctionProps = {
-  /** How the function code is packaged and deployed. */
-  packaging: EdgeLambdaFunctionPackaging;
-  /** Grant access to other resources in your stack (IAM permissions only — no env vars or VPC access). */
-  connectTo?: Array<string>;
-  /** Custom IAM policy statements for fine-grained AWS permissions beyond what connectTo provides. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Logging config. Logs are sent to CloudWatch in the region where the function executed (not your stack region). */
-  logging?: LambdaFunctionLogging;
-  /** Memory in MB. Max depends on event type: viewer events = 128 MB, origin events = 10,240 MB. */
-  memory?: number;
-  /** Lambda runtime. Auto-detected from file extension. Edge functions support Node.js and Python only. */
-  runtime?: "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.8" | "python3.9";
-  /** Max execution time in seconds. Viewer events: max 5s. Origin events: max 30s. */
-  timeout?: number;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/edge-lambda-function` with definition name `EdgeLambdaFunctionProps`.
 
-/** Union choices used by the properties above. */
-type EdgeLambdaFunctionPackaging =
-  | StpBuildpackLambdaPackaging
-  | CustomArtifactLambdaPackaging;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | How the function code is packaged and deployed. | - |
-| `connectTo` | no | `Array<string>` | Grant access to other resources in your stack (IAM permissions only — no env vars or VPC access). Edge Lambda functions **cannot** use environment variables or connect to VPC resources.
-`connectTo` only sets up IAM permissions (e.g., S3 bucket access, DynamoDB, SES). | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Custom IAM policy statements for fine-grained AWS permissions beyond what `connectTo` provides. | - |
-| `logging` | no | `LambdaFunctionLogging` | Logging config. Logs are sent to CloudWatch **in the region where the function executed** (not your stack region). | - |
-| `memory` | no | `number` | Memory in MB. Max depends on event type: viewer events = 128 MB, origin events = 10,240 MB. | `128` |
-| `runtime` | no | `string: "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.8" \| "python3.9"` | Lambda runtime. Auto-detected from file extension. Edge functions support Node.js and Python only. | - |
-| `timeout` | no | `number` | Max execution time in seconds. Viewer events: max 5s. Origin events: max 30s. | `3` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `logging` | no | `LambdaFunctionLogging` | - |
+| `memory` | no | `number` | `128` |
+| `runtime` | no | `string: "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.8" \| "python3.9"` | - |
+| `timeout` | no | `number` | `3` |
 
 
 ## Referenceable parameters

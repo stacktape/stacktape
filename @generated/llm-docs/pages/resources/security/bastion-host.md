@@ -225,26 +225,15 @@ export default defineConfig(() => {
 ## API Reference
 
 
-## API Reference: `BastionProps`
-```typescript
-import type { BastionLoggingConfig } from 'stacktape';
+### Definition: `BastionProps`
 
-type BastionProps = {
-  /** EC2 instance type. t3.micro is sufficient for SSH tunneling and basic admin tasks. */
-  instanceSize?: string;
-  /** Log retention settings for system, security, and audit logs. Logs are sent to CloudWatch. */
-  logging?: BastionLoggingConfig;
-  /** Shell commands to run when the instance starts (as root — no sudo needed). */
-  runCommandsAtLaunch?: Array<string>;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/bastion` with definition name `BastionProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `instanceSize` | no | `string` | EC2 instance type. `t3.micro` is sufficient for SSH tunneling and basic admin tasks. | `t3.micro` |
-| `logging` | no | `BastionLoggingConfig` | Log retention settings for system, security, and audit logs. Logs are sent to CloudWatch. | - |
-| `runCommandsAtLaunch` | no | `Array<string>` | Shell commands to run when the instance starts (as root — no `sudo` needed). Use to install CLI tools, database clients, or other dependencies.
-**Warning:** changing this list after creation replaces the instance — any data on the old instance is lost. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `instanceSize` | no | `string` | `t3.micro` |
+| `logging` | no | `BastionLoggingConfig` | - |
+| `runCommandsAtLaunch` | no | `Array<string>` | - |
 
 
 ## FAQ

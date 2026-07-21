@@ -398,24 +398,15 @@ SNS topic parameters can be referenced in your config using [`$ResourceParam`](/
 ## API Reference
 
 
-## API Reference: `SnsTopicProps`
-```typescript
-type SnsTopicProps = {
-  /** Automatically deduplicates messages based on content (SHA-256 hash) within a 5-minute window. */
-  contentBasedDeduplication?: boolean;
-  /** Guarantees message order and exactly-once delivery. Use for financial transactions, sequential workflows. */
-  fifoEnabled?: boolean;
-  /** Sender name shown on SMS messages sent to subscribers (e.g., &quot;MyApp&quot;). Max 11 characters. */
-  smsDisplayName?: string;
-};
-```
+### Definition: `SnsTopicProps`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `contentBasedDeduplication` | no | `boolean` | Automatically deduplicates messages based on content (SHA-256 hash) within a 5-minute window. Saves you from generating a unique deduplication ID for each message. Requires `fifoEnabled: true`. | `false` |
-| `fifoEnabled` | no | `boolean` | Guarantees message order and exactly-once delivery. Use for financial transactions, sequential workflows. FIFO topics can only deliver to FIFO SQS queues (not email, SMS, or HTTP).
-Requires either `contentBasedDeduplication: true` or a unique `MessageDeduplicationId` per message. | `false` |
-| `smsDisplayName` | no | `string` | Sender name shown on SMS messages sent to subscribers (e.g., &quot;MyApp&quot;). Max 11 characters. | - |
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/sns-topic` with definition name `SnsTopicProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `contentBasedDeduplication` | no | `boolean` | `false` |
+| `fifoEnabled` | no | `boolean` | `false` |
+| `smsDisplayName` | no | `string` | - |
 
 
 ## FAQ

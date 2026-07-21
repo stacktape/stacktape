@@ -1,6 +1,8 @@
 import { join } from 'node:path';
 import configSchema from '@generated/schemas/config-schema.json';
 import { writeJSON } from 'fs-extra';
+import { getJsonSchemaGenerator } from '../../scripts/code-generation/utils';
+import { stripExampleMarkersInSchema } from '../../scripts/code-generation/strip-example-markers';
 import { logInfo, logSuccess } from '../../shared/utils/logging';
 import { marked } from './utils/marked-mdx-parser';
 import { processAllNodes } from './utils/misc';
@@ -8,9 +10,36 @@ import { processAllNodes } from './utils/misc';
 type FenceFocus = { lang: string; focusStart: number | null; focusEnd: number | null };
 type Example = { lang: string; code: string };
 
+// These public configuration shapes are documented directly, but are not reachable from
+// StacktapeConfig (for example, global alarm rules are managed through the Console). Keep them
+// out of the validation schema and add them only to the documentation schema.
+const DOCUMENTATION_ONLY_DEFINITIONS = ['AlarmDefinition', 'LogForwardingBase'] as const;
+
+const addDocumentationOnlyDefinitions = async (schema: any) => {
+  const generator = await getJsonSchemaGenerator(join(__dirname, '..', '..'));
+  schema.definitions ??= {};
+
+  for (const definitionName of DOCUMENTATION_ONLY_DEFINITIONS) {
+    const supplementalSchema = generator.getSchemaForSymbol(definitionName) as any;
+    Object.assign(schema.definitions, supplementalSchema.definitions ?? {});
+
+    const { definitions: _nestedDefinitions, $schema: _schemaVersion, ...definition } = supplementalSchema;
+    schema.definitions[definitionName] = definition;
+  }
+
+  // Supplemental schemas come directly from typescript-json-schema, before the normal schema
+  // cleanup pass that records example focus ranges and removes authoring markers.
+  stripExampleMarkersInSchema(schema);
+};
+
 // Re-insert Shiki-style focus markers (consumed by <CodeBlockNew>) from the recorded `x-stp-focus`
 // line ranges, so the docs example highlights the documented property and collapses the rest.
-const insertFocusMarkers = (code: string, comment: '#' | '//', focusStart: number | null, focusEnd: number | null): string => {
+const insertFocusMarkers = (
+  code: string,
+  comment: '#' | '//',
+  focusStart: number | null,
+  focusEnd: number | null
+): string => {
   if (focusStart === null || focusEnd === null) return code;
   const lines = code.split('\n');
   if (focusStart < 0 || focusEnd >= lines.length || focusEnd < focusStart) return code;
@@ -53,14 +82,23 @@ const extractLabeledExamples = (
   const tsFocus = focus.find((f) => (f.lang === 'ts' || f.lang === 'typescript') && f.focusStart !== null);
 
   const examples: Example[] = [];
-  if (yamlCode) examples.push({ lang: 'yaml', code: insertFocusMarkers(yamlCode, '#', yamlFocus?.focusStart ?? null, yamlFocus?.focusEnd ?? null) });
-  if (tsCode) examples.push({ lang: 'typescript', code: insertFocusMarkers(tsCode, '//', tsFocus?.focusStart ?? null, tsFocus?.focusEnd ?? null) });
+  if (yamlCode)
+    examples.push({
+      lang: 'yaml',
+      code: insertFocusMarkers(yamlCode, '#', yamlFocus?.focusStart ?? null, yamlFocus?.focusEnd ?? null)
+    });
+  if (tsCode)
+    examples.push({
+      lang: 'typescript',
+      code: insertFocusMarkers(tsCode, '//', tsFocus?.focusStart ?? null, tsFocus?.focusEnd ?? null)
+    });
 
   return { cleanedDescription, examples };
 };
 
 export const enhanceConfigSchema = async () => {
   logInfo('Enhancing config schema...');
+  await addDocumentationOnlyDefinitions(configSchema);
   await processAllNodes(configSchema, async (node) => {
     try {
       if (node && (node.type || node.$ref || node.anyOf) && node.description) {

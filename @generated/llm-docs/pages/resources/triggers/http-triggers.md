@@ -173,38 +173,17 @@ Container workloads also support three additional integration types for internal
 - **`network-load-balancer`** — routes TCP/TLS traffic from a [Network Load Balancer](/resources/networking/network-load-balancer) to a container port. Operates at Layer 4, not HTTP.
 
 
-## API Reference: `HttpApiIntegrationProps`
-```typescript
-import type { CognitoAuthorizer, LambdaAuthorizer } from 'stacktape';
+### Definition: `HttpApiIntegrationProps`
 
-type HttpApiIntegrationProps = {
-  /** The name of the HTTP API Gateway. */
-  httpApiGatewayName: string;
-  /** The HTTP method that will trigger this integration. */
-  method: "*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT";
-  /** The URL path that will trigger this integration. */
-  path: string;
-  /** An authorizer to protect this route. */
-  authorizer?: HttpApiIntegrationAuthorizer;
-  /** The payload format version for the Lambda integration. */
-  payloadFormat?: "1.0" | "2.0";
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `HttpApiIntegrationProps`.
 
-/** Union choices used by the properties above. */
-type HttpApiIntegrationAuthorizer =
-  | CognitoAuthorizer
-  | LambdaAuthorizer;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `httpApiGatewayName` | yes | `string` | The name of the HTTP API Gateway. | - |
-| `method` | yes | `string: "*" \| "DELETE" \| "GET" \| "HEAD" \| "OPTIONS" \| "PATCH" \| "POST" \| "PUT"` | The HTTP method that will trigger this integration. You can specify an exact method (e.g., `GET`) or use `*` to match any method. | - |
-| `path` | yes | `string` | The URL path that will trigger this integration. **Exact path**: `/users`
-**Path with parameter**: `/users/{id}`. The `id` will be available in `event.pathParameters.id`.
-**Greedy path**: `/files/{proxy+}`. This will match any path starting with `/files/`. | - |
-| `authorizer` | no | `cognito \| lambda` | An authorizer to protect this route. Unauthorized requests will be rejected with a `401 Unauthorized` response. | - |
-| `payloadFormat` | no | `string: "1.0" \| "2.0"` | The payload format version for the Lambda integration. For details on the differences between formats, see the [AWS documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html). | `'1.0'` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `httpApiGatewayName` | yes | `string` | - |
+| `method` | yes | `string: "*" \| "DELETE" \| "GET" \| "HEAD" \| "OPTIONS" \| "PATCH" \| "POST" \| "PUT"` | - |
+| `path` | yes | `string` | - |
+| `authorizer` | no | `cognito \| lambda` | - |
+| `payloadFormat` | no | `string: "1.0" \| "2.0"` | `'1.0'` |
 
 
 The API reference above covers HTTP API Gateway integration properties. For ALB integration properties (`ApplicationLoadBalancerIntegrationProps`), see the [Application Load Balancer](/resources/networking/application-load-balancer) resource page.

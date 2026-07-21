@@ -547,21 +547,28 @@ const getChunkGroupKey = (doc: IndexedDoc): string => doc.headingPath.slice(0, 2
 const diversifyResults = (results: SearchResult[], maxItems: number): SearchResult[] => {
   const selected: SearchResult[] = [];
   const selectedPageIds = new Set<string>();
+  const selectedRoutes = new Set<string>();
   const selectedChunkGroups = new Set<string>();
 
-  const add = (result: SearchResult, requireNewPage: boolean) => {
+  const add = (result: SearchResult, requireNewPage: boolean, requireNewRoute: boolean) => {
     if (selected.length >= maxItems) return;
     const chunkGroupKey = `${result.doc.pageId}:${getChunkGroupKey(result.doc)}`;
     if (selectedChunkGroups.has(chunkGroupKey)) return;
     if (requireNewPage && selectedPageIds.has(result.doc.pageId)) return;
+    if (requireNewRoute && selectedRoutes.has(result.doc.route)) return;
 
     selected.push(result);
     selectedPageIds.add(result.doc.pageId);
+    selectedRoutes.add(result.doc.route);
     selectedChunkGroups.add(chunkGroupKey);
   };
 
-  for (const result of results) add(result, true);
-  for (const result of results) add(result, false);
+  // Definition-level API pages intentionally share a stable route (for example, all Lambda
+  // definitions use /config-reference/function). Prefer distinct routes first so one resource
+  // family cannot crowd workflow results, then relax to distinct pages and finally chunks.
+  for (const result of results) add(result, true, true);
+  for (const result of results) add(result, true, false);
+  for (const result of results) add(result, false, false);
   for (const result of results) {
     if (selected.length >= maxItems) break;
     if (!selected.some((selectedResult) => selectedResult.doc.id === result.doc.id)) selected.push(result);
@@ -715,11 +722,11 @@ const search = (index: LexicalIndex, options: QueryOptions): SearchResult[] => {
       score *= 2.1;
     }
 
-    if (hasStreamTriggerIntent && doc.route === '/configuration/triggers/dynamodb-streams') {
+    if (hasStreamTriggerIntent && doc.route === '/resources/triggers/dynamodb-streams') {
       score *= 2.4;
     }
 
-    if (hasDynamoDbIntegrationIntent && doc.route === '/configuration/triggers/dynamodb-streams') {
+    if (hasDynamoDbIntegrationIntent && doc.route === '/resources/triggers/dynamodb-streams') {
       score *= 4;
     }
 

@@ -67,10 +67,10 @@ export const handler = async (event: any) => {
 
 The buildpack supports eight languages. All configuration beyond `entryfilePath` is optional — defaults work for most projects.
 
-| Language | Entry file example | Default runtime version | Key config options |
+| Language | Entry file example | Default build version | Key config options |
 |---|---|---|---|
-| JavaScript / TypeScript | `./src/handler.ts` | Node.js 18 | `nodeVersion`, `outputModuleFormat`, `tsConfigPath` |
-| Python | `./src/handler.py` | Python 3.9 | `pythonVersion`, `packageManagerFile`, `minify` |
+| JavaScript / TypeScript | `./src/handler.ts` | Node.js 24 | `nodeVersion`, `outputModuleFormat`, `tsConfigPath` |
+| Python | `./src/handler.py` | Python 3.12 | `pythonVersion`, `packageManagerFile`, `minify` |
 | Java | `./src/Handler.java` | Java 11 | `javaVersion`, `useMaven`, `packageManagerFile` |
 | Go | `./src/main.go` | — | — |
 | Ruby | `./src/handler.rb` | Ruby 3.3 | `rubyVersion` |
@@ -170,8 +170,8 @@ For JavaScript and TypeScript projects, the buildpack bundles your code starting
 
 Key options:
 
-- **`nodeVersion`** — major Node.js version to target. Supported: 16, 17, 18, 19, 20, 21, 22, 23, 24. Default: `18`.
-- **`outputModuleFormat`** — `'cjs'` (CommonJS, default) or `'esm'` (ES Modules, enables top-level `await`). Some npm packages don't support ESM, and ESM may produce less readable stack traces.
+- **`nodeVersion`** — major Node.js version used by the buildpack. Supported: 16, 17, 18, 19, 20, 21, 22, 23, 24. Default: `24`. This does not replace the Lambda resource's `runtime`; set both to matching versions when overriding the default.
+- **`outputModuleFormat`** — `'cjs'` (CommonJS) or `'esm'` (ES Modules, enables top-level `await`). Node.js 24 and later use ESM output; with earlier Node.js versions the default is CommonJS. Edge functions remain CommonJS. Some npm packages don't support ESM, and ESM may produce less readable stack traces.
 - **`tsConfigPath`** — path to your `tsconfig.json`, used to resolve path aliases during bundling.
 - **`emitTsDecoratorMetadata`** — enable for frameworks that rely on TypeScript decorator metadata reflection (NestJS, TypeORM).
 - **`dependenciesToExcludeFromBundle`** — packages treated as external (not bundled into the single output file). They're installed separately in the deployment package. Set the array to `['*']` to exclude all dependencies from the bundle.
@@ -186,6 +186,7 @@ Example (TypeScript):
 import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
+    runtime: 'nodejs22.x',
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/api.ts',
       languageSpecificConfig: {
@@ -206,7 +207,7 @@ export default defineConfig(() => {
 ```
 
 
-Setting `nodeVersion: 22` targets Node.js 22 instead of the default 18. `outputModuleFormat: 'esm'` enables ES Module output; choose this when you need top-level `await` or your dependencies are ESM-only. Use `dependenciesToExcludeFromBundle` for dependencies you do not want statically bundled — excluded dependencies are installed separately in the deployment package, which is the safer path for packages with native binaries like `@prisma/client`. Setting `tsConfigPath` lets the buildpack resolve TypeScript path aliases during bundling.
+This example sets both `runtime: 'nodejs22.x'` on the Lambda function and `nodeVersion: 22` in its packaging config. The former selects the AWS Lambda runtime; the latter selects the buildpack's Node.js target. Keep them aligned. Because Node.js 22 otherwise defaults to CommonJS, `outputModuleFormat: 'esm'` explicitly enables ES Module output. Use `dependenciesToExcludeFromBundle` for dependencies you do not want statically bundled — excluded dependencies are installed separately in the deployment package, which is the safer path for packages with native binaries like `@prisma/client`. Setting `tsConfigPath` lets the buildpack resolve TypeScript path aliases during bundling.
 
 
 > **Info:** Use `dependenciesToExcludeFromBundle` for dependencies with native binaries. Excluded dependencies are installed separately in the deployment package rather than being statically bundled. This is the most common fix when a dependency works locally but fails in Lambda with a binary-related error.
@@ -218,7 +219,7 @@ For Python, Stacktape uses `uv` for dependency resolution and installation. Set 
 
 Key options:
 
-- **`pythonVersion`** — Python runtime version. Supported: 2.7, 3.6, 3.7, 3.8, 3.9, 3.11, 3.12, 3.13, 3.14. Default: `3.9`.
+- **`pythonVersion`** — Python version used to build the artifact. Supported: 2.7, 3.6, 3.7, 3.8, 3.9, 3.11, 3.12, 3.13, 3.14. Default: `3.12`. Set the Lambda resource's `runtime` separately and keep the versions compatible.
 - **`packageManagerFile`** — path to your dependency file (`requirements.txt`, `Pipfile`, or `pyproject.toml`).
 - **`packageManager`** — kept for compatibility. If set, must be `'uv'`. Stacktape uses `uv` for dependency resolution and installation by default, so you typically omit this.
 - **`minify`** — minifies Python code to reduce package size. Makes production stack traces harder to read. Default: `true`. Disable when readable deployed source is more important than smaller package size.
@@ -230,6 +231,7 @@ Example (TypeScript):
 import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 export default defineConfig(() => {
   const dataProcessor = new LambdaFunction({
+    runtime: 'python3.12',
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/process.py',
       languageSpecificConfig: {
@@ -249,7 +251,7 @@ export default defineConfig(() => {
 ```
 
 
-Setting `pythonVersion: 3.12` explicitly targets the Python 3.12 Lambda runtime (the default is 3.9). The `packageManagerFile` tells the buildpack where to find your dependencies — point it to your `requirements.txt`, `Pipfile`, or `pyproject.toml`. Setting `minify: false` disables Python source minification, which keeps your deployed source readable for debugging.
+Python 3.12 is the default build version. This example also sets `runtime: 'python3.12'` on the function so AWS executes the artifact with the same version. The `packageManagerFile` tells the buildpack where to find your dependencies — point it to your `requirements.txt`, `Pipfile`, or `pyproject.toml`. Setting `minify: false` disables Python source minification, which keeps your deployed source readable for debugging.
 
 
 > **Warning:** Python minification is enabled by default and can reduce package size, but it makes production stack traces harder to read. Disable it (`minify: false`) when readable deployed source is more important than smaller package size.
@@ -344,45 +346,18 @@ The Stacktape Lambda buildpack caches deployment packages based on a checksum, s
 ## API reference
 
 
-## API Reference: `StpBuildpackLambdaPackagingProps`
-```typescript
-import type { DotnetLanguageSpecificConfig, EsLanguageSpecificConfig, GoLanguageSpecificConfig, JavaLanguageSpecificConfig, PhpLanguageSpecificConfig, PyLanguageSpecificConfig, RubyLanguageSpecificConfig } from 'stacktape';
+### Definition: `StpBuildpackLambdaPackagingProps`
 
-type StpBuildpackLambdaPackagingProps = {
-  /** Path to your app&#39;s entry point, relative to the Stacktape config file. */
-  entryfilePath: string;
-  /** A list of dependencies to exclude from the deployment package. */
-  excludeDependencies?: Array<string>;
-  /** A glob pattern of files to explicitly exclude from the deployment package. */
-  excludeFiles?: Array<string>;
-  /** The name of the handler function to be executed when the Lambda is invoked. */
-  handlerFunction?: string;
-  /** A glob pattern of files to explicitly include in the deployment package. */
-  includeFiles?: Array<string>;
-  /** Language-specific packaging configuration. */
-  languageSpecificConfig?: StpBuildpackLambdaPackagingLanguageSpecificConfig;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/deployment-artifacts` with definition name `StpBuildpackLambdaPackagingProps`.
 
-/** Union choices used by the properties above. */
-type StpBuildpackLambdaPackagingLanguageSpecificConfig =
-  | EsLanguageSpecificConfig
-  | PyLanguageSpecificConfig
-  | JavaLanguageSpecificConfig
-  | PhpLanguageSpecificConfig
-  | DotnetLanguageSpecificConfig
-  | GoLanguageSpecificConfig
-  | RubyLanguageSpecificConfig;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `entryfilePath` | yes | `string` | Path to your app&#39;s entry point, relative to the Stacktape config file. For JS/TS: code is bundled into a single file. Dependencies with native binaries are installed separately.
-For Python: use `module/file.py:app` format when using `runAppAs` (WSGI/ASGI). | - |
-| `excludeDependencies` | no | `Array<string>` | A list of dependencies to exclude from the deployment package. | - |
-| `excludeFiles` | no | `Array<string>` | A glob pattern of files to explicitly exclude from the deployment package. | - |
-| `handlerFunction` | no | `string` | The name of the handler function to be executed when the Lambda is invoked. | - |
-| `includeFiles` | no | `Array<string>` | A glob pattern of files to explicitly include in the deployment package. The path is relative to your Stacktape configuration file. | - |
-| `languageSpecificConfig` | no | `Es \| Py \| Java \| Php \| Dotnet \| Go \| Ruby` | Language-specific packaging configuration. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `entryfilePath` | yes | `string` | - |
+| `excludeDependencies` | no | `Array<string>` | - |
+| `excludeFiles` | no | `Array<string>` | - |
+| `handlerFunction` | no | `string` | - |
+| `includeFiles` | no | `Array<string>` | - |
+| `languageSpecificConfig` | no | `Es \| Py \| Java \| Php \| Dotnet \| Go \| Ruby` | - |
 
 
 ## FAQ
@@ -393,7 +368,7 @@ Use `StacktapeLambdaBuildpackPackaging` for most projects — it handles bundlin
 
 ### Can I use ES Modules (ESM) with the Lambda buildpack?
 
-Yes. Set `outputModuleFormat: 'esm'` in `languageSpecificConfig` to enable ES Module output, which also enables top-level `await`. The default is `'cjs'` (CommonJS). Some npm packages don't support ESM, and ESM can produce less readable stack traces — test your function after switching to catch compatibility issues.
+Yes. Node.js 24 and later use ES Module output automatically. With an earlier Node.js version, set `outputModuleFormat: 'esm'` in `languageSpecificConfig`; ESM also enables top-level `await`. Edge functions remain CommonJS. Some npm packages don't support ESM, and ESM can produce less readable stack traces — test your function after switching to catch compatibility issues.
 
 ### What is the maximum Lambda deployment package size?
 

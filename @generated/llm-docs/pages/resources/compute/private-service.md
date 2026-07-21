@@ -460,96 +460,28 @@ Not directly — there is no property on a private service that adds a public en
 ## API Reference
 
 
-## API Reference: `PrivateServiceProps`
-```typescript
-import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';
+### Definition: `PrivateServiceProps`
 
-type PrivateServiceProps = {
-  /** Configures the container image for the service. */
-  packaging: PrivateServicePackaging;
-  /** CPU, memory, and compute engine for the container. */
-  resources: ContainerWorkloadResourcesConfig;
-  /** Give this resource access to other resources in your stack. */
-  connectTo?: Array<string>;
-  /** Allow SSH-like access to running containers for debugging. */
-  enableRemoteSessions?: boolean;
-  /** Environment variables injected into the container at runtime. */
-  environment?: Array<EnvironmentVar>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Health check that auto-replaces unhealthy containers. */
-  internalHealthCheck?: ContainerHealthCheck;
-  /** How traffic reaches this service from other resources. */
-  loadBalancing?: PrivateServiceLoadBalancing;
-  /** Logging configuration. */
-  logging?: ContainerWorkloadContainerLogging;
-  /** Port this service listens on. Injected as the PORT env var. */
-  port?: number;
-  /** Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). */
-  protocol?: "grpc" | "http" | "http2";
-  /** Auto-scaling: add/remove container instances based on demand. */
-  scaling?: ContainerWorkloadScaling;
-  /** Helper containers that run alongside the main container. */
-  sideContainers?: Array<ServiceHelperContainer>;
-  /** Seconds to wait for graceful shutdown before force-killing the container. */
-  stopTimeout?: number;
-  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */
-  usePrivateSubnetsWithNAT?: boolean;
-  /** Persistent EFS volumes shared across containers and restarts. */
-  volumeMounts?: Array<ContainerEfsMount>;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/private-service` with definition name `PrivateServiceProps`.
 
-/** Union choices used by the properties above. */
-type PrivateServicePackaging =
-  | StpBuildpackCwImagePackaging
-  | ExternalBuildpackCwImagePackaging
-  | PrebuiltCwImagePackaging
-  | CustomDockerfileCwImagePackaging
-  | NixpacksCwImagePackaging;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-image-buildpack \| external-buildpack \| prebuilt-image \| custom-dockerfile \| nixpacks` | Configures the container image for the service. | - |
-| `resources` | yes | `ContainerWorkloadResourcesConfig` | CPU, memory, and compute engine for the container. Two compute engines:
-
-**Fargate** (default): Serverless — just specify `cpu` and `memory`.
-**EC2**: Specify `instanceTypes` for more control and potentially lower cost. | - |
-| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
-
-**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
-**Opens network access** (security group rules for databases, Redis)
-**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
-
-Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
-resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
-| `enableRemoteSessions` | no | `boolean` | Allow SSH-like access to running containers for debugging. Enables `stacktape container:session` to open an interactive shell inside the container.
-Adds a small SSM agent that uses minimal CPU/memory. | `false` |
-| `environment` | no | `Array<EnvironmentVar>` | Environment variables injected into the container at runtime. Use for configuration like API keys, feature flags, or secrets.
-Variables from `connectTo` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`) are added automatically. | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
-accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
-| `internalHealthCheck` | no | `ContainerHealthCheck` | Health check that auto-replaces unhealthy containers. If a container fails the health check, it&#39;s terminated and replaced automatically. | - |
-| `loadBalancing` | no | `PrivateServiceLoadBalancing` | How traffic reaches this service from other resources. **`service-connect`** (default, ~$0.50/mo): Direct container-to-container. Cheapest option.
-Only reachable from other container-based resources in the stack.
-**`application-load-balancer`** (~$18/mo): HTTP load balancer. Reachable from any VPC resource. | `service-connect` |
-| `logging` | no | `ContainerWorkloadContainerLogging` | Logging configuration. Container output (`stdout`/`stderr`) is automatically sent to CloudWatch and retained for 90 days.
-View logs with `stacktape logs` or in the Stacktape Console. | - |
-| `port` | no | `number` | Port this service listens on. Injected as the `PORT` env var. | `3000` |
-| `protocol` | no | `string: "grpc" \| "http" \| "http2"` | Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). | - |
-| `scaling` | no | `ContainerWorkloadScaling` | Auto-scaling: add/remove container instances based on demand. Traffic is automatically distributed across all running containers. | - |
-| `sideContainers` | no | `Array<ServiceHelperContainer>` | Helper containers that run alongside the main container. **`run-on-init`**: Runs to completion before the main container starts (e.g., database migrations).
-**`always-running`**: Runs for the entire lifecycle (e.g., log forwarders, monitoring agents).
-Can reach the main container via `localhost`. | - |
-| `stopTimeout` | no | `number` | Seconds to wait for graceful shutdown before force-killing the container. The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120. | `2` |
-| `usePrivateSubnetsWithNAT` | no | `boolean` | Deploy in private subnets with a static outbound IP via NAT Gateway. The container won&#39;t have a public IP. All outbound traffic routes through a NAT Gateway,
-giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
-
-Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
-
-**Adds cost:** NAT Gateway ~$32/month + data processing fees. | `false` |
-| `volumeMounts` | no | `Array<ContainerEfsMount>` | Persistent EFS volumes shared across containers and restarts. Data stored in EFS volumes persists even when containers are replaced.
-Multiple containers can mount the same volume. All data is encrypted in transit. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `packaging` | yes | `stacktape-image-buildpack \| external-buildpack \| prebuilt-image \| custom-dockerfile \| nixpacks` | - |
+| `resources` | yes | `ContainerWorkloadResourcesConfig` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `enableRemoteSessions` | no | `boolean` | `false` |
+| `environment` | no | `Array<EnvironmentVar>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `internalHealthCheck` | no | `ContainerHealthCheck` | - |
+| `loadBalancing` | no | `PrivateServiceLoadBalancing` | `service-connect` |
+| `logging` | no | `ContainerWorkloadContainerLogging` | - |
+| `port` | no | `number` | `3000` |
+| `protocol` | no | `string: "grpc" \| "http" \| "http2"` | - |
+| `scaling` | no | `ContainerWorkloadScaling` | - |
+| `sideContainers` | no | `Array<ServiceHelperContainer>` | - |
+| `stopTimeout` | no | `number` | `2` |
+| `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |
+| `volumeMounts` | no | `Array<ContainerEfsMount>` | - |
 
 
 ## Referenceable parameters
@@ -560,4 +492,4 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
-| `address` | service `host:port` pair accessible only to other resources of stack([web-services](/compute-resources/web-services/), [multi-container-workloads](/compute-resources/multi-container-workloads/)) | `$ResourceParam("<<resource-name>>", "address")` |
+| `address` | service `host:port` pair accessible only to other resources of stack([web-services](/resources/compute/web-service/), [multi-container-workloads](/resources/compute/multi-container-workload/)) | `$ResourceParam("<<resource-name>>", "address")` |

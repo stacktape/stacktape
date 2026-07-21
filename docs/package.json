@@ -5,16 +5,18 @@
   "private": true,
   "scripts": {
     "dev": "bun scripts/sync-stacktape-types.ts && bun enhance:config:schema && bun gen:api-ref && astro dev --port 9001",
-    "build": "bun enhance:config:schema && bun gen:api-ref && bun publish:llms && astro build",
+    "build": "bun enhance:config:schema && bun gen:api-ref && bun gen:llm-docs && bun publish:llms && astro build && bun validate:site",
     "preview": "astro preview --port 9001",
     "deploy": "stacktape deploy --region eu-west-1 --stage production --aa stacktape-dev --hs --projectName docs",
     "deploy:preview": "stacktape deploy --region eu-west-1 --stage preview --aa stacktape-dev --hs --projectName docs",
     "upg": "bun taze",
     "enhance:config:schema": "bun scripts/enhance-config-schema.ts",
+    "gen:llm-docs": "bun run --cwd .. gen:llm-docs",
     "publish:llms": "bun scripts/publish-llms.ts",
     "gen:docs": "bun ../../docs-gen/src/cli.ts --projectPath .",
     "gen:api-ref": "bun scripts/generate-api-reference-data.ts",
     "validate:snippets": "bun scripts/validate-doc-snippets.ts",
+    "validate:site": "bun scripts/validate-built-site.ts",
     "astro": "astro"
   },
   "dependencies": {

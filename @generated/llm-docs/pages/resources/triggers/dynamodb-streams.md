@@ -273,41 +273,20 @@ export default defineConfig(() => {
 ## API reference
 
 
-## API Reference: `DynamoDbIntegrationProps`
-```typescript
-import type { DestinationOnFailure } from 'stacktape';
+### Definition: `DynamoDbIntegrationProps`
 
-type DynamoDbIntegrationProps = {
-  /** The ARN of the DynamoDB table stream. */
-  streamArn: string;
-  /** The maximum number of records to process in a single batch. */
-  batchSize?: number;
-  /** Splits a failed batch in two before retrying. */
-  bisectBatchOnFunctionError?: boolean;
-  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
-  maxBatchWindowSeconds?: number;
-  /** The number of times to retry a failed batch of records. */
-  maximumRetryAttempts?: number;
-  /** A destination (SQS queue or SNS topic) for batches that fail after all retry attempts. */
-  onFailure?: DestinationOnFailure;
-  /** The number of batches to process concurrently from the same shard. */
-  parallelizationFactor?: number;
-  /** The position in the stream from which to start reading records. */
-  startingPosition?: string;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `DynamoDbIntegrationProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `streamArn` | yes | `string` | The ARN of the DynamoDB table stream. | - |
-| `batchSize` | no | `number` | The maximum number of records to process in a single batch. Maximum is 1,000. | `100` |
-| `bisectBatchOnFunctionError` | no | `boolean` | Splits a failed batch in two before retrying. This can be useful if a failure is caused by a batch being too large. | - |
-| `maxBatchWindowSeconds` | no | `number` | The maximum time (in seconds) to wait before invoking the function with a batch of records. Maximum is 300 seconds. | - |
-| `maximumRetryAttempts` | no | `number` | The number of times to retry a failed batch of records. **Important:** If an error occurs, the entire batch is retried, including records that were processed successfully. Your function should be idempotent to handle this. | - |
-| `onFailure` | no | `DestinationOnFailure` | A destination (SQS queue or SNS topic) for batches that fail after all retry attempts. | - |
-| `parallelizationFactor` | no | `number` | The number of batches to process concurrently from the same shard. | - |
-| `startingPosition` | no | `string` | The position in the stream from which to start reading records. `LATEST`: Read only new records.
-`TRIM_HORIZON`: Read all available records from the beginning of the stream. | `TRIM_HORIZON` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `streamArn` | yes | `string` | - |
+| `batchSize` | no | `number` | `100` |
+| `bisectBatchOnFunctionError` | no | `boolean` | - |
+| `maxBatchWindowSeconds` | no | `number` | - |
+| `maximumRetryAttempts` | no | `number` | - |
+| `onFailure` | no | `DestinationOnFailure` | - |
+| `parallelizationFactor` | no | `number` | - |
+| `startingPosition` | no | `string` | `TRIM_HORIZON` |
 
 
 ## FAQ

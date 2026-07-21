@@ -278,7 +278,7 @@ Backups are recommended for production clusters where the cache contains data th
 
 ## Logging
 
-Stacktape enables slow-query logging for Redis clusters by default. Slow query logs are sent to CloudWatch and retained for 90 days. View them with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
+Stacktape enables slow-query logging for Redis clusters by default. Slow query logs are sent to CloudWatch and retained for 30 days. View them with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
 You can customize the log format (`json` or `text`), retention period, or disable logging entirely:
 
@@ -304,7 +304,7 @@ export default defineConfig(() => {
 ```
 
 
-The `format` property controls whether logs are emitted as `json` (default) or `text`. The `retentionDays` property defaults to `90` and accepts one of these values: `1`, `3`, `5`, `7`, `14`, `30`, `60`, `90`, `120`, `150`, `180`, `365`, `400`, `545`, `731`, `1827`, or `3653`. Set `logging.disabled: true` to turn off slow-query logging entirely.
+The `format` property controls whether logs are emitted as `json` (default) or `text`. The `retentionDays` property defaults to `30` and accepts one of these values: `1`, `3`, `5`, `7`, `14`, `30`, `60`, `90`, `120`, `150`, `180`, `365`, `400`, `545`, `731`, `1827`, or `3653`. Set `logging.disabled: true` to turn off slow-query logging entirely.
 
 Log forwarding to external services is also supported — see [log forwarding](/observability/log-forwarding) for details.
 
@@ -359,11 +359,8 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
-| `host` | In case of NON-sharded cluster(default), this is a hostname of the primary instance that can be used for both reads and writes.
-In case of sharded cluster, this is cluster's configuration endpoint that can be used for all operations. | `$ResourceParam("<<resource-name>>", "host")` |
-| `readerHost` | Hostname (address) that can be used for reads only. (only available for NON-sharded clusters).
-If you use multiple replicas, it is advised to use readerHost for read operations to offload the primary host.
-ReaderHost automatically balances requests between available read replicas. | `$ResourceParam("<<resource-name>>", "readerHost")` |
+| `host` | In case of NON-sharded cluster(default), this is a hostname of the primary instance that can be used for both reads and writes. In case of sharded cluster, this is cluster's configuration endpoint that can be used for all operations. | `$ResourceParam("<<resource-name>>", "host")` |
+| `readerHost` | Hostname (address) that can be used for reads only. (only available for NON-sharded clusters). If you use multiple replicas, it is advised to use readerHost for read operations to offload the primary host. ReaderHost automatically balances requests between available read replicas. | `$ResourceParam("<<resource-name>>", "readerHost")` |
 | `port` | Port of the cluster. | `$ResourceParam("<<resource-name>>", "port")` |
 | `sharding` | Indicates whether cluster is sharded. Available values: `enabled` or `disabled`. | `$ResourceParam("<<resource-name>>", "sharding")` |
 
@@ -371,71 +368,24 @@ ReaderHost automatically balances requests between available read replicas. | `$
 ## API Reference
 
 
-## API Reference: `RedisClusterProps`
-```typescript
-import type { DevModeConfig, RedisAccessibility, RedisLogging } from 'stacktape';
+### Definition: `RedisClusterProps`
 
-type RedisClusterProps = {
-  /** Cluster password. 16-128 chars, printable ASCII only. Cannot contain /, ", or @. */
-  defaultUserPassword: string;
-  /** The size of each Redis node. Affects memory, performance, and cost. */
-  instanceSize: "cache.m4.10xlarge" | "cache.m4.2xlarge" | "cache.m4.4xlarge" | "cache.m4.large" | "cache.m4.xlarge" | "cache.m5.12xlarge" | "cache.m5.24xlarge" | "cache.m5.2xlarge" | "cache.m5.4xlarge" | "cache.m5.large" | "cache.m5.xlarge" | "cache.m6g.12xlarge" | "cache.m6g.16xlarge" | "cache.m6g.2xlarge" | "cache.m6g.4xlarge" | "cache.m6g.8xlarge" | "cache.m6g.large" | "cache.m6g.xlarge" | "cache.m7g.12xlarge" | "cache.m7g.16xlarge" | "cache.m7g.2xlarge" | "cache.m7g.4xlarge" | "cache.m7g.8xlarge" | "cache.m7g.large" | "cache.m7g.xlarge" | "cache.r4.16xlarge" | "cache.r4.2xlarge" | "cache.r4.4xlarge" | "cache.r4.8xlarge" | "cache.r4.large" | "cache.r4.xlarge" | "cache.r5.12xlarge" | "cache.r5.24xlarge" | "cache.r5.2xlarge" | "cache.r5.4xlarge" | "cache.r5.large" | "cache.r5.xlarge" | "cache.r6g.12xlarge" | "cache.r6g.16xlarge" | "cache.r6g.2xlarge" | "cache.r6g.4xlarge" | "cache.r6g.8xlarge" | "cache.r6g.large" | "cache.r6g.xlarge" | "cache.r7g.12xlarge" | "cache.r7g.16xlarge" | "cache.r7g.2xlarge" | "cache.r7g.4xlarge" | "cache.r7g.8xlarge" | "cache.r7g.large" | "cache.r7g.xlarge" | "cache.t2.medium" | "cache.t2.micro" | "cache.t2.small" | "cache.t3.medium" | "cache.t3.micro" | "cache.t3.small" | "cache.t4g.medium" | "cache.t4g.micro" | "cache.t4g.small";
-  /** Network access control: vpc (default) or scoping-workloads-in-vpc (most restrictive). */
-  accessibility?: RedisAccessibility;
-  /** Days to keep automated daily backups. Set to 0 to disable. */
-  automatedBackupRetentionDays?: number;
-  /** Dev mode: runs locally in Docker by default. Set remote: true to use the deployed cluster. */
-  dev?: DevModeConfig;
-  /** Auto-promote a replica to primary if the primary node fails. */
-  enableAutomaticFailover?: boolean;
-  /** Split data across multiple shards for horizontal scaling. */
-  enableSharding?: boolean;
-  /** Redis engine version. */
-  engineVersion?: "6.0" | "6.2" | "7.0" | "7.1";
-  /** Slow query logging. Sent to CloudWatch; view with stacktape logs. */
-  logging?: RedisLogging;
-  /** Read replicas per shard. Increases read throughput and availability. */
-  numReplicaNodes?: number;
-  /** Number of shards (only with enableSharding: true). */
-  numShards?: number;
-  /** Port the cluster listens on. */
-  port?: number;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/redis-cluster` with definition name `RedisClusterProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `defaultUserPassword` | yes | `string` | Cluster password. 16-128 chars, printable ASCII only. Cannot contain `/`, `"`, or `@`. All traffic is encrypted in transit. Use `$Secret()` instead of hardcoding:
-defaultUserPassword: $Secret(&#39;redis.password&#39;) | - |
-| `instanceSize` | yes | `string: "cache.m4.10xlarge" \| "cache.m4.2xlarge" \| "cache.m4.4xlarge" \| "cache.m4.large" \| "cache.m4.xlarge" \| "cache.m5.12xlarge" \| "cache.m5.24xlarge" \| "cache.m5.2xlarge" \| "cache.m5.4xlarge" \| "cache.m5.large" \| "cache.m5.xlarge" \| "cache.m6g.12xlarge" \| "cache.m6g.16xlarge" \| "cache.m6g.2xlarge" \| "cache.m6g.4xlarge" \| "cache.m6g.8xlarge" \| "cache.m6g.large" \| "cache.m6g.xlarge" \| "cache.m7g.12xlarge" \| "cache.m7g.16xlarge" \| "cache.m7g.2xlarge" \| "cache.m7g.4xlarge" \| "cache.m7g.8xlarge" \| "cache.m7g.large" \| "cache.m7g.xlarge" \| "cache.r4.16xlarge" \| "cache.r4.2xlarge" \| "cache.r4.4xlarge" \| "cache.r4.8xlarge" \| "cache.r4.large" \| "cache.r4.xlarge" \| "cache.r5.12xlarge" \| "cache.r5.24xlarge" \| "cache.r5.2xlarge" \| "cache.r5.4xlarge" \| "cache.r5.large" \| "cache.r5.xlarge" \| "cache.r6g.12xlarge" \| "cache.r6g.16xlarge" \| "cache.r6g.2xlarge" \| "cache.r6g.4xlarge" \| "cache.r6g.8xlarge" \| "cache.r6g.large" \| "cache.r6g.xlarge" \| "cache.r7g.12xlarge" \| "cache.r7g.16xlarge" \| "cache.r7g.2xlarge" \| "cache.r7g.4xlarge" \| "cache.r7g.8xlarge" \| "cache.r7g.large" \| "cache.r7g.xlarge" \| "cache.t2.medium" \| "cache.t2.micro" \| "cache.t2.small" \| "cache.t3.medium" \| "cache.t3.micro" \| "cache.t3.small" \| "cache.t4g.medium" \| "cache.t4g.micro" \| "cache.t4g.small"` | The size of each Redis node. Affects memory, performance, and cost. **Quick guide:**
-
-**`cache.t4g.micro`** (~$0.016/hr, 0.5 GB): Development, testing, low-traffic apps.
-**`cache.t4g.small`** (~$0.032/hr, 1.37 GB): Small production apps, session stores.
-**`cache.m7g.large`** (~$0.15/hr, 6.38 GB): Production workloads with moderate data.
-**`cache.r7g.large`** (~$0.20/hr, 13.07 GB): Large datasets, memory-heavy caching.
-
-**Families:** `t` = burstable (cheap, variable). `m` = general purpose. `r` = memory-optimized.
-Suffix `g` = ARM/Graviton (better price-performance).
-
-This size applies to every node (primary + replicas). You can change it later without data loss. | - |
-| `accessibility` | no | `RedisAccessibility` | Network access control: `vpc` (default) or `scoping-workloads-in-vpc` (most restrictive). | - |
-| `automatedBackupRetentionDays` | no | `number` | Days to keep automated daily backups. Set to 0 to disable. | `0` |
-| `dev` | no | `DevModeConfig` | Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed cluster. | - |
-| `enableAutomaticFailover` | no | `boolean` | Auto-promote a replica to primary if the primary node fails. Requires `numReplicaNodes >= 1`. Always enabled for sharded clusters.
-
-
-  Deploy replicas first, then enable failover in a separate deployment. | - |
-| `enableSharding` | no | `boolean` | Split data across multiple shards for horizontal scaling. Each shard has its own primary + replicas. Routing is automatic.
-
-
-  **Must be set at creation time** — can&#39;t be added later.
-Requires `numReplicaNodes >= 1`. Replica count can&#39;t be changed after creation. | - |
-| `engineVersion` | no | `string: "6.0" \| "6.2" \| "7.0" \| "7.1"` | Redis engine version. | `6.2` |
-| `logging` | no | `RedisLogging` | Slow query logging. Sent to CloudWatch; view with `stacktape logs`. | - |
-| `numReplicaNodes` | no | `number` | Read replicas per shard. Increases read throughput and availability. If the primary fails and `enableAutomaticFailover` is on, a replica takes over.
-Can&#39;t be changed after creation for sharded clusters. | `0` |
-| `numShards` | no | `number` | Number of shards (only with `enableSharding: true`). | `1` |
-| `port` | no | `number` | Port the cluster listens on. | `6379` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `defaultUserPassword` | yes | `string` | - |
+| `instanceSize` | yes | `string: "cache.m4.10xlarge" \| "cache.m4.2xlarge" \| "cache.m4.4xlarge" \| "cache.m4.large" \| "cache.m4.xlarge" \| "cache.m5.12xlarge" \| "cache.m5.24xlarge" \| "cache.m5.2xlarge" \| "cache.m5.4xlarge" \| "cache.m5.large" \| "cache.m5.xlarge" \| "cache.m6g.12xlarge" \| "cache.m6g.16xlarge" \| "cache.m6g.2xlarge" \| "cache.m6g.4xlarge" \| "cache.m6g.8xlarge" \| "cache.m6g.large" \| "cache.m6g.xlarge" \| "cache.m7g.12xlarge" \| "cache.m7g.16xlarge" \| "cache.m7g.2xlarge" \| "cache.m7g.4xlarge" \| "cache.m7g.8xlarge" \| "cache.m7g.large" \| "cache.m7g.xlarge" \| "cache.r4.16xlarge" \| "cache.r4.2xlarge" \| "cache.r4.4xlarge" \| "cache.r4.8xlarge" \| "cache.r4.large" \| "cache.r4.xlarge" \| "cache.r5.12xlarge" \| "cache.r5.24xlarge" \| "cache.r5.2xlarge" \| "cache.r5.4xlarge" \| "cache.r5.large" \| "cache.r5.xlarge" \| "cache.r6g.12xlarge" \| "cache.r6g.16xlarge" \| "cache.r6g.2xlarge" \| "cache.r6g.4xlarge" \| "cache.r6g.8xlarge" \| "cache.r6g.large" \| "cache.r6g.xlarge" \| "cache.r7g.12xlarge" \| "cache.r7g.16xlarge" \| "cache.r7g.2xlarge" \| "cache.r7g.4xlarge" \| "cache.r7g.8xlarge" \| "cache.r7g.large" \| "cache.r7g.xlarge" \| "cache.t2.medium" \| "cache.t2.micro" \| "cache.t2.small" \| "cache.t3.medium" \| "cache.t3.micro" \| "cache.t3.small" \| "cache.t4g.medium" \| "cache.t4g.micro" \| "cache.t4g.small"` | - |
+| `accessibility` | no | `RedisAccessibility` | - |
+| `automatedBackupRetentionDays` | no | `number` | `0` |
+| `dev` | no | `DevModeConfig` | - |
+| `enableAutomaticFailover` | no | `boolean` | - |
+| `enableSharding` | no | `boolean` | - |
+| `engineVersion` | no | `string: "6.0" \| "6.2" \| "7.0" \| "7.1"` | `6.2` |
+| `logging` | no | `RedisLogging` | - |
+| `numReplicaNodes` | no | `number` | `0` |
+| `numShards` | no | `number` | `1` |
+| `port` | no | `number` | `6379` |
 
 
 ## FAQ

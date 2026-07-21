@@ -231,26 +231,16 @@ Use the Stacktape image buildpack if your language is supported and you want the
 ## API reference
 
 
-## API Reference: `ExternalBuildpackCwImagePackagingProps`
-```typescript
-type ExternalBuildpackCwImagePackagingProps = {
-  /** The path to the source code directory. */
-  sourceDirectoryPath: string;
-  /** The Buildpack Builder to use. */
-  builder?: string;
-  /** The specific Buildpack to use. */
-  buildpacks?: Array<string>;
-  /** A command to be executed when the container starts. */
-  command?: Array<string>;
-};
-```
+### Definition: `ExternalBuildpackCwImagePackagingProps`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `sourceDirectoryPath` | yes | `string` | The path to the source code directory. | - |
-| `builder` | no | `string` | The Buildpack Builder to use. | `paketobuildpacks/builder-jammy-base` |
-| `buildpacks` | no | `Array<string>` | The specific Buildpack to use. By default, the buildpack is detected automatically. | - |
-| `command` | no | `Array<string>` | A command to be executed when the container starts. Example: `['/app/start.sh']` | - |
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/deployment-artifacts` with definition name `ExternalBuildpackCwImagePackagingProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `sourceDirectoryPath` | yes | `string` | - |
+| `builder` | no | `string` | `paketobuildpacks/builder-jammy-base` |
+| `buildpacks` | no | `Array<string>` | - |
+| `command` | no | `Array<string>` | - |
 
 
 ## FAQ

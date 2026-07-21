@@ -228,30 +228,16 @@ If you need ordered message processing with fan-out, subscribe one or more FIFO 
 ## API Reference
 
 
-## API Reference: `SnsIntegrationProps`
-```typescript
-import type { SnsOnDeliveryFailure } from 'stacktape';
+### Definition: `SnsIntegrationProps`
 
-type SnsIntegrationProps = {
-  /** Filter messages by attributes so only relevant ones trigger the function. */
-  filterPolicy?: unknown;
-  /** A destination for messages that fail to be delivered to the target. */
-  onDeliveryFailure?: SnsOnDeliveryFailure;
-  /** The ARN of an existing SNS topic. */
-  snsTopicArn?: string;
-  /** The name of an SNS topic defined in your stack&#39;s resources. */
-  snsTopicName?: string;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `SnsIntegrationProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `filterPolicy` | no | `unknown` | Filter messages by attributes so only relevant ones trigger the function. Uses SNS subscription filter policy syntax. For content-based filtering, use EventBridge instead. | - |
-| `onDeliveryFailure` | no | `SnsOnDeliveryFailure` | A destination for messages that fail to be delivered to the target. In rare cases (e.g., if the target function cannot scale fast enough), a message might fail to be delivered.
-This property specifies an SQS queue where failed messages will be sent. | - |
-| `snsTopicArn` | no | `string` | The ARN of an existing SNS topic. Use this to subscribe to a topic that is not managed by your stack.
-You must specify either `snsTopicName` or `snsTopicArn`. | - |
-| `snsTopicName` | no | `string` | The name of an SNS topic defined in your stack&#39;s resources. You must specify either `snsTopicName` or `snsTopicArn`. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `filterPolicy` | no | `unknown` | - |
+| `onDeliveryFailure` | no | `SnsOnDeliveryFailure` | - |
+| `snsTopicArn` | no | `string` | - |
+| `snsTopicName` | no | `string` | - |
 
 
 ## FAQ

@@ -214,26 +214,15 @@ For private Kafka clusters (running inside a VPC, on-premises, or behind a VPN),
 ## API reference
 
 
-## API Reference: `KafkaTopicIntegrationProps`
-```typescript
-import type { CustomKafkaEventSource } from 'stacktape';
+### Definition: `KafkaTopicIntegrationProps`
 
-type KafkaTopicIntegrationProps = {
-  /** The maximum number of records to process in a single batch. */
-  batchSize?: number;
-  /** The details of your Kafka cluster. */
-  customKafkaConfiguration?: CustomKafkaEventSource;
-  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
-  maxBatchWindowSeconds?: number;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `KafkaTopicIntegrationProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `batchSize` | no | `number` | The maximum number of records to process in a single batch. The function will be invoked with up to this many records. Maximum is 10,000. | `100` |
-| `customKafkaConfiguration` | no | `CustomKafkaEventSource` | The details of your Kafka cluster. Specifies the bootstrap servers and topic name. | - |
-| `maxBatchWindowSeconds` | no | `number` | The maximum time (in seconds) to wait before invoking the function with a batch of records. The function will be triggered when either the `batchSize` is reached or this time window expires.
-Maximum is 300 seconds. | `0.5` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `batchSize` | no | `number` | `100` |
+| `customKafkaConfiguration` | no | `CustomKafkaEventSource` | - |
+| `maxBatchWindowSeconds` | no | `number` | `0.5` |
 
 
 ## FAQ

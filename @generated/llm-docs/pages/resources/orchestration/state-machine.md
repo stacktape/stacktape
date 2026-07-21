@@ -359,19 +359,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 ## API Reference
 
 
-## API Reference: `StateMachineProps`
-```typescript
-import type { StateMachineDefinition } from 'stacktape';
+### Definition: `StateMachineProps`
 
-type StateMachineProps = {
-  /** The workflow definition in Amazon States Language (ASL). */
-  definition: StateMachineDefinition;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/state-machine` with definition name `StateMachineProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `definition` | yes | `StateMachineDefinition` | The workflow definition in [Amazon States Language (ASL)](https://states-language.net/spec.html). | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `definition` | yes | `StateMachineDefinition` | - |
 
 
 ## FAQ

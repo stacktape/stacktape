@@ -548,68 +548,27 @@ AgentCore Runtime concurrency and scaling are managed by AWS Bedrock AgentCore, 
 ## API Reference
 
 
-## API Reference: `AgentCoreRuntimeProps`
-```typescript
-import type { AgentCoreJwtAuthorizerConfig, AgentCoreRuntimeEndpointConfig, AgentCoreRuntimeLifecycleConfig, CloudformationTag, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';
+### Definition: `AgentCoreRuntimeProps`
 
-type AgentCoreRuntimeProps = {
-  packaging: AgentCoreRuntimePackaging;
-  authorizer?: AgentCoreJwtAuthorizerConfig;
-  /** Give this resource access to other resources in your stack. */
-  connectTo?: Array<string>;
-  description?: string;
-  endpoints?: Array<AgentCoreRuntimeEndpoints>;
-  environment?: Array<EnvironmentVar>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  lifecycle?: AgentCoreRuntimeLifecycleConfig;
-  protocol?: "A2A" | "AGUI" | "HTTP" | "MCP";
-  requestHeaders?: Array<string>;
-  tags?: Array<CloudformationTag>;
-  useBrowser?: string;
-  useCodeInterpreter?: string;
-  useGateway?: string;
-  useMemory?: string;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/agentcore` with definition name `AgentCoreRuntimeProps`.
 
-/** Union choices used by the properties above. */
-type AgentCoreRuntimePackaging =
-  | StpBuildpackCwImagePackaging
-  | ExternalBuildpackCwImagePackaging
-  | PrebuiltCwImagePackaging
-  | CustomDockerfileCwImagePackaging
-  | NixpacksCwImagePackaging;
-
-type AgentCoreRuntimeEndpoints =
-  | AgentCoreRuntimeEndpointConfig
-  | "option-2";
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-image-buildpack \| external-buildpack \| prebuilt-image \| custom-dockerfile \| nixpacks` | - | - |
-| `authorizer` | no | `AgentCoreJwtAuthorizerConfig` | - | - |
-| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
-
-**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
-**Opens network access** (security group rules for databases, Redis)
-**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
-
-Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
-resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
-| `description` | no | `string` | - | - |
-| `endpoints` | no | `Array<AgentCoreRuntimeEndpoint \| option-2>` | - | - |
-| `environment` | no | `Array<EnvironmentVar>` | - | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
-accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
-| `lifecycle` | no | `AgentCoreRuntimeLifecycleConfig` | - | - |
-| `protocol` | no | `string: "A2A" \| "AGUI" \| "HTTP" \| "MCP"` | - | - |
-| `requestHeaders` | no | `Array<string>` | - | - |
-| `tags` | no | `Array<CloudformationTag>` | - | - |
-| `useBrowser` | no | `string` | - | - |
-| `useCodeInterpreter` | no | `string` | - | - |
-| `useGateway` | no | `string` | - | - |
-| `useMemory` | no | `string` | - | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `packaging` | yes | `stacktape-image-buildpack \| external-buildpack \| prebuilt-image \| custom-dockerfile \| nixpacks` | - |
+| `authorizer` | no | `AgentCoreJwtAuthorizerConfig` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `description` | no | `string` | - |
+| `endpoints` | no | `Array<AgentCoreRuntimeEndpoint \| option-2>` | - |
+| `environment` | no | `Array<EnvironmentVar>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `lifecycle` | no | `AgentCoreRuntimeLifecycleConfig` | - |
+| `protocol` | no | `string: "A2A" \| "AGUI" \| "HTTP" \| "MCP"` | - |
+| `requestHeaders` | no | `Array<string>` | - |
+| `tags` | no | `Array<CloudformationTag>` | - |
+| `useBrowser` | no | `string` | - |
+| `useCodeInterpreter` | no | `string` | - |
+| `useGateway` | no | `string` | - |
+| `useMemory` | no | `string` | - |
 
 
 ## Referenceable parameters

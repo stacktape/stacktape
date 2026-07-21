@@ -135,25 +135,15 @@ Multiple containers can mount the same EFS volume and share files through it, ma
 ## API Reference
 
 
-## API Reference: `EfsFilesystemProps`
-```typescript
-type EfsFilesystemProps = {
-  /** Enable daily automatic backups with 35-day retention. Incremental (only changes are copied). */
-  backupEnabled?: boolean;
-  /** Guaranteed throughput in MiB/s. Required when throughputMode is provisioned. */
-  provisionedThroughputInMibps?: number;
-  /** How throughput scales with your workload. */
-  throughputMode?: "bursting" | "elastic" | "provisioned";
-};
-```
+### Definition: `EfsFilesystemProps`
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `backupEnabled` | no | `boolean` | Enable daily automatic backups with 35-day retention. Incremental (only changes are copied). | - |
-| `provisionedThroughputInMibps` | no | `number` | Guaranteed throughput in MiB/s. Required when `throughputMode` is `provisioned`. E.g., `100` = 100 MiB/s. Additional fees apply based on the provisioned amount. Can be changed anytime. | - |
-| `throughputMode` | no | `string: "bursting" \| "elastic" \| "provisioned"` | How throughput scales with your workload. **`elastic`** (recommended): Auto-scales throughput. Best for spiky workloads (web apps, CI/CD).
-**`provisioned`**: Fixed throughput you set via `provisionedThroughputInMibps`. Best for steady high-throughput workloads.
-**`bursting`**: Throughput scales with storage size (50 KiB/s per GiB). Can run out of burst credits. | `elastic` |
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/efs-filesystem` with definition name `EfsFilesystemProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `backupEnabled` | no | `boolean` | - |
+| `provisionedThroughputInMibps` | no | `number` | - |
+| `throughputMode` | no | `string: "bursting" \| "elastic" \| "provisioned"` | `elastic` |
 
 
 ## Referenceable parameters

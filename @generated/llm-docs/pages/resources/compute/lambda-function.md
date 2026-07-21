@@ -258,7 +258,7 @@ export default defineConfig(() => {
 ```
 
 
-`nodeVersion` selects the Node.js major version for the build; `outputModuleFormat` switches between `'cjs'` (default, CommonJS) and `'esm'` (ES Modules, enables top-level `await`). Some npm packages do not support ESM.
+`nodeVersion` selects the Node.js major version for the build; keep it aligned with the function's `runtime`. `outputModuleFormat` switches between `'cjs'` (CommonJS) and `'esm'` (ES Modules, enables top-level `await`). Node.js 24 and later use ESM output automatically; earlier versions default to CommonJS. Some npm packages do not support ESM.
 
 ### Custom artifact
 
@@ -673,7 +673,7 @@ export default defineConfig(() => {
 
 Lambda function logs from `stdout` and `stderr` are sent to CloudWatch Logs automatically. View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 
-`logging.retentionDays` defaults to `180`. Set a shorter retention for high-volume functions when old logs are not needed; keep longer retention for audit-heavy production paths. Setting `logging.disabled: true` disables CloudWatch logging entirely — use this only when another observability path captures the same data.
+`logging.retentionDays` defaults to `90`. Set a shorter retention for high-volume functions when old logs are not needed; keep longer retention for audit-heavy production paths. Setting `logging.disabled: true` disables CloudWatch logging entirely — use this only when another observability path captures the same data.
 
 Lambda functions also support log forwarding to external services (HTTP endpoints, Datadog, Highlight.io) through the `logging.logForwarding` property. See [log forwarding](/observability/log-forwarding) for configuration details.
 
@@ -750,150 +750,35 @@ For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), a f
 ## API Reference
 
 
-## API Reference: `LambdaFunctionProps`
-```typescript
-import type { AlarmIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
+### Definition: `LambdaFunctionProps`
 
-type LambdaFunctionProps = {
-  /** How your code is built and packaged for deployment. */
-  packaging: LambdaFunctionPackaging;
-  /** Alarms for this function (merged with global alarms from the Stacktape Console). */
-  alarms?: Array<LambdaAlarm>;
-  /** Processor architecture: x86_64 (default) or arm64 (Graviton, ~20% cheaper). */
-  architecture?: "arm64" | "x86_64";
-  /** Put a CDN (CloudFront) in front of this function for caching and lower latency. */
-  cdn?: CdnConfiguration;
-  /** Give this resource access to other resources in your stack. */
-  connectTo?: Array<string>;
-  /** Gradual traffic shifting for safe deployments. */
-  deployment?: LambdaDeploymentConfig;
-  /** Route async invocation results to another service (SQS, SNS, EventBus, or another function). */
-  destinations?: LambdaFunctionDestinations;
-  /** Global alarm names to exclude from this function. */
-  disabledGlobalAlarms?: Array<string>;
-  /** Environment variables available to the function at runtime. */
-  environment?: Array<EnvironmentVar>;
-  /** What triggers this function: HTTP requests, file uploads, queues, schedules, etc. */
-  events?: Array<LambdaFunctionEvents>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. */
-  joinDefaultVpc?: boolean;
-  /** Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.). */
-  layers?: Array<string>;
-  /** Logging configuration (retention, forwarding). */
-  logging?: LambdaFunctionLogging;
-  /** Memory in MB (128 - 10,240). Also determines CPU power. */
-  memory?: number;
-  /** Eliminates cold starts by keeping function instances warm and ready. */
-  provisionedConcurrency?: number;
-  /** Cap the maximum number of concurrent instances for this function. */
-  reservedConcurrency?: number;
-  /** The language runtime (e.g., nodejs22.x, python3.13). */
-  runtime?: "dotnet6" | "dotnet7" | "dotnet8" | "java11" | "java17" | "java8" | "java8.al2" | "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "provided.al2" | "provided.al2023" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.8" | "python3.9" | "ruby3.3";
-  /** Size of the /tmp directory in MB (512 - 10,240). Ephemeral per invocation. */
-  storage?: number;
-  /** Additional tags for this function (on top of stack-level tags). Max 50. */
-  tags?: Array<CloudformationTag>;
-  /** Max execution time in seconds. Function is killed if it exceeds this. */
-  timeout?: number;
-  /** Give this function its own HTTPS URL (no API Gateway needed). */
-  url?: LambdaUrlConfig;
-  /** Persistent file-system mounts shared across invocations and functions. */
-  volumeMounts?: Array<LambdaFunctionVolumeMounts>;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/function` with definition name `LambdaFunctionProps`.
 
-/** Union choices used by the properties above. */
-type LambdaFunctionPackaging =
-  | StpBuildpackLambdaPackaging
-  | CustomArtifactLambdaPackaging;
-
-type LambdaFunctionEvents =
-  | ApplicationLoadBalancerIntegration
-  | KafkaTopicIntegration
-  | SnsIntegration
-  | SqsIntegration
-  | KinesisIntegration
-  | DynamoDbIntegration
-  | S3Integration
-  | ScheduleIntegration
-  | AlarmIntegration
-  | CloudwatchLogIntegration
-  | HttpApiIntegration
-  | EventBusIntegration;
-
-type LambdaFunctionVolumeMounts =
-  | LambdaEfsMount
-  | LambdaS3FilesMount;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | How your code is built and packaged for deployment. **`stacktape-lambda-buildpack`** (recommended): Point to your source file and Stacktape builds,
-bundles, and uploads it automatically.
-**`custom-artifact`**: Provide a pre-built zip file. Stacktape handles the upload. | - |
-| `alarms` | no | `Array<LambdaAlarm>` | Alarms for this function (merged with global alarms from the Stacktape Console). | - |
-| `architecture` | no | `string: "arm64" \| "x86_64"` | Processor architecture: `x86_64` (default) or `arm64` (Graviton, ~20% cheaper). `arm64` is cheaper per GB-second and often faster. Works with most code out of the box.
-If using `stacktape-lambda-buildpack`, Stacktape builds for the selected architecture automatically.
-With `custom-artifact`, you must pre-compile for the target architecture. | `x86_64` |
-| `cdn` | no | `CdnConfiguration` | Put a CDN (CloudFront) in front of this function for caching and lower latency. Caches responses at edge locations worldwide. Reduces function invocations and bandwidth costs. | - |
-| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
-
-**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
-**Opens network access** (security group rules for databases, Redis)
-**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
-
-Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
-resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
-| `deployment` | no | `LambdaDeploymentConfig` | Gradual traffic shifting for safe deployments. Instead of switching all traffic to the new version instantly, shift it gradually
-(canary or linear). If issues arise, traffic rolls back automatically. | - |
-| `destinations` | no | `LambdaFunctionDestinations` | Route async invocation results to another service (SQS, SNS, EventBus, or another function). Useful for building event-driven workflows: send successful results to one destination
-and failures to another for error handling. | - |
-| `disabledGlobalAlarms` | no | `Array<string>` | Global alarm names to exclude from this function. | - |
-| `environment` | no | `Array<EnvironmentVar>` | Environment variables available to the function at runtime. Variables from `connectTo` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`) are added automatically. | - |
-| `events` | no | `Array<application-load-balancer \| kafka-topic \| sns \| sqs \| kinesis-stream \| dynamo-db-stream \| s3 \| schedule \| cloudwatch-alarm \| cloudwatch-log \| http-api-gateway \| event-bus>` | What triggers this function: HTTP requests, file uploads, queues, schedules, etc. Stacktape auto-configures permissions for each trigger.
-The event payload your function receives depends on the trigger type. | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
-accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
-| `joinDefaultVpc` | no | `boolean` | Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. Set this to `true` when the function must reach VPC-only resources such as a database with
-`accessibilityMode: 'vpc'`/`'scoping-workloads-in-vpc'`, a Redis cluster, or EFS.
-
-**Tradeoff:** The function loses direct internet access. It can still reach S3 and DynamoDB
-(Stacktape auto-creates VPC endpoints), but calls to external APIs (Stripe, OpenAI, etc.) will fail.
-If you need both VPC access and internet, use a `web-service` or `worker-service` instead.
-
-Required when using `volumeMounts` (EFS or S3 Files). | `false` |
-| `layers` | no | `Array<string>` | Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.). Layers are zip archives with additional code/data mounted into the function.
-Provide the layer ARN (e.g., from AWS console or another stack). Max 5 layers per function. | - |
-| `logging` | no | `LambdaFunctionLogging` | Logging configuration (retention, forwarding). Logs (`stdout`/`stderr`) are auto-sent to CloudWatch. View with `stacktape logs` or in the Stacktape Console. | - |
-| `memory` | no | `number` | Memory in MB (128 - 10,240). Also determines CPU power. Lambda scales CPU proportionally to memory: 1,769 MB = 1 vCPU, 3,538 MB = 2 vCPUs, etc.
-If your function is slow, increasing memory gives it more CPU, which often makes it faster
-and cheaper overall (less execution time). | - |
-| `provisionedConcurrency` | no | `number` | Eliminates cold starts by keeping function instances warm and ready. When a function hasn&#39;t been called recently, the first request can take 1-5+ seconds (&quot;cold start&quot;).
-This setting pre-warms the specified number of instances so they respond instantly.
-
-**When to use:** User-facing APIs, web/mobile backends, or any function where response time matters.
-Skip this for background jobs, cron tasks, or data pipelines.
-
-**Cost:** You pay for each provisioned instance even when idle. Also increases deploy time by ~2-5 minutes. | - |
-| `reservedConcurrency` | no | `number` | Cap the maximum number of concurrent instances for this function. Reserves this many execution slots exclusively for this function — other functions can&#39;t use them,
-and this function can&#39;t scale beyond it. **No additional cost.**
-
-Common uses:
-
-Prevent overwhelming a database with too many connections
-Guarantee capacity for critical functions
-Throttle expensive downstream API calls | - |
-| `runtime` | no | `string: "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.8" \| "python3.9" \| "ruby3.3"` | The language runtime (e.g., `nodejs22.x`, `python3.13`). Auto-detected from your source file extension when using `stacktape-lambda-buildpack`.
-Override only if you need a specific version. | - |
-| `storage` | no | `number` | Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation. Increase if your function downloads/processes large files temporarily. | `512` |
-| `tags` | no | `Array<CloudformationTag>` | Additional tags for this function (on top of stack-level tags). Max 50. | - |
-| `timeout` | no | `number` | Max execution time in seconds. Function is killed if it exceeds this. Maximum: 900 seconds (15 minutes). For longer tasks, use a `batch-job` or `worker-service`. | `10` |
-| `url` | no | `LambdaUrlConfig` | Give this function its own HTTPS URL (no API Gateway needed). Simpler and cheaper than an API Gateway for single-function endpoints.
-URL format: `https://{id}.lambda-url.{region}.on.aws` | - |
-| `volumeMounts` | no | `Array<efs \| s3files>` | Persistent file-system mounts shared across invocations and functions. Unlike `/tmp`, mounted file systems persist independently from the function runtime and can be
-shared across multiple functions.
-Requires `joinDefaultVpc: true` (Stacktape will remind you if you forget). | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | - |
+| `alarms` | no | `Array<LambdaAlarm>` | - |
+| `architecture` | no | `string: "arm64" \| "x86_64"` | `x86_64` |
+| `cdn` | no | `CdnConfiguration` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `deployment` | no | `LambdaDeploymentConfig` | - |
+| `destinations` | no | `LambdaFunctionDestinations` | - |
+| `disabledGlobalAlarms` | no | `Array<string>` | - |
+| `environment` | no | `Array<EnvironmentVar>` | - |
+| `events` | no | `Array<application-load-balancer \| kafka-topic \| sns \| sqs \| kinesis-stream \| dynamo-db-stream \| s3 \| schedule \| cloudwatch-alarm \| cloudwatch-log \| http-api-gateway \| event-bus>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `joinDefaultVpc` | no | `boolean` | `false` |
+| `layers` | no | `Array<string>` | - |
+| `logging` | no | `LambdaFunctionLogging` | - |
+| `memory` | no | `number` | - |
+| `provisionedConcurrency` | no | `number` | - |
+| `reservedConcurrency` | no | `number` | - |
+| `runtime` | no | `string: "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.8" \| "python3.9" \| "ruby3.3"` | - |
+| `storage` | no | `number` | `512` |
+| `tags` | no | `Array<CloudformationTag>` | - |
+| `timeout` | no | `number` | `10` |
+| `url` | no | `LambdaUrlConfig` | - |
+| `volumeMounts` | no | `Array<efs \| s3files>` | - |
 
 
 ## Referenceable parameters

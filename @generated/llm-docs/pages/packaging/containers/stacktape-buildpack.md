@@ -56,12 +56,12 @@ The `entryfilePath` is the only required property. It points to your application
 
 ## Supported languages
 
-The container buildpack explicitly documents support for JavaScript, TypeScript, Python, Java, and Go. The `languageSpecificConfig` type union also exposes Ruby, PHP, and .NET version and project options. The optional `languageSpecificConfig` property lets you tune behavior per language. Several language-specific properties have documented defaults: Node.js 18, Python 3.9, Java 11, Ruby 3.3, PHP 8.3, .NET 8, and `outputModuleFormat: 'cjs'`.
+The container buildpack explicitly documents support for JavaScript, TypeScript, Python, Java, and Go. The `languageSpecificConfig` type union also exposes Ruby, PHP, and .NET version and project options. The optional `languageSpecificConfig` property lets you tune behavior per language. Current defaults are Node.js 24, Python 3.12, Java 11, Ruby 3.3, PHP 8.3, and .NET 8. Node.js 24 builds use ES Module output by default.
 
 | Language | Default version | Key options |
 |---|---|---|
-| JavaScript / TypeScript | Node.js 18 | Module format, bundle exclusions, source maps, decorator metadata |
-| Python | 3.9 | WSGI/ASGI server mode, dependency file, minification |
+| JavaScript / TypeScript | Node.js 24 | Module format, bundle exclusions, source maps, decorator metadata |
+| Python | 3.12 | WSGI/ASGI server mode, dependency file, minification |
 | Java | 11 | Maven or Gradle, build file path |
 | Go | — | No language-specific options |
 | Ruby | 3.3 | `rubyVersion` |
@@ -106,11 +106,11 @@ The `dependenciesToExcludeFromBundle: ['@prisma/client']` shown above is just an
 
 ### Module format
 
-The `outputModuleFormat` property controls whether the bundle output is CommonJS (`'cjs'`, the default) or ES Modules (`'esm'`). ESM enables top-level `await`, but some npm packages don't support ESM and error stack traces may be less readable. Stick with `'cjs'` unless you specifically need ESM features.
+The `outputModuleFormat` property controls whether the bundle output is CommonJS (`'cjs'`) or ES Modules (`'esm'`). Node.js 24 and later use ESM output; with earlier Node.js versions the default is CommonJS. ESM enables top-level `await`, but some npm packages don't support it and error stack traces may be less readable.
 
 ### Node.js version
 
-Set `nodeVersion` to choose the Node.js major version used in the container. Supported values: `16`, `17`, `18`, `19`, `20`, `21`, `22`, `23`, `24`. The default is `18`. For new projects, choose a currently supported Node.js LTS version that your application and dependencies support.
+Set `nodeVersion` to choose the Node.js major version used in the container. Supported values: `16`, `17`, `18`, `19`, `20`, `21`, `22`, `23`, `24`. The default is `24`. Choose a version your application and dependencies support.
 
 ### TypeScript decorator metadata
 
@@ -170,7 +170,7 @@ The `entryfilePath` must use the `module/file.py:app` format when `runAppAs` is 
 
 ### Python version
 
-Supported Python versions: `2.7`, `3.6`, `3.7`, `3.8`, `3.9`, `3.11`, `3.12`, `3.13`, `3.14`. The default is `3.9`. For new projects, pick a currently supported Python version that your framework and dependencies support.
+Supported Python versions: `2.7`, `3.6`, `3.7`, `3.8`, `3.9`, `3.11`, `3.12`, `3.13`, `3.14`. The default is `3.12`. For new projects, pick a currently supported Python version that your framework and dependencies support.
 
 ### Dependency management
 
@@ -388,48 +388,18 @@ You can't — this is the buildpack's main limitation. `StacktapeImageBuildpackP
 ## API reference
 
 
-## API Reference: `StpBuildpackCwImagePackagingProps`
+### Definition: `StpBuildpackCwImagePackagingProps`
+
 Configures an image to be built automatically by Stacktape from your source code.
 
-```typescript
-import type { DotnetLanguageSpecificConfig, EsLanguageSpecificConfig, GoLanguageSpecificConfig, JavaLanguageSpecificConfig, PhpLanguageSpecificConfig, PyLanguageSpecificConfig, RubyLanguageSpecificConfig } from 'stacktape';
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/deployment-artifacts` with definition name `StpBuildpackCwImagePackagingProps`.
 
-type StpBuildpackCwImagePackagingProps = {
-  /** Path to your app&#39;s entry point, relative to the Stacktape config file. */
-  entryfilePath: string;
-  /** A list of commands to be executed during the docker build process. */
-  customDockerBuildCommands?: Array<string>;
-  /** A list of dependencies to exclude from the deployment package. */
-  excludeDependencies?: Array<string>;
-  /** A glob pattern of files to explicitly exclude from the deployment package. */
-  excludeFiles?: Array<string>;
-  /** A glob pattern of files to explicitly include in the deployment package. */
-  includeFiles?: Array<string>;
-  /** Language-specific packaging configuration. */
-  languageSpecificConfig?: StpBuildpackCwImagePackagingLanguageSpecificConfig;
-  /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */
-  requiresGlibcBinaries?: boolean;
-};
-
-/** Union choices used by the properties above. */
-type StpBuildpackCwImagePackagingLanguageSpecificConfig =
-  | EsLanguageSpecificConfig
-  | PyLanguageSpecificConfig
-  | JavaLanguageSpecificConfig
-  | PhpLanguageSpecificConfig
-  | DotnetLanguageSpecificConfig
-  | GoLanguageSpecificConfig
-  | RubyLanguageSpecificConfig;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `entryfilePath` | yes | `string` | Path to your app&#39;s entry point, relative to the Stacktape config file. For JS/TS: code is bundled into a single file. Dependencies with native binaries are installed separately.
-For Python: use `module/file.py:app` format when using `runAppAs` (WSGI/ASGI). | - |
-| `customDockerBuildCommands` | no | `Array<string>` | A list of commands to be executed during the `docker build` process. These commands are executed using the `RUN` directive in the Dockerfile.
-This is useful for installing additional system dependencies in your container. | - |
-| `excludeDependencies` | no | `Array<string>` | A list of dependencies to exclude from the deployment package. | - |
-| `excludeFiles` | no | `Array<string>` | A glob pattern of files to explicitly exclude from the deployment package. | - |
-| `includeFiles` | no | `Array<string>` | A glob pattern of files to explicitly include in the deployment package. The path is relative to your Stacktape configuration file. | - |
-| `languageSpecificConfig` | no | `Es \| Py \| Java \| Php \| Dotnet \| Go \| Ruby` | Language-specific packaging configuration. | - |
-| `requiresGlibcBinaries` | no | `boolean` | Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. Results in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `entryfilePath` | yes | `string` | - |
+| `customDockerBuildCommands` | no | `Array<string>` | - |
+| `excludeDependencies` | no | `Array<string>` | - |
+| `excludeFiles` | no | `Array<string>` | - |
+| `includeFiles` | no | `Array<string>` | - |
+| `languageSpecificConfig` | no | `Es \| Py \| Java \| Php \| Dotnet \| Go \| Ruby` | - |
+| `requiresGlibcBinaries` | no | `boolean` | - |

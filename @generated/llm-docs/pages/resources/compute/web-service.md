@@ -512,130 +512,33 @@ Yes, but the attachment path matters. Top-level `useFirewall` attaches a regiona
 ## API Reference
 
 
-## API Reference: `WebServiceProps`
-```typescript
-import type { ApplicationLoadBalancerAlarm, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, ExternalBuildpackCwImagePackaging, HttpApiCorsConfig, HttpApiGatewayAlarm, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';
+### Definition: `WebServiceProps`
 
-type WebServiceProps = {
-  /** Configures the container image for the service. */
-  packaging: WebServicePackaging;
-  /** CPU, memory, and compute engine for the container. */
-  resources: ContainerWorkloadResourcesConfig;
-  /** Alarms for this service (merged with global alarms from the Stacktape Console). */
-  alarms?: Array<WebServiceAlarms>;
-  /** Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. */
-  cdn?: CdnConfiguration;
-  /** Give this resource access to other resources in your stack. */
-  connectTo?: Array<string>;
-  /** CORS settings. Overrides any CORS headers from your application. */
-  cors?: HttpApiCorsConfig;
-  /** Custom domains (e.g., api.example.com). Stacktape auto-creates DNS records and TLS certificates. */
-  customDomains?: Array<DomainConfiguration>;
-  /** Gradual traffic shifting for safe deployments (canary, linear, or all-at-once). */
-  deployment?: ContainerWorkloadDeploymentConfig;
-  /** Global alarm names to exclude from this service. */
-  disabledGlobalAlarms?: Array<string>;
-  /** Allow SSH-like access to running containers for debugging. */
-  enableRemoteSessions?: boolean;
-  /** Environment variables injected into the container at runtime. */
-  environment?: Array<EnvironmentVar>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Health check that auto-replaces unhealthy containers. */
-  internalHealthCheck?: ContainerHealthCheck;
-  /** How traffic reaches your containers. Affects pricing, features, and protocol support. */
-  loadBalancing?: WebServiceLoadBalancing;
-  /** Logging configuration. */
-  logging?: ContainerWorkloadContainerLogging;
-  /** Auto-scaling: add/remove container instances based on demand. */
-  scaling?: ContainerWorkloadScaling;
-  /** Helper containers that run alongside the main container. */
-  sideContainers?: Array<ServiceHelperContainer>;
-  /** Seconds to wait for graceful shutdown before force-killing the container. */
-  stopTimeout?: number;
-  /** Name of a web-app-firewall resource to protect this service from common web exploits. */
-  useFirewall?: string;
-  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */
-  usePrivateSubnetsWithNAT?: boolean;
-  /** Persistent EFS volumes shared across containers and restarts. */
-  volumeMounts?: Array<ContainerEfsMount>;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/web-service` with definition name `WebServiceProps`.
 
-/** Union choices used by the properties above. */
-type WebServicePackaging =
-  | StpBuildpackCwImagePackaging
-  | ExternalBuildpackCwImagePackaging
-  | PrebuiltCwImagePackaging
-  | CustomDockerfileCwImagePackaging
-  | NixpacksCwImagePackaging;
-
-type WebServiceAlarms =
-  | ApplicationLoadBalancerAlarm
-  | HttpApiGatewayAlarm;
-
-type WebServiceLoadBalancing =
-  | WebServiceHttpApiGatewayLoadBalancing
-  | WebServiceAlbLoadBalancing
-  | WebServiceNlbLoadBalancing;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-image-buildpack \| external-buildpack \| prebuilt-image \| custom-dockerfile \| nixpacks` | Configures the container image for the service. | - |
-| `resources` | yes | `ContainerWorkloadResourcesConfig` | CPU, memory, and compute engine for the container. Two compute engines:
-
-**Fargate** (default): Serverless — just specify `cpu` and `memory`.
-**EC2**: Specify `instanceTypes` for more control and potentially lower cost. | - |
-| `alarms` | no | `Array<ApplicationLoadBalancerAlarm \| HttpApiGatewayAlarm>` | Alarms for this service (merged with global alarms from the Stacktape Console). | - |
-| `cdn` | no | `CdnConfiguration` | Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. | - |
-| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
-
-**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
-**Opens network access** (security group rules for databases, Redis)
-**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
-
-Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
-resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
-| `cors` | no | `HttpApiCorsConfig` | CORS settings. Overrides any CORS headers from your application. Only works with `http-api-gateway` load balancing (the default). | - |
-| `customDomains` | no | `Array<DomainConfiguration>` | Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. Your domain must be added as a Route53 hosted zone in your AWS account first. | - |
-| `deployment` | no | `ContainerWorkloadDeploymentConfig` | Gradual traffic shifting for safe deployments (canary, linear, or all-at-once). Requires `loadBalancing` type `application-load-balancer`. | - |
-| `disabledGlobalAlarms` | no | `Array<string>` | Global alarm names to exclude from this service. | - |
-| `enableRemoteSessions` | no | `boolean` | Allow SSH-like access to running containers for debugging. Enables `stacktape container:session` to open an interactive shell inside the container.
-Adds a small SSM agent that uses minimal CPU/memory. | `false` |
-| `environment` | no | `Array<EnvironmentVar>` | Environment variables injected into the container at runtime. Use for configuration like API keys, feature flags, or secrets.
-Variables from `connectTo` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`) are added automatically. | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
-accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
-| `internalHealthCheck` | no | `ContainerHealthCheck` | Health check that auto-replaces unhealthy containers. If a container fails the health check, it&#39;s terminated and replaced automatically. | - |
-| `loadBalancing` | no | `http-api-gateway \| application-load-balancer \| network-load-balancer` | How traffic reaches your containers. Affects pricing, features, and protocol support. **`http-api-gateway`** (default): Pay-per-request (~$1/million requests). Best for most apps.
-Cheapest at low traffic, but costs grow with volume.
-
-**`application-load-balancer`**: Flat ~$18/month + usage. Required for gradual deployments
-(`deployment`), top-level firewalls (`useFirewall`), and WebSocket support.
-More cost-effective above ~500k requests/day. AWS Free Tier eligible.
-
-**`network-load-balancer`**: For non-HTTP traffic (TCP/TLS) like MQTT, game servers, or custom protocols.
-Requires explicit `ports` configuration. Does not support CDN, top-level firewall, or gradual deployments. | - |
-| `logging` | no | `ContainerWorkloadContainerLogging` | Logging configuration. Container output (`stdout`/`stderr`) is automatically sent to CloudWatch and retained for 90 days.
-View logs with `stacktape logs` or in the Stacktape Console. | - |
-| `scaling` | no | `ContainerWorkloadScaling` | Auto-scaling: add/remove container instances based on demand. Traffic is automatically distributed across all running containers. | - |
-| `sideContainers` | no | `Array<ServiceHelperContainer>` | Helper containers that run alongside the main container. **`run-on-init`**: Runs to completion before the main container starts (e.g., database migrations).
-**`always-running`**: Runs for the entire lifecycle (e.g., log forwarders, monitoring agents).
-Can reach the main container via `localhost`. | - |
-| `stopTimeout` | no | `number` | Seconds to wait for graceful shutdown before force-killing the container. The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120. | `2` |
-| `useFirewall` | no | `string` | Name of a `web-app-firewall` resource to protect this service from common web exploits. Attaches a regional firewall directly to the service&#39;s application load balancer.
-Requires `loadBalancing` type `application-load-balancer`.
-
-To protect a CDN-enabled service at CloudFront instead, use `cdn.useFirewall`
-with a `web-app-firewall` resource whose `scope` is `cdn`. | - |
-| `usePrivateSubnetsWithNAT` | no | `boolean` | Deploy in private subnets with a static outbound IP via NAT Gateway. The container won&#39;t have a public IP. All outbound traffic routes through a NAT Gateway,
-giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
-
-Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
-
-**Adds cost:** NAT Gateway ~$32/month + data processing fees. | `false` |
-| `volumeMounts` | no | `Array<ContainerEfsMount>` | Persistent EFS volumes shared across containers and restarts. Data stored in EFS volumes persists even when containers are replaced.
-Multiple containers can mount the same volume. All data is encrypted in transit. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `packaging` | yes | `stacktape-image-buildpack \| external-buildpack \| prebuilt-image \| custom-dockerfile \| nixpacks` | - |
+| `resources` | yes | `ContainerWorkloadResourcesConfig` | - |
+| `alarms` | no | `Array<ApplicationLoadBalancerAlarm \| HttpApiGatewayAlarm>` | - |
+| `cdn` | no | `CdnConfiguration` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `cors` | no | `HttpApiCorsConfig` | - |
+| `customDomains` | no | `Array<DomainConfiguration>` | - |
+| `deployment` | no | `ContainerWorkloadDeploymentConfig` | - |
+| `disabledGlobalAlarms` | no | `Array<string>` | - |
+| `enableRemoteSessions` | no | `boolean` | `false` |
+| `environment` | no | `Array<EnvironmentVar>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `internalHealthCheck` | no | `ContainerHealthCheck` | - |
+| `loadBalancing` | no | `http-api-gateway \| application-load-balancer \| network-load-balancer` | - |
+| `logging` | no | `ContainerWorkloadContainerLogging` | - |
+| `scaling` | no | `ContainerWorkloadScaling` | - |
+| `sideContainers` | no | `Array<ServiceHelperContainer>` | - |
+| `stopTimeout` | no | `number` | `2` |
+| `useFirewall` | no | `string` | - |
+| `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |
+| `volumeMounts` | no | `Array<ContainerEfsMount>` | - |
 
 
 ## Referenceable parameters
@@ -648,11 +551,9 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `domain` | Web service default domain name | `$ResourceParam("<<resource-name>>", "domain")` |
 | `url` | Web service default URL | `$ResourceParam("<<resource-name>>", "url")` |
-| `customDomains` | Comma-separated list of custom domain names assigned to the Web Service (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
-| `customDomainUrls` | Comma-separated list of custom domain name URLs (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
-| `cdnDomain` | Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
-| `cdnUrl` | Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
-| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+| `customDomains` | Comma-separated list of custom domain names assigned to the Web Service (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
+| `customDomainUrls` | Comma-separated list of custom domain name URLs (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
+| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
+| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
+| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
+| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |

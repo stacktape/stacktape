@@ -333,72 +333,16 @@ View logs from schedule-triggered functions using [`stacktape logs`](/cli/logs) 
 ## API reference
 
 
-## API Reference: `ScheduleIntegrationProps`
-```typescript
-import type { EventInputTransformer } from 'stacktape';
+### Definition: `ScheduleIntegrationProps`
 
-type ScheduleIntegrationProps = {
-  /** The schedule rate or cron expression. */
-  scheduleRate: string;
-  /** A fixed JSON object to be passed as the event payload. */
-  input?: unknown;
-  /** A JSONPath expression to extract a portion of the event to pass to the target. */
-  inputPath?: string;
-  /** Customizes the event payload sent to the target. */
-  inputTransformer?: EventInputTransformer;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `ScheduleIntegrationProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `scheduleRate` | yes | `string` | The schedule rate or cron expression. Examples: `rate(2 hours)`, `cron(0 10 * * ? *)` | - |
-| `input` | no | `unknown` | A fixed JSON object to be passed as the event payload. If you need to customize the payload based on the event, use `inputTransformer` instead.
-You can only use one of `input`, `inputPath`, or `inputTransformer`.
-
-**Example (YAML):**
-
-```yaml
-resources:
-  reportFunction:
-    type: function
-    properties:
-      packaging:
-        type: stacktape-lambda-buildpack
-        properties:
-          entryfilePath: src/report.ts
-      events:
-        - type: schedule
-          properties:
-            scheduleRate: rate(1 hour)
-            input:
-              source: my-scheduled-event
-```
-
-**Example (TypeScript):**
-
-```ts
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const reportFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/report.ts' }),
-    events: [
-      {
-        type: 'schedule',
-        properties: {
-          scheduleRate: 'rate(1 hour)',
-          input: { source: 'my-scheduled-event' }
-        }
-      }
-    ]
-  });
-  return { resources: { reportFunction } };
-});
-``` | - |
-| `inputPath` | no | `string` | A JSONPath expression to extract a portion of the event to pass to the target. This is useful for forwarding only a specific part of the event payload.
-You can only use one of `input`, `inputPath`, or `inputTransformer`. | - |
-| `inputTransformer` | no | `EventInputTransformer` | Customizes the event payload sent to the target. This allows you to extract values from the original event and use them to construct a new payload.
-You can only use one of `input`, `inputPath`, or `inputTransformer`. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `scheduleRate` | yes | `string` | - |
+| `input` | no | `unknown` | - |
+| `inputPath` | no | `string` | - |
+| `inputTransformer` | no | `EventInputTransformer` | - |
 
 
 ## FAQ

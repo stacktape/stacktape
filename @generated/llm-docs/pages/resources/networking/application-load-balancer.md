@@ -364,57 +364,29 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | Parameter | Description | Usage |
 | --- | --- | --- |
 | `domain` | default domain name of load balancer | `$ResourceParam("<<resource-name>>", "domain")` |
-| `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](#custom-domain-names)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
-| `cdnDomain` | Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
-| `cdnUrl` | Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
-| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](#cdn)
-(only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+| `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
+| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
+| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
+| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
+| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
 
 
 ## API Reference
 
 
-## API Reference: `ApplicationLoadBalancerProps`
-```typescript
-import type { ApplicationLoadBalancerAlarm, ApplicationLoadBalancerCdnConfiguration, ApplicationLoadBalancerListener } from 'stacktape';
+### Definition: `ApplicationLoadBalancerProps`
 
-type ApplicationLoadBalancerProps = {
-  /** Alarms for this load balancer (merged with global alarms from the Stacktape Console). */
-  alarms?: Array<ApplicationLoadBalancerAlarm>;
-  /** Put a CDN (CloudFront) in front of this load balancer for caching and lower latency worldwide. */
-  cdn?: ApplicationLoadBalancerCdnConfiguration;
-  /** Custom domains. */
-  customDomains?: ApplicationLoadBalancerCustomDomains;
-  /** Global alarm names to exclude from this load balancer. */
-  disabledGlobalAlarms?: Array<string>;
-  /** internet (public) or internal (VPC-only). Internal ALBs are not reachable from the internet. */
-  interface?: "internal" | "internet";
-  /** Custom listeners (port + protocol). Defaults to HTTPS on 443 + HTTP on 80 (redirecting to HTTPS). */
-  listeners?: Array<ApplicationLoadBalancerListener>;
-  /** Name of a web-app-firewall resource to protect this load balancer from common web exploits. */
-  useFirewall?: string;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/application-load-balancer` with definition name `ApplicationLoadBalancerProps`.
 
-/** Union choices used by the properties above. */
-type ApplicationLoadBalancerCustomDomains =
-  | "option-1"
-  | "option-2";
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `alarms` | no | `Array<ApplicationLoadBalancerAlarm>` | Alarms for this load balancer (merged with global alarms from the Stacktape Console). | - |
-| `cdn` | no | `ApplicationLoadBalancerCdnConfiguration` | Put a CDN (CloudFront) in front of this load balancer for caching and lower latency worldwide. | - |
-| `customDomains` | no | `option-1 \| option-2` | Custom domains. By default, Stacktape creates DNS records and TLS certificates for each domain.
-If you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`.
-
-Backward compatible format `string[]` is still supported. | - |
-| `disabledGlobalAlarms` | no | `Array<string>` | Global alarm names to exclude from this load balancer. | - |
-| `interface` | no | `string: "internal" \| "internet"` | `internet` (public) or `internal` (VPC-only). Internal ALBs are not reachable from the internet. | `internet` |
-| `listeners` | no | `Array<ApplicationLoadBalancerListener>` | Custom listeners (port + protocol). Defaults to HTTPS on 443 + HTTP on 80 (redirecting to HTTPS). | - |
-| `useFirewall` | no | `string` | Name of a `web-app-firewall` resource to protect this load balancer from common web exploits. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `alarms` | no | `Array<ApplicationLoadBalancerAlarm>` | - |
+| `cdn` | no | `ApplicationLoadBalancerCdnConfiguration` | - |
+| `customDomains` | no | `option-1 \| option-2` | - |
+| `disabledGlobalAlarms` | no | `Array<string>` | - |
+| `interface` | no | `string: "internal" \| "internet"` | `internet` |
+| `listeners` | no | `Array<ApplicationLoadBalancerListener>` | - |
+| `useFirewall` | no | `string` | - |
 
 
 ## FAQ

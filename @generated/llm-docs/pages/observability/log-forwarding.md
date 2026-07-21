@@ -257,62 +257,10 @@ The `logForwarding` property accepts `http-endpoint`, `highlight`, or `datadog` 
 ## API reference
 
 
-## API Reference: `LogForwardingBase`
+### Definition: `LogForwardingBase`
 
-Source: `types/stacktape-config/log-forwarding.d.ts`
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/log-forwarding` with definition name `LogForwardingBase`.
 
-```typescript
-interface LogForwardingBase {
-  /**
-   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).
-   *
-   * ---
-   *
-   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.
-   *
-   * **Example (YAML):**
-   *
-   * ```yaml
-   * resources:
-   *   apiFunction:
-   *     type: function
-   *     properties:
-   *       packaging:
-   *         type: stacktape-lambda-buildpack
-   *         properties:
-   *           entryfilePath: src/api.ts
-   *       memory: 512
-   *       timeout: 10
-   *       logging:
-   *         retentionDays: 90
-   *         logForwarding:
-   *           type: datadog
-   *           properties:
-   *             apiKey: $Secret('datadog.apiKey')
-   * ```
-   *
-   * **Example (TypeScript):**
-   *
-   * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
-   *
-   * export default defineConfig(() => {
-   *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
-   *     memory: 512,
-   *     timeout: 10,
-   *     logging: {
-   *       retentionDays: 90,
-   *       logForwarding: {
-   *         type: 'datadog',
-   *         properties: { apiKey: $Secret('datadog.apiKey') }
-   *       }
-   *     }
-   *   });
-   *   return { resources: { apiFunction } };
-   * });
-   * ```
-   */
-  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;
-}
-```
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `logForwarding` | no | `http-endpoint \| highlight \| datadog` | - |

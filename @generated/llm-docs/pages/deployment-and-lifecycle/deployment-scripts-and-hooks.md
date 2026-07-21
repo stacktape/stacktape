@@ -628,59 +628,20 @@ Set `joinDefaultVpc: true` on the deployment script. This connects the Lambda fu
 The full property reference for the `DeploymentScript` resource. For script and hook entry properties (`LocalScript`, `BastionScript`, `LocalScriptWithBastionTunneling`, hook entries), see [hooks and scripts configuration](/configuration/hooks-and-scripts).
 
 
-## API Reference: `DeploymentScriptProps`
-```typescript
-import type { CustomArtifactLambdaPackaging, EnvironmentVar, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
+### Definition: `DeploymentScriptProps`
 
-type DeploymentScriptProps = {
-  /** How the script code is packaged. Use stacktape-lambda-buildpack for auto-bundling. */
-  packaging: DeploymentScriptPackaging;
-  /** When to run: after:deploy (fails → rollback) or before:delete (fails → deletion continues). */
-  trigger: "after:deploy" | "before:delete";
-  /** Give this resource access to other resources in your stack. */
-  connectTo?: Array<string>;
-  /** Environment variables injected at runtime. Use $ResourceParam() or $Secret() for dynamic values. */
-  environment?: Array<EnvironmentVar>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
-  iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Connect to VPC resources (databases, Redis). Warning: function loses direct internet access. */
-  joinDefaultVpc?: boolean;
-  /** Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. */
-  memory?: number;
-  /** Structured data passed to the handler function as the event payload. Not for secrets — use environment. */
-  parameters?: unknown;
-  /** Lambda runtime. Auto-detected from file extension if not specified. */
-  runtime?: "dotnet6" | "dotnet7" | "dotnet8" | "java11" | "java17" | "java8" | "java8.al2" | "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "provided.al2" | "provided.al2023" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.8" | "python3.9" | "ruby3.3";
-  /** Ephemeral /tmp storage in MB (512–10,240). */
-  storage?: number;
-  /** Max execution time in seconds. Max: 900 (15 minutes). */
-  timeout?: number;
-};
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/deployment-script` with definition name `DeploymentScriptProps`.
 
-/** Union choices used by the properties above. */
-type DeploymentScriptPackaging =
-  | StpBuildpackLambdaPackaging
-  | CustomArtifactLambdaPackaging;
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | How the script code is packaged. Use `stacktape-lambda-buildpack` for auto-bundling. | - |
-| `trigger` | yes | `string: "after:deploy" \| "before:delete"` | When to run: `after:deploy` (fails → rollback) or `before:delete` (fails → deletion continues). | - |
-| `connectTo` | no | `Array<string>` | Give this resource access to other resources in your stack. List the names of resources this workload needs to communicate with. Stacktape automatically:
-
-**Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
-**Opens network access** (security group rules for databases, Redis)
-**Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
-
-Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
-resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc. | - |
-| `environment` | no | `Array<EnvironmentVar>` | Environment variables injected at runtime. Use `$ResourceParam()` or `$Secret()` for dynamic values. | - |
-| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | Raw IAM policy statements for permissions not covered by `connectTo`. Added as a separate policy alongside auto-generated permissions. Use this for
-accessing AWS services directly (e.g., Rekognition, Textract, Bedrock). | - |
-| `joinDefaultVpc` | no | `boolean` | Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access. | - |
-| `memory` | no | `number` | Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. | - |
-| `parameters` | no | `unknown` | Structured data passed to the handler function as the event payload. Not for secrets — use `environment`. | - |
-| `runtime` | no | `string: "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.8" \| "python3.9" \| "ruby3.3"` | Lambda runtime. Auto-detected from file extension if not specified. | - |
-| `storage` | no | `number` | Ephemeral `/tmp` storage in MB (512–10,240). | `512` |
-| `timeout` | no | `number` | Max execution time in seconds. Max: 900 (15 minutes). | `10` |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | - |
+| `trigger` | yes | `string: "after:deploy" \| "before:delete"` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `environment` | no | `Array<EnvironmentVar>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `joinDefaultVpc` | no | `boolean` | - |
+| `memory` | no | `number` | - |
+| `parameters` | no | `unknown` | - |
+| `runtime` | no | `string: "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.8" \| "python3.9" \| "ruby3.3"` | - |
+| `storage` | no | `number` | `512` |
+| `timeout` | no | `number` | `10` |

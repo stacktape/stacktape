@@ -357,32 +357,16 @@ Yes. Set the `command` property to override the Dockerfile's `CMD` and `entryPoi
 The API reference below covers the container workload variant (`CustomDockerfileCwImagePackagingProps`), used by [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload). The batch job variant (`CustomDockerfileBjImagePackagingProps`) shares the same properties — `buildContextPath`, `dockerfilePath`, `buildArgs`, and `command` — but does not include `entryPoint`.
 
 
-## API Reference: `CustomDockerfileCwImagePackagingProps`
+### Definition: `CustomDockerfileCwImagePackagingProps`
+
 Configures an image to be built by Stacktape from a specified Dockerfile.
 
-```typescript
-import type { DockerBuildArg } from 'stacktape';
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/deployment-artifacts` with definition name `CustomDockerfileCwImagePackagingProps`.
 
-type CustomDockerfileCwImagePackagingProps = {
-  /** The path to the build context directory, relative to your Stacktape configuration file. */
-  buildContextPath: string;
-  /** A list of arguments to pass to the docker build command. */
-  buildArgs?: Array<DockerBuildArg>;
-  /** A command to be executed when the container starts. */
-  command?: Array<string>;
-  /** The path to the Dockerfile, relative to buildContextPath. */
-  dockerfilePath?: string;
-  /** A script to be executed when the container starts. */
-  entryPoint?: Array<string>;
-};
-```
-
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `buildContextPath` | yes | `string` | The path to the build context directory, relative to your Stacktape configuration file. | - |
-| `buildArgs` | no | `Array<DockerBuildArg>` | A list of arguments to pass to the `docker build` command. | - |
-| `command` | no | `Array<string>` | A command to be executed when the container starts. This overrides the `CMD` instruction in the Dockerfile.
-
-Example: `['/app/start.sh']` | - |
-| `dockerfilePath` | no | `string` | The path to the Dockerfile, relative to `buildContextPath`. | - |
-| `entryPoint` | no | `Array<string>` | A script to be executed when the container starts. This overrides the `ENTRYPOINT` instruction in the Dockerfile. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `buildContextPath` | yes | `string` | - |
+| `buildArgs` | no | `Array<DockerBuildArg>` | - |
+| `command` | no | `Array<string>` | - |
+| `dockerfilePath` | no | `string` | - |
+| `entryPoint` | no | `Array<string>` | - |

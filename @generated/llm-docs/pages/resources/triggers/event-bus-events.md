@@ -340,93 +340,20 @@ The `onDeliveryFailure` property specifies an SQS queue where failed events are 
 ## API reference
 
 
-## API Reference: `EventBusIntegrationProps`
-```typescript
-import type { EventBusIntegrationPattern, EventBusOnDeliveryFailure, EventInputTransformer } from 'stacktape';
+### Definition: `EventBusIntegrationProps`
 
-type EventBusIntegrationProps = {
-  /** A pattern to filter events from the event bus. */
-  eventPattern: EventBusIntegrationPattern;
-  /** The ARN of an existing event bus. */
-  eventBusArn?: string;
-  /** The name of an event bus defined in your stack&#39;s resources. */
-  eventBusName?: string;
-  /** A fixed JSON object to be passed as the event payload. */
-  input?: unknown;
-  /** A JSONPath expression to extract a portion of the event to pass to the target. */
-  inputPath?: string;
-  /** Customizes the event payload sent to the target. */
-  inputTransformer?: EventInputTransformer;
-  /** A destination for events that fail to be delivered to the target. */
-  onDeliveryFailure?: EventBusOnDeliveryFailure;
-  /** Uses the default AWS event bus. */
-  useDefaultBus?: boolean;
-};
-```
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `EventBusIntegrationProps`.
 
-| Property | Required | Type | Description | Default |
-| --- | --- | --- | --- | --- |
-| `eventPattern` | yes | `EventBusIntegrationPattern` | A pattern to filter events from the event bus. Only events that match this pattern will trigger the target.
-For details on the syntax, see the [AWS EventBridge documentation on event patterns](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html). | - |
-| `eventBusArn` | no | `string` | The ARN of an existing event bus. Use this to subscribe to an event bus that is not managed by your stack.
-You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`. | - |
-| `eventBusName` | no | `string` | The name of an event bus defined in your stack&#39;s resources. You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`. | - |
-| `input` | no | `unknown` | A fixed JSON object to be passed as the event payload. If you need to customize the payload based on the event, use `inputTransformer` instead.
-You can only use one of `input`, `inputPath`, or `inputTransformer`.
-
-**Example (YAML):**
-
-```yaml
-resources:
-  orderEvents:
-    type: event-bus
-  orderProcessor:
-    type: function
-    properties:
-      packaging:
-        type: stacktape-lambda-buildpack
-        properties:
-          entryfilePath: src/process-order.ts
-      events:
-        - type: event-bus
-          properties:
-            eventBusName: orderEvents
-            eventPattern:
-              source:
-                - my.orders
-            input:
-              source: my-custom-event
-```
-
-**Example (TypeScript):**
-
-```ts
-import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const orderEvents = new EventBus({});
-  const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
-    events: [
-      {
-        type: 'event-bus',
-        properties: {
-          eventBusName: 'orderEvents',
-          eventPattern: { source: ['my.orders'] },
-          input: { source: 'my-custom-event' }
-        }
-      }
-    ]
-  });
-  return { resources: { orderEvents, orderProcessor } };
-});
-``` | - |
-| `inputPath` | no | `string` | A JSONPath expression to extract a portion of the event to pass to the target. This is useful for forwarding only a specific part of the event payload.
-You can only use one of `input`, `inputPath`, or `inputTransformer`. | - |
-| `inputTransformer` | no | `EventInputTransformer` | Customizes the event payload sent to the target. This allows you to extract values from the original event and use them to construct a new payload.
-You can only use one of `input`, `inputPath`, or `inputTransformer`. | - |
-| `onDeliveryFailure` | no | `EventBusOnDeliveryFailure` | A destination for events that fail to be delivered to the target. In rare cases, an event might fail to be delivered. This property specifies an SQS queue where failed events will be sent. | - |
-| `useDefaultBus` | no | `boolean` | Uses the default AWS event bus. You must specify only one of `eventBusArn`, `eventBusName`, or `useDefaultBus`. | - |
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `eventPattern` | yes | `EventBusIntegrationPattern` | - |
+| `eventBusArn` | no | `string` | - |
+| `eventBusName` | no | `string` | - |
+| `input` | no | `unknown` | - |
+| `inputPath` | no | `string` | - |
+| `inputTransformer` | no | `EventInputTransformer` | - |
+| `onDeliveryFailure` | no | `EventBusOnDeliveryFailure` | - |
+| `useDefaultBus` | no | `boolean` | - |
 
 
 ## FAQ

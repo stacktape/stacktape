@@ -1,6 +1,11 @@
-[Get started](/getting-started/configure-your-stack/)
-    [Star on GitHub](https://github.com/stacktape/stacktape)
-    [Browse examples](/getting-started/starter-projects/)
+# From scratch to production-grade AWS infra in a day. No DevOps knowledge required.
+
+Stacktape gives you the speed of a PaaS with the control and cost structure of raw AWS. Define your infrastructure in TypeScript, deploy it with one command, and own every byte — it all runs in the AWS account you control.
+
+
+- [Get started](/getting-started/configure-your-stack/)
+- [Star on GitHub](https://github.com/stacktape/stacktape)
+- [Browse examples](/getting-started/starter-projects/)
 
 
 Stacktape is open source. Browse the source at https://github.com/stacktape/stacktape.
@@ -350,5 +355,9 @@ See current pricing at https://stacktape.com/pricing.
 ## Loved by teams shipping on AWS
 
 
-  [Get started](/getting-started/configure-your-stack/)
-  [Browse examples](/getting-started/starter-projects/)
+## Ready to simplify your AWS deployments?
+
+From scratch to production-grade AWS infra in a day — no DevOps knowledge required.
+
+- [Get started](/getting-started/configure-your-stack/)
+- [Browse examples](/getting-started/starter-projects/)

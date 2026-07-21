@@ -10,21 +10,13 @@ stacktape mcp
 
 You typically do not run this command directly. Instead, configure your AI coding agent to spawn it as an MCP server. The [`mcp:add`](/cli/mcp-add) command automates this setup for supported clients.
 
-<CliCommandsApiReference
-  command="mcp"
-  sortedArgs={[
-    {
-      name: 'logLevel',
-      required: false,
-      alias: 'll',
-      allowedTypes: ['string'],
-      allowedValues: ['info', 'debug', 'error'],
-      shortDescription: '<p> Log Level</p>\n',
-      longDescription:
-        '<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n'
-    }
-  ]}
-/>
+
+## CLI Options: `stacktape mcp`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console. `info`: Basic information about the operation. `error`: Only errors. `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+
 
 ## What the server provides
 
@@ -39,7 +31,7 @@ The MCP server exposes four focused tools that AI agents use to search docs, ins
 
 ## How it works
 
-When an MCP-compatible client starts the server, Stacktape builds a lexical search index from its generated documentation, then listens for tool calls over stdio using the MCP protocol. Infrastructure operations and diagnostics (`stacktape_cli`) execute Stacktape CLI commands with validation and safety gates. Documentation queries (`stacktape_docs`) search the local lexical index. Project scanning (`stacktape_project`) reads local config files and package scripts. Dev-mode follow-up operations like status checks, log reading, rebuilds, and stop (`stacktape_dev`) communicate with the dev agent API started by [`stacktape dev`](/cli/dev).
+When an MCP-compatible client starts the server, Stacktape registers the four tools and begins listening over stdio immediately, then initializes its bundled documentation index asynchronously. Infrastructure operations and diagnostics (`stacktape_cli`) execute Stacktape CLI commands with validation and safety gates. Documentation queries (`stacktape_docs`) search the local lexical index. Project scanning (`stacktape_project`) reads local config files and package scripts. Dev-mode follow-up operations like status checks, log reading, rebuilds, and stop (`stacktape_dev`) communicate with the dev agent API started by [`stacktape dev`](/cli/dev).
 
 `stacktape mcp` itself does not require an API key. Operations that run Stacktape CLI commands requiring account access — such as deploy, delete, diagnostics, and starting dev mode — need credentials configured with [`stacktape login`](/cli/login).
 
