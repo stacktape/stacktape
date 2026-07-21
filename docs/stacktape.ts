@@ -1,10 +1,10 @@
-import { Bucket, defineConfig, LocalScript } from '../__release-npm';
+import { Bucket, defineConfig, LocalScript } from 'stacktape';
 
 export default defineConfig(({ stage }) => {
   const webBucket = new Bucket({
     directoryUpload: {
       directoryPath: 'out',
-      headersPreset: 'static-website'
+      headersPreset: 'astro-static-website'
     },
     cdn: {
       enabled: true,

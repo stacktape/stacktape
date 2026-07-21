@@ -20,6 +20,7 @@
     "build:dist": "bun scripts/build-dist-package.ts",
     "build:npm": "bun --max_old_space_size=32768 scripts/build-npm.ts",
     "build:npm:main": "bun --max_old_space_size=32768 scripts/build-npm-main-export.ts",
+    "deploy:docs": "bun run --cwd docs deploy",
     "gen:schema": "bun scripts/generate-schemas.ts",
     "gen:cloudform": "bun scripts/generate-cloudform.ts",
     "gen:sp:metadata": "bun scripts/generate-starter-projects-metadata.ts",
