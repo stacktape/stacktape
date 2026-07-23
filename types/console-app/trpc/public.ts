@@ -101,6 +101,8 @@ export type SubmitFilesResponse = {
 
 export type ExchangeTokenForApiKeyInput = {
   idToken: string;
+  organizationId?: string;
+  listOrganizationsOnly?: boolean;
 };
 
 export type ExchangeTokenForApiKeyResponse = {
@@ -114,6 +116,10 @@ export type ExchangeTokenForApiKeyResponse = {
     userId: string;
     organizationId: string;
     organizationName: string;
+  }[];
+  organizations?: {
+    id: string;
+    name: string;
   }[];
   error?: string;
 };

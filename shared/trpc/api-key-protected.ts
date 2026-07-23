@@ -7,6 +7,8 @@ import type {
   ConfigureEc2RunnerFromCliResponse,
   CreateAwsConnectionPendingInput,
   CreateAwsConnectionPendingResponse,
+  CreateDeploymentTokenFromCliParams,
+  CreateDeploymentTokenFromCliResponse,
   CreateGitDeploymentConfigFromCliInput,
   CreateGitDeploymentConfigFromCliResponse,
   CreateOrganizationParams,
@@ -59,6 +61,8 @@ export type {
   ConfigureEc2RunnerFromCliResponse,
   CreateAwsConnectionPendingInput,
   CreateAwsConnectionPendingResponse,
+  CreateDeploymentTokenFromCliParams,
+  CreateDeploymentTokenFromCliResponse,
   CreateGitDeploymentConfigFromCliInput,
   CreateGitDeploymentConfigFromCliResponse,
   CreateOrganizationParams,
@@ -152,6 +156,12 @@ export class ApiKeyProtectedClient {
     args: ConfigureEc2RunnerFromCliParams
   ): Promise<ConfigureEc2RunnerFromCliResponse> => {
     return this.#ensureInitialized().configureEc2RunnerFromCli.mutate(args);
+  };
+
+  createDeploymentTokenFromCli = async (
+    args: CreateDeploymentTokenFromCliParams
+  ): Promise<CreateDeploymentTokenFromCliResponse> => {
+    return this.#ensureInitialized().createDeploymentTokenFromCli.mutate(args);
   };
 
   awsAccountCredentials = async (args: AwsAccountCredentialsParams): Promise<AwsAccountCredentialsResponse> => {

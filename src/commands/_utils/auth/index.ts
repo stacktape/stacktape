@@ -152,18 +152,40 @@ const runEmailLoginWithEmail = async (email: string): Promise<AuthResult> => {
 };
 
 const getApiKeyFromByExchangingIdToken = async (idToken: string): Promise<AuthResult> => {
-  const exchangeResult = await publicApiClient.exchangeTokenForApiKey({ idToken });
+  const organizationResult = await publicApiClient.exchangeTokenForApiKey({ idToken, listOrganizationsOnly: true });
+
+  // Compatibility with Console versions that ignore listOrganizationsOnly and
+  // return the legacy one-key-per-organization response immediately.
+  if (organizationResult.success && organizationResult.apiKeys?.length && !organizationResult.organizations?.length) {
+    const apiKey =
+      organizationResult.apiKeys.length > 1
+        ? await tuiManager.promptSelect({
+            message: 'Select the organization you want to use.',
+            options: organizationResult.apiKeys.map((key) => ({ label: key.organizationName, value: key.id }))
+          })
+        : organizationResult.apiKeys[0].id;
+    return { success: true, apiKey };
+  }
+
+  if (!organizationResult.success || !organizationResult.organizations?.length) {
+    return { success: false, error: organizationResult.error || 'Authentication failed. No organization found.' };
+  }
+
+  const organizationId =
+    organizationResult.organizations.length > 1
+      ? await tuiManager.promptSelect({
+          message: 'Select the organization you want to use.',
+          options: organizationResult.organizations.map((organization) => ({
+            label: organization.name,
+            value: organization.id
+          }))
+        })
+      : organizationResult.organizations[0].id;
+
+  const exchangeResult = await publicApiClient.exchangeTokenForApiKey({ idToken, organizationId });
 
   if (!exchangeResult.success || !exchangeResult.apiKeys[0]) {
     return { success: false, error: exchangeResult.error || 'Authentication failed. No API key found.' };
-  }
-
-  if (exchangeResult.apiKeys.length > 1) {
-    const apiKey = await tuiManager.promptSelect({
-      message: 'Select the organization you want to use.',
-      options: exchangeResult.apiKeys.map((apiKey) => ({ label: apiKey.organizationName, value: apiKey.id }))
-    });
-    return { success: true, apiKey };
   }
 
   return { success: true, apiKey: exchangeResult.apiKeys[0].id };

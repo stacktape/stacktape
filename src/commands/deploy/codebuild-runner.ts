@@ -1,4 +1,5 @@
 import type { Build } from '@aws-sdk/client-codebuild';
+import { relative, resolve } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
@@ -19,7 +20,6 @@ import {
   startCodebuildDeployment
 } from '@shared/aws/codebuild';
 import { fsPaths } from '@shared/naming/fs-paths';
-import { getPathRelativeTo } from '@shared/utils/fs-utils';
 import { serialize, wait } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CodebuildDeploymentCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
@@ -106,6 +106,13 @@ export const deployWithCodebuildRunner = async () => {
 
     // start codebuild deployment
     await eventManager.startEvent({ eventType: 'START_DEPLOYMENT', description: 'Starting codebuild deployment' });
+    const { apiKey: deploymentApiKey } = await stacktapeTrpcApiManager.apiClient.createDeploymentTokenFromCli({
+      projectName: globalStateManager.targetStack.projectName,
+      accountConnectionId: globalStateManager.targetAwsAccount.id,
+      awsAccountId,
+      invocationId: globalStateManager.invocationId,
+      templateId: globalStateManager.args.templateId
+    });
     build = await startCodebuildDeployment({
       awsSdkManager,
       awsAccountId,
@@ -116,7 +123,7 @@ export const deployWithCodebuildRunner = async () => {
       systemId: globalStateManager.systemId,
       stacktapeUserInfo: {
         id: globalStateManager.userData.id,
-        apiKey: globalStateManager.apiKey
+        apiKey: deploymentApiKey
       },
       projectZipS3Key,
       projectName: globalStateManager.targetStack.projectName,
@@ -242,7 +249,10 @@ const adjustArguments = ({ cliArguments }: { cliArguments: StacktapeArgs }) => {
   const finalArgs: StacktapeCliArgs = serialize(cliArguments);
   if (cliArguments.configPath) {
     // we need to adjust the config path, after unpacking in the codebuild job, stacktape config can have different location relative to STARTING cwd
-    finalArgs.configPath = getPathRelativeTo(globalStateManager.configPath, globalStateManager.workingDir);
+    finalArgs.configPath = relative(
+      resolve(globalStateManager.workingDir),
+      resolve(globalStateManager.configPath)
+    ).replaceAll('\\', '/');
   }
   // setting auto confirm operation to skip potential prompt
   // if we have gotten here, than we were already prompted before, so this should be fine
@@ -252,6 +262,9 @@ const adjustArguments = ({ cliArguments }: { cliArguments: StacktapeArgs }) => {
   // const dummy: string = 5;
   finalArgs.showSensitiveValues = false;
   delete finalArgs.runner;
+  // The project archive is extracted into CodeBuild's working directory. A local
+  // path here is both invalid remotely and may expose the caller's filesystem layout.
+  delete finalArgs.currentWorkingDirectory;
   finalArgs.projectName = globalStateManager.targetStack.projectName;
   finalArgs.stage = globalStateManager.targetStack.stage;
 

@@ -156,7 +156,7 @@ export type Ec2DeployStatusFromCliResponse = {
 
 export type ConfigureEc2RunnerFromCliParams = {
   projectName: string;
-  ec2RunnerInstanceType: string;
+  ec2RunnerInstanceType: 'm6a.large' | 'm6a.xlarge' | 'c7a.xlarge' | 'c7a.2xlarge' | 'c7a.4xlarge' | 'c7a.8xlarge';
 };
 
 export type ConfigureEc2RunnerFromCliResponse = {
@@ -165,6 +165,18 @@ export type ConfigureEc2RunnerFromCliResponse = {
   deploymentRunnerType?: string | null;
   ec2RunnerInstanceType?: string | null;
   [key: string]: any;
+};
+
+export type CreateDeploymentTokenFromCliParams = {
+  projectName: string;
+  accountConnectionId: string;
+  awsAccountId: string;
+  invocationId: string;
+  templateId?: string | null;
+};
+
+export type CreateDeploymentTokenFromCliResponse = {
+  apiKey: string;
 };
 
 export type AwsAccountCredentialsParams = {
@@ -461,6 +473,9 @@ export type ApiKeyTrpcClient = {
   };
   configureEc2RunnerFromCli: {
     mutate: (args: ConfigureEc2RunnerFromCliParams) => Promise<ConfigureEc2RunnerFromCliResponse>;
+  };
+  createDeploymentTokenFromCli: {
+    mutate: (args: CreateDeploymentTokenFromCliParams) => Promise<CreateDeploymentTokenFromCliResponse>;
   };
   awsAccountCredentials: {
     query: (args: AwsAccountCredentialsParams) => Promise<AwsAccountCredentialsResponse>;

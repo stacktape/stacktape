@@ -1,9 +1,10 @@
 import os from 'node:os';
-import { join } from 'node:path';
+import { copyFile, mkdtemp } from 'node:fs/promises';
+import { isAbsolute, join, resolve } from 'node:path';
 import { executeGit } from '@shared/utils/exec';
 import { getBaseName } from '@shared/utils/fs-utils';
 import execa from 'execa';
-import { remove } from 'fs-extra';
+import { pathExists, remove } from 'fs-extra';
 
 type SupportedGitVariable =
   | 'describe'
@@ -18,6 +19,37 @@ type SupportedGitVariable =
   | 'repository'
   | 'tags'
   | 'repositoryUrl';
+
+export const sanitizeGitRemoteUrl = (remoteUrl: string) => {
+  if (!remoteUrl) {
+    return remoteUrl;
+  }
+
+  const scpStyleMatch = remoteUrl.match(/^[^@/\s]+@([^:\s]+):([^?#]+)(?:[?#].*)?$/);
+  if (scpStyleMatch) {
+    return `https://${scpStyleMatch[1]}/${scpStyleMatch[2]}`;
+  }
+
+  try {
+    const parsedUrl = new URL(remoteUrl);
+    if (!parsedUrl.hostname) {
+      return remoteUrl;
+    }
+    parsedUrl.username = '';
+    parsedUrl.password = '';
+    parsedUrl.search = '';
+    parsedUrl.hash = '';
+    return parsedUrl.toString().replace(/\/$/, remoteUrl.endsWith('/') ? '/' : '');
+  } catch {
+    if (
+      /(?:^|\/\/)[^/\s@]+@/u.test(remoteUrl) ||
+      /[?&](?:access_?token|auth|key|password|secret|token)=/iu.test(remoteUrl)
+    ) {
+      return '';
+    }
+    return remoteUrl;
+  }
+};
 
 export const getGitVariable = async (variable: SupportedGitVariable) => {
   switch (variable) {
@@ -70,12 +102,9 @@ export const getGitVariable = async (variable: SupportedGitVariable) => {
     case 'repositoryUrl': {
       const { stdout } = await executeGit('config --get remote.origin.url');
       if (!stdout.startsWith('http')) {
-        return stdout
-          .replace(/:/g, '/')
-          .replace(/ssh\/\//g, '')
-          .replace(/git@/g, 'https://');
+        return sanitizeGitRemoteUrl(stdout);
       }
-      return stdout;
+      return sanitizeGitRemoteUrl(stdout);
     }
     default: {
       return null;
@@ -107,8 +136,31 @@ export const gitCreateZipArchive = async ({ directory, outputPath }: { directory
     await executeGit('commit --author="stacktape-codebuild-pipeline <>" -m "Stacktape deployment"', { cwd: directory });
     ({ stdout: commitHash } = await executeGit('rev-parse HEAD', { cwd: directory }));
   } else {
-    await executeGit('add -A', { cwd: directory });
-    ({ stdout: commitHash } = await executeGit('stash create', { cwd: directory }));
+    const temporaryIndexDirectory = await mkdtemp(join(os.tmpdir(), 'stacktape-git-index-'));
+    const temporaryIndexPath = join(temporaryIndexDirectory, 'index');
+    try {
+      const { stdout: gitDirectory } = await executeGit('rev-parse --git-dir', { cwd: directory });
+      const currentIndexPath = join(
+        isAbsolute(gitDirectory) ? gitDirectory : resolve(directory, gitDirectory),
+        'index'
+      );
+      if (await pathExists(currentIndexPath)) {
+        await copyFile(currentIndexPath, temporaryIndexPath);
+      } else {
+        await executeGit('read-tree --empty', {
+          cwd: directory,
+          env: { GIT_INDEX_FILE: temporaryIndexPath }
+        });
+      }
+      const temporaryIndexOptions = {
+        cwd: directory,
+        env: { GIT_INDEX_FILE: temporaryIndexPath }
+      };
+      await executeGit('add -A', temporaryIndexOptions);
+      ({ stdout: commitHash } = await executeGit('stash create', temporaryIndexOptions));
+    } finally {
+      await remove(temporaryIndexDirectory);
+    }
   }
   commitHash = commitHash || 'HEAD';
   await executeGit(`archive --format=zip --output ${outputPath} ${commitHash}`, { cwd: directory });

@@ -1,6 +1,6 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { memoizeGetters } from '@utils/decorators';
-import { getGitVariable } from '@utils/git';
+import { getGitVariable, sanitizeGitRemoteUrl } from '@utils/git';
 
 @memoizeGetters
 export class GitInfoManager {
@@ -69,7 +69,7 @@ export class GitInfoManager {
       username,
       branch,
       commit,
-      gitUrl
+      gitUrl: sanitizeGitRemoteUrl(gitUrl)
     };
   };
 }

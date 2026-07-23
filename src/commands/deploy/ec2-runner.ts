@@ -1,4 +1,5 @@
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
+import type { ConfigureEc2RunnerFromCliParams } from '@shared/trpc/api-key-protected';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -27,6 +28,7 @@ import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 
 const DEFAULT_EC2_RUNNER_INSTANCE_TYPE = 'c7a.2xlarge';
+type Ec2RunnerInstanceType = ConfigureEc2RunnerFromCliParams['ec2RunnerInstanceType'];
 
 const ec2RunnerInstanceOptions = [
   { value: 'm6a.large', label: 'm6a.large', description: '2 vCPU, 8 GB RAM - approx $0.001/min' },
@@ -208,11 +210,11 @@ const ensureProjectEc2RunnerConfigured = async () => {
     );
   }
 
-  const selectedInstanceType = await tuiManager.promptSelect({
+  const selectedInstanceType = (await tuiManager.promptSelect({
     message: 'Choose EC2 runner instance type:',
     options: ec2RunnerInstanceOptions,
     defaultValue: project?.ec2RunnerInstanceType || DEFAULT_EC2_RUNNER_INSTANCE_TYPE
-  });
+  })) as Ec2RunnerInstanceType;
 
   const updatedProject = await stacktapeTrpcApiManager.apiClient.configureEc2RunnerFromCli({
     projectName: globalStateManager.targetStack.projectName,
