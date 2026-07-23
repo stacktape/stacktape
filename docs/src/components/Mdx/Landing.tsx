@@ -18,7 +18,7 @@ import {
 } from 'react-icons/lu';
 import { colors } from '../../styles/variables';
 import { Button } from '../Button/Button';
-import StacktapeCover from '../../../../.github/assets/cover.png';
+import StacktapeCover from '../../../../.github/assets/cover-transparent.png';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Shared tokens
@@ -228,25 +228,17 @@ export function LandingCover() {
     typeof StacktapeCover === 'string' ? StacktapeCover : (StacktapeCover as unknown as { src: string }).src;
 
   return (
-    <figure className="font-sans relative my-8">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-[12%] -bottom-3 h-10 rounded-full bg-[rgba(54,190,190,0.2)] blur-3xl"
+    <figure className="font-sans relative my-6">
+      <img
+        src={coverSrc}
+        alt="Stacktape Console project dashboard alongside a terminal showing an infrastructure deployment in progress"
+        width={3034}
+        height={2408}
+        loading="eager"
+        decoding="async"
+        className="block h-auto w-full"
       />
-      <div className="relative rounded-[18px] bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.035)_45%,rgba(54,190,190,0.2))] p-px shadow-[0_28px_70px_-32px_rgba(0,0,0,0.95),0_18px_42px_-34px_rgba(54,190,190,0.7)]">
-        <div className="overflow-hidden rounded-[17px] bg-white">
-          <img
-            src={coverSrc}
-            alt="Stacktape Console project dashboard alongside a terminal showing an infrastructure deployment in progress"
-            width={3034}
-            height={2408}
-            loading="eager"
-            decoding="async"
-            className="block h-auto w-full"
-          />
-        </div>
-      </div>
-      <figcaption className="mt-3 text-center text-[0.8rem] leading-relaxed text-fc-ternary">
+      <figcaption className="text-center text-[0.8rem] leading-relaxed text-fc-ternary">
         Define, deploy and operate production-grade AWS infrastructure from one workflow.
       </figcaption>
     </figure>

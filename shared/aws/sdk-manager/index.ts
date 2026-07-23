@@ -2939,6 +2939,7 @@ export class AwsSdkManager {
                   'echo "Install Phase - Attempt #${CODEBUILD_ATTEMPT}"',
                   'docker run --privileged --rm public.ecr.aws/vend/tonistiigi/binfmt:latest --install arm64',
                   ...additionalInstallCommands,
+                  'yum install -y libatomic',
                   'curl -fsSL https://get.pnpm.io/install.sh | sh -',
                   'curl -fsSL https://bun.sh/install | bash',
                   ...(useStacktapeVersion ? [`export STACKTAPE_VERSION="${useStacktapeVersion}"`] : []),
@@ -2970,6 +2971,13 @@ export class AwsSdkManager {
               build: {
                 'on-failure': 'ABORT',
                 commands: [
+                  'if [ -f package.json ] && [ ! -d node_modules ]; then ' +
+                    'if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; ' +
+                    'elif [ -f yarn.lock ] && [ -f .yarnrc.yml ]; then corepack yarn install --immutable; ' +
+                    'elif [ -f yarn.lock ]; then corepack yarn install --frozen-lockfile; ' +
+                    'elif [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; ' +
+                    'elif [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then npm ci; ' +
+                    'else npm install; fi; fi',
                   ...additionalBuildCommands,
                   'stacktape deploy '.concat(transformToCliArgs(commandArgs).join(' '))
                 ]
