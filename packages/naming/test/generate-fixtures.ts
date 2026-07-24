@@ -53,6 +53,7 @@ import { tagNames } from '../src/tag-names.ts';
 
 type FixtureFunction = (...args: never[]) => unknown;
 type FixtureCase = { readonly args: readonly unknown[]; readonly expected: unknown };
+type NamedFixtureCase = FixtureCase & { readonly name: string };
 
 const fixturePath = fileURLToPath(new URL('fixtures/legacy-17aef681.json', import.meta.url));
 
@@ -128,23 +129,87 @@ const fixtureArguments = (methodName: string, fn: FixtureFunction): readonly unk
     .map((parameterName) => valueForParameter(methodName, parameterName));
 };
 
-const invokeRecord = (record: object): Record<string, FixtureCase> =>
+const invokeRecord = (
+  record: object,
+  argumentOverrides: Readonly<Record<string, readonly unknown[]>> = {}
+): Record<string, FixtureCase> =>
   Object.fromEntries(
     Object.entries(record).map(([methodName, value]) => {
       const fn = value as FixtureFunction;
-      const args = fixtureArguments(methodName, fn);
+      const args = argumentOverrides[methodName] ?? fixtureArguments(methodName, fn);
       return [methodName, { args, expected: fn.apply(record, args as never[]) }];
     })
   );
+
+const invokeNamedCase = (record: object, name: string, args: readonly unknown[]): NamedFixtureCase => {
+  const fn = Object.getOwnPropertyDescriptor(record, name)?.value as FixtureFunction;
+  return { name, args, expected: fn.apply(record, args as never[]) };
+};
+
+const physicalArgumentOverrides = {
+  httpApiLogGroup: [{ stackName: 'billing-prod', stpResourceName: 'public-api' }]
+} as const;
 
 const generatedFixture = {
   source: {
     classification: 'must-preserve',
     legacyCommit: '17aef681',
-    note: 'Golden outputs captured from the v3 naming modules and replayed against the pure v4 package.'
+    legacySourceBlobs: {
+      physical: 'ce8383ce63ef75d9afaafdfda8c85fe7d39e4fc1',
+      logical: 'd0d68acdbcf26eef69e790b81f010376c74c548e',
+      utilities: 'd7bad998067efe585e601793c3b65b7a64d67097'
+    },
+    changeCaseVersion: '5.4.4',
+    note: 'Golden outputs generated from v4 and differentially verified against exact v3 source snapshots by the package test gate.'
   },
   logicalNames: invokeRecord(cfLogicalNames),
-  physicalNames: invokeRecord(awsResourceNames),
+  physicalNames: invokeRecord(awsResourceNames, physicalArgumentOverrides),
+  branchCases: {
+    logical: [
+      invokeNamedCase(cfLogicalNames, 'batchComputeEnvironment', [false, false]),
+      invokeNamedCase(cfLogicalNames, 'batchComputeEnvironment', [true, false]),
+      invokeNamedCase(cfLogicalNames, 'batchComputeEnvironment', [false, true]),
+      invokeNamedCase(cfLogicalNames, 'batchJobQueue', [false, false]),
+      invokeNamedCase(cfLogicalNames, 'subnet', [false, 2]),
+      invokeNamedCase(cfLogicalNames, 'lambda', ['orders', false]),
+      invokeNamedCase(cfLogicalNames, 'lambda', ['orders', true]),
+      invokeNamedCase(cfLogicalNames, 'routeTable', [false, 2]),
+      invokeNamedCase(cfLogicalNames, 'atlasMongoVpcRoute', [false, 2]),
+      invokeNamedCase(cfLogicalNames, 'routeTableToSubnetAssociation', [false, 2]),
+      invokeNamedCase(cfLogicalNames, 'ecsService', ['orders', false]),
+      invokeNamedCase(cfLogicalNames, 'targetGroup', [
+        {
+          loadBalancerName: 'public',
+          stpResourceName: 'orders',
+          targetContainerPort: undefined,
+          blueGreen: false
+        }
+      ]),
+      invokeNamedCase(cfLogicalNames, 'customResourceDefaultDomain', ['orders', false]),
+      invokeNamedCase(cfLogicalNames, 'customResourceDefaultDomain', ['orders', true])
+    ],
+    physical: [
+      invokeNamedCase(awsResourceNames, 'batchComputeEnvironment', ['billing-prod', false, false]),
+      invokeNamedCase(awsResourceNames, 'batchComputeEnvironment', ['billing-prod', true, false]),
+      invokeNamedCase(awsResourceNames, 'batchComputeEnvironment', ['billing-prod', false, true]),
+      invokeNamedCase(awsResourceNames, 'batchJobQueue', ['billing-prod', false, false]),
+      invokeNamedCase(awsResourceNames, 'dbLogGroup', ['orders', false, 'error']),
+      invokeNamedCase(awsResourceNames, 'dbLogGroup', ['orders', true, 'error']),
+      invokeNamedCase(awsResourceNames, 'ecsService', ['orders', 'billing-prod', false]),
+      invokeNamedCase(awsResourceNames, 'loadBalancerSecurityGroup', ['public', 'billing-prod', false]),
+      invokeNamedCase(awsResourceNames, 'loadBalancerSecurityGroup', ['public', 'billing-prod', true]),
+      invokeNamedCase(awsResourceNames, 'lambdaLogGroup', [
+        { lambdaAwsResourceName: 'billing-prod-orders', edgeLambda: false }
+      ]),
+      invokeNamedCase(awsResourceNames, 'lambdaLogGroup', [
+        { lambdaAwsResourceName: 'billing-prod-orders', edgeLambda: true }
+      ]),
+      invokeNamedCase(awsResourceNames, 'sqsQueue', ['orders', 'billing-prod', false]),
+      invokeNamedCase(awsResourceNames, 'sqsQueue', ['orders', 'billing-prod', true]),
+      invokeNamedCase(awsResourceNames, 'snsTopic', ['orders', 'billing-prod', false]),
+      invokeNamedCase(awsResourceNames, 'snsTopic', ['orders', 'billing-prod', true])
+    ]
+  },
   constantModules: {
     cloudformationRegistryNames: invokeRecord(cfRegistryNames),
     cloudfrontHeaderNames: invokeRecord(stacktapeCloudfrontHeaders),

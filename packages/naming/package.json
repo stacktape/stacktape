@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./arns": "./src/arns.ts",
+    "./case": "./src/case.ts",
     "./cloudformation-registry": "./src/cloudformation-registry-names.ts",
     "./cloudfront-headers": "./src/cloudfront-header-names.ts",
     "./domain": "./src/domain-names.ts",
@@ -22,12 +23,13 @@
   "scripts": {
     "fixtures:check": "node --import=tsx test/generate-fixtures.ts --check",
     "fixtures:generate": "node --import=tsx test/generate-fixtures.ts --write",
-    "test": "pnpm fixtures:check && node --import=tsx --test test/*.test.ts",
+    "test": "pnpm fixtures:check && node --import=tsx --test test/*.test.ts && pnpm test:legacy",
     "test:legacy": "node --import=tsx test/compare-legacy.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "change-case": "5.4.4",
     "tsx": "catalog:",
     "typescript": "catalog:"
   }

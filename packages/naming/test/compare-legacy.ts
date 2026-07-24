@@ -1,31 +1,49 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { awsResourceNames } from '../src/aws-resource-names.ts';
 import { cfLogicalNames } from '../src/logical-names.ts';
 import * as currentNames from '../src/names.ts';
 
 type FixtureCase = { readonly args: readonly unknown[]; readonly expected: unknown };
+type NamedFixtureCase = FixtureCase & { readonly name: string };
 type FixtureMap = Readonly<Record<string, FixtureCase>>;
 
-const legacyRepository = process.argv.slice(2).find((argument) => argument !== '--');
-if (!legacyRepository) {
-  throw new Error('Pass the legacy repository path: `pnpm test:legacy -- C:\\Projects\\stacktape`.');
-}
+const primitivesUrl = new URL('legacy-primitives-adapter.mjs', import.meta.url).href;
+const changeCaseUrl = import.meta.resolve('change-case');
 
-const primitivesUrl = pathToFileURL(
-  new URL('legacy-primitives-adapter.mjs', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')
-).href;
+const legacySources = {
+  physical: {
+    url: new URL('legacy/aws-resource-names.ts.txt', import.meta.url),
+    gitBlob: 'ce8383ce63ef75d9afaafdfda8c85fe7d39e4fc1'
+  },
+  logical: {
+    url: new URL('legacy/logical-names.ts.txt', import.meta.url),
+    gitBlob: 'd0d68acdbcf26eef69e790b81f010376c74c548e'
+  },
+  utilities: {
+    url: new URL('legacy/utils.ts.txt', import.meta.url),
+    gitBlob: 'd7bad998067efe585e601793c3b65b7a64d67097'
+  }
+} as const;
+
+const readVerifiedLegacySource = async (sourceName: keyof typeof legacySources): Promise<string> => {
+  const { url, gitBlob } = legacySources[sourceName];
+  const source = await readFile(url, 'utf8');
+  const blobIdentity = createHash('sha1')
+    .update(`blob ${Buffer.byteLength(source)}\0`)
+    .update(source)
+    .digest('hex');
+  assert.equal(blobIdentity, gitBlob, `${sourceName} legacy source identity`);
+  return source;
+};
 
 const loadLegacyModule = async (
-  sourcePath: string,
+  sourceName: keyof typeof legacySources,
   replacements: Readonly<Record<string, string>>
 ): Promise<Record<string, unknown>> => {
-  let source = execFileSync('git', ['-C', legacyRepository, 'show', `17aef681:${sourcePath}`], {
-    encoding: 'utf8'
-  });
+  let source = await readVerifiedLegacySource(sourceName);
   for (const [from, to] of Object.entries(replacements)) {
     source = source.replace(from, to);
   }
@@ -39,27 +57,40 @@ const loadLegacyModule = async (
   return import(dataUrl) as Promise<Record<string, unknown>>;
 };
 
-const legacyPhysicalModule = await loadLegacyModule('shared/naming/aws-resource-names.ts', {
-  "from 'change-case'": `from '${primitivesUrl}'`,
+const legacyPhysicalModule = await loadLegacyModule('physical', {
+  "from 'change-case'": `from '${changeCaseUrl}'`,
   "from '../utils/short-hash'": `from '${primitivesUrl}'`,
   "from './utils'": `from '${primitivesUrl}'`
 });
-const legacyLogicalModule = await loadLegacyModule('shared/naming/logical-names.ts', {
-  "from 'change-case'": `from '${primitivesUrl}'`
+const legacyLogicalModule = await loadLegacyModule('logical', {
+  "from 'change-case'": `from '${changeCaseUrl}'`
 });
-const legacyUtilitiesModule = await loadLegacyModule('shared/naming/utils.ts', {
+const legacyUtilitiesModule = await loadLegacyModule('utilities', {
   "from '@shared/utils/constants'": `from '${primitivesUrl}'`,
   "from '@shared/utils/misc'": `from '${primitivesUrl}'`,
-  "from 'change-case'": `from '${primitivesUrl}'`,
+  "from 'change-case'": `from '${changeCaseUrl}'`,
   "from '../../@generated/cloudform/functions'": `from '${primitivesUrl}'`,
   "from '../../src/config/random'": `from '${primitivesUrl}'`,
   "from './arns'": `from '${primitivesUrl}'`
 });
 
 const fixture = JSON.parse(await readFile(new URL('fixtures/legacy-17aef681.json', import.meta.url), 'utf8')) as {
+  readonly source: {
+    readonly legacyCommit: string;
+    readonly legacySourceBlobs: Readonly<Record<keyof typeof legacySources, string>>;
+  };
   readonly logicalNames: FixtureMap;
   readonly physicalNames: FixtureMap;
+  readonly branchCases: {
+    readonly logical: readonly NamedFixtureCase[];
+    readonly physical: readonly NamedFixtureCase[];
+  };
 };
+
+assert.equal(fixture.source.legacyCommit, '17aef681');
+for (const [sourceName, { gitBlob }] of Object.entries(legacySources)) {
+  assert.equal(fixture.source.legacySourceBlobs[sourceName as keyof typeof legacySources], gitBlob);
+}
 
 const compare = (legacyFunctions: object, currentFunctions: object, cases: FixtureMap): void => {
   assert.deepEqual(Object.keys(legacyFunctions).toSorted(), Object.keys(currentFunctions).toSorted());
@@ -77,8 +108,29 @@ const compare = (legacyFunctions: object, currentFunctions: object, cases: Fixtu
   }
 };
 
+const compareNamedCases = (
+  legacyFunctions: object,
+  currentFunctions: object,
+  cases: readonly NamedFixtureCase[]
+): void => {
+  for (const { name, args, expected } of cases) {
+    const legacyFunction = Object.getOwnPropertyDescriptor(legacyFunctions, name)?.value as (
+      ...args: never[]
+    ) => unknown;
+    const currentFunction = Object.getOwnPropertyDescriptor(currentFunctions, name)?.value as (
+      ...args: never[]
+    ) => unknown;
+    const legacyResult = legacyFunction.apply(legacyFunctions, args as never[]);
+    const currentResult = currentFunction.apply(currentFunctions, args as never[]);
+    assert.deepEqual(currentResult, legacyResult, `${name} branch`);
+    assert.deepEqual(currentResult, expected, `${name} branch fixture`);
+  }
+};
+
 compare(legacyLogicalModule.cfLogicalNames as object, cfLogicalNames, fixture.logicalNames);
 compare(legacyPhysicalModule.awsResourceNames as object, awsResourceNames, fixture.physicalNames);
+compareNamedCases(legacyLogicalModule.cfLogicalNames as object, cfLogicalNames, fixture.branchCases.logical);
+compareNamedCases(legacyPhysicalModule.awsResourceNames as object, awsResourceNames, fixture.branchCases.physical);
 
 const utilityCases: Readonly<Record<string, readonly (readonly unknown[])[]>> = {
   getEcrImageTag: [['orders', '4.2.0', 'abc123']],
@@ -209,5 +261,7 @@ for (const [name, cases] of Object.entries(utilityCases)) {
 console.log(
   `Compared ${Object.keys(fixture.logicalNames).length} logical and ${
     Object.keys(fixture.physicalNames).length
-  } physical naming functions, plus ${Object.keys(utilityCases).length} utility algorithms, with legacy commit 17aef681.`
+  } physical naming functions, ${fixture.branchCases.logical.length + fixture.branchCases.physical.length} alternate branches, and ${
+    Object.keys(utilityCases).length
+  } utility algorithms with legacy commit 17aef681.`
 );

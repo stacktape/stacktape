@@ -2,7 +2,13 @@
   "source": {
     "classification": "must-preserve",
     "legacyCommit": "17aef681",
-    "note": "Golden outputs captured from the v3 naming modules and replayed against the pure v4 package."
+    "legacySourceBlobs": {
+      "physical": "ce8383ce63ef75d9afaafdfda8c85fe7d39e4fc1",
+      "logical": "d0d68acdbcf26eef69e790b81f010376c74c548e",
+      "utilities": "d7bad998067efe585e601793c3b65b7a64d67097"
+    },
+    "changeCaseVersion": "5.4.4",
+    "note": "Golden outputs generated from v4 and differentially verified against exact v3 source snapshots by the package test gate."
   },
   "logicalNames": {
     "bucket": {
@@ -1246,8 +1252,13 @@
       "expected": "stackName-fixture-stpResourceName-fixture"
     },
     "httpApiLogGroup": {
-      "args": ["props-fixture"],
-      "expected": "/aws/vendedlogs/undefined/api-gateway/undefined/access-logs"
+      "args": [
+        {
+          "stackName": "billing-prod",
+          "stpResourceName": "public-api"
+        }
+      ],
+      "expected": "/aws/vendedlogs/billing-prod/api-gateway/public-api/access-logs"
     },
     "containerLogGroup": {
       "args": [
@@ -1356,6 +1367,173 @@
       "args": ["stpResourceName-fixture", "stackName-fixture"],
       "expected": "stackName-fixture-stpResourceName-fixture-efs-sg"
     }
+  },
+  "branchCases": {
+    "logical": [
+      {
+        "name": "batchComputeEnvironment",
+        "args": [false, false],
+        "expected": "StpBatchOnDemandComputeEnvironment"
+      },
+      {
+        "name": "batchComputeEnvironment",
+        "args": [true, false],
+        "expected": "StpBatchSpotComputeEnvironment"
+      },
+      {
+        "name": "batchComputeEnvironment",
+        "args": [false, true],
+        "expected": "StpBatchOnDemandGpuComputeEnvironment"
+      },
+      {
+        "name": "batchJobQueue",
+        "args": [false, false],
+        "expected": "StpBatchOnDemandJobQueue"
+      },
+      {
+        "name": "subnet",
+        "args": [false, 2],
+        "expected": "StpPrivateSubnet2"
+      },
+      {
+        "name": "lambda",
+        "args": ["orders", false],
+        "expected": "OrdersFunction"
+      },
+      {
+        "name": "lambda",
+        "args": ["orders", true],
+        "expected": "OrdersCustomResourceFunction"
+      },
+      {
+        "name": "routeTable",
+        "args": [false, 2],
+        "expected": "StpPrivateSubnet2RouteTable"
+      },
+      {
+        "name": "atlasMongoVpcRoute",
+        "args": [false, 2],
+        "expected": "StpAtlasMongoPrivateSubnetRoute2"
+      },
+      {
+        "name": "routeTableToSubnetAssociation",
+        "args": [false, 2],
+        "expected": "StpPrivateSubnet2SubnetRouteTableAssociation"
+      },
+      {
+        "name": "ecsService",
+        "args": ["orders", false],
+        "expected": "OrdersService"
+      },
+      {
+        "name": "targetGroup",
+        "args": [
+          {
+            "loadBalancerName": "public",
+            "stpResourceName": "orders",
+            "blueGreen": false
+          }
+        ],
+        "expected": "OrdersPublicTargetGroup"
+      },
+      {
+        "name": "customResourceDefaultDomain",
+        "args": ["orders", false],
+        "expected": "OrdersDefaultDomainCustomResource"
+      },
+      {
+        "name": "customResourceDefaultDomain",
+        "args": ["orders", true],
+        "expected": "OrdersCdnDefaultDomainCustomResource"
+      }
+    ],
+    "physical": [
+      {
+        "name": "batchComputeEnvironment",
+        "args": ["billing-prod", false, false],
+        "expected": "billing-prod-batch-onDemand--compute-environment"
+      },
+      {
+        "name": "batchComputeEnvironment",
+        "args": ["billing-prod", true, false],
+        "expected": "billing-prod-batch-spot--compute-environment"
+      },
+      {
+        "name": "batchComputeEnvironment",
+        "args": ["billing-prod", false, true],
+        "expected": "billing-prod-batch-onDemand-gpu-compute-environment"
+      },
+      {
+        "name": "batchJobQueue",
+        "args": ["billing-prod", false, false],
+        "expected": "billing-prod-batch-onDemand--job-queue"
+      },
+      {
+        "name": "dbLogGroup",
+        "args": ["orders", false, "error"],
+        "expected": "/aws/rds/instance/orders/error"
+      },
+      {
+        "name": "dbLogGroup",
+        "args": ["orders", true, "error"],
+        "expected": "/aws/rds/cluster/orders/error"
+      },
+      {
+        "name": "ecsService",
+        "args": ["orders", "billing-prod", false],
+        "expected": "billing-prod-orders-service"
+      },
+      {
+        "name": "loadBalancerSecurityGroup",
+        "args": ["public", "billing-prod", false],
+        "expected": "billing-prod-public-lb-sg"
+      },
+      {
+        "name": "loadBalancerSecurityGroup",
+        "args": ["public", "billing-prod", true],
+        "expected": "billing-prod-public-nlb-sg"
+      },
+      {
+        "name": "lambdaLogGroup",
+        "args": [
+          {
+            "lambdaAwsResourceName": "billing-prod-orders",
+            "edgeLambda": false
+          }
+        ],
+        "expected": "/aws/lambda/billing-prod-orders"
+      },
+      {
+        "name": "lambdaLogGroup",
+        "args": [
+          {
+            "lambdaAwsResourceName": "billing-prod-orders",
+            "edgeLambda": true
+          }
+        ],
+        "expected": "/aws/lambda/us-east-1.billing-prod-orders"
+      },
+      {
+        "name": "sqsQueue",
+        "args": ["orders", "billing-prod", false],
+        "expected": "billing-prod-orders"
+      },
+      {
+        "name": "sqsQueue",
+        "args": ["orders", "billing-prod", true],
+        "expected": "billing-prod-orders.fifo"
+      },
+      {
+        "name": "snsTopic",
+        "args": ["orders", "billing-prod", false],
+        "expected": "billing-prod-orders"
+      },
+      {
+        "name": "snsTopic",
+        "args": ["orders", "billing-prod", true],
+        "expected": "billing-prod-orders.fifo"
+      }
+    ]
   },
   "constantModules": {
     "cloudformationRegistryNames": {

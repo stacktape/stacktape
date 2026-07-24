@@ -7,6 +7,7 @@ import { cfLogicalNames } from '../src/logical-names.ts';
 import { buildResourceName, buildResourceNameInfo } from '../src/names.ts';
 
 type FixtureCase = { readonly args: readonly unknown[]; readonly expected: unknown };
+type NamedFixtureCase = FixtureCase & { readonly name: string };
 type FixtureMap = Readonly<Record<string, FixtureCase>>;
 
 const fixturePath = fileURLToPath(new URL('fixtures/legacy-17aef681.json', import.meta.url));
@@ -14,6 +15,10 @@ const fixture = JSON.parse(await readFile(fixturePath, 'utf8')) as {
   readonly source: { readonly legacyCommit: string; readonly classification: string };
   readonly logicalNames: FixtureMap;
   readonly physicalNames: FixtureMap;
+  readonly branchCases: {
+    readonly logical: readonly NamedFixtureCase[];
+    readonly physical: readonly NamedFixtureCase[];
+  };
 };
 
 const replay = (functions: object, cases: FixtureMap): void => {
@@ -21,6 +26,13 @@ const replay = (functions: object, cases: FixtureMap): void => {
   for (const [name, fixtureCase] of Object.entries(cases)) {
     const fn = Object.getOwnPropertyDescriptor(functions, name)?.value as (...args: never[]) => unknown;
     assert.deepEqual(fn.apply(functions, fixtureCase.args as never[]), fixtureCase.expected, name);
+  }
+};
+
+const replayNamedCases = (functions: object, cases: readonly NamedFixtureCase[]): void => {
+  for (const { name, args, expected } of cases) {
+    const fn = Object.getOwnPropertyDescriptor(functions, name)?.value as (...args: never[]) => unknown;
+    assert.deepEqual(fn.apply(functions, args as never[]), expected, `${name} branch`);
   }
 };
 
@@ -32,6 +44,11 @@ test('replays every legacy logical-name fixture', () => {
 
 test('replays every legacy physical-name fixture', () => {
   replay(awsResourceNames, fixture.physicalNames);
+});
+
+test('replays false and alternate branch fixtures', () => {
+  replayNamedCases(cfLogicalNames, fixture.branchCases.logical);
+  replayNamedCases(awsResourceNames, fixture.branchCases.physical);
 });
 
 test('resource-name truncation is deterministic and keeps the exact legacy suffix', () => {
