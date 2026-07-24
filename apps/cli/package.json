@@ -5,6 +5,9 @@
   "bin": {
     "stacktape": "./dist/main.js"
   },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

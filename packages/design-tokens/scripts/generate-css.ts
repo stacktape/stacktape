@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
-import { designTokens } from '../src/tokens.js';
+import { designTokens } from '../src/tokens.ts';
 
 const outputUrl = new URL('../generated/tokens.css', import.meta.url);
 const css = `/* Generated from src/tokens.ts. Do not edit. */

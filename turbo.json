@@ -1,5 +1,6 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": ["pnpm-workspace.yaml", "tsconfig.base.json", "tsconfig.package.json"],
   "tasks": {
     "generate": {
       "description": "Generate derived source and metadata from canonical inputs",
@@ -11,7 +12,7 @@
     },
     "build": {
       "description": "Build a workspace after its dependencies and generators",
-      "dependsOn": ["^build", "generate"],
+      "dependsOn": ["^build", "^generate", "generate"],
       "outputs": ["dist/**", ".astro/**", "!.astro/cache/**"]
     },
     "typecheck": {
@@ -21,8 +22,8 @@
     },
     "test": {
       "description": "Run deterministic behavioral tests",
-      "dependsOn": ["generate", "^build"],
-      "outputs": ["coverage/**"]
+      "dependsOn": ["generate", "^generate", "^build"],
+      "outputs": []
     },
     "dev": {
       "description": "Run a workspace development process",

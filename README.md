@@ -30,4 +30,5 @@ pnpm worktree:create console-contracts --private --dossier architecture/v4/dossi
 ```
 
 The scripts refuse dirty integration roots, existing branches/paths, and unsafe cleanup targets. They never
-automatically discard a dirty public or private worktree.
+automatically discard a dirty public or private worktree. Before cleanup, private HEAD must also be reachable from a
+remote-tracking ref: a private commit stored only inside the per-worktree submodule clone would otherwise be lost.

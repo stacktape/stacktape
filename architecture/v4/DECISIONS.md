@@ -58,6 +58,11 @@ Knip's dependency category if upstream support for this lockfile mode becomes re
 | Watch mode | No universal generator watcher. A development command may start a native watcher only when derived output must change while the process remains alive. |
 | Hooks | Pre-commit operates only on staged formatting/lint/new-secret checks. Expensive architecture, dead-code, build, and test checks run in pre-push or CI. |
 
+pnpm 11 non-registry settings live in `pnpm-workspace.yaml`; `.npmrc` is reserved for registry/auth configuration.
+Turbo remote caching and `turbo prune` remain disabled for v4 orchestration until their dependency-closure behavior is
+validated with non-shared workspace lockfiles. Local task inputs include each workspace lockfile plus the root pnpm and
+TypeScript policies.
+
 [Claude Code currently reads `CLAUDE.md`, not `AGENTS.md`](https://code.claude.com/docs/en/memory#agents-md), and
 officially supports importing `AGENTS.md` with `@AGENTS.md`. Use that one-line import rather than a symlink: it is
 explicit and reliable on Windows without requiring Developer Mode or elevated symlink privileges. Do not duplicate

@@ -24,10 +24,21 @@ if (!registered.some((candidate) => candidate.toLowerCase() === target.toLowerCa
 }
 
 const privateRoot = path.join(target, 'apps', 'console');
+let privateRemoteRefs: string | undefined;
 if (existsSync(path.join(privateRoot, '.git'))) {
   const privateStatus = run('git', ['status', '--porcelain'], { cwd: privateRoot, capture: true });
   if (privateStatus) {
     throw new Error('Private Console worktree is dirty; commit or discard its changes explicitly first.');
+  }
+
+  privateRemoteRefs = run('git', ['branch', '--remotes', '--contains', 'HEAD', '--format=%(refname:short)'], {
+    cwd: privateRoot,
+    capture: true
+  });
+  if (!privateRemoteRefs) {
+    throw new Error(
+      'Private HEAD is not reachable from a remote-tracking ref. Push or integrate the private commit before cleanup.'
+    );
   }
 }
 
@@ -59,6 +70,9 @@ if (existsSync(path.join(privateRoot, '.git'))) {
 
 run('git', ['worktree', 'remove', '--force', target], { cwd: root });
 process.stdout.write(`Removed ${target}.\n`);
-process.stdout.write(
-  `Branches were preserved. Delete v4/slice/${sliceId} in each repository only after integration.\n`
-);
+process.stdout.write(`Public branch v4/slice/${sliceId} was preserved.\n`);
+if (privateRemoteRefs) {
+  process.stdout.write(
+    `The private checkout was removed after confirming HEAD is recoverable from: ${privateRemoteRefs.replaceAll('\n', ', ')}.\n`
+  );
+}

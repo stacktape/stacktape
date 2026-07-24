@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.package.json",
   "compilerOptions": {
+    "allowImportingTsExtensions": true,
     "types": ["node"]
   },
   "include": ["src", "scripts"]

@@ -20,10 +20,22 @@ module.exports = {
       to: { path: '^apps/console/' }
     },
     {
-      name: 'apps-do-not-import-other-apps',
+      name: 'cli-does-not-import-other-apps',
       severity: 'error',
-      from: { path: '^apps/([^/]+)/', pathNot: '^apps/console/' },
-      to: { path: '^apps/(?!$1/|console/)' }
+      from: { path: '^apps/cli/' },
+      to: { path: '^apps/(?!cli/)' }
+    },
+    {
+      name: 'docs-does-not-import-other-apps',
+      severity: 'error',
+      from: { path: '^apps/docs/' },
+      to: { path: '^apps/(?!docs/)' }
+    },
+    {
+      name: 'website-does-not-import-other-apps',
+      severity: 'error',
+      from: { path: '^apps/website/' },
+      to: { path: '^apps/(?!website/)' }
     }
   ],
   options: {

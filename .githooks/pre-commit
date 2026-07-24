@@ -1,2 +1,7 @@
 #!/bin/sh
-pnpm exec lint-staged
+hook_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
+public_root=$(CDPATH= cd -- "$hook_dir/.." && pwd) || exit 1
+repository_root=$(git rev-parse --show-toplevel) || exit 1
+
+pnpm --dir "$public_root" exec lint-staged --cwd "$repository_root" --config "$public_root/package.json" || exit 1
+node "$public_root/scripts/workspace/check-staged-secrets.mjs" "$repository_root"

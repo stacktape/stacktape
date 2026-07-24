@@ -1,3 +1,5 @@
+import type { URL } from 'node:url';
+
 export type AwsEndpointOverrides = Readonly<Record<string, URL>>;
 
 export interface AwsClientFactory {

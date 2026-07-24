@@ -135,19 +135,24 @@ This was validated against the existing POC using Git 2.39 on Windows: two simul
 an independent `apps/console` Git directory under the parent worktree metadata. They did not share a private working
 tree.
 
-The future `scripts/agents/create-worktree.ts` must:
+The checked-in `scripts/agents/create-worktree.ts` must:
 
 1. Validate the slice ID and target path.
-2. Refuse to reuse a dirty or registered worktree.
-3. Create `v4/slice/<slice-id>` from the current public integration commit.
-4. Initialize `apps/console` only when the dossier needs private code.
-5. Create a private `v4/slice/<slice-id>` branch from the recorded submodule commit.
-6. Install from frozen lockfiles without running deployment commands.
-7. Write a local dossier pointer and base-SHA metadata.
-8. Print exact cleanup commands but never auto-delete a dirty worktree.
+2. Require a clean checkout whose current branch and HEAD are exactly the local `v4/integration` ref.
+3. Refuse local or `origin` branch-name collisions and any reused/registered target.
+4. Accept only an existing dossier file inside the public repository and record its worktree-relative path.
+5. Create `v4/slice/<slice-id>` from the verified public integration commit.
+6. Initialize `apps/console` only when the dossier needs private code.
+7. Create a collision-free private `v4/slice/<slice-id>` branch from the recorded submodule commit.
+8. Install from frozen lockfiles without running deployment commands.
+9. Write a local dossier pointer and base-SHA metadata.
+10. Print exact cleanup commands but never auto-delete a dirty worktree.
 
 The cleanup script resolves and verifies the absolute target is inside the dedicated `.worktrees` root before removing
-anything.
+anything. Because Git stores each private submodule clone underneath its public worktree metadata, cleanup also refuses
+to proceed unless the private HEAD is reachable from a remote-tracking ref. Committing privately is not sufficient:
+push or integrate the private commit first, or removal could discard the only copy. Public slice branches remain in the
+parent repository after their worktree is removed.
 
 ## Commit and integration protocol
 
