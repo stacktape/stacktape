@@ -1,0 +1,6 @@
+{
+  "name": "@stacktape/ui-react",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "description": "Router-neutral React primitives shared by at least two Stacktape applications."
+}

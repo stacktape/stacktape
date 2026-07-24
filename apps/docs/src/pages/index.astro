@@ -1,0 +1,43 @@
+---
+import { tokenVar } from '@stacktape/design-tokens';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Stacktape documentation</title>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow" style={`color: ${tokenVar.color.accent}`}>Stacktape v4</p>
+      <h1>Documentation migration workspace</h1>
+      <p>The existing documentation will move here in a reviewed vertical slice.</p>
+    </main>
+  </body>
+</html>
+
+<style is:global>
+@import '@stacktape/design-tokens/css';
+</style>
+
+<style>
+:global(body) {
+  margin: 0;
+  color: var(--stp-color-text);
+  background: var(--stp-color-canvas);
+  font-family: var(--stp-font-sans);
+}
+
+main {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: var(--stp-space-12) var(--stp-space-6);
+}
+
+.eyebrow {
+  color: var(--stp-color-accent);
+  font-weight: 700;
+}
+</style>

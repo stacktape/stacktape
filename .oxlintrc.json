@@ -1,0 +1,26 @@
+{
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "promise", "node", "react", "jsx-a11y"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn"
+  },
+  "rules": {
+    "import/no-cycle": "error",
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }],
+    "no-empty": ["error", { "allowEmptyCatch": false }],
+    "no-useless-catch": "error",
+    "oxc/no-barrel-file": "off",
+    "typescript/no-explicit-any": "error",
+    "typescript/prefer-ts-expect-error": "error",
+    "unicorn/prefer-node-protocol": "error"
+  },
+  "ignorePatterns": [
+    "**/.astro/**",
+    "**/.turbo/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "**/generated/**",
+    "**/node_modules/**"
+  ]
+}

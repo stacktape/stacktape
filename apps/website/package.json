@@ -1,0 +1,19 @@
+{
+  "name": "@stacktape/website",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "astro build",
+    "dev": "astro dev",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@stacktape/design-tokens": "workspace:*",
+    "astro": "catalog:"
+  },
+  "devDependencies": {
+    "@astrojs/check": "catalog:",
+    "typescript": "catalog:"
+  }
+}

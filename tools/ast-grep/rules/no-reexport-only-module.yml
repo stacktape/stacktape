@@ -1,0 +1,16 @@
+id: no-reexport-only-module
+language: TypeScript
+severity: error
+message: Re-export-only modules hide ownership; use explicit package subpath exports.
+rule:
+  kind: export_statement
+  regex: ^export\s+(?:\*|\{[\s\S]*\})\s+from
+constraints: {}
+files:
+  - apps/**/*.ts
+  - apps/**/*.tsx
+  - packages/**/*.ts
+  - packages/**/*.tsx
+ignores:
+  - '**/*.spec.ts'
+  - '**/*.test.ts'

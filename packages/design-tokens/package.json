@@ -1,0 +1,19 @@
+{
+  "name": "@stacktape/design-tokens",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/tokens.ts",
+    "./css": "./generated/tokens.css"
+  },
+  "scripts": {
+    "generate": "bun scripts/generate-css.ts",
+    "generate:check": "bun scripts/generate-css.ts --check",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

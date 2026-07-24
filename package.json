@@ -1,0 +1,55 @@
+{
+  "name": "@stacktape/workspace",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "check": "turbo run generate:check && turbo run typecheck test build && pnpm typecheck:tools && pnpm fmt:check && pnpm lint && pnpm check:architecture && pnpm check:patterns && pnpm check:workspace && pnpm check:deadcode && pnpm check:duplicates",
+    "check:architecture": "depcruise --config dependency-cruiser.config.cjs apps packages",
+    "check:deadcode": "knip --production --strict --treat-config-hints-as-errors --exclude dependencies",
+    "check:duplicates": "jscpd --config jscpd.json",
+    "check:integrated": "node scripts/workspace/require-console.mjs && pnpm check",
+    "check:patterns": "ast-grep scan && ast-grep test --skip-snapshot-tests",
+    "check:public": "pnpm check",
+    "check:workspace": "sherif --ignore-rule non-existant-packages --fail-on-warnings",
+    "dev": "turbo run dev",
+    "fmt": "oxfmt . && dprint fmt",
+    "fmt:check": "oxfmt --check . && dprint check",
+    "lint": "oxlint . --deny-warnings --report-unused-disable-directives",
+    "lint:fix": "oxlint . --fix --deny-warnings --report-unused-disable-directives",
+    "prepare": "node scripts/workspace/configure-hooks.mjs",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "typecheck:tools": "tsc -p tsconfig.tools.json",
+    "worktree:create": "node scripts/agents/create-worktree.ts",
+    "worktree:remove": "node scripts/agents/remove-worktree.ts"
+  },
+  "devDependencies": {
+    "@ast-grep/cli": "catalog:",
+    "@types/node": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "dprint": "catalog:",
+    "jscpd": "catalog:",
+    "knip": "catalog:",
+    "lint-staged": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "publint": "catalog:",
+    "sherif": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}": [
+      "oxfmt --write",
+      "oxlint --fix --deny-warnings --report-unused-disable-directives"
+    ],
+    "*.{json,jsonc,css,scss,md,mdx,yaml,yml}": "oxfmt --write",
+    "*.astro": "dprint fmt"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.17.0"
+}

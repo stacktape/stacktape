@@ -1,0 +1,6 @@
+{
+  "name": "@stacktape/helper-lambdas",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "description": "Versioned helper Lambda sources and deterministic artifacts consumed by Stacktape core/CLI."
+}

@@ -1,0 +1,11 @@
+id: no-reexport-only-module
+valid:
+  - |
+    export const value = 1;
+  - |
+    export type Value = string;
+invalid:
+  - |
+    export * from './other.js';
+  - |
+    export { value } from './other.js';

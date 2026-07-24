@@ -1,0 +1,21 @@
+{
+  "name": "@stacktape/cli",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "bin": {
+    "stacktape": "./dist/main.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "node --watch src/main.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@stacktape/command-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "printWidth": 120,
+  "singleQuote": true,
+  "trailingComma": "none",
+  "endOfLine": "lf",
+  "ignorePatterns": [
+    "**/*.astro",
+    "**/.astro/**",
+    "**/.turbo/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "**/generated/**",
+    "**/node_modules/**",
+    "**/pnpm-lock.yaml"
+  ]
+}

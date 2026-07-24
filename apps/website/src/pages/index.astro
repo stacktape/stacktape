@@ -1,0 +1,43 @@
+---
+import { tokenVar } from '@stacktape/design-tokens';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Stacktape</title>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow" style={`color: ${tokenVar.color.accent}`}>Stacktape v4</p>
+      <h1>Ship on AWS without losing control.</h1>
+      <p>This fresh Astro shell deliberately contains no imported website history.</p>
+    </main>
+  </body>
+</html>
+
+<style is:global>
+@import '@stacktape/design-tokens/css';
+</style>
+
+<style>
+:global(body) {
+  margin: 0;
+  color: var(--stp-color-text);
+  background: var(--stp-color-canvas);
+  font-family: var(--stp-font-sans);
+}
+
+main {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: var(--stp-space-16) var(--stp-space-6);
+}
+
+.eyebrow {
+  color: var(--stp-color-accent);
+  font-weight: 700;
+}
+</style>

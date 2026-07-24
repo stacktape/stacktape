@@ -1,0 +1,10 @@
+/* Generated from src/tokens.ts. Do not edit. */
+:root {
+  --stp-color-accent: #6155f5;
+  --stp-color-canvas: #0d0f14;
+  --stp-color-text: #f5f7ff;
+  --stp-font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --stp-space-6: 1.5rem;
+  --stp-space-12: 3rem;
+  --stp-space-16: 4rem;
+}

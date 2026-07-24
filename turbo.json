@@ -1,0 +1,33 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "tasks": {
+    "generate": {
+      "description": "Generate derived source and metadata from canonical inputs",
+      "outputs": ["generated/**"]
+    },
+    "generate:check": {
+      "description": "Verify committed generated artifacts are current",
+      "cache": false
+    },
+    "build": {
+      "description": "Build a workspace after its dependencies and generators",
+      "dependsOn": ["^build", "generate"],
+      "outputs": ["dist/**", ".astro/**", "!.astro/cache/**"]
+    },
+    "typecheck": {
+      "description": "Type-check source against generated artifacts",
+      "dependsOn": ["^generate", "generate"],
+      "outputs": []
+    },
+    "test": {
+      "description": "Run deterministic behavioral tests",
+      "dependsOn": ["generate", "^build"],
+      "outputs": ["coverage/**"]
+    },
+    "dev": {
+      "description": "Run a workspace development process",
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "threshold": 0,
+  "minLines": 10,
+  "reporters": ["console"],
+  "ignore": [
+    "**/generated/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/pnpm-lock.yaml",
+    "**/package.json",
+    "apps/*/src/pages/index.astro",
+    "**/*.identity.json",
+    "**/*.iam.json"
+  ]
+}

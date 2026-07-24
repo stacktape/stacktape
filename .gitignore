@@ -1,0 +1,11 @@
+.DS_Store
+.astro/
+.dprint-cache/
+.turbo/
+.worktrees/
+coverage/
+dist/
+node_modules/
+*.tsbuildinfo
+.stacktape-agent.json
+.stacktape-dossier.md

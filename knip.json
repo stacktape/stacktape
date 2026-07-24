@@ -1,0 +1,24 @@
+{
+  "entry": ["scripts/agents/*.ts", "scripts/workspace/*.mjs"],
+  "ignoreFiles": ["scripts/agents/*.ts", "scripts/workspace/*.mjs"],
+  "workspaces": {
+    "apps/cli": {
+      "entry": ["src/main.ts"]
+    },
+    "apps/docs": {
+      "entry": ["src/**/*.astro"]
+    },
+    "apps/website": {
+      "entry": ["src/**/*.astro"]
+    },
+    "apps/console/api": {
+      "entry": ["src/**/*.ts"]
+    },
+    "apps/console/ui": {
+      "entry": ["src/**/*.tsx"]
+    },
+    "packages/*": {
+      "entry": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"]
+    }
+  }
+}
