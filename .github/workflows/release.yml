@@ -1,0 +1,36 @@
+name: v4 release
+
+# Keeping this workflow filename preserves the npm trusted-publisher identity while the release pipeline is migrated.
+# It intentionally cannot publish. Phase 8 replaces the skipped placeholder only after archive checksums, packed npm
+# verification, provenance, versioning, and rollback behavior have passed review.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:public
+
+  release:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - run: echo "Publishing remains disabled until the reviewed phase-8 release implementation replaces this job."
