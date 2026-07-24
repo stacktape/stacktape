@@ -1,0 +1,1696 @@
+{
+  "source": {
+    "classification": "must-preserve",
+    "legacyCommit": "17aef681",
+    "note": "Golden outputs captured from the v3 naming modules and replayed against the pure v4 package."
+  },
+  "logicalNames": {
+    "bucket": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureBucket"
+    },
+    "atlasMongoProject": {
+      "args": [],
+      "expected": "StpAtlasMongoProject"
+    },
+    "atlasMongoCredentialsProvider": {
+      "args": [],
+      "expected": "StpAtlasMongoCredentialsProviderCustomResource"
+    },
+    "atlasMongoProjectVpcNetworkContainer": {
+      "args": [],
+      "expected": "StpAtlasMongoNetworkContainer"
+    },
+    "atlasMongoProjectVpcNetworkPeering": {
+      "args": [],
+      "expected": "StpAtlasMongoNetworkPeering"
+    },
+    "atlasMongoProjectIpAccessList": {
+      "args": [],
+      "expected": "StpAtlasMongoProjectIpAccessList"
+    },
+    "atlasMongoUserAssociatedWithRole": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureAtlasMongoDatabaseUser"
+    },
+    "atlasMongoClusterMasterUser": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDatabaseUser"
+    },
+    "atlasMongoCluster": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureCluster"
+    },
+    "redisReplicationGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureReplicationGroup"
+    },
+    "redisLogGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureLogGroup"
+    },
+    "redisParameterGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureParameterGroup"
+    },
+    "redisSubnetGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureSubnetGroup"
+    },
+    "redisSecurityGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureSecurityGroup"
+    },
+    "efsFilesystem": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureFileSystem"
+    },
+    "efsAccessPoint": {
+      "args": [
+        {
+          "stpResourceName": "stpResourceName-fixture",
+          "efsFilesystemName": "efsFilesystemName-fixture",
+          "rootDirectory": "/data/cache"
+        }
+      ],
+      "expected": "StpResourceNameFixtureEfsFilesystemNameFixtureDataCacheAccessPoint"
+    },
+    "efsMountTarget": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureSubnet2MountTarget"
+    },
+    "efsSecurityGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureSecurityGroup"
+    },
+    "snsRoleSendSmsFromCognito": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureSendSmsRole"
+    },
+    "cloudfrontDistribution": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureCdnDistribution2"
+    },
+    "cloudfrontCustomCachePolicy": {
+      "args": ["stpResourceName-fixture", "cachingOptionsHash-fixture"],
+      "expected": "StpResourceNameFixtureCdnCacheBehaviorcachingOptionsHashFixtureCachePolicy"
+    },
+    "cloudfrontDefaultCachePolicy": {
+      "args": ["DefDynamic"],
+      "expected": "StpCdnDefDynamicCachePolicy"
+    },
+    "cloudfrontCustomOriginRequestPolicy": {
+      "args": ["stpResourceName-fixture", "forwardingOptionsHash-fixture"],
+      "expected": "StpResourceNameFixtureCdnCacheBehaviorforwardingOptionsHashFixtureOriginRequestPolicy"
+    },
+    "cloudfrontDefaultOriginRequestPolicy": {
+      "args": ["DefDynamic"],
+      "expected": "StpCdnDefDynamicOriginRequestPolicy"
+    },
+    "cloudfrontOriginAccessIdentity": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureCdnCloudFrontOriginAccessIdentity"
+    },
+    "openNextHostHeaderRewriteFunction": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureOpenNextHostHeaderRewriteFunction"
+    },
+    "ssrWebHostHeaderRewriteFunction": {
+      "args": ["stpResourceName-fixture", "resourceType-fixture"],
+      "expected": "StpResourceNameFixtureResourceTypefixtureHostHeaderRewriteFunction"
+    },
+    "openNextAssetReplacerCustomResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureAssetReplacerCustomResource"
+    },
+    "openNextDynamoInsertCustomResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDynamoInsertCustomResource"
+    },
+    "dnsRecord": {
+      "args": ["api.preview.example.com"],
+      "expected": "StpApiPreviewExampleComRecordSet"
+    },
+    "dynamoGlobalTable": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureGlobalTable"
+    },
+    "dynamoRegionalTable": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureTable"
+    },
+    "bucketPolicy": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureBucketPolicy"
+    },
+    "lambdaLogGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureLogGroup"
+    },
+    "eventOnDeliveryFailureSqsQueuePolicy": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureEvent2QueuePolicy"
+    },
+    "snsEventSubscription": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureEvent2Subscription"
+    },
+    "snsEventPermission": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureEvent2Permission"
+    },
+    "ecrRepo": {
+      "args": [],
+      "expected": "StpContainerRepository"
+    },
+    "deploymentBucket": {
+      "args": [],
+      "expected": "StpDeploymentBucket"
+    },
+    "deploymentBucketPolicy": {
+      "args": [],
+      "expected": "StpDeploymentBucketPolicy"
+    },
+    "lambdaInvokeConfig": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureEventInvokeConfig"
+    },
+    "lambdaVersionPublisherCustomResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureVersionCustomResource"
+    },
+    "codeDeployServiceRole": {
+      "args": [],
+      "expected": "StpCodeDeployRole"
+    },
+    "batchInstanceRole": {
+      "args": [],
+      "expected": "StpBatchInstanceRole"
+    },
+    "batchInstanceDefaultSecurityGroup": {
+      "args": [],
+      "expected": "StpBatchInstanceSecurityGroup"
+    },
+    "batchInstanceProfile": {
+      "args": [],
+      "expected": "StpBatchInstanceInstanceProfile"
+    },
+    "batchInstanceLaunchTemplate": {
+      "args": [],
+      "expected": "StpBatchInstanceLaunchTemplate"
+    },
+    "batchStateMachineExecutionRole": {
+      "args": [],
+      "expected": "StpBatchStateMachineRole"
+    },
+    "batchSpotFleetRole": {
+      "args": [],
+      "expected": "StpBatchSpotFleetRole"
+    },
+    "batchServiceRole": {
+      "args": [],
+      "expected": "StpBatchServiceRole"
+    },
+    "batchJobExecutionRole": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureRole"
+    },
+    "agentCoreRuntime": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureRuntime"
+    },
+    "agentCoreRuntimeEndpoint": {
+      "args": ["stpResourceName-fixture", "endpointName-fixture"],
+      "expected": "StpResourceNameFixtureEndpointNameFixtureRuntimeEndpoint"
+    },
+    "agentCoreRuntimeRole": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureAgentCoreRuntimeRole"
+    },
+    "agentCoreMemory": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureMemory"
+    },
+    "agentCoreGateway": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureGateway"
+    },
+    "agentCoreGatewayRole": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureAgentCoreGatewayRole"
+    },
+    "agentCoreGatewayTarget": {
+      "args": ["stpResourceName-fixture", "targetName-fixture"],
+      "expected": "StpResourceNameFixtureTargetNameFixtureGatewayTarget"
+    },
+    "agentCoreBrowser": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureBrowserCustom"
+    },
+    "agentCoreBrowserRole": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureAgentCoreBrowserRole"
+    },
+    "agentCoreCodeInterpreter": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureCodeInterpreterCustom"
+    },
+    "agentCoreCodeInterpreterRole": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureAgentCoreCodeInterpreterRole"
+    },
+    "batchComputeEnvironment": {
+      "args": [true, true],
+      "expected": "StpBatchSpotGpuComputeEnvironment"
+    },
+    "batchJobQueue": {
+      "args": [true, true],
+      "expected": "StpBatchSpotGpuJobQueue"
+    },
+    "subnet": {
+      "args": [true, 2],
+      "expected": "StpPublicSubnet2"
+    },
+    "vpc": {
+      "args": [],
+      "expected": "StpVpc"
+    },
+    "vpcGatewayEndpoint": {
+      "args": ["s3"],
+      "expected": "StpS3GatewayVpcEndpoint"
+    },
+    "dbSubnetGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDbSubnetGroup"
+    },
+    "auroraDbCluster": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDbCluster"
+    },
+    "auroraDbClusterParameterGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDbClusterParameterGroup"
+    },
+    "auroraDbClusterLogGroup": {
+      "args": ["stpResourceName-fixture", "logGroupType-fixture"],
+      "expected": "StpResourceNameFixtureClusterLogGroupTypeFixtureLogGroup"
+    },
+    "dbSecurityGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureSecurityGroup"
+    },
+    "dbInstance": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDbInstance"
+    },
+    "dbInstanceLogGroup": {
+      "args": ["stpResourceName-fixture", "logGroupType-fixture"],
+      "expected": "StpResourceNameFixtureInstanceLogGroupTypeFixtureLogGroup"
+    },
+    "openSearchDomainLogGroup": {
+      "args": ["stpResourceName-fixture", "logGroupType-fixture"],
+      "expected": "StpResourceNameFixtureInstanceLogGroupTypeFixtureLogGroup"
+    },
+    "dbOptionGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureOptionGroup"
+    },
+    "dbInstanceParameterGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDbParameterGroup"
+    },
+    "dbReplica": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureReplica2DbInstance"
+    },
+    "dbReplicaLogGroup": {
+      "args": ["stpResourceName-fixture", "logGroupType-fixture", 2],
+      "expected": "StpResourceNameFixtureReplica2LogGroupTypeFixtureLogGroup"
+    },
+    "dbReplicaParameterGroup": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureReplica2DbParameterGroup"
+    },
+    "auroraDbInstance": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureDbInstance2"
+    },
+    "auroraDbInstanceParameterGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureInstanceDbParameterGroup"
+    },
+    "eventBusRule": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureEvent2Rule"
+    },
+    "customTaggingScheduleRule": {
+      "args": [],
+      "expected": "StpStpCustomTaggingScheduleRule"
+    },
+    "customTaggingScheduleRulePermission": {
+      "args": [],
+      "expected": "StpStpCustomTaggingScheduleRulePermission"
+    },
+    "cloudWatchLogEventSubscriptionFilter": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureEvent2SubscriptionFilter"
+    },
+    "eventSourceMapping": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureEvent2EventSourceMapping"
+    },
+    "iotEventTopicRule": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureEvent2TopicRule"
+    },
+    "kinesisEventConsumer": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureEvent2StreamConsumer"
+    },
+    "lambda": {
+      "args": ["stpResourceName-fixture", "isStpServiceFunction-fixture"],
+      "expected": "StpResourceNameFixtureCustomResourceFunction"
+    },
+    "lambdaStpAlias": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureStpAlias"
+    },
+    "lambdaUrl": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureUrl"
+    },
+    "codeDeployDeploymentGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDeploymentGroup"
+    },
+    "customResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureCustomResource"
+    },
+    "scriptCustomResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureScriptCustomResource"
+    },
+    "batchStateMachine": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureJobExecutionStateMachine"
+    },
+    "batchJobDefinition": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureJobDefinition"
+    },
+    "batchJobLogGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureLogGroup"
+    },
+    "globalStateMachinesRole": {
+      "args": [],
+      "expected": "StpGlobalStateMachineRole"
+    },
+    "stateMachine": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureStateMachine"
+    },
+    "internetGateway": {
+      "args": [],
+      "expected": "StpInternetGateway"
+    },
+    "vpcGatewayAttachment": {
+      "args": [],
+      "expected": "StpVpcGatewayAttachment"
+    },
+    "routeTable": {
+      "args": [true, 2],
+      "expected": "StpPublicSubnet2RouteTable"
+    },
+    "internetGatewayRoute": {
+      "args": [2],
+      "expected": "StpInternetGatewayRoute2"
+    },
+    "atlasMongoVpcRoute": {
+      "args": ["publicSubnetTable-fixture", 2],
+      "expected": "StpAtlasMongoPublicSubnetRoute2"
+    },
+    "routeTableToSubnetAssociation": {
+      "args": [true, 2],
+      "expected": "StpPublicSubnet2SubnetRouteTableAssociation"
+    },
+    "natGateway": {
+      "args": [2],
+      "expected": "StpNatGateway2"
+    },
+    "natElasticIp": {
+      "args": [2],
+      "expected": "StpNatEip2"
+    },
+    "natRoute": {
+      "args": [2],
+      "expected": "StpNatPrivateSubnetRoute2"
+    },
+    "eventBus": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureEventBus"
+    },
+    "eventBusArchive": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureArchive"
+    },
+    "ecsCluster": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureCluster"
+    },
+    "ecsTaskDefinition": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureTaskDefinition"
+    },
+    "ecsService": {
+      "args": ["stpResourceName-fixture", true],
+      "expected": "StpResourceNameFixtureBlueGreenService"
+    },
+    "ecsExecutionRole": {
+      "args": [],
+      "expected": "StpEcsExecutionRole"
+    },
+    "ecsEc2InstanceRole": {
+      "args": [],
+      "expected": "StpEcsInstanceRole"
+    },
+    "ecsEc2AutoscalingGroupWarmPool": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureWarmPool"
+    },
+    "eventBusRoleForScheduledInstanceRefresh": {
+      "args": [],
+      "expected": "StpScheduledInstanceRefreshRole"
+    },
+    "schedulerRuleForScheduledInstanceRefresh": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureScheduledInstanceRefreshRule"
+    },
+    "ecsEc2InstanceLaunchTemplate": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureLaunchTemplate"
+    },
+    "ecsEc2AutoscalingGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureAutoScalingGroup"
+    },
+    "ecsEc2ForceDeleteAutoscalingGroupCustomResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureForceDeleteAsgCustomResource"
+    },
+    "ecsDisableManagedTerminationProtectionCustomResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDisableManagedTerminationProtectionCustomResource"
+    },
+    "ecsDeregisterTargetsCustomResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDeregisterTargetsCustomResource"
+    },
+    "ecsEc2CapacityProvider": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureCapacityProvider"
+    },
+    "ecsEc2CapacityProviderAssociation": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureClusterCapacityProviderAssociations"
+    },
+    "ecsEc2InstanceProfile": {
+      "args": [],
+      "expected": "StpEcsInstanceInstanceProfile"
+    },
+    "ecsTaskRole": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureRole"
+    },
+    "ecsAutoScalingRole": {
+      "args": [],
+      "expected": "StpEcsAutoScaleRole"
+    },
+    "ecsScheduledMaintenanceLambdaPermission": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureScheduledMaintenancePermission"
+    },
+    "bastionEc2LaunchTemplate": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureLaunchTemplate"
+    },
+    "bastionEc2InstanceProfile": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureInstanceProfile"
+    },
+    "bastionEc2AutoscalingGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureAutoScalingGroup"
+    },
+    "bastionSecurityGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureSecurityGroup"
+    },
+    "bastionCwAgentSsmAssociation": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureCwAgentAssociation"
+    },
+    "bastionSsmAgentSsmAssociation": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureSsmAgentAssociation"
+    },
+    "bastionRole": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureRole"
+    },
+    "bastionLogGroup": {
+      "args": ["stpResourceName-fixture", "logType-fixture"],
+      "expected": "StpResourceNameFixtureLogTypeFixtureLogGroup"
+    },
+    "bastionCloudwatchSsmDocument": {
+      "args": [],
+      "expected": "StpBastionCloudwatchAgentDocument"
+    },
+    "serviceDiscoveryEcsService": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixturePort2DiscoveryService"
+    },
+    "workloadSecurityGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureSecurityGroup"
+    },
+    "loadBalancerSecurityGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureLbSecurityGroup"
+    },
+    "targetGroup": {
+      "args": [
+        {
+          "loadBalancerName": "loadBalancerName-fixture",
+          "stpResourceName": "stpResourceName-fixture",
+          "targetContainerPort": 2,
+          "blueGreen": true
+        }
+      ],
+      "expected": "StpResourceNameFixtureLoadBalancerNameFixtureToPort2BgTargetGroup"
+    },
+    "lambdaRole": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureRole"
+    },
+    "defaultLambdaFunctionRole": {
+      "args": [],
+      "expected": "StpLambdaRole"
+    },
+    "lambdaPermission": {
+      "args": ["stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixtureEvent2Permission"
+    },
+    "lambdaPublicUrlPermission": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixturePublicUrlPermission"
+    },
+    "lambdaIotEventPermission": {
+      "args": ["workloadName-fixture", 2],
+      "expected": "WorkloadNameFixtureEvent2LambdaIotEventPermission"
+    },
+    "lambdaTargetGroupPermission": {
+      "args": ["stpResourceName-fixture", "loadBalancerName-fixture"],
+      "expected": "StpResourceNameFixtureLoadBalancerNameFixtureTargetGroupPermission"
+    },
+    "httpApi": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureApi"
+    },
+    "httpApiLogGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureLogGroup"
+    },
+    "httpApiLambdaIntegration": {
+      "args": [
+        {
+          "stpResourceName": "stpResourceName-fixture",
+          "stpHttpApiGatewayName": "stpHttpApiGatewayName-fixture"
+        }
+      ],
+      "expected": "StpResourceNameFixtureStpHttpApiGatewayNameFixtureIntegration"
+    },
+    "httpApiContainerWorkloadIntegration": {
+      "args": [
+        {
+          "stpResourceName": "stpResourceName-fixture",
+          "stpHttpApiGatewayName": "stpHttpApiGatewayName-fixture",
+          "targetContainerPort": 2
+        }
+      ],
+      "expected": "StpResourceNameFixtureStpHttpApiGatewayNameFixtureToPort2Integration"
+    },
+    "httpApiAuthorizer": {
+      "args": [
+        {
+          "method": "GET",
+          "path": "/users/{userId}",
+          "stpResourceName": "stpResourceName-fixture"
+        }
+      ],
+      "expected": "StpStpResourceNameFixtureGetUsersUserIdAuthorizer"
+    },
+    "httpApiRoute": {
+      "args": [
+        {
+          "method": "GET",
+          "path": "/users/{userId}",
+          "stpResourceName": "stpResourceName-fixture"
+        }
+      ],
+      "expected": "StpStpResourceNameFixtureGetUsersUserIdRoute"
+    },
+    "httpApiVpcLink": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureVpcLink"
+    },
+    "httpApiVpcLinkSecurityGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureVpcLinkSecurityGroup"
+    },
+    "httpApiLambdaPermission": {
+      "args": [
+        {
+          "stpResourceNameOfLambda": "stpResourceNameOfLambda-fixture",
+          "stpResourceNameOfHttpApiGateway": "stpResourceNameOfHttpApiGateway-fixture"
+        }
+      ],
+      "expected": "StpResourceNameOfLambdaFixtureStpResourceNameOfHttpApiGatewayFixturePermission"
+    },
+    "httpApiStage": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureStage"
+    },
+    "httpApiDomain": {
+      "args": ["api.preview.example.com"],
+      "expected": "StpApiPreviewExampleComDomainName"
+    },
+    "httpApiDefaultDomain": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDomainName"
+    },
+    "httpApiDomainMapping": {
+      "args": ["api.preview.example.com"],
+      "expected": "StpApiPreviewExampleComApiMapping"
+    },
+    "httpApiDefaultDomainMapping": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureApiMapping"
+    },
+    "listener": {
+      "args": [2, "stpResourceName-fixture"],
+      "expected": "StpResourceNameFixturePort2Listener"
+    },
+    "listenerRule": {
+      "args": [2, "stpResourceName-fixture", 2],
+      "expected": "StpResourceNameFixturePort2Priority2ListenerRule"
+    },
+    "listenerCertificateList": {
+      "args": [2, "stpResourceName-fixture"],
+      "expected": "StpResourceNameFixturePort2ListenerCertificate"
+    },
+    "loadBalancer": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureLoadBalancer"
+    },
+    "ecsLogGroup": {
+      "args": ["stpResourceName-fixture", "containerName-fixture"],
+      "expected": "StpResourceNameFixtureContainerNameFixtureLogGroup"
+    },
+    "autoScalingTarget": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureScalableTarget"
+    },
+    "dynamoAutoScalingTarget": {
+      "args": ["stpResourceName-fixture", "metric-fixture"],
+      "expected": "StpResourceNameFixtureMetricFixtureScalableTarget"
+    },
+    "autoScalingPolicy": {
+      "args": ["stpResourceName-fixture", "metric-fixture"],
+      "expected": "StpResourceNameFixtureMetricFixtureScalingPolicy"
+    },
+    "customResourceS3Events": {
+      "args": [],
+      "expected": "StpEventsCustomResource"
+    },
+    "customResourceSensitiveData": {
+      "args": [],
+      "expected": "StpSensitiveDataCustomResource"
+    },
+    "customResourceAcceptVpcPeerings": {
+      "args": [],
+      "expected": "StpAcceptVpcPeeringsCustomResource"
+    },
+    "customResourceDefaultDomainCert": {
+      "args": [],
+      "expected": "StpDefaultDomainCertCustomResource"
+    },
+    "customResourceEdgeLambdaBucket": {
+      "args": [],
+      "expected": "StpEdgeLambdaBucketCustomResource"
+    },
+    "customResourceEdgeLambda": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureEdgeLambdaCustomResource"
+    },
+    "customResourceDefaultDomain": {
+      "args": ["stpResourceName-fixture", true],
+      "expected": "StpResourceNameFixtureCdnDefaultDomainCustomResource"
+    },
+    "customResourceDatabaseDeletionProtection": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDeletionProtectionCustomResource"
+    },
+    "userPool": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureUserPool"
+    },
+    "userPoolClient": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureUserPoolClient"
+    },
+    "userPoolDomain": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureUserPoolDomain"
+    },
+    "identityProvider": {
+      "args": ["stpResourceName-fixture", "DefDynamic"],
+      "expected": "StpResourceNameFixtureDefDynamicUserPoolIdentityProvider"
+    },
+    "cognitoLambdaHookPermission": {
+      "args": ["stpResourceName-fixture", "hookName-fixture"],
+      "expected": "StpResourceNameFixtureHookNameFixturePermission"
+    },
+    "cognitoUserPoolDetailsCustomResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureUserPoolDetailsCustomResource"
+    },
+    "userPoolUiCustomizationAttachment": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureUserPoolUiCustomizationAttachment"
+    },
+    "serviceDiscoveryPrivateNamespace": {
+      "args": [],
+      "expected": "StpDiscoveryService"
+    },
+    "lambdaCodeDeployApp": {
+      "args": [],
+      "expected": "StpLambdaCodeDeployApplication"
+    },
+    "sharedChunkLayer": {
+      "args": [2],
+      "expected": "StpSharedChunkLayer2LayerVersion"
+    },
+    "ecsCodeDeployApp": {
+      "args": [],
+      "expected": "StpEcsCodeDeployApplication"
+    },
+    "stackBudget": {
+      "args": ["stackName-fixture"],
+      "expected": "StpStackNameFixtureBudget"
+    },
+    "upstashRedisDatabase": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDatabase"
+    },
+    "upstashCredentialsProvider": {
+      "args": [],
+      "expected": "StpUpstashCredentialsProviderCustomResource"
+    },
+    "cloudwatchAlarm": {
+      "args": ["stacktapeAlarmName-fixture"],
+      "expected": "StacktapeAlarmNameFixtureAlarm"
+    },
+    "cloudwatchAlarmEventBusNotificationRule": {
+      "args": ["stacktapeAlarmName-fixture"],
+      "expected": "StacktapeAlarmNameFixtureNotificationRule"
+    },
+    "cloudwatchAlarmEventBusNotificationRuleLambdaPermission": {
+      "args": ["stacktapeAlarmName-fixture"],
+      "expected": "StacktapeAlarmNameFixtureNotificationPermission"
+    },
+    "cloudwatchAlarmSharedEventBusNotificationRuleLambdaPermission": {
+      "args": [],
+      "expected": "StpCloudwatchAlarmNotificationSharedPermission"
+    },
+    "sqsQueue": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureQueue"
+    },
+    "sqsQueuePolicy": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureQueuePolicy"
+    },
+    "snsTopic": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureTopic"
+    },
+    "kinesisStream": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureStream"
+    },
+    "webAppFirewallCustomResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureWebAppFirewallCustomResource"
+    },
+    "webAppFirewallAssociation": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureWebAclAssociation"
+    },
+    "openSearchDomain": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureDomain"
+    },
+    "openSearchCustomResource": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureOpenSearchCustomResource"
+    },
+    "openSearchSecurityGroup": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureSecurityGroup"
+    },
+    "logForwardingFirehoseToS3Role": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureLogForwardingS3Role"
+    },
+    "logForwardingCwToFirehoseRole": {
+      "args": [
+        {
+          "logGroupCfLogicalName": "logGroupCfLogicalName-fixture"
+        }
+      ],
+      "expected": "LogGroupCfLogicalNameFixtureCwToFirehoseRole"
+    },
+    "logForwardingFailedEventsBucket": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureLogForwardingFailedRecordsBucket"
+    },
+    "logForwardingFirehoseDeliveryStream": {
+      "args": [
+        {
+          "logGroupCfLogicalName": "logGroupCfLogicalName-fixture"
+        }
+      ],
+      "expected": "LogGroupCfLogicalNameFixtureDeliveryStream"
+    },
+    "logForwardingSubscriptionFilter": {
+      "args": [
+        {
+          "logGroupCfLogicalName": "logGroupCfLogicalName-fixture"
+        }
+      ],
+      "expected": "LogGroupCfLogicalNameFixtureSubscriptionFilter"
+    },
+    "issueDetectionSubscriptionFilter": {
+      "args": ["stpResourceName-fixture"],
+      "expected": "StpResourceNameFixtureIssueDetectionSubscriptionFilter"
+    },
+    "issueDetectionLogsPermission": {
+      "args": [],
+      "expected": "StpIssueDetectionLogsPermission"
+    }
+  },
+  "physicalNames": {
+    "bucket": {
+      "args": ["stpBucketName-fixture", "stackName-fixture", "globallyUniqueStackHash-fixture"],
+      "expected": "stackName-fixture-stpbucketname-fixture-globallyUniqueSt-80f7a2"
+    },
+    "atlasMongoProject": {
+      "args": ["stackName-fixture", "globallyUniqueStackHash-fixture"],
+      "expected": "stackName-fixture-globallyUniqueStackHash-fixture"
+    },
+    "atlasMongoCluster": {
+      "args": ["stpMongoAtlasClusterName-fixture"],
+      "expected": "stpmongoatlasclustername-fixture"
+    },
+    "dynamoGlobalTable": {
+      "args": ["stpResourceName-fixture", "globallyUniqueStackHash-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture-globallyUniqueStackHash-fixture"
+    },
+    "dynamoRegionalTable": {
+      "args": ["stpResourceName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture"
+    },
+    "redisReplicationGroupId": {
+      "args": ["stpResourceName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-stpresourcename-3bde71"
+    },
+    "redisReplicationGroupDescription": {
+      "args": ["stpResourceName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture"
+    },
+    "redisClusterSecurityGroup": {
+      "args": ["stpResourceName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture-sg"
+    },
+    "redisLogGroup": {
+      "args": ["stpResourceName-fixture", "stackName-fixture"],
+      "expected": "/aws/vendedlogs/stackName-fixture/redis/stpResourceName-fixture/slow-log"
+    },
+    "cloudfrontCachePolicy": {
+      "args": ["stpResourceName-fixture", "stackName-fixture", "policyHash-fixture"],
+      "expected": "StackNameFixtureStpResourceNameFixtureCachePolicypolicyHashFixture"
+    },
+    "cloudfrontDefaultCachePolicy": {
+      "args": ["DefDynamic", "stackName-fixture"],
+      "expected": "StackNameFixtureDefDynamicCachePolicy"
+    },
+    "cloudfrontDefaultOriginRequestPolicy": {
+      "args": ["DefDynamic", "stackName-fixture"],
+      "expected": "StackNameFixtureDefDynamicOriginRequestPolicy"
+    },
+    "cloudfrontOriginRequestPolicy": {
+      "args": ["stpResourceName-fixture", "stackName-fixture", "policyHash-fixture"],
+      "expected": "StackNameFixtureStpResourceNameFixtureOriginRequestPolicypolicyHashFixture"
+    },
+    "cloudfrontOriginId": {
+      "args": ["originIdentifier-fixture", 2],
+      "expected": "originIdentifier-fixture2"
+    },
+    "openNextHostHeaderRewriteFunction": {
+      "args": ["stpResourceName-fixture", "stackName-fixture", "region-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture-region-fixture"
+    },
+    "ssrWebHostHeaderRewriteFunction": {
+      "args": ["stpResourceName-fixture", "stackName-fixture", "resourceType-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture-resourceType-fixture"
+    },
+    "lambdaRole": {
+      "args": ["stackName-fixture", "region-fixture", "functionName-fixture", "batch-job"],
+      "expected": "stackName-fixture-functionName-fixture-TRIGGER-region-fixture"
+    },
+    "lambdaDefaultRole": {
+      "args": ["stackName-fixture", "region-fixture"],
+      "expected": "stackName-fixture-stpDefLambda-region-fixture"
+    },
+    "lambdaStpAlias": {
+      "args": [],
+      "expected": "stp-live"
+    },
+    "batchJobRole": {
+      "args": ["stackName-fixture", "region-fixture", "batchJobName-fixture"],
+      "expected": "stackName-fixture-batchJobName-fixture-region-fixture"
+    },
+    "containerWorkloadRole": {
+      "args": ["stackName-fixture", "region-fixture", "workloadName-fixture"],
+      "expected": "stackName-fixture-workloadName-fixture-region-fixture"
+    },
+    "agentCoreRuntime": {
+      "args": ["stackName-fixture", "stpResourceName-fixture"],
+      "expected": "stp_stackName_fixture_stpResourceName_fixture"
+    },
+    "agentCoreRuntimeEndpoint": {
+      "args": ["stackName-fixture", "stpResourceName-fixture", "endpointName-fixture"],
+      "expected": "stp_stackName_fixture_stpResourceName_fix_6d52cd"
+    },
+    "agentCoreGateway": {
+      "args": ["stackName-fixture", "stpResourceName-fixture"],
+      "expected": "stp-stackName-fixture-stpResourceName-fixture"
+    },
+    "agentCoreGatewayTarget": {
+      "args": ["stackName-fixture", "stpResourceName-fixture", "targetName-fixture"],
+      "expected": "stp-stackName-fixture-stpResourceName-fixture-targetName-fixture"
+    },
+    "agentCoreMemory": {
+      "args": ["stackName-fixture", "stpResourceName-fixture"],
+      "expected": "stp_stackName_fixture_stpResourceName_fixture"
+    },
+    "agentCoreBrowser": {
+      "args": ["stackName-fixture", "stpResourceName-fixture"],
+      "expected": "stp_stackName_fixture_stpResourceName_fixture"
+    },
+    "agentCoreCodeInterpreter": {
+      "args": ["stackName-fixture", "stpResourceName-fixture"],
+      "expected": "stp_stackName_fixture_stpResourceName_fixture"
+    },
+    "agentCoreRole": {
+      "args": ["stackName-fixture", "region-fixture", "stpResourceName-fixture", "suffix-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture-suffix-fixture--f0652b"
+    },
+    "eventBus": {
+      "args": ["stackName-fixture", "stpResourceName-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture"
+    },
+    "deploymentBucket": {
+      "args": ["globallyUniqueStackHash-fixture"],
+      "expected": "stp-deployment-bucket-globallyUniqueStackHash-fixture"
+    },
+    "deploymentEcrRepo": {
+      "args": ["globallyUniqueStackHash-fixture"],
+      "expected": "globallyUniqueStackHash-fixture-stp-multi-container-workload-repo"
+    },
+    "stpServiceDynamoTable": {
+      "args": ["region-fixture"],
+      "expected": "stp-service-region-fixture"
+    },
+    "batchInstanceDefaultSecurityGroup": {
+      "args": ["stackName-fixture"],
+      "expected": "stackName-fixture-batch-instance-sg"
+    },
+    "batchInstanceLaunchTemplate": {
+      "args": ["stackName-fixture"],
+      "expected": "stackName-fixture-batch-instance-launch-template"
+    },
+    "batchComputeEnvironment": {
+      "args": ["stackName-fixture", true, true],
+      "expected": "stackName-fixture-batch-spot-gpu-compute-environment"
+    },
+    "batchJobQueue": {
+      "args": ["stackName-fixture", true, true],
+      "expected": "stackName-fixture-batch-spot-gpu-job-queue"
+    },
+    "dbSubnetGroup": {
+      "args": ["stackName-fixture", "resourceName-fixture"],
+      "expected": "stackName-fixture-resourcename-fixture-subnet-group"
+    },
+    "dbCluster": {
+      "args": ["stackName-fixture", "resourceName-fixture"],
+      "expected": "stackName-fixture-resourcename-fixture"
+    },
+    "dbSecurityGroup": {
+      "args": ["workloadName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-workloadName-fixture-sg"
+    },
+    "dbInstance": {
+      "args": ["resourceName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-resourcename-fixture"
+    },
+    "dbReplicaInstance": {
+      "args": ["workloadName-fixture", "stackName-fixture", 2],
+      "expected": "stackName-fixture-workloadname-fixture-rep2"
+    },
+    "dbLogGroup": {
+      "args": ["awsDatabaseIdentifier-fixture", true, "logGroupType-fixture"],
+      "expected": "/aws/rds/cluster/awsDatabaseIdentifier-fixture/logGroupType-fixture"
+    },
+    "auroraDbInstance": {
+      "args": ["workloadName-fixture", "stackName-fixture", 2],
+      "expected": "stackName-fixture-workloadname-fixture-2"
+    },
+    "eventBusRuleTargetId": {
+      "args": ["workloadName-fixture", 2],
+      "expected": "workloadName-fixture-event-2-event-rule"
+    },
+    "sqsQueueEventBusRuleTargetId": {
+      "args": ["queueName-fixture", 2],
+      "expected": "queueName-fixture-event-bus-target-2"
+    },
+    "kinesisEventConsumer": {
+      "args": ["stackName-fixture", "workloadName-fixture", 2],
+      "expected": "stackName-fixture-workloadName-fixture-event2-kinesis-consumer"
+    },
+    "batchStateMachine": {
+      "args": ["workloadName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-workloadName-fixture-batch-state-machine"
+    },
+    "batchJobDefinition": {
+      "args": ["workloadName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-workloadName-fixture-job-definition"
+    },
+    "stateMachine": {
+      "args": ["stateMachineName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-stateMachineName-fixture"
+    },
+    "ecsCluster": {
+      "args": ["workloadName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-workloadName-fixture-cluster"
+    },
+    "ecsEc2AutoscalingGroup": {
+      "args": ["workloadName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-workloadName-fixture-asg"
+    },
+    "ecsService": {
+      "args": ["workloadName-fixture", "stackName-fixture", true],
+      "expected": "stackName-fixture-workloadName-fixture-bg-service"
+    },
+    "ecsServiceConnectDefaultDnsName": {
+      "args": ["workloadName-fixture", "containerName-fixture"],
+      "expected": "workloadname-fixture-containername-fixture"
+    },
+    "ecsTaskDefinitionFamily": {
+      "args": ["workloadName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-workloadName-fixture-task-definition"
+    },
+    "bastionEc2AutoscalingGroup": {
+      "args": ["stpResourceName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture-asg"
+    },
+    "bastionLogGroup": {
+      "args": [
+        {
+          "stackName": "stackName-fixture",
+          "stpResourceName": "stpResourceName-fixture",
+          "logType": "logType-fixture"
+        }
+      ],
+      "expected": "/stp/stackName-fixture/bastion/stpResourceName-fixture/logType-fixture"
+    },
+    "bastionSecurityGroup": {
+      "args": ["bastionStpName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-bastionStpName-fixture-bastion-sg"
+    },
+    "workloadSecurityGroup": {
+      "args": ["workloadName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-workloadName-fixture-sg"
+    },
+    "workloadSecurityGroupGroupDescription": {
+      "args": ["workloadName-fixture", "stackName-fixture"],
+      "expected": "Security group associated with workloadName-fixture in stack stackName-fixture"
+    },
+    "httpApiAuthorizer": {
+      "args": [
+        {
+          "stackName": "stackName-fixture",
+          "workloadName": "workloadName-fixture",
+          "method": "GET",
+          "path": "/users/{userId}",
+          "stpResourceName": "stpResourceName-fixture"
+        }
+      ],
+      "expected": "StackNameFixtureWorkloadNameFixtureGetUsersUserIdStpResourceNameFixtureAuthorizer"
+    },
+    "loadBalancerSecurityGroup": {
+      "args": ["loadBalancerName-fixture", "stackName-fixture", true],
+      "expected": "stackName-fixture-loadBalancerName-fixture-nlb-sg"
+    },
+    "lambda": {
+      "args": ["workloadName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-workloadName-fixture"
+    },
+    "stpServiceLambda": {
+      "args": ["stackName-fixture"],
+      "expected": "stackName-fixture-stpService-CR"
+    },
+    "edgeLambda": {
+      "args": ["workloadName-fixture", "stackName-fixture", "region-fixture"],
+      "expected": "stackName-fixture-region-fixture-workloadName-fixture"
+    },
+    "lambdaTargetGroup": {
+      "args": ["stackName-fixture", "workloadName-fixture", "loadBalancerName-fixture"],
+      "expected": "stackName-fixture-loadBal-ec721e"
+    },
+    "autoScalingPolicy": {
+      "args": ["workloadName-fixture", "stackName-fixture", "metric-fixture"],
+      "expected": "stackName-fixture-workloadName-fixture-metric-fixture"
+    },
+    "httpApi": {
+      "args": ["stackName-fixture"],
+      "expected": "stackName-fixture-http-api"
+    },
+    "httpApiVpcLink": {
+      "args": [
+        {
+          "stackName": "stackName-fixture",
+          "stpResourceName": "stpResourceName-fixture"
+        }
+      ],
+      "expected": "stackName-fixture-stpResourceName-fixture-vpc-link"
+    },
+    "httpApiVpcLinkSecurityGroup": {
+      "args": [
+        {
+          "stackName": "stackName-fixture",
+          "stpResourceName": "stpResourceName-fixture"
+        }
+      ],
+      "expected": "stackName-fixture-stpResourceName-fixture-vpc-link-sg"
+    },
+    "userPool": {
+      "args": ["userPoolName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-userPoolName-fixture-user-pool"
+    },
+    "userPoolClient": {
+      "args": ["userPoolName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-userPoolName-fixture-user-pool-client"
+    },
+    "serviceDiscoveryPrivateNamespace": {
+      "args": ["stackName-fixture"],
+      "expected": "stackName-fixture-private-namespace"
+    },
+    "lambdaCodeDeployApp": {
+      "args": ["stackName-fixture"],
+      "expected": "stackName-fixture-lambda-code-deploy"
+    },
+    "ecsCodeDeployApp": {
+      "args": ["stackName-fixture"],
+      "expected": "stackName-fixture-ecs-code-deploy"
+    },
+    "codeDeployDeploymentGroup": {
+      "args": [
+        {
+          "stackName": "stackName-fixture",
+          "stpResourceName": "stpResourceName-fixture"
+        }
+      ],
+      "expected": "stackName-fixture-stpResourceName-fixture"
+    },
+    "httpApiLogGroup": {
+      "args": ["props-fixture"],
+      "expected": "/aws/vendedlogs/undefined/api-gateway/undefined/access-logs"
+    },
+    "containerLogGroup": {
+      "args": [
+        {
+          "stackName": "stackName-fixture",
+          "stpResourceName": "stpResourceName-fixture",
+          "containerName": "containerName-fixture",
+          "default": "default-fixture"
+        }
+      ],
+      "expected": "/stp/stackName-fixture/ecs/stpResourceName-fixture/containerName-fixture/process-logs"
+    },
+    "batchJobLogGroup": {
+      "args": [
+        {
+          "stackName": "stackName-fixture",
+          "stpResourceName": "stpResourceName-fixture"
+        }
+      ],
+      "expected": "/stp/stackName-fixture/batch/stpResourceName-fixture/process-logs"
+    },
+    "lambdaLogGroup": {
+      "args": [
+        {
+          "lambdaAwsResourceName": "lambdaAwsResourceName-fixture",
+          "edgeLambda": true
+        }
+      ],
+      "expected": "/aws/lambda/us-east-1.lambdaAwsResourceName-fixture"
+    },
+    "stackBudget": {
+      "args": ["stackName-fixture", "globallyUniqueStackHash-fixture"],
+      "expected": "stackName-fixture-globallyUniqueStackHash-fixture"
+    },
+    "upstashRedisDatabase": {
+      "args": [
+        {
+          "stackName": "stackName-fixture",
+          "globallyUniqueStackHash": "globallyUniqueStackHash-fixture",
+          "stpResourceName": "stpResourceName-fixture"
+        }
+      ],
+      "expected": "stackName-fixture-globallyUniqueStackHash-fixture-stpResourceName-fixture"
+    },
+    "edgeLambdaRole": {
+      "args": ["stackName-fixture", "region-fixture", "functionName-fixture"],
+      "expected": "stackName-fixture-functionName-fixture-region-fixture"
+    },
+    "cloudwatchAlarm": {
+      "args": ["stackName-fixture", "alarmName-fixture"],
+      "expected": "stackName-fixture-alarmName-fixture"
+    },
+    "cloudwatchAlarmNotificationRulePrefix": {
+      "args": ["stackName-fixture"],
+      "expected": "stackName-fixture-alarm-notification"
+    },
+    "cloudwatchAlarmNotificationRule": {
+      "args": ["stackName-fixture", "alarmName-fixture"],
+      "expected": "stackName-fixture-alarm-notification-alarmName-fixture"
+    },
+    "codebuildProject": {
+      "args": ["region-fixture"],
+      "expected": "stacktape-deployment-region-fixture"
+    },
+    "codebuildServiceRole": {
+      "args": [],
+      "expected": "stacktape-codebuild-role"
+    },
+    "stackOperationsLogGroup": {
+      "args": [],
+      "expected": "/stp/stack-operations"
+    },
+    "codebuildDeploymentBucket": {
+      "args": ["region-fixture", "accountId-fixture"],
+      "expected": "stp-codebuild-deployment-region-fixture-44608f45"
+    },
+    "sqsQueue": {
+      "args": ["stpResourceName-fixture", "stackName-fixture", true],
+      "expected": "stackName-fixture-stpResourceName-fixture.fifo"
+    },
+    "snsTopic": {
+      "args": ["stpResourceName-fixture", "stackName-fixture", true],
+      "expected": "stackName-fixture-stpResourceName-fixture.fifo"
+    },
+    "kinesisStream": {
+      "args": ["stpResourceName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture"
+    },
+    "wafWebACLName": {
+      "args": ["stpResourceName-fixture", "stackName-fixture", "globallyUniqueStackHash-fixture"],
+      "expected": "stackName-fixture-globallyUniqueStackHash-fixture-stpResourceName-fixture-acl"
+    },
+    "openSearchDomainName": {
+      "args": ["stpResourceName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-stp-3bde71"
+    },
+    "openSearchLogGroup": {
+      "args": ["stpResourceName-fixture", "logGroupType-fixture", "_region-fixture", "stackName-fixture"],
+      "expected": "/stp/stackName-fixture/open-search/stpResourceName-fixture/logGroupType-fixture"
+    },
+    "logForwardingFailedEventsBucket": {
+      "args": ["stpResourceName-fixture", "stackName-fixture", "globallyUniqueStackHash-fixture"],
+      "expected": "stackName-fixture-stpresourcename-fixture-logs-globallyU-bd3336"
+    },
+    "efsSecurityGroup": {
+      "args": ["stpResourceName-fixture", "stackName-fixture"],
+      "expected": "stackName-fixture-stpResourceName-fixture-efs-sg"
+    }
+  },
+  "constantModules": {
+    "cloudformationRegistryNames": {
+      "buildRoleNameFromPackagePrefix": {
+        "args": [
+          {
+            "packagePrefix": "packagePrefix-fixture",
+            "region": "region-fixture"
+          }
+        ],
+        "expected": "stp-packagePrefix-fixture-region-fixture"
+      },
+      "buildZipPackageNameFromPackagePrefix": {
+        "args": [
+          {
+            "packagePrefix": "packagePrefix-fixture"
+          }
+        ],
+        "expected": "packagePrefix-fixture.zip"
+      },
+      "buildRoleDefinitionFileNameFromPackagePrefix": {
+        "args": [
+          {
+            "packagePrefix": "packagePrefix-fixture"
+          }
+        ],
+        "expected": "packagePrefix-fixture-role.yml"
+      },
+      "buildLogGroupNameFromPackagePrefix": {
+        "args": [
+          {
+            "packagePrefix": "packagePrefix-fixture"
+          }
+        ],
+        "expected": "/stp/cloudformation/packagePrefix-fixture"
+      }
+    },
+    "cloudfrontHeaderNames": {
+      "setOriginResponseHeaders": {
+        "args": [],
+        "expected": "X-Stp-Origin-Response-Set-Headers"
+      },
+      "spaHeader": {
+        "args": [],
+        "expected": "X-Stp-Origin-Request-SPA"
+      },
+      "urlOptimization": {
+        "args": [],
+        "expected": "X-Stp-Origin-Request-Url-Normalization"
+      },
+      "rewriteHostHeader": {
+        "args": [],
+        "expected": "X-Stp-Origin-Request-Rewrite-Host"
+      },
+      "originType": {
+        "args": [],
+        "expected": "X-Stp-Origin-Request-Origin-Type"
+      }
+    },
+    "metadataNames": {
+      "imageCount": {
+        "args": [],
+        "expected": "imageCount"
+      },
+      "functionCount": {
+        "args": [],
+        "expected": "functionCount"
+      },
+      "isDevStack": {
+        "args": [],
+        "expected": "isDevStack"
+      },
+      "deploymentBucket": {
+        "args": [],
+        "expected": "deploymentBucket"
+      },
+      "atlasMongoPrivateTypesMajorVersionUsed": {
+        "args": [],
+        "expected": "mongoDbModuleMajorVersion"
+      },
+      "upstashRedisPrivateTypesMajorVersionUsed": {
+        "args": [],
+        "expected": "upstashRedisModuleMajorVersion"
+      },
+      "budgetName": {
+        "args": [],
+        "expected": "budgetName"
+      },
+      "cloudformationRoleArn": {
+        "args": [],
+        "expected": "cloudformationRoleArn"
+      },
+      "stackConsole": {
+        "args": [],
+        "expected": "stackConsole"
+      },
+      "name": {
+        "args": [],
+        "expected": "name"
+      },
+      "createdTime": {
+        "args": [],
+        "expected": "createdTime"
+      },
+      "lastUpdatedTime": {
+        "args": [],
+        "expected": "lastUpdatedTime"
+      },
+      "monthToDateSpend": {
+        "args": [],
+        "expected": "monthToDateSpend"
+      },
+      "monthForecastedSpend": {
+        "args": [],
+        "expected": "monthForecastedSpend"
+      },
+      "natPublicIps": {
+        "args": [],
+        "expected": "natPublicIps"
+      },
+      "devAgentRoleExternalId": {
+        "args": [],
+        "expected": "devAgentRoleExternalId"
+      },
+      "debugAgentRoleExternalId": {
+        "args": [],
+        "expected": "debugAgentRoleExternalId"
+      },
+      "rollbackSafety": {
+        "args": [],
+        "expected": "rollbackSafety"
+      }
+    },
+    "outputNames": {
+      "deploymentVersion": {
+        "args": [],
+        "expected": "StpDeploymentVersion"
+      },
+      "stackInfoMap": {
+        "args": [],
+        "expected": "StpStackInfoMap"
+      }
+    },
+    "referenceableParameterNames": {
+      "redisSharding": {
+        "args": [],
+        "expected": "sharding"
+      }
+    },
+    "tagNames": {
+      "stackName": {
+        "args": [],
+        "expected": "stp:stack-name"
+      },
+      "projectName": {
+        "args": [],
+        "expected": "stp:project-name"
+      },
+      "stage": {
+        "args": [],
+        "expected": "stp:stage"
+      },
+      "globallyUniqueStackHash": {
+        "args": [],
+        "expected": "stp:globally-unique-stack-hash"
+      },
+      "hotSwapDeploy": {
+        "args": [],
+        "expected": "stp:hotswap-deploy"
+      },
+      "codeDigest": {
+        "args": [],
+        "expected": "stp:code-digest"
+      },
+      "autoscalingGroupName": {
+        "args": [],
+        "expected": "stp:asg-name"
+      },
+      "awsEcsClusterName": {
+        "args": [],
+        "expected": "aws:ecs:clusterName"
+      },
+      "awsCloudformationLogicalName": {
+        "args": [],
+        "expected": "aws:cloudformation:logical-id"
+      },
+      "cfAttributionLogicalName": {
+        "args": [],
+        "expected": "stp:cf:attributionLogicalName"
+      }
+    }
+  },
+  "focusedCases": {
+    "arns": {
+      "lambda": {
+        "args": [
+          {
+            "accountId": "accountId-fixture",
+            "stackName": "stackName-fixture",
+            "stacktapeResourceName": "stacktapeResourceName-fixture",
+            "region": "region-fixture"
+          }
+        ],
+        "expected": "arn:aws:lambda:region-fixture:accountId-fixture:function:stackName-fixture-stacktapeResourceName-fixture"
+      },
+      "lambdaFromFullName": {
+        "args": [
+          {
+            "accountId": "accountId-fixture",
+            "region": "region-fixture",
+            "lambdaAwsName": "lambdaAwsName-fixture"
+          }
+        ],
+        "expected": "arn:aws:lambda:region-fixture:accountId-fixture:function:lambdaAwsName-fixture"
+      },
+      "wildcardContainerService": {
+        "args": [
+          {
+            "accountId": "accountId-fixture",
+            "stackName": "stackName-fixture",
+            "workloadName": "workloadName-fixture",
+            "region": "region-fixture"
+          }
+        ],
+        "expected": "arn:aws:ecs:region-fixture:accountId-fixture:service/stackName-fixture-workloadName-fixture-cluster*"
+      },
+      "iamRole": {
+        "args": [
+          {
+            "accountId": "accountId-fixture",
+            "roleAwsName": "roleAwsName-fixture"
+          }
+        ],
+        "expected": "arn:aws:iam::accountId-fixture:role/roleAwsName-fixture"
+      },
+      "cloudwatchAlarm": {
+        "args": [
+          {
+            "accountId": "accountId-fixture",
+            "region": "region-fixture",
+            "alarmAwsName": "alarmAwsName-fixture"
+          }
+        ],
+        "expected": "arn:aws:cloudwatch:region-fixture:accountId-fixture:alarm:alarmAwsName-fixture"
+      },
+      "sqsQueue": {
+        "args": [
+          {
+            "accountId": "accountId-fixture",
+            "region": "region-fixture",
+            "sqsQueueAwsName": "sqsQueueAwsName-fixture"
+          }
+        ],
+        "expected": "arn:aws:sqs:region-fixture:accountId-fixture:sqsQueueAwsName-fixture"
+      },
+      "snsTopic": {
+        "args": [
+          {
+            "accountId": "accountId-fixture",
+            "region": "region-fixture",
+            "snsTopicAwsName": "snsTopicAwsName-fixture"
+          }
+        ],
+        "expected": "arn:aws:sns:region-fixture:accountId-fixture:snsTopicAwsName-fixture"
+      }
+    },
+    "helperLambdaNames": {
+      "originRequestEdgeLambda": {
+        "args": ["stackName-fixture", "region-fixture"],
+        "expected": "stackName-fixture-stpOReq-region-fixture"
+      },
+      "originResponseEdgeLambda": {
+        "args": ["stackName-fixture", "region-fixture"],
+        "expected": "stackName-fixture-stpORes-region-fixture"
+      },
+      "edgeDeploymentBucket": {
+        "args": ["globallyUniqueStackHash-fixture"],
+        "expected": "stp-edge-deployment-bucket-globallyUniqueStackHash-fixture"
+      }
+    },
+    "codebuildDeploymentBucketResourceName": "stp-codebuild-deployment-eu-west-1-f2003d47",
+    "domains": ["publicapi-billing-prod", "publicapi-cdn-billing-prod", "api.example.com"],
+    "ssm": [
+      "/stp/billing-prod",
+      "/stp/eu-west-1/billing-prod",
+      "/stp/eu-west-1/user-1/invoke-1",
+      "/stp/eu-west-1/billing-prod/api.database/connectionString",
+      "/stp/eu-west-1/api.example.com",
+      "/stp/third-party-provider-credentials/eu-west-1/github-main",
+      "api.example.com"
+    ],
+    "utilities": {
+      "awsConsoleLink": "https://eu-west-1.console.aws.amazon.com/cloudformation/home?region=eu-west-1#stacks/events?stackId=stack",
+      "ecrImageUrl": "123.dkr.ecr.eu-west-1.amazonaws.com/app:latest",
+      "cfTemplateKey": "cf-template/4.2.0.yml",
+      "stpTemplateKey": "stp-template/4.2.0.yml",
+      "cfTemplateUrl": "https://deployments.s3.cn-north-1.amazonaws.com.cn/cf-template/4.2.0.yml",
+      "stackDescription": "STP-stack_billing_prod_abc123",
+      "parsedStackDescription": {
+        "projectName": "billing",
+        "stage": "prod",
+        "globallyUniqueStackHash": "abc123"
+      },
+      "simpleServiceContainer": "service-container",
+      "ecrRepository": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/billing",
+      "standardS3Endpoint": "s3.eu-west-1.amazonaws.com",
+      "govCloudS3Endpoint": "s3-us-gov-west-1.amazonaws.com",
+      "chinaS3Endpoint": "s3.cn-north-1.amazonaws.com.cn",
+      "localInvokeContainer": "invoke-local-orders-worker",
+      "userPoolDomain": "billing-prod-customers",
+      "lambdaS3Key": "orders/4.2.0-abc123.zip",
+      "lambdaS3KeyWithoutDigest": "orders/4.2.0.zip",
+      "layerS3Key": "shared-layer-2/4.2.0-abc123.zip",
+      "truncated": {
+        "name": "billing-production-orders-521df8",
+        "truncated": true
+      },
+      "untouched": {
+        "name": "billing-dev-api",
+        "truncated": false
+      },
+      "output": "OrdersApiConnectionString",
+      "export": "BillingProdOrdersApiConnectionString",
+      "nestedResource": "frontendLoadBalancer",
+      "ordinaryResource": "frontendLoadBalancerListener",
+      "alarm": "ErrorRateForOrdersWorker3",
+      "job": "ordersworker-processor",
+      "injectedEnvironmentVariable": "STP_ORDERS_DATABASE_CONNECTION_STRING",
+      "alarmDescription": "Monitors Average error-rate of orders in stack billing-prod. Triggered when GreaterThanThreshold (5).",
+      "customAlarmDescription": "Monitors PendingJobs of orders in stack billing-prod. Triggered when GreaterThanThreshold (10).",
+      "roleArn": "arn:aws:iam::123456789012:role/orders-role",
+      "efsVolume": "efs-sharedData-cache-uploads",
+      "convexSecret": "stp/eu-west-1/billing-prod/analytics.runtime",
+      "convexRuntimeLogicalName": "AnalyticsServiceRuntimeSecret",
+      "batchRetryState": "spot2"
+    }
+  }
+}

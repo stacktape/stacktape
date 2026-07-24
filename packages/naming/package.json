@@ -4,12 +4,31 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./arns": "./src/arns.ts",
+    "./cloudformation-registry": "./src/cloudformation-registry-names.ts",
+    "./cloudfront-headers": "./src/cloudfront-header-names.ts",
+    "./domain": "./src/domain-names.ts",
+    "./helper-lambdas": "./src/helper-lambdas-resource-names.ts",
+    "./logical": "./src/logical-names.ts",
+    "./metadata": "./src/metadata-names.ts",
+    "./names": "./src/names.ts",
+    "./outputs": "./src/stack-output-names.ts",
+    "./physical": "./src/aws-resource-names.ts",
+    "./referenceable-parameters": "./src/referenceable-parameter-names.ts",
+    "./ssm": "./src/ssm-parameter-names.ts",
+    "./tags": "./src/tag-names.ts"
   },
   "scripts": {
+    "fixtures:check": "node --import=tsx test/generate-fixtures.ts --check",
+    "fixtures:generate": "node --import=tsx test/generate-fixtures.ts --write",
+    "test": "pnpm fixtures:check && node --import=tsx --test test/*.test.ts",
+    "test:legacy": "node --import=tsx test/compare-legacy.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:"
   }
 }
