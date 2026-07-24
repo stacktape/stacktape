@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 import { assertInside, repositoryRoot, run, validateSliceId } from './shared.ts';
@@ -35,11 +36,28 @@ if (publicStatus) {
   throw new Error('Public worktree is dirty; commit or discard its changes explicitly first.');
 }
 
+const removeInstallDirectories = async (directory: string): Promise<void> => {
+  const directories = (await readdir(directory, { withFileTypes: true })).filter(
+    (entry) => entry.isDirectory() && entry.name !== '.git'
+  );
+
+  await Promise.all(
+    directories.map((entry) => {
+      const child = path.join(directory, entry.name);
+      return entry.name === 'node_modules'
+        ? rm(child, { force: true, maxRetries: 3, recursive: true })
+        : removeInstallDirectories(child);
+    })
+  );
+};
+
+await removeInstallDirectories(target);
+
 if (existsSync(path.join(privateRoot, '.git'))) {
   run('git', ['submodule', 'deinit', '-f', 'apps/console'], { cwd: target });
 }
 
-run('git', ['worktree', 'remove', target], { cwd: root });
+run('git', ['worktree', 'remove', '--force', target], { cwd: root });
 process.stdout.write(`Removed ${target}.\n`);
 process.stdout.write(
   `Branches were preserved. Delete v4/slice/${sliceId} in each repository only after integration.\n`
