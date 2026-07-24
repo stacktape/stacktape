@@ -122,6 +122,9 @@ jobs:
           mkdir -p __dist
           find __dist-package-platform -type f -exec mv {} __dist/ \;
 
+      - name: Generate release checksums
+        run: bun run release:checksums
+
       - name: Install Stacktape CLI
         run: |
           curl -L https://installs.stacktape.com/linux.sh | sh
@@ -136,7 +139,10 @@ jobs:
         run: bun run gen:schema
 
       - name: Build npm package
-        run: bun run build:npm --version ${{ inputs.version }}
+        run: bun run build:npm --version ${{ inputs.version }} --require-checksums
+
+      - name: Verify npm release artifact
+        run: bun scripts/verify-npm-package.ts --require-checksums
 
       - name: Setup Node.js for npm publish
         uses: actions/setup-node@v4

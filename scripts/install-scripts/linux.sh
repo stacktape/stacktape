@@ -34,7 +34,36 @@ if ! command -v tar >/dev/null 2>&1; then
 fi
 
 version=${STACKTAPE_VERSION:-"<<DEFAULT_VERSION>>"}
-archive_source_url="https://github.com/stacktape/stacktape/releases/download/$version/linux.tar.gz"
+archive_name="linux.tar.gz"
+archive_source_url="https://github.com/stacktape/stacktape/releases/download/$version/$archive_name"
+checksums_source_url="https://github.com/stacktape/stacktape/releases/download/$version/SHA256SUMS"
+# SHA256SUMS is required starting with 3.7.1. Older pinned releases remain installable.
+# The direct installer fetches both files from GitHub Releases, so this is an integrity check, not independent authenticity.
+checksum_required_for_version() {
+    candidate=${1#v}
+    candidate=${candidate#V}
+    core_version=${candidate%%-*}
+    core_version=${core_version%%+*}
+    previous_ifs=$IFS
+    IFS=.
+    set -- $core_version
+    IFS=$previous_ifs
+    [ "$#" -eq 3 ] || return 0
+    major=${1:-}
+    minor=${2:-}
+    patch=${3:-}
+    case "$major:$minor:$patch" in *[!0-9:]*) return 0 ;; esac
+    [ -n "$major" ] && [ -n "$minor" ] && [ -n "$patch" ] || return 0
+    [ "$major" -gt 3 ] && return 0
+    [ "$major" -lt 3 ] && return 1
+    [ "$minor" -gt 7 ] && return 0
+    [ "$minor" -lt 7 ] && return 1
+    [ "$patch" -ge 1 ]
+}
+checksum_required=false
+if checksum_required_for_version "$version"; then
+    checksum_required=true
+fi
 
 INSTALL_DIR="$HOME/.stacktape/bin"
 mkdir -p "$INSTALL_DIR"
@@ -103,6 +132,30 @@ download_and_install() {
 
     # Use curl's built-in progress bar (works well on Linux)
     curl -# -fL -o "$archive_path" "$archive_source_url"
+    if [ "$checksum_required" = true ]; then
+        checksums_path="$tmp_dir/SHA256SUMS"
+        curl -fsSL -o "$checksums_path" "$checksums_source_url"
+        expected_checksum=$(awk -v name="$archive_name" '$2 == name { print $1 }' "$checksums_path")
+        if [ "${#expected_checksum}" -ne 64 ]; then
+            print_message error "Error: Missing or invalid checksum for $archive_name."
+            rm -rf "$tmp_dir"
+            exit 1
+        fi
+        if command -v sha256sum >/dev/null 2>&1; then
+            actual_checksum=$(sha256sum "$archive_path" | awk '{ print $1 }')
+        elif command -v shasum >/dev/null 2>&1; then
+            actual_checksum=$(shasum -a 256 "$archive_path" | awk '{ print $1 }')
+        else
+            print_message error "Error: 'sha256sum' or 'shasum' is required to verify the download."
+            rm -rf "$tmp_dir"
+            exit 1
+        fi
+        if [ "$actual_checksum" != "$expected_checksum" ]; then
+            print_message error "Error: Checksum verification failed for $archive_name."
+            rm -rf "$tmp_dir"
+            exit 1
+        fi
+    fi
 
     tar -xzf "$archive_path" -C "$INSTALL_DIR"
 

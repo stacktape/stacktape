@@ -1,0 +1,501 @@
+{
+  "description": "STP-stack_characterization_baseline_xxxxxxxx",
+  "resources": {
+    "ApiApiGatewayIntegration": {
+      "type": "AWS::ApiGatewayV2::Integration",
+      "dependencies": ["ApiFunction", "ApiGatewayApi"]
+    },
+    "ApiApiGatewayPermission": {
+      "type": "AWS::Lambda::Permission",
+      "physicalNames": {
+        "FunctionName": { "Fn::GetAtt": ["ApiFunction", "Arn"] }
+      },
+      "dependencies": ["ApiFunction", "ApiGatewayApi"]
+    },
+    "ApiFunction": {
+      "type": "AWS::Lambda::Function",
+      "physicalNames": { "FunctionName": "characterization-baseline-api" },
+      "dependencies": ["ApiLogGroup", "ApiRole"]
+    },
+    "ApiGatewayApi": {
+      "type": "AWS::ApiGatewayV2::Api",
+      "dependencies": []
+    },
+    "ApiGatewayApiMapping": {
+      "type": "AWS::ApiGatewayV2::ApiMapping",
+      "physicalNames": {
+        "DomainName": { "Ref": "ApiGatewayDomainName" }
+      },
+      "dependencies": ["ApiGatewayApi", "ApiGatewayDomainName", "ApiGatewayStage"]
+    },
+    "ApiGatewayDefaultDomainCustomResource": {
+      "type": "AWS::CloudFormation::CustomResource",
+      "dependencies": ["ApiGatewayDomainName", "StacktapeServiceLambdaCustomResourceFunction"]
+    },
+    "ApiGatewayDomainName": {
+      "type": "AWS::ApiGatewayV2::DomainName",
+      "physicalNames": {
+        "DomainName": "<server-compiler-default-domain>"
+      },
+      "dependencies": ["StpDefaultDomainCertCustomResource"]
+    },
+    "ApiGatewayLogGroup": {
+      "type": "AWS::Logs::LogGroup",
+      "physicalNames": {
+        "LogGroupName": "/aws/vendedlogs/characterization-baseline/api-gateway/apiGateway/access-logs"
+      },
+      "dependencies": []
+    },
+    "ApiGatewayStage": {
+      "type": "AWS::ApiGatewayV2::Stage",
+      "dependencies": ["ApiGatewayApi", "ApiGatewayLogGroup"]
+    },
+    "ApiLogGroup": {
+      "type": "AWS::Logs::LogGroup",
+      "physicalNames": {
+        "LogGroupName": "/aws/lambda/characterization-baseline-api"
+      },
+      "dependencies": []
+    },
+    "ApiRole": {
+      "type": "AWS::IAM::Role",
+      "physicalNames": {
+        "RoleName": "characterization-baseline-api-eu-west-1"
+      },
+      "dependencies": ["EventsEventBus", "FilesBucket", "JobsQueue", "RecordsGlobalTable"]
+    },
+    "AuditEvent0Permission": {
+      "type": "AWS::Lambda::Permission",
+      "physicalNames": {
+        "FunctionName": { "Fn::GetAtt": ["AuditFunction", "Arn"] }
+      },
+      "dependencies": ["AuditEvent0Rule", "AuditFunction"]
+    },
+    "AuditEvent0Rule": {
+      "type": "AWS::Events::Rule",
+      "physicalNames": {
+        "EventBusName": { "Fn::GetAtt": ["EventsEventBus", "Arn"] }
+      },
+      "dependencies": ["AuditFunction", "EventsEventBus"]
+    },
+    "AuditFunction": {
+      "type": "AWS::Lambda::Function",
+      "physicalNames": {
+        "FunctionName": "characterization-baseline-audit"
+      },
+      "dependencies": ["AuditLogGroup", "AuditRole"]
+    },
+    "AuditLogGroup": {
+      "type": "AWS::Logs::LogGroup",
+      "physicalNames": {
+        "LogGroupName": "/aws/lambda/characterization-baseline-audit"
+      },
+      "dependencies": []
+    },
+    "AuditRole": {
+      "type": "AWS::IAM::Role",
+      "physicalNames": {
+        "RoleName": "characterization-baseline-audit-eu-west-1"
+      },
+      "dependencies": []
+    },
+    "AuthPoolSendSmsRole": {
+      "type": "AWS::IAM::Role",
+      "dependencies": []
+    },
+    "AuthPoolUserPool": {
+      "type": "AWS::Cognito::UserPool",
+      "physicalNames": {
+        "UserPoolName": "characterization-baseline-authPool-user-pool"
+      },
+      "dependencies": ["AuthPoolSendSmsRole"]
+    },
+    "AuthPoolUserPoolClient": {
+      "type": "AWS::Cognito::UserPoolClient",
+      "dependencies": ["AuthPoolUserPool"]
+    },
+    "AuthPoolUserPoolDetailsCustomResource": {
+      "type": "AWS::CloudFormation::CustomResource",
+      "dependencies": ["AuthPoolUserPool", "AuthPoolUserPoolClient", "StacktapeServiceLambdaCustomResourceFunction"]
+    },
+    "AuthPoolUserPoolDomain": {
+      "type": "AWS::Cognito::UserPoolDomain",
+      "dependencies": ["AuthPoolUserPool"]
+    },
+    "DatabaseDbInstance": {
+      "type": "AWS::RDS::DBInstance",
+      "deletionPolicy": "Delete",
+      "physicalNames": {
+        "DBInstanceIdentifier": "characterization-baseline-database"
+      },
+      "dependencies": [
+        "DatabaseDbParameterGroup",
+        "DatabaseDbSubnetGroup",
+        "DatabaseInstancePostgresqlLogGroup",
+        "DatabaseSecurityGroup"
+      ]
+    },
+    "DatabaseDbParameterGroup": {
+      "type": "AWS::RDS::DBParameterGroup",
+      "physicalNames": {
+        "Family": "postgres18"
+      },
+      "dependencies": []
+    },
+    "DatabaseDbSubnetGroup": {
+      "type": "AWS::RDS::DBSubnetGroup",
+      "dependencies": ["StpPublicSubnet0", "StpPublicSubnet1", "StpPublicSubnet2"]
+    },
+    "DatabaseInstancePostgresqlLogGroup": {
+      "type": "AWS::Logs::LogGroup",
+      "physicalNames": {
+        "LogGroupName": "/aws/rds/instance/characterization-baseline-database/postgresql"
+      },
+      "dependencies": []
+    },
+    "DatabaseSecurityGroup": {
+      "type": "AWS::EC2::SecurityGroup",
+      "dependencies": ["StpVpc"]
+    },
+    "DeadLettersQueue": {
+      "type": "AWS::SQS::Queue",
+      "physicalNames": {
+        "QueueName": "characterization-baseline-deadLetters.fifo"
+      },
+      "dependencies": []
+    },
+    "EventsEventBus": {
+      "type": "AWS::Events::EventBus",
+      "dependencies": []
+    },
+    "FilesBucket": {
+      "type": "AWS::S3::Bucket",
+      "physicalNames": {
+        "BucketName": "characterization-baseline-files-xxxxxxxx"
+      },
+      "dependencies": []
+    },
+    "JobsQueue": {
+      "type": "AWS::SQS::Queue",
+      "physicalNames": {
+        "QueueName": "characterization-baseline-jobs.fifo"
+      },
+      "dependencies": ["DeadLettersQueue"]
+    },
+    "RecordsGlobalTable": {
+      "type": "AWS::DynamoDB::GlobalTable",
+      "physicalNames": {
+        "TableName": "characterization-baseline-records-xxxxxxxx"
+      },
+      "dependencies": []
+    },
+    "StacktapeServiceLambdaCustomResourceFunction": {
+      "type": "AWS::Lambda::Function",
+      "physicalNames": {
+        "FunctionName": "characterization-baseline-stpService-CR"
+      },
+      "dependencies": ["StacktapeServiceLambdaLogGroup", "StacktapeServiceLambdaRole"]
+    },
+    "StacktapeServiceLambdaLogGroup": {
+      "type": "AWS::Logs::LogGroup",
+      "physicalNames": {
+        "LogGroupName": "/aws/lambda/characterization-baseline-stpService-CR"
+      },
+      "dependencies": []
+    },
+    "StacktapeServiceLambdaRole": {
+      "type": "AWS::IAM::Role",
+      "physicalNames": {
+        "RoleName": "characterization-baseline-stacktapeServiceLambda-eu-west-1"
+      },
+      "dependencies": ["StacktapeServiceLambdaLogGroup", "StpVpc"]
+    },
+    "StpApiGatewayAnyRecordsProxyAuthorizer": {
+      "type": "AWS::ApiGatewayV2::Authorizer",
+      "dependencies": ["ApiGatewayApi", "AuthPoolUserPool", "AuthPoolUserPoolClient"]
+    },
+    "StpApiGatewayAnyRecordsProxyRoute": {
+      "type": "AWS::ApiGatewayV2::Route",
+      "dependencies": ["ApiApiGatewayIntegration", "ApiGatewayApi", "StpApiGatewayAnyRecordsProxyAuthorizer"]
+    },
+    "StpCloudwatchAlarmNotificationSharedPermission": {
+      "type": "AWS::Lambda::Permission",
+      "physicalNames": {
+        "FunctionName": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        }
+      },
+      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
+    },
+    "StpContainerRepository": {
+      "type": "AWS::ECR::Repository",
+      "physicalNames": {
+        "RepositoryName": "xxxxxxxx-stp-multi-container-workload-repo"
+      },
+      "dependencies": []
+    },
+    "StpDebugAgentRole": {
+      "type": "AWS::IAM::Role",
+      "physicalNames": {
+        "RoleName": "characterization-baseline-debug-agent"
+      },
+      "dependencies": []
+    },
+    "StpDefaultDomainCertCustomResource": {
+      "type": "AWS::CloudFormation::CustomResource",
+      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
+    },
+    "StpDeploymentBucket": {
+      "type": "AWS::S3::Bucket",
+      "physicalNames": {
+        "BucketName": "stp-deployment-bucket-xxxxxxxx"
+      },
+      "dependencies": []
+    },
+    "StpDeploymentBucketPolicy": {
+      "type": "AWS::S3::BucketPolicy",
+      "dependencies": ["StpDeploymentBucket"]
+    },
+    "StpDevAgentRole": {
+      "type": "AWS::IAM::Role",
+      "physicalNames": {
+        "RoleName": "characterization-baseline-dev-agent"
+      },
+      "dependencies": []
+    },
+    "StpDiscoveryService": {
+      "type": "AWS::ServiceDiscovery::PrivateDnsNamespace",
+      "dependencies": ["StpVpc"]
+    },
+    "StpEcsAutoScaleRole": {
+      "type": "AWS::IAM::Role",
+      "dependencies": []
+    },
+    "StpEcsExecutionRole": {
+      "type": "AWS::IAM::Role",
+      "dependencies": []
+    },
+    "StpInternetGateway": {
+      "type": "AWS::EC2::InternetGateway",
+      "dependencies": []
+    },
+    "StpInternetGatewayRoute0": {
+      "type": "AWS::EC2::Route",
+      "dependencies": ["StpInternetGateway", "StpPublicSubnet0RouteTable", "StpVpcGatewayAttachment"]
+    },
+    "StpInternetGatewayRoute1": {
+      "type": "AWS::EC2::Route",
+      "dependencies": ["StpInternetGateway", "StpPublicSubnet1RouteTable", "StpVpcGatewayAttachment"]
+    },
+    "StpInternetGatewayRoute2": {
+      "type": "AWS::EC2::Route",
+      "dependencies": ["StpInternetGateway", "StpPublicSubnet2RouteTable", "StpVpcGatewayAttachment"]
+    },
+    "StpPublicSubnet0": {
+      "type": "AWS::EC2::Subnet",
+      "dependencies": ["StpVpc"]
+    },
+    "StpPublicSubnet0RouteTable": {
+      "type": "AWS::EC2::RouteTable",
+      "dependencies": ["StpVpc"]
+    },
+    "StpPublicSubnet0SubnetRouteTableAssociation": {
+      "type": "AWS::EC2::SubnetRouteTableAssociation",
+      "dependencies": ["StpPublicSubnet0", "StpPublicSubnet0RouteTable"]
+    },
+    "StpPublicSubnet1": {
+      "type": "AWS::EC2::Subnet",
+      "dependencies": ["StpVpc"]
+    },
+    "StpPublicSubnet1RouteTable": {
+      "type": "AWS::EC2::RouteTable",
+      "dependencies": ["StpVpc"]
+    },
+    "StpPublicSubnet1SubnetRouteTableAssociation": {
+      "type": "AWS::EC2::SubnetRouteTableAssociation",
+      "dependencies": ["StpPublicSubnet1", "StpPublicSubnet1RouteTable"]
+    },
+    "StpPublicSubnet2": {
+      "type": "AWS::EC2::Subnet",
+      "dependencies": ["StpVpc"]
+    },
+    "StpPublicSubnet2RouteTable": {
+      "type": "AWS::EC2::RouteTable",
+      "dependencies": ["StpVpc"]
+    },
+    "StpPublicSubnet2SubnetRouteTableAssociation": {
+      "type": "AWS::EC2::SubnetRouteTableAssociation",
+      "dependencies": ["StpPublicSubnet2", "StpPublicSubnet2RouteTable"]
+    },
+    "StpSensitiveDataCustomResource": {
+      "type": "AWS::CloudFormation::CustomResource",
+      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
+    },
+    "StpStpCustomTaggingScheduleRule": {
+      "type": "AWS::Events::Rule",
+      "dependencies": ["DatabaseSecurityGroup", "StacktapeServiceLambdaCustomResourceFunction", "StpDiscoveryService"]
+    },
+    "StpStpCustomTaggingScheduleRulePermission": {
+      "type": "AWS::Lambda::Permission",
+      "physicalNames": {
+        "FunctionName": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        }
+      },
+      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction", "StpStpCustomTaggingScheduleRule"]
+    },
+    "StpVpc": {
+      "type": "AWS::EC2::VPC",
+      "dependencies": []
+    },
+    "StpVpcGatewayAttachment": {
+      "type": "AWS::EC2::VPCGatewayAttachment",
+      "dependencies": ["StpInternetGateway", "StpVpc"]
+    },
+    "StpWebAnyProxyRoute": {
+      "type": "AWS::ApiGatewayV2::Route",
+      "dependencies": ["WebApi", "WebWebToPort3000Integration"]
+    },
+    "WebApi": {
+      "type": "AWS::ApiGatewayV2::Api",
+      "dependencies": []
+    },
+    "WebApiMapping": {
+      "type": "AWS::ApiGatewayV2::ApiMapping",
+      "physicalNames": {
+        "DomainName": { "Ref": "WebDomainName" }
+      },
+      "dependencies": ["WebApi", "WebDomainName", "WebStage"]
+    },
+    "WebCluster": {
+      "type": "AWS::ECS::Cluster",
+      "dependencies": []
+    },
+    "WebDefaultDomainCustomResource": {
+      "type": "AWS::CloudFormation::CustomResource",
+      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction", "WebDomainName"]
+    },
+    "WebDomainName": {
+      "type": "AWS::ApiGatewayV2::DomainName",
+      "physicalNames": {
+        "DomainName": "<server-compiler-default-domain>"
+      },
+      "dependencies": ["StpDefaultDomainCertCustomResource"]
+    },
+    "WebEcsServiceAverageCpuUtilizationScalingPolicy": {
+      "type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+      "dependencies": ["WebScalableTarget"]
+    },
+    "WebEcsServiceAverageMemoryUtilizationScalingPolicy": {
+      "type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+      "dependencies": ["WebScalableTarget"]
+    },
+    "WebLogGroup": {
+      "type": "AWS::Logs::LogGroup",
+      "physicalNames": {
+        "LogGroupName": "/aws/vendedlogs/characterization-baseline/api-gateway/web/access-logs"
+      },
+      "dependencies": []
+    },
+    "WebPort3000DiscoveryService": {
+      "type": "AWS::ServiceDiscovery::Service",
+      "dependencies": ["StpDiscoveryService"]
+    },
+    "WebRole": {
+      "type": "AWS::IAM::Role",
+      "physicalNames": {
+        "RoleName": "characterization-baseline-web-eu-west-1"
+      },
+      "dependencies": []
+    },
+    "WebScalableTarget": {
+      "type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "dependencies": ["StpEcsAutoScaleRole", "WebCluster", "WebService"]
+    },
+    "WebSecurityGroup": {
+      "type": "AWS::EC2::SecurityGroup",
+      "dependencies": ["StpVpc", "WebVpcLinkSecurityGroup"]
+    },
+    "WebService": {
+      "type": "AWS::ECS::Service",
+      "dependencies": [
+        "StpPublicSubnet0",
+        "StpPublicSubnet1",
+        "StpPublicSubnet2",
+        "WebCluster",
+        "WebPort3000DiscoveryService",
+        "WebSecurityGroup",
+        "WebTaskDefinition"
+      ]
+    },
+    "WebServiceContainerLogGroup": {
+      "type": "AWS::Logs::LogGroup",
+      "physicalNames": {
+        "LogGroupName": "/stp/characterization-baseline/ecs/web/service-container/process-logs"
+      },
+      "dependencies": []
+    },
+    "WebStage": {
+      "type": "AWS::ApiGatewayV2::Stage",
+      "dependencies": ["WebApi", "WebLogGroup"]
+    },
+    "WebTaskDefinition": {
+      "type": "AWS::ECS::TaskDefinition",
+      "physicalNames": {
+        "Family": "characterization-baseline-web-task-definition"
+      },
+      "dependencies": ["StpEcsExecutionRole", "WebRole", "WebServiceContainerLogGroup"]
+    },
+    "WebVpcLink": {
+      "type": "AWS::ApiGatewayV2::VpcLink",
+      "dependencies": ["StpPublicSubnet0", "StpPublicSubnet1", "StpPublicSubnet2", "WebVpcLinkSecurityGroup"]
+    },
+    "WebVpcLinkSecurityGroup": {
+      "type": "AWS::EC2::SecurityGroup",
+      "dependencies": ["StpVpc"]
+    },
+    "WebWebToPort3000Integration": {
+      "type": "AWS::ApiGatewayV2::Integration",
+      "dependencies": ["WebApi", "WebPort3000DiscoveryService", "WebVpcLink"]
+    },
+    "WorkerEvent0EventSourceMapping": {
+      "type": "AWS::Lambda::EventSourceMapping",
+      "physicalNames": {
+        "FunctionName": { "Fn::GetAtt": ["WorkerFunction", "Arn"] }
+      },
+      "dependencies": ["JobsQueue", "WorkerFunction"]
+    },
+    "WorkerFunction": {
+      "type": "AWS::Lambda::Function",
+      "physicalNames": {
+        "FunctionName": "characterization-baseline-worker"
+      },
+      "dependencies": ["WorkerLogGroup", "WorkerRole"]
+    },
+    "WorkerLogGroup": {
+      "type": "AWS::Logs::LogGroup",
+      "physicalNames": {
+        "LogGroupName": "/aws/lambda/characterization-baseline-worker"
+      },
+      "dependencies": []
+    },
+    "WorkerRole": {
+      "type": "AWS::IAM::Role",
+      "physicalNames": {
+        "RoleName": "characterization-baseline-worker-eu-west-1"
+      },
+      "dependencies": ["EventsEventBus", "JobsQueue", "RecordsGlobalTable"]
+    }
+  },
+  "outputs": {
+    "apiUrl": {
+      "dependencies": []
+    },
+    "DebugAgentRoleArn": {
+      "dependencies": ["StpDebugAgentRole"]
+    },
+    "DevAgentRoleArn": {
+      "dependencies": ["StpDevAgentRole"]
+    }
+  }
+}

@@ -6,7 +6,9 @@
  */
 
 const { spawnSync, execSync } = require('node:child_process');
+const { createHash, timingSafeEqual } = require('node:crypto');
 const {
+  createReadStream,
   createWriteStream,
   existsSync,
   chmodSync,
@@ -27,6 +29,7 @@ const { join } = require('node:path');
 const PACKAGE_VERSION = require('../package.json').version;
 
 const GITHUB_REPO = 'stacktape/stacktape';
+const RELEASE_CHECKSUMS_FILE_NAME = 'SHA256SUMS';
 
 const PLATFORM_MAP = {
   'win32-x64': { fileName: 'windows.zip', extract: extractZip },
@@ -168,6 +171,52 @@ async function downloadFile(url, destPath, retries = 3) {
       }
       console.info(`\n${colors.dim}Retrying download (${i + 1}/${retries})...${colors.reset}`);
     }
+  }
+}
+
+function parseChecksumManifest(content) {
+  const checksums = new Map();
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const match = /^([a-f0-9]{64})\s{2}([^\s/\\]+)$/.exec(line);
+    if (!match) {
+      throw new Error(`Invalid release checksum line: ${rawLine}`);
+    }
+    const [, checksum, fileName] = match;
+    if (checksums.has(fileName)) {
+      throw new Error(`Duplicate release checksum entry: ${fileName}`);
+    }
+    checksums.set(fileName, checksum);
+  }
+  return checksums;
+}
+
+async function calculateFileSha256(filePath) {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(filePath)) {
+    hash.update(chunk);
+  }
+  return hash.digest('hex');
+}
+
+async function verifyFileChecksum({ filePath, fileName, manifestPath }) {
+  // The manifest ships through npm and independently binds the GitHub archive bytes to this package version.
+  if (!existsSync(manifestPath)) {
+    throw new Error(
+      `Stacktape package is missing ${RELEASE_CHECKSUMS_FILE_NAME}. Refusing to install an unverified binary.`
+    );
+  }
+  const checksums = parseChecksumManifest(readFileSync(manifestPath, 'utf8'));
+  const expected = checksums.get(fileName);
+  if (!expected) {
+    throw new Error(`${RELEASE_CHECKSUMS_FILE_NAME} has no checksum for ${fileName}.`);
+  }
+  const actual = await calculateFileSha256(filePath);
+  const expectedBytes = Buffer.from(expected, 'hex');
+  const actualBytes = Buffer.from(actual, 'hex');
+  if (expectedBytes.length !== actualBytes.length || !timingSafeEqual(expectedBytes, actualBytes)) {
+    throw new Error(`Checksum verification failed for ${fileName}. The downloaded archive was not installed.`);
   }
 }
 
@@ -357,6 +406,11 @@ async function ensureBinary() {
     try {
       console.info(`${colors.dim}Downloading from GitHub releases...${colors.reset}`);
       await downloadFile(downloadUrl, archivePath);
+      await verifyFileChecksum({
+        filePath: archivePath,
+        fileName: platformInfo.fileName,
+        manifestPath: join(__dirname, '..', RELEASE_CHECKSUMS_FILE_NAME)
+      });
 
       console.info(`${colors.dim}Extracting...${colors.reset}`);
       await platformInfo.extract(archivePath, cacheDir);
@@ -491,4 +545,12 @@ async function main() {
   }
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  calculateFileSha256,
+  parseChecksumManifest,
+  verifyFileChecksum
+};

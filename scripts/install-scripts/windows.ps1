@@ -37,6 +37,17 @@ $EsbuildExecutableFilePath = "$BinDirPath\esbuild\exec.exe"
 $BridgeFilesFolderPath = "$BinDirPath\bridge-files"
 $ZipFilePath = "$BinDirPath\stacktape.zip"
 $ZipSourceUrl = "https://github.com/stacktape/stacktape/releases/download/$Version/windows.zip"
+$ChecksumsFilePath = "$BinDirPath\SHA256SUMS"
+$ChecksumsSourceUrl = "https://github.com/stacktape/stacktape/releases/download/$Version/SHA256SUMS"
+# SHA256SUMS is required starting with 3.7.1. Older pinned releases remain installable.
+# The direct installer fetches both files from GitHub Releases, so this is an integrity check, not independent authenticity.
+$NormalizedVersion = $Version -replace '^[vV]', ''
+$CoreVersion = ($NormalizedVersion -split '[-+]')[0]
+$ParsedVersion = $null
+$ChecksumRequired = $true
+if ([version]::TryParse($CoreVersion, [ref]$ParsedVersion)) {
+    $ChecksumRequired = $ParsedVersion -ge [version]'3.7.1'
+}
 
 Write-Host ""
 Write-ColorOutput -Level "muted" -Message "Installing stacktape version: $Version"
@@ -49,10 +60,33 @@ if (!(Test-Path $BinDirPath)) {
 $ProgressPreference = 'Continue'
 try {
     Invoke-WebRequest $ZipSourceUrl -OutFile $ZipFilePath -UseBasicParsing
+    if ($ChecksumRequired) {
+        Invoke-WebRequest $ChecksumsSourceUrl -OutFile $ChecksumsFilePath -UseBasicParsing
+    }
 } catch {
-    Write-ColorOutput -Level "error" -Message "Error: Failed to download from $ZipSourceUrl"
+    Write-ColorOutput -Level "error" -Message "Error: Failed to download release archive or checksum manifest."
     Write-ColorOutput -Level "error" -Message $_.Exception.Message
     exit 1
+}
+
+if ($ChecksumRequired) {
+    $ChecksumEntry = Get-Content $ChecksumsFilePath | Where-Object {
+        $_ -match '^([a-fA-F0-9]{64})\s{2}windows\.zip$'
+    }
+    if (@($ChecksumEntry).Count -ne 1) {
+        Remove-Item $ZipFilePath -ErrorAction SilentlyContinue
+        Remove-Item $ChecksumsFilePath -ErrorAction SilentlyContinue
+        throw "Missing or duplicate checksum for windows.zip."
+    }
+    $ChecksumLine = @($ChecksumEntry)[0]
+    $ExpectedChecksum = ([regex]::Match($ChecksumLine, '^([a-fA-F0-9]{64})')).Groups[1].Value
+    $ActualChecksum = (Get-FileHash -Path $ZipFilePath -Algorithm SHA256).Hash
+    if ($ActualChecksum -ne $ExpectedChecksum) {
+        Remove-Item $ZipFilePath -ErrorAction SilentlyContinue
+        Remove-Item $ChecksumsFilePath -ErrorAction SilentlyContinue
+        throw "Checksum verification failed for windows.zip. The downloaded archive was not installed."
+    }
+    Remove-Item $ChecksumsFilePath
 }
 
 # Extract archive

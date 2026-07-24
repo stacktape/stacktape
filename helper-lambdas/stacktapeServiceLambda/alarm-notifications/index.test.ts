@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const postedMessages: Array<{ channel: string; text: string }> = [];
 const reportedEvents: any[] = [];
@@ -31,7 +31,11 @@ mock.module('@shared/trpc/aws-identity-protected', () => ({
   }
 }));
 
-const { default: handleAlarmNotification } = await import('./index');
+let handleAlarmNotification: (event: AlarmNotificationEventRuleInput) => Promise<void>;
+
+beforeAll(async () => {
+  ({ default: handleAlarmNotification } = await import('./index'));
+});
 
 const createEvent = (includeInHistory: boolean): AlarmNotificationEventRuleInput =>
   ({

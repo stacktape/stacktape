@@ -1,0 +1,234 @@
+{
+  "ApiRole": {
+    "trust": [
+      {
+        "effect": "Allow",
+        "actions": ["sts:AssumeRole"],
+        "principal": {
+          "Service": ["edgelambda.amazonaws.com", "lambda.amazonaws.com"]
+        }
+      }
+    ],
+    "policies": [
+      {
+        "policyName": "allow-cloudwatch-logging-policy",
+        "effect": "Allow",
+        "actions": ["logs:CreateLogStream", "logs:DescribeLogGroups", "logs:DescribeLogStreams", "logs:PutLogEvents"],
+        "resources": [
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/characterization-baseline-api:*:*"
+          },
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/characterization-baseline-api:*"
+          },
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/characterization-baseline-api"
+          }
+        ]
+      },
+      {
+        "policyName": "custom-allow-access-to-policy-statements",
+        "effect": "Allow",
+        "actions": [
+          "dynamodb:BatchGet*",
+          "dynamodb:BatchWrite*",
+          "dynamodb:ConditionCheckItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:DescribeStream",
+          "dynamodb:DescribeTable",
+          "dynamodb:Get*",
+          "dynamodb:PutItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:UpdateItem"
+        ],
+        "resources": [
+          {
+            "Fn::GetAtt": ["RecordsGlobalTable", "Arn"]
+          },
+          {
+            "Fn::Join": [
+              "",
+              [
+                {
+                  "Fn::GetAtt": ["RecordsGlobalTable", "Arn"]
+                },
+                "/index/*"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "policyName": "custom-allow-access-to-policy-statements",
+        "effect": "Allow",
+        "actions": ["events:PutEvents"],
+        "resources": [
+          {
+            "Fn::GetAtt": ["EventsEventBus", "Arn"]
+          }
+        ]
+      },
+      {
+        "policyName": "custom-allow-access-to-policy-statements",
+        "effect": "Allow",
+        "actions": ["s3:*MultipartUpload*", "s3:*Object*", "s3:Abort*"],
+        "resources": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                {
+                  "Fn::GetAtt": ["FilesBucket", "Arn"]
+                },
+                "/*"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "policyName": "custom-allow-access-to-policy-statements",
+        "effect": "Allow",
+        "actions": ["s3:GetBucket*", "s3:ListBucket"],
+        "resources": [
+          {
+            "Fn::GetAtt": ["FilesBucket", "Arn"]
+          }
+        ]
+      },
+      {
+        "policyName": "custom-allow-access-to-policy-statements",
+        "effect": "Allow",
+        "actions": [
+          "sqs:ChangeMessageVisibility",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:GetQueueUrl",
+          "sqs:ListQueueTags",
+          "sqs:PurgeQueue",
+          "sqs:ReceiveMessage",
+          "sqs:SendMessage"
+        ],
+        "resources": [
+          {
+            "Fn::GetAtt": ["JobsQueue", "Arn"]
+          }
+        ]
+      }
+    ]
+  },
+  "WorkerRole": {
+    "trust": [
+      {
+        "effect": "Allow",
+        "actions": ["sts:AssumeRole"],
+        "principal": {
+          "Service": ["edgelambda.amazonaws.com", "lambda.amazonaws.com"]
+        }
+      }
+    ],
+    "policies": [
+      {
+        "policyName": "allow-cloudwatch-logging-policy",
+        "effect": "Allow",
+        "actions": ["logs:CreateLogStream", "logs:DescribeLogGroups", "logs:DescribeLogStreams", "logs:PutLogEvents"],
+        "resources": [
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/characterization-baseline-worker:*:*"
+          },
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/characterization-baseline-worker:*"
+          },
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/characterization-baseline-worker"
+          }
+        ]
+      },
+      {
+        "policyName": "custom-allow-access-to-policy-statements",
+        "effect": "Allow",
+        "actions": [
+          "dynamodb:BatchGet*",
+          "dynamodb:BatchWrite*",
+          "dynamodb:ConditionCheckItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:DescribeStream",
+          "dynamodb:DescribeTable",
+          "dynamodb:Get*",
+          "dynamodb:PutItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:UpdateItem"
+        ],
+        "resources": [
+          {
+            "Fn::GetAtt": ["RecordsGlobalTable", "Arn"]
+          },
+          {
+            "Fn::Join": [
+              "",
+              [
+                {
+                  "Fn::GetAtt": ["RecordsGlobalTable", "Arn"]
+                },
+                "/index/*"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "policyName": "custom-allow-access-to-policy-statements",
+        "effect": "Allow",
+        "actions": ["events:PutEvents"],
+        "resources": [
+          {
+            "Fn::GetAtt": ["EventsEventBus", "Arn"]
+          }
+        ]
+      },
+      {
+        "policyName": "custom-iam-role-statements",
+        "effect": "Allow",
+        "actions": [
+          "sqs:ChangeMessageVisibility",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:GetQueueUrl",
+          "sqs:ReceiveMessage"
+        ],
+        "resources": [
+          {
+            "Fn::GetAtt": ["JobsQueue", "Arn"]
+          }
+        ]
+      }
+    ]
+  },
+  "WebRole": {
+    "trust": [
+      {
+        "effect": "Allow",
+        "actions": ["sts:AssumeRole"],
+        "principal": {
+          "Service": "ecs-tasks.amazonaws.com"
+        }
+      }
+    ],
+    "policies": []
+  },
+  "StpEcsExecutionRole": {
+    "managedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"],
+    "trust": [
+      {
+        "effect": "Allow",
+        "actions": ["sts:AssumeRole"],
+        "principal": {
+          "Service": "ecs-tasks.amazonaws.com"
+        }
+      }
+    ],
+    "policies": []
+  }
+}

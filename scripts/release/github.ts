@@ -4,6 +4,7 @@ import { createRelease, getReleaseByTag } from '@shared/utils/github-api';
 import { uploadReleaseAsset } from '@shared/utils/github-file-manipulation';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { readdir, stat } from 'fs-extra';
+import { RELEASE_CHECKSUMS_FILE_NAME } from './checksums';
 
 export const checkVersionDoesNotExist = async ({ version }: { version: string }) => {
   logInfo(`Checking if version ${version} already exists on GitHub...`);
@@ -33,14 +34,18 @@ export const uploadReleaseAssets = async ({ releaseId }: { uploadUrl: string; re
   logInfo('Uploading release assets...');
   const allItems = await readdir(DIST_PACKAGE_FOLDER_PATH);
 
-  // Filter to only archive files (.tar.gz and .zip), skip directories
+  // Upload the archives and the manifest that lets installers verify their integrity.
   const assetsToUpload: string[] = [];
   for (const item of allItems) {
     const absolutePath = join(DIST_PACKAGE_FOLDER_PATH, item);
     const stats = await stat(absolutePath);
-    if (stats.isFile() && (item.endsWith('.tar.gz') || item.endsWith('.zip'))) {
+    if (stats.isFile() && (item.endsWith('.tar.gz') || item.endsWith('.zip') || item === RELEASE_CHECKSUMS_FILE_NAME)) {
       assetsToUpload.push(item);
     }
+  }
+
+  if (!assetsToUpload.includes(RELEASE_CHECKSUMS_FILE_NAME)) {
+    throw new Error(`Release assets are missing ${RELEASE_CHECKSUMS_FILE_NAME}.`);
   }
 
   await Promise.all(
