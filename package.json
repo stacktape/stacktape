@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "turbo run build",
-    "check": "turbo run generate:check && turbo run typecheck test build && pnpm test:tools && pnpm typecheck:tools && pnpm check:pack && pnpm check:instructions && pnpm fmt:check && pnpm lint && pnpm check:architecture && pnpm check:patterns && pnpm check:workspace && pnpm check:deadcode && pnpm check:duplicates",
+    "check": "turbo run generate:check && turbo run typecheck test build && pnpm test:tools && pnpm typecheck:tools && pnpm check:pack && pnpm check:instructions && pnpm check:secrets && pnpm fmt:check && pnpm lint && pnpm check:architecture && pnpm check:patterns && pnpm check:workspace && pnpm check:deadcode && pnpm check:duplicates",
     "check:architecture": "depcruise --config dependency-cruiser.config.cjs apps packages",
     "check:deadcode": "knip --production --strict --treat-config-hints-as-errors --exclude dependencies",
     "check:duplicates": "jscpd apps packages scripts --config jscpd.json",
@@ -14,6 +14,7 @@
     "check:patterns": "ast-grep scan && ast-grep test --skip-snapshot-tests",
     "check:pack": "node scripts/workspace/check-public-pack.mjs && publint apps/cli",
     "check:public": "pnpm check",
+    "check:secrets": "node scripts/workspace/check-staged-secrets.mjs --tree",
     "check:workspace": "sherif --ignore-rule non-existant-packages --fail-on-warnings",
     "dev": "turbo run dev",
     "fmt": "oxfmt . && dprint fmt",

@@ -31,6 +31,7 @@ if (existsSync(path.join(privateRoot, '.git'))) {
     throw new Error('Private Console worktree is dirty; commit or discard its changes explicitly first.');
   }
 
+  run('git', ['fetch', '--prune', 'origin'], { cwd: privateRoot });
   privateRemoteRefs = run('git', ['branch', '--remotes', '--contains', 'HEAD', '--format=%(refname:short)'], {
     cwd: privateRoot,
     capture: true

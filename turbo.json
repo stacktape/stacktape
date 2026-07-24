@@ -1,6 +1,9 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "globalDependencies": ["pnpm-workspace.yaml", "tsconfig.base.json", "tsconfig.package.json"],
+  "remoteCache": {
+    "enabled": false
+  },
   "tasks": {
     "generate": {
       "description": "Generate derived source and metadata from canonical inputs",

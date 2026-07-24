@@ -15,14 +15,20 @@ if ((await read('CLAUDE.md')) !== '@AGENTS.md\n') {
   throw new Error('Root CLAUDE.md must contain only @AGENTS.md.');
 }
 
+let consolePresent = true;
 try {
-  await access(new URL('../../apps/console/AGENTS.md', import.meta.url));
+  await access(new URL('../../apps/console/api/package.json', import.meta.url));
+} catch (error) {
+  if (error?.code === 'ENOENT') {
+    consolePresent = false;
+  } else {
+    throw error;
+  }
+}
+
+if (consolePresent) {
   await assertSame('apps/console/AGENTS.md', 'architecture/v4/templates/PRIVATE-CONSOLE-AGENTS.md');
   if ((await read('apps/console/CLAUDE.md')) !== '@AGENTS.md\n') {
     throw new Error('Private Console CLAUDE.md must contain only @AGENTS.md.');
-  }
-} catch (error) {
-  if (error?.code !== 'ENOENT') {
-    throw error;
   }
 }

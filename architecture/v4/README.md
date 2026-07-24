@@ -27,6 +27,8 @@ implementation detail.
   dependency directions.
 - [AGENT-EXECUTION.md](./AGENT-EXECUTION.md) defines isolated worktrees, implementation/review roles, commit
   integration, and how agents may improve provisional interfaces.
+- [ORCHESTRATION-PLAN.md](./ORCHESTRATION-PLAN.md) defines migration waves, dependencies, integration checkpoints,
+  and the context every slice dossier must carry.
 - [AGENT-INSTRUCTIONS-AUDIT.md](./AGENT-INSTRUCTIONS-AUDIT.md) records what is retained or discarded from the legacy
   `AGENTS.md`, `CLAUDE.md`, and development playbook.
 - [MIGRATION-RUNBOOK.md](./MIGRATION-RUNBOOK.md) defines the ordered migration phases and acceptance gates.

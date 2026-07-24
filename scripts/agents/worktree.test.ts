@@ -10,6 +10,7 @@ const createScript = fileURLToPath(new URL('./create-worktree.ts', import.meta.u
 const removeScript = fileURLToPath(new URL('./remove-worktree.ts', import.meta.url));
 let fixtureRoot = '';
 let publicRepository = '';
+let privateOrigin = '';
 
 const run = ({ args, command, cwd = publicRepository }: { args: string[]; command: string; cwd?: string }) =>
   spawnSync(command, args, {
@@ -38,7 +39,7 @@ before(async () => {
   fixtureRoot = await mkdtemp(path.join(os.tmpdir(), 'stacktape-worktree-'));
   publicRepository = path.join(fixtureRoot, 'public');
   const publicOrigin = path.join(fixtureRoot, 'public-origin.git');
-  const privateOrigin = path.join(fixtureRoot, 'private-origin.git');
+  privateOrigin = path.join(fixtureRoot, 'private-origin.git');
   const privateSeed = path.join(fixtureRoot, 'private-seed');
 
   mustRun('git', ['init', '--bare', privateOrigin], fixtureRoot);
@@ -122,6 +123,13 @@ test('refuses cleanup when a private commit exists only in disposable worktree m
   const refused = runAgentScript(removeScript, ['guard']);
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, /not reachable from a remote-tracking ref/);
+
+  mustRun('git', ['push', 'origin', 'HEAD:refs/heads/v4/slice/stale-recoverability'], privateRoot);
+  mustRun('git', ['fetch', 'origin'], privateRoot);
+  mustRun('git', ['update-ref', '-d', 'refs/heads/v4/slice/stale-recoverability'], privateOrigin);
+  const staleRemoteRef = runAgentScript(removeScript, ['guard']);
+  assert.notEqual(staleRemoteRef.status, 0);
+  assert.match(staleRemoteRef.stderr, /not reachable from a remote-tracking ref/);
 
   mustRun('git', ['reset', '--hard', metadata.privateBase], privateRoot);
   const removed = runAgentScript(removeScript, ['guard']);

@@ -3,7 +3,7 @@
   "ignoreFiles": ["scripts/agents/*.ts", "scripts/workspace/*.mjs"],
   "workspaces": {
     "apps/cli": {
-      "entry": ["src/main.ts"]
+      "entry": ["src/main.ts", "scripts/build.mjs"]
     },
     "apps/docs": {
       "entry": ["src/**/*.astro"]

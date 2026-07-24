@@ -18,7 +18,7 @@ Stacktape v4 is complete when:
 
 ## Phase 0 — preflight and safety
 
-Status at the start of this runbook:
+Status: complete. No deployment was performed.
 
 - Console security hardening committed: `b098a76`.
 - Stacktape credential hardening committed: `747d6371`.
@@ -43,10 +43,8 @@ Completed phase-0 evidence:
 7. Independent review of the characterization and release-integrity changes is complete; every reported finding was
    resolved and the final review found no remaining blocker.
 
-Remaining phase-0 work:
-
-1. Commit the characterization, checksum, and architecture changes.
-2. Create and validate the real v4 backbone on non-default branches.
+The phase-0 characterization, checksum, and architecture freeze is committed on the legacy public branch at
+`17aef681`. The reviewed Console and Stacktape security baselines remain `b098a76` and `747d6371`.
 
 Gate:
 
@@ -60,6 +58,8 @@ The explicitly deferred credential rotation, historical secret scan, website imp
 gates.
 
 ## Phase 1 — create the fresh backbone
+
+Status: complete on non-default branches. Legacy product migration has not started.
 
 Create fresh/orphan `v4/integration` histories in the existing public and private repositories. Do not change or
 force-update default branches.
@@ -92,6 +92,17 @@ Gate:
 - integrated clone passes the same checks plus private contract tests;
 - two concurrent disposable agent worktrees initialize independent private checkouts;
 - no default branch or production system changed.
+
+Evidence:
+
+- private Console backbone through `7185b84`;
+- public backbone through `1a8608d5`, recording that private commit;
+- frozen installs and complete checks pass in fresh public-only and recursive-submodule clones;
+- public and integrated GitHub Actions pass;
+- durable tests exercise independent private worktrees, wrong-base/collision/dossier rejection, cleanup refusal for an
+  unpushed or remotely pruned private commit, staged and tracked-tree secret detection, tRPC surface isolation, and an
+  externally installed/running CLI package;
+- release publishing remains intentionally disabled in the v4 `release.yml` identity placeholder.
 
 ## Phase 2 — behavior-preserving structural import
 
