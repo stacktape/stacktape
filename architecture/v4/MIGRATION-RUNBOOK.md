@@ -96,7 +96,7 @@ Gate:
 Evidence:
 
 - private Console backbone through `7185b84`;
-- public backbone through `1a8608d5`, recording that private commit;
+- public backbone through `69e36163`, recording that private commit;
 - frozen installs and complete checks pass in fresh public-only and recursive-submodule clones;
 - public and integrated GitHub Actions pass;
 - durable tests exercise independent private worktrees, wrong-base/collision/dossier rejection, cleanup refusal for an

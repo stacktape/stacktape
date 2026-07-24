@@ -61,19 +61,15 @@ try {
     throw new Error('Packed CLI unexpectedly retains runtime dependencies instead of its bundled runtime.');
   }
 
-  const binary = path.join(installedPackage, 'dist', 'main.js');
-  const execution = spawnSync(process.execPath, [binary], { cwd: consumer, encoding: 'utf8' });
-  if (execution.status !== 0) {
-    throw new Error(`Installed CLI failed to execute.\n${execution.stderr}`);
-  }
-  const event = JSON.parse(execution.stdout);
-  if (event.type !== 'workspace.ready' || event.version !== 1) {
-    throw new Error(`Installed CLI emitted an unexpected event: ${execution.stdout}`);
-  }
-
   const binName = process.platform === 'win32' ? 'stacktape.CMD' : 'stacktape';
   if (!existsSync(path.join(consumer, 'node_modules', '.bin', binName))) {
     throw new Error('Package installation did not create the stacktape binary entry.');
+  }
+
+  const executionOutput = runPnpm(['--dir', consumer, 'exec', 'stacktape']);
+  const event = JSON.parse(executionOutput);
+  if (event.type !== 'workspace.ready' || event.version !== 1) {
+    throw new Error(`Installed CLI emitted an unexpected event: ${executionOutput}`);
   }
 } finally {
   await rm(resolvedTemporaryRoot, { force: true, recursive: true });
