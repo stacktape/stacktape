@@ -25,7 +25,7 @@
     "fixtures:generate": "node --import=tsx test/generate-fixtures.ts --write",
     "test": "pnpm fixtures:check && node --import=tsx --test test/*.test.ts && pnpm test:legacy",
     "test:legacy": "node --import=tsx test/compare-legacy.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json"
   },
   "devDependencies": {
     "@types/node": "catalog:",
