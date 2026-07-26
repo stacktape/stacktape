@@ -1,7 +1,8 @@
 # Stacktape v4
 
-This branch is the fresh v4 monorepo backbone. It intentionally contains structure, contracts, tooling, and validation
-before the legacy implementation is migrated in reviewed vertical slices.
+This branch is the fresh v4 monorepo backbone. The existing Stacktape applications are migrated into it with minimal
+behavioral change before reusable capabilities are extracted. The current approach deliberately favors conceptual
+simplicity and maintainability over speculative runtime architecture.
 
 Public contributors clone and work normally:
 
@@ -19,14 +20,14 @@ pnpm install --frozen-lockfile
 pnpm check:integrated
 ```
 
-The public checkout is a first-class supported state. See `architecture/v4` before changing package boundaries or
-migration behavior.
+The public checkout is a first-class supported state. Read
+[`architecture/v4/SIMPLIFIED-MIGRATION.md`](architecture/v4/SIMPLIFIED-MIGRATION.md) before changing package
+boundaries or migration behavior.
 
 Migration agents receive isolated worktrees:
 
 ```sh
-pnpm worktree:create naming-compatibility
-pnpm worktree:create console-contracts --private --dossier architecture/v4/dossiers/console-contracts.md
+pnpm worktree:create public-cli-import --dossier architecture/v4/dossiers/simple-public-cli-import.md
 ```
 
 The scripts refuse dirty integration roots, existing branches/paths, and unsafe cleanup targets. They never

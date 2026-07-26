@@ -1,5 +1,9 @@
 # Agent execution model
 
+> Current migration policy: `SIMPLIFIED-MIGRATION.md` supersedes the earlier runtime-extraction strategy. Work is
+> sequential and coarse-grained: migrate a working application first, then extract only demonstrated reusable
+> capabilities. The role, isolation, review, and Git-safety rules below still apply.
+
 ## Principles
 
 The migration uses multiple capable agents, but it does not decompose the system into artificial horizontal layers just
@@ -13,6 +17,9 @@ to create parallel work.
 - Package boundaries are targets and ownership guides, not excuses for agents to ignore behavior outside one folder.
 - Shared interfaces are provisional until exercised. Agents may propose improvements with evidence; they may not
   silently redefine a seam used by another active slice.
+- Conceptual complexity is a blocking review criterion. A new abstraction must reduce the total set of concepts needed
+  to understand present behavior.
+- Do not create parallel implementations, migration frameworks, or package boundaries solely to enable future work.
 - Only one agent writes in a given worktree.
 - Public and private changes are reviewed and integrated as one logical slice even though they produce separate Git
   commits.

@@ -7,8 +7,8 @@ the private `apps/console` Git submodule is absent.
 
 - Public apps: `apps/cli`, `apps/docs`, `apps/website`.
 - Private Git boundary: `apps/console`, containing `api` and `ui`.
-- Reusable capabilities: `packages/*`.
-- Architecture and migration decisions: `architecture/v4`.
+- Reusable capabilities with current consumers: `packages/*`.
+- Current migration decisions: `architecture/v4/SIMPLIFIED-MIGRATION.md`.
 
 Never make public code depend on private source. A missing private submodule is a normal public-contributor state, not
 an error to work around.
@@ -18,7 +18,9 @@ an error to work around.
 1. Read the nearest `AGENTS.md` and the relevant package manifest.
 2. Check Git status in the public repository and, when present, in `apps/console`.
 3. Preserve unrelated changes.
-4. For migration work, read the assigned slice dossier and `architecture/v4/AGENT-EXECUTION.md`.
+4. For migration work, read `architecture/v4/SIMPLIFIED-MIGRATION.md`, the assigned dossier, and
+   `architecture/v4/AGENT-EXECUTION.md`. Older architecture documents describe an archived approach unless the
+   current dossier explicitly cites them.
 5. Identify generated outputs and behavioral baselines affected by the change.
 
 ## Workspace commands
@@ -43,17 +45,29 @@ gate before handoff. Do not replace a failing check with a broad exclusion.
 ## Architecture rules
 
 - Applications may import packages; packages never import applications.
-- `packages/core` is headless. It does not parse process arguments, call `process.exit`, own global signals, or read
-  mutable operation state from module singletons.
-- Environmental behavior enters core through explicit context/ports.
-- `packages/config`'s default/browser entry imports no Node, filesystem, process, or AWS runtime.
-- AWS clients are created through the centralized factory so tests can redirect endpoints and block real AWS.
-- Naming and logical-ID algorithms are compatibility-sensitive pure functions.
+- The existing CLI implementation is the v4 starting point. Do not build a parallel runtime or compatibility shell.
+- Create a package only for a concrete present-day responsibility or consumer. Empty and speculative packages are not
+  architecture.
+- Preserve compatibility-sensitive naming, synthesis, packaging, and release behavior during structural moves.
 - Do not create generic `utils`, `common`, or `shared` dumping-ground packages.
 - Do not create re-export-only barrel modules. Define explicit package subpath exports.
 - Avoid hidden side effects at module import time.
 - Prefer narrow types and explicit validation at I/O boundaries. Do not use `any` or unsafe assertions to bridge a
   package boundary.
+
+## Conceptual complexity
+
+Conceptual complexity is reviewed as strictly as correctness.
+
+- Prefer direct calls and existing application objects over new ports, registries, factories, service containers, or
+  frameworks.
+- An interface with one implementation needs evidence that it represents a real external boundary.
+- Do not split code for architectural symmetry or hypothetical future reuse.
+- An abstraction must reduce the total number of concepts needed to understand the behavior.
+- Harden genuinely untrusted inputs. Do not complicate internal trusted code to defend against exotic hostile
+  JavaScript behavior without a demonstrated boundary.
+- During migration, move working code first. Refactor it only after the moved behavior is proven and the refactor has
+  a concrete present-day benefit.
 
 ## tRPC and privacy
 
@@ -90,7 +104,8 @@ Classify behavior changes as `must-preserve`, `intentional-v4-break`, `known-v3-
 - Protect CloudFormation logical IDs, resource names, replacement-sensitive properties, security scoping, and artifact
   hashing unless an intentional change is approved.
 - Prefer semantic assertions and normalized fixtures over large brittle snapshots.
-- Add failures/cancellation/cleanup tests, not success-only tests.
+- Cover ordinary failures and cleanup where the changed behavior owns them; do not invent a framework merely to make
+  every internal operation injectable.
 - An emulator `CREATE_COMPLETE` is not proof of AWS correctness.
 - Tests must fail closed rather than contact real AWS unless a trusted real-AWS lane was explicitly requested.
 - Do not deploy or run costed AWS tests without explicit authorization.
@@ -129,4 +144,5 @@ Report:
 - tests and artifact gates run;
 - intentional compatibility differences;
 - unresolved risks or follow-up work;
+- concepts or abstractions introduced and their present-day justification;
 - whether public-only and integrated checks were exercised.
