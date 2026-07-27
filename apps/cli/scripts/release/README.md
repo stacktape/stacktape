@@ -16,8 +16,8 @@ Reached by a current workspace script:
   `build:dist`.
 - `stacktape.ts` — `syncBucket`, used by `publish:install:scripts`, `publish:schemas` and `publish:llm:docs`.
 
-Retained as inputs for the deferred pipeline, with no current caller: `get-version.ts` and `github.ts` (reachable
-only through `scripts/github-actions/`, which nothing in this repository invokes yet).
+Retained as inputs for the deferred pipeline: `get-version.ts`, which has no current caller, and `github.ts`, which is
+imported only by `scripts/github-actions/create-github-release.ts`, a helper nothing in this repository invokes yet.
 
 Version selection, build sequencing, publishing and tagging return with the release-pipeline phase, together with
 the v3 release workflow and its gate.
