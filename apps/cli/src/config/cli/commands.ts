@@ -1009,6 +1009,7 @@ export const commandsWithDisabledAnnouncements: StacktapeCommand[] = [
   'mcp',
   'mcp:add',
   'version',
+  'help',
   'upgrade',
   'info:whoami',
   'info:operations',

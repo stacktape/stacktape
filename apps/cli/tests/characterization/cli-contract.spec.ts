@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   cliCommands,
   commandsNotRequiringApiKey,
+  commandsWithDisabledAnnouncements,
   commandDefinitions,
   type StacktapeCommand
 } from '../../src/config/cli/commands';
@@ -54,6 +55,14 @@ describe('CLI capability contract', () => {
     );
     expect(commandsNotRequiringApiKey).not.toContain('deploy');
     expect(commandsNotRequiringApiKey).not.toContain('secret:get');
+  });
+
+  test('answers help and version without update or announcement traffic', () => {
+    // `runCommand` skips `checkForUpdates`/`printAnnouncements` for these commands, which is what keeps
+    // `stacktape --help` and `--version` instant offline and the compiled smoke check network-free.
+    expect(commandsWithDisabledAnnouncements).toEqual(expect.arrayContaining(['help', 'version']));
+    expect(commandsWithDisabledAnnouncements.every((command) => cliCommands.includes(command))).toBe(true);
+    expect(commandsWithDisabledAnnouncements).not.toContain('deploy');
   });
 });
 

@@ -8,9 +8,9 @@ import { packageHelperLambdas } from './package-helper-lambdas';
 import { buildBinaryFile } from './release/build-cli-sources';
 
 // Compiles the CLI the way a release does and runs the two commands every installation must answer. Neither
-// command touches AWS or reads a project: `version` prints the version compiled into the binary, and `help`
-// prints the command table. `help` also makes a best-effort announcements/update fetch that the CLI swallows,
-// so an offline runner still passes; telemetry is switched off so nothing is reported from a check run.
+// command touches AWS, reads a project, or reaches the network: `version` prints the version compiled into the
+// binary, `help` prints the command table, and both are in `commandsWithDisabledAnnouncements`, so neither runs
+// the update check or the announcements fetch. Telemetry is switched off so nothing is reported from a check run.
 const runBinary = (binaryPath: string, args: string[]) => {
   const result = Bun.spawnSync({
     cmd: [binaryPath, ...args],
