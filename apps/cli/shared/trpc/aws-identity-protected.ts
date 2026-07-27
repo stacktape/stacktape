@@ -4,6 +4,7 @@ import type {
   DeleteDefaultDomainDnsRecordParams,
   ReportAlarmEventParams,
   ReportIssueEventParams,
+  ReportIssueEventResponse,
   UpsertDefaultDomainDnsRecordParams,
   ValidateCertificateParams
 } from '@stacktape/console-api/aws-identity';
@@ -69,7 +70,7 @@ export class AwsIdentityProtectedClient {
   };
 
   reportIssueEvent = {
-    mutate: async (args: ReportIssueEventParams): Promise<string> => {
+    mutate: async (args: ReportIssueEventParams): Promise<ReportIssueEventResponse> => {
       return this.#ensureInitialized().reportIssueEvent.mutate(args);
     }
   };

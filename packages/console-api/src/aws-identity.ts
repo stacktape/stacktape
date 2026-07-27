@@ -69,6 +69,12 @@ export type DeleteDefaultDomainDnsRecordParams = z.input<typeof defaultDomainDns
 export type ReportAlarmEventParams = z.input<typeof reportAlarmEventInputSchema>;
 export type ReportIssueEventParams = z.input<typeof reportIssueEventInputSchema>;
 
+/**
+ * The id of the issue the report was recorded against, or null when the reporting organization has issue
+ * monitoring switched off for that project or stage. Clients report and move on either way.
+ */
+export type ReportIssueEventResponse = string | null;
+
 /** The procedures a verified AWS identity may call, and nothing else. */
 export type AwsIdentityTrpcClient = {
   validateCertificate: {
@@ -84,6 +90,6 @@ export type AwsIdentityTrpcClient = {
     mutate: (args: ReportAlarmEventParams) => Promise<string>;
   };
   reportIssueEvent: {
-    mutate: (args: ReportIssueEventParams) => Promise<string | null>;
+    mutate: (args: ReportIssueEventParams) => Promise<ReportIssueEventResponse>;
   };
 };

@@ -49,13 +49,10 @@ type ExpectedOrganizationSummaryKeys =
   | 'isCurrent';
 
 type Assert<Condition extends true> = Condition;
-type IsExact<Actual, Expected> =
-  (<Value>() => Value extends Actual ? 1 : 2) extends <Value>() => Value extends Expected ? 1 : 2
-    ? (<Value>() => Value extends Expected ? 1 : 2) extends <Value>() => Value extends Actual ? 1 : 2
-      ? true
-      : false
-    : false;
+
+/** Both unions contain exactly the same members — an extra key on either side resolves to `false`. */
+type SameKeys<Actual, Expected> = [Actual] extends [Expected] ? ([Expected] extends [Actual] ? true : false) : false;
 
 export type OrganizationSummaryHasNoDatabaseColumns = Assert<
-  IsExact<OrganizationSummaryKeys, ExpectedOrganizationSummaryKeys>
+  SameKeys<OrganizationSummaryKeys, ExpectedOrganizationSummaryKeys>
 >;
