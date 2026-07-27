@@ -12,7 +12,7 @@
   },
   "scripts": {
     "test": "bun test src",
-    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "fs-extra": "^11.3.0"
