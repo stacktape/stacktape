@@ -7,8 +7,9 @@ import {
   NPM_RELEASE_FOLDER_PATH
 } from '../shared/naming/project-fs-paths';
 import { logInfo, logSuccess } from '../shared/utils/logging';
+import packageJson from '../package.json';
 import { buildNpmMainExport } from './build-npm-main-export';
-import { getVersion } from './release/args';
+import { getCliArgs, getVersion } from './release/args';
 import { RELEASE_CHECKSUMS_FILE_NAME } from './release/checksums';
 
 export const copyPackageJson = async (version?: string) => {
@@ -56,7 +57,12 @@ export const copyLlmDocs = async () => {
 };
 
 export const buildNpm = async ({ version }: { version?: string } = {}) => {
-  const versionToUse = version || (await getVersion());
+  // A release run selects the version explicitly (--version) or by increment flag; getVersion() prompts for
+  // anything else. An ordinary workspace build passes no flag at all, so it builds this package's own version
+  // instead of blocking on a prompt.
+  const { explicitVersion, useMajor, useMinor, usePatch } = getCliArgs();
+  const selectsReleaseVersion = Boolean(explicitVersion || useMajor || useMinor || usePatch);
+  const versionToUse = version || (selectsReleaseVersion ? await getVersion() : packageJson.version);
   const requireChecksums = process.argv.includes('--require-checksums');
   const checksumsPathIndex = process.argv.indexOf('--checksums-path');
   const checksumsSourcePath = checksumsPathIndex === -1 ? undefined : process.argv[checksumsPathIndex + 1];

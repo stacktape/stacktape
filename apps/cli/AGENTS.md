@@ -36,14 +36,13 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
   dependency update. `@smithy/fetch-http-handler`, `@smithy/protocol-http`, `lodash`, `@types/lodash` and `tar` are
   pinned exactly because transitive consumers otherwise pull pnpm's deduplicated newer version. Deliberate
   exceptions: `@octokit/plugin-throttling` 11 (Octokit Core 7 peer) and `solid-js` 1.9.12 (OpenTUI peer).
-- `build` passes an explicit `--version` because pnpm does not expand variables in scripts on Windows; keep it in
-  step with this package's `version` field.
 
 ## Checks
 
 ```sh
 pnpm --filter @stacktape/cli run typecheck
-pnpm --filter @stacktape/cli run test           # characterization, release security, MCP docs, helper-Lambda artifacts
+pnpm --filter @stacktape/cli run test           # characterization, release security, MCP docs, helper Lambdas, CLI smoke
+pnpm --filter @stacktape/cli run test:cli-smoke # compiles the binary and runs `--version` and `--help`
 pnpm --filter @stacktape/cli run test:release-artifact
 ```
 
@@ -54,8 +53,8 @@ Two known constraints:
   than the whole tree. Making the unit tests process-safe is outstanding work.
 - On Windows, Bun 1.3.9's bundler aborts on modules reached through pnpm's symlinked `node_modules`
   ("Expected pretty file path to have only forward slashes"). Every Bun-bundling lane — `build`, `build:dist`,
-  `pkg:hl`, `test:characterization:helper-lambdas`, `test:release-artifact` — therefore has to run on Linux or macOS.
-  Typecheck and the non-bundling test lanes run everywhere.
+  `pkg:hl`, `test:characterization:helper-lambdas`, `test:cli-smoke`, `test:release-artifact` — therefore has to run
+  on Linux or macOS. Typecheck and the non-bundling test lanes run everywhere.
 
 ## Deferred
 

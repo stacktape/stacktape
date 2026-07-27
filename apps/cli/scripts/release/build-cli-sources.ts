@@ -29,6 +29,7 @@ import {
   readdir,
   readFile,
   readJsonSync,
+  realpath,
   remove,
   writeFileSync,
   writeJson
@@ -137,18 +138,27 @@ const OPENTUI_PLATFORM_IDENTIFIERS: { [_platform in SupportedPlatform]: string }
 };
 
 /**
- * When cross-compiling, the target platform's @opentui/core-* native package
- * may not be installed (bun install skips packages filtered by os/cpu).
- * Downloads the tarball from npm and extracts it into node_modules.
+ * The bundler resolves @opentui/core's native package from node_modules/@opentui. When cross-compiling, the
+ * target platform's package is not installed at all (installers skip packages filtered by os/cpu), so it is
+ * downloaded from npm. Building for the current platform reuses what is already installed.
  */
 const ensureOpenTuiPlatformPackage = async (platform: SupportedPlatform) => {
   const platformId = OPENTUI_PLATFORM_IDENTIFIERS[platform];
-  const packageDir = join(process.cwd(), 'node_modules', '@opentui', `core-${platformId}`);
-
-  if (await pathExists(join(packageDir, 'index.ts'))) return;
-
-  const coreVersion = readJsonSync(join(process.cwd(), 'node_modules', '@opentui', 'core', 'package.json')).version;
   const scopedName = `core-${platformId}`;
+  const corePackageDir = join(process.cwd(), 'node_modules', '@opentui', 'core');
+  const packageDir = join(process.cwd(), 'node_modules', '@opentui', scopedName);
+
+  if (await pathExists(join(packageDir, 'package.json'))) return;
+
+  // Building for the current platform needs no download: its package is installed, just not at the path above,
+  // because pnpm keeps a package's dependencies next to the package itself rather than at the project root.
+  const installedPath = join(await realpath(corePackageDir), '..', scopedName);
+  if (await pathExists(join(installedPath, 'package.json'))) {
+    await copy(installedPath, packageDir);
+    return;
+  }
+
+  const coreVersion = readJsonSync(join(corePackageDir, 'package.json')).version;
   const tarballUrl = `https://registry.npmjs.org/@opentui/${scopedName}/-/${scopedName}-${coreVersion}.tgz`;
 
   logInfo(`Downloading @opentui/${scopedName}@${coreVersion} for cross-compilation...`);
