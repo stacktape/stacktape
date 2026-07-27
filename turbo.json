@@ -16,7 +16,7 @@
     "build": {
       "description": "Build a workspace after its dependencies and generators",
       "dependsOn": ["^build", "^generate", "generate"],
-      "outputs": ["dist/**", ".astro/**", "!.astro/cache/**"]
+      "outputs": ["dist/**", "__release-npm/**", ".astro/**", "!.astro/cache/**"]
     },
     "typecheck": {
       "description": "Type-check source against generated artifacts",

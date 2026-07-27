@@ -15,12 +15,55 @@
     "typescript/prefer-ts-expect-error": "error",
     "unicorn/prefer-node-protocol": "error"
   },
+  "overrides": [
+    {
+      "files": ["apps/cli/**"],
+      "rules": {
+        "eslint/no-await-in-loop": "off",
+        "eslint/no-empty": "off",
+        "eslint/no-shadow": "off",
+        "eslint/no-underscore-dangle": "off",
+        "eslint/no-unsafe-optional-chaining": "off",
+        "eslint/no-useless-concat": "off",
+        "eslint/no-useless-constructor": "off",
+        "eslint/no-useless-escape": "off",
+        "eslint/preserve-caught-error": "off",
+        "import/no-cycle": "off",
+        "import/no-named-as-default-member": "off",
+        "oxc/const-comparisons": "off",
+        "oxc/no-accumulating-spread": "off",
+        "oxc/no-map-spread": "off",
+        "oxc/only-used-in-recursion": "off",
+        "promise/always-return": "off",
+        "promise/no-callback-in-promise": "off",
+        "promise/no-multiple-resolved": "off",
+        "react/no-unstable-nested-components": "off",
+        "react/react-in-jsx-scope": "off",
+        "typescript/no-explicit-any": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "unicorn/no-array-reverse": "off",
+        "unicorn/no-array-sort": "off",
+        "unicorn/no-empty-file": "off",
+        "unicorn/no-single-promise-in-promise-methods": "off",
+        "unicorn/no-useless-fallback-in-spread": "off",
+        "unicorn/no-useless-spread": "off",
+        "unicorn/prefer-array-find": "off",
+        "unicorn/prefer-array-flat-map": "off",
+        "unicorn/prefer-set-has": "off",
+        "unicorn/prefer-set-size": "off",
+        "unicorn/prefer-string-starts-ends-with": "off",
+        "unicorn/require-post-message-target-origin": "off"
+      }
+    }
+  ],
   "ignorePatterns": [
     "**/.astro/**",
     "**/.turbo/**",
+    "**/@generated/**",
     "**/coverage/**",
     "**/dist/**",
     "**/generated/**",
-    "**/node_modules/**"
+    "**/node_modules/**",
+    "apps/cli/starter-projects/**"
   ]
 }

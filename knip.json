@@ -3,7 +3,21 @@
   "ignoreFiles": ["scripts/agents/*.ts", "scripts/workspace/*.mjs"],
   "workspaces": {
     "apps/cli": {
-      "entry": ["src/main.ts", "scripts/build.mjs"]
+      "entry": [
+        "src/api/cli/compiled-entry.ts",
+        "src/api/cli/index.ts",
+        "src/api/local/*.ts",
+        "src/api/npm/ts/index.ts",
+        "src/api/npm/bin/stacktape.js",
+        "helper-lambdas/*/index.ts",
+        "scripts/**/*.ts",
+        "scripts/**/*.mjs",
+        "tests/**/*.spec.ts",
+        "**/*.spec.ts",
+        "**/*.test.ts"
+      ],
+      "project": ["**/*.{ts,tsx,js}"],
+      "ignore": ["@generated/**", "starter-projects/**", "_test-stacks/**", "__release-npm/**"]
     },
     "apps/docs": {
       "entry": ["src/**/*.astro"]

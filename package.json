@@ -12,7 +12,7 @@
     "check:integrated": "node scripts/workspace/require-console.mjs && pnpm check",
     "check:instructions": "node scripts/workspace/check-instruction-sync.mjs",
     "check:patterns": "ast-grep scan && ast-grep test --skip-snapshot-tests",
-    "check:pack": "node scripts/workspace/check-public-pack.mjs && publint apps/cli",
+    "check:pack": "pnpm --filter @stacktape/cli run test:release-artifact && publint apps/cli/__release-npm",
     "check:public": "pnpm check",
     "check:secrets": "node scripts/workspace/check-staged-secrets.mjs --tree",
     "check:workspace": "sherif --ignore-rule non-existant-packages --fail-on-warnings",
@@ -47,11 +47,11 @@
   },
   "lint-staged": {
     "*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}": [
-      "oxfmt --write",
-      "oxlint --fix --deny-warnings --report-unused-disable-directives"
+      "oxfmt --write --no-error-on-unmatched-pattern",
+      "oxlint --fix --deny-warnings --report-unused-disable-directives --no-error-on-unmatched-pattern"
     ],
-    "*.{json,jsonc,css,scss,md,mdx,yaml,yml}": "oxfmt --write",
-    "*.astro": "dprint fmt"
+    "*.{json,jsonc,css,scss,md,mdx,yaml,yml}": "oxfmt --write --no-error-on-unmatched-pattern",
+    "*.astro": "dprint fmt --allow-no-files"
   },
   "engines": {
     "node": ">=24"

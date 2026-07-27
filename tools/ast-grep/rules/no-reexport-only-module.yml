@@ -14,3 +14,6 @@ files:
 ignores:
   - '**/*.spec.ts'
   - '**/*.test.ts'
+  # The imported Stacktape CLI predates this rule: its published API entry points and a few internal barrels
+  # re-export from sibling modules. Reworking them is a follow-up, not part of moving the application.
+  - 'apps/cli/**'

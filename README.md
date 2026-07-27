@@ -4,6 +4,9 @@ This branch is the fresh v4 monorepo backbone. The existing Stacktape applicatio
 behavioral change before reusable capabilities are extracted. The current approach deliberately favors conceptual
 simplicity and maintainability over speculative runtime architecture.
 
+Prerequisites: Node.js 24+, pnpm 11.17.0, and Bun 1.3.9 — the CLI builds, generates and tests with Bun, and
+`apps/cli/AGENTS.md` records where that matters.
+
 Public contributors clone and work normally:
 
 ```sh

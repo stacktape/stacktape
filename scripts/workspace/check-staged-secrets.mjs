@@ -40,29 +40,79 @@ const detectors = [
   }
 ];
 
-const scanStagedDiff = (root) => {
-  const result = spawnSync(
-    'git',
-    ['diff', '--cached', '--no-ext-diff', '--unified=0', '--diff-filter=ACMRTUXB', '--', '.'],
-    { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
-  );
-  if (result.status !== 0) {
-    throw new Error(`Unable to inspect staged changes.\n${result.stderr}`);
-  }
+// AWS publishes these two identifiers in its own documentation, and they appear verbatim in the CloudFormation
+// resource schemas the CLI vendors.
+const documentedAwsExampleKeys = new Set(['AKIAIOSFODNN7EXAMPLE', 'ASIAIOSFODNN7EXAMPLE']);
 
+const placeholderCredentials = new Set([
+  'changeme',
+  'default',
+  'example',
+  'pass',
+  'password',
+  'placeholder',
+  'secret',
+  'user',
+  'username'
+]);
+
+// A database CLI builds and documents connection strings, so URL shape alone cannot separate a leak from a template.
+// A match only counts when the credentials are neither interpolated nor an obvious stand-in.
+const isPlaceholderCredentialUrl = (match) => {
+  const credentials = /:\/\/([^/:@\s]+):([^/@\s]+)@/.exec(match);
+  if (!credentials) {
+    return false;
+  }
+  const [, user, password] = credentials;
+  return [user, password].some((part) => /[${}<>%]/.test(part)) || placeholderCredentials.has(password.toLowerCase());
+};
+
+const isSyntheticMatch = (label, match) => {
+  if (label === 'AWS access key') {
+    return documentedAwsExampleKeys.has(match);
+  }
+  if (label === 'credential-bearing URL') {
+    return isPlaceholderCredentialUrl(match);
+  }
+  return false;
+};
+
+const hasRealMatch = (detector, text) => {
+  const matcher = new RegExp(detector.js.source, `${detector.js.flags.replace('g', '')}g`);
+  for (const [match] of text.matchAll(matcher)) {
+    if (!isSyntheticMatch(detector.label, match)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const gitDiff = (root, diffArguments) => {
+  const result = spawnSync('git', ['diff', '--cached', '--no-ext-diff', '--diff-filter=ACMRTUXB', ...diffArguments], {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024
+  });
+  if (result.status !== 0 || result.error) {
+    throw new Error(`Unable to inspect staged changes.\n${result.stderr ?? result.error?.message ?? ''}`);
+  }
+  return result.stdout;
+};
+
+const scanStagedDiff = (root) => {
   const findings = [];
-  let currentFile = 'unknown';
-  for (const line of result.stdout.split(/\r?\n/)) {
-    if (line.startsWith('+++ b/')) {
-      currentFile = line.slice('+++ b/'.length);
-      continue;
-    }
-    if (!line.startsWith('+') || line.startsWith('+++')) {
-      continue;
-    }
-    for (const detector of detectors) {
-      if (detector.js.test(line.slice(1))) {
-        findings.push(`${currentFile}: possible ${detector.label}`);
+  for (const detector of detectors) {
+    // Narrowing to the files whose staged changes touch the pattern keeps a large commit from being materialised
+    // as one diff, then each candidate is inspected on its own to keep the "newly added lines" semantics.
+    const candidates = gitDiff(root, ['--name-only', '-G', detector.git, '--', '.']).split(/\r?\n/).filter(Boolean);
+
+    for (const file of candidates) {
+      const addedLines = gitDiff(root, ['--unified=0', '--', file])
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('+') && !line.startsWith('+++'));
+
+      if (addedLines.some((line) => hasRealMatch(detector, line.slice(1)))) {
+        findings.push(`${file}: possible ${detector.label}`);
       }
     }
   }
@@ -72,7 +122,9 @@ const scanStagedDiff = (root) => {
 const scanTrackedTree = (root) => {
   const findings = [];
   for (const detector of detectors) {
-    const result = spawnSync('git', ['grep', '--files-with-matches', '-I', '-E', '-e', detector.git, '--', '.'], {
+    // `--only-matching` keeps the output small even for the vendored multi-megabyte schema files and lets the
+    // synthetic-value filter run on the match itself. Matched values stay internal; only file names are reported.
+    const result = spawnSync('git', ['grep', '--only-matching', '-H', '-I', '-E', '-e', detector.git, '--', '.'], {
       cwd: root,
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024
@@ -80,10 +132,20 @@ const scanTrackedTree = (root) => {
     if (result.status !== 0 && result.status !== 1) {
       throw new Error(`Unable to scan tracked files.\n${result.stderr}`);
     }
-    if (result.status === 0) {
-      for (const file of result.stdout.trim().split(/\r?\n/).filter(Boolean)) {
-        findings.push(`${file}: possible ${detector.label}`);
+    if (result.status !== 0) {
+      continue;
+    }
+    const flagged = new Set();
+    for (const line of result.stdout.split(/\r?\n/).filter(Boolean)) {
+      const separator = line.indexOf(':');
+      const file = line.slice(0, separator);
+      const match = line.slice(separator + 1);
+      if (!isSyntheticMatch(detector.label, match)) {
+        flagged.add(file);
       }
+    }
+    for (const file of flagged) {
+      findings.push(`${file}: possible ${detector.label}`);
     }
   }
   return findings;

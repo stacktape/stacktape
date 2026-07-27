@@ -7,8 +7,20 @@ packages:
 
 autoInstallPeers: false
 engineStrict: true
+peerDependencyRules:
+  allowedVersions:
+    # bun-ffi-structs (via @opentui/core) still declares a TypeScript ^5 peer. The workspace deliberately
+    # standardises on TypeScript 6 and the peer is types-only, so accept it instead of pinning the toolchain back.
+    bun-ffi-structs>typescript: '6'
 nodeLinker: isolated
 pmOnFail: download
+# The CLI compiles release binaries for glibc and musl Linux from the same checkout, so both libc variants of
+# platform-specific optional dependencies (@opentui/core-linux-*) have to be installed.
+supportedArchitectures:
+  libc:
+    - current
+    - glibc
+    - musl
 savePrefix: ''
 sharedWorkspaceLockfile: false
 strictPeerDependencies: true

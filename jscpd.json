@@ -3,6 +3,8 @@
   "minLines": 10,
   "reporters": ["console"],
   "ignore": [
+    "apps/cli/**",
+    "**/@generated/**",
     "**/generated/**",
     "**/dist/**",
     "**/coverage/**",

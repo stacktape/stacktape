@@ -2,9 +2,12 @@
 module.exports = {
   forbidden: [
     {
+      // The imported Stacktape CLI contains pre-existing import cycles, both hand-written and in generated
+      // CloudFormation namespaces. Breaking them means restructuring the application, so the rule guards
+      // everything else until that is done deliberately.
       name: 'no-cycles',
       severity: 'error',
-      from: {},
+      from: { pathNot: '^apps/cli/' },
       to: { circular: true }
     },
     {
@@ -40,6 +43,7 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
+    exclude: { path: '^apps/cli/(@generated|starter-projects|_test-stacks)/' },
     includeOnly: '^(apps|packages)/',
     tsConfig: { fileName: 'tsconfig.base.json' }
   }
