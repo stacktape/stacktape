@@ -21,6 +21,10 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 ## Toolchain
 
 - pnpm installs; Bun runs the scripts and builds, exactly as the application was written.
+- Two TypeScript versions are in play on purpose. Validation uses the workspace's TypeScript 6, which is why
+  `typecheck` invokes `../../node_modules/typescript/bin/tsc` instead of the package-local `tsc`. The `typescript`
+  runtime dependency stays on 5.9 because the code-generation scripts and the config loader use the compiler API,
+  and it is also what `@opentui/core`'s types-only peer resolves against.
 - `tsconfig.json` keeps the compiler options the sources were written against. TypeScript 6 enables `strict` by
   default and this code predates that, so `strict` is explicitly off. Turning it on is a migration of its own
   (~2,500 diagnostics). `paths` carries the mappings that used to come from `baseUrl`, which TypeScript 6 deprecates.
@@ -28,6 +32,10 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
   the `.d.ts` files shipped in the `stacktape` npm package. Repository sources are formatted with oxfmt.
 - `@generated/` and `starter-projects/` are excluded from oxfmt, oxlint, jscpd and knip. The workspace lint rules the
   imported sources do not satisfy yet are listed per rule in the root `.oxlintrc.json` override for `apps/cli`.
+- Dependency resolutions match the `bun.lock` of the imported source commit, so the structural move is not also a
+  dependency update. `@smithy/fetch-http-handler`, `@smithy/protocol-http`, `lodash`, `@types/lodash` and `tar` are
+  pinned exactly because transitive consumers otherwise pull pnpm's deduplicated newer version. Deliberate
+  exceptions: `@octokit/plugin-throttling` 11 (Octokit Core 7 peer) and `solid-js` 1.9.12 (OpenTUI peer).
 - `build` passes an explicit `--version` because pnpm does not expand variables in scripts on Windows; keep it in
   step with this package's `version` field.
 

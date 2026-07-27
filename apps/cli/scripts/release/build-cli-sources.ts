@@ -241,7 +241,7 @@ export const buildBinaryFile = async ({
   const result = await Bun.build({
     entrypoints: [entrypoint],
     compile: {
-      target: compileTarget as Bun.Build.CompileTarget,
+      target: compileTarget as Bun.Build.Target,
       outfile: outputPath,
       autoloadTsconfig: true,
       autoloadPackageJson: true
