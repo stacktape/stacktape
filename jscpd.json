@@ -5,6 +5,7 @@
   "ignore": [
     "**/*.iam.json",
     "**/*.identity.json",
+    "**/*.svg",
     "**/@generated/**",
     "**/coverage/**",
     "**/dist/**",
@@ -13,6 +14,23 @@
     "**/pnpm-lock.yaml",
     "apps/*/src/pages/index.astro",
     "apps/cli/**",
-    "apps/console/**"
+    "apps/console/api/cf-connector-stack/**",
+    "apps/console/api/scripts/get-customer-tokens.ts",
+    "apps/console/api/server/api/api-key-protected.ts",
+    "apps/console/api/server/api/aws-identity-protected.ts",
+    "apps/console/api/server/api/cognito-protected.ts",
+    "apps/console/api/server/api/public.ts",
+    "apps/console/api/server/controllers/**",
+    "apps/console/api/server/lambdas/**",
+    "apps/console/api/server/messages/**",
+    "apps/console/api/server/permissions.ts",
+    "apps/console/api/server/services/**",
+    "apps/console/api/server/utils/**",
+    "apps/console/api/shared/**",
+    "apps/console/api/shared-utils.ts",
+    "apps/console/api/stacktape.ts",
+    "apps/console/api/types/**",
+    "apps/console/ui/.starter-project.json",
+    "apps/console/ui/src/**"
   ]
 }

@@ -1,14 +1,21 @@
-/** @type {import('dependency-cruiser').IConfiguration} */
+/**
+ * `pnpm check:architecture` runs with `--ignore-known`, which reads
+ * `.dependency-cruiser-known-violations.json`. Regenerate that file with
+ * `pnpm check:architecture:update-known > .dependency-cruiser-known-violations.json` only to record a
+ * cycle that was deliberately accepted, and never to make a new one pass quietly.
+ *
+ * @type {import('dependency-cruiser').IConfiguration}
+ */
 module.exports = {
   forbidden: [
     {
-      // The imported Stacktape CLI and Console both contain pre-existing import cycles, hand-written as
-      // well as in generated CloudFormation namespaces and vendored language-service code. Breaking them
-      // means restructuring the applications, so the rule guards everything else until that is done
-      // deliberately.
+      // The imported Stacktape CLI and Console both arrived with import cycles, hand-written as well as in
+      // vendored language-service code. Breaking them means restructuring the applications, so the ones
+      // that already existed are recorded in `.dependency-cruiser-known-violations.json` and the check runs
+      // with `--ignore-known`: those exact cycles stay quiet, and any new one fails.
       name: 'no-cycles',
       severity: 'error',
-      from: { pathNot: '^apps/(cli|console)/' },
+      from: {},
       to: { circular: true }
     },
     {
