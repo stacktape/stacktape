@@ -3,21 +3,23 @@ import { sanitizeGitRemoteUrl } from './git';
 
 describe('sanitizeGitRemoteUrl', () => {
   it('removes HTTP credentials, query parameters, and fragments', () => {
-    expect(sanitizeGitRemoteUrl('https://user:secret@github.com/example/repo.git?token=secret#fragment')).toBe(
-      'https://github.com/example/repo.git'
+    expect(sanitizeGitRemoteUrl('https://user:secret@git.example.com/example/repo.git?token=secret#fragment')).toBe(
+      'https://git.example.com/example/repo.git'
     );
   });
 
   it('normalizes scp-style remotes without copying the username', () => {
-    expect(sanitizeGitRemoteUrl('git@github.com:example/repo.git')).toBe('https://github.com/example/repo.git');
+    expect(sanitizeGitRemoteUrl('git@git.example.com:example/repo.git')).toBe(
+      'https://git.example.com/example/repo.git'
+    );
   });
 
   it('removes credentials from ssh and custom git transports', () => {
-    expect(sanitizeGitRemoteUrl('ssh://git:secret@github.com/example/repo.git')).toBe(
-      'ssh://github.com/example/repo.git'
+    expect(sanitizeGitRemoteUrl('ssh://git:secret@git.example.com/example/repo.git')).toBe(
+      'ssh://git.example.com/example/repo.git'
     );
-    expect(sanitizeGitRemoteUrl('git+ssh://token@github.com/example/repo.git?key=secret#fragment')).toBe(
-      'git+ssh://github.com/example/repo.git'
+    expect(sanitizeGitRemoteUrl('git+ssh://token@git.example.com/example/repo.git?key=secret#fragment')).toBe(
+      'git+ssh://git.example.com/example/repo.git'
     );
   });
 

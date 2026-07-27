@@ -29,8 +29,9 @@ const detectors = [
     label: 'Slack token'
   },
   {
-    git: '[A-Za-z][A-Za-z0-9+.-]*://[^/[:space:]:@]+:[^/[:space:]@]+@',
-    js: /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@/i,
+    // The host is part of the match because it is what separates a documented local example from a leak.
+    git: '[A-Za-z][A-Za-z0-9+.-]*://[^/[:space:]:@]+:[^/[:space:]@]+@[^/[:space:]@]*',
+    js: /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@[^/\s@]*/i,
     label: 'credential-bearing URL'
   },
   {
@@ -44,27 +45,33 @@ const detectors = [
 // resource schemas the CLI vendors.
 const documentedAwsExampleKeys = new Set(['AKIAIOSFODNN7EXAMPLE', 'ASIAIOSFODNN7EXAMPLE']);
 
-const placeholderCredentials = new Set([
-  'changeme',
-  'default',
-  'example',
-  'pass',
-  'password',
-  'placeholder',
-  'secret',
-  'user',
-  'username'
-]);
+// Loopback literals, and the domains RFC 2606 and RFC 6761 reserve for documentation and testing. Nothing here
+// can be a deployment, so credentials pointed at one are an example by construction.
+const loopbackHosts = new Set(['0.0.0.0', '127.0.0.1', '::1', 'host.docker.internal']);
+const reservedDomains = ['example', 'example.com', 'example.net', 'example.org', 'invalid', 'localhost', 'test'];
 
-// A database CLI builds and documents connection strings, so URL shape alone cannot separate a leak from a template.
-// A match only counts when the credentials are neither interpolated nor an obvious stand-in.
-const isPlaceholderCredentialUrl = (match) => {
+const isUnreachableHost = (host) =>
+  loopbackHosts.has(host) || reservedDomains.some((domain) => host === domain || host.endsWith(`.${domain}`));
+
+const hostOf = (match) => {
+  const authority = /@([^/\s@]*)/.exec(match)?.[1] ?? '';
+  return authority
+    .replace(/[^A-Za-z0-9.:_[\]-].*$/, '') // trailing quote, comma or backtick from the surrounding source line
+    .replace(/:\d+$/, '')
+    .replace(/^\[|\]$/g, '')
+    .toLowerCase();
+};
+
+// A database CLI builds and documents connection strings, so URL shape alone cannot separate a leak from a
+// template. Only two things rule a match out: credentials that are still an unresolved placeholder, and a host
+// nobody can reach. How weak the password looks is not one of them — `app:secret@db.acme-corp.tld` is a leak.
+const isDocumentedCredentialUrl = (match) => {
   const credentials = /:\/\/([^/:@\s]+):([^/@\s]+)@/.exec(match);
   if (!credentials) {
     return false;
   }
   const [, user, password] = credentials;
-  return [user, password].some((part) => /[${}<>%]/.test(part)) || placeholderCredentials.has(password.toLowerCase());
+  return [user, password].some((part) => /[${}<>%]/.test(part)) || isUnreachableHost(hostOf(match));
 };
 
 const isSyntheticMatch = (label, match) => {
@@ -72,7 +79,7 @@ const isSyntheticMatch = (label, match) => {
     return documentedAwsExampleKeys.has(match);
   }
   if (label === 'credential-bearing URL') {
-    return isPlaceholderCredentialUrl(match);
+    return isDocumentedCredentialUrl(match);
   }
   return false;
 };

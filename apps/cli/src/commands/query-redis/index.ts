@@ -82,7 +82,7 @@ export const commandQueryRedis = async () => {
     tuiManager.info(`Fetching connection string from SSM...`);
     const connectionString = await locallyResolveSensitiveValue({ ssmParameterName: connectionStringSsmParam });
     if (connectionString && connectionString !== '<<UNABLE_TO_RESOLVE>>') {
-      // Parse password from rediss://default:PASSWORD@host:port
+      // Parse password from rediss://default:<password>@<host>:<port>
       const match = connectionString.match(/^rediss?:\/\/[^:]*:([^@]+)@/);
       if (match) {
         password = match[1];

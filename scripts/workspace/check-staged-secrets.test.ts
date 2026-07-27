@@ -77,8 +77,10 @@ test('accepts connection-string templates and AWS documentation identifiers', as
       'export const templates = [',
       "  `postgresql://${'${user}'}:${'${password}'}@${'${host}'}:5432/app`,",
       "  'mysql://user:pass@localhost:3306/app',",
-      "  'redis://default:PASSWORD@localhost:6379',",
-      "  'sqlserver://<USERNAME>:<PASSWORD>@localhost:1433'",
+      "  'redis://default:PASSWORD@127.0.0.1:6379',",
+      "  'sqlserver://<USERNAME>:<PASSWORD>@db.acme-corp.tld:1433',",
+      "  'postgresql://user:pass@db.example.com/app',",
+      "  'mongodb://user:pass@cluster.example.invalid/app'",
       '];',
       "export const documentedKmsExample = 'arn:aws:kms:us-east-1:123456789012:key/AKIAIOSFODNN7EXAMPLE';",
       ''
@@ -97,13 +99,33 @@ test('still rejects a connection string that carries a real password', async () 
   const password = ['s9Kq', 'Z2mR', '7wLp', 'X4td'].join('');
   await writeFile(
     path.join(repository, 'leaked.ts'),
-    `export const database = 'postgresql://app_owner:${password}@db.example.com:5432/app';\n`
+    `export const database = 'postgresql://app_owner:${password}@db.acme-corp.tld:5432/app';\n`
   );
   assert.equal(run('git', ['add', 'leaked.ts']).status, 0);
   const result = run(process.execPath, [checker, repository]);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /possible credential-bearing URL/);
   assert.doesNotMatch(result.stderr, new RegExp(password));
+});
+
+test('rejects a weak password on a reachable host in both scan modes', async () => {
+  // Assembled rather than written out so this file does not itself carry a line the scanner has to reject.
+  const password = ['sec', 'ret'].join('');
+  await writeFile(
+    path.join(repository, 'weak.ts'),
+    `export const database = 'postgresql://app:${password}@prod.acme-corp.tld/db';\n`
+  );
+  assert.equal(run('git', ['add', 'weak.ts']).status, 0);
+  const staged = run(process.execPath, [checker, repository]);
+  assert.equal(staged.status, 1, staged.stderr);
+  assert.match(staged.stderr, /weak\.ts: possible credential-bearing URL/);
+  assert.doesNotMatch(staged.stderr, /secret@/);
+
+  assert.equal(run('git', ['commit', '-m', 'Add weak credential']).status, 0);
+  const tracked = run(process.execPath, [checker, repository, '--tree']);
+  assert.equal(tracked.status, 1, tracked.stderr);
+  assert.match(tracked.stderr, /weak\.ts: possible credential-bearing URL/);
+  assert.doesNotMatch(tracked.stderr, /secret@/);
 });
 
 test('CI mode scans tracked files without printing matched values', async () => {
