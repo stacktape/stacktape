@@ -63,4 +63,5 @@ Two known constraints:
 - `@generated/schemas` does not currently reproduce byte-for-byte from `types/`, with either TypeScript 5.9 or 6.
   That drift predates the move; a freshness gate is only worth adding once the inputs and generator agree again.
 - The v3 release workflow, its `scripts/release-workflow.spec.ts` gate, and the MCP evaluation lanes are migrated
-  with the release pipeline.
+  with the release pipeline. The `release` and `build:bin` scripts that dispatched those workflows were removed
+  rather than left pointing at workflows this repository does not have; they return with the pipeline.

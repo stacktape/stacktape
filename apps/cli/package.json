@@ -10,7 +10,6 @@
   "scripts": {
     "analyze:bundle": "bun scripts/analyze-bundle.ts",
     "build": "bun scripts/build-npm.ts",
-    "build:bin": "bun scripts/trigger-build-binary.ts",
     "build:dist": "bun scripts/build-dist-package.ts",
     "build:npm": "bun --max_old_space_size=32768 scripts/build-npm.ts",
     "build:npm:main": "bun --max_old_space_size=32768 scripts/build-npm-main-export.ts",
@@ -35,7 +34,6 @@
     "publish:schemas": "bun scripts/publish-schemas.ts",
     "push:gh:repo": "bun scripts/push-to-github-repo.ts",
     "push:starters": "bun scripts/push-starter-projects.ts",
-    "release": "bun scripts/trigger-github-release.ts",
     "release:checksums": "bun scripts/release/checksums.ts",
     "rm:temp": "rimraf .stacktape",
     "stp": "stacktape",

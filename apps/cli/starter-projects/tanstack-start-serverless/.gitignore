@@ -1,6 +1,7 @@
 node_modules/
 .vinxi/
 .output/
+app.config.timestamp_*.js
 dist/
 .env
 .env.*

@@ -50,7 +50,10 @@ export const prepareStarterProject = async ({
 
   await copy(absoluteProjectPath, distFolderPath, {
     filter: (src: string) => {
-      return !IGNORED_FILES.includes(basename(src));
+      const fileName = basename(src);
+      // Vite-based starters (app.config.ts, vite.config.ts) leave a timestamped copy of the config behind
+      // whenever their loader runs. Those are build scratch, never starter sources.
+      return !IGNORED_FILES.includes(fileName) && !/\.timestamp_\d+\.[cm]?[jt]s$/.test(fileName);
     }
   });
   const mdxDescription = await getProjectMdx(metadata, absoluteProjectPath);
