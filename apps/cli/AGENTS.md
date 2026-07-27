@@ -11,7 +11,9 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
   `shared/packaging` stops where the CLI's own vocabulary begins: everything that raises typed `StacktapeError`s,
   reports `eventManager` progress or is typed against the configuration schema stays here, while the chunk/layer
   engine it calls lives in `@stacktape/packaging` (see that package's `AGENTS.md`).
-- `helper-lambdas/` — sources of the Lambdas Stacktape deploys into customer accounts.
+- `helper-lambdas/` — sources of the four Lambdas Stacktape deploys into customer accounts. They are separately built
+  artifacts that stay in this application because their source needs general CLI implementation and the ambient
+  `types/` declarations; see that directory's `AGENTS.md` for the measurement and the compatibility contract.
 - `scripts/` — build, code generation, release and publishing tooling, plus the committed platform binaries under
   `scripts/assets/` that release archives ship.
 - `types/` — hand-authored config type definitions. Their JSDoc is the source of the published config schema and of
@@ -47,6 +49,7 @@ pnpm --filter @stacktape/cli run typecheck
 pnpm --filter @stacktape/cli run test           # characterization, release security, MCP docs, helper Lambdas, CLI smoke
 pnpm --filter @stacktape/cli run test:cli-smoke # compiles the binary and runs `--version` and `--help`
 pnpm --filter @stacktape/cli run test:release-artifact
+pnpm --filter @stacktape/cli run test:helper-lambdas # helper-Lambda runtime tests; no bundling, runs everywhere
 ```
 
 Two known constraints:

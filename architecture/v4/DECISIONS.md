@@ -9,11 +9,30 @@
 | Public clone           | The complete public workspace must install, generate, lint, typecheck, test, build, and pack with `apps/console` absent. Public CI never initializes it.                                                | Fork-safe contributor experience without private credentials.                                                  |
 | Maintainer clone       | Maintainers initialize `apps/console` and run integrated checks from the public parent. Private CI clones a selected public ref and mounts itself at `apps/console`.                                    | One coherent workspace with explicit, pinned private source.                                                   |
 | History                | Losing old file history is acceptable and preferred. Keep the existing repository identities; do not merge old website history.                                                                         | Simpler migration and clean baseline.                                                                          |
-| Applications           | Public applications are CLI, docs, and a fresh Astro website. Private applications are Console API and Console UI. `helper-lambdas` is a package, not an app.                                           | `apps` represents independently consumed or deployed surfaces.                                                 |
+| Applications           | Public applications are CLI, docs, and a fresh Astro website. Private applications are Console API and Console UI. The helper Lambdas are neither: they are CLI-owned deployment artifacts (see below). | `apps` represents independently consumed or deployed surfaces.                                                 |
 | SDK                    | Do not create or restore a Stacktape SDK.                                                                                                                                                               | Avoid maintaining a second public API without clear value.                                                     |
 | Core                   | Create `packages/core` and refactor the old runtime into a headless, in-process operation engine during migration.                                                                                      | Testability, composability, and removal of process-global constraints.                                         |
 | Package philosophy     | Create packages only for coherent, reusable capabilities. Do not create domain/infrastructure layers or generic dumping grounds merely to increase package count.                                       | Pleasant interfaces and understandable ownership.                                                              |
 | Private apps placement | Mount the single private repository at `apps/console`, with `apps/console/api` and `apps/console/ui`. Do not use two submodules or public-clone symlinks.                                               | Every application remains under `apps` while preserving one atomic private boundary.                           |
+
+### Helper Lambdas stay in `apps/cli`
+
+Superseded: helper Lambdas were previously pinned as a workspace package. They remain at `apps/cli/helper-lambdas`.
+
+They are separately built artifacts, but their source is not separable. Resolving every import from the four
+entrypoints shows the four artifacts transitively reach 31 non-helper CLI modules (~9,000 lines), and 30 of those 31
+have other CLI consumers — 1,809 distinct non-helper CLI files import at least one. The closure includes the 3,434-line
+AWS SDK manager, the 1,418-line S3 sync engine and the 760-line `aws-resource-names` model. The runtime source is also
+typed against ambient declarations in `types/`, which are the source of the published config schema and cannot leave
+`apps/cli`.
+
+A package therefore requires a package-to-app dependency, duplicated deployed implementation, an
+`aws`/`naming`/`config` package cascade, or refactoring the runtimes to erase imports. Each costs more concepts than
+co-location and misrepresents who owns the code, so co-location is the decision rather than a deferral.
+
+Revisit when a separately justified slice has narrowed the closure to a small, helper-dominant set and removed the
+ambient `types/` dependency. `apps/cli/helper-lambdas/AGENTS.md` holds the measurement, the rejected alternatives and
+the compatibility contract.
 
 ## API and tRPC decisions
 

@@ -24,7 +24,6 @@ apps/
 
 packages/
 ├── packaging/           # extracted only after the migrated CLI works
-├── helper-lambdas/      # extracted because it is an independently built artifact set
 ├── console-api/         # public external tRPC schemas/contracts when Console is migrated
 ├── design-tokens/       # added when at least two frontends consume the same tokens
 └── ui-react/            # only components used by at least two applications
@@ -32,6 +31,12 @@ packages/
 
 The directory list is a destination, not a requirement to create empty packages. A package is absent until it owns
 real code.
+
+The helper Lambdas are deliberately not in that list. They are separately built deployment artifacts, but their source
+transitively needs 31 non-helper CLI modules — 30 of which have other CLI consumers — and is typed against the ambient
+`types/` config declarations that produce the published config schema. Extracting them would mean a package-to-app
+dependency, duplicated implementation, or an `aws`/`naming`/`config` package cascade, so they stay in
+`apps/cli/helper-lambdas`, whose `AGENTS.md` records the measurement and the condition for revisiting.
 
 ## Conceptual-complexity budget
 
@@ -67,7 +72,8 @@ An abstraction is justified only when it reduces the total number of concepts a 
 1. Import the current public CLI as a working application with minimal code changes.
 2. Import the private Console into its submodule while retaining its reviewed security hardening and Prisma migrations.
 3. Establish behavioral baselines around important CLI outputs and ordinary failure paths.
-4. Extract `packaging` and `helper-lambdas` from working code without redesigning them.
+4. Extract `packaging` from working code without redesigning it. Keep the helper Lambdas in `apps/cli` for the reason
+   recorded above.
 5. Establish the practical tRPC public-contract boundary during the Console migration.
 6. Add shared design tokens and React components only when real frontend consumers exist.
 
