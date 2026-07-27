@@ -6,7 +6,7 @@ import type {
   ReportIssueEventParams,
   UpsertDefaultDomainDnsRecordParams,
   ValidateCertificateParams
-} from '../../types/console-app/trpc/aws-identity-protected';
+} from '@stacktape/console-api/aws-identity';
 import { getSignedGetCallerIdentityRequest } from '../aws/identity';
 import { createTypedTrpcClient } from './client';
 

@@ -17,3 +17,9 @@ ignores:
   # The imported Stacktape CLI predates this rule: its published API entry points and a few internal barrels
   # re-export from sibling modules. Reworking them is a follow-up, not part of moving the application.
   - 'apps/cli/**'
+  # The same applies to these four modules of the imported Console. They are listed one by one so that new
+  # Console code still has to satisfy the rule.
+  - 'apps/console/api/server/services/remote-deploy/index.ts'
+  - 'apps/console/api/server/services/remote-deploy/ec2/index.ts'
+  - 'apps/console/ui/src/styles/variables.ts'
+  - 'apps/console/ui/src/utils/permissions.ts'

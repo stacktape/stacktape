@@ -3,15 +3,16 @@
   "minLines": 10,
   "reporters": ["console"],
   "ignore": [
-    "apps/cli/**",
-    "**/@generated/**",
-    "**/generated/**",
-    "**/dist/**",
-    "**/coverage/**",
-    "**/pnpm-lock.yaml",
-    "**/package.json",
-    "apps/*/src/pages/index.astro",
+    "**/*.iam.json",
     "**/*.identity.json",
-    "**/*.iam.json"
+    "**/@generated/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "**/generated/**",
+    "**/package.json",
+    "**/pnpm-lock.yaml",
+    "apps/*/src/pages/index.astro",
+    "apps/cli/**",
+    "apps/console/**"
   ]
 }

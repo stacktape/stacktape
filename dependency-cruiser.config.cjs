@@ -2,12 +2,13 @@
 module.exports = {
   forbidden: [
     {
-      // The imported Stacktape CLI contains pre-existing import cycles, both hand-written and in generated
-      // CloudFormation namespaces. Breaking them means restructuring the application, so the rule guards
-      // everything else until that is done deliberately.
+      // The imported Stacktape CLI and Console both contain pre-existing import cycles, hand-written as
+      // well as in generated CloudFormation namespaces and vendored language-service code. Breaking them
+      // means restructuring the applications, so the rule guards everything else until that is done
+      // deliberately.
       name: 'no-cycles',
       severity: 'error',
-      from: { pathNot: '^apps/cli/' },
+      from: { pathNot: '^apps/(cli|console)/' },
       to: { circular: true }
     },
     {
@@ -43,7 +44,9 @@ module.exports = {
   ],
   options: {
     doNotFollow: { path: 'node_modules' },
-    exclude: { path: '^apps/cli/(@generated|starter-projects|_test-stacks)/' },
+    exclude: {
+      path: '^apps/(cli/(@generated|starter-projects|_test-stacks)|console/(api/(@generated|dist)|ui/(dist|public)))/'
+    },
     includeOnly: '^(apps|packages)/',
     tsConfig: { fileName: 'tsconfig.base.json' }
   }

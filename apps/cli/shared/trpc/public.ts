@@ -2,14 +2,14 @@ import type {
   CliConfigGenSession,
   ExchangeTokenForApiKeyInput,
   ExchangeTokenForApiKeyResponse,
-  PublicTrpcClient,
+  AnonymousTrpcClient,
   StackPriceEstimationInput,
   StackPriceEstimationResponse,
   StartCliConfigGenInput,
   StartCliConfigGenResponse,
   SubmitFilesInput,
   SubmitFilesResponse
-} from '../../types/console-app/trpc/public';
+} from '@stacktape/console-api/anonymous';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../src/config/params';
 import { createTypedTrpcClient } from './client';
 
@@ -33,17 +33,17 @@ export type {
   StartCliConfigGenResponse,
   SubmitFilesInput,
   SubmitFilesResponse
-} from '../../types/console-app/trpc/public';
+} from '@stacktape/console-api/anonymous';
 
-const createPublicTrpcClient = () => {
-  return createTypedTrpcClient<PublicTrpcClient>({ url: STACKTAPE_TRPC_API_ENDPOINT });
+const createAnonymousTrpcClient = () => {
+  return createTypedTrpcClient<AnonymousTrpcClient>({ url: STACKTAPE_TRPC_API_ENDPOINT });
 };
 
 export class PublicApiClient {
-  #client: PublicTrpcClient | null = null;
+  #client: AnonymousTrpcClient | null = null;
 
   init = () => {
-    this.#client = createPublicTrpcClient();
+    this.#client = createAnonymousTrpcClient();
   };
 
   #ensureInitialized = () => {

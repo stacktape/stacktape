@@ -15,7 +15,7 @@
     "check:pack": "pnpm --filter @stacktape/cli run test:release-artifact && publint apps/cli/__release-npm",
     "check:public": "pnpm check",
     "check:secrets": "node scripts/workspace/check-staged-secrets.mjs --tree",
-    "check:workspace": "sherif --ignore-rule non-existant-packages --fail-on-warnings",
+    "check:workspace": "sherif --ignore-rule non-existant-packages --ignore-dependency @aws-sdk/client-ecs --ignore-dependency @fast-csv/parse --ignore-dependency @octokit/rest --ignore-dependency get-folder-size --ignore-dependency marked --ignore-dependency p-retry --ignore-dependency stacktape --ignore-dependency yaml --fail-on-warnings",
     "dev": "turbo run dev",
     "fmt": "oxfmt . && dprint fmt",
     "fmt:check": "oxfmt --check . && dprint check",

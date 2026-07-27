@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { ApiKeyProtectedClient } from '../../shared/trpc/api-key-protected';
 import { AwsIdentityProtectedClient } from '../../shared/trpc/aws-identity-protected';
@@ -88,5 +89,44 @@ describe('Console tRPC authentication surfaces', () => {
     expect(signedRequest.hostname).toBe('sts.eu-west-1.amazonaws.com');
     expect(signedRequest.headers.authorization).toContain('AWS4-HMAC-SHA256');
     expect(signedRequest.headers['x-amz-security-token']).toBe('characterization-session');
+  });
+});
+
+/**
+ * The CLI reaches the Console through `@stacktape/console-api`, which is the only description of that API
+ * outside the private repository. Both sides are read back out of source here, because the property worth
+ * protecting is which wire procedures the CLI calls — its own wrapper methods are named for readability
+ * (`listOrganizations` calls `listOrganizationsFromCli`) and are free to differ.
+ */
+const readSource = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
+const contractProcedureNames = (surface: string, clientType: string) => {
+  const source = readSource(`../../../../packages/console-api/src/${surface}.ts`);
+  const body = source.slice(source.indexOf(`export type ${clientType} = {`));
+  return [...body.matchAll(/^ {2}([A-Za-z0-9_]+): \{$/gm)].map((match) => match[1]).sort();
+};
+
+const calledProcedureNames = (clientModule: string) => {
+  const source = readSource(`../../shared/trpc/${clientModule}.ts`);
+  return [...new Set([...source.matchAll(/\.([A-Za-z0-9_]+)\.(?:mutate|query)\(/g)].map((match) => match[1]))].sort();
+};
+
+describe('Console tRPC contract coverage', () => {
+  test('the API-key client calls exactly the procedures the contract publishes', () => {
+    expect(calledProcedureNames('api-key-protected')).toEqual(contractProcedureNames('api-key', 'ApiKeyTrpcClient'));
+  });
+
+  test('the AWS-identity client calls exactly the procedures the contract publishes', () => {
+    expect(calledProcedureNames('aws-identity-protected')).toEqual(
+      contractProcedureNames('aws-identity', 'AwsIdentityTrpcClient')
+    );
+  });
+
+  test('the anonymous client stays within the anonymous contract', () => {
+    const published = contractProcedureNames('anonymous', 'AnonymousTrpcClient');
+
+    for (const procedure of calledProcedureNames('public')) {
+      expect(published).toContain(procedure);
+    }
   });
 });

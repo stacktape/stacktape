@@ -26,10 +26,22 @@
       "entry": ["src/**/*.astro"]
     },
     "apps/console/api": {
-      "entry": ["src/**/*.ts"]
+      "entry": [
+        "server/index.ts",
+        "server/lambdas/**/index.ts",
+        "server/lambdas/*.ts",
+        "server/api/external-contract.ts",
+        "scripts/**/*.ts",
+        "stacktape.ts",
+        "**/*.test.ts"
+      ],
+      "project": ["**/*.ts"],
+      "ignore": ["@generated/**", "dist/**"]
     },
     "apps/console/ui": {
-      "entry": ["src/**/*.tsx"]
+      "entry": ["src/main.tsx", "src/**/*.tsx", "vite.config.ts", "diagram-test/**/*.ts", "diagram-test/**/*.tsx"],
+      "project": ["**/*.{ts,tsx}"],
+      "ignore": ["dist/**", "public/**"]
     },
     "packages/*": {
       "entry": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"]

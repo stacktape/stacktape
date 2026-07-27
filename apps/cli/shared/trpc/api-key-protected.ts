@@ -49,7 +49,7 @@ import type {
   StackDetailsResponse,
   TemplateParams,
   TemplateResponse
-} from '../../types/console-app/trpc/api-key-protected';
+} from '@stacktape/console-api/api-key';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../src/config/params';
 import { createTypedTrpcClient } from './client';
 
@@ -104,7 +104,7 @@ export type {
   StackDetailsResponse,
   TemplateParams,
   TemplateResponse
-} from '../../types/console-app/trpc/api-key-protected';
+} from '@stacktape/console-api/api-key';
 
 const createTrpcApiKeyProtectedClient = ({ apiKey }: { apiKey: string }) => {
   return createTypedTrpcClient<ApiKeyTrpcClient>({
@@ -133,7 +133,7 @@ export class ApiKeyProtectedClient {
   // Legacy API name: this records Stacktape CLI operations in the console,
   // including commands that are not direct stack deploy/delete operations.
   recordStackOperation = async (args: RecordStackOperationParams): Promise<void> => {
-    return this.#ensureInitialized().recordStackOperation.mutate(args);
+    await this.#ensureInitialized().recordStackOperation.mutate(args);
   };
 
   globalConfig = async (): Promise<GlobalConfigResponse> => {

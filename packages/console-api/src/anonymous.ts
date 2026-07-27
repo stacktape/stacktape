@@ -1,5 +1,53 @@
-// GENERATED FILE - DO NOT EDIT
-// Source: console-app/scripts/generate-stacktape-console-types.ts
+import { z } from 'zod';
+
+/**
+ * The Console API's anonymous surface: procedures that accept a request with no credentials at all.
+ *
+ * Everything here is reachable by anyone on the internet, so the contract is deliberately narrow — it
+ * describes only the procedures a Stacktape client is expected to call. The Console's own unauthenticated
+ * procedures that no public client uses are not part of it.
+ */
+
+const COGNITO_ID_TOKEN_MAX_LENGTH = 8192;
+
+export const startCliConfigGenInputSchema = z.object({
+  fileTree: z.string(),
+  allFiles: z.array(z.string()),
+  productionReadiness: z.enum(['low-cost', 'standard', 'production']).optional()
+});
+
+export const submitCliConfigGenFilesInputSchema = z.object({
+  sessionId: z.string(),
+  files: z.array(
+    z.object({
+      path: z.string(),
+      content: z.string()
+    })
+  )
+});
+
+export const cliConfigGenSessionInputSchema = z.object({
+  sessionId: z.string()
+});
+
+export const exchangeTokenForApiKeyInputSchema = z.object({
+  idToken: z.string().max(COGNITO_ID_TOKEN_MAX_LENGTH),
+  organizationId: z.string().optional(),
+  listOrganizationsOnly: z.boolean().optional()
+});
+
+export const stackPriceEstimationInputSchema = z.object({
+  stackConfig: z.string(),
+  region: z.string().optional()
+});
+
+export type ProductionReadiness = 'low-cost' | 'standard' | 'production';
+
+export type StartCliConfigGenInput = z.input<typeof startCliConfigGenInputSchema>;
+export type SubmitFilesInput = z.input<typeof submitCliConfigGenFilesInputSchema>;
+export type CliConfigGenSessionInput = z.input<typeof cliConfigGenSessionInputSchema>;
+export type ExchangeTokenForApiKeyInput = z.input<typeof exchangeTokenForApiKeyInputSchema>;
+export type StackPriceEstimationInput = z.input<typeof stackPriceEstimationInputSchema>;
 
 export type CliConfigGenSessionState = 'WAITING_FOR_FILES' | 'ANALYZING' | 'SUCCESS' | 'ERROR' | 'CANCELLED';
 
@@ -20,7 +68,14 @@ export type CliConfigGenNonComputeResource =
   | 'MongoDB'
   | 'S3'
   | 'SQS'
-  | 'SNS';
+  | 'SNS'
+  | 'HttpApiGateway'
+  | 'UserAuthPool'
+  | 'EventBus'
+  | 'BatchJob'
+  | 'MultiContainerWorkload'
+  | 'ApplicationLoadBalancer'
+  | 'StateMachine';
 
 export type CliConfigGenDeployableUnitType =
   | 'static-website'
@@ -61,7 +116,7 @@ export type CliConfigGenRequiredResource = {
 };
 
 export type CliConfigGenSessionData = {
-  config?: StacktapeConfig;
+  config?: unknown;
   deployableUnits?: CliConfigGenDeployableUnit[];
   requiredResources?: CliConfigGenRequiredResource[];
   error?: { message: string; stack?: string };
@@ -77,44 +132,27 @@ export type CliConfigGenSession = {
   createdAt: number;
 };
 
-export type ProductionReadiness = 'low-cost' | 'standard' | 'production';
-
-export type StartCliConfigGenInput = {
-  fileTree: string;
-  allFiles: string[];
-  productionReadiness?: ProductionReadiness;
-};
-
 export type StartCliConfigGenResponse = {
   sessionId: string;
   filesToRead: string[];
-};
-
-export type SubmitFilesInput = {
-  sessionId: string;
-  files: Array<{ path: string; content: string }>;
 };
 
 export type SubmitFilesResponse = {
   success: boolean;
 };
 
-export type ExchangeTokenForApiKeyInput = {
-  idToken: string;
-  organizationId?: string;
-  listOrganizationsOnly?: boolean;
-};
-
 export type ExchangeTokenForApiKeyResponse = {
   success: boolean;
-  apiKeys: {
+  /** Absent when the exchange failed, and empty when only the organization list was requested. */
+  apiKeys?: {
     id: string;
     createdAt: string;
     updatedAt: string;
-    lastUsed: string;
+    /** Null until the key is first used. */
+    lastUsed: string | null;
     name: string;
     userId: string;
-    organizationId: string;
+    organizationId: string | null;
     organizationName: string;
   }[];
   organizations?: {
@@ -124,15 +162,11 @@ export type ExchangeTokenForApiKeyResponse = {
   error?: string;
 };
 
-export type StackPriceEstimationInput = {
-  stackConfig: string;
-  region?: string;
-};
-
 export type CostBreakdownItem = {
   name: string;
   description: string;
-  priceModel: 'flat' | 'pay-per-use';
+  /** `flat` or `pay-per-use` today; new estimator entries may add further models. */
+  priceModel: string;
   pricePerUnit?: number;
   unit?: string;
   adjustedPrice?: number;
@@ -141,11 +175,13 @@ export type CostBreakdownItem = {
   multiplier?: number;
   upperThresholdMultiplier?: number;
   unsupportedProduct?: boolean;
+  [otherProperties: string]: unknown;
 };
 
 export type ResourcePricingInfo = {
   priceInfo: {
-    totalMonthlyFlat: number;
+    /** Absent for resources whose price the estimator could not total. */
+    totalMonthlyFlat?: number;
     costBreakdown: CostBreakdownItem[];
   };
   relatedAwsPricingDocs?: Record<string, string>;
@@ -161,7 +197,8 @@ export type StackPriceEstimationResponse = {
   } | null;
 };
 
-export type PublicTrpcClient = {
+/** The procedures an anonymous Stacktape client may call, and nothing else. */
+export type AnonymousTrpcClient = {
   startCliConfigGen: {
     mutate: (input: StartCliConfigGenInput) => Promise<StartCliConfigGenResponse>;
   };
@@ -169,10 +206,10 @@ export type PublicTrpcClient = {
     mutate: (input: SubmitFilesInput) => Promise<SubmitFilesResponse>;
   };
   getCliConfigGenState: {
-    query: (input: { sessionId: string }) => Promise<CliConfigGenSession>;
+    query: (input: CliConfigGenSessionInput) => Promise<CliConfigGenSession>;
   };
   cancelCliConfigGen: {
-    mutate: (input: { sessionId: string }) => Promise<{ success: boolean }>;
+    mutate: (input: CliConfigGenSessionInput) => Promise<{ success: boolean }>;
   };
   exchangeTokenForApiKey: {
     mutate: (input: ExchangeTokenForApiKeyInput) => Promise<ExchangeTokenForApiKeyResponse>;

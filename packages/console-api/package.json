@@ -4,17 +4,20 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    "./anonymous": "./src/anonymous.ts",
+    "./api-key": "./src/api-key.ts",
+    "./aws-identity": "./src/aws-identity.ts"
   },
   "scripts": {
+    "test": "node --import=tsx --test src/*.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@trpc/client": "catalog:",
-    "@trpc/server": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:"
   }
 }

@@ -1,7 +1,4 @@
-// GENERATED FILE - DO NOT EDIT
-// Source: console-app/scripts/generate-stacktape-console-types.ts
-
-import type { CurrentUserAndOrgDataResponse } from './trpc/api-key-protected';
+import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
 
 export type GlobalStateUser = CurrentUserAndOrgDataResponse['user'];
 export type GlobalStateOrganization = CurrentUserAndOrgDataResponse['organization'];

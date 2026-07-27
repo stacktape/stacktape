@@ -7,7 +7,7 @@
   "tasks": {
     "generate": {
       "description": "Generate derived source and metadata from canonical inputs",
-      "outputs": ["generated/**"]
+      "outputs": ["generated/**", "@generated/prisma/**", "dist/**"]
     },
     "generate:check": {
       "description": "Verify committed generated artifacts are current",

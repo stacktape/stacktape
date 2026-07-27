@@ -10,11 +10,11 @@ export const formatPrice = (price: number): string => {
 };
 
 export const getResourceCostLabel = (costInfo?: {
-  priceInfo: { totalMonthlyFlat: number; costBreakdown: any[] };
+  priceInfo: { totalMonthlyFlat?: number; costBreakdown: any[] };
 }): string => {
   if (!costInfo) return color.dim('-');
   const monthly = costInfo.priceInfo.totalMonthlyFlat;
-  if (monthly > 0) return `~${formatPrice(monthly)}/mo`;
+  if (monthly && monthly > 0) return `~${formatPrice(monthly)}/mo`;
   const hasPayPerUse = costInfo.priceInfo.costBreakdown.some((item: any) => item.priceModel === 'pay-per-use');
   if (hasPayPerUse) return color.dim('pay-per-use');
   return color.dim('-');

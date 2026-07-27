@@ -1,30 +1,61 @@
-import { createAnonymousClient, createAwsIdentityClient, createCliClient } from './index.js';
+import type { AnonymousTrpcClient } from './anonymous.js';
+import type { ApiKeyTrpcClient } from './api-key.js';
+import type { AwsIdentityTrpcClient } from './aws-identity.js';
 
-const endpoint = 'https://example.invalid/trpc';
-const anonymous = createAnonymousClient({ endpoint });
-const cli = createCliClient({ apiKey: 'type-test', endpoint });
-const aws = createAwsIdentityClient({
-  endpoint,
-  getSignedIdentityHeader: async () => 'synthetic-signed-identity'
-});
+/**
+ * Each authenticated surface is a separate client type, so a client typed for one of them cannot even name
+ * a procedure from another. These assertions fail the build if the three surfaces ever start to overlap.
+ */
 
-void anonymous.health.query();
-void anonymous.estimatePrice.query({ units: 2 });
+declare const anonymous: AnonymousTrpcClient;
+declare const apiKey: ApiKeyTrpcClient;
+declare const awsIdentity: AwsIdentityTrpcClient;
+
+void anonymous.exchangeTokenForApiKey;
 // @ts-expect-error Anonymous clients must not see API-key procedures.
-void anonymous.cliProfile.query();
+void anonymous.currentUserAndOrgData;
 // @ts-expect-error Anonymous clients must not see AWS-identity procedures.
-void anonymous.reportAlarm.mutate({ alarmName: 'test', state: 'OK' });
+void anonymous.reportAlarmEvent;
+// @ts-expect-error Anonymous clients must not see private Console session procedures.
+void anonymous.currentUser;
 
-void cli.health.query();
-void cli.cliProfile.query();
-void cli.startDeployment.mutate({ project: 'demo', stage: 'dev' });
-// @ts-expect-error CLI clients must not see AWS-identity procedures.
-void cli.reportAlarm.mutate({ alarmName: 'test', state: 'OK' });
-// @ts-expect-error CLI clients must not see private Console procedures.
-void cli.privateProfile.query();
+void apiKey.currentUserAndOrgData;
+// @ts-expect-error API-key clients must not see AWS-identity procedures.
+void apiKey.reportAlarmEvent;
+// @ts-expect-error API-key clients must not see anonymous token exchange.
+void apiKey.exchangeTokenForApiKey;
+// @ts-expect-error API-key clients must not see private Console session procedures.
+void apiKey.currentUser;
 
-void aws.reportAlarm.mutate({ alarmName: 'test', state: 'ALARM' });
+void awsIdentity.reportAlarmEvent;
 // @ts-expect-error AWS-identity clients must not see API-key procedures.
-void aws.startDeployment.mutate({ project: 'demo', stage: 'dev' });
+void awsIdentity.currentUserAndOrgData;
 // @ts-expect-error AWS-identity clients must not see anonymous procedures.
-void aws.health.query();
+void awsIdentity.stackPriceEstimation;
+
+/**
+ * The contract is deliberately free of database structure. `keyof` on a published response would name the
+ * columns if a Prisma payload ever leaked into it, so the checks below pin the two shapes that are closest
+ * to the database.
+ */
+type OrganizationSummaryKeys = keyof import('./api-key.js').OrganizationSummary;
+type ExpectedOrganizationSummaryKeys =
+  | 'id'
+  | 'name'
+  | 'role'
+  | 'isPersonal'
+  | 'createdAt'
+  | 'connectedAccountsCount'
+  | 'isCurrent';
+
+type Assert<Condition extends true> = Condition;
+type IsExact<Actual, Expected> =
+  (<Value>() => Value extends Actual ? 1 : 2) extends <Value>() => Value extends Expected ? 1 : 2
+    ? (<Value>() => Value extends Expected ? 1 : 2) extends <Value>() => Value extends Actual ? 1 : 2
+      ? true
+      : false
+    : false;
+
+export type OrganizationSummaryHasNoDatabaseColumns = Assert<
+  IsExact<OrganizationSummaryKeys, ExpectedOrganizationSummaryKeys>
+>;
