@@ -1,0 +1,2 @@
+- Open the **Web Service URL** printed to the terminal after deploy to access your n8n instance.
+- Create your owner account on first visit. Workflows and credentials are persisted in the PostgreSQL database.

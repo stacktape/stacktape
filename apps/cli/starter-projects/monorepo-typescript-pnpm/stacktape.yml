@@ -1,0 +1,28 @@
+resources:
+  myApiGateway:
+    type: http-api-gateway
+
+  myLambda:
+    type: function
+    properties:
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myApiGateway
+            method: "*"
+            path: /{proxy+}
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: packages/lambda/src/index.ts
+
+  myServer:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: packages/server/src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512

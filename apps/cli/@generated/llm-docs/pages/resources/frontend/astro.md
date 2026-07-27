@@ -1,0 +1,258 @@
+# Astro
+
+A Stacktape Astro resource deploys an Astro SSR app with Lambda for server rendering, S3 for static assets, and a CloudFront CDN. Use it when your Astro project needs server-rendered routes on AWS while keeping static assets handled separately from the SSR function.
+
+## When to use
+
+An Astro resource is the right fit when the Astro app uses server-side rendering and should be deployed as one Stacktape-managed frontend resource. Stacktape deploys an Astro SSR app with Lambda for server rendering, S3 for static assets, and a CloudFront CDN.
+
+Common use cases:
+
+- **Astro SSR websites** — content sites, portals, and apps that render some routes on the server
+- **Monorepos** — set `appDirectory` to the Astro workspace instead of the Stacktape config directory
+- **Custom frontend domains** — attach one or more Route 53-backed domains with managed DNS records and TLS certificates
+- **Frontend apps with AWS dependencies** — use `connectTo` when the SSR function needs access to databases, buckets, queues, or other Stacktape resources
+
+## When NOT to use
+
+- **Static-only Astro sites** — use a [hosting bucket](/resources/frontend/static-hosting) with `hostingContentType: 'astro-static-website'` instead of an Astro SSR resource. The Astro source explicitly names this as the correct path for static output.
+- **General containerized web apps** — use a [web service](/resources/compute/web-service) when the app is not an Astro project and needs an always-on container.
+- **Single API handlers or event-driven compute** — use a [Lambda function](/resources/compute/lambda-function) when there is no Astro build output, static asset upload, or frontend routing concern.
+- **Frontend frameworks with dedicated resources** — use [Next.js](/resources/frontend/nextjs), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), or [Remix](/resources/frontend/remix) for those framework-specific builds.
+
+## Basic example
+
+This example deploys an Astro SSR app from the repository root. The default app directory is `.`, so the resource expects `astro.config.mjs` in the same workspace as the Stacktape config unless `appDirectory` is changed.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AstroWeb } from 'stacktape';
+export default defineConfig(() => {
+  const site = new AstroWeb({
+    appDirectory: '.'
+  });
+
+  return {
+    resources: { site }
+  };
+});
+```
+
+
+Use `appDirectory` when `astro.config.mjs` lives outside the default `.` app directory, such as an Astro workspace in a monorepo. Use `buildCommand` only when the project should not run the default Astro build command, for example when a package manager script wraps the build.
+
+## Project directory
+
+The Astro resource uses `appDirectory` to find the Astro application directory. For a single-package project, the default `.` is usually the best choice. In a monorepo, point `appDirectory` at the package that contains `astro.config.mjs` so builds run against the right workspace.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AstroWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const site = new AstroWeb({
+    appDirectory: './apps/marketing',
+    buildCommand: 'pnpm build'
+  });
+
+  return { resources: { site } };
+});
+```
+
+
+`buildCommand` overrides the default `astro build` command. Keep the default unless the Astro app already standardizes builds through a script such as `pnpm build`, or the monorepo needs package-manager-specific behavior before Astro runs.
+
+## Server Lambda
+
+The Astro resource renders SSR routes with a Lambda function that can be tuned through `serverLambda`. The source exposes memory, timeout, VPC joining, and logging controls. Default memory is `1024` MB, default timeout is `30` seconds, and the timeout cannot exceed `30` seconds.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AstroWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const site = new AstroWeb({
+    serverLambda: {
+      memory: 2048,
+      timeout: 20
+    }
+  });
+
+  return { resources: { site } };
+});
+```
+
+
+Increase `memory` when SSR routes do meaningful server-side work, because Lambda CPU scales with memory and the source notes that `1,769` MB corresponds to `1` vCPU. Lowering `timeout` can fail slow requests earlier; leave it at the default `30` seconds when routes may need the full allowed execution window.
+
+Set `joinDefaultVpc` only when the SSR function must connect to VPC resources such as databases or Redis. Joining the VPC removes direct internet access from the function, so keep the default for public APIs, third-party HTTP calls, and sites that only need public outbound traffic. If the SSR function needs both VPC resources and outbound internet, configure NAT gateways via `stackConfig.vpc.nat`.
+
+## Custom domains
+
+Astro custom domains attach your own hostnames to the CloudFront-backed app with Stacktape-managed DNS records and TLS certificates. A Route 53 hosted zone for the domain must already exist in your AWS account, and the domain registrar's nameservers must point to that hosted zone so that DNS resolution reaches Route 53. If DNS is managed outside Route 53 (for example, through Cloudflare), set `disableDnsRecordCreation` on the domain entry instead — Stacktape will still provision the TLS certificate but will not create DNS records. Use custom domains for production hostnames; skip custom domains for preview stages unless those stages need stable branded hostnames.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AstroWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const site = new AstroWeb({
+    customDomains: [
+      {
+        domainName: 'www.example.com'
+      }
+    ]
+  });
+
+  return { resources: { site } };
+});
+```
+
+
+`domainName` must not include `https://`. By default, Stacktape creates the DNS record and provisions a free TLS certificate. Set `customCertificateArn` only when you need to use your own ACM certificate (for example, an EV or OV certificate).
+
+## CDN and firewall
+
+The Astro resource includes CDN controls for SSR routes and specific path patterns, plus static-file header controls through `fileOptions`. Use these settings when the default caching or headers do not match how the Astro app serves assets and SSR responses. Keep the defaults for small apps until cache behavior becomes a real performance or correctness concern.
+
+Use `useFirewall` to attach a [web application firewall](/resources/security/web-application-firewall) to the Astro app. The referenced firewall must have `scope: 'cdn'`, because the Astro resource is protected at the CloudFront/CDN layer. Enable a firewall for public production apps that need request filtering; skip it for internal previews or low-risk sites where added policy management is not worth the complexity.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AstroWeb, WebAppFirewall } from 'stacktape';
+
+export default defineConfig(() => {
+  const firewall = new WebAppFirewall({
+    scope: 'cdn'
+  });
+
+  const site = new AstroWeb({
+    useFirewall: 'firewall'
+  });
+
+  return { resources: { firewall, site } };
+});
+```
+
+
+The `fileOptions` array sets custom HTTP headers for static files whose path matches an `includePattern` glob (for example, `assets/**`). Each entry accepts `includePattern`, an optional `excludePattern`, and a `headers` array of key-value pairs. Use `fileOptions` to set `Cache-Control` or other headers on fingerprinted build assets. For SSR route caching and path-specific CDN cache behavior, use the separate `cdn` property. See the API reference below for the exact shape of each entry.
+
+## Connecting resources
+
+Use `connectTo` to give the Astro resource access to other resources in your stack. The `connectTo` contract grants IAM permissions, opens network access for resources that require security group rules (such as relational databases and Redis), and injects `STP_[RESOURCE_NAME]_[PARAM]` environment variables for supported resource types. For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AstroWeb, Bucket } from 'stacktape';
+
+export default defineConfig(() => {
+  const mediaBucket = new Bucket({});
+
+  const site = new AstroWeb({
+    connectTo: ['mediaBucket'],
+    environment: [{ name: 'PUBLIC_SITE_NAME', value: 'Docs Portal' }]
+  });
+
+  return { resources: { mediaBucket, site } };
+});
+```
+
+
+With the `mediaBucket` resource name shown above, the Astro SSR function receives `STP_MEDIA_BUCKET_NAME` and `STP_MEDIA_BUCKET_ARN` as environment variables. Use `environment` for application settings and directives such as `$Secret()` or `$ResourceParam()`, and use `iamRoleStatements` only for AWS permissions not covered by `connectTo`.
+
+When connecting to VPC resources such as relational databases or Redis, enable `serverLambda.joinDefaultVpc` on the Astro resource so the SSR function can reach those resources over the private network. Note that joining the VPC removes direct internet access from the function — if the SSR function also needs outbound internet, configure NAT gateways via `stackConfig.vpc.nat`.
+
+## Dev mode
+
+Astro dev mode configuration controls how `stacktape dev` starts the local Astro development server. The default command is `astro dev`, which is enough for simple projects. Override the command or working directory when the repository uses package-manager scripts or the Astro app lives inside a monorepo workspace.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AstroWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const site = new AstroWeb({
+    appDirectory: './apps/marketing',
+    dev: {
+      command: 'pnpm dev',
+      workingDirectory: './apps/marketing'
+    }
+  });
+
+  return { resources: { site } };
+});
+```
+
+
+Keep `dev.command` aligned with how the team runs Astro locally outside Stacktape. `dev.workingDirectory` is relative to the project root, so it is useful when the command must run from the Astro package directory rather than the repository root. See [`stacktape dev`](/cli/dev) for the CLI command reference.
+
+## Logging
+
+Astro SSR logs are sent to CloudWatch. Configure Lambda logging through the `serverLambda.logging` property. Use the [`stacktape logs`](/cli/logs) command to inspect SSR runtime output from the CLI, or view logs directly in the AWS console.
+
+The source exposes logging under `serverLambda`, not as a top-level Astro property. Keep that distinction clear when configuring the app: static asset delivery and CDN behavior are separate from Lambda runtime logging for SSR requests.
+
+## FAQ
+
+### Should I use the Astro resource or a hosting bucket?
+
+Use the Astro resource only for SSR apps that render routes on the server. For static-only Astro output, use a [hosting bucket](/resources/frontend/static-hosting) with `hostingContentType: 'astro-static-website'` instead — that is the documented path for static builds and avoids running an SSR Lambda you do not need.
+
+### Can I use a custom domain with Astro?
+
+Yes. Add `customDomains` to the Astro resource and provide a domain name backed by a Route 53 hosted zone in your AWS account, with the domain registrar's nameservers pointing to that hosted zone. By default, Stacktape creates the DNS record and provisions a free TLS certificate. Provide `customCertificateArn` only when you need your own ACM certificate. If DNS is managed outside Route 53, set `disableDnsRecordCreation` so Stacktape provisions the certificate without creating DNS records. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+
+### Can I protect an Astro app with AWS WAF?
+
+Yes. Set `useFirewall` to the name of a [web application firewall](/resources/security/web-application-firewall) resource. The firewall must have `scope: 'cdn'` — the Astro app is protected at the CloudFront/CDN layer, so a firewall with any other scope will not attach.
+
+### How do I connect Astro SSR to a database?
+
+Add the database resource name to `connectTo` on the Astro resource and enable `serverLambda.joinDefaultVpc` so the SSR function can reach VPC resources. The `connectTo` contract handles IAM permissions, network access for resources that need security group rules, and environment variable injection using the `STP_[RESOURCE_NAME]_[PARAM]` pattern. See [connecting resources](/configuration/connecting-resources) for the complete injected-variable table.
+
+### Why can't my Astro SSR function reach the internet after connecting to a database?
+
+Enabling `serverLambda.joinDefaultVpc` (required to reach VPC resources like databases or Redis) removes the function's direct internet access. If the SSR routes also make outbound HTTP calls to third-party APIs, configure NAT gateways via `stackConfig.vpc.nat`. Leave `joinDefaultVpc` off for sites that only need public outbound traffic.
+
+### How much does an Astro SSR app cost on AWS?
+
+An Astro SSR app accrues Lambda invocation and duration costs for server-rendered routes, S3 storage and request costs for static assets, and CloudFront data transfer and request costs for CDN traffic. There are no fixed always-on charges. Use [managing costs](/managing-costs/overview) to track deployed stack spend.
+
+### When should I use Astro instead of Next.js?
+
+Use the Stacktape Astro resource when the project is an Astro app and you want Astro's content-focused SSR model. Use [Next.js](/resources/frontend/nextjs) when the project depends on Next.js routing, rendering, or framework conventions. Stacktape has dedicated resources for both frameworks, so choose based on the application framework, not the AWS plumbing.
+
+## API Reference
+
+
+### Definition: `AstroWebProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/astro-web` with definition name `AstroWebProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `appDirectory` | no | `string` | `.` |
+| `buildCommand` | no | `string` | - |
+| `cdn` | no | `SsrWebCdnConfig` | - |
+| `connectTo` | no | `Array<string>` | - |
+| `customDomains` | no | `Array<DomainConfiguration>` | - |
+| `dev` | no | `AstroWebDevConfig` | - |
+| `environment` | no | `Array<EnvironmentVar>` | - |
+| `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
+| `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `serverLambda` | no | `AstroWebServerLambdaConfig` | - |
+| `useFirewall` | no | `string` | - |

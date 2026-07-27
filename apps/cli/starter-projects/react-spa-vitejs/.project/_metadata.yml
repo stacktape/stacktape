@@ -1,0 +1,10 @@
+name: React SPA
+tags:
+  - website
+  - SPA website
+  - Typescript
+  - Vite.js
+  - React
+hasOwnTsConfig: true
+icon: react.svg
+priority: 100

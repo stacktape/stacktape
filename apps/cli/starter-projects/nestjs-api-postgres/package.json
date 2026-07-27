@@ -1,0 +1,24 @@
+{
+  "name": "nest-js-api",
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "prisma:push": "npx prisma db push",
+    "prisma:migrate": "npx prisma db migrate",
+    "prisma:generate": "npx prisma generate"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.13",
+    "@nestjs/core": "^11.1.13",
+    "@nestjs/platform-express": "^11.1.13",
+    "@prisma/client": "^6.0.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@types/express": "^5.0.6",
+    "prisma": "^6.0.0"
+  }
+}

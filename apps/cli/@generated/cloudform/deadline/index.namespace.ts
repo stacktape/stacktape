@@ -1,0 +1,35 @@
+import Farm_ from './farm';
+import Fleet_ from './fleet';
+import LicenseEndpoint_ from './licenseEndpoint';
+import Limit_ from './limit';
+import MeteredProduct_ from './meteredProduct';
+import Monitor_ from './monitor';
+import Queue_ from './queue';
+import QueueEnvironment_ from './queueEnvironment';
+import QueueFleetAssociation_ from './queueFleetAssociation';
+import QueueLimitAssociation_ from './queueLimitAssociation';
+import StorageProfile_ from './storageProfile';
+export namespace Deadline {
+  export const Farm = Farm_;
+  export const Fleet = Fleet_;
+  export const LicenseEndpoint = LicenseEndpoint_;
+  export const Limit = Limit_;
+  export const MeteredProduct = MeteredProduct_;
+  export const Monitor = Monitor_;
+  export const Queue = Queue_;
+  export const QueueEnvironment = QueueEnvironment_;
+  export const QueueFleetAssociation = QueueFleetAssociation_;
+  export const QueueLimitAssociation = QueueLimitAssociation_;
+  export const StorageProfile = StorageProfile_;
+  export type Farm = Farm_;
+  export type Fleet = Fleet_;
+  export type LicenseEndpoint = LicenseEndpoint_;
+  export type Limit = Limit_;
+  export type MeteredProduct = MeteredProduct_;
+  export type Monitor = Monitor_;
+  export type Queue = Queue_;
+  export type QueueEnvironment = QueueEnvironment_;
+  export type QueueFleetAssociation = QueueFleetAssociation_;
+  export type QueueLimitAssociation = QueueLimitAssociation_;
+  export type StorageProfile = StorageProfile_;
+}

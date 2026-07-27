@@ -1,0 +1,19 @@
+{
+  "name": "stacktape-project",
+  "private": true,
+  "version": "0.1.0",
+  "keywords": [
+    "monorepo",
+    "typescript",
+    "nodejs"
+  ],
+  "author": "Stacktape team",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.160",
+    "@types/node": "^25.2.1",
+    "typescript": "^5.9.3"
+  }
+}

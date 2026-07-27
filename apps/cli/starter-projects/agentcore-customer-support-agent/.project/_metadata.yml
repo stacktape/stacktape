@@ -1,0 +1,8 @@
+name: AgentCore Customer Support Agent
+tags:
+  - Javascript
+  - Docker
+  - AI
+  - AgentCore
+icon: docker.svg
+priority: 0

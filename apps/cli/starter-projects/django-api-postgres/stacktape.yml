@@ -1,0 +1,56 @@
+scripts:
+  installUv:
+    type: local-script
+    properties:
+      executeCommand: curl -LsSf https://astral.sh/uv/install.sh | sh
+  installDependencies:
+    type: local-script
+    properties:
+      executeCommand: uv sync
+  migrateDb:
+    type: local-script
+    properties:
+      executeCommands:
+        - uv run python manage.py makemigrations
+        - uv run python manage.py migrate
+      connectTo:
+        - mainDatabase
+
+hooks:
+  beforeDeploy:
+    - scriptName: installUv
+      skipOnLocal: true
+    - scriptName: installDependencies
+  afterDeploy:
+    - scriptName: migrateDb
+
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: postsproject/wsgi.py:application
+          languageSpecificConfig:
+            packageManagerFile: pyproject.toml
+            runAppAs: WSGI
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - mainDatabase
+      cors:
+        enabled: true
+
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('mainDatabase.password')
+      engine:
+        type: postgres
+        properties:
+          version: '18.1'
+          primaryInstance:
+            instanceSize: db.t3.micro

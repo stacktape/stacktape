@@ -1,0 +1,37 @@
+resources:
+  inferenceApi:
+    type: function
+    properties:
+      # Replace the S3 Files access point and backing bucket ARNs before deploying.
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      memory: 1024
+      timeout: 30
+      joinDefaultVpc: true
+      environment:
+        - name: MODEL_DIR
+          value: /mnt/models/churn-risk
+      volumeMounts:
+        - type: s3files
+          properties:
+            accessPointArn: arn:aws:s3files:us-east-1:111111111111:fs/fs-abc/ap-abc
+            mountPath: /mnt/models
+      iamRoleStatements:
+        - Resource:
+            - arn:aws:s3:::your-s3-files-bucket/*
+          Effect: 'Allow'
+          Action:
+            - 's3:GetObject'
+            - 's3:GetObjectVersion'
+      url:
+        enabled: true
+        cors:
+          enabled: true
+          allowedOrigins:
+            - '*'
+          allowedMethods:
+            - '*'
+          allowedHeaders:
+            - '*'

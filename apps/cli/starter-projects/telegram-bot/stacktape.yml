@@ -1,0 +1,15 @@
+resources:
+  bot:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      memory: 512
+      timeout: 30
+      environment:
+        - name: BOT_TOKEN
+          value: $Secret('telegram-bot-token')
+      url:
+        enabled: true

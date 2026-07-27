@@ -1,0 +1,12 @@
+export const getAssumeRolePolicyDocumentForFunctionRole = () => ({
+  Statement: [
+    {
+      Effect: 'Allow',
+      Principal: {
+        Service: ['lambda.amazonaws.com', 'edgelambda.amazonaws.com']
+      },
+      Action: 'sts:AssumeRole'
+    }
+  ],
+  Version: '2012-10-17'
+});

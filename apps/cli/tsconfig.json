@@ -1,8 +1,40 @@
 {
-  "extends": "../../tsconfig.package.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "types": ["node"]
+    "strict": false,
+    "target": "ES6",
+    "jsx": "preserve",
+    "jsxImportSource": "@opentui/solid",
+    "lib": ["ES2023"],
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@utils/*": ["./src/utils/*"],
+      "@cloudform/*": ["./@generated/cloudform/*"],
+      "@schemas/*": ["./@generated/schemas/*"],
+      "@domain-services/*": ["./src/domain/*"],
+      "@application-services/*": ["./src/app/*"],
+      "@config": ["./src/config/random.ts"],
+      "@cli-config": ["./src/config/cli.ts"],
+      "@errors": ["./src/config/error-messages.ts"],
+      "@api/*": ["./src/api/*"],
+      "@helper-lambdas/*": ["./helper-lambdas/*"],
+      "@shared/*": ["./shared/*"],
+      "@generated/*": ["./@generated/*"],
+      "src/*": ["./src/*"]
+    },
+    "resolveJsonModule": true,
+    "types": ["bun-types"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "noImplicitThis": true,
+    "declaration": false,
+    "noEmit": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src"]
+  "include": ["./src/**/*", "./types/**/*", "./shared/**/*", "./scripts/**/*", "./helper-lambdas/**/*"],
+  "exclude": ["./@generated/**/*"]
 }

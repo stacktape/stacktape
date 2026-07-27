@@ -1,0 +1,302 @@
+# Security and Data Protection Guardrails
+
+Stacktape security guardrails are policy definitions that express your team's security requirements — VPC-only database access, deletion protection, dead-letter queues, WAF on application load balancers, custom domains, and approved database engines. Each guardrail has a `type` and a `properties` object that describes the requirement to enforce.
+
+## How security guardrails work
+
+Security guardrails are policy definitions with a `type` and `properties` object that express requirements for resource configurations. This is fundamentally different from [alarms](/observability/alarms), which reactively notify you when a running system behaves unexpectedly at runtime.
+
+Each guardrail has a `type` and a `properties` object. For the security and data-protection guardrails on this page, `require-*` guardrails use an optional `enabled` boolean, and `database-engine-restriction` uses an optional `allowedEngines` allowlist. Other guardrail types use different property shapes. See the [guardrails overview](/guardrails/overview) for the full list of all 15 guardrail types and their properties.
+
+| Aspect | Guardrails | Alarms |
+|--------|-----------|--------|
+| **Purpose** | Prevent non-compliant configurations | Detect runtime anomalies |
+| **Timing** | Policy validation (preventive) | Runtime (reactive) |
+| **Action** | Enforces required settings or values | Sends notification |
+
+## Security guardrail definitions
+
+Each security guardrail is an object with a `type` string and a `properties` object. The five `require-*` guardrails use an `enabled` boolean toggle. The `database-engine-restriction` guardrail uses an `allowedEngines` allowlist. These guardrail definitions are managed separately from your `stacktape.ts` resource configuration — they are not added to your `stacktape.ts` file. The object shapes below illustrate the guardrail policy format.
+
+```typescript
+// require-* guardrails — enabled toggle
+{ type: 'require-vpc-databases', properties: { enabled: true } }
+{ type: 'require-deletion-protection', properties: { enabled: true } }
+{ type: 'require-dead-letter-queue', properties: { enabled: true } }
+{ type: 'require-waf', properties: { enabled: true } }
+{ type: 'require-custom-domain', properties: { enabled: true } }
+
+// Restriction guardrails — allowlist
+{ type: 'database-engine-restriction', properties: { allowedEngines: ['postgres', 'aurora-postgresql'] } }
+```
+
+The `GuardrailType` union currently includes 15 guardrail types; see the [guardrails overview](/guardrails/overview) for how the docs group them.
+
+The examples below show the resource-side settings that correspond to each guardrail requirement. See the linked resource pages for full resource configuration details.
+
+## When to use
+
+Enable security guardrails when your team needs to enforce compliance requirements without relying on code reviews alone to catch misconfigurations. They are most valuable for:
+
+- **Multi-developer teams** where anyone can deploy independently — guardrails prevent a developer from accidentally deploying an internet-exposed database or a queue without a dead-letter queue.
+- **Compliance-regulated organizations** (SOC 2, HIPAA, PCI-DSS) that mandate specific network isolation, data-protection, or encryption controls as baseline requirements.
+- **Platform teams** providing Stacktape to internal customers who shouldn't need to memorize every security baseline to deploy safely.
+
+## When NOT to use
+
+Skip guardrails in early prototyping or single-developer projects where speed matters more than governance. In early prototypes or solo projects, guardrails may be unnecessary until you have shared production baselines to enforce. You can always enable guardrails later when the team grows or the project reaches production.
+
+## Require VPC databases
+
+The `require-vpc-databases` guardrail enforces that, when enabled, all databases must use VPC-only accessibility with no public internet access.
+
+**When to enable:** Enable in production stages or any organization handling sensitive data. VPC-only databases cannot be reached from the public internet, eliminating an entire class of network-based attack vectors. The tradeoff is that you need a [bastion host](/resources/security/bastion-host) or VPC-connected workloads to access the database for administration and debugging. For most production workloads, VPC-only is the right default.
+
+**When the default is fine:** During early development or prototyping, internet-accessible databases are more convenient for local development and ad-hoc queries. The risk is low when the database holds no real data.
+
+A compliant [relational database](/resources/databases/relational-database) configuration with VPC-only access:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16.6',
+      primaryInstance: {
+        instanceSize: 'db.t4g.micro'
+      }
+    }),
+    credentials: {
+      masterUserPassword: $Secret('database.password')
+    },
+    accessibility: {
+      accessibilityMode: 'vpc'
+    }
+  });
+
+  return {
+    resources: { mainDatabase }
+  };
+});
+```
+
+
+This example configures the database with VPC-only access and no public internet exposure. See the [relational database page](/resources/databases/relational-database) for all supported accessibility modes, engine versions, and instance sizes. See [connecting resources](/configuration/connecting-resources) for how workloads connect to VPC-only databases.
+
+## Require deletion protection
+
+The `require-deletion-protection` guardrail requires all [relational databases](/resources/databases/relational-database) to have `deletionProtection` set to `true`. Deletion protection is an AWS RDS safeguard that prevents a database instance from being deleted through API operations — you must explicitly disable it before removing the database.
+
+**When to enable:** Enable for any stage where accidental data loss is unacceptable — production, staging with real data, or shared development databases. The tradeoff is minimal: you must explicitly disable deletion protection before intentionally removing a database, which adds one deliberate step to prevent accidents.
+
+**When the default is fine:** Skip for throwaway development stages where the database is recreated frequently and holds no important data.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16.6',
+      primaryInstance: {
+        instanceSize: 'db.t4g.micro'
+      }
+    }),
+    credentials: {
+      masterUserPassword: $Secret('database.password')
+    },
+    deletionProtection: true
+  });
+
+  return {
+    resources: { mainDatabase }
+  };
+});
+```
+
+
+Setting `deletionProtection: true` satisfies this guardrail. With deletion protection enabled, AWS RDS rejects API calls that would remove the database instance — this is an AWS-level safeguard independent of Stacktape. When `require-deletion-protection` is enabled, every relational database must set `deletionProtection: true`.
+
+## Require dead-letter queue
+
+The `require-dead-letter-queue` guardrail ensures every [SQS queue](/resources/messaging/sqs-queue) in the stack has a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing repeatedly, preventing silent data loss in message-driven architectures.
+
+**When to enable:** Enable when your system processes messages representing real business events — orders, payments, notifications — where losing a message means losing data. Dead-letter queues give you a second chance to inspect and reprocess failed messages instead of having them silently disappear after exhausting retries.
+
+**When the default is fine:** Skip for ephemeral or best-effort queues where occasional message loss is acceptable, such as analytics event buffers or non-critical notification streams.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, SqsQueue } from 'stacktape';
+export default defineConfig(() => {
+  const deadLetterQueue = new SqsQueue({});
+
+  const orderQueue = new SqsQueue({
+    redrivePolicy: {
+      targetSqsQueueName: 'deadLetterQueue',
+      maxReceiveCount: 3
+    }
+  });
+
+  return {
+    resources: { deadLetterQueue, orderQueue }
+  };
+});
+```
+
+
+The `redrivePolicy` specifies which queue receives failed messages and how many receive attempts are allowed before a message is moved there. A `maxReceiveCount` of 3–5 is typical — low enough to catch persistent failures quickly, high enough to tolerate transient errors. See the [SQS queue page](/resources/messaging/sqs-queue) for the full `redrivePolicy` structure. Monitor your dead-letter queue with [alarms](/observability/alarms) to get notified when messages land there.
+
+## Require WAF
+
+The `require-waf` guardrail requires every [application load balancer](/resources/networking/application-load-balancer) to have a [web application firewall](/resources/security/web-application-firewall) attached.
+
+**When to enable:** Enable for public-facing applications that handle user input, authentication, or sensitive data. AWS WAF can defend against common web exploits including SQL injection and cross-site scripting. Most production APIs serving public traffic benefit from WAF.
+
+**When the default is fine:** Skip for internal-only load balancers, development stages, or stages behind a separate security layer. Also consider skipping for very low-traffic applications where the per-request WAF cost isn't justified.
+
+**Cost tradeoff:** AWS WAF charges per rule group and per million requests evaluated. The exact cost depends on the rules you configure and your traffic volume. For high-traffic production APIs, WAF is a standard best practice. For low-traffic internal tools, the cost may not be justified. Check current AWS WAF pricing for your region.
+
+A compliant [application load balancer](/resources/networking/application-load-balancer) configuration with a firewall attached:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, ApplicationLoadBalancer, WebAppFirewall } from 'stacktape';
+export default defineConfig(() => {
+  const apiFirewall = new WebAppFirewall({ scope: 'regional' });
+
+  const loadBalancer = new ApplicationLoadBalancer({
+    useFirewall: 'apiFirewall'
+  });
+
+  return {
+    resources: { apiFirewall, loadBalancer }
+  };
+});
+```
+
+
+The `useFirewall` property references a [web application firewall](/resources/security/web-application-firewall) resource by name. When enabled, `require-waf` requires all application load balancers to have a web application firewall attached. See the [web application firewall page](/resources/security/web-application-firewall) for WAF rule configuration.
+
+## Require custom domain
+
+When enabled, the `require-custom-domain` guardrail requires public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) to have a [custom domain](/resources/networking/custom-domains) configured. Use it when production endpoints must be served from domains your team controls rather than auto-generated AWS URLs.
+
+**When to enable:** Enable for production stages where URL stability, branding, and domain ownership matter. Custom domains give your users a predictable, professional endpoint. They also let you migrate backends without changing the URL your consumers depend on.
+
+**When the default is fine:** Skip for development and staging stages where custom domains add DNS propagation delay and certificate provisioning time without adding value. Auto-generated URLs are perfectly adequate for internal testing.
+
+A compliant [web service](/resources/compute/web-service) configuration with a custom domain:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    },
+    customDomains: [
+      {
+        domainName: 'api.example.com'
+      }
+    ]
+  });
+
+  return {
+    resources: { api }
+  };
+});
+```
+
+
+When enabled, this guardrail requires public-facing web services and hosting buckets to have a custom domain configured. See the [custom domains page](/resources/networking/custom-domains) for custom domain configuration.
+
+## Database engine restriction
+
+The `database-engine-restriction` guardrail limits which database engine types can be used. You define an `allowedEngines` list — for example, `["postgres", "aurora-postgresql"]`. Database engine types not included in `allowedEngines` are blocked.
+
+**When to enable:** Enable when your organization needs to standardize on specific database engine types:
+
+- **Enforce approved engines** — restrict deployments to engine types your DBA team actively supports and has runbooks for. This reduces operational risk when incidents happen.
+- **Standardize across teams** — prevent teams from deploying database engine types your organization has not approved, keeping the technology stack consistent.
+- **Meet compliance requirements** — some compliance frameworks mandate specific database technologies or encryption capabilities available on certain engine types.
+
+**When the default is fine:** Skip when your team is small enough that engine choice is a conversation rather than a policy, or when you're exploring different database technologies and don't want to constrain options prematurely.
+
+This guardrail is also covered on the [database guardrails](/guardrails/databases) page, which includes the related `database-instance-restriction` guardrail for controlling instance sizes.
+
+## Resource type restriction (security use)
+
+The `resource-type-restriction` guardrail blocks the resource types listed in its `blockedResourceTypes` property — for example, `["open-search-domain", "redis-cluster"]`. For broader deployment governance guardrails and the full property shape, see [deployment guardrails](/guardrails/deployment).
+
+## Combining security guardrails
+
+Most production organizations enable multiple security guardrails together. A typical production-security baseline combines network isolation, data protection, and web application firewall guardrails:
+
+| Guardrail | What it enforces | Recommended for |
+|-----------|-----------------|-----------------|
+| `require-vpc-databases` | Network isolation for all databases | All production stages |
+| `require-deletion-protection` | Prevent accidental database removal | All stages with persistent data |
+| `require-dead-letter-queue` | Message durability for SQS queues | Event-driven architectures |
+| `require-waf` | Application-layer firewall on application load balancers | Public-facing APIs |
+| `require-custom-domain` | Stable, branded endpoints | Production web services |
+| `database-engine-restriction` | Approved engine types only | Compliance-regulated teams |
+| `resource-type-restriction` | Block non-approved resource types | Security-sensitive environments |
+
+These guardrails complement each other. VPC databases prevent network-level exposure. WAF adds application-level protection. Deletion protection and dead-letter queues prevent data loss. Custom domains ensure stable endpoints. Engine restrictions enforce your approved technology list.
+
+
+> **Tip:** Start with `require-vpc-databases` and `require-deletion-protection` — they provide the highest security value with the least friction. Add `require-waf`, `require-dead-letter-queue`, and `require-custom-domain` as your production security posture matures.
+
+
+## Related guardrails
+
+This page covers security and data-protection guardrails. Stacktape includes additional guardrail types for deployment governance and resource limits:
+
+- **Deployment guardrails** — `stage-restriction`, `region-restriction`, `command-restriction`, and `resource-type-restriction` control where and how stacks can be deployed. See [deployment guardrails](/guardrails/deployment).
+- **Resource limit guardrails** — `function-memory-limit`, `function-timeout-limit`, `container-resource-limit`, and `resource-count-limit` cap the size and count of compute resources. See [resource limit guardrails](/guardrails/resource-limits).
+- **Database guardrails** — `database-engine-restriction` and `database-instance-restriction` control which database engines and instance sizes are allowed. See [database guardrails](/guardrails/databases).
+
+For a high-level overview of all 15 guardrail types, see the [guardrails overview](/guardrails/overview).
+
+## FAQ
+
+### What is VPC-only database accessibility?
+
+VPC-only accessibility means the database has no public IP address and can only be reached from within the AWS VPC. Workloads running in the same VPC (such as [Lambda functions](/resources/compute/lambda-function) or [container workloads](/resources/compute/web-service) configured with [`connectTo`](/configuration/connecting-resources)) connect normally. For administration and debugging, use a [bastion host](/resources/security/bastion-host) or the [`bastion:tunnel`](/cli/bastion-tunnel) CLI command to create a secure tunnel from your local machine.
+
+### What does the require-waf guardrail actually protect against?
+
+The guardrail itself only enforces that every [application load balancer](/resources/networking/application-load-balancer) has a [web application firewall](/resources/security/web-application-firewall) attached — the real protection depends on the WAF rules you configure. AWS WAF inspects incoming HTTP/HTTPS requests and blocks those matching your rules, with common rule sets defending against SQL injection, cross-site scripting (XSS), and bot traffic, plus rate limiting and geographic restrictions.
+
+### Do security guardrails add cost to my AWS bill?
+
+Guardrails are configuration policy checks. Cost planning should focus on the resources you add to satisfy a policy — for example, AWS WAF charges per rule and per request evaluated, and [custom domains](/resources/networking/custom-domains) require DNS configuration. VPC-only databases don't add direct cost, but workloads that need both VPC access and internet access may need additional networking configuration. Evaluate the cost of each required resource when planning which guardrails to enable.
+
+### When should I use guardrails instead of code reviews?
+
+Use both — they serve different purposes. Code reviews catch logic errors, design issues, and context-dependent decisions requiring human judgment. Guardrails enforce binary policy requirements (VPC-only databases, deletion protection, dead-letter queues) that reviewers might miss under time pressure. Guardrails are especially valuable as teams grow, because policy enforcement doesn't depend on reviewer vigilance or familiarity with every security baseline.
+
+### What is the difference between deletion protection and backups?
+
+Deletion protection and backups protect against different failure modes. Deletion protection, enforced by the `require-deletion-protection` guardrail, prevents the database instance itself from being removed via API calls — it's a safeguard against accidental resource removal. Backups (automated snapshots and point-in-time recovery) protect against data corruption or accidental data changes within a running database. Most production databases benefit from both. See the [relational database page](/resources/databases/relational-database) for backup configuration.
+
+### Can I restrict which database engines my team uses?
+
+Yes. The `database-engine-restriction` guardrail lets you define an `allowedEngines` allowlist of permitted engine type identifiers, such as `["postgres", "aurora-postgresql"]`. Any engine type not in the list is blocked at deploy time. See [database guardrails](/guardrails/databases) for the full database-related guardrail set, including the `database-instance-restriction` guardrail for controlling instance sizes.

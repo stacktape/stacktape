@@ -1,0 +1,68 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  notificationTopic:
+    type: sns-topic
+
+  notificationsTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+
+  logNotification:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/log-notification.ts
+      memory: 256
+      events:
+        - type: sns
+          properties:
+            snsTopicName: notificationTopic
+
+  storeNotification:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/store-notification.ts
+      memory: 256
+      connectTo:
+        - notificationsTable
+      events:
+        - type: sns
+          properties:
+            snsTopicName: notificationTopic
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      memory: 512
+      connectTo:
+        - notificationTopic
+        - notificationsTable
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /
+            method: '*'
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /{proxy+}
+            method: '*'

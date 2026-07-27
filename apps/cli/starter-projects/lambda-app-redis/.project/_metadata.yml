@@ -1,0 +1,6 @@
+name: Lambda app with Redis
+tags:
+  - Typescript
+  - Redis
+  - Lambda
+icon: typescript.svg

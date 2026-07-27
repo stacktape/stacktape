@@ -1,0 +1,5 @@
+resources:
+  web:
+    type: solidstart-web
+    properties:
+      appDirectory: ./

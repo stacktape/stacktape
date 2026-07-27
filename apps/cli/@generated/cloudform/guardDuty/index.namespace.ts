@@ -1,0 +1,32 @@
+import Detector_ from './detector';
+import Filter_ from './filter';
+import IPSet_ from './ipSet';
+import MalwareProtectionPlan_ from './malwareProtectionPlan';
+import Master_ from './master';
+import Member_ from './member';
+import PublishingDestination_ from './publishingDestination';
+import ThreatEntitySet_ from './threatEntitySet';
+import ThreatIntelSet_ from './threatIntelSet';
+import TrustedEntitySet_ from './trustedEntitySet';
+export namespace GuardDuty {
+  export const Detector = Detector_;
+  export const Filter = Filter_;
+  export const IPSet = IPSet_;
+  export const MalwareProtectionPlan = MalwareProtectionPlan_;
+  export const Master = Master_;
+  export const Member = Member_;
+  export const PublishingDestination = PublishingDestination_;
+  export const ThreatEntitySet = ThreatEntitySet_;
+  export const ThreatIntelSet = ThreatIntelSet_;
+  export const TrustedEntitySet = TrustedEntitySet_;
+  export type Detector = Detector_;
+  export type Filter = Filter_;
+  export type IPSet = IPSet_;
+  export type MalwareProtectionPlan = MalwareProtectionPlan_;
+  export type Master = Master_;
+  export type Member = Member_;
+  export type PublishingDestination = PublishingDestination_;
+  export type ThreatEntitySet = ThreatEntitySet_;
+  export type ThreatIntelSet = ThreatIntelSet_;
+  export type TrustedEntitySet = TrustedEntitySet_;
+}

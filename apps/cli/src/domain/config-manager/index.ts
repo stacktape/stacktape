@@ -1,0 +1,4160 @@
+import type { CfResourceTransform, FinalTransform } from './transforms-resolver';
+import { isAbsolute, join } from 'node:path';
+import { eventManager } from '@application-services/event-manager';
+import { globalStateManager } from '@application-services/global-state-manager';
+import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { GetAtt, Ref } from '@cloudform/functions';
+import {
+  getLambdaLogResourceArnsForPermissions,
+  getLogGroupPolicyDocumentStatements
+} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers';
+import { stpErrors } from '@errors';
+import { isTransferAccelerationEnabledInRegion } from '@shared/aws/buckets';
+import { isBucketNativelySupportedHeader } from '@shared/aws/sdk-manager/utils';
+import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { fsPaths } from '@shared/naming/fs-paths';
+import { helperLambdaAwsResourceNames } from '@shared/naming/helper-lambdas-resource-names';
+import { cfLogicalNames } from '@shared/naming/logical-names';
+import { getJobName, getSimpleServiceDefaultContainerName, getStpNameForResource } from '@shared/naming/utils';
+import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { getGloballyUniqueStackHash } from '@shared/utils/hashing';
+import { processAllNodesSync, traverseToMaximalExtent } from '@shared/utils/misc';
+import { isAuroraEngine } from '@shared/utils/rds-engines';
+import compose from '@utils/basic-compose-shim';
+import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
+import { getDirectiveParams, getIsDirective } from '@utils/directives';
+import { getApexDomain } from '@utils/domains';
+import { getConfigPath } from '@utils/file-loaders';
+import { builtInDirectives } from './built-in-directives';
+import { ConfigResolver } from './config-resolver';
+import { TransformsResolver } from './transforms-resolver';
+import { getAlarmsToBeAppliedToResource, isGlobalAlarmEligibleForStack } from './utils/alarms';
+import { DEFAULT_TEST_LISTENER_PORT } from './utils/application-load-balancers';
+import { normalizeCustomDomains } from './utils/custom-domains';
+import { DEFAULT_CONVEX_BACKEND_IMAGE, DEFAULT_CONVEX_DASHBOARD_IMAGE, getConvexSecretName } from './utils/convex';
+import { getStacktapeOriginRequestLambdaIamStatement } from './utils/iam';
+import {
+  getBatchJobTriggerLambdaAccessControl,
+  getBatchJobTriggerLambdaEnvironment,
+  getLambdaHandler,
+  getStacktapeServiceLambdaAlarmNotificationInducedStatements,
+  getStacktapeServiceLambdaCustomResourceInducedStatements,
+  getStacktapeServiceLambdaCustomTaggingInducedStatement,
+  getStacktapeServiceLambdaEcsRedeployInducedStatements,
+  getStacktapeServiceLambdaEnvironment,
+  getStacktapeServiceLambdaIssueDetectionStatements
+} from './utils/lambdas';
+import { cleanConfigForMinimalTemplateCompilerMode, mergeStacktapeDefaults } from './utils/misc';
+import { runInitialValidations, validateConfigStructure } from './utils/validation';
+import { isDevCommand, isResourceTypeExcludedInDevMode } from '../../commands/dev/dev-mode-utils';
+
+const normalizeCdnPath = ({ path }: { path: string }) => path.replace(/^\//, '');
+
+const applySsrWebPathCachingOverrides = ({
+  routeRewrites,
+  pathCachingOverrides,
+  defaultCachingOptions,
+  defaultForwardingOptions,
+  defaultEdgeFunctions
+}: {
+  routeRewrites: CdnRouteRewrite[];
+  pathCachingOverrides?: SsrWebPathCachingOverride[];
+  defaultCachingOptions: CdnCachingOptions;
+  defaultForwardingOptions: CdnForwardingOptions;
+  defaultEdgeFunctions: EdgeFunctionsConfig;
+}) => {
+  if (!pathCachingOverrides?.length) {
+    return routeRewrites;
+  }
+
+  const mergedRouteRewrites = routeRewrites.map((routeRewrite) => ({ ...routeRewrite }));
+
+  pathCachingOverrides.forEach((pathOverride) => {
+    const matchedRewriteIndex = mergedRouteRewrites.findIndex(
+      ({ path }) => normalizeCdnPath({ path }) === normalizeCdnPath({ path: pathOverride.path })
+    );
+
+    if (matchedRewriteIndex >= 0) {
+      mergedRouteRewrites[matchedRewriteIndex].cachingOptions = {
+        ...(mergedRouteRewrites[matchedRewriteIndex].cachingOptions || {}),
+        ...pathOverride.cachingOptions
+      };
+      return;
+    }
+
+    mergedRouteRewrites.push({
+      path: pathOverride.path,
+      forwardingOptions: defaultForwardingOptions,
+      edgeFunctions: defaultEdgeFunctions,
+      cachingOptions: {
+        ...defaultCachingOptions,
+        ...pathOverride.cachingOptions
+      }
+    });
+  });
+
+  return mergedRouteRewrites;
+};
+
+export class ConfigManager {
+  config: StacktapeConfig;
+  rawConfig: StacktapeConfig;
+  name = this.constructor.name;
+  configResolver = new ConfigResolver();
+  transformsResolver = new TransformsResolver();
+  globalConfigGuardrails: GuardrailDefinition[] = [];
+  globalConfigDeploymentNotifications: DeploymentNotificationDefinition[] = [];
+  globalConfigAlarms: AlarmDefinition[] = [];
+  transforms: { [logicalName: string]: CfResourceTransform } = {};
+  finalTransform: FinalTransform | null = null;
+
+  /**
+   * Loads only the raw config (without directives resolution or validation).
+   * Used to extract serviceName before full initialization.
+   */
+  loadRawConfigOnly = async () => {
+    const detectedConfigPath = getConfigPath();
+    if (detectedConfigPath) {
+      globalStateManager.setConfigPath(detectedConfigPath);
+    }
+    if (globalStateManager.configPath) {
+      await this.configResolver.loadRawConfig();
+    }
+  };
+
+  init = async ({ configRequired = true }: { configRequired: boolean }) => {
+    const { templateId } = globalStateManager.args;
+    await eventManager.startEvent({
+      eventType: 'LOAD_CONFIG_FILE',
+      description: 'Loading configuration',
+      phase: 'INITIALIZE'
+    });
+    let detectedConfigPath: string;
+
+    if (!templateId && !globalStateManager.presetConfig) {
+      detectedConfigPath = getConfigPath();
+      if (!detectedConfigPath && configRequired) {
+        throw stpErrors.e16(null);
+      }
+      globalStateManager.setConfigPath(detectedConfigPath);
+    }
+
+    const shouldLoadConfig = configRequired || detectedConfigPath || templateId;
+    this.configResolver.registerBuiltInDirectives();
+    if (shouldLoadConfig) {
+      // Only load transforms for TypeScript configs with defineConfig pattern
+      if (this.transformsResolver.isDefineConfigStyle(globalStateManager.configPath)) {
+        const { transforms, finalTransform } = await this.transformsResolver.loadTransforms(
+          globalStateManager.configPath
+        );
+        this.transforms = transforms;
+        this.finalTransform = finalTransform;
+      }
+      // Skip loadRawConfig if already loaded by loadRawConfigOnly
+      if (!this.configResolver.rawConfig) {
+        await this.configResolver.loadRawConfig();
+      }
+      this.configResolver.registerUserDirectives(this.configResolver.rawConfig?.directives || []);
+      await this.configResolver.loadResolvedConfig();
+      if (globalStateManager.invokedFrom !== 'server') {
+        this.config = this.configResolver.resolvedConfig;
+      } else {
+        this.config = cleanConfigForMinimalTemplateCompilerMode(this.configResolver.resolvedConfig);
+      }
+      this.rawConfig = this.configResolver.rawConfig;
+      await validateConfigStructure({ config: this.config, configPath: globalStateManager.configPath, templateId });
+      if (globalStateManager.invokedFrom !== 'server') {
+        runInitialValidations();
+      }
+    }
+
+    await eventManager.finishEvent({
+      eventType: 'LOAD_CONFIG_FILE',
+      data: { stackName: globalStateManager.targetStack.stackName, config: this.config },
+      phase: 'INITIALIZE'
+    });
+  };
+
+  reset = () => {
+    this.configResolver.reset();
+    this.config = null;
+    this.rawConfig = null;
+    this.globalConfigGuardrails = [];
+    this.globalConfigDeploymentNotifications = [];
+    this.globalConfigAlarms = [];
+  };
+
+  loadGlobalConfig = async () => {
+    const globalConfig = await stacktapeTrpcApiManager.apiClient.globalConfig();
+    this.globalConfigAlarms = ((globalConfig.alarms as unknown as AlarmDefinition[]) || []).filter((alarm) =>
+      isGlobalAlarmEligibleForStack({
+        alarm,
+        projectName: globalStateManager.targetStack.projectName,
+        stage: globalStateManager.targetStack.stage
+      })
+    );
+    this.globalConfigDeploymentNotifications = (globalConfig.deploymentNotifications ||
+      []) as DeploymentNotificationDefinition[];
+    this.globalConfigGuardrails = (globalConfig.guardrails || []) as GuardrailDefinition[];
+    // this.alarms = this.alarms.concat(getGlobalConfigDefinedAlarms({ globalConfigAlarms: this.globalConfigAlarms }));
+  };
+
+  resolveDirectives = async <T>(params: {
+    itemToResolve: any;
+    resolveRuntime: boolean;
+    useLocalResolve?: boolean;
+  }): Promise<T> => {
+    return this.configResolver.resolveDirectives(params);
+  };
+
+  invalidatePotentiallyChangedDirectiveResults = () => {
+    // currently we consider runtime directives the ones that potentially changed
+    const directivesToInvalidate = builtInDirectives.filter(({ isRuntime }) => isRuntime).map(({ name }) => `$${name}`);
+
+    // we delete results of runtime directives from configResolver.results
+    for (const directiveDef in this.configResolver.results) {
+      if (directivesToInvalidate.some((d) => directiveDef.startsWith(d))) {
+        delete this.configResolver.results[directiveDef];
+      }
+    }
+    // we invalidate entire configResolver.resultsWithPath to ensure that no runtime directive is cached
+    // non-runtime directives are still cached within configResolver.results
+    this.configResolver.resultsWithPath = {};
+  };
+
+  findResourceInConfig = ({ nameChain }: { nameChain: string | string[] }) => {
+    const chain = typeof nameChain === 'string' ? nameChain.split('.') : nameChain;
+    const configParent = this.allConfigResources.find(({ name }) => name === chain[0]);
+
+    const { resultValue, restPath, validPath } = traverseToMaximalExtent(
+      { [chain[0]]: configParent },
+      chain.join('._nestedResources.')
+    );
+
+    return {
+      resource: resultValue as StpResource,
+      validPath,
+      restPath,
+      fullyResolved: !restPath
+    };
+  };
+
+  findImmediateParent = ({ nameChain }: { nameChain: string | string[] }) => {
+    const chain = typeof nameChain === 'string' ? nameChain.split('.') : nameChain;
+    return this.findResourceInConfig({ nameChain: chain.slice(0, -1) }).resource;
+  };
+
+  private getResourcesFromConfig = <T extends StpResource>(resourceType: StpResourceType): T[] => {
+    return Object.entries(this.config.resources)
+      .map(
+        ([name, definition]): StpResource =>
+          ({
+            name: getStpNameForResource({ nameChain: [name] }),
+            type: definition.type,
+            overrides: (definition as any).overrides,
+            configParentResourceType: definition.type,
+            nameChain: [name],
+            ...definition.properties
+          }) as any
+      )
+      .filter((resource) => resource.type === resourceType)
+      .map(mergeStacktapeDefaults) as T[];
+  };
+
+  private get globallyUniqueStackHash() {
+    return getGloballyUniqueStackHash({
+      region: globalStateManager.region,
+      accountId: globalStateManager.targetAwsAccount.awsAccountId,
+      stackName: globalStateManager.targetStack.stackName
+    });
+  }
+
+  get mongoDbAtlasProvider() {
+    return this.config.providerConfig?.mongoDbAtlas as MongoDbAtlasProvider;
+  }
+
+  get requireAtlasCredentialsParameter() {
+    return this.atlasMongoClusters?.length && !this.mongoDbAtlasProvider?.privateKey;
+  }
+
+  get upstashProvider() {
+    return this.config.providerConfig?.upstash as UpstashProvider;
+  }
+
+  get requireUpstashCredentialsParameter() {
+    return this.upstashRedisDatabases?.length && !this.upstashProvider?.apiKey;
+  }
+
+  get deploymentConfig() {
+    return {
+      disableS3TransferAcceleration: !this.isS3TransferAccelerationAvailableInDeploymentRegion,
+      ...this.config?.deploymentConfig
+    };
+  }
+
+  get agentCoreRuntimes() {
+    return this.getResourcesFromConfig<StpAgentCoreRuntime>('agentcore-runtime').map((runtime) => ({
+      ...runtime,
+      jobName: getJobName({ workloadName: runtime.name, workloadType: runtime.type }),
+      configParentResourceType: 'agentcore-runtime' as const
+    }));
+  }
+
+  get agentCoreMemories() {
+    return this.getResourcesFromConfig<StpAgentCoreMemory>('agentcore-memory');
+  }
+
+  get agentCoreGateways() {
+    return this.getResourcesFromConfig<StpAgentCoreGateway>('agentcore-gateway');
+  }
+
+  get agentCoreBrowsers() {
+    return this.getResourcesFromConfig<StpAgentCoreBrowser>('agentcore-browser');
+  }
+
+  get agentCoreCodeInterpreters() {
+    return this.getResourcesFromConfig<StpAgentCoreCodeInterpreter>('agentcore-code-interpreter');
+  }
+
+  get functions() {
+    return this.getResourcesFromConfig<StpLambdaFunction>('function').map(({ name, packaging, ...definition }) => {
+      return {
+        ...definition,
+        name,
+        type: 'function',
+        packaging,
+        artifactName: name,
+        handler: getLambdaHandler({ name, packaging }),
+        resourceName: awsResourceNames.lambda(name, globalStateManager.targetStack.stackName),
+        cfLogicalName: cfLogicalNames.lambda(name),
+        aliasLogicalName:
+          (definition.deployment || definition.provisionedConcurrency) && cfLogicalNames.lambdaStpAlias(name),
+        events: definition.events || [],
+        configParentResourceType: 'function'
+      } as StpLambdaFunction;
+    });
+  }
+
+  get containerWorkloads() {
+    const fromConvex = this.convexes.flatMap((c) => {
+      const out: StpContainerWorkload[] = [c._nestedResources.backendContainerWorkload];
+      if (c._nestedResources.dashboardContainerWorkload) {
+        out.push(c._nestedResources.dashboardContainerWorkload);
+      }
+      return out;
+    });
+    return [...this.getResourcesFromConfig<StpContainerWorkload>('multi-container-workload'), ...fromConvex];
+  }
+
+  get batchJobs() {
+    return this.getResourcesFromConfig<StpBatchJob>('batch-job').map((batchJob) => {
+      const artifactName = 'batchJobTriggerLambda';
+      const helperLambdaData = globalStateManager.helperLambdaDetails.batchJobTriggerLambda;
+      const triggerLambdaIdentifier: keyof StpBatchJob['_nestedResources'] = 'triggerFunction';
+      const triggerLambdaStpName = getStpNameForResource({
+        nameChain: [...batchJob.nameChain, triggerLambdaIdentifier],
+        parentResourceType: batchJob.type
+      });
+      return {
+        ...batchJob,
+        _nestedResources: {
+          [triggerLambdaIdentifier]: {
+            nameChain: [...batchJob.nameChain, triggerLambdaIdentifier],
+            name: triggerLambdaStpName,
+            packaging: { type: 'helper-lambda', properties: helperLambdaData },
+            type: 'function',
+            resourceName: awsResourceNames.lambda(triggerLambdaStpName, globalStateManager.targetStack.stackName),
+            cfLogicalName: cfLogicalNames.lambda(triggerLambdaStpName),
+            artifactName,
+            artifactPath: helperLambdaData.artifactPath,
+            handler: helperLambdaData.handler,
+            configParentResourceType: batchJob.configParentResourceType,
+            timeout: 10,
+            runtime: 'nodejs22.x' as const,
+            events: batchJob.events || [],
+            environment: getBatchJobTriggerLambdaEnvironment({
+              stackName: globalStateManager.targetStack.stackName,
+              batchJobName: batchJob.name
+            }),
+            iamRoleStatements: getBatchJobTriggerLambdaAccessControl({ batchJobName: batchJob.name })
+          } as StpHelperLambdaFunction
+        }
+      } as StpBatchJob;
+    });
+  }
+
+  get buckets() {
+    const fromConvex = this.convexes.flatMap((c) => [
+      c._nestedResources.modulesBucket,
+      c._nestedResources.filesBucket,
+      c._nestedResources.searchBucket,
+      c._nestedResources.exportsBucket,
+      c._nestedResources.snapshotImportsBucket
+    ]);
+    return [...this.getResourcesFromConfig<StpBucket>('bucket'), ...fromConvex];
+  }
+
+  get hostingBuckets() {
+    return this.getResourcesFromConfig<StpHostingBucket>('hosting-bucket').map(
+      (hostingBucket: Omit<StpHostingBucket, '_nestedResources'>) => {
+        const nestedBucketIdentifier: keyof StpHostingBucket['_nestedResources'] = 'bucket';
+
+        const {
+          name: _n,
+          type,
+          uploadDirectoryPath,
+          customDomains,
+          disableUrlNormalization,
+          edgeFunctions,
+          errorDocument,
+          hostingContentType,
+          indexDocument,
+          injectEnvironment: _injectEnvironment,
+          writeDotenvFilesTo: _writeDotenvFilesTo,
+          useFirewall,
+          fileOptions,
+          configParentResourceType,
+          nameChain,
+          routeRewrites,
+          excludeFilesPatterns,
+          build: _build,
+          dev: _dev,
+          ..._restProps
+        } = hostingBucket;
+        // props check constant ensures full destructuring of web service props
+        const _propsCheck: Record<string, never> = _restProps;
+        return {
+          ...hostingBucket,
+          _nestedResources: {
+            [nestedBucketIdentifier]: {
+              nameChain: [...nameChain, nestedBucketIdentifier],
+              name: getStpNameForResource({
+                nameChain: [...nameChain, nestedBucketIdentifier],
+                parentResourceType: type
+              }),
+              type: 'bucket',
+              configParentResourceType,
+              directoryUpload: {
+                directoryPath: uploadDirectoryPath,
+                headersPreset: hostingContentType || 'static-website',
+                fileOptions,
+                excludeFilesPatterns
+              },
+              cdn: {
+                enabled: true,
+                customDomains,
+                disableUrlNormalization,
+                edgeFunctions,
+                errorDocument,
+                indexDocument,
+                rewriteRoutesForSinglePageApp: hostingContentType === 'single-page-app',
+                useFirewall,
+                routeRewrites
+              }
+            }
+          }
+        } as StpHostingBucket;
+      }
+    );
+  }
+
+  get databases() {
+    const topLevel = this.getResourcesFromConfig<StpRelationalDatabase>('relational-database');
+    const fromConvex = this.convexes.map((c) => c._nestedResources.database).filter(Boolean);
+    return [...topLevel, ...fromConvex];
+  }
+
+  get convexes() {
+    return this.getResourcesFromConfig<StpConvex>('convex').map((convex) => {
+      const { name, nameChain, type } = convex;
+
+      // helper: build a child name chain + resolved Stp name
+      const child = (suffix: string) => {
+        const childNameChain = [...nameChain, suffix];
+        return {
+          nameChain: childNameChain,
+          name: getStpNameForResource({ nameChain: childNameChain, parentResourceType: type })
+        };
+      };
+
+      const childRef = (suffix: string) => [...nameChain, suffix].join('.');
+
+      // suffix MUST match the _nestedResources key — findResourceInConfig walks via that map
+      const backendChild = child('backendContainerWorkload');
+      const dashboardChild = child('dashboardContainerWorkload');
+      const databaseChild = child('database');
+      const albChild = child('loadBalancer');
+      const albRef = childRef('loadBalancer');
+      const modulesBucketChild = child('modulesBucket');
+      const modulesBucketRef = childRef('modulesBucket');
+      const filesBucketChild = child('filesBucket');
+      const filesBucketRef = childRef('filesBucket');
+      const searchBucketChild = child('searchBucket');
+      const searchBucketRef = childRef('searchBucket');
+      const exportsBucketChild = child('exportsBucket');
+      const exportsBucketRef = childRef('exportsBucket');
+      const snapshotImportsBucketChild = child('snapshotImportsBucket');
+      const snapshotImportsBucketRef = childRef('snapshotImportsBucket');
+      const databaseRef = childRef('database');
+      const convexSecretName = getConvexSecretName({ nameChain });
+
+      const mkBucket = (c: { nameChain: string[]; name: string }): StpBucket => ({
+        type: 'bucket',
+        name: c.name,
+        nameChain: c.nameChain,
+        configParentResourceType: type,
+        encryption: convex.storage?.encryption ?? true,
+        versioning: convex.storage?.versioning ?? false,
+        lifecycleRules: convex.storage?.lifecycleRules,
+        cors: {
+          corsRules: [
+            {
+              allowedOrigins: ['*'],
+              allowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+              allowedHeaders: ['*']
+            }
+          ]
+        } as unknown as StpBucket['cors']
+      });
+
+      const backendImage = convex.backend?.image || DEFAULT_CONVEX_BACKEND_IMAGE;
+      const dashboardImage = convex.dashboard?.image || DEFAULT_CONVEX_DASHBOARD_IMAGE;
+      const usesCustomDomains = Boolean(
+        convex.customDomains?.cloud || convex.customDomains?.site || convex.customDomains?.dashboard
+      );
+
+      // Build the backend container workload. Convex exposes 3210 (cloud) + 3211 (site)
+      // — both routed through the same ALB on different listener ports.
+      const backendContainerWorkload = {
+        type: 'multi-container-workload' as const,
+        name: backendChild.name,
+        nameChain: backendChild.nameChain,
+        configParentResourceType: type,
+        resources: convex.backend?.resources ?? { cpu: 0.5 as const, memory: 1024 },
+        // Single-instance correctness invariant: convex-backend OSS does not support
+        // horizontal scaling. Hard-coded to 1/1.
+        scaling: { minInstances: 1, maxInstances: 1 },
+        // Required for Stacktape's post-deploy admin-key generation. The generated
+        // key is used to run `npx convex deploy` against the new self-hosted backend.
+        enableRemoteSessions: true,
+        usePrivateSubnetsWithNAT: false,
+        connectTo: [
+          databaseRef,
+          modulesBucketRef,
+          filesBucketRef,
+          searchBucketRef,
+          exportsBucketRef,
+          snapshotImportsBucketRef
+        ],
+        containers: [
+          {
+            name: 'convex-backend',
+            essential: true,
+            packaging: {
+              type: 'prebuilt-image' as const,
+              properties: { image: backendImage }
+            },
+            logging: convex.backend?.logging,
+            // Both convex ports listen but only the cloud port (3210) returns
+            // 200 on `/`. The site port (3211) returns 404 because that origin
+            // only serves user-defined HTTP actions. The convex resolver patches
+            // each ALB target group's HttpCode matcher to accept 200-499 so the
+            // 404 on port 3211's `/` counts as healthy — both ports run in the
+            // same Fargate process so liveness is identical.
+            loadBalancerHealthCheck: {
+              healthcheckPath: '/'
+            },
+            environment: [
+              { name: 'INSTANCE_NAME', value: name },
+              {
+                name: 'INSTANCE_SECRET',
+                value: `{{resolve:secretsmanager:${convexSecretName}:SecretString:instanceSecret}}`
+              },
+              {
+                name: 'CONVEX_CLOUD_ORIGIN',
+                value:
+                  (convex.customDomains?.cloud?.domainName && `https://${convex.customDomains.cloud.domainName}`) ||
+                  '__resolver_overrides_this__'
+              },
+              {
+                name: 'CONVEX_SITE_ORIGIN',
+                value:
+                  (convex.customDomains?.site?.domainName && `https://${convex.customDomains.site.domainName}`) ||
+                  '__resolver_overrides_this__'
+              },
+              { name: 'AWS_REGION', value: globalStateManager.region },
+              // Convex skips its own TLS init when this is set. Combined with the
+              // `rds.force_ssl=0` parameter-group override the convex resolver
+              // injects, the connection goes plaintext over the VPC's internal
+              // network.
+              { name: 'DO_NOT_REQUIRE_SSL', value: 'true' },
+              { name: 'PORT', value: 3210 },
+              { name: 'SITE_PROXY_PORT', value: 3211 },
+              {
+                name: 'S3_STORAGE_MODULES_BUCKET',
+                value: `$ResourceParam('${modulesBucketRef}', 'name')` as unknown as string
+              },
+              {
+                name: 'S3_STORAGE_FILES_BUCKET',
+                value: `$ResourceParam('${filesBucketRef}', 'name')` as unknown as string
+              },
+              {
+                name: 'S3_STORAGE_SEARCH_BUCKET',
+                value: `$ResourceParam('${searchBucketRef}', 'name')` as unknown as string
+              },
+              {
+                name: 'S3_STORAGE_EXPORTS_BUCKET',
+                value: `$ResourceParam('${exportsBucketRef}', 'name')` as unknown as string
+              },
+              {
+                name: 'S3_STORAGE_SNAPSHOT_IMPORTS_BUCKET',
+                value: `$ResourceParam('${snapshotImportsBucketRef}', 'name')` as unknown as string
+              },
+              // Placeholder POSTGRES_URL — the convex resolver patches this with a
+              // properly-formed Fn::Sub at template-override time. Stacktape's normal
+              // `connectionString` resource param includes a `/defdb` path that convex
+              // rejects, and directive composition (`$Secret(...)` mid-string) is not
+              // supported, so the URL has to be built directly against CF intrinsics.
+              { name: 'POSTGRES_URL', value: '__resolver_overrides_this__' }
+            ],
+            events: [
+              {
+                type: 'application-load-balancer' as const,
+                properties: {
+                  priority: 10,
+                  containerPort: 3210,
+                  listenerPort: usesCustomDomains ? undefined : 3210,
+                  loadBalancerName: albRef,
+                  paths: ['*'],
+                  hosts: convex.customDomains?.cloud?.domainName ? [convex.customDomains.cloud.domainName] : undefined
+                }
+              },
+              {
+                type: 'application-load-balancer' as const,
+                properties: {
+                  priority: 20,
+                  containerPort: 3211,
+                  listenerPort: usesCustomDomains ? undefined : 3211,
+                  loadBalancerName: albRef,
+                  paths: ['*'],
+                  hosts: convex.customDomains?.site?.domainName ? [convex.customDomains.site.domainName] : undefined
+                }
+              }
+            ],
+            stopTimeout: 30
+          }
+        ]
+      } as unknown as StpContainerWorkload;
+
+      const dashboardEnabled = convex.dashboard?.enabled !== false;
+      const dashboardContainerWorkload = dashboardEnabled
+        ? ({
+            type: 'multi-container-workload' as const,
+            name: dashboardChild.name,
+            nameChain: dashboardChild.nameChain,
+            configParentResourceType: type,
+            resources: convex.dashboard?.resources ?? { cpu: 0.25 as const, memory: 512 },
+            scaling: { minInstances: 1, maxInstances: 1 },
+            usePrivateSubnetsWithNAT: false,
+            containers: [
+              {
+                name: 'convex-dashboard',
+                essential: true,
+                packaging: {
+                  type: 'prebuilt-image' as const,
+                  properties: { image: dashboardImage }
+                },
+                logging: convex.dashboard?.logging,
+                environment: [
+                  {
+                    name: 'NEXT_PUBLIC_DEPLOYMENT_URL',
+                    value:
+                      (convex.customDomains?.cloud?.domainName && `https://${convex.customDomains.cloud.domainName}`) ||
+                      '__resolver_overrides_this__'
+                  },
+                  { name: 'PORT', value: 6791 }
+                ],
+                events: [
+                  {
+                    type: 'application-load-balancer' as const,
+                    properties: {
+                      priority: 30,
+                      containerPort: 6791,
+                      listenerPort: usesCustomDomains ? undefined : 6791,
+                      loadBalancerName: albRef,
+                      paths: ['*'],
+                      hosts: convex.customDomains?.dashboard?.domainName
+                        ? [convex.customDomains.dashboard.domainName]
+                        : undefined,
+                      sourceIps: convex.dashboard?.allowedIpRanges
+                    }
+                  }
+                ],
+                stopTimeout: 5
+              }
+            ]
+          } as unknown as StpContainerWorkload)
+        : undefined;
+
+      // Database default: smallest single-AZ Postgres 16, scoping-workloads-in-vpc.
+      const database = {
+        type: 'relational-database' as const,
+        name: databaseChild.name,
+        nameChain: databaseChild.nameChain,
+        configParentResourceType: type,
+        credentials: {
+          masterUserName: 'convex',
+          masterUserPassword: `{{resolve:secretsmanager:${convexSecretName}:SecretString:dbPassword}}`
+        },
+        engine: convex.database?.engine ?? {
+          type: 'postgres',
+          properties: {
+            version: '16.6',
+            // Postgres defaults the database name to the connecting user when the
+            // URL has no path. Convex rejects URLs with a path. Naming the RDS
+            // default db `convex` keeps both sides happy.
+            dbName: 'convex',
+            primaryInstance: { instanceSize: 'db.t4g.micro', multiAz: false }
+          }
+        },
+        accessibility: convex.database?.accessibility ?? { accessibilityMode: 'scoping-workloads-in-vpc' as const },
+        automatedBackupRetentionDays: convex.database?.automatedBackupRetentionDays ?? 1,
+        preferredMaintenanceWindow: convex.database?.preferredMaintenanceWindow,
+        logging: convex.database?.logging,
+        deletionProtection: convex.deletionProtection ?? false,
+        alarms: convex.alarms?.filter((alarm) => alarm.trigger.type.startsWith('database-')),
+        disabledGlobalAlarms: convex.disabledGlobalAlarms
+      } as unknown as StpRelationalDatabase;
+
+      const collectedCustomDomains: DomainConfiguration[] = [];
+      if (convex.customDomains?.cloud) collectedCustomDomains.push(convex.customDomains.cloud);
+      if (convex.customDomains?.site) collectedCustomDomains.push(convex.customDomains.site);
+      if (convex.customDomains?.dashboard) collectedCustomDomains.push(convex.customDomains.dashboard);
+
+      const loadBalancer = {
+        type: 'application-load-balancer' as const,
+        name: albChild.name,
+        nameChain: albChild.nameChain,
+        configParentResourceType: type,
+        customDomains: collectedCustomDomains.length ? collectedCustomDomains : undefined,
+        listeners: collectedCustomDomains.length
+          ? undefined
+          : [
+              { protocol: 'HTTPS' as const, port: 3210 },
+              { protocol: 'HTTPS' as const, port: 3211 },
+              ...(dashboardEnabled ? [{ protocol: 'HTTPS' as const, port: 6791 }] : [])
+            ],
+        alarms: convex.alarms?.filter((alarm) => alarm.trigger.type.startsWith('application-load-balancer-')),
+        disabledGlobalAlarms: convex.disabledGlobalAlarms
+      } as unknown as StpApplicationLoadBalancer;
+
+      return {
+        ...convex,
+        _nestedResources: {
+          backendContainerWorkload,
+          dashboardContainerWorkload,
+          database,
+          modulesBucket: mkBucket(modulesBucketChild),
+          filesBucket: mkBucket(filesBucketChild),
+          searchBucket: mkBucket(searchBucketChild),
+          exportsBucket: mkBucket(exportsBucketChild),
+          snapshotImportsBucket: mkBucket(snapshotImportsBucketChild),
+          loadBalancer
+        }
+      } as unknown as StpConvex;
+    });
+  }
+
+  get efsFilesystems() {
+    return this.getResourcesFromConfig<StpEfsFilesystem>('efs-filesystem');
+  }
+
+  get dynamoDbTables() {
+    return this.getResourcesFromConfig<StpDynamoTable>('dynamo-db-table');
+  }
+
+  get applicationLoadBalancers() {
+    const topLevel = this.getResourcesFromConfig<StpApplicationLoadBalancer>('application-load-balancer').map(
+      (resource) => ({
+        ...resource,
+        customDomains: normalizeCustomDomains({
+          customDomains: resource.customDomains as (string | DomainConfiguration)[] | null | undefined
+        })
+      })
+    );
+    const fromConvex = this.convexes.map((c) => ({
+      ...c._nestedResources.loadBalancer,
+      customDomains: normalizeCustomDomains({
+        customDomains: c._nestedResources.loadBalancer.customDomains as
+          | (string | DomainConfiguration)[]
+          | null
+          | undefined
+      })
+    }));
+    return [...topLevel, ...fromConvex];
+  }
+
+  get httpApiGateways() {
+    return this.getResourcesFromConfig<StpHttpApiGateway>('http-api-gateway');
+  }
+
+  get eventBuses() {
+    return this.getResourcesFromConfig<StpEventBus>('event-bus');
+  }
+
+  get bastions() {
+    return this.getResourcesFromConfig<StpBastion>('bastion');
+  }
+
+  get stateMachines() {
+    return this.getResourcesFromConfig<StpStateMachine>('state-machine');
+  }
+
+  get customResourceDefinitions() {
+    return this.getResourcesFromConfig<StpCustomResourceDefinition>('custom-resource-definition').map(
+      (customResourceDefinition) => {
+        const customResourceFunctionIdentifier: keyof StpCustomResourceDefinition['_nestedResources'] =
+          'backingFunction';
+        const stpName = getStpNameForResource({
+          nameChain: [...customResourceDefinition.nameChain, customResourceFunctionIdentifier],
+          parentResourceType: customResourceDefinition.type
+        });
+        return {
+          ...customResourceDefinition,
+          _nestedResources: {
+            backingFunction: {
+              ...customResourceDefinition,
+              nameChain: [...customResourceDefinition.nameChain, customResourceFunctionIdentifier],
+              type: 'function',
+              name: stpName,
+              handler: getLambdaHandler({
+                name: stpName,
+                packaging: customResourceDefinition.packaging
+              }),
+              resourceName: awsResourceNames.lambda(stpName, globalStateManager.targetStack.stackName),
+              cfLogicalName: cfLogicalNames.lambda(stpName),
+              artifactName: stpName,
+              events: []
+            }
+          }
+        } as StpCustomResourceDefinition;
+      }
+    );
+  }
+
+  get customResourceInstances() {
+    return this.getResourcesFromConfig<StpCustomResource>('custom-resource-instance');
+  }
+
+  get userPools() {
+    return this.getResourcesFromConfig<StpUserAuthPool>('user-auth-pool');
+  }
+
+  get atlasMongoClusters() {
+    return this.getResourcesFromConfig<StpMongoDbAtlasCluster>('mongo-db-atlas-cluster');
+  }
+
+  get redisClusters() {
+    return this.getResourcesFromConfig<StpRedisCluster>('redis-cluster');
+  }
+
+  get deploymentScripts() {
+    return this.getResourcesFromConfig<StpDeploymentScript>('deployment-script').map((deploymentScript) => {
+      const deploymentScriptFunctionIdentifier: keyof StpDeploymentScript['_nestedResources'] = 'scriptFunction';
+      const stpName = getStpNameForResource({
+        nameChain: [...deploymentScript.nameChain, deploymentScriptFunctionIdentifier],
+        parentResourceType: deploymentScript.type
+      });
+      return {
+        ...deploymentScript,
+        _nestedResources: {
+          scriptFunction: {
+            ...deploymentScript,
+            nameChain: [...deploymentScript.nameChain, deploymentScriptFunctionIdentifier],
+            name: getStpNameForResource({
+              nameChain: [...deploymentScript.nameChain, deploymentScriptFunctionIdentifier],
+              parentResourceType: deploymentScript.type
+            }),
+            handler: getLambdaHandler({ name: stpName, packaging: deploymentScript.packaging }),
+            resourceName: awsResourceNames.lambda(stpName, globalStateManager.targetStack.stackName),
+            cfLogicalName: cfLogicalNames.lambda(stpName),
+            artifactName: stpName,
+            type: 'function',
+            events: []
+          }
+        }
+      } as StpDeploymentScript;
+    });
+  }
+
+  get upstashRedisDatabases() {
+    return this.getResourcesFromConfig<StpUpstashRedis>('upstash-redis');
+  }
+
+  get edgeLambdaFunctions() {
+    return this.getResourcesFromConfig<StpEdgeLambdaFunction>('edge-lambda-function').map((edgeLambda) => {
+      const lambdaResourceName = awsResourceNames.edgeLambda(
+        edgeLambda.name,
+        globalStateManager.targetStack.stackName,
+        globalStateManager.region
+      );
+      return {
+        ...edgeLambda,
+        handler: getLambdaHandler({ name: edgeLambda.name, packaging: edgeLambda.packaging }),
+        resourceName: lambdaResourceName,
+        artifactName: edgeLambda.name,
+        events: [],
+        iamRoleStatements: [
+          ...(edgeLambda.iamRoleStatements || []),
+          ...getLogGroupPolicyDocumentStatements(
+            getLambdaLogResourceArnsForPermissions({
+              lambdaResourceName,
+              edgeLambda: true
+            }),
+            false
+          )
+        ],
+        logging: {
+          disabled: edgeLambda.logging?.disabled,
+          retentionDays: edgeLambda.logging?.retentionDays || 180
+        }
+      } as StpEdgeLambdaFunction;
+    });
+  }
+
+  get awsCdkConstructs() {
+    return this.getResourcesFromConfig<StpAwsCdkConstruct>('aws-cdk-construct');
+  }
+
+  get sqsQueues() {
+    return this.getResourcesFromConfig<StpSqsQueue>('sqs-queue');
+  }
+
+  get snsTopics() {
+    return this.getResourcesFromConfig<StpSnsTopic>('sns-topic');
+  }
+
+  get kinesisStreams() {
+    return this.getResourcesFromConfig<StpKinesisStream>('kinesis-stream');
+  }
+
+  get webAppFirewalls() {
+    return this.getResourcesFromConfig<StpWebAppFirewall>('web-app-firewall');
+  }
+
+  get nextjsWebs() {
+    return this.getResourcesFromConfig<StpNextjsWeb>('nextjs-web').map((nextjsWeb) => {
+      const nestedResourcesIdentifiers: (keyof StpNextjsWeb['_nestedResources'])[] = [
+        'bucket',
+        'imageFunction',
+        'revalidationFunction',
+        'revalidationQueue',
+        'revalidationTable',
+        'revalidationInsertFunction',
+        'serverEdgeFunction',
+        'serverFunction',
+        'warmerFunction'
+      ];
+      const nestedResourceInfo: {
+        [_nestedResource in keyof StpNextjsWeb['_nestedResources']]?: {
+          stpResourceName: string;
+          stpReferenceableName: string;
+          nameChain: string[];
+        };
+      } = {};
+      nestedResourcesIdentifiers.forEach((identifier) => {
+        nestedResourceInfo[identifier] = {
+          nameChain: [...nextjsWeb.nameChain, identifier],
+          stpReferenceableName: [...nextjsWeb.nameChain, identifier].join('.'),
+          stpResourceName: getStpNameForResource({
+            nameChain: [...nextjsWeb.nameChain, identifier],
+            parentResourceType: nextjsWeb.type
+          })
+        };
+      });
+
+      const {
+        name,
+        configParentResourceType,
+        type: _t,
+        connectTo,
+        customDomains,
+        environment,
+        fileOptions,
+        iamRoleStatements,
+        appDirectory: _a,
+        buildCommand: _b,
+        dev: _dev,
+        serverLambda,
+        useEdgeLambda,
+        useFirewall,
+        nameChain: _p,
+        warmServerInstances,
+        cdn: customCdnConfiguration,
+        _nestedResources: _,
+        streamingEnabled,
+        ...restProps
+      } = nextjsWeb;
+      // eslint-disable-next-line
+      const propsCheck: Record<string, never> = restProps;
+
+      const serverCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        defaultTTL: 0,
+        minTTL: 0,
+        maxTTL: 31536000,
+        cacheKeyParameters: {
+          headers: {
+            whitelist: ['next-url', 'rsc', 'next-router-prefetch', 'next-router-state-tree', 'accept']
+          },
+          cookies: {
+            none: true
+          },
+          queryString: {
+            all: true
+          }
+        }
+      };
+      const imageLambdaCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        defaultTTL: 0,
+        minTTL: 0,
+        maxTTL: 31536000,
+        cacheKeyParameters: {
+          headers: {
+            none: true
+          },
+          cookies: {
+            none: true
+          },
+          queryString: {
+            all: true
+          }
+        }
+      };
+      const serverForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PATCH', 'PUT', 'DELETE'],
+        originRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac'
+      };
+      const imageLambdaForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PATCH', 'PUT', 'DELETE'],
+        originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+      };
+
+      const staticBucketDataForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'OPTIONS'],
+        originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+      };
+
+      const staticBucketDataCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
+      };
+
+      const openNextBuildPath = fsPaths.absoluteNextjsBuiltProjectFolderPath({
+        invocationId: globalStateManager.invocationId,
+        stpResourceName: name
+      });
+
+      const cdnConfiguration: CdnConfiguration = {
+        enabled: true,
+        edgeFunctions: {
+          onRequest: GetAtt(cfLogicalNames.openNextHostHeaderRewriteFunction(name), 'FunctionARN') as unknown as string,
+          onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
+        },
+        forwardingOptions: serverForwardingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
+        useFirewall,
+        customDomains,
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.openNextHostHeaderRewriteFunction(name),
+              'FunctionARN'
+            ) as unknown as string,
+            onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
+          },
+          routeRewrites: [
+            {
+              path: 'api/*',
+              edgeFunctions: {
+                onRequest: GetAtt(
+                  cfLogicalNames.openNextHostHeaderRewriteFunction(name),
+                  'FunctionARN'
+                ) as unknown as string,
+                onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
+              },
+              forwardingOptions: serverForwardingOptions,
+              cachingOptions: serverCachingOptions
+            },
+            {
+              path: '_next/data/*',
+              edgeFunctions: {
+                onRequest: GetAtt(
+                  cfLogicalNames.openNextHostHeaderRewriteFunction(name),
+                  'FunctionARN'
+                ) as unknown as string,
+                onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
+              },
+              forwardingOptions: serverForwardingOptions,
+              cachingOptions: serverCachingOptions
+            },
+            {
+              path: '_next/image*',
+              forwardingOptions: imageLambdaForwardingOptions,
+              cachingOptions: imageLambdaCachingOptions,
+              routeTo: {
+                type: 'function',
+                properties: {
+                  functionName: nestedResourceInfo.imageFunction.stpReferenceableName
+                }
+              }
+            },
+            // this is cache behaviour for all static content
+            // however the path patterns are only known later on (after packaging) and therefore this route rewrite is modified using template override
+            {
+              path: '<<TBD_STATIC>>',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routePrefix: '/_assets',
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
+              }
+            }
+            // {
+            //   path: '_next/*',
+            //   forwardingOptions: staticBucketDataForwardingOptions,
+            //   cachingOptions: staticBucketDataCachingOptions,
+            //   routePrefix: '/_assets',
+            //   routeTo: {
+            //     type: 'bucket',
+            //     properties: {
+            //       bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+            //       disableUrlNormalization: true
+            //     }
+            //   }
+            // }
+            // maybe this will better be done with template override (in resolver)
+            // ...(existsSync(`${appDirectory}/public`) ? readdirSync(`${appDirectory}/public`) : []).map((path) => ({
+            //   path,
+            //   forwardingOptions: staticBucketDataForwardingOptions,
+            //   cachingOptions: staticBucketDataCachingOptions,
+            //   routePrefix: '/_assets',
+            //   routeTo: !useEdgeLambda
+            //     ? ({
+            //         type: 'bucket',
+            //         properties: {
+            //           bucketName: nestedResourceInfo.bucket.stpReferenceableName
+            //         }
+            //       } as CdnBucketRoute)
+            //     : undefined
+            // }))
+          ]
+        })
+      };
+
+      return {
+        ...nextjsWeb,
+        _nestedResources: {
+          bucket: {
+            type: 'bucket',
+            nameChain: nestedResourceInfo.bucket.nameChain,
+            name: nestedResourceInfo.bucket.stpResourceName,
+            configParentResourceType,
+            cdn: useEdgeLambda ? { ...cdnConfiguration, disableUrlNormalization: true } : undefined,
+            // directory to upload must be created during packaging process
+            directoryUpload: {
+              directoryPath: `${openNextBuildPath}/bucket-content`,
+              fileOptions: [
+                ...(fileOptions || []),
+                {
+                  includePattern: '_assets/_next/**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
+                },
+                {
+                  excludePattern: '_assets/_next/**/*',
+                  includePattern: '_assets/**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=0,s-maxage=31536000,must-revalidate' }]
+                }
+              ]
+            }
+          },
+          serverFunction: !useEdgeLambda
+            ? {
+                type: 'function',
+                nameChain: nestedResourceInfo.serverFunction.nameChain,
+                name: nestedResourceInfo.serverFunction.stpResourceName,
+                packaging: {
+                  type: 'custom-artifact',
+                  properties: {
+                    packagePath: `${openNextBuildPath}/server-function`,
+                    handler: 'index.mjs:handler'
+                  }
+                },
+                environment: [
+                  ...(environment || []),
+                  {
+                    name: 'CACHE_BUCKET_NAME',
+                    value: Ref(cfLogicalNames.bucket(nestedResourceInfo.bucket.stpResourceName))
+                  },
+                  {
+                    name: 'CACHE_BUCKET_PREFIX',
+                    value: '_cache'
+                  },
+                  {
+                    name: 'CACHE_BUCKET_REGION',
+                    value: globalStateManager.region
+                  },
+                  {
+                    name: 'REVALIDATION_QUEUE_URL',
+                    value: Ref(cfLogicalNames.sqsQueue(nestedResourceInfo.revalidationQueue.stpResourceName))
+                  },
+                  {
+                    name: 'REVALIDATION_QUEUE_REGION',
+                    value: globalStateManager.region
+                  },
+                  {
+                    name: 'CACHE_DYNAMO_TABLE',
+                    value: Ref(
+                      cfLogicalNames.dynamoGlobalTable(nestedResourceInfo.revalidationTable.stpResourceName)
+                    ) as unknown as string
+                  }
+                ],
+                connectTo: [
+                  ...(connectTo || []),
+                  nestedResourceInfo.bucket.stpReferenceableName,
+                  nestedResourceInfo.revalidationQueue.stpReferenceableName,
+                  nestedResourceInfo.revalidationTable.stpReferenceableName
+                ],
+                iamRoleStatements,
+                handler: 'index-wrap.handler',
+                artifactName: nestedResourceInfo.serverFunction.stpResourceName,
+                resourceName: awsResourceNames.lambda(
+                  nestedResourceInfo.serverFunction.stpResourceName,
+                  globalStateManager.targetStack.stackName
+                ),
+                cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
+                configParentResourceType,
+                logging: {
+                  disabled: serverLambda?.logging?.disabled,
+                  logForwarding: serverLambda?.logging?.logForwarding,
+                  retentionDays: serverLambda?.logging?.retentionDays || 180
+                },
+                memory: serverLambda?.memory || 1024,
+                joinDefaultVpc: serverLambda?.joinDefaultVpc,
+                timeout: serverLambda?.timeout || 30,
+                runtime: 'nodejs22.x',
+                cdn: cdnConfiguration,
+                responseStreamingEnabled: streamingEnabled
+              }
+            : undefined,
+          serverEdgeFunction: useEdgeLambda
+            ? {
+                type: 'edge-lambda-function',
+                nameChain: nestedResourceInfo.serverEdgeFunction.nameChain,
+                name: nestedResourceInfo.serverEdgeFunction.stpResourceName,
+                packaging: {
+                  type: 'custom-artifact',
+                  properties: {
+                    packagePath: `${openNextBuildPath}/server-function`,
+                    handler: 'index.mjs:handler'
+                  }
+                },
+                // todo: do not forget to create template override (asset modifier resource for this)
+                // environment: [...environment, ...(serverLambda?.environment || [])],
+                connectTo: [
+                  ...(connectTo || []),
+                  nestedResourceInfo.bucket.stpReferenceableName,
+                  nestedResourceInfo.revalidationQueue.stpReferenceableName,
+                  nestedResourceInfo.revalidationTable.stpReferenceableName
+                ],
+                iamRoleStatements: [
+                  ...(iamRoleStatements || []),
+                  ...getLogGroupPolicyDocumentStatements(
+                    getLambdaLogResourceArnsForPermissions({
+                      lambdaResourceName: awsResourceNames.edgeLambda(
+                        nestedResourceInfo.serverEdgeFunction.stpResourceName,
+                        globalStateManager.targetStack.stackName,
+                        globalStateManager.region
+                      ),
+                      edgeLambda: true
+                    }),
+                    false
+                  )
+                ],
+                handler: 'index-wrap.handler',
+                artifactName: nestedResourceInfo.serverEdgeFunction.stpResourceName,
+                resourceName: awsResourceNames.edgeLambda(
+                  nestedResourceInfo.serverEdgeFunction.stpResourceName,
+                  globalStateManager.targetStack.stackName,
+                  globalStateManager.region
+                ),
+                configParentResourceType,
+                logging: {
+                  disabled: serverLambda?.logging?.disabled,
+                  logForwarding: serverLambda?.logging?.logForwarding,
+                  retentionDays: serverLambda?.logging?.retentionDays || 180
+                },
+                memory: serverLambda?.memory || 1024,
+                timeout: serverLambda?.timeout || 30,
+                runtime: 'nodejs22.x'
+              }
+            : undefined,
+          imageFunction: {
+            type: 'function',
+            nameChain: nestedResourceInfo.imageFunction.nameChain,
+            name: nestedResourceInfo.imageFunction.stpResourceName,
+            packaging: {
+              type: 'custom-artifact',
+              properties: {
+                packagePath: `${openNextBuildPath}/image-optimization-function`,
+                handler: 'index.mjs:handler'
+              },
+              architecture: 'arm64'
+            },
+            environment: [
+              {
+                name: 'BUCKET_NAME',
+                value: Ref(cfLogicalNames.bucket(nestedResourceInfo.bucket.stpResourceName)) as unknown as string
+              },
+              {
+                name: 'BUCKET_KEY_PREFIX',
+                value: '_assets'
+              }
+            ],
+            connectTo: [nestedResourceInfo.bucket.stpReferenceableName],
+            handler: 'index.handler',
+            artifactName: nestedResourceInfo.imageFunction.stpResourceName,
+            resourceName: awsResourceNames.lambda(
+              nestedResourceInfo.imageFunction.stpResourceName,
+              globalStateManager.targetStack.stackName
+            ),
+            cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.imageFunction.stpResourceName),
+            configParentResourceType,
+            logging: {
+              disabled: serverLambda?.logging?.disabled,
+              logForwarding: serverLambda?.logging?.logForwarding,
+              retentionDays: serverLambda?.logging?.retentionDays || 180
+            },
+            memory: 2048,
+            timeout: 30,
+            runtime: 'nodejs22.x'
+          },
+          revalidationFunction: {
+            type: 'function',
+            nameChain: nestedResourceInfo.revalidationFunction.nameChain,
+            name: nestedResourceInfo.revalidationFunction.stpResourceName,
+            packaging: {
+              type: 'custom-artifact',
+              properties: {
+                packagePath: `${openNextBuildPath}/revalidation-function`,
+                handler: 'index.mjs:handler'
+              }
+            },
+            handler: 'index.handler',
+            artifactName: nestedResourceInfo.revalidationFunction.stpResourceName,
+            resourceName: awsResourceNames.lambda(
+              nestedResourceInfo.revalidationFunction.stpResourceName,
+              globalStateManager.targetStack.stackName
+            ),
+            cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.revalidationFunction.stpResourceName),
+            configParentResourceType,
+            logging: {
+              disabled: serverLambda?.logging?.disabled,
+              logForwarding: serverLambda?.logging?.logForwarding,
+              retentionDays: serverLambda?.logging?.retentionDays || 3
+            },
+            memory: 128,
+            timeout: 30,
+            runtime: 'nodejs22.x',
+            events: [
+              {
+                type: 'sqs',
+                properties: { sqsQueueName: nestedResourceInfo.revalidationQueue.stpReferenceableName, batchSize: 5 }
+              }
+            ]
+          },
+          revalidationQueue: {
+            type: 'sqs-queue',
+            nameChain: nestedResourceInfo.revalidationQueue.nameChain,
+            name: nestedResourceInfo.revalidationQueue.stpResourceName,
+            configParentResourceType,
+            fifoEnabled: true,
+            longPollingSeconds: 20
+          },
+          revalidationTable: {
+            type: 'dynamo-db-table',
+            nameChain: nestedResourceInfo.revalidationTable.nameChain,
+            name: nestedResourceInfo.revalidationTable.stpResourceName,
+            configParentResourceType,
+            primaryKey: {
+              partitionKey: {
+                name: 'tag',
+                type: 'string'
+              },
+              sortKey: {
+                name: 'path',
+                type: 'string'
+              }
+            },
+            enablePointInTimeRecovery: true,
+            secondaryIndexes: [
+              {
+                name: 'revalidate',
+                partitionKey: { name: 'path', type: 'string' },
+                sortKey: { name: 'revalidatedAt', type: 'number' }
+              }
+            ]
+          },
+          revalidationInsertFunction: {
+            type: 'function',
+            nameChain: nestedResourceInfo.revalidationInsertFunction.nameChain,
+            name: nestedResourceInfo.revalidationInsertFunction.stpResourceName,
+            packaging: {
+              type: 'custom-artifact',
+              properties: {
+                packagePath: `${openNextBuildPath}/dynamodb-provider`,
+                handler: 'index.mjs:handler'
+              }
+            },
+            handler: 'index-wrap.handler',
+            artifactName: nestedResourceInfo.revalidationInsertFunction.stpResourceName,
+            resourceName: awsResourceNames.lambda(
+              nestedResourceInfo.revalidationInsertFunction.stpResourceName,
+              globalStateManager.targetStack.stackName
+            ),
+            cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.revalidationInsertFunction.stpResourceName),
+            configParentResourceType,
+            environment: [
+              {
+                name: 'CACHE_DYNAMO_TABLE',
+                value: Ref(
+                  cfLogicalNames.dynamoGlobalTable(nestedResourceInfo.revalidationTable.stpResourceName)
+                ) as unknown as string
+              }
+            ],
+            logging: {
+              disabled: serverLambda?.logging?.disabled,
+              logForwarding: serverLambda?.logging?.logForwarding,
+              retentionDays: serverLambda?.logging?.retentionDays || 3
+            },
+            memory: 1024,
+            timeout: 900,
+            runtime: 'nodejs22.x',
+            connectTo: [nestedResourceInfo.revalidationTable.stpReferenceableName]
+          },
+          warmerFunction:
+            !useEdgeLambda && warmServerInstances
+              ? {
+                  type: 'function',
+                  nameChain: nestedResourceInfo.warmerFunction.nameChain,
+                  name: nestedResourceInfo.warmerFunction.stpResourceName,
+                  packaging: {
+                    type: 'custom-artifact',
+                    properties: {
+                      packagePath: `${openNextBuildPath}/warmer-function`,
+                      handler: 'index.mjs:handler'
+                    }
+                  },
+                  environment: [
+                    {
+                      name: 'FUNCTION_NAME',
+                      value: Ref(
+                        cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName)
+                      ) as unknown as string
+                    },
+                    {
+                      name: 'CONCURRENCY',
+                      value: warmServerInstances
+                    }
+                  ],
+                  handler: 'index.handler',
+                  runtime: 'nodejs22.x',
+                  artifactName: nestedResourceInfo.warmerFunction.stpResourceName,
+                  resourceName: awsResourceNames.lambda(
+                    nestedResourceInfo.warmerFunction.stpResourceName,
+                    globalStateManager.targetStack.stackName
+                  ),
+                  cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.warmerFunction.stpResourceName),
+                  configParentResourceType,
+                  logging: {
+                    disabled: serverLambda?.logging?.disabled,
+                    logForwarding: serverLambda?.logging?.logForwarding,
+                    retentionDays: serverLambda?.logging?.retentionDays || 3
+                  },
+                  connectTo: [nestedResourceInfo.serverFunction.stpReferenceableName],
+                  memory: 1024,
+                  events: [
+                    {
+                      type: 'schedule',
+                      properties: {
+                        scheduleRate: 'rate(5 minutes)'
+                      }
+                    }
+                  ]
+                }
+              : undefined
+        }
+      } as StpNextjsWeb;
+    });
+  }
+
+  get astroWebs() {
+    return this.getResourcesFromConfig<StpAstroWeb>('astro-web').map((astroWeb) => {
+      const nestedResourcesIdentifiers: (keyof StpAstroWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
+      const nestedResourceInfo: {
+        [_nestedResource in keyof StpAstroWeb['_nestedResources']]?: {
+          stpResourceName: string;
+          stpReferenceableName: string;
+          nameChain: string[];
+        };
+      } = {};
+      nestedResourcesIdentifiers.forEach((identifier) => {
+        nestedResourceInfo[identifier] = {
+          nameChain: [...astroWeb.nameChain, identifier],
+          stpReferenceableName: [...astroWeb.nameChain, identifier].join('.'),
+          stpResourceName: getStpNameForResource({
+            nameChain: [...astroWeb.nameChain, identifier],
+            parentResourceType: astroWeb.type
+          })
+        };
+      });
+
+      const {
+        name,
+        configParentResourceType,
+        type: _t,
+        connectTo,
+        customDomains,
+        environment,
+        fileOptions,
+        iamRoleStatements,
+        appDirectory: _a,
+        buildCommand: _b,
+        dev: _dev,
+        serverLambda,
+        cdn: customCdnConfiguration,
+        useFirewall,
+        nameChain: _p,
+        _nestedResources: _
+      } = astroWeb;
+
+      const serverCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        defaultTTL: 0,
+        minTTL: 0,
+        maxTTL: 31536000,
+        cacheKeyParameters: {
+          headers: { none: true },
+          cookies: { none: true },
+          queryString: { all: true }
+        }
+      };
+
+      const serverForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PATCH', 'PUT', 'DELETE'],
+        originRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac'
+      };
+
+      const staticBucketDataForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'OPTIONS'],
+        originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+      };
+
+      const staticBucketDataCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
+      };
+
+      const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
+        invocationId: globalStateManager.invocationId,
+        stpResourceName: name,
+        resourceType: 'astro-web'
+      });
+
+      const cdnConfiguration: CdnConfiguration = {
+        enabled: true,
+        edgeFunctions: {
+          onRequest: GetAtt(
+            cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'astro-web'),
+            'FunctionARN'
+          ) as unknown as string
+        },
+        forwardingOptions: serverForwardingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
+        useFirewall,
+        customDomains,
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'astro-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: '_astro/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
+              }
+            }
+          ]
+        })
+      };
+
+      return {
+        ...astroWeb,
+        _nestedResources: {
+          bucket: {
+            type: 'bucket',
+            nameChain: nestedResourceInfo.bucket.nameChain,
+            name: nestedResourceInfo.bucket.stpResourceName,
+            configParentResourceType,
+            directoryUpload: {
+              directoryPath: `${buildPath}/bucket-content`,
+              fileOptions: [
+                ...(fileOptions || []),
+                {
+                  includePattern: '_astro/**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
+                },
+                {
+                  excludePattern: '_astro/**/*',
+                  includePattern: '**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=0,s-maxage=31536000,must-revalidate' }]
+                }
+              ]
+            }
+          },
+          serverFunction: {
+            type: 'function',
+            nameChain: nestedResourceInfo.serverFunction.nameChain,
+            name: nestedResourceInfo.serverFunction.stpResourceName,
+            packaging: {
+              type: 'custom-artifact',
+              properties: {
+                packagePath: `${buildPath}/server-function`,
+                handler: 'index-wrap.mjs:handler'
+              }
+            },
+            environment: [...(environment || [])],
+            connectTo: [...(connectTo || [])],
+            iamRoleStatements,
+            handler: 'index-wrap.handler',
+            artifactName: nestedResourceInfo.serverFunction.stpResourceName,
+            resourceName: awsResourceNames.lambda(
+              nestedResourceInfo.serverFunction.stpResourceName,
+              globalStateManager.targetStack.stackName
+            ),
+            cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
+            configParentResourceType,
+            logging: {
+              disabled: serverLambda?.logging?.disabled,
+              logForwarding: serverLambda?.logging?.logForwarding,
+              retentionDays: serverLambda?.logging?.retentionDays || 180
+            },
+            memory: serverLambda?.memory || 1024,
+            joinDefaultVpc: serverLambda?.joinDefaultVpc,
+            timeout: serverLambda?.timeout || 30,
+            runtime: 'nodejs22.x',
+            cdn: cdnConfiguration
+          }
+        }
+      } as StpAstroWeb;
+    });
+  }
+
+  get nuxtWebs() {
+    return this.getResourcesFromConfig<StpNuxtWeb>('nuxt-web').map((nuxtWeb) => {
+      const nestedResourcesIdentifiers: (keyof StpNuxtWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
+      const nestedResourceInfo: {
+        [_nestedResource in keyof StpNuxtWeb['_nestedResources']]?: {
+          stpResourceName: string;
+          stpReferenceableName: string;
+          nameChain: string[];
+        };
+      } = {};
+      nestedResourcesIdentifiers.forEach((identifier) => {
+        nestedResourceInfo[identifier] = {
+          nameChain: [...nuxtWeb.nameChain, identifier],
+          stpReferenceableName: [...nuxtWeb.nameChain, identifier].join('.'),
+          stpResourceName: getStpNameForResource({
+            nameChain: [...nuxtWeb.nameChain, identifier],
+            parentResourceType: nuxtWeb.type
+          })
+        };
+      });
+
+      const {
+        name,
+        configParentResourceType,
+        type: _t,
+        connectTo,
+        customDomains,
+        environment,
+        fileOptions,
+        iamRoleStatements,
+        appDirectory: _a,
+        buildCommand: _b,
+        dev: _dev,
+        serverLambda,
+        cdn: customCdnConfiguration,
+        useFirewall,
+        nameChain: _p,
+        _nestedResources: _
+      } = nuxtWeb;
+
+      const serverCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        defaultTTL: 0,
+        minTTL: 0,
+        maxTTL: 31536000,
+        cacheKeyParameters: {
+          headers: { none: true },
+          cookies: { none: true },
+          queryString: { all: true }
+        }
+      };
+
+      const serverForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PATCH', 'PUT', 'DELETE'],
+        originRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac'
+      };
+
+      const staticBucketDataForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'OPTIONS'],
+        originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+      };
+
+      const staticBucketDataCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
+      };
+
+      const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
+        invocationId: globalStateManager.invocationId,
+        stpResourceName: name,
+        resourceType: 'nuxt-web'
+      });
+
+      const cdnConfiguration: CdnConfiguration = {
+        enabled: true,
+        edgeFunctions: {
+          onRequest: GetAtt(
+            cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'nuxt-web'),
+            'FunctionARN'
+          ) as unknown as string
+        },
+        forwardingOptions: serverForwardingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
+        useFirewall,
+        customDomains,
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'nuxt-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: '_nuxt/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
+              }
+            }
+          ]
+        })
+      };
+
+      return {
+        ...nuxtWeb,
+        _nestedResources: {
+          bucket: {
+            type: 'bucket',
+            nameChain: nestedResourceInfo.bucket.nameChain,
+            name: nestedResourceInfo.bucket.stpResourceName,
+            configParentResourceType,
+            directoryUpload: {
+              directoryPath: `${buildPath}/bucket-content`,
+              fileOptions: [
+                ...(fileOptions || []),
+                {
+                  includePattern: '_nuxt/**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
+                },
+                {
+                  excludePattern: '_nuxt/**/*',
+                  includePattern: '**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=0,s-maxage=31536000,must-revalidate' }]
+                }
+              ]
+            }
+          },
+          serverFunction: {
+            type: 'function',
+            nameChain: nestedResourceInfo.serverFunction.nameChain,
+            name: nestedResourceInfo.serverFunction.stpResourceName,
+            packaging: {
+              type: 'custom-artifact',
+              properties: {
+                packagePath: `${buildPath}/server-function`,
+                handler: 'index-wrap.mjs:handler'
+              }
+            },
+            environment: [...(environment || [])],
+            connectTo: [...(connectTo || [])],
+            iamRoleStatements,
+            handler: 'index-wrap.handler',
+            artifactName: nestedResourceInfo.serverFunction.stpResourceName,
+            resourceName: awsResourceNames.lambda(
+              nestedResourceInfo.serverFunction.stpResourceName,
+              globalStateManager.targetStack.stackName
+            ),
+            cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
+            configParentResourceType,
+            logging: {
+              disabled: serverLambda?.logging?.disabled,
+              logForwarding: serverLambda?.logging?.logForwarding,
+              retentionDays: serverLambda?.logging?.retentionDays || 180
+            },
+            memory: serverLambda?.memory || 1024,
+            joinDefaultVpc: serverLambda?.joinDefaultVpc,
+            timeout: serverLambda?.timeout || 30,
+            runtime: 'nodejs22.x',
+            cdn: cdnConfiguration
+          }
+        }
+      } as StpNuxtWeb;
+    });
+  }
+
+  get sveltekitWebs() {
+    return this.getResourcesFromConfig<StpSvelteKitWeb>('sveltekit-web').map((sveltekitWeb) => {
+      const nestedResourcesIdentifiers: (keyof StpSvelteKitWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
+      const nestedResourceInfo: {
+        [_nestedResource in keyof StpSvelteKitWeb['_nestedResources']]?: {
+          stpResourceName: string;
+          stpReferenceableName: string;
+          nameChain: string[];
+        };
+      } = {};
+      nestedResourcesIdentifiers.forEach((identifier) => {
+        nestedResourceInfo[identifier] = {
+          nameChain: [...sveltekitWeb.nameChain, identifier],
+          stpReferenceableName: [...sveltekitWeb.nameChain, identifier].join('.'),
+          stpResourceName: getStpNameForResource({
+            nameChain: [...sveltekitWeb.nameChain, identifier],
+            parentResourceType: sveltekitWeb.type
+          })
+        };
+      });
+
+      const {
+        name,
+        configParentResourceType,
+        type: _t,
+        connectTo,
+        customDomains,
+        environment,
+        fileOptions,
+        iamRoleStatements,
+        appDirectory: _a,
+        buildCommand: _b,
+        dev: _dev,
+        serverLambda,
+        cdn: customCdnConfiguration,
+        useFirewall,
+        nameChain: _p,
+        _nestedResources: _
+      } = sveltekitWeb;
+
+      const serverCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        defaultTTL: 0,
+        minTTL: 0,
+        maxTTL: 31536000,
+        cacheKeyParameters: {
+          headers: { none: true },
+          cookies: { none: true },
+          queryString: { all: true }
+        }
+      };
+
+      const serverForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PATCH', 'PUT', 'DELETE'],
+        originRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac'
+      };
+
+      const staticBucketDataForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'OPTIONS'],
+        originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+      };
+
+      const staticBucketDataCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
+      };
+
+      const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
+        invocationId: globalStateManager.invocationId,
+        stpResourceName: name,
+        resourceType: 'sveltekit-web'
+      });
+
+      const cdnConfiguration: CdnConfiguration = {
+        enabled: true,
+        edgeFunctions: {
+          onRequest: GetAtt(
+            cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'sveltekit-web'),
+            'FunctionARN'
+          ) as unknown as string
+        },
+        forwardingOptions: serverForwardingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
+        useFirewall,
+        customDomains,
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'sveltekit-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: '_app/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
+              }
+            }
+          ]
+        })
+      };
+
+      return {
+        ...sveltekitWeb,
+        _nestedResources: {
+          bucket: {
+            type: 'bucket',
+            nameChain: nestedResourceInfo.bucket.nameChain,
+            name: nestedResourceInfo.bucket.stpResourceName,
+            configParentResourceType,
+            directoryUpload: {
+              directoryPath: `${buildPath}/bucket-content`,
+              fileOptions: [
+                ...(fileOptions || []),
+                {
+                  includePattern: '_app/**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
+                },
+                {
+                  excludePattern: '_app/**/*',
+                  includePattern: '**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=0,s-maxage=31536000,must-revalidate' }]
+                }
+              ]
+            }
+          },
+          serverFunction: {
+            type: 'function',
+            nameChain: nestedResourceInfo.serverFunction.nameChain,
+            name: nestedResourceInfo.serverFunction.stpResourceName,
+            packaging: {
+              type: 'custom-artifact',
+              properties: {
+                packagePath: `${buildPath}/server-function`,
+                handler: 'index-wrap.mjs:handler'
+              }
+            },
+            environment: [...(environment || [])],
+            connectTo: [...(connectTo || [])],
+            iamRoleStatements,
+            handler: 'index-wrap.handler',
+            artifactName: nestedResourceInfo.serverFunction.stpResourceName,
+            resourceName: awsResourceNames.lambda(
+              nestedResourceInfo.serverFunction.stpResourceName,
+              globalStateManager.targetStack.stackName
+            ),
+            cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
+            configParentResourceType,
+            logging: {
+              disabled: serverLambda?.logging?.disabled,
+              logForwarding: serverLambda?.logging?.logForwarding,
+              retentionDays: serverLambda?.logging?.retentionDays || 180
+            },
+            memory: serverLambda?.memory || 1024,
+            joinDefaultVpc: serverLambda?.joinDefaultVpc,
+            timeout: serverLambda?.timeout || 30,
+            runtime: 'nodejs22.x',
+            cdn: cdnConfiguration
+          }
+        }
+      } as StpSvelteKitWeb;
+    });
+  }
+
+  get solidstartWebs() {
+    return this.getResourcesFromConfig<StpSolidStartWeb>('solidstart-web').map((solidstartWeb) => {
+      const nestedResourcesIdentifiers: (keyof StpSolidStartWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
+      const nestedResourceInfo: {
+        [_nestedResource in keyof StpSolidStartWeb['_nestedResources']]?: {
+          stpResourceName: string;
+          stpReferenceableName: string;
+          nameChain: string[];
+        };
+      } = {};
+      nestedResourcesIdentifiers.forEach((identifier) => {
+        nestedResourceInfo[identifier] = {
+          nameChain: [...solidstartWeb.nameChain, identifier],
+          stpReferenceableName: [...solidstartWeb.nameChain, identifier].join('.'),
+          stpResourceName: getStpNameForResource({
+            nameChain: [...solidstartWeb.nameChain, identifier],
+            parentResourceType: solidstartWeb.type
+          })
+        };
+      });
+
+      const {
+        name,
+        configParentResourceType,
+        type: _t,
+        connectTo,
+        customDomains,
+        environment,
+        fileOptions,
+        iamRoleStatements,
+        appDirectory: _a,
+        buildCommand: _b,
+        dev: _dev,
+        serverLambda,
+        cdn: customCdnConfiguration,
+        useFirewall,
+        nameChain: _p,
+        _nestedResources: _
+      } = solidstartWeb;
+
+      const serverCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        defaultTTL: 0,
+        minTTL: 0,
+        maxTTL: 31536000,
+        cacheKeyParameters: {
+          headers: { none: true },
+          cookies: { none: true },
+          queryString: { all: true }
+        }
+      };
+
+      const serverForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PATCH', 'PUT', 'DELETE'],
+        originRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac'
+      };
+
+      const staticBucketDataForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'OPTIONS'],
+        originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+      };
+
+      const staticBucketDataCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
+      };
+
+      const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
+        invocationId: globalStateManager.invocationId,
+        stpResourceName: name,
+        resourceType: 'solidstart-web'
+      });
+
+      const cdnConfiguration: CdnConfiguration = {
+        enabled: true,
+        edgeFunctions: {
+          onRequest: GetAtt(
+            cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'solidstart-web'),
+            'FunctionARN'
+          ) as unknown as string
+        },
+        forwardingOptions: serverForwardingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
+        useFirewall,
+        customDomains,
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'solidstart-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: '_build/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
+              }
+            }
+          ]
+        })
+      };
+
+      return {
+        ...solidstartWeb,
+        _nestedResources: {
+          bucket: {
+            type: 'bucket',
+            nameChain: nestedResourceInfo.bucket.nameChain,
+            name: nestedResourceInfo.bucket.stpResourceName,
+            configParentResourceType,
+            directoryUpload: {
+              directoryPath: `${buildPath}/bucket-content`,
+              fileOptions: [
+                ...(fileOptions || []),
+                {
+                  includePattern: '_build/**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
+                },
+                {
+                  excludePattern: '_build/**/*',
+                  includePattern: '**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=0,s-maxage=31536000,must-revalidate' }]
+                }
+              ]
+            }
+          },
+          serverFunction: {
+            type: 'function',
+            nameChain: nestedResourceInfo.serverFunction.nameChain,
+            name: nestedResourceInfo.serverFunction.stpResourceName,
+            packaging: {
+              type: 'custom-artifact',
+              properties: {
+                packagePath: `${buildPath}/server-function`,
+                handler: 'index-wrap.mjs:handler'
+              }
+            },
+            environment: [...(environment || [])],
+            connectTo: [...(connectTo || [])],
+            iamRoleStatements,
+            handler: 'index-wrap.handler',
+            artifactName: nestedResourceInfo.serverFunction.stpResourceName,
+            resourceName: awsResourceNames.lambda(
+              nestedResourceInfo.serverFunction.stpResourceName,
+              globalStateManager.targetStack.stackName
+            ),
+            cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
+            configParentResourceType,
+            logging: {
+              disabled: serverLambda?.logging?.disabled,
+              logForwarding: serverLambda?.logging?.logForwarding,
+              retentionDays: serverLambda?.logging?.retentionDays || 180
+            },
+            memory: serverLambda?.memory || 1024,
+            joinDefaultVpc: serverLambda?.joinDefaultVpc,
+            timeout: serverLambda?.timeout || 30,
+            runtime: 'nodejs22.x',
+            cdn: cdnConfiguration
+          }
+        }
+      } as StpSolidStartWeb;
+    });
+  }
+
+  get tanstackWebs() {
+    return this.getResourcesFromConfig<StpTanStackWeb>('tanstack-web').map((tanstackWeb) => {
+      const nestedResourcesIdentifiers: (keyof StpTanStackWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
+      const nestedResourceInfo: {
+        [_nestedResource in keyof StpTanStackWeb['_nestedResources']]?: {
+          stpResourceName: string;
+          stpReferenceableName: string;
+          nameChain: string[];
+        };
+      } = {};
+      nestedResourcesIdentifiers.forEach((identifier) => {
+        nestedResourceInfo[identifier] = {
+          nameChain: [...tanstackWeb.nameChain, identifier],
+          stpReferenceableName: [...tanstackWeb.nameChain, identifier].join('.'),
+          stpResourceName: getStpNameForResource({
+            nameChain: [...tanstackWeb.nameChain, identifier],
+            parentResourceType: tanstackWeb.type
+          })
+        };
+      });
+
+      const {
+        name,
+        configParentResourceType,
+        type: _t,
+        connectTo,
+        customDomains,
+        environment,
+        fileOptions,
+        iamRoleStatements,
+        appDirectory: _a,
+        buildCommand: _b,
+        dev: _dev,
+        serverLambda,
+        cdn: customCdnConfiguration,
+        useFirewall,
+        nameChain: _p,
+        _nestedResources: _
+      } = tanstackWeb;
+
+      const serverCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        defaultTTL: 0,
+        minTTL: 0,
+        maxTTL: 31536000,
+        cacheKeyParameters: {
+          headers: { none: true },
+          cookies: { none: true },
+          queryString: { all: true }
+        }
+      };
+
+      const serverForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PATCH', 'PUT', 'DELETE'],
+        originRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac'
+      };
+
+      const staticBucketDataForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'OPTIONS'],
+        originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+      };
+
+      const staticBucketDataCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
+      };
+
+      const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
+        invocationId: globalStateManager.invocationId,
+        stpResourceName: name,
+        resourceType: 'tanstack-web'
+      });
+
+      const cdnConfiguration: CdnConfiguration = {
+        enabled: true,
+        edgeFunctions: {
+          onRequest: GetAtt(
+            cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'tanstack-web'),
+            'FunctionARN'
+          ) as unknown as string
+        },
+        forwardingOptions: serverForwardingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
+        useFirewall,
+        customDomains,
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'tanstack-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: '_build/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
+              }
+            }
+          ]
+        })
+      };
+
+      return {
+        ...tanstackWeb,
+        _nestedResources: {
+          bucket: {
+            type: 'bucket',
+            nameChain: nestedResourceInfo.bucket.nameChain,
+            name: nestedResourceInfo.bucket.stpResourceName,
+            configParentResourceType,
+            directoryUpload: {
+              directoryPath: `${buildPath}/bucket-content`,
+              fileOptions: [
+                ...(fileOptions || []),
+                {
+                  includePattern: '_build/**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
+                },
+                {
+                  excludePattern: '_build/**/*',
+                  includePattern: '**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=0,s-maxage=31536000,must-revalidate' }]
+                }
+              ]
+            }
+          },
+          serverFunction: {
+            type: 'function',
+            nameChain: nestedResourceInfo.serverFunction.nameChain,
+            name: nestedResourceInfo.serverFunction.stpResourceName,
+            packaging: {
+              type: 'custom-artifact',
+              properties: {
+                packagePath: `${buildPath}/server-function`,
+                handler: 'index-wrap.mjs:handler'
+              }
+            },
+            environment: [...(environment || [])],
+            connectTo: [...(connectTo || [])],
+            iamRoleStatements,
+            handler: 'index-wrap.handler',
+            artifactName: nestedResourceInfo.serverFunction.stpResourceName,
+            resourceName: awsResourceNames.lambda(
+              nestedResourceInfo.serverFunction.stpResourceName,
+              globalStateManager.targetStack.stackName
+            ),
+            cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
+            configParentResourceType,
+            logging: {
+              disabled: serverLambda?.logging?.disabled,
+              logForwarding: serverLambda?.logging?.logForwarding,
+              retentionDays: serverLambda?.logging?.retentionDays || 180
+            },
+            memory: serverLambda?.memory || 1024,
+            joinDefaultVpc: serverLambda?.joinDefaultVpc,
+            timeout: serverLambda?.timeout || 30,
+            runtime: 'nodejs22.x',
+            cdn: cdnConfiguration
+          }
+        }
+      } as StpTanStackWeb;
+    });
+  }
+
+  get remixWebs() {
+    return this.getResourcesFromConfig<StpRemixWeb>('remix-web').map((remixWeb) => {
+      const nestedResourcesIdentifiers: (keyof StpRemixWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
+      const nestedResourceInfo: {
+        [_nestedResource in keyof StpRemixWeb['_nestedResources']]?: {
+          stpResourceName: string;
+          stpReferenceableName: string;
+          nameChain: string[];
+        };
+      } = {};
+      nestedResourcesIdentifiers.forEach((identifier) => {
+        nestedResourceInfo[identifier] = {
+          nameChain: [...remixWeb.nameChain, identifier],
+          stpReferenceableName: [...remixWeb.nameChain, identifier].join('.'),
+          stpResourceName: getStpNameForResource({
+            nameChain: [...remixWeb.nameChain, identifier],
+            parentResourceType: remixWeb.type
+          })
+        };
+      });
+
+      const {
+        name,
+        configParentResourceType,
+        type: _t,
+        connectTo,
+        customDomains,
+        environment,
+        fileOptions,
+        iamRoleStatements,
+        appDirectory: _a,
+        buildCommand: _b,
+        dev: _dev,
+        serverLambda,
+        cdn: customCdnConfiguration,
+        useFirewall,
+        nameChain: _p,
+        _nestedResources: _
+      } = remixWeb;
+
+      const serverCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        defaultTTL: 0,
+        minTTL: 0,
+        maxTTL: 31536000,
+        cacheKeyParameters: {
+          headers: { none: true },
+          cookies: { none: true },
+          queryString: { all: true }
+        }
+      };
+
+      const serverForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PATCH', 'PUT', 'DELETE'],
+        originRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac'
+      };
+
+      const staticBucketDataForwardingOptions: CdnForwardingOptions = {
+        allowedMethods: ['GET', 'HEAD', 'OPTIONS'],
+        originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+      };
+
+      const staticBucketDataCachingOptions: CdnCachingOptions = {
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
+      };
+
+      const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
+        invocationId: globalStateManager.invocationId,
+        stpResourceName: name,
+        resourceType: 'remix-web'
+      });
+
+      const cdnConfiguration: CdnConfiguration = {
+        enabled: true,
+        edgeFunctions: {
+          onRequest: GetAtt(
+            cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'remix-web'),
+            'FunctionARN'
+          ) as unknown as string
+        },
+        forwardingOptions: serverForwardingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
+        useFirewall,
+        customDomains,
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'remix-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: 'assets/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
+              }
+            }
+          ]
+        })
+      };
+
+      return {
+        ...remixWeb,
+        _nestedResources: {
+          bucket: {
+            type: 'bucket',
+            nameChain: nestedResourceInfo.bucket.nameChain,
+            name: nestedResourceInfo.bucket.stpResourceName,
+            configParentResourceType,
+            directoryUpload: {
+              directoryPath: `${buildPath}/bucket-content`,
+              fileOptions: [
+                ...(fileOptions || []),
+                {
+                  includePattern: 'assets/**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
+                },
+                {
+                  excludePattern: 'assets/**/*',
+                  includePattern: '**/*',
+                  headers: [{ key: 'cache-control', value: 'public,max-age=0,s-maxage=31536000,must-revalidate' }]
+                }
+              ]
+            }
+          },
+          serverFunction: {
+            type: 'function',
+            nameChain: nestedResourceInfo.serverFunction.nameChain,
+            name: nestedResourceInfo.serverFunction.stpResourceName,
+            packaging: {
+              type: 'custom-artifact',
+              properties: {
+                packagePath: `${buildPath}/server-function`,
+                handler: 'index-wrap.mjs:handler'
+              }
+            },
+            environment: [...(environment || [])],
+            connectTo: [...(connectTo || [])],
+            iamRoleStatements,
+            handler: 'index-wrap.handler',
+            artifactName: nestedResourceInfo.serverFunction.stpResourceName,
+            resourceName: awsResourceNames.lambda(
+              nestedResourceInfo.serverFunction.stpResourceName,
+              globalStateManager.targetStack.stackName
+            ),
+            cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
+            configParentResourceType,
+            logging: {
+              disabled: serverLambda?.logging?.disabled,
+              logForwarding: serverLambda?.logging?.logForwarding,
+              retentionDays: serverLambda?.logging?.retentionDays || 180
+            },
+            memory: serverLambda?.memory || 1024,
+            joinDefaultVpc: serverLambda?.joinDefaultVpc,
+            timeout: serverLambda?.timeout || 30,
+            runtime: 'nodejs22.x',
+            cdn: cdnConfiguration
+          }
+        }
+      } as StpRemixWeb;
+    });
+  }
+
+  get openSearchDomains() {
+    return this.getResourcesFromConfig<StpOpenSearchDomain>('open-search-domain');
+  }
+
+  get webServices() {
+    const containerWorkloadIdentifier: keyof StpWebService['_nestedResources'] = 'containerWorkload';
+    const httpApiGatewayIdentifier: keyof StpWebService['_nestedResources'] = 'httpApiGateway';
+    const loadBalancerIdentifier: keyof StpWebService['_nestedResources'] = 'loadBalancer';
+    const networkLoadBalancerIdentifier: keyof StpWebService['_nestedResources'] = 'networkLoadBalancer';
+
+    return this.getResourcesFromConfig<StpWebService>('web-service').map((serviceDefinition) => {
+      const {
+        name: _,
+        packaging,
+        resources,
+        type,
+        connectTo,
+        iamRoleStatements,
+        environment,
+        internalHealthCheck,
+        logging,
+        scaling,
+        cdn,
+        cors,
+        customDomains,
+        alarms,
+        disabledGlobalAlarms,
+        loadBalancing,
+        deployment,
+        useFirewall,
+        configParentResourceType: _configParentResourceType,
+        nameChain,
+        stopTimeout,
+        enableRemoteSessions,
+        volumeMounts,
+        sideContainers,
+        usePrivateSubnetsWithNAT,
+        _nestedResources,
+        ...restProps
+      } = serviceDefinition;
+      // props check constant ensures full destructuring of web service props
+      // eslint-disable-next-line
+      const propsCheck: Record<string, never> = restProps;
+      const needTestListener = deployment?.beforeAllowTrafficFunction;
+
+      return {
+        ...serviceDefinition,
+        _nestedResources: {
+          [containerWorkloadIdentifier]: {
+            nameChain: [...nameChain, containerWorkloadIdentifier],
+            enableRemoteSessions,
+            usePrivateSubnetsWithNAT,
+            containers: [
+              {
+                name: getSimpleServiceDefaultContainerName(),
+                dependsOn: sideContainers?.length
+                  ? sideContainers
+                      .filter(
+                        (helperContainer) =>
+                          !helperContainer.dependsOn?.some(
+                            ({ containerName }) => containerName === getSimpleServiceDefaultContainerName()
+                          )
+                      )
+                      .map((helperContainer) => ({
+                        containerName: helperContainer.name,
+                        condition: helperContainer.containerType === 'run-on-init' ? 'SUCCESS' : 'START'
+                      }))
+                  : undefined,
+                packaging,
+                environment: (environment || [])
+                  .concat([
+                    ...(loadBalancing?.type === 'network-load-balancer' ? [] : [{ name: 'PORT', value: 3000 }]),
+                    { name: 'HOST', value: '0.0.0.0' }
+                  ])
+                  .concat(deployment ? [{ name: 'DEPLOYMENT_TEST_PORT', value: DEFAULT_TEST_LISTENER_PORT }] : []),
+                logging,
+                internalHealthCheck,
+                loadBalancerHealthCheck: {
+                  healthcheckPath: (loadBalancing as WebServiceAlbLoadBalancing)?.properties?.healthcheckPath,
+                  healthcheckInterval: (loadBalancing as WebServiceAlbLoadBalancing)?.properties?.healthcheckInterval,
+                  healthcheckTimeout: (loadBalancing as WebServiceAlbLoadBalancing)?.properties?.healthcheckTimeout,
+                  healthCheckProtocol: (loadBalancing as WebServiceNlbLoadBalancing)?.properties?.healthCheckProtocol,
+                  healthCheckPort: (loadBalancing as WebServiceNlbLoadBalancing)?.properties?.healthCheckPort
+                },
+                essential: true,
+                stopTimeout,
+                volumeMounts,
+                events: [
+                  loadBalancing?.type === 'application-load-balancer'
+                    ? {
+                        type: 'application-load-balancer',
+                        properties: {
+                          priority: 3,
+                          containerPort: 3000,
+                          loadBalancerName: `${[...nameChain, loadBalancerIdentifier].join('.')}`,
+                          listenerPort: 443,
+                          paths: ['*']
+                        }
+                      }
+                    : loadBalancing?.type === 'network-load-balancer'
+                      ? loadBalancing.properties.ports.map(({ port, containerPort }) => ({
+                          type: 'network-load-balancer',
+                          properties: {
+                            containerPort: containerPort || port,
+                            loadBalancerName: `${[...nameChain, networkLoadBalancerIdentifier].join('.')}`,
+                            listenerPort: port
+                          }
+                        }))
+                      : {
+                          type: 'http-api-gateway',
+                          properties: {
+                            containerPort: 3000,
+                            httpApiGatewayName: `${[...nameChain, httpApiGatewayIdentifier].join('.')}`,
+                            method: '*',
+                            path: '/{proxy+}'
+                          }
+                        }
+                ].flat()
+              },
+              ...(sideContainers || []).map((sideContainer) => ({
+                essential: sideContainer.containerType !== 'run-on-init',
+                ...sideContainer
+              }))
+            ],
+            name: getStpNameForResource({
+              nameChain: [...nameChain, containerWorkloadIdentifier],
+              parentResourceType: type
+            }),
+            resources,
+            type: 'multi-container-workload',
+            configParentResourceType: type,
+            connectTo,
+            iamRoleStatements,
+            scaling,
+            deployment: deployment && { testListenerPort: DEFAULT_TEST_LISTENER_PORT, ...deployment }
+          },
+          [httpApiGatewayIdentifier]:
+            loadBalancing?.type === 'application-load-balancer' || loadBalancing?.type === 'network-load-balancer'
+              ? undefined
+              : {
+                  nameChain: [...nameChain, httpApiGatewayIdentifier],
+                  name: getStpNameForResource({
+                    nameChain: [...nameChain, httpApiGatewayIdentifier],
+                    parentResourceType: type
+                  }),
+                  type: 'http-api-gateway',
+                  configParentResourceType: type,
+                  customDomains,
+                  cors,
+                  cdn,
+                  alarms: alarms as HttpApiGatewayAlarm[],
+                  disabledGlobalAlarms,
+                  logging
+                },
+          [loadBalancerIdentifier]:
+            loadBalancing?.type === 'application-load-balancer'
+              ? {
+                  nameChain: [...nameChain, loadBalancerIdentifier],
+                  name: getStpNameForResource({
+                    nameChain: [...nameChain, loadBalancerIdentifier],
+                    parentResourceType: type
+                  }),
+                  type: 'application-load-balancer',
+                  configParentResourceType: type,
+                  customDomains: customDomains?.length ? customDomains : null,
+                  cdn: cdn && { listenerPort: 443, originDomainName: customDomains?.[0]?.domainName, ...cdn },
+                  alarms: alarms as ApplicationLoadBalancerAlarm[],
+                  disabledGlobalAlarms,
+                  useFirewall,
+                  listeners: [
+                    {
+                      port: 80,
+                      protocol: 'HTTP',
+                      defaultAction: {
+                        type: 'redirect',
+                        properties: { statusCode: 'HTTP_301', protocol: 'HTTPS' }
+                      }
+                    },
+                    {
+                      port: 443,
+                      protocol: 'HTTPS',
+                      customCertificateArns: null
+                    }
+                  ].concat(
+                    needTestListener
+                      ? [
+                          {
+                            port: DEFAULT_TEST_LISTENER_PORT,
+                            protocol: 'HTTPS',
+                            customCertificateArns: null
+                          }
+                        ]
+                      : []
+                  ) as ApplicationLoadBalancerListener[]
+                }
+              : undefined,
+          [networkLoadBalancerIdentifier]:
+            loadBalancing?.type === 'network-load-balancer'
+              ? {
+                  nameChain: [...nameChain, networkLoadBalancerIdentifier],
+                  name: getStpNameForResource({
+                    nameChain: [...nameChain, networkLoadBalancerIdentifier],
+                    parentResourceType: type
+                  }),
+                  type: 'network-load-balancer',
+                  configParentResourceType: type,
+                  customDomains: customDomains?.length ? customDomains : null,
+                  disabledGlobalAlarms,
+                  listeners: loadBalancing.properties?.ports.map((port) => ({
+                    port: port.port,
+                    protocol: port.protocol || 'TLS',
+                    customCertificateArns: null
+                  }))
+                }
+              : undefined
+        }
+      } as StpWebService;
+    });
+  }
+
+  get privateServices() {
+    return this.getResourcesFromConfig<StpPrivateService>('private-service').map((serviceDefinition) => {
+      const containerWorkloadIdentifier: keyof StpPrivateService['_nestedResources'] = 'containerWorkload';
+      const loadBalancerIdentifier: keyof StpPrivateService['_nestedResources'] = 'loadBalancer';
+
+      const {
+        name,
+        packaging,
+        resources,
+        type,
+        connectTo,
+        iamRoleStatements,
+        environment,
+        internalHealthCheck,
+        logging,
+        scaling,
+        stopTimeout,
+        loadBalancing,
+        port,
+        protocol,
+        configParentResourceType: _configParentResourceType,
+        nameChain,
+        enableRemoteSessions,
+        volumeMounts,
+        sideContainers,
+        usePrivateSubnetsWithNAT,
+        _nestedResources,
+        ...restProps
+      } = serviceDefinition;
+      // props check constant ensures full destructuring of web service props
+      // eslint-disable-next-line
+      const propsCheck: Record<string, never> = restProps;
+
+      return {
+        ...serviceDefinition,
+        _nestedResources: {
+          containerWorkload: {
+            nameChain: [...nameChain, containerWorkloadIdentifier],
+            enableRemoteSessions,
+            usePrivateSubnetsWithNAT,
+            containers: [
+              {
+                name: getSimpleServiceDefaultContainerName(),
+                dependsOn: sideContainers?.length
+                  ? sideContainers
+                      .filter(
+                        (helperContainer) =>
+                          !helperContainer.dependsOn?.some(
+                            ({ containerName }) => containerName === getSimpleServiceDefaultContainerName()
+                          )
+                      )
+                      .map((helperContainer) => ({
+                        containerName: helperContainer.name,
+                        condition: helperContainer.containerType === 'run-on-init' ? 'SUCCESS' : 'START'
+                      }))
+                  : undefined,
+                packaging,
+                environment: (environment || []).concat(
+                  { name: 'PORT', value: port || 3000 },
+                  { name: 'HOST', value: '0.0.0.0' }
+                ),
+                logging,
+                internalHealthCheck,
+                essential: true,
+                volumeMounts,
+                stopTimeout,
+                events: [
+                  loadBalancing?.type === 'application-load-balancer'
+                    ? {
+                        type: 'application-load-balancer',
+                        properties: {
+                          priority: 3,
+                          containerPort: port || 3000,
+                          loadBalancerName: `${[...nameChain, loadBalancerIdentifier].join('.')}`,
+                          listenerPort: port || 3000,
+                          paths: ['*']
+                        }
+                      }
+                    : {
+                        type: 'service-connect',
+                        properties: {
+                          containerPort: port || 3000,
+                          alias: name.toLowerCase(),
+                          protocol // : protocol || 'http'
+                        }
+                      }
+                ]
+              },
+              ...(sideContainers || []).map((sideContainer) => ({
+                essential: sideContainer.containerType !== 'run-on-init',
+                ...sideContainer
+              }))
+            ],
+            name: getStpNameForResource({
+              nameChain: [...nameChain, containerWorkloadIdentifier],
+              parentResourceType: type
+            }),
+            resources,
+            type: 'multi-container-workload',
+            configParentResourceType: type,
+            connectTo,
+            iamRoleStatements,
+            scaling
+          },
+          loadBalancer:
+            loadBalancing?.type === 'application-load-balancer'
+              ? {
+                  nameChain: [...nameChain, loadBalancerIdentifier],
+                  name: getStpNameForResource({
+                    nameChain: [...nameChain, loadBalancerIdentifier],
+                    parentResourceType: type
+                  }),
+                  interface: 'internal',
+                  type: 'application-load-balancer',
+                  configParentResourceType: type,
+                  listeners: [
+                    {
+                      port: port || 3000,
+                      protocol: 'HTTP'
+                    }
+                  ]
+                }
+              : undefined
+        }
+      } as StpPrivateService;
+    });
+  }
+
+  get workerServices() {
+    return this.getResourcesFromConfig<StpWorkerService>('worker-service').map((serviceDefinition) => {
+      const containerWorkloadIdentifier: keyof StpWorkerService['_nestedResources'] = 'containerWorkload';
+
+      const {
+        name: _n,
+        nameChain,
+        packaging,
+        resources,
+        type,
+        connectTo,
+        iamRoleStatements,
+        environment,
+        internalHealthCheck,
+        logging,
+        scaling,
+        configParentResourceType: _configParentResourceType,
+        stopTimeout,
+        enableRemoteSessions,
+        volumeMounts,
+        sideContainers,
+        usePrivateSubnetsWithNAT,
+        _nestedResources,
+        ...restProps
+      } = serviceDefinition;
+      // props check constant ensures full destructuring of web service props
+      // eslint-disable-next-line
+      const propsCheck: Record<string, never> = restProps;
+      return {
+        ...serviceDefinition,
+        _nestedResources: {
+          containerWorkload: {
+            nameChain: [...nameChain, containerWorkloadIdentifier],
+            enableRemoteSessions,
+            usePrivateSubnetsWithNAT,
+            containers: [
+              {
+                name: getSimpleServiceDefaultContainerName(),
+                dependsOn: sideContainers?.length
+                  ? sideContainers
+                      .filter(
+                        (helperContainer) =>
+                          !helperContainer.dependsOn?.some(
+                            ({ containerName }) => containerName === getSimpleServiceDefaultContainerName()
+                          )
+                      )
+                      .map((helperContainer) => ({
+                        containerName: helperContainer.name,
+                        condition: helperContainer.containerType === 'run-on-init' ? 'SUCCESS' : 'START'
+                      }))
+                  : undefined,
+                packaging,
+                environment,
+                logging,
+                internalHealthCheck,
+                essential: true,
+                stopTimeout,
+                volumeMounts
+              },
+              ...(sideContainers || []).map((sideContainer) => ({
+                essential: sideContainer.containerType !== 'run-on-init',
+                ...sideContainer
+              }))
+            ],
+            name: getStpNameForResource({
+              nameChain: [...nameChain, containerWorkloadIdentifier],
+              parentResourceType: type
+            }),
+            resources,
+            type: 'multi-container-workload',
+            configParentResourceType: type,
+            connectTo,
+            iamRoleStatements,
+            scaling
+          }
+        }
+      } as StpWorkerService;
+    });
+  }
+
+  get cloudformationResources(): (CloudformationResource & { name: string })[] {
+    return Object.entries(this.config?.cloudformationResources || {}).map(([name, definition]) => {
+      return { name, ...definition };
+    });
+  }
+
+  get hooks() {
+    return this.config.hooks || {};
+  }
+
+  getRollbackSafetyInfo = () => {
+    const UNSAFE_DIRECTIVES = ['File', 'FileRaw', 'CliArgs', 'GitInfo', 'StackOutput', 'Secret', 'SsmParam'];
+    // Detect unsafe directives by scanning resolved directive results
+    const unsafeDirectives: string[] = [];
+    for (const rawDefinition in this.configResolver.results) {
+      for (const unsafeName of UNSAFE_DIRECTIVES) {
+        if (rawDefinition.startsWith(`$${unsafeName}(`)) {
+          if (!unsafeDirectives.includes(`$${unsafeName}`)) {
+            unsafeDirectives.push(`$${unsafeName}`);
+          }
+        }
+      }
+    }
+
+    // Detect custom (user-defined) directives
+    const hasCustomDirectives = (this.rawConfig?.directives?.length ?? 0) > 0;
+
+    // Detect TypeScript transforms
+    const hasTypeScriptTransforms = Object.keys(this.transforms || {}).length > 0 || this.finalTransform !== null;
+
+    // Detect after:deploy hooks
+    const hasAfterDeployHooks = (this.config?.hooks?.afterDeploy?.length ?? 0) > 0;
+
+    // Detect bucket-synced content
+    const hasBucketSync = this.allBucketsToSync.length > 0;
+
+    return { unsafeDirectives, hasCustomDirectives, hasTypeScriptTransforms, hasAfterDeployHooks, hasBucketSync };
+  };
+
+  get scripts() {
+    return this.config.scripts || {};
+  }
+
+  get stackConfig(): StackConfig {
+    return this.config.stackConfig || ({} as StackConfig);
+  }
+
+  get reuseVpcConfig() {
+    return this.stackConfig?.vpc?.reuseVpc;
+  }
+
+  get isIssueDetectionEnabled() {
+    return this.issueDetectionPolicy.enabled;
+  }
+
+  get issueDetectionPolicy(): {
+    enabled: boolean;
+    reason: string;
+    eventSamplingRate: number;
+  } {
+    const organization = globalStateManager.organizationData as
+      | (typeof globalStateManager.organizationData & {
+          issuesAllProjectsEnabled?: boolean;
+          issuesEnabledStages?: string[];
+          issuesEventSamplingRate?: number;
+        })
+      | undefined;
+    const stage = globalStateManager.targetStack?.stage;
+    const eventSamplingRate = Math.min(100, Math.max(1, Number(organization?.issuesEventSamplingRate || 100)));
+
+    if (!organization || !stage) {
+      return {
+        enabled: false,
+        reason: 'disabled because Console issue settings could not be loaded',
+        eventSamplingRate
+      };
+    }
+
+    const enabledStages = organization.issuesEnabledStages || [];
+    if (enabledStages.length > 0 && !enabledStages.includes('*') && !enabledStages.includes(stage)) {
+      return {
+        enabled: false,
+        reason: `disabled by Console policy for stage "${stage}"`,
+        eventSamplingRate
+      };
+    }
+
+    if (organization.issuesAllProjectsEnabled) {
+      return {
+        enabled: true,
+        reason: 'enabled by Console policy for all projects',
+        eventSamplingRate
+      };
+    }
+
+    const projectName = globalStateManager.targetStack?.projectName;
+    const project = globalStateManager.projects?.find((projectData) => projectData.name === projectName) as
+      | ((typeof globalStateManager.projects)[number] & { issuesEnabled?: boolean })
+      | undefined;
+
+    if (project?.issuesEnabled) {
+      return {
+        enabled: true,
+        reason: `enabled by Console policy for project "${projectName}"`,
+        eventSamplingRate
+      };
+    }
+
+    return {
+      enabled: false,
+      reason: 'disabled by Console policy',
+      eventSamplingRate
+    };
+  }
+
+  get guardrails() {
+    return this.globalConfigGuardrails || [];
+  }
+
+  get deploymentNotifications(): DeploymentNotificationDefinition[] {
+    return this.globalConfigDeploymentNotifications || [];
+  }
+
+  get outputs(): StackOutput[] {
+    return this.stackConfig.outputs || [];
+  }
+
+  get isS3TransferAccelerationAvailableInDeploymentRegion(): boolean {
+    return isTransferAccelerationEnabledInRegion({
+      region: globalStateManager.region
+    }); // 'ap-southeast-3']
+  }
+
+  get stackInfoDirPath() {
+    return this.stackConfig.disableStackInfoSaving
+      ? null
+      : fsPaths.stackInfoDirectory({
+          workingDir: globalStateManager.workingDir,
+          directoryName: this.stackConfig.stackInfoDirectory
+        });
+  }
+
+  get prebuiltImageRepositoryCredentialsSecretArns(): string[] {
+    const credentialSecretArns = new Set();
+    this.allContainerWorkloads.forEach(({ containers }) => {
+      containers.forEach((container) => {
+        if (
+          container.packaging.type === 'prebuilt-image' &&
+          container.packaging.properties.repositoryCredentialsSecretArn
+        ) {
+          credentialSecretArns.add(container.packaging.properties.repositoryCredentialsSecretArn);
+        }
+      });
+    });
+    return Array.from(credentialSecretArns) as string[];
+  }
+
+  get allContainerWorkloads() {
+    return [
+      ...this.containerWorkloads,
+      ...this.webServices.map(({ _nestedResources: { containerWorkload } }) => containerWorkload),
+      ...this.privateServices.map(({ _nestedResources: { containerWorkload } }) => containerWorkload),
+      ...this.workerServices.map(({ _nestedResources: { containerWorkload } }) => containerWorkload)
+    ];
+  }
+
+  get allApplicationLoadBalancers() {
+    return [
+      ...this.applicationLoadBalancers,
+      ...this.webServices.map(({ _nestedResources: { loadBalancer } }) => loadBalancer).filter(Boolean),
+      ...this.privateServices.map(({ _nestedResources: { loadBalancer } }) => loadBalancer).filter(Boolean)
+    ];
+  }
+
+  get allNetworkLoadBalancers() {
+    return [
+      ...this.networkLoadBalancers,
+      ...this.webServices.map(({ _nestedResources: { networkLoadBalancer } }) => networkLoadBalancer).filter(Boolean)
+    ];
+  }
+
+  get allHttpApiGateways() {
+    return [
+      ...this.httpApiGateways,
+      ...this.webServices.map(({ _nestedResources: { httpApiGateway } }) => httpApiGateway).filter(Boolean)
+    ];
+  }
+
+  get allBuckets() {
+    // In dev mode, filter out buckets from hosting-bucket and nextjs-web since they are excluded
+    const filteredHostingBuckets = isDevCommand()
+      ? this.hostingBuckets.filter((hb) => !isResourceTypeExcludedInDevMode(hb.type))
+      : this.hostingBuckets;
+    const filteredNextjsWebs = isDevCommand()
+      ? this.nextjsWebs.filter((nw) => !isResourceTypeExcludedInDevMode(nw.type))
+      : this.nextjsWebs;
+    const allSsrWebs = [
+      ...this.astroWebs,
+      ...this.nuxtWebs,
+      ...this.sveltekitWebs,
+      ...this.solidstartWebs,
+      ...this.tanstackWebs,
+      ...this.remixWebs
+    ];
+    const filteredSsrWebs = isDevCommand()
+      ? allSsrWebs.filter((sw) => !isResourceTypeExcludedInDevMode(sw.type))
+      : allSsrWebs;
+    return [
+      ...this.buckets,
+      ...filteredHostingBuckets.map(({ _nestedResources: { bucket } }) => bucket),
+      ...filteredNextjsWebs.map(({ _nestedResources: { bucket } }) => bucket),
+      ...filteredSsrWebs.map(({ _nestedResources: { bucket } }) => bucket)
+    ];
+  }
+
+  get allContainerWorkloadContainers(): EnrichedCwContainerProps[] {
+    return this.allContainerWorkloads
+      .map(({ name, configParentResourceType, containers, resources }) => {
+        return containers.map((container) => {
+          return {
+            ...container,
+            workloadType: configParentResourceType,
+            workloadName: name,
+            resources,
+            jobName: getJobName({
+              workloadName: name,
+              workloadType: configParentResourceType,
+              containerName: container.name
+            })
+          };
+        });
+      })
+      .flat();
+  }
+
+  get allBatchJobContainers(): EnrichedBjContainerProps[] {
+    return this.batchJobs.map(({ name, container, type, resources }) => {
+      return {
+        ...container,
+        workloadType: type,
+        workloadName: name,
+        resources,
+        jobName: getJobName({ workloadName: name, workloadType: 'batch-job' })
+      };
+    });
+  }
+
+  get allContainers() {
+    return [...this.allContainerWorkloadContainers, ...this.allBatchJobContainers];
+  }
+
+  get allContainersRequiringPackaging() {
+    return this.allContainers.filter((job) => job.packaging.type !== 'prebuilt-image');
+  }
+
+  get agentCoreRuntimesRequiringPackaging() {
+    return this.agentCoreRuntimes.filter((runtime) => runtime.packaging.type !== 'prebuilt-image');
+  }
+
+  get helperLambdas(): StpHelperLambdaFunction[] {
+    const res = [];
+    res.push(this.stacktapeServiceLambdaProps);
+    if (this.batchJobs.length) {
+      res.push(this.batchJobs[0]._nestedResources.triggerFunction);
+    }
+    if (this.configContainsCdnDistribution) {
+      res.push(this.stacktapeOriginRequestLambdaProps, this.stacktapeOriginResponseLambdaProps);
+    }
+    return res;
+  }
+
+  get allAlarms() {
+    return this.allResourcesIncludingNested
+      .map((resource: StpAlarmEnabledResource) =>
+        getAlarmsToBeAppliedToResource({ resource, globalAlarms: this.globalConfigAlarms })
+      )
+      .flat();
+  }
+
+  get allUsedDomainsInConfig(): string[] {
+    const resultDomains: Set<string> = new Set<string>();
+    const domainAssociations: {
+      [fullDomainName: string]: string[];
+    } = {};
+    // check load balancers and their domains
+    this.allApplicationLoadBalancers.forEach(({ name, customDomains }) => {
+      if (customDomains) {
+        customDomains
+          .filter(({ disableDnsRecordCreation }) => !disableDnsRecordCreation)
+          .forEach(({ domainName }) => {
+            domainAssociations[domainName] = (domainAssociations[domainName] || []).concat(name);
+            const rootDomain = getApexDomain(domainName);
+            resultDomains.add(rootDomain);
+          });
+      }
+    });
+    // check load balancers and their domains
+    this.allNetworkLoadBalancers.forEach(({ name, customDomains }) => {
+      if (customDomains) {
+        customDomains
+          .filter(({ disableDnsRecordCreation }) => !disableDnsRecordCreation)
+          .forEach(({ domainName }) => {
+            domainAssociations[domainName] = (domainAssociations[domainName] || []).concat(name);
+            const rootDomain = getApexDomain(domainName);
+            resultDomains.add(rootDomain);
+          });
+      }
+    });
+    // check http api gateways
+    this.allHttpApiGateways.forEach(({ name, customDomains }) => {
+      if (customDomains) {
+        customDomains.forEach((domainConfig) => {
+          const fullDomainName = domainConfig.domainName;
+
+          domainAssociations[fullDomainName] = (domainAssociations[fullDomainName] || []).concat(name);
+          const rootDomain = getApexDomain(fullDomainName);
+          resultDomains.add(rootDomain);
+        });
+      }
+    });
+
+    // check cdns
+    [...this.allBuckets, ...this.allApplicationLoadBalancers, ...this.allHttpApiGateways].forEach(
+      ({ name: stpResourceName, cdn }) => {
+        if (cdn?.customDomains) {
+          cdn.customDomains.forEach((domainConfig) => {
+            const fullDomainName = domainConfig.domainName;
+
+            domainAssociations[fullDomainName] = [...(domainAssociations[fullDomainName] || []), stpResourceName];
+            const rootDomain = getApexDomain(fullDomainName);
+            resultDomains.add(rootDomain);
+          });
+        }
+      }
+    );
+
+    this.userPools.forEach(({ name, customDomain }) => {
+      if (customDomain) {
+        const fullDomainName = customDomain.domainName;
+        domainAssociations[fullDomainName] = (domainAssociations[fullDomainName] || []).concat(name);
+        const rootDomain = getApexDomain(fullDomainName);
+        resultDomains.add(rootDomain);
+      }
+    });
+
+    Object.entries(domainAssociations).forEach(([fullDomainName, associations]) => {
+      if (associations.length > 1) {
+        throw stpErrors.e47({ fullDomainName, associations });
+      }
+    });
+    return Array.from(resultDomains);
+  }
+
+  get categorizedEmailsUsedInAlertNotifications() {
+    const senders = new Set<string>();
+    const recipients = new Set<string>();
+    this.allAlarms.forEach(({ notificationTargets }) =>
+      notificationTargets?.forEach(({ type, properties }) => {
+        if (type === 'email') {
+          senders.add(properties.sender);
+          recipients.add(properties.recipient);
+        }
+      })
+    );
+    return { senders, recipients };
+  }
+
+  get allEmailsUsedInAlertNotifications() {
+    const { senders, recipients } = this.categorizedEmailsUsedInAlertNotifications;
+    return Array.from(new Set([...senders, ...recipients]));
+  }
+
+  get allCdnAssociations(): {
+    [_resourceType in StpCdnAttachableResourceType]: {
+      [stpResourceNameOfTargetedResource: string]: {
+        cdnAttachedResource: StpCdnCompatibleResource;
+        customForwardingOptions?: CdnForwardingOptions;
+      }[];
+    };
+  } {
+    const cdnAssociations: {
+      [_resourceType in StpCdnAttachableResourceType]: {
+        [stpResourceNameOfTargetedResource: string]: {
+          cdnAttachedResource: StpCdnCompatibleResource;
+          customForwardingOptions?: CdnForwardingOptions;
+        }[];
+      };
+    } = {
+      bucket: {},
+      'application-load-balancer': {},
+      'http-api-gateway': {},
+      function: {}
+    };
+    // going through buckets and checking for associated cdns
+    [
+      ...this.allBuckets,
+      ...this.allApplicationLoadBalancers,
+      ...this.allHttpApiGateways,
+      ...this.functions,
+      ...this.allNextjsLambdaFunctions,
+      ...this.allSsrWebLambdaFunctions
+    ].forEach((resource) => {
+      if (resource.cdn?.enabled) {
+        cdnAssociations[resource.type][resource.name] = (cdnAssociations[resource.type][resource.name] || []).concat({
+          cdnAttachedResource: resource,
+          customForwardingOptions: resource.cdn?.forwardingOptions
+        });
+        resource.cdn.routeRewrites?.forEach((routeRewrite) => {
+          const routingToAnotherResource = routeRewrite.routeTo && routeRewrite.routeTo.type !== 'custom-origin';
+          const stpResourceName =
+            routingToAnotherResource &&
+            this.findResourceInConfig({
+              nameChain:
+                (routeRewrite.routeTo as CdnBucketRoute).properties.bucketName ||
+                (routeRewrite.routeTo as CdnHttpApiGatewayRoute).properties.httpApiGatewayName ||
+                (routeRewrite.routeTo as CdnLambdaFunctionRoute).properties.functionName ||
+                (routeRewrite.routeTo as CdnLoadBalancerRoute).properties.loadBalancerName
+            }).resource?.name;
+          if (routingToAnotherResource) {
+            cdnAssociations[routeRewrite.routeTo.type][stpResourceName] = (
+              cdnAssociations[routeRewrite.routeTo.type][stpResourceName] || []
+            ).concat({ cdnAttachedResource: resource, customForwardingOptions: routeRewrite.forwardingOptions });
+          }
+        });
+      }
+    });
+
+    return cdnAssociations;
+  }
+
+  get simplifiedCdnAssociations(): {
+    [_resourceType in StpCdnAttachableResourceType]: {
+      [stpResourceNameOfTargetedResource: string]: string[];
+    };
+  } {
+    const result: {
+      [_resourceType in StpCdnAttachableResourceType]: {
+        [stpResourceNameOfTargetedResource: string]: string[];
+      };
+    } = {
+      bucket: {},
+      'application-load-balancer': {},
+      'http-api-gateway': {},
+      function: {}
+    };
+
+    Object.keys(this.allCdnAssociations).forEach((resourceGroup) => {
+      Object.keys(this.allCdnAssociations[resourceGroup]).forEach((resourceName) => {
+        result[resourceGroup][resourceName] = Array.from(
+          new Set(
+            this.allCdnAssociations[resourceGroup][resourceName].map(
+              ({
+                cdnAttachedResource: { name }
+              }: {
+                cdnAttachedResource: StpCdnCompatibleResource;
+                customForwardingOptions?: CdnForwardingOptions;
+              }) => name
+            )
+          )
+        );
+      });
+    });
+
+    return result;
+  }
+
+  get allResourcesWithCdnsToInvalidate() {
+    return [
+      ...this.allBuckets,
+      ...this.allApplicationLoadBalancers,
+      ...this.allHttpApiGateways,
+      ...this.functions,
+      ...this.allNextjsLambdaFunctions,
+      ...this.allSsrWebLambdaFunctions
+    ].filter(({ cdn }) => {
+      return cdn?.enabled && !cdn?.disableInvalidationAfterDeploy;
+    });
+  }
+
+  // returns array of stacktapeLogicalNames of buckets
+  get allBucketsUsingCustomMetadataHeaders() {
+    return this.allBuckets
+      .filter(({ directoryUpload }) =>
+        directoryUpload?.fileOptions?.some(({ headers }) =>
+          headers.some(({ key }) => !isBucketNativelySupportedHeader(key))
+        )
+      )
+      .map(({ name }) => name);
+  }
+
+  get allImagesCount(): number {
+    return this.allContainersRequiringPackaging.length + this.agentCoreRuntimesRequiringPackaging.length;
+  }
+
+  get allLambdaResourcesCount(): number {
+    return this.allLambdasTriggerableUsingEvents.length;
+  }
+
+  get allSecretNamesUsedInAlarmNotifications() {
+    const secretNames: string[] = [];
+    processAllNodesSync(this.allAlarms, (node) => {
+      if (typeof node === 'string') {
+        // if secret is referenced using $Secret directive
+        if (getIsDirective(node) && node.startsWith('$Secret')) {
+          const [secretName] = getDirectiveParams('Secret', node)[0].value.split('.') as string[];
+          secretNames.push(secretName);
+          return;
+        }
+        // secret referenced using dynamic reference
+        if (node.startsWith('{{resolve:secretsmanager')) {
+          const [, , secretName] = node.split(':');
+          secretNames.push(secretName);
+        }
+      }
+    });
+    return Array.from(new Set(secretNames));
+  }
+
+  get allSecretReferencesUsedInConfig() {
+    const secretRefs = new Map<string, Set<string>>();
+    const visit = (node: unknown) => {
+      if (typeof node === 'string' && getIsDirective(node) && node.startsWith('$Secret')) {
+        const fullRef = getDirectiveParams('Secret', node)[0].value as string;
+        const [secretName, jsonKey] = fullRef.split('.');
+        if (!secretRefs.has(secretName)) {
+          secretRefs.set(secretName, new Set());
+        }
+        if (jsonKey) {
+          secretRefs.get(secretName).add(jsonKey);
+        }
+      }
+    };
+    processAllNodesSync(this.config, visit);
+    // Also scan synthesized nested resources (e.g., the env vars + DB credentials a
+    // `convex` resource expands into during preprocessing) so secret-preflight can
+    // auto-create those secrets.
+    processAllNodesSync(this.convexes, visit);
+    for (const convex of this.convexes) {
+      const secretName = getConvexSecretName({ nameChain: convex.nameChain });
+      if (!secretRefs.has(secretName)) {
+        secretRefs.set(secretName, new Set());
+      }
+      secretRefs.get(secretName).add('instanceSecret');
+      secretRefs.get(secretName).add('dbPassword');
+    }
+    return secretRefs;
+  }
+
+  get autoGenerableSecretNames(): Set<string> {
+    const names = new Set<string>();
+    const extractSecretName = (value: unknown): string | null => {
+      if (typeof value === 'string' && getIsDirective(value) && value.startsWith('$Secret')) {
+        const fullRef = getDirectiveParams('Secret', value)[0].value as string;
+        return fullRef.split('.')[0];
+      }
+      return null;
+    };
+    for (const db of this.databases) {
+      const name = extractSecretName(db.credentials?.masterUserPassword);
+      if (name) names.add(name);
+    }
+    for (const redis of this.redisClusters) {
+      const name = extractSecretName(redis.defaultUserPassword);
+      if (name) names.add(name);
+    }
+    for (const mongo of this.atlasMongoClusters) {
+      const name = extractSecretName(mongo.adminUserCredentials?.password);
+      if (name) names.add(name);
+    }
+    // Convex auto-generates secrets for its synthesized backing Postgres (`dbPassword`)
+    // and for its `INSTANCE_SECRET` boot token.
+    for (const convex of this.convexes) {
+      const dbName = extractSecretName(convex._nestedResources.database?.credentials?.masterUserPassword);
+      if (dbName) names.add(dbName);
+      // INSTANCE_SECRET is referenced from the backend container env, which is keyed
+      // by the same secret name. Adding it explicitly is harmless (Set dedups).
+      names.add(getConvexSecretName({ nameChain: convex.nameChain }));
+    }
+    return names;
+  }
+
+  get allSsmParamReferencesUsedInConfig() {
+    const paramNames = new Set<string>();
+    processAllNodesSync(this.config, (node) => {
+      if (typeof node === 'string' && getIsDirective(node) && node.startsWith('$SsmParam')) {
+        const paramName = getDirectiveParams('SsmParam', node)[0].value as string;
+        paramNames.add(paramName);
+      }
+    });
+    return paramNames;
+  }
+
+  get allParameterNamesUsedInAlarmNotifications() {
+    const paramNames: string[] = [];
+    processAllNodesSync(this.allAlarms, (node) => {
+      if (typeof node === 'string') {
+        // $SsmParam directive
+        if (getIsDirective(node) && node.startsWith('$SsmParam')) {
+          const paramName = getDirectiveParams('SsmParam', node)[0].value as string;
+          paramNames.push(paramName);
+          return;
+        }
+        // SSM dynamic reference
+        if (node.startsWith('{{resolve:ssm-secure') || node.startsWith('{{resolve:ssm')) {
+          const [, , paramName] = node.split(':');
+          paramNames.push(paramName);
+        }
+      }
+    });
+    return paramNames;
+  }
+
+  get cfLogicalNamesToBeProtected() {
+    return this.databases
+      .filter(({ deletionProtection }) => deletionProtection)
+      .map(({ name, engine }) => {
+        if (isAuroraEngine(engine.type)) {
+          return cfLogicalNames.auroraDbCluster(name);
+        }
+        return cfLogicalNames.dbInstance(name);
+      });
+  }
+
+  get allConfigResources(): StpResource[] {
+    return [
+      ...this.functions,
+      ...this.containerWorkloads,
+      ...this.batchJobs,
+      ...this.buckets,
+      ...this.databases,
+      ...this.applicationLoadBalancers,
+      ...this.networkLoadBalancers,
+      ...this.httpApiGateways,
+      ...this.eventBuses,
+      ...this.bastions,
+      ...this.stateMachines,
+      ...this.customResourceDefinitions,
+      ...this.customResourceInstances,
+      ...this.atlasMongoClusters,
+      ...this.dynamoDbTables,
+      ...this.redisClusters,
+      ...this.userPools,
+      ...this.deploymentScripts,
+      ...this.upstashRedisDatabases,
+      ...this.edgeLambdaFunctions,
+      ...this.webServices,
+      ...this.privateServices,
+      ...this.workerServices,
+      ...this.awsCdkConstructs,
+      ...this.sqsQueues,
+      ...this.snsTopics,
+      ...this.kinesisStreams,
+      ...this.hostingBuckets,
+      ...this.webAppFirewalls,
+      ...this.nextjsWebs,
+      ...this.astroWebs,
+      ...this.nuxtWebs,
+      ...this.sveltekitWebs,
+      ...this.solidstartWebs,
+      ...this.tanstackWebs,
+      ...this.remixWebs,
+      ...this.openSearchDomains,
+      ...this.efsFilesystems,
+      ...this.convexes,
+      ...this.agentCoreRuntimes,
+      ...this.agentCoreMemories,
+      ...this.agentCoreGateways,
+      ...this.agentCoreBrowsers,
+      ...this.agentCoreCodeInterpreters
+    ];
+  }
+
+  get allResourcesIncludingNested(): StpResource[] {
+    const unwrapResource = (resource: StpResource): StpResource[] => {
+      const nestedResources = Object.values(resource._nestedResources || {}).filter(Boolean);
+      return nestedResources.length ? [resource, ...nestedResources.map(unwrapResource).flat()] : [resource];
+    };
+    return this.allConfigResources.map(unwrapResource).flat();
+  }
+
+  get allResourcesRequiringVpc() {
+    return [
+      ...this.allContainerWorkloads,
+      ...this.batchJobs,
+      ...this.allApplicationLoadBalancers,
+      ...this.atlasMongoClusters,
+      ...this.databases,
+      ...this.redisClusters,
+      ...this.openSearchDomains,
+      ...this.bastions,
+      ...this.efsFilesystems,
+      ...[...this.allUserCodeLambdas, ...this.allNextjsLambdaFunctions].filter(
+        ({ joinDefaultVpc }: StpLambdaFunction) => joinDefaultVpc
+      )
+    ];
+  }
+
+  get allResourcesRequiringPrivateSubnets() {
+    return this.allContainerWorkloads.filter(({ usePrivateSubnetsWithNAT }) => usePrivateSubnetsWithNAT);
+  }
+
+  get httpApiGatewayContainerWorkloadsAssociations() {
+    const result: { [stpHttpApiGatewayName: string]: ContainerWorkloadHttpApiIntegrationProps[] } = {};
+    this.allContainerWorkloads
+      .map(({ containers }) =>
+        containers.map(({ events }) => (events || []).filter(({ type }) => type === 'http-api-gateway'))
+      )
+      .flat(2)
+      .forEach((httpApiIntegration: ContainerWorkloadHttpApiIntegration) => {
+        const stpHttpApiGatewayName = this.findResourceInConfig({
+          nameChain: httpApiIntegration.properties.httpApiGatewayName
+        })?.resource?.name;
+        result[stpHttpApiGatewayName] = (result[stpHttpApiGatewayName] || []).concat(httpApiIntegration.properties);
+      });
+
+    return result;
+  }
+
+  get serviceConnectContainerWorkloadsAssociations() {
+    const result: { [workloadName: string]: ContainerWorkloadServiceConnectIntegrationProps[] } = {};
+
+    this.allContainerWorkloads
+      .map(({ containers, name }) =>
+        containers.map(({ events }) =>
+          (events || [])
+            .filter(({ type }) => type === 'service-connect')
+            .map((event) => ({ ...event, workloadName: name }))
+        )
+      )
+      .flat(2)
+      .forEach((serviceConnectIntegration: ContainerWorkloadServiceConnectIntegration & { workloadName: string }) => {
+        result[serviceConnectIntegration.workloadName] = (result[serviceConnectIntegration.workloadName] || []).concat(
+          serviceConnectIntegration.properties
+        );
+      });
+
+    return result;
+  }
+
+  get stacktapeServiceLambdaProps(): StpHelperLambdaFunction {
+    const artifactName = 'stacktapeServiceLambda';
+    const helperLambdaData = globalStateManager.helperLambdaDetails[artifactName];
+    return {
+      name: artifactName,
+      packaging: { type: 'helper-lambda', properties: helperLambdaData },
+      type: 'function',
+      artifactName,
+      resourceName: awsResourceNames.stpServiceLambda(globalStateManager.targetStack.stackName),
+      cfLogicalName: cfLogicalNames.lambda(artifactName, true),
+      timeout: 900,
+      memory: 2048,
+      runtime: 'nodejs22.x' as const,
+      events: [],
+      handler: helperLambdaData.handler,
+      artifactPath: helperLambdaData.artifactPath,
+      configParentResourceType: 'custom-resource-definition',
+      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, artifactName],
+      environment: getStacktapeServiceLambdaEnvironment({
+        projectName: globalStateManager.targetStack.projectName,
+        globallyUniqueStackHash: this.globallyUniqueStackHash,
+        stackName: globalStateManager.targetStack.stackName
+      }),
+      iamRoleStatements: [
+        ...getStacktapeServiceLambdaCustomResourceInducedStatements(),
+        ...getStacktapeServiceLambdaAlarmNotificationInducedStatements(),
+        ...getStacktapeServiceLambdaEcsRedeployInducedStatements(),
+        ...getStacktapeServiceLambdaCustomTaggingInducedStatement(),
+        ...getStacktapeServiceLambdaIssueDetectionStatements()
+      ]
+    };
+  }
+
+  get stacktapeOriginRequestLambdaProps(): StpHelperEdgeLambdaFunction {
+    const artifactName = 'cdnOriginRequestLambda';
+    const helperLambdaData = globalStateManager.helperLambdaDetails[artifactName];
+    const lambdaResourceName = helperLambdaAwsResourceNames.originRequestEdgeLambda(
+      globalStateManager.targetStack.stackName,
+      globalStateManager.region
+    );
+    return {
+      name: artifactName,
+      packaging: { type: 'helper-lambda', properties: helperLambdaData },
+      artifactName,
+      resourceName: lambdaResourceName,
+      handler: helperLambdaData.handler,
+      artifactPath: helperLambdaData.artifactPath,
+      type: 'edge-lambda-function',
+      timeout: 10,
+      runtime: 'nodejs22.x' as const,
+      memory: 256,
+      configParentResourceType: 'edge-lambda-function',
+      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, artifactName],
+      iamRoleStatements: [
+        ...getLogGroupPolicyDocumentStatements(
+          getLambdaLogResourceArnsForPermissions({
+            lambdaResourceName,
+            edgeLambda: true
+          }),
+          false
+        ),
+        ...(Object.keys(this.simplifiedCdnAssociations.bucket).length
+          ? [
+              getStacktapeOriginRequestLambdaIamStatement({
+                ...this.simplifiedCdnAssociations.bucket
+              })
+            ]
+          : [])
+      ],
+      logging: {
+        retentionDays: 3
+      }
+    };
+  }
+
+  get stacktapeOriginResponseLambdaProps(): StpHelperEdgeLambdaFunction {
+    const artifactName = 'cdnOriginResponseLambda';
+    const helperLambdaData = globalStateManager.helperLambdaDetails[artifactName];
+    const lambdaResourceName = helperLambdaAwsResourceNames.originResponseEdgeLambda(
+      globalStateManager.targetStack.stackName,
+      globalStateManager.region
+    );
+    return {
+      name: artifactName,
+      packaging: { type: 'helper-lambda', properties: helperLambdaData },
+      resourceName: lambdaResourceName,
+      handler: helperLambdaData.handler,
+      artifactPath: helperLambdaData.artifactPath,
+      artifactName,
+      type: 'edge-lambda-function',
+      configParentResourceType: 'edge-lambda-function',
+      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, artifactName],
+      timeout: 10,
+      runtime: 'nodejs22.x' as const,
+      memory: 256,
+      iamRoleStatements: getLogGroupPolicyDocumentStatements(
+        getLambdaLogResourceArnsForPermissions({
+          lambdaResourceName,
+          edgeLambda: true
+        }),
+        false
+      ),
+      logging: {
+        retentionDays: 3
+      }
+    };
+  }
+
+  get sharedGlobalNestedResources() {
+    return {
+      stacktapeServiceLambda: this.stacktapeServiceLambdaProps,
+      cdnOriginRequestLambda: this.configContainsCdnDistribution ? this.stacktapeOriginRequestLambdaProps : undefined,
+      cdnOriginResponseLambda: this.configContainsCdnDistribution ? this.stacktapeOriginResponseLambdaProps : undefined
+    };
+  }
+
+  get allAuroraDatabases() {
+    return this.databases.filter(({ engine }) => isAuroraEngine(engine.type));
+  }
+
+  get allDatabasesWithInstancies() {
+    return this.databases.filter(
+      ({ engine }) => engine.type !== 'aurora-mysql-serverless' && engine.type !== 'aurora-postgresql-serverless'
+    );
+  }
+
+  get requiredCloudformationPrivateTypes(): StpCfInfrastructureModuleType[] {
+    const res: StpCfInfrastructureModuleType[] = [];
+    if (this.atlasMongoClusters.length) {
+      res.push('atlasMongo');
+    }
+    if (this.upstashRedisDatabases.length) {
+      res.push('upstashRedis');
+    }
+    if (this.allContainerWorkloads.some((cw) => cw.deployment)) {
+      res.push('ecsBlueGreen');
+    }
+    return res;
+  }
+
+  get configContainsCdnDistribution(): boolean {
+    return [...this.allBuckets, ...this.allHttpApiGateways, ...this.allApplicationLoadBalancers].some(
+      (resource) => resource.cdn?.enabled
+    );
+  }
+
+  get allVpcPeeringConnections() {
+    return [].concat(
+      this.atlasMongoClusters.length
+        ? {
+            vpcPeeringConnectionId: GetAtt(
+              cfLogicalNames.atlasMongoProjectVpcNetworkPeering(),
+              'ConnectionId'
+            ) as unknown as string
+          }
+        : []
+    );
+  }
+
+  get allS3Events() {
+    return [...this.functions, ...this.batchJobs.map(({ _nestedResources: { triggerFunction } }) => triggerFunction)]
+      .map((lambdaResource) =>
+        (lambdaResource.events || [])
+          .filter((event: S3Integration) => event.type === 's3')
+          .map((event: S3Integration) => {
+            return {
+              lambdaArn: lambdaResource.aliasLogicalName
+                ? Ref(lambdaResource.aliasLogicalName)
+                : GetAtt(lambdaResource.cfLogicalName, 'Arn'),
+              workloadName: lambdaResource.name,
+              eventConf: event.properties
+            };
+          })
+      )
+      .flat();
+  }
+
+  get defaultDomainsAreRequired() {
+    return (
+      this.allApplicationLoadBalancers.some(({ listeners, customDomains, cdn }) => {
+        // note: alb with NO specified listeners will automatically get HTTPS listener (without custom cert)
+        const hasHttpsListenersWithoutCustomCerts =
+          !listeners ||
+          listeners.some(
+            ({ protocol, customCertificateArns }) => protocol === 'HTTPS' && !customCertificateArns?.length
+          );
+        const loadBalancerNeedsDefaultDomain = hasHttpsListenersWithoutCustomCerts && !customDomains?.length;
+        const cdnNeedsDefaultDomain = cdn?.enabled && !cdn?.customDomains?.length;
+        return loadBalancerNeedsDefaultDomain || cdnNeedsDefaultDomain;
+      }) ||
+      this.allNetworkLoadBalancers.some(({ customDomains, listeners }) => {
+        const hasTlsListenersWithoutCustomCerts = listeners.some(
+          ({ protocol, customCertificateArns }) => protocol === 'TLS' && !customCertificateArns?.length
+        );
+        const loadBalancerNeedsDefaultDomain = hasTlsListenersWithoutCustomCerts && !customDomains?.length;
+        return loadBalancerNeedsDefaultDomain;
+      }) ||
+      this.allHttpApiGateways.some(({ customDomains, cdn }) => {
+        const httpApiGatewayNeedDefaultDomain = !customDomains?.length;
+        const cdnNeedsDefaultDomain = cdn?.enabled && !cdn?.customDomains?.length;
+        return httpApiGatewayNeedDefaultDomain || cdnNeedsDefaultDomain;
+      }) ||
+      [...this.allBuckets, ...this.functions, ...this.allNextjsLambdaFunctions, ...this.allSsrWebLambdaFunctions].some(
+        ({ cdn }) => {
+          const cdnNeedsDefaultDomain = cdn?.enabled && !cdn?.customDomains?.length;
+          return cdnNeedsDefaultDomain;
+        }
+      )
+    );
+  }
+
+  get allNextjsLambdaFunctions() {
+    return this.nextjsWebs
+      .map(({ _nestedResources }) =>
+        Object.values(_nestedResources)
+          .filter(Boolean)
+          .filter(({ type }) => type === 'function' || type === 'edge-lambda-function')
+      )
+      .flat() as StpLambdaFunction[];
+  }
+
+  get allSsrWebLambdaFunctions() {
+    return [
+      ...this.astroWebs,
+      ...this.nuxtWebs,
+      ...this.sveltekitWebs,
+      ...this.solidstartWebs,
+      ...this.tanstackWebs,
+      ...this.remixWebs
+    ]
+      .map(({ _nestedResources }) =>
+        Object.values(_nestedResources)
+          .filter(Boolean)
+          .filter(({ type }) => type === 'function')
+      )
+      .flat() as StpLambdaFunction[];
+  }
+
+  // @note lambdas with a handler function written by user
+  get allUserCodeLambdas() {
+    return [
+      ...this.functions,
+      ...this.deploymentScripts.map(({ _nestedResources: { scriptFunction } }) => scriptFunction),
+      ...this.customResourceDefinitions.map(({ _nestedResources: { backingFunction } }) => backingFunction),
+      ...this.edgeLambdaFunctions
+    ];
+  }
+
+  get allLambdasToUpload() {
+    return [
+      ...this.allUserCodeLambdas,
+      ...this.allNextjsLambdaFunctions,
+      ...this.allSsrWebLambdaFunctions,
+      ...this.helperLambdas
+    ];
+  }
+
+  get allLambdasEligibleForHotswap() {
+    return [
+      ...this.functions,
+      ...this.deploymentScripts.map(({ _nestedResources: { scriptFunction } }) => scriptFunction),
+      ...this.customResourceDefinitions.map(({ _nestedResources: { backingFunction } }) => backingFunction),
+      ...this.allNextjsLambdaFunctions.filter(({ type }) => type === 'function'),
+      ...this.allSsrWebLambdaFunctions
+    ];
+  }
+
+  get allBucketsToSync() {
+    return this.allBuckets
+      .filter((bucket) => bucket.directoryUpload)
+      .map(({ name, directoryUpload }) => ({
+        bucketName: awsResourceNames.bucket(
+          name,
+          globalStateManager.targetStack.stackName,
+          this.globallyUniqueStackHash
+        ),
+        uploadConfiguration: {
+          ...directoryUpload,
+          directoryPath: isAbsolute(directoryUpload.directoryPath)
+            ? directoryUpload.directoryPath
+            : join(globalStateManager.workingDir, directoryUpload.directoryPath)
+        },
+        deleteRemoved: true,
+        stpConfigBucketName: name
+      }));
+  }
+
+  // @note all lambdas that need it's own cloudformation resource
+  // these lambdas are created as a part of cloudformation template
+  get allLambdasTriggerableUsingEvents() {
+    return [
+      ...this.functions,
+      ...this.batchJobs.map(({ _nestedResources: { triggerFunction } }) => triggerFunction),
+      this.stacktapeServiceLambdaProps
+    ];
+  }
+
+  // @note all lambdas that are used as a hook within {workloadConfig}.deployment section
+  get allLambdasUsedInDeploymentHooks() {
+    const functionNames = new Set<string>();
+    [...this.functions, ...this.allContainerWorkloads].forEach(({ deployment }) => {
+      if (deployment?.beforeAllowTrafficFunction) {
+        functionNames.add(deployment.beforeAllowTrafficFunction);
+      }
+      if (deployment?.afterTrafficShiftFunction) {
+        functionNames.add(deployment.afterTrafficShiftFunction);
+      }
+    });
+    return this.functions.filter(({ name }) => functionNames.has(name));
+  }
+
+  get allWorkloadsUsingCustomDeployment() {
+    return [...this.functions, ...this.allContainerWorkloads].filter(({ deployment }) => deployment);
+  }
+
+  get allUsedEc2InstanceTypes() {
+    return this.allContainerWorkloads.map(({ resources }) => resources.instanceTypes || []).flat();
+  }
+
+  get allUsedOpenSearchVersionsAndInstanceTypes() {
+    const result: { version: string; instanceType: string }[] = [];
+    this.openSearchDomains.forEach((resource) => {
+      if (!resource.clusterConfig) {
+        return [{ version: resource.version || '2.17', instanceType: 'm4.large.search' }];
+      }
+      if (resource.clusterConfig?.instanceType) {
+        result.push({
+          version: resource.version || '2.17',
+          instanceType: resource.clusterConfig.instanceType
+        });
+      }
+      if (resource.clusterConfig?.dedicatedMasterType) {
+        result.push({
+          version: resource.version || '2.17',
+          instanceType: resource.clusterConfig.dedicatedMasterType
+        });
+      }
+      if (resource.clusterConfig?.warmType) {
+        result.push({
+          version: resource.version || '2.17',
+          instanceType: resource.clusterConfig.warmType
+        });
+      }
+    });
+    return result;
+  }
+
+  get isServiceDiscoveryPrivateNamespaceRequired() {
+    return (
+      Object.keys(this.httpApiGatewayContainerWorkloadsAssociations).length ||
+      Object.keys(this.serviceConnectContainerWorkloadsAssociations).length
+    );
+  }
+
+  get isVpcGatewayEndpointRequired() {
+    const s3EndpointRequired = this.allLambdasToUpload.some(({ joinDefaultVpc, connectTo }: StpLambdaFunction) => {
+      if (!joinDefaultVpc || !connectTo?.length) {
+        return false;
+      }
+      return connectTo.some(
+        (referencedResource) =>
+          this.findResourceInConfig({ nameChain: referencedResource })?.resource?.type === 'bucket'
+      );
+    });
+    const dynamoDbEndpointRequired = this.allLambdasToUpload.some(
+      ({ joinDefaultVpc, connectTo }: StpLambdaFunction) => {
+        if (!joinDefaultVpc || !connectTo?.length) {
+          return false;
+        }
+        return connectTo.some(
+          (referencedResource) =>
+            this.findResourceInConfig({ nameChain: referencedResource })?.resource?.type === 'dynamo-db-table'
+        );
+      }
+    );
+    return {
+      s3EndpointRequired,
+      dynamoDbEndpointRequired
+    };
+  }
+
+  get networkLoadBalancers() {
+    return this.getResourcesFromConfig<StpNetworkLoadBalancer>('network-load-balancer').map((resource) => ({
+      ...resource,
+      customDomains: normalizeCustomDomains({
+        customDomains: resource.customDomains as (string | DomainConfiguration)[] | null | undefined
+      })
+    }));
+  }
+}
+
+export const configManager = compose(skipInitIfInitialized, cancelablePublicMethods)(new ConfigManager());

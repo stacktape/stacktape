@@ -1,0 +1,9 @@
+name: Gin API with Postgres
+tags:
+  - Go
+  - Gin
+  - Postgres
+  - go-pg
+  - REST API
+icon: go.svg
+priority: 1

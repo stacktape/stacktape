@@ -1,0 +1,32 @@
+import AggregationAuthorization_ from './aggregationAuthorization';
+import ConfigRule_ from './configRule';
+import ConfigurationAggregator_ from './configurationAggregator';
+import ConfigurationRecorder_ from './configurationRecorder';
+import ConformancePack_ from './conformancePack';
+import DeliveryChannel_ from './deliveryChannel';
+import OrganizationConfigRule_ from './organizationConfigRule';
+import OrganizationConformancePack_ from './organizationConformancePack';
+import RemediationConfiguration_ from './remediationConfiguration';
+import StoredQuery_ from './storedQuery';
+export namespace Config {
+  export const AggregationAuthorization = AggregationAuthorization_;
+  export const ConfigRule = ConfigRule_;
+  export const ConfigurationAggregator = ConfigurationAggregator_;
+  export const ConfigurationRecorder = ConfigurationRecorder_;
+  export const ConformancePack = ConformancePack_;
+  export const DeliveryChannel = DeliveryChannel_;
+  export const OrganizationConfigRule = OrganizationConfigRule_;
+  export const OrganizationConformancePack = OrganizationConformancePack_;
+  export const RemediationConfiguration = RemediationConfiguration_;
+  export const StoredQuery = StoredQuery_;
+  export type AggregationAuthorization = AggregationAuthorization_;
+  export type ConfigRule = ConfigRule_;
+  export type ConfigurationAggregator = ConfigurationAggregator_;
+  export type ConfigurationRecorder = ConfigurationRecorder_;
+  export type ConformancePack = ConformancePack_;
+  export type DeliveryChannel = DeliveryChannel_;
+  export type OrganizationConfigRule = OrganizationConfigRule_;
+  export type OrganizationConformancePack = OrganizationConformancePack_;
+  export type RemediationConfiguration = RemediationConfiguration_;
+  export type StoredQuery = StoredQuery_;
+}

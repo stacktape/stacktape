@@ -1,0 +1,3 @@
+- Single-page application built with [React](https://react.dev/) and [Vite](https://vite.dev/).
+- Hosted on S3 with [CloudFront CDN](https://docs.stacktape.com/resources/cdns/) for global delivery.
+- Supports environment injection at deploy time via `window.STP_INJECTED_ENV` — no rebuild needed to change config.

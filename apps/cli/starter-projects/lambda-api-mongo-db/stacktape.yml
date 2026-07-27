@@ -1,0 +1,51 @@
+providerConfig:
+  mongoDbAtlas:
+    publicKey: <<your-mongodb-public-key>>
+    privateKey: <<your-mongodb-private-key>>
+    organizationId: <<your-mongodb-organization-id>>
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  mongoDbCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M2
+
+  savePost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/lambdas/save-post.ts
+      memory: 512
+      connectTo:
+        - mongoDbCluster
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: POST
+
+  getPosts:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/lambdas/get-posts.ts
+      memory: 512
+      connectTo:
+        - mongoDbCluster
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: GET

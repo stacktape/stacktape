@@ -1,0 +1,6 @@
+name: Cron Job
+tags:
+  - Typescript
+  - Lambda
+icon: typescript.svg
+priority: 1

@@ -1,0 +1,3 @@
+- Open the **Web Service URL** printed to the terminal after deploy.
+- Create your admin account on first visit.
+- Configure your AI provider (OpenAI, Anthropic, etc.) in the admin settings.

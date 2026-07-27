@@ -1,0 +1,31 @@
+scripts:
+  migrateDb:
+    type: local-script
+    properties:
+      executeCommand: npx drizzle-kit push
+      connectTo:
+        - database
+
+hooks:
+  afterDeploy:
+    - scriptName: migrateDb
+
+resources:
+  web:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      connectTo:
+        - database
+
+  database:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('database.password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.6'
+          primaryInstance:
+            instanceSize: db.t3.micro

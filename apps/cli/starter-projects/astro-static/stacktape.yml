@@ -1,0 +1,15 @@
+scripts:
+  build:
+    type: local-script
+    properties:
+      # or "yarn build", "bun run build", etc.
+      executeCommand: npm run build
+hooks:
+  beforeDeploy:
+    - scriptName: build
+resources:
+  webBucket:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      hostingContentType: static-website

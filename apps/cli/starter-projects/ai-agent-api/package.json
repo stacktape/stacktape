@@ -1,0 +1,11 @@
+{
+  "name": "ai-agent-api",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "ai": "^6.0.73",
+    "@ai-sdk/amazon-bedrock": "^4.0.50",
+    "@aws-sdk/client-dynamodb": "^3.750.0",
+    "@aws-sdk/lib-dynamodb": "^3.750.0"
+  }
+}

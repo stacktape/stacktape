@@ -1,0 +1,9 @@
+{
+  "name": "mcp-server",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.25.0"
+  }
+}

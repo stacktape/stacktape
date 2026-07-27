@@ -1,0 +1,6 @@
+name: n8n Self-Hosted
+tags:
+  - Automation
+  - Docker
+icon: docker.svg
+priority: 0

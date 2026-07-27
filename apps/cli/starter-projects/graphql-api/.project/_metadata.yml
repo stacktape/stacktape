@@ -1,0 +1,8 @@
+name: GraphQL API
+tags:
+  - GraphQL
+  - Typescript
+  - DynamoDb
+  - Lambda
+icon: typescript.svg
+priority: 1

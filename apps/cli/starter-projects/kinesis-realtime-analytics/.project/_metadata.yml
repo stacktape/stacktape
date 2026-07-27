@@ -1,0 +1,9 @@
+name: Kinesis Real-Time Analytics
+tags:
+  - Typescript
+  - Kinesis
+  - DynamoDB
+  - Lambda
+  - Event-Driven
+icon: typescript.svg
+priority: 1

@@ -1,0 +1,3 @@
+- Data analysis agent for billing reviews, CSV exploration, KPI summaries, and report generation.
+- Runs on [AWS Bedrock AgentCore Runtime](https://aws.amazon.com/bedrock/agentcore/) and connects to [AgentCore Code Interpreter](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/harness-tools.html) for sandboxed Python/JavaScript analysis.
+- Uses [AgentCore Memory](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html) for analysis context and an S3 bucket for durable report outputs.

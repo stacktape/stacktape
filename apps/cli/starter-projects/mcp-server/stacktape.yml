@@ -1,0 +1,21 @@
+resources:
+  mcpServer:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      memory: 1024
+      timeout: 60
+      url:
+        enabled: true
+        responseStreamEnabled: true
+        cors:
+          enabled: true
+          allowedOrigins:
+            - '*'
+          allowedMethods:
+            - '*'
+          allowedHeaders:
+            - '*'

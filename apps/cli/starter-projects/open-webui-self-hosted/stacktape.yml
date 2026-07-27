@@ -1,0 +1,18 @@
+resources:
+  openWebUi:
+    type: web-service
+    properties:
+      packaging:
+        type: prebuilt-image
+        properties:
+          image: ghcr.io/open-webui/open-webui:main
+      resources:
+        cpu: 1
+        memory: 2048
+      environment:
+        - name: PORT
+          value: '3000'
+        # Configure your AI provider API key:
+        - name: OPENAI_API_KEY
+          value: $Secret('openai-api-key')
+        # Or use other providers. See: https://docs.openwebui.com/

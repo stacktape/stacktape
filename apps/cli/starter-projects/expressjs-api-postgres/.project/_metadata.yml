@@ -1,0 +1,9 @@
+name: Express.js API with Postgres
+tags:
+  - REST API
+  - Typescript
+  - Express.js
+  - Prisma
+  - Postgres
+icon: typescript.svg
+priority: 0

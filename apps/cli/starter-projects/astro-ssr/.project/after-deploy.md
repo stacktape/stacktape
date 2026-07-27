@@ -1,0 +1,1 @@
+- Explore your application at **mainApiGateway -> url**. The URL is printed to the terminal.

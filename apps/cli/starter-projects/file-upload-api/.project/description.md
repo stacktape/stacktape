@@ -1,0 +1,2 @@
+- File upload and management API using S3 presigned URLs.
+- Supports uploading, listing, downloading, and deleting files. Runs serverlessly in AWS Lambda.

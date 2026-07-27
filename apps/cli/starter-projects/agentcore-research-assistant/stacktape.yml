@@ -1,0 +1,35 @@
+resources:
+  researchAgent:
+    type: agentcore-runtime
+    properties:
+      description: Research agent with managed browser automation and persistent research memory.
+      packaging:
+        type: custom-dockerfile
+        properties:
+          buildContextPath: ./
+      useMemory: researchMemory
+      useBrowser: researchBrowser
+      endpoints:
+        - name: production
+          description: Main research assistant endpoint.
+      lifecycle:
+        idleRuntimeSessionTimeout: 3600
+        maxLifetime: 28800
+      environment:
+        - name: AI_MODEL
+          value: eu.amazon.nova-micro-v1:0
+        - name: RESEARCH_SCOPE
+          value: market-research
+
+  researchMemory:
+    type: agentcore-memory
+    properties:
+      description: Stores prior research briefs, source preferences, and follow-up context.
+      expirationDays: 45
+
+  researchBrowser:
+    type: agentcore-browser
+    properties:
+      description: Managed browser for source discovery, page inspection, and citation gathering.
+      recording:
+        enabled: false

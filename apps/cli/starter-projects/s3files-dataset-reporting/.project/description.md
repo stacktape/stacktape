@@ -1,0 +1,3 @@
+- Scheduled dataset catalog and reporting pipeline backed by [Amazon S3 Files](https://aws.amazon.com/s3/features/files/).
+- A scheduled Lambda scans CSV, JSON, and JSONL files from a mounted `/raw` directory and writes a shared catalog report back to the mounted file system.
+- An HTTP Lambda reads the same mounted workspace to return catalog metadata and quick dataset samples without downloading S3 objects at runtime.

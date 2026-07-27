@@ -1,0 +1,9 @@
+name: SNS Notification Fan-Out
+tags:
+  - Typescript
+  - SNS
+  - DynamoDB
+  - Lambda
+  - Event-Driven
+icon: typescript.svg
+priority: 1

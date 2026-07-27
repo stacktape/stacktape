@@ -1,0 +1,10 @@
+{
+  "name": "agentcore-data-analyst",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.946.0"
+  }
+}

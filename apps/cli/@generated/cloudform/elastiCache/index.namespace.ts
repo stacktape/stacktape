@@ -1,0 +1,32 @@
+import CacheCluster_ from './cacheCluster';
+import GlobalReplicationGroup_ from './globalReplicationGroup';
+import ParameterGroup_ from './parameterGroup';
+import ReplicationGroup_ from './replicationGroup';
+import SecurityGroup_ from './securityGroup';
+import SecurityGroupIngress_ from './securityGroupIngress';
+import ServerlessCache_ from './serverlessCache';
+import SubnetGroup_ from './subnetGroup';
+import User_ from './user';
+import UserGroup_ from './userGroup';
+export namespace ElastiCache {
+  export const CacheCluster = CacheCluster_;
+  export const GlobalReplicationGroup = GlobalReplicationGroup_;
+  export const ParameterGroup = ParameterGroup_;
+  export const ReplicationGroup = ReplicationGroup_;
+  export const SecurityGroup = SecurityGroup_;
+  export const SecurityGroupIngress = SecurityGroupIngress_;
+  export const ServerlessCache = ServerlessCache_;
+  export const SubnetGroup = SubnetGroup_;
+  export const User = User_;
+  export const UserGroup = UserGroup_;
+  export type CacheCluster = CacheCluster_;
+  export type GlobalReplicationGroup = GlobalReplicationGroup_;
+  export type ParameterGroup = ParameterGroup_;
+  export type ReplicationGroup = ReplicationGroup_;
+  export type SecurityGroup = SecurityGroup_;
+  export type SecurityGroupIngress = SecurityGroupIngress_;
+  export type ServerlessCache = ServerlessCache_;
+  export type SubnetGroup = SubnetGroup_;
+  export type User = User_;
+  export type UserGroup = UserGroup_;
+}

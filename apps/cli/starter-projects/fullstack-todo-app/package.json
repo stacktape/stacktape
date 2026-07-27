@@ -1,0 +1,10 @@
+{
+  "name": "fullstack-todo-app",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "hono": "^4.11.8",
+    "@aws-sdk/client-dynamodb": "^3.985.0",
+    "@aws-sdk/lib-dynamodb": "^3.985.0"
+  }
+}

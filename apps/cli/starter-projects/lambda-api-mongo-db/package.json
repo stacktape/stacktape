@@ -1,0 +1,9 @@
+{
+  "name": "lambda-api-mongo-db",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "aws4": "^1.13.2",
+    "mongoose": "^9.1.6"
+  }
+}

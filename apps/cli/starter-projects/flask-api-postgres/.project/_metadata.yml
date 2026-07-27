@@ -1,0 +1,9 @@
+name: Flask API with Postgres
+tags:
+  - Python
+  - Flask
+  - Postgres
+  - SqlAlchemy
+  - REST API
+icon: python.svg
+priority: 1

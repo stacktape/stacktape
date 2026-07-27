@@ -1,0 +1,67 @@
+resources:
+  buildCatalog:
+    type: function
+    properties:
+      # Replace the S3 Files access point and backing bucket ARNs before deploying.
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/build-catalog.ts
+      memory: 1024
+      timeout: 120
+      joinDefaultVpc: true
+      environment:
+        - name: DATASET_ROOT
+          value: /mnt/datasets
+      volumeMounts:
+        - type: s3files
+          properties:
+            accessPointArn: arn:aws:s3files:us-east-1:111111111111:fs/fs-abc/ap-abc
+            mountPath: /mnt/datasets
+      iamRoleStatements:
+        - Resource:
+            - arn:aws:s3:::your-s3-files-bucket/*
+          Effect: 'Allow'
+          Action:
+            - 's3:GetObject'
+            - 's3:GetObjectVersion'
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(1 hour)
+
+  datasetApi:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/api.ts
+      memory: 1024
+      timeout: 30
+      joinDefaultVpc: true
+      environment:
+        - name: DATASET_ROOT
+          value: /mnt/datasets
+      volumeMounts:
+        - type: s3files
+          properties:
+            accessPointArn: arn:aws:s3files:us-east-1:111111111111:fs/fs-abc/ap-abc
+            mountPath: /mnt/datasets
+      iamRoleStatements:
+        - Resource:
+            - arn:aws:s3:::your-s3-files-bucket/*
+          Effect: 'Allow'
+          Action:
+            - 's3:GetObject'
+            - 's3:GetObjectVersion'
+      url:
+        enabled: true
+        cors:
+          enabled: true
+          allowedOrigins:
+            - '*'
+          allowedMethods:
+            - '*'
+          allowedHeaders:
+            - '*'

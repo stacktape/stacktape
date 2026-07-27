@@ -1,0 +1,9 @@
+name: Nest.js API with Postgres
+tags:
+  - Typescript
+  - Nest.js
+  - REST API
+  - Prisma
+icon: typescript.svg
+priority: 1
+

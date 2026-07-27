@@ -1,0 +1,8 @@
+name: URL Shortener
+tags:
+  - Typescript
+  - DynamoDb
+  - REST API
+  - Lambda
+icon: typescript.svg
+priority: 1

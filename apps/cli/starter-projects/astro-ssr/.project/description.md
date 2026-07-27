@@ -1,0 +1,2 @@
+-   simple Server-side rendered [Astro.js](https://astro.build/) application.
+-   The project uses a [Web Service](https://docs.stacktape.com/compute-resources/web-services/) to run the Astro.js container.

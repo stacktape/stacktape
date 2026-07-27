@@ -1,0 +1,10 @@
+node_modules/
+.vinxi/
+.output/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.stacktape/

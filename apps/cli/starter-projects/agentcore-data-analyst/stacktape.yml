@@ -1,0 +1,38 @@
+resources:
+  analystAgent:
+    type: agentcore-runtime
+    properties:
+      description: Data analyst agent for CSV exploration, KPI summaries, and report generation.
+      packaging:
+        type: custom-dockerfile
+        properties:
+          buildContextPath: ./
+      useMemory: analysisMemory
+      useCodeInterpreter: analysisCodeInterpreter
+      connectTo:
+        - reportsBucket
+      endpoints:
+        - name: production
+          description: Main data analyst endpoint.
+      lifecycle:
+        idleRuntimeSessionTimeout: 3600
+        maxLifetime: 28800
+      environment:
+        - name: AI_MODEL
+          value: eu.amazon.nova-micro-v1:0
+        - name: REPORT_PREFIX
+          value: analyst-reports/
+
+  analysisMemory:
+    type: agentcore-memory
+    properties:
+      description: Stores user preferences, recurring KPI definitions, and analysis context.
+      expirationDays: 90
+
+  analysisCodeInterpreter:
+    type: agentcore-code-interpreter
+    properties:
+      description: Sandboxed code runtime for dataframe analysis, chart generation, and calculations.
+
+  reportsBucket:
+    type: bucket

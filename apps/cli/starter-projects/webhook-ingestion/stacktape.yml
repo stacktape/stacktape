@@ -1,0 +1,43 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  webhookQueue:
+    type: sqs-queue
+    properties:
+      visibilityTimeoutSeconds: 120
+
+  receiveWebhook:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/receive.ts
+      memory: 512
+      connectTo:
+        - webhookQueue
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /webhooks
+            method: POST
+
+  processWebhook:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/process.ts
+      memory: 512
+      timeout: 60
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: webhookQueue
+            batchSize: 10

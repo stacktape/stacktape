@@ -9,3 +9,19 @@ node_modules/
 *.tsbuildinfo
 .stacktape-agent.json
 .stacktape-dossier.md
+
+# CLI build, release and scratch output (see apps/cli/AGENTS.md)
+.stacktape/
+__binary-dist/
+__cli-dist/
+__dist/
+__platform-packages/
+__publish-folder/
+__publish-gh-repo-dir/
+__publish-starters-repo-dir/
+__release/
+__release-npm/
+__source-maps/
+__stacktape-dist/
+__starter-projects/
+.release-version

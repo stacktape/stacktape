@@ -1,0 +1,86 @@
+[
+  {
+    "tier": "M2",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "0.0125"
+  },
+  {
+    "tier": "M5",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "0.034"
+  },
+  {
+    "tier": "M10",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "0.08"
+  },
+  {
+    "tier": "M20",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "0.20"
+  },
+  {
+    "tier": "M30",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "0.54"
+  },
+  {
+    "tier": "M40",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "1.04"
+  },
+  {
+    "tier": "M50",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "2.00"
+  },
+  {
+    "tier": "M60",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "3.95"
+  },
+  {
+    "tier": "M80",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "7.30"
+  },
+  {
+    "tier": "M140",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "10.99"
+  },
+  {
+    "tier": "M200",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "14.59"
+  },
+  {
+    "tier": "M300",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "21.85"
+  },
+  {
+    "tier": "M400",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "22.40"
+  },
+  {
+    "tier": "M700",
+    "currency": "USD",
+    "unit": "hr",
+    "pricePerUnit": "33.26"
+  }
+]

@@ -1,0 +1,32 @@
+import AccessGrant_ from './accessGrant';
+import AccessGrantsInstance_ from './accessGrantsInstance';
+import AccessGrantsLocation_ from './accessGrantsLocation';
+import AccessPoint_ from './accessPoint';
+import Bucket_ from './bucket';
+import BucketPolicy_ from './bucketPolicy';
+import MultiRegionAccessPoint_ from './multiRegionAccessPoint';
+import MultiRegionAccessPointPolicy_ from './multiRegionAccessPointPolicy';
+import StorageLens_ from './storageLens';
+import StorageLensGroup_ from './storageLensGroup';
+export namespace S3 {
+  export const AccessGrant = AccessGrant_;
+  export const AccessGrantsInstance = AccessGrantsInstance_;
+  export const AccessGrantsLocation = AccessGrantsLocation_;
+  export const AccessPoint = AccessPoint_;
+  export const Bucket = Bucket_;
+  export const BucketPolicy = BucketPolicy_;
+  export const MultiRegionAccessPoint = MultiRegionAccessPoint_;
+  export const MultiRegionAccessPointPolicy = MultiRegionAccessPointPolicy_;
+  export const StorageLens = StorageLens_;
+  export const StorageLensGroup = StorageLensGroup_;
+  export type AccessGrant = AccessGrant_;
+  export type AccessGrantsInstance = AccessGrantsInstance_;
+  export type AccessGrantsLocation = AccessGrantsLocation_;
+  export type AccessPoint = AccessPoint_;
+  export type Bucket = Bucket_;
+  export type BucketPolicy = BucketPolicy_;
+  export type MultiRegionAccessPoint = MultiRegionAccessPoint_;
+  export type MultiRegionAccessPointPolicy = MultiRegionAccessPointPolicy_;
+  export type StorageLens = StorageLens_;
+  export type StorageLensGroup = StorageLensGroup_;
+}

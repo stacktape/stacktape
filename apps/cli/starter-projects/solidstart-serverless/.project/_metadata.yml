@@ -1,0 +1,11 @@
+name: SolidStart Serverless
+tags:
+  - website
+  - Server side rendered website
+  - Typescript
+  - SolidJS
+  - Lambda
+icon: typescript.svg
+priority: 1
+hasOwnTsConfig: true
+disableLintingOption: true

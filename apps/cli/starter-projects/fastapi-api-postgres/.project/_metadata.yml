@@ -1,0 +1,7 @@
+name: FastAPI with Postgres
+tags:
+  - Python
+  - Postgres
+  - REST API
+icon: python.svg
+priority: 0

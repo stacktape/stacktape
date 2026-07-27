@@ -1,0 +1,3 @@
+- Self-hosted [Open WebUI](https://github.com/open-webui/open-webui) — an open-source ChatGPT/Claude alternative UI.
+- Runs as a [web service](https://docs.stacktape.com/compute-resources/web-services/) using the official Docker image.
+- Connect to OpenAI, Anthropic, Amazon Bedrock, or any OpenAI-compatible API. Supports multi-user auth, RAG, and more.

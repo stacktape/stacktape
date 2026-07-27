@@ -1,0 +1,9 @@
+{
+  "name": "event-driven-pipeline",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.750.0",
+    "@aws-sdk/client-eventbridge": "^3.750.0"
+  }
+}

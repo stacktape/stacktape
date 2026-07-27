@@ -1,0 +1,3 @@
+- Serverless model inference API that mounts model artifacts from [Amazon S3 Files](https://aws.amazon.com/s3/features/files/).
+- Keeps model manifests, labels, and lightweight scoring data on the mounted file system instead of bundling them into the Lambda package or downloading them at startup.
+- Good fit for model weights, embeddings, label maps, and other shared inference assets that need to be updated independently from application code.

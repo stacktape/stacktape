@@ -1,0 +1,21 @@
+# Connect your MongoDb Atlas account at https://console.stacktape.com/3rd-party-providers
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - mongoDbCluster
+      cors:
+        enabled: true
+
+  mongoDbCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M2

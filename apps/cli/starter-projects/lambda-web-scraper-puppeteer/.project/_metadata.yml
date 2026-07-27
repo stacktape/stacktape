@@ -1,0 +1,6 @@
+name: Web scraper with Puppeteer
+tags:
+  - Typescript
+  - Puppeteer
+  - Lambda
+icon: puppeteer.svg

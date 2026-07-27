@@ -1,0 +1,22 @@
+{
+  "name": "expressjs-api-postgres",
+  "version": "1.0.0",
+  "private": true,
+  "bugs": {
+    "url": "https://github.com/stacktape/stacktape/issues"
+  },
+  "author": "Stacktape team <info@stacktape.com> (https://stacktape.com)",
+  "scripts": {
+    "lint": "npx eslint .",
+    "format": "npx prettier . --write"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "body-parser": "^2.2.2",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "prisma": "^6.0.0"
+  }
+}

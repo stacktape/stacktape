@@ -1,0 +1,8 @@
+name: S3 Files Model Inference API
+tags:
+  - Typescript
+  - Lambda
+  - AI
+  - REST API
+icon: typescript.svg
+priority: 0

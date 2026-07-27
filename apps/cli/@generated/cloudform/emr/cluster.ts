@@ -1,0 +1,410 @@
+import { ResourceBase, ResourceTag } from '../resource';
+import { Value, List } from '../dataTypes';
+export class Application {
+  AdditionalInfo?: { [key: string]: Value<string> };
+  Args?: List<Value<string>>;
+  Name?: Value<string>;
+  Version?: Value<string>;
+  constructor(properties: Application) {
+    Object.assign(this, properties);
+  }
+}
+
+export class AutoScalingPolicy {
+  Constraints!: ScalingConstraints;
+  Rules!: List<ScalingRule>;
+  constructor(properties: AutoScalingPolicy) {
+    Object.assign(this, properties);
+  }
+}
+
+export class AutoTerminationPolicy {
+  IdleTimeout?: Value<number>;
+  constructor(properties: AutoTerminationPolicy) {
+    Object.assign(this, properties);
+  }
+}
+
+export class BootstrapActionConfig {
+  Name!: Value<string>;
+  ScriptBootstrapAction!: ScriptBootstrapActionConfig;
+  constructor(properties: BootstrapActionConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class CloudWatchAlarmDefinition {
+  ComparisonOperator!: Value<string>;
+  Dimensions?: List<MetricDimension>;
+  EvaluationPeriods?: Value<number>;
+  MetricName!: Value<string>;
+  Namespace?: Value<string>;
+  Period!: Value<number>;
+  Statistic?: Value<string>;
+  Threshold!: Value<number>;
+  Unit?: Value<string>;
+  constructor(properties: CloudWatchAlarmDefinition) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ComputeLimits {
+  MaximumCapacityUnits!: Value<number>;
+  MaximumCoreCapacityUnits?: Value<number>;
+  MaximumOnDemandCapacityUnits?: Value<number>;
+  MinimumCapacityUnits!: Value<number>;
+  UnitType!: Value<string>;
+  constructor(properties: ComputeLimits) {
+    Object.assign(this, properties);
+  }
+}
+
+export class Configuration {
+  Classification?: Value<string>;
+  ConfigurationProperties?: { [key: string]: Value<string> };
+  Configurations?: List<Configuration>;
+  constructor(properties: Configuration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class EbsBlockDeviceConfig {
+  VolumeSpecification!: VolumeSpecification;
+  VolumesPerInstance?: Value<number>;
+  constructor(properties: EbsBlockDeviceConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class EbsConfiguration {
+  EbsBlockDeviceConfigs?: List<EbsBlockDeviceConfig>;
+  EbsOptimized?: Value<boolean>;
+  constructor(properties: EbsConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class HadoopJarStepConfig {
+  Args?: List<Value<string>>;
+  Jar!: Value<string>;
+  MainClass?: Value<string>;
+  StepProperties?: List<KeyValue>;
+  constructor(properties: HadoopJarStepConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class InstanceFleetConfig {
+  InstanceTypeConfigs?: List<InstanceTypeConfig>;
+  LaunchSpecifications?: InstanceFleetProvisioningSpecifications;
+  Name?: Value<string>;
+  ResizeSpecifications?: InstanceFleetResizingSpecifications;
+  TargetOnDemandCapacity?: Value<number>;
+  TargetSpotCapacity?: Value<number>;
+  constructor(properties: InstanceFleetConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class InstanceFleetProvisioningSpecifications {
+  OnDemandSpecification?: OnDemandProvisioningSpecification;
+  SpotSpecification?: SpotProvisioningSpecification;
+  constructor(properties: InstanceFleetProvisioningSpecifications) {
+    Object.assign(this, properties);
+  }
+}
+
+export class InstanceFleetResizingSpecifications {
+  OnDemandResizeSpecification?: OnDemandResizingSpecification;
+  SpotResizeSpecification?: SpotResizingSpecification;
+  constructor(properties: InstanceFleetResizingSpecifications) {
+    Object.assign(this, properties);
+  }
+}
+
+export class InstanceGroupConfig {
+  AutoScalingPolicy?: AutoScalingPolicy;
+  BidPrice?: Value<string>;
+  Configurations?: List<Configuration>;
+  CustomAmiId?: Value<string>;
+  EbsConfiguration?: EbsConfiguration;
+  InstanceCount!: Value<number>;
+  InstanceType!: Value<string>;
+  Market?: Value<string>;
+  Name?: Value<string>;
+  constructor(properties: InstanceGroupConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class InstanceTypeConfig {
+  BidPrice?: Value<string>;
+  BidPriceAsPercentageOfOnDemandPrice?: Value<number>;
+  Configurations?: List<Configuration>;
+  CustomAmiId?: Value<string>;
+  EbsConfiguration?: EbsConfiguration;
+  InstanceType!: Value<string>;
+  Priority?: Value<number>;
+  WeightedCapacity?: Value<number>;
+  constructor(properties: InstanceTypeConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class JobFlowInstancesConfig {
+  AdditionalMasterSecurityGroups?: List<Value<string>>;
+  AdditionalSlaveSecurityGroups?: List<Value<string>>;
+  CoreInstanceFleet?: InstanceFleetConfig;
+  CoreInstanceGroup?: InstanceGroupConfig;
+  Ec2KeyName?: Value<string>;
+  Ec2SubnetId?: Value<string>;
+  Ec2SubnetIds?: List<Value<string>>;
+  EmrManagedMasterSecurityGroup?: Value<string>;
+  EmrManagedSlaveSecurityGroup?: Value<string>;
+  HadoopVersion?: Value<string>;
+  KeepJobFlowAliveWhenNoSteps?: Value<boolean>;
+  MasterInstanceFleet?: InstanceFleetConfig;
+  MasterInstanceGroup?: InstanceGroupConfig;
+  Placement?: PlacementType;
+  ServiceAccessSecurityGroup?: Value<string>;
+  TaskInstanceFleets?: List<InstanceFleetConfig>;
+  TaskInstanceGroups?: List<InstanceGroupConfig>;
+  TerminationProtected?: Value<boolean>;
+  UnhealthyNodeReplacement?: Value<boolean>;
+  constructor(properties: JobFlowInstancesConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class KerberosAttributes {
+  ADDomainJoinPassword?: Value<string>;
+  ADDomainJoinUser?: Value<string>;
+  CrossRealmTrustPrincipalPassword?: Value<string>;
+  KdcAdminPassword!: Value<string>;
+  Realm!: Value<string>;
+  constructor(properties: KerberosAttributes) {
+    Object.assign(this, properties);
+  }
+}
+
+export class KeyValue {
+  Key?: Value<string>;
+  Value?: Value<string>;
+  constructor(properties: KeyValue) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ManagedScalingPolicy {
+  ComputeLimits?: ComputeLimits;
+  ScalingStrategy?: Value<string>;
+  UtilizationPerformanceIndex?: Value<number>;
+  constructor(properties: ManagedScalingPolicy) {
+    Object.assign(this, properties);
+  }
+}
+
+export class MetricDimension {
+  Key!: Value<string>;
+  Value!: Value<string>;
+  constructor(properties: MetricDimension) {
+    Object.assign(this, properties);
+  }
+}
+
+export class OnDemandCapacityReservationOptions {
+  CapacityReservationPreference?: Value<string>;
+  CapacityReservationResourceGroupArn?: Value<string>;
+  UsageStrategy?: Value<string>;
+  constructor(properties: OnDemandCapacityReservationOptions) {
+    Object.assign(this, properties);
+  }
+}
+
+export class OnDemandProvisioningSpecification {
+  AllocationStrategy!: Value<string>;
+  CapacityReservationOptions?: OnDemandCapacityReservationOptions;
+  constructor(properties: OnDemandProvisioningSpecification) {
+    Object.assign(this, properties);
+  }
+}
+
+export class OnDemandResizingSpecification {
+  AllocationStrategy?: Value<string>;
+  CapacityReservationOptions?: OnDemandCapacityReservationOptions;
+  TimeoutDurationMinutes?: Value<number>;
+  constructor(properties: OnDemandResizingSpecification) {
+    Object.assign(this, properties);
+  }
+}
+
+export class PlacementGroupConfig {
+  InstanceRole!: Value<string>;
+  PlacementStrategy?: Value<string>;
+  constructor(properties: PlacementGroupConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class PlacementType {
+  AvailabilityZone!: Value<string>;
+  constructor(properties: PlacementType) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ScalingAction {
+  Market?: Value<string>;
+  SimpleScalingPolicyConfiguration!: SimpleScalingPolicyConfiguration;
+  constructor(properties: ScalingAction) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ScalingConstraints {
+  MaxCapacity!: Value<number>;
+  MinCapacity!: Value<number>;
+  constructor(properties: ScalingConstraints) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ScalingRule {
+  Action!: ScalingAction;
+  Description?: Value<string>;
+  Name!: Value<string>;
+  Trigger!: ScalingTrigger;
+  constructor(properties: ScalingRule) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ScalingTrigger {
+  CloudWatchAlarmDefinition!: CloudWatchAlarmDefinition;
+  constructor(properties: ScalingTrigger) {
+    Object.assign(this, properties);
+  }
+}
+
+export class ScriptBootstrapActionConfig {
+  Args?: List<Value<string>>;
+  Path!: Value<string>;
+  constructor(properties: ScriptBootstrapActionConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SimpleScalingPolicyConfiguration {
+  AdjustmentType?: Value<string>;
+  CoolDown?: Value<number>;
+  ScalingAdjustment!: Value<number>;
+  constructor(properties: SimpleScalingPolicyConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SpotProvisioningSpecification {
+  AllocationStrategy?: Value<string>;
+  BlockDurationMinutes?: Value<number>;
+  TimeoutAction!: Value<string>;
+  TimeoutDurationMinutes!: Value<number>;
+  constructor(properties: SpotProvisioningSpecification) {
+    Object.assign(this, properties);
+  }
+}
+
+export class SpotResizingSpecification {
+  AllocationStrategy?: Value<string>;
+  TimeoutDurationMinutes?: Value<number>;
+  constructor(properties: SpotResizingSpecification) {
+    Object.assign(this, properties);
+  }
+}
+
+export class StepConfig {
+  ActionOnFailure?: Value<string>;
+  HadoopJarStep!: HadoopJarStepConfig;
+  Name!: Value<string>;
+  constructor(properties: StepConfig) {
+    Object.assign(this, properties);
+  }
+}
+
+export class VolumeSpecification {
+  Iops?: Value<number>;
+  SizeInGB!: Value<number>;
+  Throughput?: Value<number>;
+  VolumeType!: Value<string>;
+  constructor(properties: VolumeSpecification) {
+    Object.assign(this, properties);
+  }
+}
+export interface ClusterProperties {
+  AdditionalInfo?: { [key: string]: any };
+  Applications?: List<Application>;
+  AutoScalingRole?: Value<string>;
+  AutoTerminationPolicy?: AutoTerminationPolicy;
+  BootstrapActions?: List<BootstrapActionConfig>;
+  Configurations?: List<Configuration>;
+  CustomAmiId?: Value<string>;
+  EbsRootVolumeIops?: Value<number>;
+  EbsRootVolumeSize?: Value<number>;
+  EbsRootVolumeThroughput?: Value<number>;
+  Instances: JobFlowInstancesConfig;
+  JobFlowRole: Value<string>;
+  KerberosAttributes?: KerberosAttributes;
+  LogEncryptionKmsKeyId?: Value<string>;
+  LogUri?: Value<string>;
+  ManagedScalingPolicy?: ManagedScalingPolicy;
+  Name: Value<string>;
+  OSReleaseLabel?: Value<string>;
+  PlacementGroupConfigs?: List<PlacementGroupConfig>;
+  ReleaseLabel?: Value<string>;
+  ScaleDownBehavior?: Value<string>;
+  SecurityConfiguration?: Value<string>;
+  ServiceRole: Value<string>;
+  StepConcurrencyLevel?: Value<number>;
+  Steps?: List<StepConfig>;
+  Tags?: List<ResourceTag>;
+  VisibleToAllUsers?: Value<boolean>;
+}
+export default class Cluster extends ResourceBase<ClusterProperties> {
+  static Application = Application;
+  static AutoScalingPolicy = AutoScalingPolicy;
+  static AutoTerminationPolicy = AutoTerminationPolicy;
+  static BootstrapActionConfig = BootstrapActionConfig;
+  static CloudWatchAlarmDefinition = CloudWatchAlarmDefinition;
+  static ComputeLimits = ComputeLimits;
+  static Configuration = Configuration;
+  static EbsBlockDeviceConfig = EbsBlockDeviceConfig;
+  static EbsConfiguration = EbsConfiguration;
+  static HadoopJarStepConfig = HadoopJarStepConfig;
+  static InstanceFleetConfig = InstanceFleetConfig;
+  static InstanceFleetProvisioningSpecifications = InstanceFleetProvisioningSpecifications;
+  static InstanceFleetResizingSpecifications = InstanceFleetResizingSpecifications;
+  static InstanceGroupConfig = InstanceGroupConfig;
+  static InstanceTypeConfig = InstanceTypeConfig;
+  static JobFlowInstancesConfig = JobFlowInstancesConfig;
+  static KerberosAttributes = KerberosAttributes;
+  static KeyValue = KeyValue;
+  static ManagedScalingPolicy = ManagedScalingPolicy;
+  static MetricDimension = MetricDimension;
+  static OnDemandCapacityReservationOptions = OnDemandCapacityReservationOptions;
+  static OnDemandProvisioningSpecification = OnDemandProvisioningSpecification;
+  static OnDemandResizingSpecification = OnDemandResizingSpecification;
+  static PlacementGroupConfig = PlacementGroupConfig;
+  static PlacementType = PlacementType;
+  static ScalingAction = ScalingAction;
+  static ScalingConstraints = ScalingConstraints;
+  static ScalingRule = ScalingRule;
+  static ScalingTrigger = ScalingTrigger;
+  static ScriptBootstrapActionConfig = ScriptBootstrapActionConfig;
+  static SimpleScalingPolicyConfiguration = SimpleScalingPolicyConfiguration;
+  static SpotProvisioningSpecification = SpotProvisioningSpecification;
+  static SpotResizingSpecification = SpotResizingSpecification;
+  static StepConfig = StepConfig;
+  static VolumeSpecification = VolumeSpecification;
+  constructor(properties: ClusterProperties) {
+    super('AWS::EMR::Cluster', properties);
+  }
+}

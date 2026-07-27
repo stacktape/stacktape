@@ -1,0 +1,2 @@
+- simple Server-side rendered [Next.js](https://nextjs.org/) application.
+- The project uses a [Web Service](https://docs.stacktape.com/compute-resources/web-services/) to run the Next app.

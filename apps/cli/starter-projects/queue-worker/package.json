@@ -1,0 +1,8 @@
+{
+  "name": "queue-worker",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.750.0"
+  }
+}

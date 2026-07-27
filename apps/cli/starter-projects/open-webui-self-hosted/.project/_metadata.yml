@@ -1,0 +1,6 @@
+name: Open WebUI (Self-Hosted)
+tags:
+  - AI
+  - Docker
+icon: docker.svg
+priority: 1

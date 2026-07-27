@@ -1,0 +1,28 @@
+---
+const deployedAt = new Date().toISOString();
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Astro on AWS Lambda</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 640px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        color: #333;
+      }
+      h1 { color: #6d28d9; }
+      code { background: #f3f4f6; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Astro on AWS Lambda</h1>
+    <p>This page is server-rendered by Astro running in AWS Lambda, with static assets served from CloudFront CDN.</p>
+    <p>Server rendered at: <code>{deployedAt}</code></p>
+    <p><a href="/api/hello">Try the API endpoint &rarr;</a></p>
+  </body>
+</html>

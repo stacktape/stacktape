@@ -1,0 +1,982 @@
+// This file is auto-generated. Do not edit manually.
+// Source: aws-sagemaker-domain.json
+
+/** Resource Type definition for AWS::SageMaker::Domain */
+export type AwsSagemakerDomain = {
+  /**
+   * The Amazon Resource Name (ARN) of the created domain.
+   * @maxLength 256
+   * @pattern arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:domain/.*
+   */
+  DomainArn?: string;
+  /**
+   * The URL to the created domain.
+   * @maxLength 1024
+   */
+  Url?: string;
+  /**
+   * Specifies the VPC used for non-EFS traffic. The default value is PublicInternetOnly.
+   * @enum ["PublicInternetOnly","VpcOnly"]
+   */
+  AppNetworkAccessType?: "PublicInternetOnly" | "VpcOnly";
+  /**
+   * The mode of authentication that members use to access the domain.
+   * @enum ["SSO","IAM"]
+   */
+  AuthMode: "SSO" | "IAM";
+  /** The default user settings. */
+  DefaultUserSettings: {
+    /**
+     * The execution role for the user.
+     * @minLength 20
+     * @maxLength 2048
+     * @pattern ^arn:aws[a-z\-]*:iam::\d{12}:role/?[a-zA-Z_0-9+=,.@\-_/]+$
+     */
+    ExecutionRole: string;
+    /**
+     * Indicates whether auto-mounting of an EFS volume is supported for the user profile.
+     * @enum ["Enabled","Disabled","DefaultAsDomain"]
+     */
+    AutoMountHomeEFS?: "Enabled" | "Disabled" | "DefaultAsDomain";
+    /** The Jupyter server's app settings. */
+    JupyterServerAppSettings?: {
+      DefaultResourceSpec?: {
+        InstanceType?: "system" | "ml.t3.micro" | "ml.t3.small" | "ml.t3.medium" | "ml.t3.large" | "ml.t3.xlarge" | "ml.t3.2xlarge" | "ml.m5.large" | "ml.m5.xlarge" | "ml.m5.2xlarge" | "ml.m5.4xlarge" | "ml.m5.8xlarge" | "ml.m5.12xlarge" | "ml.m5.16xlarge" | "ml.m5.24xlarge" | "ml.m5d.large" | "ml.m5d.xlarge" | "ml.m5d.2xlarge" | "ml.m5d.4xlarge" | "ml.m5d.8xlarge" | "ml.m5d.12xlarge" | "ml.m5d.16xlarge" | "ml.m5d.24xlarge" | "ml.c5.large" | "ml.c5.xlarge" | "ml.c5.2xlarge" | "ml.c5.4xlarge" | "ml.c5.9xlarge" | "ml.c5.12xlarge" | "ml.c5.18xlarge" | "ml.c5.24xlarge" | "ml.p3.2xlarge" | "ml.p3.8xlarge" | "ml.p3.16xlarge" | "ml.p3dn.24xlarge" | "ml.g4dn.xlarge" | "ml.g4dn.2xlarge" | "ml.g4dn.4xlarge" | "ml.g4dn.8xlarge" | "ml.g4dn.12xlarge" | "ml.g4dn.16xlarge" | "ml.r5.large" | "ml.r5.xlarge" | "ml.r5.2xlarge" | "ml.r5.4xlarge" | "ml.r5.8xlarge" | "ml.r5.12xlarge" | "ml.r5.16xlarge" | "ml.r5.24xlarge" | "ml.g5.xlarge" | "ml.g5.2xlarge" | "ml.g5.4xlarge" | "ml.g5.8xlarge" | "ml.g5.12xlarge" | "ml.g5.16xlarge" | "ml.g5.24xlarge" | "ml.g5.48xlarge" | "ml.g6.xlarge" | "ml.g6.2xlarge" | "ml.g6.4xlarge" | "ml.g6.8xlarge" | "ml.g6.12xlarge" | "ml.g6.16xlarge" | "ml.g6.24xlarge" | "ml.g6.48xlarge" | "ml.g6e.xlarge" | "ml.g6e.2xlarge" | "ml.g6e.4xlarge" | "ml.g6e.8xlarge" | "ml.g6e.12xlarge" | "ml.g6e.16xlarge" | "ml.g6e.24xlarge" | "ml.g6e.48xlarge" | "ml.geospatial.interactive" | "ml.p4d.24xlarge" | "ml.p4de.24xlarge" | "ml.trn1.2xlarge" | "ml.trn1.32xlarge" | "ml.trn1n.32xlarge" | "ml.p5.48xlarge" | "ml.p5e.48xlarge" | "ml.p5en.48xlarge" | "ml.m6i.large" | "ml.m6i.xlarge" | "ml.m6i.2xlarge" | "ml.m6i.4xlarge" | "ml.m6i.8xlarge" | "ml.m6i.12xlarge" | "ml.m6i.16xlarge" | "ml.m6i.24xlarge" | "ml.m6i.32xlarge" | "ml.m7i.large" | "ml.m7i.xlarge" | "ml.m7i.2xlarge" | "ml.m7i.4xlarge" | "ml.m7i.8xlarge" | "ml.m7i.12xlarge" | "ml.m7i.16xlarge" | "ml.m7i.24xlarge" | "ml.m7i.48xlarge" | "ml.c6i.large" | "ml.c6i.xlarge" | "ml.c6i.2xlarge" | "ml.c6i.4xlarge" | "ml.c6i.8xlarge" | "ml.c6i.12xlarge" | "ml.c6i.16xlarge" | "ml.c6i.24xlarge" | "ml.c6i.32xlarge" | "ml.c7i.large" | "ml.c7i.xlarge" | "ml.c7i.2xlarge" | "ml.c7i.4xlarge" | "ml.c7i.8xlarge" | "ml.c7i.12xlarge" | "ml.c7i.16xlarge" | "ml.c7i.24xlarge" | "ml.c7i.48xlarge" | "ml.r6i.large" | "ml.r6i.xlarge" | "ml.r6i.2xlarge" | "ml.r6i.4xlarge" | "ml.r6i.8xlarge" | "ml.r6i.12xlarge" | "ml.r6i.16xlarge" | "ml.r6i.24xlarge" | "ml.r6i.32xlarge" | "ml.r7i.large" | "ml.r7i.xlarge" | "ml.r7i.2xlarge" | "ml.r7i.4xlarge" | "ml.r7i.8xlarge" | "ml.r7i.12xlarge" | "ml.r7i.16xlarge" | "ml.r7i.24xlarge" | "ml.r7i.48xlarge" | "ml.m6id.large" | "ml.m6id.xlarge" | "ml.m6id.2xlarge" | "ml.m6id.4xlarge" | "ml.m6id.8xlarge" | "ml.m6id.12xlarge" | "ml.m6id.16xlarge" | "ml.m6id.24xlarge" | "ml.m6id.32xlarge" | "ml.c6id.large" | "ml.c6id.xlarge" | "ml.c6id.2xlarge" | "ml.c6id.4xlarge" | "ml.c6id.8xlarge" | "ml.c6id.12xlarge" | "ml.c6id.16xlarge" | "ml.c6id.24xlarge" | "ml.c6id.32xlarge" | "ml.r6id.large" | "ml.r6id.xlarge" | "ml.r6id.2xlarge" | "ml.r6id.4xlarge" | "ml.r6id.8xlarge" | "ml.r6id.12xlarge" | "ml.r6id.16xlarge" | "ml.r6id.24xlarge" | "ml.r6id.32xlarge";
+        /**
+         * The Amazon Resource Name (ARN) of the SageMaker image that the image version belongs to.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image/[a-z0-9]([-.]?[a-z0-9])*$
+         */
+        SageMakerImageArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the image version created on the instance.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*/[0-9]+$
+         */
+        SageMakerImageVersionArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the Lifecycle Configuration to attach to the Resource.
+         * @maxLength 256
+         * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+         */
+        LifecycleConfigArn?: string;
+      };
+      /**
+       * A list of LifecycleConfigArns available for use with JupyterServer apps.
+       * @minItems 0
+       * @maxItems 30
+       * @uniqueItems false
+       */
+      LifecycleConfigArns?: string[];
+    };
+    /** The kernel gateway app settings. */
+    KernelGatewayAppSettings?: {
+      /**
+       * A list of custom SageMaker images that are configured to run as a KernelGateway app.
+       * @minItems 0
+       * @maxItems 200
+       * @uniqueItems false
+       */
+      CustomImages?: {
+        /**
+         * The Name of the AppImageConfig.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}
+         */
+        AppImageConfigName: string;
+        /**
+         * The name of the CustomImage. Must be unique to your account.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9]([-.]?[a-zA-Z0-9]){0,62}$
+         */
+        ImageName: string;
+        /**
+         * The version number of the CustomImage.
+         * @minimum 0
+         */
+        ImageVersionNumber?: number;
+      }[];
+      /**
+       * The default instance type and the Amazon Resource Name (ARN) of the default SageMaker image used by
+       * the KernelGateway app.
+       */
+      DefaultResourceSpec?: {
+        InstanceType?: "system" | "ml.t3.micro" | "ml.t3.small" | "ml.t3.medium" | "ml.t3.large" | "ml.t3.xlarge" | "ml.t3.2xlarge" | "ml.m5.large" | "ml.m5.xlarge" | "ml.m5.2xlarge" | "ml.m5.4xlarge" | "ml.m5.8xlarge" | "ml.m5.12xlarge" | "ml.m5.16xlarge" | "ml.m5.24xlarge" | "ml.m5d.large" | "ml.m5d.xlarge" | "ml.m5d.2xlarge" | "ml.m5d.4xlarge" | "ml.m5d.8xlarge" | "ml.m5d.12xlarge" | "ml.m5d.16xlarge" | "ml.m5d.24xlarge" | "ml.c5.large" | "ml.c5.xlarge" | "ml.c5.2xlarge" | "ml.c5.4xlarge" | "ml.c5.9xlarge" | "ml.c5.12xlarge" | "ml.c5.18xlarge" | "ml.c5.24xlarge" | "ml.p3.2xlarge" | "ml.p3.8xlarge" | "ml.p3.16xlarge" | "ml.p3dn.24xlarge" | "ml.g4dn.xlarge" | "ml.g4dn.2xlarge" | "ml.g4dn.4xlarge" | "ml.g4dn.8xlarge" | "ml.g4dn.12xlarge" | "ml.g4dn.16xlarge" | "ml.r5.large" | "ml.r5.xlarge" | "ml.r5.2xlarge" | "ml.r5.4xlarge" | "ml.r5.8xlarge" | "ml.r5.12xlarge" | "ml.r5.16xlarge" | "ml.r5.24xlarge" | "ml.g5.xlarge" | "ml.g5.2xlarge" | "ml.g5.4xlarge" | "ml.g5.8xlarge" | "ml.g5.12xlarge" | "ml.g5.16xlarge" | "ml.g5.24xlarge" | "ml.g5.48xlarge" | "ml.g6.xlarge" | "ml.g6.2xlarge" | "ml.g6.4xlarge" | "ml.g6.8xlarge" | "ml.g6.12xlarge" | "ml.g6.16xlarge" | "ml.g6.24xlarge" | "ml.g6.48xlarge" | "ml.g6e.xlarge" | "ml.g6e.2xlarge" | "ml.g6e.4xlarge" | "ml.g6e.8xlarge" | "ml.g6e.12xlarge" | "ml.g6e.16xlarge" | "ml.g6e.24xlarge" | "ml.g6e.48xlarge" | "ml.geospatial.interactive" | "ml.p4d.24xlarge" | "ml.p4de.24xlarge" | "ml.trn1.2xlarge" | "ml.trn1.32xlarge" | "ml.trn1n.32xlarge" | "ml.p5.48xlarge" | "ml.p5e.48xlarge" | "ml.p5en.48xlarge" | "ml.m6i.large" | "ml.m6i.xlarge" | "ml.m6i.2xlarge" | "ml.m6i.4xlarge" | "ml.m6i.8xlarge" | "ml.m6i.12xlarge" | "ml.m6i.16xlarge" | "ml.m6i.24xlarge" | "ml.m6i.32xlarge" | "ml.m7i.large" | "ml.m7i.xlarge" | "ml.m7i.2xlarge" | "ml.m7i.4xlarge" | "ml.m7i.8xlarge" | "ml.m7i.12xlarge" | "ml.m7i.16xlarge" | "ml.m7i.24xlarge" | "ml.m7i.48xlarge" | "ml.c6i.large" | "ml.c6i.xlarge" | "ml.c6i.2xlarge" | "ml.c6i.4xlarge" | "ml.c6i.8xlarge" | "ml.c6i.12xlarge" | "ml.c6i.16xlarge" | "ml.c6i.24xlarge" | "ml.c6i.32xlarge" | "ml.c7i.large" | "ml.c7i.xlarge" | "ml.c7i.2xlarge" | "ml.c7i.4xlarge" | "ml.c7i.8xlarge" | "ml.c7i.12xlarge" | "ml.c7i.16xlarge" | "ml.c7i.24xlarge" | "ml.c7i.48xlarge" | "ml.r6i.large" | "ml.r6i.xlarge" | "ml.r6i.2xlarge" | "ml.r6i.4xlarge" | "ml.r6i.8xlarge" | "ml.r6i.12xlarge" | "ml.r6i.16xlarge" | "ml.r6i.24xlarge" | "ml.r6i.32xlarge" | "ml.r7i.large" | "ml.r7i.xlarge" | "ml.r7i.2xlarge" | "ml.r7i.4xlarge" | "ml.r7i.8xlarge" | "ml.r7i.12xlarge" | "ml.r7i.16xlarge" | "ml.r7i.24xlarge" | "ml.r7i.48xlarge" | "ml.m6id.large" | "ml.m6id.xlarge" | "ml.m6id.2xlarge" | "ml.m6id.4xlarge" | "ml.m6id.8xlarge" | "ml.m6id.12xlarge" | "ml.m6id.16xlarge" | "ml.m6id.24xlarge" | "ml.m6id.32xlarge" | "ml.c6id.large" | "ml.c6id.xlarge" | "ml.c6id.2xlarge" | "ml.c6id.4xlarge" | "ml.c6id.8xlarge" | "ml.c6id.12xlarge" | "ml.c6id.16xlarge" | "ml.c6id.24xlarge" | "ml.c6id.32xlarge" | "ml.r6id.large" | "ml.r6id.xlarge" | "ml.r6id.2xlarge" | "ml.r6id.4xlarge" | "ml.r6id.8xlarge" | "ml.r6id.12xlarge" | "ml.r6id.16xlarge" | "ml.r6id.24xlarge" | "ml.r6id.32xlarge";
+        /**
+         * The Amazon Resource Name (ARN) of the SageMaker image that the image version belongs to.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image/[a-z0-9]([-.]?[a-z0-9])*$
+         */
+        SageMakerImageArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the image version created on the instance.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*/[0-9]+$
+         */
+        SageMakerImageVersionArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the Lifecycle Configuration to attach to the Resource.
+         * @maxLength 256
+         * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+         */
+        LifecycleConfigArn?: string;
+      };
+      /**
+       * A list of LifecycleConfigArns available for use with KernelGateway apps.
+       * @minItems 0
+       * @maxItems 30
+       * @uniqueItems false
+       */
+      LifecycleConfigArns?: string[];
+    };
+    RStudioServerProAppSettings?: {
+      /**
+       * Indicates whether the current user has access to the RStudioServerPro app.
+       * @enum ["ENABLED","DISABLED"]
+       */
+      AccessStatus?: "ENABLED" | "DISABLED";
+      /**
+       * The level of permissions that the user has within the RStudioServerPro app. This value defaults to
+       * User. The Admin value allows the user access to the RStudio Administrative Dashboard.
+       * @enum ["R_STUDIO_ADMIN","R_STUDIO_USER"]
+       */
+      UserGroup?: "R_STUDIO_ADMIN" | "R_STUDIO_USER";
+    };
+    RSessionAppSettings?: {
+      /**
+       * A list of custom SageMaker images that are configured to run as a KernelGateway app.
+       * @minItems 0
+       * @maxItems 200
+       * @uniqueItems false
+       */
+      CustomImages?: {
+        /**
+         * The Name of the AppImageConfig.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}
+         */
+        AppImageConfigName: string;
+        /**
+         * The name of the CustomImage. Must be unique to your account.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9]([-.]?[a-zA-Z0-9]){0,62}$
+         */
+        ImageName: string;
+        /**
+         * The version number of the CustomImage.
+         * @minimum 0
+         */
+        ImageVersionNumber?: number;
+      }[];
+      DefaultResourceSpec?: {
+        InstanceType?: "system" | "ml.t3.micro" | "ml.t3.small" | "ml.t3.medium" | "ml.t3.large" | "ml.t3.xlarge" | "ml.t3.2xlarge" | "ml.m5.large" | "ml.m5.xlarge" | "ml.m5.2xlarge" | "ml.m5.4xlarge" | "ml.m5.8xlarge" | "ml.m5.12xlarge" | "ml.m5.16xlarge" | "ml.m5.24xlarge" | "ml.m5d.large" | "ml.m5d.xlarge" | "ml.m5d.2xlarge" | "ml.m5d.4xlarge" | "ml.m5d.8xlarge" | "ml.m5d.12xlarge" | "ml.m5d.16xlarge" | "ml.m5d.24xlarge" | "ml.c5.large" | "ml.c5.xlarge" | "ml.c5.2xlarge" | "ml.c5.4xlarge" | "ml.c5.9xlarge" | "ml.c5.12xlarge" | "ml.c5.18xlarge" | "ml.c5.24xlarge" | "ml.p3.2xlarge" | "ml.p3.8xlarge" | "ml.p3.16xlarge" | "ml.p3dn.24xlarge" | "ml.g4dn.xlarge" | "ml.g4dn.2xlarge" | "ml.g4dn.4xlarge" | "ml.g4dn.8xlarge" | "ml.g4dn.12xlarge" | "ml.g4dn.16xlarge" | "ml.r5.large" | "ml.r5.xlarge" | "ml.r5.2xlarge" | "ml.r5.4xlarge" | "ml.r5.8xlarge" | "ml.r5.12xlarge" | "ml.r5.16xlarge" | "ml.r5.24xlarge" | "ml.g5.xlarge" | "ml.g5.2xlarge" | "ml.g5.4xlarge" | "ml.g5.8xlarge" | "ml.g5.12xlarge" | "ml.g5.16xlarge" | "ml.g5.24xlarge" | "ml.g5.48xlarge" | "ml.g6.xlarge" | "ml.g6.2xlarge" | "ml.g6.4xlarge" | "ml.g6.8xlarge" | "ml.g6.12xlarge" | "ml.g6.16xlarge" | "ml.g6.24xlarge" | "ml.g6.48xlarge" | "ml.g6e.xlarge" | "ml.g6e.2xlarge" | "ml.g6e.4xlarge" | "ml.g6e.8xlarge" | "ml.g6e.12xlarge" | "ml.g6e.16xlarge" | "ml.g6e.24xlarge" | "ml.g6e.48xlarge" | "ml.geospatial.interactive" | "ml.p4d.24xlarge" | "ml.p4de.24xlarge" | "ml.trn1.2xlarge" | "ml.trn1.32xlarge" | "ml.trn1n.32xlarge" | "ml.p5.48xlarge" | "ml.p5e.48xlarge" | "ml.p5en.48xlarge" | "ml.m6i.large" | "ml.m6i.xlarge" | "ml.m6i.2xlarge" | "ml.m6i.4xlarge" | "ml.m6i.8xlarge" | "ml.m6i.12xlarge" | "ml.m6i.16xlarge" | "ml.m6i.24xlarge" | "ml.m6i.32xlarge" | "ml.m7i.large" | "ml.m7i.xlarge" | "ml.m7i.2xlarge" | "ml.m7i.4xlarge" | "ml.m7i.8xlarge" | "ml.m7i.12xlarge" | "ml.m7i.16xlarge" | "ml.m7i.24xlarge" | "ml.m7i.48xlarge" | "ml.c6i.large" | "ml.c6i.xlarge" | "ml.c6i.2xlarge" | "ml.c6i.4xlarge" | "ml.c6i.8xlarge" | "ml.c6i.12xlarge" | "ml.c6i.16xlarge" | "ml.c6i.24xlarge" | "ml.c6i.32xlarge" | "ml.c7i.large" | "ml.c7i.xlarge" | "ml.c7i.2xlarge" | "ml.c7i.4xlarge" | "ml.c7i.8xlarge" | "ml.c7i.12xlarge" | "ml.c7i.16xlarge" | "ml.c7i.24xlarge" | "ml.c7i.48xlarge" | "ml.r6i.large" | "ml.r6i.xlarge" | "ml.r6i.2xlarge" | "ml.r6i.4xlarge" | "ml.r6i.8xlarge" | "ml.r6i.12xlarge" | "ml.r6i.16xlarge" | "ml.r6i.24xlarge" | "ml.r6i.32xlarge" | "ml.r7i.large" | "ml.r7i.xlarge" | "ml.r7i.2xlarge" | "ml.r7i.4xlarge" | "ml.r7i.8xlarge" | "ml.r7i.12xlarge" | "ml.r7i.16xlarge" | "ml.r7i.24xlarge" | "ml.r7i.48xlarge" | "ml.m6id.large" | "ml.m6id.xlarge" | "ml.m6id.2xlarge" | "ml.m6id.4xlarge" | "ml.m6id.8xlarge" | "ml.m6id.12xlarge" | "ml.m6id.16xlarge" | "ml.m6id.24xlarge" | "ml.m6id.32xlarge" | "ml.c6id.large" | "ml.c6id.xlarge" | "ml.c6id.2xlarge" | "ml.c6id.4xlarge" | "ml.c6id.8xlarge" | "ml.c6id.12xlarge" | "ml.c6id.16xlarge" | "ml.c6id.24xlarge" | "ml.c6id.32xlarge" | "ml.r6id.large" | "ml.r6id.xlarge" | "ml.r6id.2xlarge" | "ml.r6id.4xlarge" | "ml.r6id.8xlarge" | "ml.r6id.12xlarge" | "ml.r6id.16xlarge" | "ml.r6id.24xlarge" | "ml.r6id.32xlarge";
+        /**
+         * The Amazon Resource Name (ARN) of the SageMaker image that the image version belongs to.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image/[a-z0-9]([-.]?[a-z0-9])*$
+         */
+        SageMakerImageArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the image version created on the instance.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*/[0-9]+$
+         */
+        SageMakerImageVersionArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the Lifecycle Configuration to attach to the Resource.
+         * @maxLength 256
+         * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+         */
+        LifecycleConfigArn?: string;
+      };
+    };
+    JupyterLabAppSettings?: {
+      /**
+       * The default instance type and the Amazon Resource Name (ARN) of the default SageMaker image used by
+       * the JupyterLab app.
+       */
+      DefaultResourceSpec?: {
+        InstanceType?: "system" | "ml.t3.micro" | "ml.t3.small" | "ml.t3.medium" | "ml.t3.large" | "ml.t3.xlarge" | "ml.t3.2xlarge" | "ml.m5.large" | "ml.m5.xlarge" | "ml.m5.2xlarge" | "ml.m5.4xlarge" | "ml.m5.8xlarge" | "ml.m5.12xlarge" | "ml.m5.16xlarge" | "ml.m5.24xlarge" | "ml.m5d.large" | "ml.m5d.xlarge" | "ml.m5d.2xlarge" | "ml.m5d.4xlarge" | "ml.m5d.8xlarge" | "ml.m5d.12xlarge" | "ml.m5d.16xlarge" | "ml.m5d.24xlarge" | "ml.c5.large" | "ml.c5.xlarge" | "ml.c5.2xlarge" | "ml.c5.4xlarge" | "ml.c5.9xlarge" | "ml.c5.12xlarge" | "ml.c5.18xlarge" | "ml.c5.24xlarge" | "ml.p3.2xlarge" | "ml.p3.8xlarge" | "ml.p3.16xlarge" | "ml.p3dn.24xlarge" | "ml.g4dn.xlarge" | "ml.g4dn.2xlarge" | "ml.g4dn.4xlarge" | "ml.g4dn.8xlarge" | "ml.g4dn.12xlarge" | "ml.g4dn.16xlarge" | "ml.r5.large" | "ml.r5.xlarge" | "ml.r5.2xlarge" | "ml.r5.4xlarge" | "ml.r5.8xlarge" | "ml.r5.12xlarge" | "ml.r5.16xlarge" | "ml.r5.24xlarge" | "ml.g5.xlarge" | "ml.g5.2xlarge" | "ml.g5.4xlarge" | "ml.g5.8xlarge" | "ml.g5.12xlarge" | "ml.g5.16xlarge" | "ml.g5.24xlarge" | "ml.g5.48xlarge" | "ml.g6.xlarge" | "ml.g6.2xlarge" | "ml.g6.4xlarge" | "ml.g6.8xlarge" | "ml.g6.12xlarge" | "ml.g6.16xlarge" | "ml.g6.24xlarge" | "ml.g6.48xlarge" | "ml.g6e.xlarge" | "ml.g6e.2xlarge" | "ml.g6e.4xlarge" | "ml.g6e.8xlarge" | "ml.g6e.12xlarge" | "ml.g6e.16xlarge" | "ml.g6e.24xlarge" | "ml.g6e.48xlarge" | "ml.geospatial.interactive" | "ml.p4d.24xlarge" | "ml.p4de.24xlarge" | "ml.trn1.2xlarge" | "ml.trn1.32xlarge" | "ml.trn1n.32xlarge" | "ml.p5.48xlarge" | "ml.p5e.48xlarge" | "ml.p5en.48xlarge" | "ml.m6i.large" | "ml.m6i.xlarge" | "ml.m6i.2xlarge" | "ml.m6i.4xlarge" | "ml.m6i.8xlarge" | "ml.m6i.12xlarge" | "ml.m6i.16xlarge" | "ml.m6i.24xlarge" | "ml.m6i.32xlarge" | "ml.m7i.large" | "ml.m7i.xlarge" | "ml.m7i.2xlarge" | "ml.m7i.4xlarge" | "ml.m7i.8xlarge" | "ml.m7i.12xlarge" | "ml.m7i.16xlarge" | "ml.m7i.24xlarge" | "ml.m7i.48xlarge" | "ml.c6i.large" | "ml.c6i.xlarge" | "ml.c6i.2xlarge" | "ml.c6i.4xlarge" | "ml.c6i.8xlarge" | "ml.c6i.12xlarge" | "ml.c6i.16xlarge" | "ml.c6i.24xlarge" | "ml.c6i.32xlarge" | "ml.c7i.large" | "ml.c7i.xlarge" | "ml.c7i.2xlarge" | "ml.c7i.4xlarge" | "ml.c7i.8xlarge" | "ml.c7i.12xlarge" | "ml.c7i.16xlarge" | "ml.c7i.24xlarge" | "ml.c7i.48xlarge" | "ml.r6i.large" | "ml.r6i.xlarge" | "ml.r6i.2xlarge" | "ml.r6i.4xlarge" | "ml.r6i.8xlarge" | "ml.r6i.12xlarge" | "ml.r6i.16xlarge" | "ml.r6i.24xlarge" | "ml.r6i.32xlarge" | "ml.r7i.large" | "ml.r7i.xlarge" | "ml.r7i.2xlarge" | "ml.r7i.4xlarge" | "ml.r7i.8xlarge" | "ml.r7i.12xlarge" | "ml.r7i.16xlarge" | "ml.r7i.24xlarge" | "ml.r7i.48xlarge" | "ml.m6id.large" | "ml.m6id.xlarge" | "ml.m6id.2xlarge" | "ml.m6id.4xlarge" | "ml.m6id.8xlarge" | "ml.m6id.12xlarge" | "ml.m6id.16xlarge" | "ml.m6id.24xlarge" | "ml.m6id.32xlarge" | "ml.c6id.large" | "ml.c6id.xlarge" | "ml.c6id.2xlarge" | "ml.c6id.4xlarge" | "ml.c6id.8xlarge" | "ml.c6id.12xlarge" | "ml.c6id.16xlarge" | "ml.c6id.24xlarge" | "ml.c6id.32xlarge" | "ml.r6id.large" | "ml.r6id.xlarge" | "ml.r6id.2xlarge" | "ml.r6id.4xlarge" | "ml.r6id.8xlarge" | "ml.r6id.12xlarge" | "ml.r6id.16xlarge" | "ml.r6id.24xlarge" | "ml.r6id.32xlarge";
+        /**
+         * The Amazon Resource Name (ARN) of the SageMaker image that the image version belongs to.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image/[a-z0-9]([-.]?[a-z0-9])*$
+         */
+        SageMakerImageArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the image version created on the instance.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*/[0-9]+$
+         */
+        SageMakerImageVersionArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the Lifecycle Configuration to attach to the Resource.
+         * @maxLength 256
+         * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+         */
+        LifecycleConfigArn?: string;
+      };
+      /**
+       * A list of LifecycleConfigArns available for use with JupyterLab apps.
+       * @minItems 0
+       * @maxItems 30
+       * @uniqueItems false
+       */
+      LifecycleConfigArns?: string[];
+      /**
+       * A list of CodeRepositories available for use with JupyterLab apps.
+       * @minItems 0
+       * @maxItems 30
+       * @uniqueItems false
+       */
+      CodeRepositories?: {
+        /**
+         * A CodeRepository (valid URL) to be used within Jupyter's Git extension.
+         * @maxLength 256
+         * @pattern ^https://([.\-_a-zA-Z0-9]+/?){3,1016}$
+         */
+        RepositoryUrl: string;
+      }[];
+      /**
+       * A list of custom images for use for JupyterLab apps.
+       * @minItems 0
+       * @maxItems 200
+       * @uniqueItems false
+       */
+      CustomImages?: {
+        /**
+         * The Name of the AppImageConfig.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}
+         */
+        AppImageConfigName: string;
+        /**
+         * The name of the CustomImage. Must be unique to your account.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9]([-.]?[a-zA-Z0-9]){0,62}$
+         */
+        ImageName: string;
+        /**
+         * The version number of the CustomImage.
+         * @minimum 0
+         */
+        ImageVersionNumber?: number;
+      }[];
+      AppLifecycleManagement?: {
+        IdleSettings?: {
+          LifecycleManagement?: "ENABLED" | "DISABLED";
+          IdleTimeoutInMinutes?: number;
+          MinIdleTimeoutInMinutes?: number;
+          MaxIdleTimeoutInMinutes?: number;
+        };
+      };
+      /**
+       * The lifecycle configuration that runs before the default lifecycle configuration.
+       * @maxLength 256
+       * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+       */
+      BuiltInLifecycleConfigArn?: string;
+    };
+    SpaceStorageSettings?: {
+      DefaultEbsStorageSettings?: {
+        /** Default size of the Amazon EBS volume in Gb */
+        DefaultEbsVolumeSizeInGb: number;
+        /**
+         * Maximum size of the Amazon EBS volume in Gb. Must be greater than or equal to the
+         * DefaultEbsVolumeSizeInGb.
+         */
+        MaximumEbsVolumeSizeInGb: number;
+      };
+    };
+    CodeEditorAppSettings?: {
+      /**
+       * The default instance type and the Amazon Resource Name (ARN) of the default SageMaker image used by
+       * the CodeEditor app.
+       */
+      DefaultResourceSpec?: {
+        InstanceType?: "system" | "ml.t3.micro" | "ml.t3.small" | "ml.t3.medium" | "ml.t3.large" | "ml.t3.xlarge" | "ml.t3.2xlarge" | "ml.m5.large" | "ml.m5.xlarge" | "ml.m5.2xlarge" | "ml.m5.4xlarge" | "ml.m5.8xlarge" | "ml.m5.12xlarge" | "ml.m5.16xlarge" | "ml.m5.24xlarge" | "ml.m5d.large" | "ml.m5d.xlarge" | "ml.m5d.2xlarge" | "ml.m5d.4xlarge" | "ml.m5d.8xlarge" | "ml.m5d.12xlarge" | "ml.m5d.16xlarge" | "ml.m5d.24xlarge" | "ml.c5.large" | "ml.c5.xlarge" | "ml.c5.2xlarge" | "ml.c5.4xlarge" | "ml.c5.9xlarge" | "ml.c5.12xlarge" | "ml.c5.18xlarge" | "ml.c5.24xlarge" | "ml.p3.2xlarge" | "ml.p3.8xlarge" | "ml.p3.16xlarge" | "ml.p3dn.24xlarge" | "ml.g4dn.xlarge" | "ml.g4dn.2xlarge" | "ml.g4dn.4xlarge" | "ml.g4dn.8xlarge" | "ml.g4dn.12xlarge" | "ml.g4dn.16xlarge" | "ml.r5.large" | "ml.r5.xlarge" | "ml.r5.2xlarge" | "ml.r5.4xlarge" | "ml.r5.8xlarge" | "ml.r5.12xlarge" | "ml.r5.16xlarge" | "ml.r5.24xlarge" | "ml.g5.xlarge" | "ml.g5.2xlarge" | "ml.g5.4xlarge" | "ml.g5.8xlarge" | "ml.g5.12xlarge" | "ml.g5.16xlarge" | "ml.g5.24xlarge" | "ml.g5.48xlarge" | "ml.g6.xlarge" | "ml.g6.2xlarge" | "ml.g6.4xlarge" | "ml.g6.8xlarge" | "ml.g6.12xlarge" | "ml.g6.16xlarge" | "ml.g6.24xlarge" | "ml.g6.48xlarge" | "ml.g6e.xlarge" | "ml.g6e.2xlarge" | "ml.g6e.4xlarge" | "ml.g6e.8xlarge" | "ml.g6e.12xlarge" | "ml.g6e.16xlarge" | "ml.g6e.24xlarge" | "ml.g6e.48xlarge" | "ml.geospatial.interactive" | "ml.p4d.24xlarge" | "ml.p4de.24xlarge" | "ml.trn1.2xlarge" | "ml.trn1.32xlarge" | "ml.trn1n.32xlarge" | "ml.p5.48xlarge" | "ml.p5e.48xlarge" | "ml.p5en.48xlarge" | "ml.m6i.large" | "ml.m6i.xlarge" | "ml.m6i.2xlarge" | "ml.m6i.4xlarge" | "ml.m6i.8xlarge" | "ml.m6i.12xlarge" | "ml.m6i.16xlarge" | "ml.m6i.24xlarge" | "ml.m6i.32xlarge" | "ml.m7i.large" | "ml.m7i.xlarge" | "ml.m7i.2xlarge" | "ml.m7i.4xlarge" | "ml.m7i.8xlarge" | "ml.m7i.12xlarge" | "ml.m7i.16xlarge" | "ml.m7i.24xlarge" | "ml.m7i.48xlarge" | "ml.c6i.large" | "ml.c6i.xlarge" | "ml.c6i.2xlarge" | "ml.c6i.4xlarge" | "ml.c6i.8xlarge" | "ml.c6i.12xlarge" | "ml.c6i.16xlarge" | "ml.c6i.24xlarge" | "ml.c6i.32xlarge" | "ml.c7i.large" | "ml.c7i.xlarge" | "ml.c7i.2xlarge" | "ml.c7i.4xlarge" | "ml.c7i.8xlarge" | "ml.c7i.12xlarge" | "ml.c7i.16xlarge" | "ml.c7i.24xlarge" | "ml.c7i.48xlarge" | "ml.r6i.large" | "ml.r6i.xlarge" | "ml.r6i.2xlarge" | "ml.r6i.4xlarge" | "ml.r6i.8xlarge" | "ml.r6i.12xlarge" | "ml.r6i.16xlarge" | "ml.r6i.24xlarge" | "ml.r6i.32xlarge" | "ml.r7i.large" | "ml.r7i.xlarge" | "ml.r7i.2xlarge" | "ml.r7i.4xlarge" | "ml.r7i.8xlarge" | "ml.r7i.12xlarge" | "ml.r7i.16xlarge" | "ml.r7i.24xlarge" | "ml.r7i.48xlarge" | "ml.m6id.large" | "ml.m6id.xlarge" | "ml.m6id.2xlarge" | "ml.m6id.4xlarge" | "ml.m6id.8xlarge" | "ml.m6id.12xlarge" | "ml.m6id.16xlarge" | "ml.m6id.24xlarge" | "ml.m6id.32xlarge" | "ml.c6id.large" | "ml.c6id.xlarge" | "ml.c6id.2xlarge" | "ml.c6id.4xlarge" | "ml.c6id.8xlarge" | "ml.c6id.12xlarge" | "ml.c6id.16xlarge" | "ml.c6id.24xlarge" | "ml.c6id.32xlarge" | "ml.r6id.large" | "ml.r6id.xlarge" | "ml.r6id.2xlarge" | "ml.r6id.4xlarge" | "ml.r6id.8xlarge" | "ml.r6id.12xlarge" | "ml.r6id.16xlarge" | "ml.r6id.24xlarge" | "ml.r6id.32xlarge";
+        /**
+         * The Amazon Resource Name (ARN) of the SageMaker image that the image version belongs to.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image/[a-z0-9]([-.]?[a-z0-9])*$
+         */
+        SageMakerImageArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the image version created on the instance.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*/[0-9]+$
+         */
+        SageMakerImageVersionArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the Lifecycle Configuration to attach to the Resource.
+         * @maxLength 256
+         * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+         */
+        LifecycleConfigArn?: string;
+      };
+      /**
+       * A list of LifecycleConfigArns available for use with CodeEditor apps.
+       * @minItems 0
+       * @maxItems 30
+       * @uniqueItems false
+       */
+      LifecycleConfigArns?: string[];
+      /**
+       * A list of custom images for use for CodeEditor apps.
+       * @minItems 0
+       * @maxItems 200
+       * @uniqueItems false
+       */
+      CustomImages?: {
+        /**
+         * The Name of the AppImageConfig.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}
+         */
+        AppImageConfigName: string;
+        /**
+         * The name of the CustomImage. Must be unique to your account.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9]([-.]?[a-zA-Z0-9]){0,62}$
+         */
+        ImageName: string;
+        /**
+         * The version number of the CustomImage.
+         * @minimum 0
+         */
+        ImageVersionNumber?: number;
+      }[];
+      AppLifecycleManagement?: {
+        IdleSettings?: {
+          LifecycleManagement?: "ENABLED" | "DISABLED";
+          IdleTimeoutInMinutes?: number;
+          MinIdleTimeoutInMinutes?: number;
+          MaxIdleTimeoutInMinutes?: number;
+        };
+      };
+      /**
+       * The lifecycle configuration that runs before the default lifecycle configuration.
+       * @maxLength 256
+       * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+       */
+      BuiltInLifecycleConfigArn?: string;
+    };
+    StudioWebPortalSettings?: {
+      /**
+       * The machine learning tools that are hidden from the Studio left navigation pane.
+       * @minItems 0
+       * @uniqueItems true
+       */
+      HiddenMlTools?: ("DataWrangler" | "FeatureStore" | "EmrClusters" | "AutoMl" | "Experiments" | "Training" | "ModelEvaluation" | "Pipelines" | "Models" | "JumpStart" | "InferenceRecommender" | "Endpoints" | "Projects" | "InferenceOptimization" | "HyperPodClusters" | "Comet" | "DeepchecksLLMEvaluation" | "Fiddler" | "LakeraGuard" | "PerformanceEvaluation")[];
+      /**
+       * Applications supported in Studio that are hidden from the Studio left navigation pane.
+       * @minItems 0
+       * @uniqueItems true
+       */
+      HiddenAppTypes?: ("JupyterServer" | "TensorBoard" | "RStudioServerPro" | "JupyterLab" | "CodeEditor" | "DetailedProfiler" | "Canvas")[];
+      /**
+       * The instance types you are hiding from the Studio user interface.
+       * @minItems 0
+       * @uniqueItems true
+       */
+      HiddenInstanceTypes?: ("system" | "ml.t3.micro" | "ml.t3.small" | "ml.t3.medium" | "ml.t3.large" | "ml.t3.xlarge" | "ml.t3.2xlarge" | "ml.m5.large" | "ml.m5.xlarge" | "ml.m5.2xlarge" | "ml.m5.4xlarge" | "ml.m5.8xlarge" | "ml.m5.12xlarge" | "ml.m5.16xlarge" | "ml.m5.24xlarge" | "ml.m5d.large" | "ml.m5d.xlarge" | "ml.m5d.2xlarge" | "ml.m5d.4xlarge" | "ml.m5d.8xlarge" | "ml.m5d.12xlarge" | "ml.m5d.16xlarge" | "ml.m5d.24xlarge" | "ml.c5.large" | "ml.c5.xlarge" | "ml.c5.2xlarge" | "ml.c5.4xlarge" | "ml.c5.9xlarge" | "ml.c5.12xlarge" | "ml.c5.18xlarge" | "ml.c5.24xlarge" | "ml.p3.2xlarge" | "ml.p3.8xlarge" | "ml.p3.16xlarge" | "ml.p3dn.24xlarge" | "ml.g4dn.xlarge" | "ml.g4dn.2xlarge" | "ml.g4dn.4xlarge" | "ml.g4dn.8xlarge" | "ml.g4dn.12xlarge" | "ml.g4dn.16xlarge" | "ml.r5.large" | "ml.r5.xlarge" | "ml.r5.2xlarge" | "ml.r5.4xlarge" | "ml.r5.8xlarge" | "ml.r5.12xlarge" | "ml.r5.16xlarge" | "ml.r5.24xlarge" | "ml.g5.xlarge" | "ml.g5.2xlarge" | "ml.g5.4xlarge" | "ml.g5.8xlarge" | "ml.g5.12xlarge" | "ml.g5.16xlarge" | "ml.g5.24xlarge" | "ml.g5.48xlarge" | "ml.g6.xlarge" | "ml.g6.2xlarge" | "ml.g6.4xlarge" | "ml.g6.8xlarge" | "ml.g6.12xlarge" | "ml.g6.16xlarge" | "ml.g6.24xlarge" | "ml.g6.48xlarge" | "ml.g6e.xlarge" | "ml.g6e.2xlarge" | "ml.g6e.4xlarge" | "ml.g6e.8xlarge" | "ml.g6e.12xlarge" | "ml.g6e.16xlarge" | "ml.g6e.24xlarge" | "ml.g6e.48xlarge" | "ml.geospatial.interactive" | "ml.p4d.24xlarge" | "ml.p4de.24xlarge" | "ml.trn1.2xlarge" | "ml.trn1.32xlarge" | "ml.trn1n.32xlarge" | "ml.p5.48xlarge" | "ml.p5e.48xlarge" | "ml.p5en.48xlarge" | "ml.m6i.large" | "ml.m6i.xlarge" | "ml.m6i.2xlarge" | "ml.m6i.4xlarge" | "ml.m6i.8xlarge" | "ml.m6i.12xlarge" | "ml.m6i.16xlarge" | "ml.m6i.24xlarge" | "ml.m6i.32xlarge" | "ml.m7i.large" | "ml.m7i.xlarge" | "ml.m7i.2xlarge" | "ml.m7i.4xlarge" | "ml.m7i.8xlarge" | "ml.m7i.12xlarge" | "ml.m7i.16xlarge" | "ml.m7i.24xlarge" | "ml.m7i.48xlarge" | "ml.c6i.large" | "ml.c6i.xlarge" | "ml.c6i.2xlarge" | "ml.c6i.4xlarge" | "ml.c6i.8xlarge" | "ml.c6i.12xlarge" | "ml.c6i.16xlarge" | "ml.c6i.24xlarge" | "ml.c6i.32xlarge" | "ml.c7i.large" | "ml.c7i.xlarge" | "ml.c7i.2xlarge" | "ml.c7i.4xlarge" | "ml.c7i.8xlarge" | "ml.c7i.12xlarge" | "ml.c7i.16xlarge" | "ml.c7i.24xlarge" | "ml.c7i.48xlarge" | "ml.r6i.large" | "ml.r6i.xlarge" | "ml.r6i.2xlarge" | "ml.r6i.4xlarge" | "ml.r6i.8xlarge" | "ml.r6i.12xlarge" | "ml.r6i.16xlarge" | "ml.r6i.24xlarge" | "ml.r6i.32xlarge" | "ml.r7i.large" | "ml.r7i.xlarge" | "ml.r7i.2xlarge" | "ml.r7i.4xlarge" | "ml.r7i.8xlarge" | "ml.r7i.12xlarge" | "ml.r7i.16xlarge" | "ml.r7i.24xlarge" | "ml.r7i.48xlarge" | "ml.m6id.large" | "ml.m6id.xlarge" | "ml.m6id.2xlarge" | "ml.m6id.4xlarge" | "ml.m6id.8xlarge" | "ml.m6id.12xlarge" | "ml.m6id.16xlarge" | "ml.m6id.24xlarge" | "ml.m6id.32xlarge" | "ml.c6id.large" | "ml.c6id.xlarge" | "ml.c6id.2xlarge" | "ml.c6id.4xlarge" | "ml.c6id.8xlarge" | "ml.c6id.12xlarge" | "ml.c6id.16xlarge" | "ml.c6id.24xlarge" | "ml.c6id.32xlarge" | "ml.r6id.large" | "ml.r6id.xlarge" | "ml.r6id.2xlarge" | "ml.r6id.4xlarge" | "ml.r6id.8xlarge" | "ml.r6id.12xlarge" | "ml.r6id.16xlarge" | "ml.r6id.24xlarge" | "ml.r6id.32xlarge")[];
+      /**
+       * The version aliases you are hiding from the Studio user interface.
+       * @minItems 0
+       * @maxItems 5
+       * @uniqueItems true
+       */
+      HiddenSageMakerImageVersionAliases?: {
+        /**
+         * The SageMaker image name that you are hiding from the Studio user interface.
+         * @enum ["sagemaker_distribution"]
+         */
+        SageMakerImageName?: "sagemaker_distribution";
+        /**
+         * @maxItems 20
+         * @uniqueItems false
+         */
+        VersionAliases?: string[];
+      }[];
+    };
+    /**
+     * Defines which Amazon SageMaker application users are directed to by default.
+     * @maxLength 1023
+     */
+    DefaultLandingUri?: string;
+    /**
+     * Indicates whether the Studio experience is available to users. If not, users cannot access Studio.
+     * @enum ["ENABLED","DISABLED"]
+     */
+    StudioWebPortal?: "ENABLED" | "DISABLED";
+    CustomPosixUserConfig?: {
+      /**
+       * @minimum 10000
+       * @maximum 4000000
+       */
+      Uid: number;
+      /**
+       * @minimum 1001
+       * @maximum 4000000
+       */
+      Gid: number;
+    };
+    /**
+     * @minItems 0
+     * @maxItems 2
+     * @uniqueItems true
+     */
+    CustomFileSystemConfigs?: {
+      EFSFileSystemConfig?: {
+        /**
+         * @minLength 1
+         * @maxLength 256
+         * @pattern ^\/\S*$
+         */
+        FileSystemPath?: string;
+        /**
+         * @minLength 11
+         * @maxLength 21
+         * @pattern ^(fs-[0-9a-f]{8,})$
+         */
+        FileSystemId: string;
+      };
+      FSxLustreFileSystemConfig?: {
+        /**
+         * @minLength 1
+         * @maxLength 256
+         * @pattern ^\/\S*$
+         */
+        FileSystemPath?: string;
+        /**
+         * @minLength 11
+         * @maxLength 21
+         * @pattern ^(fs-[0-9a-f]{8,})$
+         */
+        FileSystemId: string;
+      };
+      S3FileSystemConfig?: {
+        /**
+         * @minLength 0
+         * @maxLength 1024
+         */
+        MountPath?: string;
+        /**
+         * @minLength 0
+         * @maxLength 1024
+         * @pattern (s3)://([^/]+)/?(.*)
+         */
+        S3Uri?: string;
+      };
+    }[];
+    /**
+     * The security groups for the Amazon Virtual Private Cloud (VPC) that Studio uses for communication.
+     * @minItems 0
+     * @maxItems 5
+     * @uniqueItems false
+     */
+    SecurityGroups?: string[];
+    /** The sharing settings. */
+    SharingSettings?: {
+      /**
+       * Whether to include the notebook cell output when sharing the notebook. The default is Disabled.
+       * @enum ["Allowed","Disabled"]
+       */
+      NotebookOutputOption?: "Allowed" | "Disabled";
+      /**
+       * When NotebookOutputOption is Allowed, the AWS Key Management Service (KMS) encryption key ID used
+       * to encrypt the notebook cell output in the Amazon S3 bucket.
+       * @maxLength 2048
+       * @pattern .*
+       */
+      S3KmsKeyId?: string;
+      /**
+       * When NotebookOutputOption is Allowed, the Amazon S3 bucket used to store the shared notebook
+       * snapshots.
+       * @maxLength 1024
+       * @pattern ^(https|s3)://([^/]+)/?(.*)$
+       */
+      S3OutputPath?: string;
+    };
+  };
+  /** The default space settings. */
+  DefaultSpaceSettings?: {
+    /**
+     * The execution role for the space.
+     * @minLength 20
+     * @maxLength 2048
+     * @pattern ^arn:aws[a-z\-]*:iam::\d{12}:role/?[a-zA-Z_0-9+=,.@\-_/]+$
+     */
+    ExecutionRole: string;
+    /** The Jupyter server's app settings. */
+    JupyterServerAppSettings?: {
+      DefaultResourceSpec?: {
+        InstanceType?: "system" | "ml.t3.micro" | "ml.t3.small" | "ml.t3.medium" | "ml.t3.large" | "ml.t3.xlarge" | "ml.t3.2xlarge" | "ml.m5.large" | "ml.m5.xlarge" | "ml.m5.2xlarge" | "ml.m5.4xlarge" | "ml.m5.8xlarge" | "ml.m5.12xlarge" | "ml.m5.16xlarge" | "ml.m5.24xlarge" | "ml.m5d.large" | "ml.m5d.xlarge" | "ml.m5d.2xlarge" | "ml.m5d.4xlarge" | "ml.m5d.8xlarge" | "ml.m5d.12xlarge" | "ml.m5d.16xlarge" | "ml.m5d.24xlarge" | "ml.c5.large" | "ml.c5.xlarge" | "ml.c5.2xlarge" | "ml.c5.4xlarge" | "ml.c5.9xlarge" | "ml.c5.12xlarge" | "ml.c5.18xlarge" | "ml.c5.24xlarge" | "ml.p3.2xlarge" | "ml.p3.8xlarge" | "ml.p3.16xlarge" | "ml.p3dn.24xlarge" | "ml.g4dn.xlarge" | "ml.g4dn.2xlarge" | "ml.g4dn.4xlarge" | "ml.g4dn.8xlarge" | "ml.g4dn.12xlarge" | "ml.g4dn.16xlarge" | "ml.r5.large" | "ml.r5.xlarge" | "ml.r5.2xlarge" | "ml.r5.4xlarge" | "ml.r5.8xlarge" | "ml.r5.12xlarge" | "ml.r5.16xlarge" | "ml.r5.24xlarge" | "ml.g5.xlarge" | "ml.g5.2xlarge" | "ml.g5.4xlarge" | "ml.g5.8xlarge" | "ml.g5.12xlarge" | "ml.g5.16xlarge" | "ml.g5.24xlarge" | "ml.g5.48xlarge" | "ml.g6.xlarge" | "ml.g6.2xlarge" | "ml.g6.4xlarge" | "ml.g6.8xlarge" | "ml.g6.12xlarge" | "ml.g6.16xlarge" | "ml.g6.24xlarge" | "ml.g6.48xlarge" | "ml.g6e.xlarge" | "ml.g6e.2xlarge" | "ml.g6e.4xlarge" | "ml.g6e.8xlarge" | "ml.g6e.12xlarge" | "ml.g6e.16xlarge" | "ml.g6e.24xlarge" | "ml.g6e.48xlarge" | "ml.geospatial.interactive" | "ml.p4d.24xlarge" | "ml.p4de.24xlarge" | "ml.trn1.2xlarge" | "ml.trn1.32xlarge" | "ml.trn1n.32xlarge" | "ml.p5.48xlarge" | "ml.p5e.48xlarge" | "ml.p5en.48xlarge" | "ml.m6i.large" | "ml.m6i.xlarge" | "ml.m6i.2xlarge" | "ml.m6i.4xlarge" | "ml.m6i.8xlarge" | "ml.m6i.12xlarge" | "ml.m6i.16xlarge" | "ml.m6i.24xlarge" | "ml.m6i.32xlarge" | "ml.m7i.large" | "ml.m7i.xlarge" | "ml.m7i.2xlarge" | "ml.m7i.4xlarge" | "ml.m7i.8xlarge" | "ml.m7i.12xlarge" | "ml.m7i.16xlarge" | "ml.m7i.24xlarge" | "ml.m7i.48xlarge" | "ml.c6i.large" | "ml.c6i.xlarge" | "ml.c6i.2xlarge" | "ml.c6i.4xlarge" | "ml.c6i.8xlarge" | "ml.c6i.12xlarge" | "ml.c6i.16xlarge" | "ml.c6i.24xlarge" | "ml.c6i.32xlarge" | "ml.c7i.large" | "ml.c7i.xlarge" | "ml.c7i.2xlarge" | "ml.c7i.4xlarge" | "ml.c7i.8xlarge" | "ml.c7i.12xlarge" | "ml.c7i.16xlarge" | "ml.c7i.24xlarge" | "ml.c7i.48xlarge" | "ml.r6i.large" | "ml.r6i.xlarge" | "ml.r6i.2xlarge" | "ml.r6i.4xlarge" | "ml.r6i.8xlarge" | "ml.r6i.12xlarge" | "ml.r6i.16xlarge" | "ml.r6i.24xlarge" | "ml.r6i.32xlarge" | "ml.r7i.large" | "ml.r7i.xlarge" | "ml.r7i.2xlarge" | "ml.r7i.4xlarge" | "ml.r7i.8xlarge" | "ml.r7i.12xlarge" | "ml.r7i.16xlarge" | "ml.r7i.24xlarge" | "ml.r7i.48xlarge" | "ml.m6id.large" | "ml.m6id.xlarge" | "ml.m6id.2xlarge" | "ml.m6id.4xlarge" | "ml.m6id.8xlarge" | "ml.m6id.12xlarge" | "ml.m6id.16xlarge" | "ml.m6id.24xlarge" | "ml.m6id.32xlarge" | "ml.c6id.large" | "ml.c6id.xlarge" | "ml.c6id.2xlarge" | "ml.c6id.4xlarge" | "ml.c6id.8xlarge" | "ml.c6id.12xlarge" | "ml.c6id.16xlarge" | "ml.c6id.24xlarge" | "ml.c6id.32xlarge" | "ml.r6id.large" | "ml.r6id.xlarge" | "ml.r6id.2xlarge" | "ml.r6id.4xlarge" | "ml.r6id.8xlarge" | "ml.r6id.12xlarge" | "ml.r6id.16xlarge" | "ml.r6id.24xlarge" | "ml.r6id.32xlarge";
+        /**
+         * The Amazon Resource Name (ARN) of the SageMaker image that the image version belongs to.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image/[a-z0-9]([-.]?[a-z0-9])*$
+         */
+        SageMakerImageArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the image version created on the instance.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*/[0-9]+$
+         */
+        SageMakerImageVersionArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the Lifecycle Configuration to attach to the Resource.
+         * @maxLength 256
+         * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+         */
+        LifecycleConfigArn?: string;
+      };
+      /**
+       * A list of LifecycleConfigArns available for use with JupyterServer apps.
+       * @minItems 0
+       * @maxItems 30
+       * @uniqueItems false
+       */
+      LifecycleConfigArns?: string[];
+    };
+    /** The kernel gateway app settings. */
+    KernelGatewayAppSettings?: {
+      /**
+       * A list of custom SageMaker images that are configured to run as a KernelGateway app.
+       * @minItems 0
+       * @maxItems 200
+       * @uniqueItems false
+       */
+      CustomImages?: {
+        /**
+         * The Name of the AppImageConfig.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}
+         */
+        AppImageConfigName: string;
+        /**
+         * The name of the CustomImage. Must be unique to your account.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9]([-.]?[a-zA-Z0-9]){0,62}$
+         */
+        ImageName: string;
+        /**
+         * The version number of the CustomImage.
+         * @minimum 0
+         */
+        ImageVersionNumber?: number;
+      }[];
+      /**
+       * The default instance type and the Amazon Resource Name (ARN) of the default SageMaker image used by
+       * the KernelGateway app.
+       */
+      DefaultResourceSpec?: {
+        InstanceType?: "system" | "ml.t3.micro" | "ml.t3.small" | "ml.t3.medium" | "ml.t3.large" | "ml.t3.xlarge" | "ml.t3.2xlarge" | "ml.m5.large" | "ml.m5.xlarge" | "ml.m5.2xlarge" | "ml.m5.4xlarge" | "ml.m5.8xlarge" | "ml.m5.12xlarge" | "ml.m5.16xlarge" | "ml.m5.24xlarge" | "ml.m5d.large" | "ml.m5d.xlarge" | "ml.m5d.2xlarge" | "ml.m5d.4xlarge" | "ml.m5d.8xlarge" | "ml.m5d.12xlarge" | "ml.m5d.16xlarge" | "ml.m5d.24xlarge" | "ml.c5.large" | "ml.c5.xlarge" | "ml.c5.2xlarge" | "ml.c5.4xlarge" | "ml.c5.9xlarge" | "ml.c5.12xlarge" | "ml.c5.18xlarge" | "ml.c5.24xlarge" | "ml.p3.2xlarge" | "ml.p3.8xlarge" | "ml.p3.16xlarge" | "ml.p3dn.24xlarge" | "ml.g4dn.xlarge" | "ml.g4dn.2xlarge" | "ml.g4dn.4xlarge" | "ml.g4dn.8xlarge" | "ml.g4dn.12xlarge" | "ml.g4dn.16xlarge" | "ml.r5.large" | "ml.r5.xlarge" | "ml.r5.2xlarge" | "ml.r5.4xlarge" | "ml.r5.8xlarge" | "ml.r5.12xlarge" | "ml.r5.16xlarge" | "ml.r5.24xlarge" | "ml.g5.xlarge" | "ml.g5.2xlarge" | "ml.g5.4xlarge" | "ml.g5.8xlarge" | "ml.g5.12xlarge" | "ml.g5.16xlarge" | "ml.g5.24xlarge" | "ml.g5.48xlarge" | "ml.g6.xlarge" | "ml.g6.2xlarge" | "ml.g6.4xlarge" | "ml.g6.8xlarge" | "ml.g6.12xlarge" | "ml.g6.16xlarge" | "ml.g6.24xlarge" | "ml.g6.48xlarge" | "ml.g6e.xlarge" | "ml.g6e.2xlarge" | "ml.g6e.4xlarge" | "ml.g6e.8xlarge" | "ml.g6e.12xlarge" | "ml.g6e.16xlarge" | "ml.g6e.24xlarge" | "ml.g6e.48xlarge" | "ml.geospatial.interactive" | "ml.p4d.24xlarge" | "ml.p4de.24xlarge" | "ml.trn1.2xlarge" | "ml.trn1.32xlarge" | "ml.trn1n.32xlarge" | "ml.p5.48xlarge" | "ml.p5e.48xlarge" | "ml.p5en.48xlarge" | "ml.m6i.large" | "ml.m6i.xlarge" | "ml.m6i.2xlarge" | "ml.m6i.4xlarge" | "ml.m6i.8xlarge" | "ml.m6i.12xlarge" | "ml.m6i.16xlarge" | "ml.m6i.24xlarge" | "ml.m6i.32xlarge" | "ml.m7i.large" | "ml.m7i.xlarge" | "ml.m7i.2xlarge" | "ml.m7i.4xlarge" | "ml.m7i.8xlarge" | "ml.m7i.12xlarge" | "ml.m7i.16xlarge" | "ml.m7i.24xlarge" | "ml.m7i.48xlarge" | "ml.c6i.large" | "ml.c6i.xlarge" | "ml.c6i.2xlarge" | "ml.c6i.4xlarge" | "ml.c6i.8xlarge" | "ml.c6i.12xlarge" | "ml.c6i.16xlarge" | "ml.c6i.24xlarge" | "ml.c6i.32xlarge" | "ml.c7i.large" | "ml.c7i.xlarge" | "ml.c7i.2xlarge" | "ml.c7i.4xlarge" | "ml.c7i.8xlarge" | "ml.c7i.12xlarge" | "ml.c7i.16xlarge" | "ml.c7i.24xlarge" | "ml.c7i.48xlarge" | "ml.r6i.large" | "ml.r6i.xlarge" | "ml.r6i.2xlarge" | "ml.r6i.4xlarge" | "ml.r6i.8xlarge" | "ml.r6i.12xlarge" | "ml.r6i.16xlarge" | "ml.r6i.24xlarge" | "ml.r6i.32xlarge" | "ml.r7i.large" | "ml.r7i.xlarge" | "ml.r7i.2xlarge" | "ml.r7i.4xlarge" | "ml.r7i.8xlarge" | "ml.r7i.12xlarge" | "ml.r7i.16xlarge" | "ml.r7i.24xlarge" | "ml.r7i.48xlarge" | "ml.m6id.large" | "ml.m6id.xlarge" | "ml.m6id.2xlarge" | "ml.m6id.4xlarge" | "ml.m6id.8xlarge" | "ml.m6id.12xlarge" | "ml.m6id.16xlarge" | "ml.m6id.24xlarge" | "ml.m6id.32xlarge" | "ml.c6id.large" | "ml.c6id.xlarge" | "ml.c6id.2xlarge" | "ml.c6id.4xlarge" | "ml.c6id.8xlarge" | "ml.c6id.12xlarge" | "ml.c6id.16xlarge" | "ml.c6id.24xlarge" | "ml.c6id.32xlarge" | "ml.r6id.large" | "ml.r6id.xlarge" | "ml.r6id.2xlarge" | "ml.r6id.4xlarge" | "ml.r6id.8xlarge" | "ml.r6id.12xlarge" | "ml.r6id.16xlarge" | "ml.r6id.24xlarge" | "ml.r6id.32xlarge";
+        /**
+         * The Amazon Resource Name (ARN) of the SageMaker image that the image version belongs to.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image/[a-z0-9]([-.]?[a-z0-9])*$
+         */
+        SageMakerImageArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the image version created on the instance.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*/[0-9]+$
+         */
+        SageMakerImageVersionArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the Lifecycle Configuration to attach to the Resource.
+         * @maxLength 256
+         * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+         */
+        LifecycleConfigArn?: string;
+      };
+      /**
+       * A list of LifecycleConfigArns available for use with KernelGateway apps.
+       * @minItems 0
+       * @maxItems 30
+       * @uniqueItems false
+       */
+      LifecycleConfigArns?: string[];
+    };
+    /**
+     * The security groups for the Amazon Virtual Private Cloud (VPC) that Studio uses for communication.
+     * @minItems 0
+     * @maxItems 5
+     * @uniqueItems false
+     */
+    SecurityGroups?: string[];
+    /** The Jupyter lab's app settings. */
+    JupyterLabAppSettings?: {
+      /**
+       * The default instance type and the Amazon Resource Name (ARN) of the default SageMaker image used by
+       * the JupyterLab app.
+       */
+      DefaultResourceSpec?: {
+        InstanceType?: "system" | "ml.t3.micro" | "ml.t3.small" | "ml.t3.medium" | "ml.t3.large" | "ml.t3.xlarge" | "ml.t3.2xlarge" | "ml.m5.large" | "ml.m5.xlarge" | "ml.m5.2xlarge" | "ml.m5.4xlarge" | "ml.m5.8xlarge" | "ml.m5.12xlarge" | "ml.m5.16xlarge" | "ml.m5.24xlarge" | "ml.m5d.large" | "ml.m5d.xlarge" | "ml.m5d.2xlarge" | "ml.m5d.4xlarge" | "ml.m5d.8xlarge" | "ml.m5d.12xlarge" | "ml.m5d.16xlarge" | "ml.m5d.24xlarge" | "ml.c5.large" | "ml.c5.xlarge" | "ml.c5.2xlarge" | "ml.c5.4xlarge" | "ml.c5.9xlarge" | "ml.c5.12xlarge" | "ml.c5.18xlarge" | "ml.c5.24xlarge" | "ml.p3.2xlarge" | "ml.p3.8xlarge" | "ml.p3.16xlarge" | "ml.p3dn.24xlarge" | "ml.g4dn.xlarge" | "ml.g4dn.2xlarge" | "ml.g4dn.4xlarge" | "ml.g4dn.8xlarge" | "ml.g4dn.12xlarge" | "ml.g4dn.16xlarge" | "ml.r5.large" | "ml.r5.xlarge" | "ml.r5.2xlarge" | "ml.r5.4xlarge" | "ml.r5.8xlarge" | "ml.r5.12xlarge" | "ml.r5.16xlarge" | "ml.r5.24xlarge" | "ml.g5.xlarge" | "ml.g5.2xlarge" | "ml.g5.4xlarge" | "ml.g5.8xlarge" | "ml.g5.12xlarge" | "ml.g5.16xlarge" | "ml.g5.24xlarge" | "ml.g5.48xlarge" | "ml.g6.xlarge" | "ml.g6.2xlarge" | "ml.g6.4xlarge" | "ml.g6.8xlarge" | "ml.g6.12xlarge" | "ml.g6.16xlarge" | "ml.g6.24xlarge" | "ml.g6.48xlarge" | "ml.g6e.xlarge" | "ml.g6e.2xlarge" | "ml.g6e.4xlarge" | "ml.g6e.8xlarge" | "ml.g6e.12xlarge" | "ml.g6e.16xlarge" | "ml.g6e.24xlarge" | "ml.g6e.48xlarge" | "ml.geospatial.interactive" | "ml.p4d.24xlarge" | "ml.p4de.24xlarge" | "ml.trn1.2xlarge" | "ml.trn1.32xlarge" | "ml.trn1n.32xlarge" | "ml.p5.48xlarge" | "ml.p5e.48xlarge" | "ml.p5en.48xlarge" | "ml.m6i.large" | "ml.m6i.xlarge" | "ml.m6i.2xlarge" | "ml.m6i.4xlarge" | "ml.m6i.8xlarge" | "ml.m6i.12xlarge" | "ml.m6i.16xlarge" | "ml.m6i.24xlarge" | "ml.m6i.32xlarge" | "ml.m7i.large" | "ml.m7i.xlarge" | "ml.m7i.2xlarge" | "ml.m7i.4xlarge" | "ml.m7i.8xlarge" | "ml.m7i.12xlarge" | "ml.m7i.16xlarge" | "ml.m7i.24xlarge" | "ml.m7i.48xlarge" | "ml.c6i.large" | "ml.c6i.xlarge" | "ml.c6i.2xlarge" | "ml.c6i.4xlarge" | "ml.c6i.8xlarge" | "ml.c6i.12xlarge" | "ml.c6i.16xlarge" | "ml.c6i.24xlarge" | "ml.c6i.32xlarge" | "ml.c7i.large" | "ml.c7i.xlarge" | "ml.c7i.2xlarge" | "ml.c7i.4xlarge" | "ml.c7i.8xlarge" | "ml.c7i.12xlarge" | "ml.c7i.16xlarge" | "ml.c7i.24xlarge" | "ml.c7i.48xlarge" | "ml.r6i.large" | "ml.r6i.xlarge" | "ml.r6i.2xlarge" | "ml.r6i.4xlarge" | "ml.r6i.8xlarge" | "ml.r6i.12xlarge" | "ml.r6i.16xlarge" | "ml.r6i.24xlarge" | "ml.r6i.32xlarge" | "ml.r7i.large" | "ml.r7i.xlarge" | "ml.r7i.2xlarge" | "ml.r7i.4xlarge" | "ml.r7i.8xlarge" | "ml.r7i.12xlarge" | "ml.r7i.16xlarge" | "ml.r7i.24xlarge" | "ml.r7i.48xlarge" | "ml.m6id.large" | "ml.m6id.xlarge" | "ml.m6id.2xlarge" | "ml.m6id.4xlarge" | "ml.m6id.8xlarge" | "ml.m6id.12xlarge" | "ml.m6id.16xlarge" | "ml.m6id.24xlarge" | "ml.m6id.32xlarge" | "ml.c6id.large" | "ml.c6id.xlarge" | "ml.c6id.2xlarge" | "ml.c6id.4xlarge" | "ml.c6id.8xlarge" | "ml.c6id.12xlarge" | "ml.c6id.16xlarge" | "ml.c6id.24xlarge" | "ml.c6id.32xlarge" | "ml.r6id.large" | "ml.r6id.xlarge" | "ml.r6id.2xlarge" | "ml.r6id.4xlarge" | "ml.r6id.8xlarge" | "ml.r6id.12xlarge" | "ml.r6id.16xlarge" | "ml.r6id.24xlarge" | "ml.r6id.32xlarge";
+        /**
+         * The Amazon Resource Name (ARN) of the SageMaker image that the image version belongs to.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image/[a-z0-9]([-.]?[a-z0-9])*$
+         */
+        SageMakerImageArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the image version created on the instance.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*/[0-9]+$
+         */
+        SageMakerImageVersionArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the Lifecycle Configuration to attach to the Resource.
+         * @maxLength 256
+         * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+         */
+        LifecycleConfigArn?: string;
+      };
+      /**
+       * A list of LifecycleConfigArns available for use with JupyterLab apps.
+       * @minItems 0
+       * @maxItems 30
+       * @uniqueItems false
+       */
+      LifecycleConfigArns?: string[];
+      /**
+       * A list of CodeRepositories available for use with JupyterLab apps.
+       * @minItems 0
+       * @maxItems 30
+       * @uniqueItems false
+       */
+      CodeRepositories?: {
+        /**
+         * A CodeRepository (valid URL) to be used within Jupyter's Git extension.
+         * @maxLength 256
+         * @pattern ^https://([.\-_a-zA-Z0-9]+/?){3,1016}$
+         */
+        RepositoryUrl: string;
+      }[];
+      /**
+       * A list of custom images for use for JupyterLab apps.
+       * @minItems 0
+       * @maxItems 200
+       * @uniqueItems false
+       */
+      CustomImages?: {
+        /**
+         * The Name of the AppImageConfig.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}
+         */
+        AppImageConfigName: string;
+        /**
+         * The name of the CustomImage. Must be unique to your account.
+         * @maxLength 63
+         * @pattern ^[a-zA-Z0-9]([-.]?[a-zA-Z0-9]){0,62}$
+         */
+        ImageName: string;
+        /**
+         * The version number of the CustomImage.
+         * @minimum 0
+         */
+        ImageVersionNumber?: number;
+      }[];
+      AppLifecycleManagement?: {
+        IdleSettings?: {
+          LifecycleManagement?: "ENABLED" | "DISABLED";
+          IdleTimeoutInMinutes?: number;
+          MinIdleTimeoutInMinutes?: number;
+          MaxIdleTimeoutInMinutes?: number;
+        };
+      };
+      /**
+       * The lifecycle configuration that runs before the default lifecycle configuration.
+       * @maxLength 256
+       * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+       */
+      BuiltInLifecycleConfigArn?: string;
+    };
+    /** The Jupyter lab's space storage settings. */
+    SpaceStorageSettings?: {
+      DefaultEbsStorageSettings?: {
+        /** Default size of the Amazon EBS volume in Gb */
+        DefaultEbsVolumeSizeInGb: number;
+        /**
+         * Maximum size of the Amazon EBS volume in Gb. Must be greater than or equal to the
+         * DefaultEbsVolumeSizeInGb.
+         */
+        MaximumEbsVolumeSizeInGb: number;
+      };
+    };
+    /** The Jupyter lab's custom posix user configurations. */
+    CustomPosixUserConfig?: {
+      /**
+       * @minimum 10000
+       * @maximum 4000000
+       */
+      Uid: number;
+      /**
+       * @minimum 1001
+       * @maximum 4000000
+       */
+      Gid: number;
+    };
+    /**
+     * @minItems 0
+     * @maxItems 2
+     * @uniqueItems true
+     */
+    CustomFileSystemConfigs?: {
+      EFSFileSystemConfig?: {
+        /**
+         * @minLength 1
+         * @maxLength 256
+         * @pattern ^\/\S*$
+         */
+        FileSystemPath?: string;
+        /**
+         * @minLength 11
+         * @maxLength 21
+         * @pattern ^(fs-[0-9a-f]{8,})$
+         */
+        FileSystemId: string;
+      };
+      FSxLustreFileSystemConfig?: {
+        /**
+         * @minLength 1
+         * @maxLength 256
+         * @pattern ^\/\S*$
+         */
+        FileSystemPath?: string;
+        /**
+         * @minLength 11
+         * @maxLength 21
+         * @pattern ^(fs-[0-9a-f]{8,})$
+         */
+        FileSystemId: string;
+      };
+      S3FileSystemConfig?: {
+        /**
+         * @minLength 0
+         * @maxLength 1024
+         */
+        MountPath?: string;
+        /**
+         * @minLength 0
+         * @maxLength 1024
+         * @pattern (s3)://([^/]+)/?(.*)
+         */
+        S3Uri?: string;
+      };
+    }[];
+  };
+  /**
+   * A name for the domain.
+   * @maxLength 63
+   * @pattern ^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}
+   */
+  DomainName: string;
+  /**
+   * SageMaker uses AWS KMS to encrypt the EFS volume attached to the domain with an AWS managed
+   * customer master key (CMK) by default.
+   * @maxLength 2048
+   * @pattern .*
+   */
+  KmsKeyId?: string;
+  /**
+   * The VPC subnets that Studio uses for communication.
+   * @minItems 1
+   * @maxItems 16
+   * @uniqueItems false
+   */
+  SubnetIds?: string[];
+  /**
+   * A list of tags to apply to the user profile.
+   * @minItems 0
+   * @maxItems 50
+   * @uniqueItems false
+   */
+  Tags?: {
+    /**
+     * @minLength 1
+     * @maxLength 128
+     */
+    Value: string;
+    /**
+     * @minLength 1
+     * @maxLength 128
+     */
+    Key: string;
+  }[];
+  /**
+   * The ID of the Amazon Virtual Private Cloud (VPC) that Studio uses for communication.
+   * @maxLength 32
+   * @pattern [-0-9a-zA-Z]+
+   */
+  VpcId?: string;
+  /**
+   * The domain name.
+   * @maxLength 63
+   * @pattern ^d-(-*[a-z0-9])+
+   */
+  DomainId?: string;
+  /**
+   * The ID of the Amazon Elastic File System (EFS) managed by this Domain.
+   * @maxLength 32
+   */
+  HomeEfsFileSystemId?: string;
+  /**
+   * The SSO managed application instance ID.
+   * @maxLength 256
+   */
+  SingleSignOnManagedApplicationInstanceId?: string;
+  /**
+   * The ARN of the application managed by SageMaker in IAM Identity Center. This value is only returned
+   * for domains created after October 1, 2023.
+   * @pattern ^arn:(aws|aws-us-gov|aws-cn|aws-iso|aws-iso-b):sso::[0-9]+:application/[a-zA-Z0-9-_.]+/apl-[a-zA-Z0-9]+$
+   */
+  SingleSignOnApplicationArn?: string;
+  DomainSettings?: {
+    /**
+     * The security groups for the Amazon Virtual Private Cloud that the Domain uses for communication
+     * between Domain-level apps and user apps.
+     * @minItems 1
+     * @maxItems 3
+     * @uniqueItems false
+     */
+    SecurityGroupIds?: string[];
+    RStudioServerProDomainSettings?: {
+      /**
+       * The ARN of the execution role for the RStudioServerPro Domain-level app.
+       * @minLength 20
+       * @maxLength 2048
+       * @pattern ^arn:aws[a-z\-]*:iam::\d{12}:role/?[a-zA-Z_0-9+=,.@\-_/]+$
+       */
+      DomainExecutionRoleArn: string;
+      /**
+       * A URL pointing to an RStudio Connect server.
+       * @pattern ^(https:|http:|www\.)\S*
+       */
+      RStudioConnectUrl?: string;
+      /**
+       * A URL pointing to an RStudio Package Manager server.
+       * @pattern ^(https:|http:|www\.)\S*
+       */
+      RStudioPackageManagerUrl?: string;
+      DefaultResourceSpec?: {
+        InstanceType?: "system" | "ml.t3.micro" | "ml.t3.small" | "ml.t3.medium" | "ml.t3.large" | "ml.t3.xlarge" | "ml.t3.2xlarge" | "ml.m5.large" | "ml.m5.xlarge" | "ml.m5.2xlarge" | "ml.m5.4xlarge" | "ml.m5.8xlarge" | "ml.m5.12xlarge" | "ml.m5.16xlarge" | "ml.m5.24xlarge" | "ml.m5d.large" | "ml.m5d.xlarge" | "ml.m5d.2xlarge" | "ml.m5d.4xlarge" | "ml.m5d.8xlarge" | "ml.m5d.12xlarge" | "ml.m5d.16xlarge" | "ml.m5d.24xlarge" | "ml.c5.large" | "ml.c5.xlarge" | "ml.c5.2xlarge" | "ml.c5.4xlarge" | "ml.c5.9xlarge" | "ml.c5.12xlarge" | "ml.c5.18xlarge" | "ml.c5.24xlarge" | "ml.p3.2xlarge" | "ml.p3.8xlarge" | "ml.p3.16xlarge" | "ml.p3dn.24xlarge" | "ml.g4dn.xlarge" | "ml.g4dn.2xlarge" | "ml.g4dn.4xlarge" | "ml.g4dn.8xlarge" | "ml.g4dn.12xlarge" | "ml.g4dn.16xlarge" | "ml.r5.large" | "ml.r5.xlarge" | "ml.r5.2xlarge" | "ml.r5.4xlarge" | "ml.r5.8xlarge" | "ml.r5.12xlarge" | "ml.r5.16xlarge" | "ml.r5.24xlarge" | "ml.g5.xlarge" | "ml.g5.2xlarge" | "ml.g5.4xlarge" | "ml.g5.8xlarge" | "ml.g5.12xlarge" | "ml.g5.16xlarge" | "ml.g5.24xlarge" | "ml.g5.48xlarge" | "ml.g6.xlarge" | "ml.g6.2xlarge" | "ml.g6.4xlarge" | "ml.g6.8xlarge" | "ml.g6.12xlarge" | "ml.g6.16xlarge" | "ml.g6.24xlarge" | "ml.g6.48xlarge" | "ml.g6e.xlarge" | "ml.g6e.2xlarge" | "ml.g6e.4xlarge" | "ml.g6e.8xlarge" | "ml.g6e.12xlarge" | "ml.g6e.16xlarge" | "ml.g6e.24xlarge" | "ml.g6e.48xlarge" | "ml.geospatial.interactive" | "ml.p4d.24xlarge" | "ml.p4de.24xlarge" | "ml.trn1.2xlarge" | "ml.trn1.32xlarge" | "ml.trn1n.32xlarge" | "ml.p5.48xlarge" | "ml.p5e.48xlarge" | "ml.p5en.48xlarge" | "ml.m6i.large" | "ml.m6i.xlarge" | "ml.m6i.2xlarge" | "ml.m6i.4xlarge" | "ml.m6i.8xlarge" | "ml.m6i.12xlarge" | "ml.m6i.16xlarge" | "ml.m6i.24xlarge" | "ml.m6i.32xlarge" | "ml.m7i.large" | "ml.m7i.xlarge" | "ml.m7i.2xlarge" | "ml.m7i.4xlarge" | "ml.m7i.8xlarge" | "ml.m7i.12xlarge" | "ml.m7i.16xlarge" | "ml.m7i.24xlarge" | "ml.m7i.48xlarge" | "ml.c6i.large" | "ml.c6i.xlarge" | "ml.c6i.2xlarge" | "ml.c6i.4xlarge" | "ml.c6i.8xlarge" | "ml.c6i.12xlarge" | "ml.c6i.16xlarge" | "ml.c6i.24xlarge" | "ml.c6i.32xlarge" | "ml.c7i.large" | "ml.c7i.xlarge" | "ml.c7i.2xlarge" | "ml.c7i.4xlarge" | "ml.c7i.8xlarge" | "ml.c7i.12xlarge" | "ml.c7i.16xlarge" | "ml.c7i.24xlarge" | "ml.c7i.48xlarge" | "ml.r6i.large" | "ml.r6i.xlarge" | "ml.r6i.2xlarge" | "ml.r6i.4xlarge" | "ml.r6i.8xlarge" | "ml.r6i.12xlarge" | "ml.r6i.16xlarge" | "ml.r6i.24xlarge" | "ml.r6i.32xlarge" | "ml.r7i.large" | "ml.r7i.xlarge" | "ml.r7i.2xlarge" | "ml.r7i.4xlarge" | "ml.r7i.8xlarge" | "ml.r7i.12xlarge" | "ml.r7i.16xlarge" | "ml.r7i.24xlarge" | "ml.r7i.48xlarge" | "ml.m6id.large" | "ml.m6id.xlarge" | "ml.m6id.2xlarge" | "ml.m6id.4xlarge" | "ml.m6id.8xlarge" | "ml.m6id.12xlarge" | "ml.m6id.16xlarge" | "ml.m6id.24xlarge" | "ml.m6id.32xlarge" | "ml.c6id.large" | "ml.c6id.xlarge" | "ml.c6id.2xlarge" | "ml.c6id.4xlarge" | "ml.c6id.8xlarge" | "ml.c6id.12xlarge" | "ml.c6id.16xlarge" | "ml.c6id.24xlarge" | "ml.c6id.32xlarge" | "ml.r6id.large" | "ml.r6id.xlarge" | "ml.r6id.2xlarge" | "ml.r6id.4xlarge" | "ml.r6id.8xlarge" | "ml.r6id.12xlarge" | "ml.r6id.16xlarge" | "ml.r6id.24xlarge" | "ml.r6id.32xlarge";
+        /**
+         * The Amazon Resource Name (ARN) of the SageMaker image that the image version belongs to.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image/[a-z0-9]([-.]?[a-z0-9])*$
+         */
+        SageMakerImageArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the image version created on the instance.
+         * @maxLength 256
+         * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*/[0-9]+$
+         */
+        SageMakerImageVersionArn?: string;
+        /**
+         * The Amazon Resource Name (ARN) of the Lifecycle Configuration to attach to the Resource.
+         * @maxLength 256
+         * @pattern ^(arn:aws[a-z\-]*:sagemaker:[a-z0-9\-]*:[0-9]{12}:studio-lifecycle-config/.*|None)$
+         */
+        LifecycleConfigArn?: string;
+      };
+    };
+    DockerSettings?: {
+      /**
+       * The flag to enable/disable docker-proxy server
+       * @enum ["ENABLED","DISABLED"]
+       */
+      EnableDockerAccess?: "ENABLED" | "DISABLED";
+      /**
+       * A list of account id's that would be used to pull images from in VpcOnly mode
+       * @minItems 0
+       * @maxItems 20
+       * @uniqueItems false
+       */
+      VpcOnlyTrustedAccounts?: string[];
+    };
+    /**
+     * The configuration for attaching a SageMaker user profile name to the execution role as a
+     * sts:SourceIdentity key.
+     * @enum ["USER_PROFILE_NAME","DISABLED"]
+     */
+    ExecutionRoleIdentityConfig?: "USER_PROFILE_NAME" | "DISABLED";
+    UnifiedStudioSettings?: {
+      /**
+       * Sets whether you can access the domain in Amazon SageMaker Studio:
+       * ENABLED
+       * You can access the domain in Amazon SageMaker Studio. If you migrate the domain to Amazon SageMaker
+       * Unified Studio, you can access it in both studio interfaces.
+       * DISABLED
+       * You can't access the domain in Amazon SageMaker Studio. If you migrate the domain to Amazon
+       * SageMaker Unified Studio, you can access it only in that studio interface.
+       * @enum ["ENABLED","DISABLED"]
+       */
+      StudioWebPortalAccess?: "ENABLED" | "DISABLED";
+      /**
+       * The ID of the AWS account that has the Amazon SageMaker Unified Studio domain. The default value,
+       * if you don't specify an ID, is the ID of the account that has the Amazon SageMaker AI domain.
+       * @minLength 12
+       * @maxLength 12
+       * @pattern ^\d+$
+       */
+      DomainAccountId?: string;
+      /**
+       * The AWS Region where the domain is located in Amazon SageMaker Unified Studio. The default value,
+       * if you don't specify a Region, is the Region where the Amazon SageMaker AI domain is located.
+       * @pattern [a-zA-Z]{2}-[a-zA-Z\-]+-\d+
+       */
+      DomainRegion?: string;
+      /**
+       * The ID of the Amazon SageMaker Unified Studio domain associated with this domain.
+       * @minLength 1
+       * @maxLength 36
+       * @pattern ^dzd[-_][a-zA-Z0-9_-]{1,36}$
+       */
+      DomainId?: string;
+      /**
+       * The ID of the Amazon SageMaker Unified Studio project that corresponds to the domain.
+       * @pattern ^[a-zA-Z0-9_-]{1,36}$
+       */
+      ProjectId?: string;
+      /**
+       * The ID of the environment that Amazon SageMaker Unified Studio associates with the domain.
+       * @minLength 1
+       * @maxLength 36
+       * @pattern ^[a-zA-Z0-9_-]{1,36}$
+       */
+      EnvironmentId?: string;
+      /**
+       * The location where Amazon S3 stores temporary execution data and other artifacts for the project
+       * that corresponds to the domain.
+       * @minLength 1
+       * @maxLength 100
+       * @pattern [\w\.-]+$
+       */
+      ProjectS3Path?: string;
+    };
+    IpAddressType?: "IPV4" | "DUALSTACK";
+  };
+  /**
+   * The entity that creates and manages the required security groups for inter-app communication in
+   * VPCOnly mode. Required when CreateDomain.AppNetworkAccessType is VPCOnly and
+   * DomainSettings.RStudioServerProDomainSettings.DomainExecutionRoleArn is provided.
+   * @enum ["Service","Customer"]
+   */
+  AppSecurityGroupManagement?: "Service" | "Customer";
+  /**
+   * The ID of the security group that authorizes traffic between the RSessionGateway apps and the
+   * RStudioServerPro app.
+   * @maxLength 32
+   * @pattern [-0-9a-zA-Z]+
+   */
+  SecurityGroupIdForDomainBoundary?: string;
+  /**
+   * Indicates whether the tags added to Domain, User Profile and Space entity is propagated to all
+   * SageMaker resources.
+   * @enum ["ENABLED","DISABLED"]
+   */
+  TagPropagation?: "ENABLED" | "DISABLED";
+};

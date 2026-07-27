@@ -1,0 +1,62 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  eventStream:
+    type: kinesis-stream
+
+  analyticsTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: pk
+          type: string
+        sortKey:
+          name: sk
+          type: string
+
+  processEvents:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/process-events.ts
+      memory: 512
+      timeout: 60
+      connectTo:
+        - analyticsTable
+      events:
+        - type: kinesis-stream
+          properties:
+            kinesisStreamName: eventStream
+            batchSize: 100
+            startingPosition: LATEST
+            maxBatchWindowSeconds: 10
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      memory: 512
+      connectTo:
+        - eventStream
+        - analyticsTable
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /
+            method: '*'
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /{proxy+}
+            method: '*'

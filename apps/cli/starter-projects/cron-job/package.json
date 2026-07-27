@@ -1,0 +1,6 @@
+{
+  "name": "cron-job",
+  "private": true,
+  "scripts": {},
+  "dependencies": {}
+}

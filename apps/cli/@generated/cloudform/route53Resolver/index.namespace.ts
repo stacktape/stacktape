@@ -1,0 +1,35 @@
+import FirewallDomainList_ from './firewallDomainList';
+import FirewallRuleGroup_ from './firewallRuleGroup';
+import FirewallRuleGroupAssociation_ from './firewallRuleGroupAssociation';
+import OutpostResolver_ from './outpostResolver';
+import ResolverConfig_ from './resolverConfig';
+import ResolverDNSSECConfig_ from './resolverDnssecConfig';
+import ResolverEndpoint_ from './resolverEndpoint';
+import ResolverQueryLoggingConfig_ from './resolverQueryLoggingConfig';
+import ResolverQueryLoggingConfigAssociation_ from './resolverQueryLoggingConfigAssociation';
+import ResolverRule_ from './resolverRule';
+import ResolverRuleAssociation_ from './resolverRuleAssociation';
+export namespace Route53Resolver {
+  export const FirewallDomainList = FirewallDomainList_;
+  export const FirewallRuleGroup = FirewallRuleGroup_;
+  export const FirewallRuleGroupAssociation = FirewallRuleGroupAssociation_;
+  export const OutpostResolver = OutpostResolver_;
+  export const ResolverConfig = ResolverConfig_;
+  export const ResolverDNSSECConfig = ResolverDNSSECConfig_;
+  export const ResolverEndpoint = ResolverEndpoint_;
+  export const ResolverQueryLoggingConfig = ResolverQueryLoggingConfig_;
+  export const ResolverQueryLoggingConfigAssociation = ResolverQueryLoggingConfigAssociation_;
+  export const ResolverRule = ResolverRule_;
+  export const ResolverRuleAssociation = ResolverRuleAssociation_;
+  export type FirewallDomainList = FirewallDomainList_;
+  export type FirewallRuleGroup = FirewallRuleGroup_;
+  export type FirewallRuleGroupAssociation = FirewallRuleGroupAssociation_;
+  export type OutpostResolver = OutpostResolver_;
+  export type ResolverConfig = ResolverConfig_;
+  export type ResolverDNSSECConfig = ResolverDNSSECConfig_;
+  export type ResolverEndpoint = ResolverEndpoint_;
+  export type ResolverQueryLoggingConfig = ResolverQueryLoggingConfig_;
+  export type ResolverQueryLoggingConfigAssociation = ResolverQueryLoggingConfigAssociation_;
+  export type ResolverRule = ResolverRule_;
+  export type ResolverRuleAssociation = ResolverRuleAssociation_;
+}

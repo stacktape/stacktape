@@ -1,0 +1,21 @@
+scripts:
+  build:
+    type: local-script
+    properties:
+      executeCommand: npm run build
+
+hooks:
+  beforeDeploy:
+    - scriptName: build
+
+resources:
+  webBucket:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      hostingContentType: single-page-app
+      # Uncomment to inject environment variables into your SPA at deploy time.
+      # Access them in code via window.STP_INJECTED_ENV
+      # environment:
+      #   - name: API_URL
+      #     value: https://api.example.com

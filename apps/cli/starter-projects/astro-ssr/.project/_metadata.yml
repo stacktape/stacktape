@@ -1,0 +1,7 @@
+name: Astro.js SSR
+tags:
+  - Typescript
+  - Website
+  - SSR
+icon: astro.svg
+priority: 0

@@ -1,0 +1,2 @@
+- simple Server-side rendered [Remix](https://remix.run/) application.
+- The project uses a [Web Service](https://docs.stacktape.com/compute-resources/web-services/) to run the Remix app.

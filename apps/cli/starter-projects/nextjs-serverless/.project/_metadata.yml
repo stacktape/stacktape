@@ -1,0 +1,10 @@
+name: Next.js Serverless (OpenNext)
+tags:
+  - website
+  - Server side rendered website
+  - Typescript
+  - Next.js
+  - React
+  - Lambda
+icon: nextjs-circle.svg
+priority: 0

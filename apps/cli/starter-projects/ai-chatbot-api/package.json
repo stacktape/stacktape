@@ -1,0 +1,9 @@
+{
+  "name": "ai-chatbot-api",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "ai": "^6.0.73",
+    "@ai-sdk/amazon-bedrock": "^4.0.50"
+  }
+}

@@ -1,0 +1,5 @@
+name: Discord Bot
+tags:
+  - Typescript
+icon: typescript.svg
+priority: 100

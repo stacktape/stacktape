@@ -1,0 +1,33 @@
+# `stacktape deploy` provisions the self-hosted Convex infrastructure, generates the
+# managed admin key, and runs `npx convex deploy` against the deployed backend.
+
+resources:
+  convex:
+    type: convex
+    properties:
+      appDirectory: ./convex
+      backend:
+        resources:
+          cpu: 0.5
+          memory: 1024
+      dashboard:
+        enabled: true
+        resources:
+          cpu: 0.25
+          memory: 512
+
+# NOTE: in a real production setup you'd also declare a `nextjs-web` resource pointing
+# at this Convex instance:
+#
+#   web:
+#     type: nextjs-web
+#     properties:
+#       appDirectory: ./
+#       environment:
+#         - name: NEXT_PUBLIC_CONVEX_URL
+#           value: $ResourceParam('convex', 'url')
+#
+# It's commented out in this initial scaffolding because the OpenNext build of the
+# Next.js 15.4.6 starter has an unrelated `--webpack` flag incompatibility on this
+# host. The Next.js code in `app/` is still wired up for when the resolver lands and
+# the build issue is resolved.

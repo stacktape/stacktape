@@ -1,0 +1,2 @@
+- Open the **Web Service URL** printed to the terminal after deploy.
+- To self-host a different app, change the `image` in `stacktape.yml` and adjust environment variables as needed.
