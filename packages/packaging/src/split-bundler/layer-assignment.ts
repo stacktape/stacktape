@@ -5,10 +5,13 @@
  * 1. Identifies high-value chunks (meet usage/size thresholds)
  * 2. Promotes their dependencies to also be layered (even if below threshold)
  * 3. Assigns to layers using First Fit Decreasing (FFD) bin-packing
+ * 4. Un-layers any chunk the packing could not place, along with everything that imports it
  *
  * IMPORTANT: A chunk can only be layered if ALL chunks it depends on are also layered.
  * This is because layered chunks live at /opt/nodejs/chunks/ and cannot import
  * non-layered chunks which live at /var/task/chunks/ (lambda-specific).
+ * Steps 2 and 4 together are what make that hold: promotion alone decides the candidate
+ * set, and the packing can still refuse a candidate after that decision.
  */
 
 import type { ChunkLayerAssignment, ChunkUsageAnalysis, LayerAssignmentResult, LayerConfig } from './types';
@@ -18,6 +21,41 @@ export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   minChunkSize: 1024, // At least 1KB
   maxLayers: 3, // Use up to 3 layers (leave 2 for user's custom layers)
   maxLayerSize: 50 * 1024 * 1024 // 50MB per layer (conservative limit)
+};
+
+/**
+ * Fill the layers with the given chunks, largest first, putting each one in the first layer with room for it.
+ * Reports the chunks that no layer could take.
+ */
+const packIntoLayers = (candidates: ChunkUsageAnalysis[], config: LayerConfig) => {
+  const layerContents = new Map<number, { chunks: string[]; totalSize: number }>();
+  for (let i = 1; i <= config.maxLayers; i++) {
+    layerContents.set(i, { chunks: [], totalSize: 0 });
+  }
+
+  const placements: ChunkLayerAssignment[] = [];
+  const unplaced: ChunkUsageAnalysis[] = [];
+
+  for (const chunk of candidates) {
+    let assignedLayer = 0;
+    for (let layerNum = 1; layerNum <= config.maxLayers; layerNum++) {
+      const layer = layerContents.get(layerNum)!;
+      if (layer.totalSize + chunk.sizeBytes <= config.maxLayerSize) {
+        layer.chunks.push(chunk.chunkName);
+        layer.totalSize += chunk.sizeBytes;
+        assignedLayer = layerNum;
+        break;
+      }
+    }
+
+    if (assignedLayer > 0) {
+      placements.push({ chunkName: chunk.chunkName, chunkPath: chunk.chunkPath, layerNumber: assignedLayer });
+    } else {
+      unplaced.push(chunk);
+    }
+  }
+
+  return { layerContents, placements, unplaced };
 };
 
 export const assignChunksToLayers = (
@@ -102,49 +140,47 @@ export const assignChunksToLayers = (
 
   // Step 4: Assign eligible chunks to layers using FFD bin-packing
   // Sort candidates by size descending for better bin packing
-  const sortedCandidates = [...layerCandidates]
+  let sortedCandidates = [...layerCandidates]
     .map((name) => chunkByName.get(name)!)
     .filter(Boolean)
     .toSorted((a, b) => b.sizeBytes - a.sizeBytes);
 
-  const layeredChunks: ChunkLayerAssignment[] = [];
-  const unLayeredChunks: ChunkLayerAssignment[] = [];
-
-  const layerContents = new Map<number, { chunks: string[]; totalSize: number }>();
-  for (let i = 1; i <= config.maxLayers; i++) {
-    layerContents.set(i, { chunks: [], totalSize: 0 });
-  }
-
-  // First, assign all candidates
-  for (const chunk of sortedCandidates) {
-    let assignedLayer = 0;
-    for (let layerNum = 1; layerNum <= config.maxLayers; layerNum++) {
-      const layer = layerContents.get(layerNum)!;
-      if (layer.totalSize + chunk.sizeBytes <= config.maxLayerSize) {
-        layer.chunks.push(chunk.chunkName);
-        layer.totalSize += chunk.sizeBytes;
-        assignedLayer = layerNum;
-        break;
+  // Which chunks import a given chunk, for when a chunk turns out not to be layerable after all.
+  const importersOf = new Map<string, string[]>();
+  for (const chunk of chunkAnalysis) {
+    for (const dep of chunk.dependsOn) {
+      const importers = importersOf.get(dep);
+      if (importers) {
+        importers.push(chunk.chunkName);
+      } else {
+        importersOf.set(dep, [chunk.chunkName]);
       }
     }
-
-    if (assignedLayer > 0) {
-      layeredChunks.push({
-        chunkName: chunk.chunkName,
-        chunkPath: chunk.chunkPath,
-        layerNumber: assignedLayer
-      });
-    } else {
-      // Shouldn't happen if we calculated sizes correctly, but handle gracefully
-      unLayeredChunks.push({
-        chunkName: chunk.chunkName,
-        chunkPath: chunk.chunkPath,
-        layerNumber: 0
-      });
-    }
   }
 
-  // Add non-candidates to unLayered list
+  // Step 5: Fitting in aggregate is not enough. First fit stops filling a layer as soon as the next chunk is
+  // too big for it, so the free space ends up split across the layers and a chunk larger than every one of
+  // those remainders has nowhere to go even when the candidates would have fit. Leaving such a chunk behind
+  // while its importers stay layered is exactly the /opt-imports-/var/task breakage step 2 exists to prevent,
+  // so drop it together with everything that transitively imports it. Dropping frees layer space, so the
+  // remaining candidates are packed again from scratch rather than patched.
+  let packing = packIntoLayers(sortedCandidates, config);
+  while (packing.unplaced.length > 0) {
+    const toDrop = packing.unplaced.map((chunk) => chunk.chunkName);
+    while (toDrop.length > 0) {
+      const chunkName = toDrop.pop()!;
+      // `delete` reports whether the chunk was still a candidate, which also keeps import cycles finite.
+      if (!layerCandidates.delete(chunkName)) continue;
+      toDrop.push(...(importersOf.get(chunkName) ?? []));
+    }
+
+    sortedCandidates = sortedCandidates.filter((chunk) => layerCandidates.has(chunk.chunkName));
+    packing = packIntoLayers(sortedCandidates, config);
+  }
+
+  // Every remaining candidate is layered, so everything else is what stays in the lambda package.
+  const layeredChunks = packing.placements;
+  const unLayeredChunks: ChunkLayerAssignment[] = [];
   for (const chunk of chunkAnalysis) {
     if (!layerCandidates.has(chunk.chunkName)) {
       unLayeredChunks.push({
@@ -158,7 +194,7 @@ export const assignChunksToLayers = (
   // Build layer summaries (only non-empty layers)
   const layers: LayerAssignmentResult['layers'] = [];
   for (let i = 1; i <= config.maxLayers; i++) {
-    const content = layerContents.get(i)!;
+    const content = packing.layerContents.get(i)!;
     if (content.chunks.length > 0) {
       layers.push({
         layerNumber: i,

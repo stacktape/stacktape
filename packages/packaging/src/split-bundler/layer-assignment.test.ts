@@ -114,6 +114,47 @@ describe('assignChunksToLayers', () => {
     expect(names(result.unLayeredChunks)).toEqual(['chunk-app.js', 'chunk-helper.js']);
   });
 
+  test('layers nothing when every candidate importer depends on a chunk the packing cannot place', () => {
+    // The candidates fit the layers in aggregate (17 bytes into 2 x 10), but first fit puts one importer in
+    // each layer and leaves 4 free bytes behind in both, so the 5-byte dependency fits in neither. Layering
+    // the importers anyway would ship /opt chunks importing a chunk that stayed in /var/task.
+    const analysis = [
+      chunk({ name: 'chunk-a.js', sizeBytes: 6, usageCount: 2, dependsOn: ['chunk-dep.js'] }),
+      chunk({ name: 'chunk-b.js', sizeBytes: 6, usageCount: 2, dependsOn: ['chunk-dep.js'] }),
+      chunk({ name: 'chunk-dep.js', sizeBytes: 5, usageCount: 1 })
+    ];
+    const result = assignChunksToLayers(analysis, {
+      minUsageCount: 2,
+      minChunkSize: 1,
+      maxLayers: 2,
+      maxLayerSize: 10
+    });
+
+    expect(result.layeredChunks).toEqual([]);
+    expect(names(result.unLayeredChunks)).toEqual(['chunk-a.js', 'chunk-b.js', 'chunk-dep.js']);
+    expect(result.layers).toEqual([]);
+    expect(result.totalBytesSaved).toBe(0);
+  });
+
+  test('keeps layering the chunks that survive when a stranded dependency drops only its own importer', () => {
+    const analysis = [
+      chunk({ name: 'chunk-importer.js', sizeBytes: 6, usageCount: 2, dependsOn: ['chunk-dep.js'] }),
+      chunk({ name: 'chunk-alone.js', sizeBytes: 6, usageCount: 2 }),
+      chunk({ name: 'chunk-dep.js', sizeBytes: 5, usageCount: 1 })
+    ];
+    const result = assignChunksToLayers(analysis, {
+      minUsageCount: 2,
+      minChunkSize: 1,
+      maxLayers: 2,
+      maxLayerSize: 10
+    });
+
+    // `chunk-alone.js` depends on nothing stranded, so it keeps the layer that dropping the other two freed.
+    expect(names(result.layeredChunks)).toEqual(['chunk-alone.js']);
+    expect(names(result.unLayeredChunks)).toEqual(['chunk-dep.js', 'chunk-importer.js']);
+    expect(result.layers).toEqual([{ layerNumber: 1, chunks: ['chunk-alone.js'], totalSizeBytes: 6 }]);
+  });
+
   test('every layered chunk has all of its dependencies layered too', () => {
     const analysis = [
       chunk({ name: 'chunk-root.js', sizeBytes: 40 * 1024, usageCount: 4, dependsOn: ['chunk-mid.js'] }),
@@ -129,6 +170,51 @@ describe('assignChunksToLayers', () => {
       if (!layered.has(chunkName)) continue;
       for (const dependency of dependsOn) {
         expect(layered.has(dependency)).toBe(true);
+      }
+    }
+  });
+
+  test('holds the layering invariant across deeper dependency graphs and tighter layers', () => {
+    // The two importers over one dependency above is only the smallest shape in which packing can strand a
+    // dependency. Chains, shared sub-dependencies and layer counts other than two have to come out consistent
+    // too, so sweep deterministic graphs and assert the three properties the rest of the pipeline relies on.
+    let seed = 20260727;
+    const nextInt = (bound: number) => {
+      seed = (seed * 48271) % 2147483647;
+      return seed % bound;
+    };
+
+    for (let round = 0; round < 200; round++) {
+      const analysis: ChunkUsageAnalysis[] = [];
+      const chunkCount = 3 + nextInt(8);
+      for (let index = 0; index < chunkCount; index++) {
+        const dependsOn = Array.from({ length: index }, (_, earlier) => earlier)
+          .filter(() => nextInt(4) === 0)
+          .map((earlier) => `chunk-${earlier}.js`);
+        analysis.push(
+          chunk({ name: `chunk-${index}.js`, sizeBytes: 1 + nextInt(12), usageCount: 1 + nextInt(3), dependsOn })
+        );
+      }
+
+      const config: LayerConfig = {
+        minUsageCount: 2,
+        minChunkSize: 1,
+        maxLayers: 1 + nextInt(3),
+        maxLayerSize: 5 + nextInt(20)
+      };
+      const result = assignChunksToLayers(analysis, config);
+      const layered = new Set(result.layeredChunks.map(({ chunkName }) => chunkName));
+
+      // A layered chunk's direct dependencies are layered, which by induction covers its transitive ones.
+      for (const { chunkName, dependsOn } of analysis) {
+        if (!layered.has(chunkName)) continue;
+        for (const dependency of dependsOn) {
+          expect(layered).toContain(dependency);
+        }
+      }
+      expect(names([...result.layeredChunks, ...result.unLayeredChunks])).toEqual(names(analysis));
+      for (const layer of result.layers) {
+        expect(layer.totalSizeBytes).toBeLessThanOrEqual(config.maxLayerSize);
       }
     }
   });

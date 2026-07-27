@@ -15,7 +15,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "fs-extra": "^11.3.0"
+    "fs-extra": "11.3.3"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",

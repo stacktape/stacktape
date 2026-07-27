@@ -273,7 +273,7 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1(supports-color@10.2.2)
       fs-extra:
-        specifier: ^11.3.0
+        specifier: 11.3.3
         version: 11.3.3
       get-folder-size:
         specifier: ^2.0.1

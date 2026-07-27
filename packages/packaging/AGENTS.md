@@ -24,7 +24,8 @@ digests, and reports to the user.
 - `src/split-bundler/types.ts` — the chunk/layer vocabulary. It is deliberately structural: `ModuleInfo` and
   `ProgressLogger` here describe only what this engine reads, so nothing in the package needs the CLI's globals.
 - `src/split-bundler/layer-assignment.ts` — which chunks become layers (`DEFAULT_LAYER_CONFIG`, dependency-aware
-  promotion, first-fit-decreasing packing).
+  promotion, first-fit-decreasing packing, and un-layering whatever the packing could not place along with its
+  importers, because a layered chunk cannot import one that stayed in the Lambda package).
 - `src/split-bundler/layer-builder.ts` — writing the `nodejs/chunks` layer tree, pruning the lambda package, and the
   content hash that decides whether a layer is re-uploaded.
 - `src/split-bundler/chunk-rewriter.ts` — the import-path rewriting both of the above depend on.
