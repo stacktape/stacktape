@@ -1,5 +1,12 @@
 # Stacktape v4 orchestration plan
 
+> **Archived — historical.** The waves, lanes, and concurrency map below belong to the rejected complex migration and
+> assume the `core`, `config`, `command-contracts`, `aws`, and `naming` packages that
+> [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) abandoned in favor of sequential, coarse-grained slices. That
+> document supersedes this plan for all current work, and the roles, worktree rules, and Git-safety protocol that
+> survived it live in [AGENT-EXECUTION.md](./AGENT-EXECUTION.md). Wave 0 is kept because it records real completed
+> evidence.
+
 ## Mission
 
 Migrate the current Stacktape and private Console products into the fresh v4 histories without treating the work as a

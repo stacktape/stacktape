@@ -47,7 +47,7 @@ Run on every relevant change:
 - npm package, binary input, and helper-Lambda artifact verification;
 - typed AWS adapter fakes for throttling, malformed responses, pagination, and error classification.
 
-The `packages/core` design must expose:
+Deterministic tests must be able to substitute every environmental seam the CLI reaches:
 
 - AWS client factory/endpoints;
 - Console/control-plane adapter;
@@ -241,7 +241,7 @@ drift, replacements, concurrency, and deletion fidelity.
 
 1. Review and merge current characterization/artifact baselines.
 2. Add normalized synthesis fixtures and compatibility classifications.
-3. Make explicit test ports and no-real-AWS safety an acceptance criterion of the core foundation slice.
+3. Make fail-closed no-real-AWS safety an acceptance criterion of every slice that can reach an AWS client.
 4. Add static CloudFormation validation.
 5. Add packaged CLI process tests.
 6. Run the Floci feasibility spike.

@@ -11,7 +11,7 @@
 | History                | Losing old file history is acceptable and preferred. Keep the existing repository identities; do not merge old website history.                                                                         | Simpler migration and clean baseline.                                                                          |
 | Applications           | Public applications are CLI, docs, and a fresh Astro website. Private applications are Console API and Console UI. The helper Lambdas are neither: they are CLI-owned deployment artifacts (see below). | `apps` represents independently consumed or deployed surfaces.                                                 |
 | SDK                    | Do not create or restore a Stacktape SDK.                                                                                                                                                               | Avoid maintaining a second public API without clear value.                                                     |
-| Core                   | Create `packages/core` and refactor the old runtime into a headless, in-process operation engine during migration.                                                                                      | Testability, composability, and removal of process-global constraints.                                         |
+| Core                   | Superseded: do not create `packages/core`. The existing CLI implementation is the v4 runtime (see below).                                                                                               | The headless-runtime rewrite cost more concepts than any migrated behavior needed.                             |
 | Package philosophy     | Create packages only for coherent, reusable capabilities. Do not create domain/infrastructure layers or generic dumping grounds merely to increase package count.                                       | Pleasant interfaces and understandable ownership.                                                              |
 | Private apps placement | Mount the single private repository at `apps/console`, with `apps/console/api` and `apps/console/ui`. Do not use two submodules or public-clone symlinks.                                               | Every application remains under `apps` while preserving one atomic private boundary.                           |
 
@@ -33,6 +33,20 @@ co-location and misrepresents who owns the code, so co-location is the decision 
 Revisit when a separately justified slice has narrowed the closure to a small, helper-dominant set and removed the
 ambient `types/` dependency. `apps/cli/helper-lambdas/AGENTS.md` holds the measurement, the rejected alternatives and
 the compatibility contract.
+
+### No `packages/core` runtime extraction
+
+Superseded: the runtime was previously pinned for extraction into a headless, port-driven `packages/core`, with
+`config`, `command-contracts`, `aws`, and `naming` packages beneath it.
+
+`SIMPLIFIED-MIGRATION.md` replaced that plan. The existing CLI implementation is the v4 starting point, and no
+`OperationContext`, port layer, operation framework, parallel runtime, or compatibility shell is built for it. Code is
+extracted into a package only when the package has a concrete present-day responsibility and consumer:
+`@stacktape/packaging` owns the self-contained split/layer engine because it met that test, and
+`apps/cli/helper-lambdas` stays in the CLI because it did not.
+
+`TARGET-ARCHITECTURE.md`, `ORCHESTRATION-PLAN.md`, and `MIGRATION-RUNBOOK.md` describe the rejected plan and are
+retained only as history.
 
 ## API and tRPC decisions
 
@@ -152,6 +166,6 @@ Even for v4, the following default to `must-preserve` unless explicitly approved
 - Do not import the old website code or history.
 - Do not build an SDK.
 - Do not freeze the v3 JSONL byte representation.
-- Do not perform the complete core deglobalization before the orchestrated migration.
+- Do not deglobalize the CLI runtime as migration work; the headless-core rewrite is not a v4 goal.
 - Do not update every dependency merely because the backbone exists; upgrades belong to owned migration slices with
   tests.

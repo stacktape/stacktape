@@ -30,7 +30,7 @@ to create parallel work.
 
 The orchestrator:
 
-1. Reads and enforces every document in `architecture/v4`.
+1. Reads and enforces the current documents listed in `architecture/v4/README.md`.
 2. Maintains the integration branches and private submodule pointer.
 3. Creates a slice dossier before dispatch.
 4. Ensures prerequisites are integrated before dependent work begins.
@@ -180,7 +180,7 @@ the only role allowed to update integration branches or submodule pointers.
 Commit messages identify behavior, not file movement:
 
 ```text
-core(config): make synthesis context-explicit
+cli(config): make synthesis name the failing config path
 packaging(lambda): preserve deterministic layer assignment
 console(api): enforce public contract schemas
 repo: record integrated console slice
@@ -199,7 +199,6 @@ Parallel work is allowed when:
 High-risk shared changes are serialized:
 
 - root workspace/tooling;
-- `OperationContext` and foundational ports;
 - config public model;
 - naming algorithms;
 - tRPC public contracts;

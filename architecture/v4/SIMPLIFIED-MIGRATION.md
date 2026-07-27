@@ -1,7 +1,9 @@
 # Simplified Stacktape v4 migration
 
-This document supersedes the earlier runtime-extraction plan for all new work on `v4/integration`. The previous
-implementation remains recoverable at `v4/complex-archive`; do not copy its architecture into the simplified line.
+This document supersedes the earlier runtime-extraction plan for all ongoing and new work on `v4/integration`. The
+previous implementation remains recoverable at `v4/complex-archive`; do not copy its architecture into the simplified
+line. `TARGET-ARCHITECTURE.md`, `ORCHESTRATION-PLAN.md`, and `MIGRATION-RUNBOOK.md` describe that rejected plan and are
+retained only as history. Where this document disagrees with any other document in `architecture/v4`, this one wins.
 
 ## Goal
 

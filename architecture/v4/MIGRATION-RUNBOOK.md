@@ -1,5 +1,11 @@
 # Stacktape v4 migration runbook
 
+> **Archived — historical.** Phases 2 through 8 below belong to the rejected complex migration: they assume the
+> `packages/core` runtime extraction and the `helper-lambdas`, `aws`, and `naming` packages that
+> [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) abandoned. That document supersedes this sequence for all
+> current work. Phases 0 and 1 are kept because they record real completed evidence — the security, characterization,
+> checksum, and backbone commits, which [DECISIONS.md](./DECISIONS.md) also carries.
+
 ## End state
 
 Stacktape v4 is complete when:

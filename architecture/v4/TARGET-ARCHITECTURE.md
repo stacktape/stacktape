@@ -1,5 +1,11 @@
 # Stacktape v4 target architecture
 
+> **Archived — historical.** This is the package tree of the rejected complex migration: a headless `packages/core`
+> reached through explicit ports, with `config`, `command-contracts`, `aws`, `naming`, and `helper-lambdas` extracted
+> around it. [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) supersedes it and defines the real destination tree;
+> [DECISIONS.md](./DECISIONS.md) records why `core` and `helper-lambdas` were dropped. Do not create the packages or
+> interfaces below. The document is kept for its design research and dependency analysis only.
+
 ## Repository tree
 
 ```text

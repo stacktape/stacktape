@@ -1,13 +1,14 @@
 # Stacktape v4 migration
 
-This directory is the authoritative design and execution contract for the Stacktape v4 monorepo migration.
+[SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) is the authority for every ongoing and new migration decision. It
+supersedes the earlier runtime-extraction plan: the existing CLI implementation is the v4 starting point, applications
+move first with the smallest practical set of path and tooling changes, and code is extracted into a package only when
+that package has a concrete present-day responsibility and consumer.
 
-The goal is not merely to move files into a monorepo. The migration must produce:
+The migration must still produce:
 
 - one public repository containing every public application, package, tool, and shared configuration;
 - one private Git submodule containing only the Console API and Console UI source;
-- a headless, testable `@stacktape/core` with explicit operation context and environmental ports instead of
-  process-global managers;
 - stable and pleasant package boundaries based on real capabilities rather than architectural ceremony;
 - practical, precisely typed tRPC surfaces without leaking private router or database structure;
 - a pnpm and Turborepo workspace that works both with and without the private submodule;
@@ -20,20 +21,34 @@ CloudFormation identities, resource names, security boundaries, packaging semant
 Every observed v3/v4 difference must be classified as intentional, a preserved contract, a fixed bug, or an
 implementation detail.
 
-## Documents
+## Current documents
 
-- [DECISIONS.md](./DECISIONS.md) records pinned decisions, non-goals, deferred work, and remaining gates.
-- [TARGET-ARCHITECTURE.md](./TARGET-ARCHITECTURE.md) defines the repository tree, package responsibilities, and
-  dependency directions.
+- [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) defines the migration approach, the destination tree, the
+  conceptual-complexity budget, the sequence, and the review process. It wins over every other document here.
+- [DECISIONS.md](./DECISIONS.md) records pinned decisions, superseded decisions, non-goals, deferred work, and
+  remaining gates.
 - [AGENT-EXECUTION.md](./AGENT-EXECUTION.md) defines isolated worktrees, implementation/review roles, commit
   integration, and how agents may improve provisional interfaces.
-- [ORCHESTRATION-PLAN.md](./ORCHESTRATION-PLAN.md) defines migration waves, dependencies, integration checkpoints,
-  and the context every slice dossier must carry.
-- [AGENT-INSTRUCTIONS-AUDIT.md](./AGENT-INSTRUCTIONS-AUDIT.md) records what is retained or discarded from the legacy
-  `AGENTS.md`, `CLAUDE.md`, and development playbook.
-- [MIGRATION-RUNBOOK.md](./MIGRATION-RUNBOOK.md) defines the ordered migration phases and acceptance gates.
 - [TEST-STRATEGY.md](./TEST-STRATEGY.md) defines the deterministic, Floci-certified, and selective real-AWS testing
   strategy and its emulator safeguards.
+- [AGENT-INSTRUCTIONS-AUDIT.md](./AGENT-INSTRUCTIONS-AUDIT.md) records what is retained or discarded from the legacy
+  `AGENTS.md`, `CLAUDE.md`, and development playbook.
+- [dossiers/](./dossiers) holds the per-slice contracts. A dossier is authoritative for its own slice and names its own
+  owned paths, gates, and out-of-scope work.
 
-If these documents disagree with old root instructions, old proof-of-concept notes, or historical structure, these
-documents win after they are approved and copied into the v4 backbone.
+## Historical documents
+
+The documents below describe the **rejected** complex migration: a headless `packages/core` runtime reached through
+explicit ports, with `config`, `command-contracts`, `aws`, `naming`, and `helper-lambdas` packages extracted around it.
+They are retained for the design research, completed phase-0/wave-0 evidence, and compatibility analysis they record.
+
+They are not instructions. Do not create the packages, interfaces, waves, or gates they describe, and do not cite them
+as a reason to move code out of `apps/cli`.
+
+- [TARGET-ARCHITECTURE.md](./TARGET-ARCHITECTURE.md) — the rejected package tree, package responsibilities, and
+  dependency directions.
+- [ORCHESTRATION-PLAN.md](./ORCHESTRATION-PLAN.md) — the rejected parallel wave, lane, and concurrency plan.
+- [MIGRATION-RUNBOOK.md](./MIGRATION-RUNBOOK.md) — the rejected phase sequence and its acceptance gates.
+
+If a current document disagrees with a historical one, with old root instructions, or with old proof-of-concept notes,
+the current document wins.
