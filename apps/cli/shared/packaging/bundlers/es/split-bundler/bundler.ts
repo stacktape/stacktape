@@ -6,7 +6,6 @@
  * instead of reading and parsing chunk files manually.
  */
 import type { BunPlugin } from 'bun';
-import type { PackageJsonDepsInfo } from '../utils';
 import type {
   BuildMetafile,
   BuildSplitBundleOptions,
@@ -14,13 +13,15 @@ import type {
   LambdaSplitOutput,
   ProgressLogger,
   SplitBundleResult
-} from './types';
+} from '@stacktape/packaging/split-bundler/types';
+import type { PackageJsonDepsInfo } from '../utils';
 import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { dependencyInstaller } from '@shared/utils/dependency-installer';
 import { transformToUnixPath } from '@shared/utils/fs-utils';
 import { builtinModules, filterDuplicates, getError, getTsconfigAliases } from '@shared/utils/misc';
 import { findProjectRoot } from '@shared/utils/monorepo';
+import { rewriteChunkImports } from '@stacktape/packaging/split-bundler/chunk-rewriter';
 import { copy, ensureDir, outputJSON, readFile, writeFile } from 'fs-extra';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES } from '../config';
 import {
@@ -30,7 +31,6 @@ import {
   ESM_SOURCE_MAP_BANNER,
   getInfoFromPackageJson
 } from '../utils';
-import { rewriteChunkImports } from './chunk-rewriter';
 
 /**
  * Bundle multiple Lambda entrypoints together using Bun's code splitting.

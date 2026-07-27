@@ -5,8 +5,6 @@
  * to the correct location (layer path or local path) after code splitting.
  */
 
-import { basename } from 'node:path';
-
 /**
  * Rewrite all chunk import paths in file content to use a new prefix.
  *
@@ -68,34 +66,4 @@ export const rewriteChunkImportsSelective = (
   }
 
   return result;
-};
-
-/**
- * Find all chunk imports in a file's content.
- *
- * @param content - File content to search
- * @param allChunkPaths - List of all available chunk file paths
- * @returns List of chunk paths that are imported by this file
- */
-export const findChunkImports = (content: string, allChunkPaths: string[]): string[] => {
-  // Build a map from chunk filename to full path for O(1) lookup
-  const chunkNameToPath = new Map<string, string>();
-  for (const chunkPath of allChunkPaths) {
-    chunkNameToPath.set(basename(chunkPath), chunkPath);
-  }
-
-  // Single regex to find all chunk references - much faster than checking each pattern
-  const chunkRegex = /["'`][^"'`]*?(chunk-[a-z0-9]+\.js)["'`]/g;
-  const foundChunks = new Set<string>();
-
-  let match;
-  while ((match = chunkRegex.exec(content)) !== null) {
-    const chunkName = match[1];
-    const chunkPath = chunkNameToPath.get(chunkName);
-    if (chunkPath) {
-      foundChunks.add(chunkPath);
-    }
-  }
-
-  return Array.from(foundChunks);
 };

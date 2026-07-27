@@ -12,7 +12,13 @@
  */
 
 import type { ChunkLayerAssignment, ChunkUsageAnalysis, LayerAssignmentResult, LayerConfig } from './types';
-import { DEFAULT_LAYER_CONFIG } from '../config';
+
+export const DEFAULT_LAYER_CONFIG: LayerConfig = {
+  minUsageCount: 2, // Chunk must be used by at least 2 lambdas
+  minChunkSize: 1024, // At least 1KB
+  maxLayers: 3, // Use up to 3 layers (leave 2 for user's custom layers)
+  maxLayerSize: 50 * 1024 * 1024 // 50MB per layer (conservative limit)
+};
 
 export const assignChunksToLayers = (
   chunkAnalysis: ChunkUsageAnalysis[],
@@ -99,7 +105,7 @@ export const assignChunksToLayers = (
   const sortedCandidates = [...layerCandidates]
     .map((name) => chunkByName.get(name)!)
     .filter(Boolean)
-    .sort((a, b) => b.sizeBytes - a.sizeBytes);
+    .toSorted((a, b) => b.sizeBytes - a.sizeBytes);
 
   const layeredChunks: ChunkLayerAssignment[] = [];
   const unLayeredChunks: ChunkLayerAssignment[] = [];

@@ -1,5 +1,5 @@
 import type { NativeBinaryLayerResult } from '@shared/packaging/bundlers/es/copy-docker-installed-modules';
-import type { LambdaEntrypoint, LayerAssignmentResult, ModuleInfo } from '@shared/packaging/bundlers/es/split-bundler';
+import type { LambdaEntrypoint, LayerAssignmentResult, ModuleInfo } from '@stacktape/packaging/split-bundler/types';
 import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -13,13 +13,10 @@ import { fsPaths } from '@shared/naming/fs-paths';
 import { buildLayerS3Key, getJobName } from '@shared/naming/utils';
 import { DEPENDENCIES_WITH_BINARIES } from '@shared/packaging/bundlers/es/config';
 import { buildNativeBinaryLayer } from '@shared/packaging/bundlers/es/copy-docker-installed-modules';
-import {
-  assignChunksToLayers,
-  buildSplitBundle,
-  createLayerArtifacts,
-  DEFAULT_LAYER_CONFIG
-} from '@shared/packaging/bundlers/es/split-bundler';
+import { buildSplitBundle } from '@shared/packaging/bundlers/es/split-bundler/bundler';
 import { getLambdaRuntimeFromNodeTarget, getLockFileData } from '@shared/packaging/bundlers/es/utils';
+import { assignChunksToLayers, DEFAULT_LAYER_CONFIG } from '@stacktape/packaging/split-bundler/layer-assignment';
+import { createLayerArtifacts } from '@stacktape/packaging/split-bundler/layer-builder';
 import { buildUsingCustomArtifact } from '@shared/packaging/custom-artifact';
 import { buildUsingCustomDockerfile } from '@shared/packaging/custom-dockerfile';
 import { buildUsingExternalBuildpack } from '@shared/packaging/external-buildpack';

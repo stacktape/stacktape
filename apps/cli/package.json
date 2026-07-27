@@ -115,6 +115,7 @@
     "@smithy/fetch-http-handler": "5.3.9",
     "@smithy/protocol-http": "5.3.8",
     "@stacktape/console-api": "workspace:*",
+    "@stacktape/packaging": "workspace:*",
     "@trpc/client": "^11.7.1",
     "@trpc/server": "^11.7.1",
     "adm-zip": "^0.5.16",

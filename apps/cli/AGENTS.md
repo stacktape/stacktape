@@ -8,6 +8,9 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 
 - `src/` — commands, application/domain managers, TUI, MCP, and the published `stacktape` npm API (`src/api/npm`).
 - `shared/` — AWS clients, packaging bundlers, naming, tRPC clients used by both the CLI and the helper Lambdas.
+  `shared/packaging` stops where the CLI's own vocabulary begins: everything that raises typed `StacktapeError`s,
+  reports `eventManager` progress or is typed against the configuration schema stays here, while the chunk/layer
+  engine it calls lives in `@stacktape/packaging` (see that package's `AGENTS.md`).
 - `helper-lambdas/` — sources of the Lambdas Stacktape deploys into customer accounts.
 - `scripts/` — build, code generation, release and publishing tooling, plus the committed platform binaries under
   `scripts/assets/` that release archives ship.

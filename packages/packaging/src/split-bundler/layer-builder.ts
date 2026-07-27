@@ -2,8 +2,10 @@ import type { LambdaSplitOutput, LayerArtifact, LayerAssignmentResult } from './
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { copy, ensureDir, outputJSON, readdir, readFile, remove, writeFile } from 'fs-extra';
-import { LAYER_CHUNKS_PATH } from '../config';
 import { rewriteChunkImportsSelective } from './chunk-rewriter';
+
+/** Where a published layer's chunks are mounted inside a Lambda execution environment. */
+const LAYER_CHUNKS_PATH = '/opt/nodejs/chunks/';
 
 /**
  * Create layer artifacts and update lambda packages to use layers.
@@ -102,7 +104,7 @@ const computeLayerContentHash = (chunks: string[], layerAssignment: LayerAssignm
       const size = assignment?.chunkPath ? Bun.file(assignment.chunkPath).size : 0;
       return `${chunkName}:${size}`;
     })
-    .sort()
+    .toSorted()
     .join('|');
 
   return Bun.hash(chunkInfo).toString(16).slice(0, 12);

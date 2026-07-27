@@ -203,6 +203,9 @@ importers:
       '@stacktape/console-api':
         specifier: workspace:*
         version: link:../../packages/console-api
+      '@stacktape/packaging':
+        specifier: workspace:*
+        version: link:../../packages/packaging
       '@trpc/client':
         specifier: ^11.7.1
         version: 11.8.1(@trpc/server@11.8.1(typescript@5.9.3))(typescript@5.9.3)
