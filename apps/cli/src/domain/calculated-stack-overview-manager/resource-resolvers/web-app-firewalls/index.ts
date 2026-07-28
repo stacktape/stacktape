@@ -8,15 +8,26 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { consoleLinks } from '@shared/naming/console-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
+import { ExpectedError } from '@utils/errors';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 
 export const resolveWebAppFirewalls = () => {
   configManager.webAppFirewalls.forEach((definition) => {
+    const { scope } = definition;
+    // The authored definition may omit its whole `properties` bag, and `scope` decides both the AWS API the firewall
+    // is created against and the resources it can protect, so there is no defensible default to fall back on.
+    if (!scope) {
+      throw new ExpectedError(
+        'CONFIG_VALIDATION',
+        `Web app firewall ${definition.name} is missing "scope".`,
+        'Set properties.scope to "cdn" for CloudFront-attached resources or "regional" for load balancers, user pools and direct API gateways.'
+      );
+    }
     const currentScope = deployedStackOverviewManager.getStpResourceReferenceableParameter({
       nameChain: definition.name,
       referencableParamName: 'scope'
     });
-    if (currentScope && currentScope !== definition.scope) {
+    if (currentScope && currentScope !== scope) {
       throw stpErrors.e1005({ firewallName: definition.name });
     }
 
@@ -28,7 +39,8 @@ export const resolveWebAppFirewalls = () => {
 
     calculatedStackOverviewManager.addCfChildResource({
       resource: getStpServiceCustomResource<'webAppFirewall'>({
-        webAppFirewall: { ...definition, name: wafAwsResourceName }
+        // `scope` is respread from the guarded local so the custom resource carries the value the guard proved.
+        webAppFirewall: { ...definition, scope, name: wafAwsResourceName }
       }),
       cfLogicalName: cfLogicalNames.webAppFirewallCustomResource(definition.name),
       nameChain: definition.nameChain
@@ -43,14 +55,14 @@ export const resolveWebAppFirewalls = () => {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain: definition.nameChain,
       paramName: 'scope',
-      paramValue: definition.scope
+      paramValue: scope
     });
 
     calculatedStackOverviewManager.addStacktapeResourceLink({
       nameChain: definition.nameChain,
       linkName: 'console',
       linkValue: cfEvaluatedLinks.firewall({
-        region: definition.scope === 'cdn' ? 'global' : globalStateManager.region,
+        region: scope === 'cdn' ? 'global' : globalStateManager.region,
         awsWebACLName: wafAwsResourceName,
         awsWebACLId: GetAtt(cfLogicalNames.webAppFirewallCustomResource(definition.name), 'Id')
       })
@@ -61,7 +73,7 @@ export const resolveWebAppFirewalls = () => {
         nameChain: definition.nameChain,
         linkName: 'metrics',
         linkValue: consoleLinks.firewallMetrics({
-          region: definition.scope === 'cdn' ? 'us-east-1' : globalStateManager.region
+          region: scope === 'cdn' ? 'us-east-1' : globalStateManager.region
         })
       });
     }

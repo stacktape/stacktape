@@ -122,9 +122,9 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
     showDuringPrint:
       (!finalDefinition.customDomains?.length ||
         finalDefinition.customDomains.some(({ disableDnsRecordCreation }) => disableDnsRecordCreation)) &&
-      finalDefinition.listeners?.some(({ customCertificateArns }) => customCertificateArns?.length)
+      finalDefinition.listeners.some(({ customCertificateArns }) => customCertificateArns?.length)
   });
-  const usesCustomCerts = finalDefinition.listeners?.some(({ customCertificateArns }) => customCertificateArns?.length);
+  const usesCustomCerts = finalDefinition.listeners.some(({ customCertificateArns }) => customCertificateArns?.length);
 
   if (finalDefinition.customDomains?.length) {
     const allCustomDomains: string[] = [];

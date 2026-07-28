@@ -1,3 +1,4 @@
+import type { NormalizedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
 import type { CfResourceTransform, FinalTransform } from './transforms-resolver';
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
@@ -27,6 +28,7 @@ import { getApexDomain } from '@utils/domains';
 import { getConfigPath } from '@utils/file-loaders';
 import { builtInDirectives } from './built-in-directives';
 import { ConfigResolver } from './config-resolver';
+import { getAuthoredOverrides } from './normalized-resource';
 import { TransformsResolver } from './transforms-resolver';
 import { getAlarmsToBeAppliedToResource, isGlobalAlarmEligibleForStack } from './utils/alarms';
 import { DEFAULT_TEST_LISTENER_PORT } from './utils/application-load-balancers';
@@ -72,7 +74,6 @@ import type {
 import type { MongoDbAtlasProvider, UpstashProvider } from '@stacktape/config/providers';
 import type { DomainConfiguration, StackConfig, StackOutput } from '@stacktape/config/shared';
 import type { SsrWebPathCachingOverride } from '@stacktape/config/ssr-web-shared';
-import type { StpStateMachine } from '@stacktape/config/state-machines';
 import type { WebServiceAlbLoadBalancing, WebServiceNlbLoadBalancing } from '@stacktape/config/web-services';
 
 const normalizeCdnPath = ({ path }: { path: string }) => path.replace(/^\//, '');
@@ -122,6 +123,12 @@ const applySsrWebPathCachingOverrides = ({
 
   return mergedRouteRewrites;
 };
+
+/**
+ * A CDN-capable resource whose `cdn` block is present, as proved by reading `cdn.enabled` off it. Only the block
+ * itself is promised: everything inside it stays as optional as the user authored it.
+ */
+type ResourceWithEnabledCdn = StpCdnCompatibleResource & { cdn: NonNullable<StpCdnCompatibleResource['cdn']> };
 
 export class ConfigManager {
   config: StacktapeConfig;
@@ -209,6 +216,10 @@ export class ConfigManager {
     this.globalConfigGuardrails = [];
     this.globalConfigDeploymentNotifications = [];
     this.globalConfigAlarms = [];
+    // Transforms belong to the configuration that declared them. `init` only reassigns them for a defineConfig-style
+    // TypeScript config, so without clearing them here a later YAML configuration would inherit the previous one's.
+    this.transforms = {};
+    this.finalTransform = null;
   };
 
   loadGlobalConfig = async () => {
@@ -271,21 +282,29 @@ export class ConfigManager {
     return this.findResourceInConfig({ nameChain: chain.slice(0, -1) }).resource;
   };
 
-  private getResourcesFromConfig = <T extends StpResource>(resourceType: StpResourceType): T[] => {
+  /**
+   * Flattens every authored resource of one type into the shape the CLI works with: the authored properties raised to
+   * the top level, plus the resource's identity, plus the defaults for that type.
+   *
+   * Selecting on the discriminator narrows the authored definition, so the properties spread here are the ones that
+   * resource type really declares. Families needing more than authored properties and identity — a Lambda's `handler`,
+   * a service's `_nestedResources` — add it in their own getter.
+   */
+  private getResourcesFromConfig = <TResourceType extends StacktapeResourceType>(
+    resourceType: TResourceType
+  ): NormalizedResource<TResourceType>[] => {
     return Object.entries(this.config.resources)
-      .map(
-        ([name, definition]): StpResource =>
-          ({
-            name: getStpNameForResource({ nameChain: [name] }),
-            type: definition.type,
-            overrides: (definition as any).overrides,
-            configParentResourceType: definition.type,
-            nameChain: [name],
-            ...definition.properties
-          }) as any
-      )
-      .filter((resource) => resource.type === resourceType)
-      .map(mergeStacktapeDefaults) as T[];
+      .filter((entry): entry is [string, ResourceDefinitionOf<TResourceType>] => entry[1].type === resourceType)
+      .map(([name, definition]) => ({
+        name: getStpNameForResource({ nameChain: [name] }),
+        // The filter above proved these equal `definition.type`, and naming the parameter keeps the narrowing.
+        type: resourceType,
+        overrides: getAuthoredOverrides(definition),
+        configParentResourceType: resourceType,
+        nameChain: [name],
+        ...definition.properties
+      }))
+      .map(mergeStacktapeDefaults);
   };
 
   private get globallyUniqueStackHash() {
@@ -320,7 +339,7 @@ export class ConfigManager {
   }
 
   get agentCoreRuntimes() {
-    return this.getResourcesFromConfig<StpAgentCoreRuntime>('agentcore-runtime').map((runtime) => ({
+    return this.getResourcesFromConfig('agentcore-runtime').map((runtime) => ({
       ...runtime,
       jobName: getJobName({ workloadName: runtime.name, workloadType: runtime.type }),
       configParentResourceType: 'agentcore-runtime' as const
@@ -328,23 +347,23 @@ export class ConfigManager {
   }
 
   get agentCoreMemories() {
-    return this.getResourcesFromConfig<StpAgentCoreMemory>('agentcore-memory');
+    return this.getResourcesFromConfig('agentcore-memory');
   }
 
   get agentCoreGateways() {
-    return this.getResourcesFromConfig<StpAgentCoreGateway>('agentcore-gateway');
+    return this.getResourcesFromConfig('agentcore-gateway');
   }
 
   get agentCoreBrowsers() {
-    return this.getResourcesFromConfig<StpAgentCoreBrowser>('agentcore-browser');
+    return this.getResourcesFromConfig('agentcore-browser');
   }
 
   get agentCoreCodeInterpreters() {
-    return this.getResourcesFromConfig<StpAgentCoreCodeInterpreter>('agentcore-code-interpreter');
+    return this.getResourcesFromConfig('agentcore-code-interpreter');
   }
 
   get functions() {
-    return this.getResourcesFromConfig<StpLambdaFunction>('function').map(({ name, packaging, ...definition }) => {
+    return this.getResourcesFromConfig('function').map(({ name, packaging, ...definition }) => {
       return {
         ...definition,
         name,
@@ -370,11 +389,11 @@ export class ConfigManager {
       }
       return out;
     });
-    return [...this.getResourcesFromConfig<StpContainerWorkload>('multi-container-workload'), ...fromConvex];
+    return [...this.getResourcesFromConfig('multi-container-workload'), ...fromConvex];
   }
 
   get batchJobs() {
-    return this.getResourcesFromConfig<StpBatchJob>('batch-job').map((batchJob) => {
+    return this.getResourcesFromConfig('batch-job').map((batchJob) => {
       const artifactName = 'batchJobTriggerLambda';
       const helperLambdaData = globalStateManager.helperLambdaDetails.batchJobTriggerLambda;
       const triggerLambdaIdentifier: keyof StpBatchJob['_nestedResources'] = 'triggerFunction';
@@ -418,11 +437,11 @@ export class ConfigManager {
       c._nestedResources.exportsBucket,
       c._nestedResources.snapshotImportsBucket
     ]);
-    return [...this.getResourcesFromConfig<StpBucket>('bucket'), ...fromConvex];
+    return [...this.getResourcesFromConfig('bucket'), ...fromConvex];
   }
 
   get hostingBuckets() {
-    return this.getResourcesFromConfig<StpHostingBucket>('hosting-bucket').map(
+    return this.getResourcesFromConfig('hosting-bucket').map(
       (hostingBucket: Omit<StpHostingBucket, '_nestedResources'>) => {
         const nestedBucketIdentifier: keyof StpHostingBucket['_nestedResources'] = 'bucket';
 
@@ -486,13 +505,13 @@ export class ConfigManager {
   }
 
   get databases() {
-    const topLevel = this.getResourcesFromConfig<StpRelationalDatabase>('relational-database');
+    const topLevel = this.getResourcesFromConfig('relational-database');
     const fromConvex = this.convexes.map((c) => c._nestedResources.database).filter(Boolean);
     return [...topLevel, ...fromConvex];
   }
 
   get convexes() {
-    return this.getResourcesFromConfig<StpConvex>('convex').map((convex) => {
+    return this.getResourcesFromConfig('convex').map((convex) => {
       const { name, nameChain, type } = convex;
 
       // helper: build a child name chain + resolved Stp name
@@ -793,22 +812,18 @@ export class ConfigManager {
   }
 
   get efsFilesystems() {
-    return this.getResourcesFromConfig<StpEfsFilesystem>('efs-filesystem');
+    return this.getResourcesFromConfig('efs-filesystem');
   }
 
   get dynamoDbTables() {
-    return this.getResourcesFromConfig<StpDynamoTable>('dynamo-db-table');
+    return this.getResourcesFromConfig('dynamo-db-table');
   }
 
-  get applicationLoadBalancers() {
-    const topLevel = this.getResourcesFromConfig<StpApplicationLoadBalancer>('application-load-balancer').map(
-      (resource) => ({
-        ...resource,
-        customDomains: normalizeCustomDomains({
-          customDomains: resource.customDomains as (string | DomainConfiguration)[] | null | undefined
-        })
-      })
-    );
+  get applicationLoadBalancers(): StpApplicationLoadBalancer[] {
+    const topLevel = this.getResourcesFromConfig('application-load-balancer').map((resource) => ({
+      ...resource,
+      customDomains: normalizeCustomDomains({ customDomains: resource.customDomains })
+    }));
     const fromConvex = this.convexes.map((c) => ({
       ...c._nestedResources.loadBalancer,
       customDomains: normalizeCustomDomains({
@@ -822,71 +837,68 @@ export class ConfigManager {
   }
 
   get httpApiGateways() {
-    return this.getResourcesFromConfig<StpHttpApiGateway>('http-api-gateway');
+    return this.getResourcesFromConfig('http-api-gateway');
   }
 
   get eventBuses() {
-    return this.getResourcesFromConfig<StpEventBus>('event-bus');
+    return this.getResourcesFromConfig('event-bus');
   }
 
   get bastions() {
-    return this.getResourcesFromConfig<StpBastion>('bastion');
+    return this.getResourcesFromConfig('bastion');
   }
 
   get stateMachines() {
-    return this.getResourcesFromConfig<StpStateMachine>('state-machine');
+    return this.getResourcesFromConfig('state-machine');
   }
 
   get customResourceDefinitions() {
-    return this.getResourcesFromConfig<StpCustomResourceDefinition>('custom-resource-definition').map(
-      (customResourceDefinition) => {
-        const customResourceFunctionIdentifier: keyof StpCustomResourceDefinition['_nestedResources'] =
-          'backingFunction';
-        const stpName = getStpNameForResource({
-          nameChain: [...customResourceDefinition.nameChain, customResourceFunctionIdentifier],
-          parentResourceType: customResourceDefinition.type
-        });
-        return {
-          ...customResourceDefinition,
-          _nestedResources: {
-            backingFunction: {
-              ...customResourceDefinition,
-              nameChain: [...customResourceDefinition.nameChain, customResourceFunctionIdentifier],
-              type: 'function',
+    return this.getResourcesFromConfig('custom-resource-definition').map((customResourceDefinition) => {
+      const customResourceFunctionIdentifier: keyof StpCustomResourceDefinition['_nestedResources'] = 'backingFunction';
+      const stpName = getStpNameForResource({
+        nameChain: [...customResourceDefinition.nameChain, customResourceFunctionIdentifier],
+        parentResourceType: customResourceDefinition.type
+      });
+      return {
+        ...customResourceDefinition,
+        _nestedResources: {
+          backingFunction: {
+            ...customResourceDefinition,
+            nameChain: [...customResourceDefinition.nameChain, customResourceFunctionIdentifier],
+            type: 'function',
+            name: stpName,
+            handler: getLambdaHandler({
               name: stpName,
-              handler: getLambdaHandler({
-                name: stpName,
-                packaging: customResourceDefinition.packaging
-              }),
-              resourceName: awsResourceNames.lambda(stpName, globalStateManager.targetStack.stackName),
-              cfLogicalName: cfLogicalNames.lambda(stpName),
-              artifactName: stpName,
-              events: []
-            }
+              packaging: customResourceDefinition.packaging
+            }),
+            resourceName: awsResourceNames.lambda(stpName, globalStateManager.targetStack.stackName),
+            cfLogicalName: cfLogicalNames.lambda(stpName),
+            artifactName: stpName,
+            events: []
           }
-        } as StpCustomResourceDefinition;
-      }
-    );
+        }
+      } as StpCustomResourceDefinition;
+    });
   }
 
   get customResourceInstances() {
-    return this.getResourcesFromConfig<StpCustomResource>('custom-resource-instance');
+    return this.getResourcesFromConfig('custom-resource-instance');
   }
 
   get userPools() {
-    return this.getResourcesFromConfig<StpUserAuthPool>('user-auth-pool');
+    return this.getResourcesFromConfig('user-auth-pool');
   }
 
   get atlasMongoClusters() {
-    return this.getResourcesFromConfig<StpMongoDbAtlasCluster>('mongo-db-atlas-cluster');
+    return this.getResourcesFromConfig('mongo-db-atlas-cluster');
   }
 
   get redisClusters() {
-    return this.getResourcesFromConfig<StpRedisCluster>('redis-cluster');
+    return this.getResourcesFromConfig('redis-cluster');
   }
 
   get deploymentScripts() {
-    return this.getResourcesFromConfig<StpDeploymentScript>('deployment-script').map((deploymentScript) => {
+    return this.getResourcesFromConfig('deployment-script').map((deploymentScript) => {
       const deploymentScriptFunctionIdentifier: keyof StpDeploymentScript['_nestedResources'] = 'scriptFunction';
       const stpName = getStpNameForResource({
         nameChain: [...deploymentScript.nameChain, deploymentScriptFunctionIdentifier],
@@ -915,11 +927,11 @@ export class ConfigManager {
   }
 
   get upstashRedisDatabases() {
-    return this.getResourcesFromConfig<StpUpstashRedis>('upstash-redis');
+    return this.getResourcesFromConfig('upstash-redis');
   }
 
   get edgeLambdaFunctions() {
-    return this.getResourcesFromConfig<StpEdgeLambdaFunction>('edge-lambda-function').map((edgeLambda) => {
+    return this.getResourcesFromConfig('edge-lambda-function').map((edgeLambda) => {
       const lambdaResourceName = awsResourceNames.edgeLambda(
         edgeLambda.name,
         globalStateManager.targetStack.stackName,
@@ -950,27 +962,27 @@ export class ConfigManager {
   }
 
   get awsCdkConstructs() {
-    return this.getResourcesFromConfig<StpAwsCdkConstruct>('aws-cdk-construct');
+    return this.getResourcesFromConfig('aws-cdk-construct');
   }
 
   get sqsQueues() {
-    return this.getResourcesFromConfig<StpSqsQueue>('sqs-queue');
+    return this.getResourcesFromConfig('sqs-queue');
   }
 
   get snsTopics() {
-    return this.getResourcesFromConfig<StpSnsTopic>('sns-topic');
+    return this.getResourcesFromConfig('sns-topic');
   }
 
   get kinesisStreams() {
-    return this.getResourcesFromConfig<StpKinesisStream>('kinesis-stream');
+    return this.getResourcesFromConfig('kinesis-stream');
   }
 
   get webAppFirewalls() {
-    return this.getResourcesFromConfig<StpWebAppFirewall>('web-app-firewall');
+    return this.getResourcesFromConfig('web-app-firewall');
   }
 
   get nextjsWebs() {
-    return this.getResourcesFromConfig<StpNextjsWeb>('nextjs-web').map((nextjsWeb) => {
+    return this.getResourcesFromConfig('nextjs-web').map((nextjsWeb) => {
       const nestedResourcesIdentifiers: (keyof StpNextjsWeb['_nestedResources'])[] = [
         'bucket',
         'imageFunction',
@@ -1018,7 +1030,7 @@ export class ConfigManager {
         nameChain: _p,
         warmServerInstances,
         cdn: customCdnConfiguration,
-        _nestedResources: _,
+        overrides: _overrides,
         streamingEnabled,
         ...restProps
       } = nextjsWeb;
@@ -1541,7 +1553,7 @@ export class ConfigManager {
   }
 
   get astroWebs() {
-    return this.getResourcesFromConfig<StpAstroWeb>('astro-web').map((astroWeb) => {
+    return this.getResourcesFromConfig('astro-web').map((astroWeb) => {
       const nestedResourcesIdentifiers: (keyof StpAstroWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
       const nestedResourceInfo: {
         [_nestedResource in keyof StpAstroWeb['_nestedResources']]?: {
@@ -1576,8 +1588,7 @@ export class ConfigManager {
         serverLambda,
         cdn: customCdnConfiguration,
         useFirewall,
-        nameChain: _p,
-        _nestedResources: _
+        nameChain: _p
       } = astroWeb;
 
       const serverCachingOptions: CdnCachingOptions = {
@@ -1722,7 +1733,7 @@ export class ConfigManager {
   }
 
   get nuxtWebs() {
-    return this.getResourcesFromConfig<StpNuxtWeb>('nuxt-web').map((nuxtWeb) => {
+    return this.getResourcesFromConfig('nuxt-web').map((nuxtWeb) => {
       const nestedResourcesIdentifiers: (keyof StpNuxtWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
       const nestedResourceInfo: {
         [_nestedResource in keyof StpNuxtWeb['_nestedResources']]?: {
@@ -1757,8 +1768,7 @@ export class ConfigManager {
         serverLambda,
         cdn: customCdnConfiguration,
         useFirewall,
-        nameChain: _p,
-        _nestedResources: _
+        nameChain: _p
       } = nuxtWeb;
 
       const serverCachingOptions: CdnCachingOptions = {
@@ -1903,7 +1913,7 @@ export class ConfigManager {
   }
 
   get sveltekitWebs() {
-    return this.getResourcesFromConfig<StpSvelteKitWeb>('sveltekit-web').map((sveltekitWeb) => {
+    return this.getResourcesFromConfig('sveltekit-web').map((sveltekitWeb) => {
       const nestedResourcesIdentifiers: (keyof StpSvelteKitWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
       const nestedResourceInfo: {
         [_nestedResource in keyof StpSvelteKitWeb['_nestedResources']]?: {
@@ -1938,8 +1948,7 @@ export class ConfigManager {
         serverLambda,
         cdn: customCdnConfiguration,
         useFirewall,
-        nameChain: _p,
-        _nestedResources: _
+        nameChain: _p
       } = sveltekitWeb;
 
       const serverCachingOptions: CdnCachingOptions = {
@@ -2084,7 +2093,7 @@ export class ConfigManager {
   }
 
   get solidstartWebs() {
-    return this.getResourcesFromConfig<StpSolidStartWeb>('solidstart-web').map((solidstartWeb) => {
+    return this.getResourcesFromConfig('solidstart-web').map((solidstartWeb) => {
       const nestedResourcesIdentifiers: (keyof StpSolidStartWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
       const nestedResourceInfo: {
         [_nestedResource in keyof StpSolidStartWeb['_nestedResources']]?: {
@@ -2119,8 +2128,7 @@ export class ConfigManager {
         serverLambda,
         cdn: customCdnConfiguration,
         useFirewall,
-        nameChain: _p,
-        _nestedResources: _
+        nameChain: _p
       } = solidstartWeb;
 
       const serverCachingOptions: CdnCachingOptions = {
@@ -2265,7 +2273,7 @@ export class ConfigManager {
   }
 
   get tanstackWebs() {
-    return this.getResourcesFromConfig<StpTanStackWeb>('tanstack-web').map((tanstackWeb) => {
+    return this.getResourcesFromConfig('tanstack-web').map((tanstackWeb) => {
       const nestedResourcesIdentifiers: (keyof StpTanStackWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
       const nestedResourceInfo: {
         [_nestedResource in keyof StpTanStackWeb['_nestedResources']]?: {
@@ -2300,8 +2308,7 @@ export class ConfigManager {
         serverLambda,
         cdn: customCdnConfiguration,
         useFirewall,
-        nameChain: _p,
-        _nestedResources: _
+        nameChain: _p
       } = tanstackWeb;
 
       const serverCachingOptions: CdnCachingOptions = {
@@ -2446,7 +2453,7 @@ export class ConfigManager {
   }
 
   get remixWebs() {
-    return this.getResourcesFromConfig<StpRemixWeb>('remix-web').map((remixWeb) => {
+    return this.getResourcesFromConfig('remix-web').map((remixWeb) => {
       const nestedResourcesIdentifiers: (keyof StpRemixWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
       const nestedResourceInfo: {
         [_nestedResource in keyof StpRemixWeb['_nestedResources']]?: {
@@ -2481,8 +2488,7 @@ export class ConfigManager {
         serverLambda,
         cdn: customCdnConfiguration,
         useFirewall,
-        nameChain: _p,
-        _nestedResources: _
+        nameChain: _p
       } = remixWeb;
 
       const serverCachingOptions: CdnCachingOptions = {
@@ -2627,7 +2633,7 @@ export class ConfigManager {
   }
 
   get openSearchDomains() {
-    return this.getResourcesFromConfig<StpOpenSearchDomain>('open-search-domain');
+    return this.getResourcesFromConfig('open-search-domain');
   }
 
   get webServices() {
@@ -2636,7 +2642,7 @@ export class ConfigManager {
     const loadBalancerIdentifier: keyof StpWebService['_nestedResources'] = 'loadBalancer';
     const networkLoadBalancerIdentifier: keyof StpWebService['_nestedResources'] = 'networkLoadBalancer';
 
-    return this.getResourcesFromConfig<StpWebService>('web-service').map((serviceDefinition) => {
+    return this.getResourcesFromConfig('web-service').map((serviceDefinition) => {
       const {
         name: _,
         packaging,
@@ -2663,7 +2669,7 @@ export class ConfigManager {
         volumeMounts,
         sideContainers,
         usePrivateSubnetsWithNAT,
-        _nestedResources,
+        overrides: _overrides,
         ...restProps
       } = serviceDefinition;
       // props check constant ensures full destructuring of web service props
@@ -2847,7 +2853,7 @@ export class ConfigManager {
   }
 
   get privateServices() {
-    return this.getResourcesFromConfig<StpPrivateService>('private-service').map((serviceDefinition) => {
+    return this.getResourcesFromConfig('private-service').map((serviceDefinition) => {
       const containerWorkloadIdentifier: keyof StpPrivateService['_nestedResources'] = 'containerWorkload';
       const loadBalancerIdentifier: keyof StpPrivateService['_nestedResources'] = 'loadBalancer';
 
@@ -2872,7 +2878,7 @@ export class ConfigManager {
         volumeMounts,
         sideContainers,
         usePrivateSubnetsWithNAT,
-        _nestedResources,
+        overrides: _overrides,
         ...restProps
       } = serviceDefinition;
       // props check constant ensures full destructuring of web service props
@@ -2975,7 +2981,7 @@ export class ConfigManager {
   }
 
   get workerServices() {
-    return this.getResourcesFromConfig<StpWorkerService>('worker-service').map((serviceDefinition) => {
+    return this.getResourcesFromConfig('worker-service').map((serviceDefinition) => {
       const containerWorkloadIdentifier: keyof StpWorkerService['_nestedResources'] = 'containerWorkload';
 
       const {
@@ -2996,7 +3002,7 @@ export class ConfigManager {
         volumeMounts,
         sideContainers,
         usePrivateSubnetsWithNAT,
-        _nestedResources,
+        overrides: _overrides,
         ...restProps
       } = serviceDefinition;
       // props check constant ensures full destructuring of web service props
@@ -3528,8 +3534,9 @@ export class ConfigManager {
       ...this.functions,
       ...this.allNextjsLambdaFunctions,
       ...this.allSsrWebLambdaFunctions
-    ].filter(({ cdn }) => {
-      return cdn?.enabled && !cdn?.disableInvalidationAfterDeploy;
+    ].filter((resource): resource is ResourceWithEnabledCdn => {
+      const { cdn } = resource;
+      return Boolean(cdn?.enabled && !cdn?.disableInvalidationAfterDeploy);
     });
   }
 
@@ -4175,7 +4182,7 @@ export class ConfigManager {
   }
 
   get networkLoadBalancers() {
-    return this.getResourcesFromConfig<StpNetworkLoadBalancer>('network-load-balancer').map((resource) => ({
+    return this.getResourcesFromConfig('network-load-balancer').map((resource) => ({
       ...resource,
       customDomains: normalizeCustomDomains({
         customDomains: resource.customDomains as (string | DomainConfiguration)[] | null | undefined

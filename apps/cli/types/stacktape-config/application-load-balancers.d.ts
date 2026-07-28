@@ -12,7 +12,7 @@ import type { DomainConfiguration } from '@stacktape/config/shared';
 import type { WebService } from '@stacktape/config/web-services';
 
 declare global {
-type StpApplicationLoadBalancer = Omit<ApplicationLoadBalancer['properties'], 'customDomains'> & {
+type StpApplicationLoadBalancer = Omit<NonNullable<ApplicationLoadBalancer['properties']>, 'customDomains'> & {
   customDomains?: DomainConfiguration[];
   name: string;
   type: ApplicationLoadBalancer['type'];

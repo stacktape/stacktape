@@ -13,6 +13,8 @@ import { templateManager } from '@domain-services/template-manager';
 import { outputNames } from '@shared/naming/stack-output-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import {
+  ApplicationLoadBalancer,
+  ApplicationLoadBalancerIntegration,
   Bucket,
   DynamoDbTable,
   EventBus,
@@ -61,6 +63,11 @@ const createDenseConfig = () =>
       }
     });
     const events = new EventBus({});
+    // Authors no listeners, so synthesis has to supply the defaulted HTTP-redirect/HTTPS pair, and enables a CDN so
+    // the distribution path in front of a load balancer is covered too.
+    const edge = new ApplicationLoadBalancer({
+      cdn: { enabled: true }
+    });
     const database = new RelationalDatabase({
       credentials: {
         masterUserPassword: 'credential-placeholder'
@@ -87,6 +94,11 @@ const createDenseConfig = () =>
             type: 'cognito',
             properties: { userPoolName: 'authPool' }
           }
+        }),
+        new ApplicationLoadBalancerIntegration({
+          loadBalancerName: 'edge',
+          priority: 1,
+          paths: ['/*']
         })
       ]
     });
@@ -135,6 +147,7 @@ const createDenseConfig = () =>
       resources: {
         apiGateway,
         authPool,
+        edge,
         records,
         files,
         deadLetters,
@@ -740,5 +753,60 @@ describe('full synthesis contract', () => {
         }
       }
     });
+  });
+});
+
+describe('load balancer and CDN synthesis contract', () => {
+  const resourcesOfType = (type: string) =>
+    Object.values(synthesizedTemplate.Resources).filter((resource) => resource.Type === type);
+
+  test('supplies the defaulted listener pair for a load balancer that authored none', () => {
+    const listenerPorts = resourcesOfType('AWS::ElasticLoadBalancingV2::Listener')
+      .map((listener) => listener.Properties.Port)
+      .sort((left, right) => left - right);
+
+    expect(listenerPorts).toEqual([80, 443]);
+  });
+
+  test('redirects the plain HTTP listener and terminates TLS on the HTTPS one', () => {
+    const byPort = new Map(
+      resourcesOfType('AWS::ElasticLoadBalancingV2::Listener').map((listener) => [
+        listener.Properties.Port,
+        listener.Properties
+      ])
+    );
+
+    expect(byPort.get(80).Protocol).toBe('HTTP');
+    expect(byPort.get(80).DefaultActions[0]).toMatchObject({
+      Type: 'redirect',
+      RedirectConfig: { Protocol: 'HTTPS', StatusCode: 'HTTP_301' }
+    });
+    expect(byPort.get(443).Protocol).toBe('HTTPS');
+  });
+
+  test('routes the integrated Lambda through a target group on the HTTPS listener', () => {
+    const [rule] = resourcesOfType('AWS::ElasticLoadBalancingV2::ListenerRule');
+
+    expect(rule.Properties.Priority).toBe(1);
+    expect(rule.Properties.Conditions).toContainEqual({
+      Field: 'path-pattern',
+      PathPatternConfig: { Values: ['/*'] }
+    });
+    expect(rule.Properties.Actions[0].Type).toBe('forward');
+    expect(resourcesOfType('AWS::ElasticLoadBalancingV2::TargetGroup')[0].Properties.TargetType).toBe('lambda');
+  });
+
+  test('attaches a CloudFront distribution whose single origin is the load balancer', () => {
+    const [distribution] = resourcesOfType('AWS::CloudFront::Distribution');
+    const origins = distribution.Properties.DistributionConfig.Origins;
+
+    expect(distribution.Properties.DistributionConfig.Enabled).toBe(true);
+    expect(origins).toHaveLength(1);
+    expect(origins[0].Id).toBe('edge0');
+    expect(origins[0].OriginCustomHeaders).toContainEqual({
+      HeaderName: 'X-Stp-Origin-Request-Origin-Type',
+      HeaderValue: 'application-load-balancer'
+    });
+    expect(origins[0].CustomOriginConfig).toMatchObject({ OriginProtocolPolicy: 'https-only', HTTPSPort: 443 });
   });
 });

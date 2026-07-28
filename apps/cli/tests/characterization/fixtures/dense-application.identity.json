@@ -8,13 +8,30 @@
     "ApiApiGatewayPermission": {
       "type": "AWS::Lambda::Permission",
       "physicalNames": {
-        "FunctionName": { "Fn::GetAtt": ["ApiFunction", "Arn"] }
+        "FunctionName": {
+          "Fn::GetAtt": ["ApiFunction", "Arn"]
+        }
       },
       "dependencies": ["ApiFunction", "ApiGatewayApi"]
     },
+    "ApiEdgeTargetGroup": {
+      "type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "dependencies": ["ApiEdgeTargetGroupPermission", "ApiFunction"]
+    },
+    "ApiEdgeTargetGroupPermission": {
+      "type": "AWS::Lambda::Permission",
+      "physicalNames": {
+        "FunctionName": {
+          "Fn::GetAtt": ["ApiFunction", "Arn"]
+        }
+      },
+      "dependencies": ["ApiFunction"]
+    },
     "ApiFunction": {
       "type": "AWS::Lambda::Function",
-      "physicalNames": { "FunctionName": "characterization-baseline-api" },
+      "physicalNames": {
+        "FunctionName": "characterization-baseline-api"
+      },
       "dependencies": ["ApiLogGroup", "ApiRole"]
     },
     "ApiGatewayApi": {
@@ -24,7 +41,9 @@
     "ApiGatewayApiMapping": {
       "type": "AWS::ApiGatewayV2::ApiMapping",
       "physicalNames": {
-        "DomainName": { "Ref": "ApiGatewayDomainName" }
+        "DomainName": {
+          "Ref": "ApiGatewayDomainName"
+        }
       },
       "dependencies": ["ApiGatewayApi", "ApiGatewayDomainName", "ApiGatewayStage"]
     },
@@ -67,14 +86,18 @@
     "AuditEvent0Permission": {
       "type": "AWS::Lambda::Permission",
       "physicalNames": {
-        "FunctionName": { "Fn::GetAtt": ["AuditFunction", "Arn"] }
+        "FunctionName": {
+          "Fn::GetAtt": ["AuditFunction", "Arn"]
+        }
       },
       "dependencies": ["AuditEvent0Rule", "AuditFunction"]
     },
     "AuditEvent0Rule": {
       "type": "AWS::Events::Rule",
       "physicalNames": {
-        "EventBusName": { "Fn::GetAtt": ["EventsEventBus", "Arn"] }
+        "EventBusName": {
+          "Fn::GetAtt": ["EventsEventBus", "Arn"]
+        }
       },
       "dependencies": ["AuditFunction", "EventsEventBus"]
     },
@@ -122,6 +145,14 @@
       "type": "AWS::Cognito::UserPoolDomain",
       "dependencies": ["AuthPoolUserPool"]
     },
+    "CdnOriginRequestLambdaEdgeLambdaCustomResource": {
+      "type": "AWS::CloudFormation::CustomResource",
+      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction", "StpEdgeLambdaBucketCustomResource"]
+    },
+    "CdnOriginResponseLambdaEdgeLambdaCustomResource": {
+      "type": "AWS::CloudFormation::CustomResource",
+      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction", "StpEdgeLambdaBucketCustomResource"]
+    },
     "DatabaseDbInstance": {
       "type": "AWS::RDS::DBInstance",
       "deletionPolicy": "Delete",
@@ -163,6 +194,42 @@
         "QueueName": "characterization-baseline-deadLetters.fifo"
       },
       "dependencies": []
+    },
+    "EdgeCdnDefaultDomainCustomResource": {
+      "type": "AWS::CloudFormation::CustomResource",
+      "dependencies": ["EdgeCdnDistribution0", "StacktapeServiceLambdaCustomResourceFunction"]
+    },
+    "EdgeCdnDistribution0": {
+      "type": "AWS::CloudFront::Distribution",
+      "dependencies": [
+        "StpCdnDefDynamicCachePolicy",
+        "StpCdnDefDynamicOriginRequestPolicy",
+        "StpDefaultDomainCertCustomResource"
+      ]
+    },
+    "EdgeDefaultDomainCustomResource": {
+      "type": "AWS::CloudFormation::CustomResource",
+      "dependencies": ["EdgeLoadBalancer", "StacktapeServiceLambdaCustomResourceFunction"]
+    },
+    "EdgeLbSecurityGroup": {
+      "type": "AWS::EC2::SecurityGroup",
+      "dependencies": ["StpVpc"]
+    },
+    "EdgeLoadBalancer": {
+      "type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "dependencies": ["EdgeLbSecurityGroup", "StpPublicSubnet0", "StpPublicSubnet1", "StpPublicSubnet2"]
+    },
+    "EdgePort443Listener": {
+      "type": "AWS::ElasticLoadBalancingV2::Listener",
+      "dependencies": ["EdgeLoadBalancer", "StpDefaultDomainCertCustomResource"]
+    },
+    "EdgePort443Priority1ListenerRule": {
+      "type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "dependencies": ["ApiEdgeTargetGroup", "EdgePort443Listener"]
+    },
+    "EdgePort80Listener": {
+      "type": "AWS::ElasticLoadBalancingV2::Listener",
+      "dependencies": ["EdgeLoadBalancer"]
     },
     "EventsEventBus": {
       "type": "AWS::Events::EventBus",
@@ -217,6 +284,14 @@
     "StpApiGatewayAnyRecordsProxyRoute": {
       "type": "AWS::ApiGatewayV2::Route",
       "dependencies": ["ApiApiGatewayIntegration", "ApiGatewayApi", "StpApiGatewayAnyRecordsProxyAuthorizer"]
+    },
+    "StpCdnDefDynamicCachePolicy": {
+      "type": "AWS::CloudFront::CachePolicy",
+      "dependencies": []
+    },
+    "StpCdnDefDynamicOriginRequestPolicy": {
+      "type": "AWS::CloudFront::OriginRequestPolicy",
+      "dependencies": []
     },
     "StpCloudwatchAlarmNotificationSharedPermission": {
       "type": "AWS::Lambda::Permission",
@@ -274,6 +349,10 @@
     "StpEcsExecutionRole": {
       "type": "AWS::IAM::Role",
       "dependencies": []
+    },
+    "StpEdgeLambdaBucketCustomResource": {
+      "type": "AWS::CloudFormation::CustomResource",
+      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
     },
     "StpInternetGateway": {
       "type": "AWS::EC2::InternetGateway",
@@ -333,7 +412,12 @@
     },
     "StpStpCustomTaggingScheduleRule": {
       "type": "AWS::Events::Rule",
-      "dependencies": ["DatabaseSecurityGroup", "StacktapeServiceLambdaCustomResourceFunction", "StpDiscoveryService"]
+      "dependencies": [
+        "DatabaseSecurityGroup",
+        "EdgeLbSecurityGroup",
+        "StacktapeServiceLambdaCustomResourceFunction",
+        "StpDiscoveryService"
+      ]
     },
     "StpStpCustomTaggingScheduleRulePermission": {
       "type": "AWS::Lambda::Permission",
@@ -363,7 +447,9 @@
     "WebApiMapping": {
       "type": "AWS::ApiGatewayV2::ApiMapping",
       "physicalNames": {
-        "DomainName": { "Ref": "WebDomainName" }
+        "DomainName": {
+          "Ref": "WebDomainName"
+        }
       },
       "dependencies": ["WebApi", "WebDomainName", "WebStage"]
     },
@@ -461,7 +547,9 @@
     "WorkerEvent0EventSourceMapping": {
       "type": "AWS::Lambda::EventSourceMapping",
       "physicalNames": {
-        "FunctionName": { "Fn::GetAtt": ["WorkerFunction", "Arn"] }
+        "FunctionName": {
+          "Fn::GetAtt": ["WorkerFunction", "Arn"]
+        }
       },
       "dependencies": ["JobsQueue", "WorkerFunction"]
     },

@@ -12,6 +12,7 @@ import { cfLogicalNames } from '@shared/naming/logical-names';
 import { transformToCidr } from '@shared/utils/misc';
 import { normalizePathForLink } from '@utils/formatting';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import type { ApplicationLoadBalancerWithListeners } from '@domain-services/config-manager/utils/application-load-balancers';
 import type { ApplicationLoadBalancerListener } from '@stacktape/config/application-load-balancers';
 import type { CloudformationResource } from '@stacktape/config/cloudformation';
 import type { ApplicationLoadBalancerIntegrationProps } from '@stacktape/config/events';
@@ -28,7 +29,7 @@ export const getLoadBalancer = (loadBalancerName: string, loadBalancerConfig: St
 
 export const getLoadBalancerSecurityGroup = (
   loadBalancerName: string,
-  loadBalancerConfig: StpApplicationLoadBalancer
+  loadBalancerConfig: ApplicationLoadBalancerWithListeners
 ) =>
   new SecurityGroup({
     GroupDescription: `Stacktape generated security group for redis cluster ${loadBalancerName} in stack ${globalStateManager.targetStack.stackName}`,
@@ -116,7 +117,10 @@ export const getDefaultActionForListener = (listenerConfig: ApplicationLoadBalan
   return actions;
 };
 
-export const getLoadBalancersListeners = (loadBalancerName: string, loadBalancerConfig: StpApplicationLoadBalancer) => {
+export const getLoadBalancersListeners = (
+  loadBalancerName: string,
+  loadBalancerConfig: ApplicationLoadBalancerWithListeners
+) => {
   const resources: { cfLogicalName: string; resource: CloudformationResource }[] = [];
   loadBalancerConfig.listeners.forEach((listenerConfig) => {
     let certificatesForListener = [];
@@ -199,7 +203,7 @@ export const transformIntegrationsForResourceOutput = ({
   albIntegrations: (ApplicationLoadBalancerIntegrationProps & {
     workloadName: string;
   })[];
-  resource: StpApplicationLoadBalancer;
+  resource: ApplicationLoadBalancerWithListeners;
 }): StacktapeResourceOutput<'application-load-balancer'>['integrations'] => {
   return albIntegrations.map(
     ({ workloadName, methods, paths, priority, hosts, listenerPort, queryParams, headers, sourceIps }) => {

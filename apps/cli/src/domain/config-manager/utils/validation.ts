@@ -191,6 +191,13 @@ export const validateAwsCdkConstructProps = ({ construct }: { construct: StpAwsC
   )} or the directory containing Stacktape configuration file.`;
 
   const { entryfilePath } = construct;
+  if (!entryfilePath) {
+    throw new ExpectedError(
+      'CONFIG',
+      `${prettyIdentifier} is missing ${tuiManager.prettyConfigProperty('properties.entryfilePath')}.`,
+      `Point it at the file exporting your construct class. ${cwdHint}`
+    );
+  }
   const { extension, filePath } = parseUserCodeFilepath({
     codeType: `${prettyIdentifier} entryfilePath`,
     fullPath: entryfilePath,

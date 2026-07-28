@@ -121,7 +121,7 @@ export const getAllIntegrationsForApplicationLoadBalancerListener = ({
 const validateApplicationLoadBalancerIntegrations = ({
   loadBalancerDefinition
 }: {
-  loadBalancerDefinition: StpApplicationLoadBalancer;
+  loadBalancerDefinition: ApplicationLoadBalancerWithListeners;
 }) => {
   loadBalancerDefinition.listeners.forEach(({ port }) => {
     const uniquePriorities: { [uniquePriority: number]: string } = {};
@@ -141,8 +141,26 @@ const validateApplicationLoadBalancerIntegrations = ({
   });
 };
 
-export const transformLoadBalancerToListenerForm = ({ definition }: { definition: StpApplicationLoadBalancer }) => {
-  let finalDefinition = definition;
+/**
+ * A load balancer whose listeners are settled: either the user authored some, or
+ * {@link transformLoadBalancerToListenerForm} supplied the defaults. Listeners stay optional on the authored
+ * definition, which is why everything downstream of that transform works with this shape instead.
+ */
+export type ApplicationLoadBalancerWithListeners = StpApplicationLoadBalancer & {
+  listeners: ApplicationLoadBalancerListener[];
+};
+
+const hasAuthoredListeners = (
+  definition: StpApplicationLoadBalancer
+): definition is ApplicationLoadBalancerWithListeners => Boolean(definition.listeners?.length);
+
+export const transformLoadBalancerToListenerForm = ({
+  definition
+}: {
+  definition: StpApplicationLoadBalancer;
+}): ApplicationLoadBalancerWithListeners => {
+  // Resolved unconditionally: the traversal reports invalid load balancer references even for a definition that
+  // brings its own listeners and therefore needs no test listener.
   const createTestListener = configManager.allContainerWorkloads.some(
     (cw) =>
       cw.deployment?.beforeAllowTrafficFunction &&
@@ -154,40 +172,37 @@ export const transformLoadBalancerToListenerForm = ({ definition }: { definition
         )
       )
   );
-  if (!definition.listeners?.length) {
-    finalDefinition = {
-      ...definition,
-      listeners:
-        // (definition.useHttps
-        [
-          {
-            port: 80,
-            protocol: 'HTTP',
-            defaultAction: {
-              type: 'redirect',
-              properties: { statusCode: 'HTTP_301', protocol: 'HTTPS' }
-            }
-          },
-          {
-            port: 443,
-            protocol: 'HTTPS'
-          }
-        ]
-          // : [
-          //     {
-          //       port: 80,
-          //       protocol: 'HTTP'
-          //     }
-          //   ]
-          .concat(
-            createTestListener ? [{ port: DEFAULT_TEST_LISTENER_PORT, protocol: 'HTTPS' }] : []
-          ) as ApplicationLoadBalancerListener[]
-    };
+  if (hasAuthoredListeners(definition)) {
+    return definition;
   }
-  return finalDefinition;
+  // (definition.useHttps
+  const defaultListeners: ApplicationLoadBalancerListener[] = [
+    {
+      port: 80,
+      protocol: 'HTTP',
+      defaultAction: {
+        type: 'redirect',
+        properties: { statusCode: 'HTTP_301', protocol: 'HTTPS' }
+      }
+    },
+    {
+      port: 443,
+      protocol: 'HTTPS'
+    }
+  ];
+  // : [
+  //     {
+  //       port: 80,
+  //       protocol: 'HTTP'
+  //     }
+  //   ]
+  const testListeners: ApplicationLoadBalancerListener[] = createTestListener
+    ? [{ port: DEFAULT_TEST_LISTENER_PORT, protocol: 'HTTPS' }]
+    : [];
+  return { ...definition, listeners: defaultListeners.concat(testListeners) };
 };
 
-const validateListenerPortOverlap = ({ loadBalancer }: { loadBalancer: StpApplicationLoadBalancer }) => {
+const validateListenerPortOverlap = ({ loadBalancer }: { loadBalancer: ApplicationLoadBalancerWithListeners }) => {
   const encounteredPorts = new Set<number>();
   loadBalancer.listeners.forEach(({ port }) => {
     if (encounteredPorts.has(port)) {

@@ -6,6 +6,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { stpErrors } from '@errors';
+import { ExpectedError } from '@utils/errors';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { dynamicRequireLibraryFromUserNodeModules } from '@shared/utils/fs-utils';
 import { capitalizeFirstLetter } from '@shared/utils/misc';
@@ -20,8 +21,18 @@ declare class CDKConstruct extends ImportedCdkStack {
 export const resolveAwsCdkConstructs = async () => {
   await Promise.all(
     configManager.awsCdkConstructs.map(async (resource) => {
+      const { entryfilePath } = resource;
+      // The authored definition may omit its whole `properties` bag. `validateAwsCdkConstructProps` reports that with
+      // a fuller message, but it does not run when the CLI is invoked as a server, so the path is checked here too.
+      if (!entryfilePath) {
+        throw new ExpectedError(
+          'CONFIG_VALIDATION',
+          `Error in construct ${resource.name}: no entryfilePath is configured.`,
+          'Set properties.entryfilePath to the file exporting your construct class.'
+        );
+      }
       const { filePath, extension } = parseUserCodeFilepath({
-        fullPath: resource.entryfilePath,
+        fullPath: entryfilePath,
         codeType: 'CONSTRUCT',
         workingDir: globalStateManager.workingDir
       });
@@ -31,7 +42,7 @@ export const resolveAwsCdkConstructs = async () => {
       const {
         cdkLib: { App, Stack },
         constructsLib: { Construct }
-      } = getCdkLibs({ constructFilePath: resource.entryfilePath });
+      } = getCdkLibs({ constructFilePath: entryfilePath });
       // make dynamic require for user's cdk construct
       let UserConstructClass: typeof CDKConstruct;
       try {
@@ -45,7 +56,7 @@ export const resolveAwsCdkConstructs = async () => {
         throw stpErrors.e70({
           constructName: resource.name,
           constructExportName: resource.exportName || 'default',
-          constructFilePath: resource.entryfilePath,
+          constructFilePath: entryfilePath,
           rootError: err
         });
       }
@@ -70,7 +81,7 @@ export const resolveAwsCdkConstructs = async () => {
         throw stpErrors.e71({
           constructName: resource.name,
           constructExportName: resource.exportName || 'default',
-          constructFilePath: resource.entryfilePath
+          constructFilePath: entryfilePath
         });
       }
       // we currently do not allow stack construct to be added as there are multiple questions/problems

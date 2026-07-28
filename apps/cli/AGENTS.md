@@ -60,6 +60,7 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 ```sh
 pnpm --filter @stacktape/cli run typecheck       # CLI, build/test projects, smoke fixtures and committed generated TypeScript
 pnpm --filter @stacktape/cli run test            # characterization, generators, command/Docker secret safety, release security, MCP docs, helper Lambdas, CLI smoke
+pnpm --filter @stacktape/cli run test:config-unit # authored-config npm API and directive-resolution unit tests
 pnpm --filter @stacktape/cli run test:generators      # generator unit tests: JSDoc escaping, cloudform naming/generics
 pnpm --filter @stacktape/cli run test:starter-projects # config-name restoration and source-template invariants
 pnpm --filter @stacktape/cli run test:generated-types # type-checks committed CloudFormation and schema TypeScript

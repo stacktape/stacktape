@@ -52,7 +52,9 @@ const merge = (from: any, to: any) => {
   }
 };
 
-export const mergeStacktapeDefaults = (resourceDefinition: StpResource) => {
+export const mergeStacktapeDefaults = <TResource extends { type: StpResourceType }>(
+  resourceDefinition: TResource
+): TResource => {
   const res = { ...resourceDefinition };
   // merge(globalDefaults, res);
   merge(RESOURCE_DEFAULTS[resourceDefinition.type], res);
