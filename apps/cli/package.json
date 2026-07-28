@@ -54,7 +54,7 @@
     "test:release-artifact": "bun scripts/verify-release-artifact.ts",
     "test:release-security": "bun test scripts/release/checksums.spec.ts src/api/npm/bin/stacktape.spec.ts scripts/install-scripts/checksums.spec.ts",
     "test:starter-projects": "bun test scripts/starter-projects src/commands/init/using-starter-project/utils.spec.ts",
-    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/config-loading-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/packaging-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tsconfig.generated.json"
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tsconfig.build.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/config-loading-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/packaging-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tsconfig.generated.json"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.68.0",

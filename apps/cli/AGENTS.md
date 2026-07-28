@@ -17,8 +17,9 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 - `scripts/` — build, code generation, release and publishing tooling, plus the committed platform binaries under
   `scripts/assets/` that release archives ship.
 - `starter-projects/` — canonical starter templates, not installed workspace projects. Their TypeScript configs are
-  named `tsconfig.template.json` so editors do not treat framework templates as live projects; starter
-  materialization restores every one to `tsconfig.json` before publishing or use.
+  named `tsconfig*.template.json` so editors do not treat framework templates as live projects; starter
+  materialization removes the `.template` segment (for example, `tsconfig.node.template.json` becomes
+  `tsconfig.node.json`) before publishing or use.
 - `types/` — the CLI's resolved/internal global declaration API. Declarations that depend on the authored
   configuration model import their types explicitly from `@stacktape/config` and publish the existing globals
   through `declare global`; there is no ambient alias bridge. The retained JSDoc still feeds generated schema/npm

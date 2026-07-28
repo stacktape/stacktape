@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import { copy, ensureDir, pathExists, readJson } from 'fs-extra';
 import { STARTER_PROJECTS_SOURCE_PATH } from '../../shared/naming/project-fs-paths';
 import { ensureStarterProjectTsConfig, restoreStarterTsConfigNames } from './utils';
@@ -40,6 +40,17 @@ describe('starter TypeScript config materialization', () => {
     expect(await pathExists(join(projectPath, 'tsconfig.template.json'))).toBe(false);
   });
 
+  test('restores a suffixed config to its corresponding live name', async () => {
+    const projectPath = await createTemporaryDirectory();
+    const templateContents = '{\n  "compilerOptions": { "composite": true }\n}\n';
+    await writeFile(join(projectPath, 'tsconfig.node.template.json'), templateContents);
+
+    await restoreStarterTsConfigNames({ absoluteProjectPath: projectPath });
+
+    expect(await readFile(join(projectPath, 'tsconfig.node.json'), 'utf8')).toBe(templateContents);
+    expect(await pathExists(join(projectPath, 'tsconfig.node.template.json'))).toBe(false);
+  });
+
   test('restores nested monorepo configs and preserves extends paths', async () => {
     const projectPath = await createTemporaryDirectory();
     const packagePath = join(projectPath, 'packages', 'server');
@@ -66,14 +77,19 @@ describe('starter TypeScript config materialization', () => {
     expect(await pathExists(join(packagePath, 'tsconfig.template.json'))).toBe(false);
   });
 
-  test('fails before renaming when a target config already exists', async () => {
+  test('fails before renaming any configs when a target already exists', async () => {
     const projectPath = await createTemporaryDirectory();
+    const nestedPath = join(projectPath, 'packages', 'server');
+    await ensureDir(nestedPath);
     await writeFile(join(projectPath, 'tsconfig.template.json'), '{"template":true}');
-    await writeFile(join(projectPath, 'tsconfig.json'), '{"target":true}');
+    await writeFile(join(nestedPath, 'tsconfig.node.template.json'), '{"template":"node"}');
+    await writeFile(join(nestedPath, 'tsconfig.node.json'), '{"target":true}');
 
     await expect(restoreStarterTsConfigNames({ absoluteProjectPath: projectPath })).rejects.toThrow('target "');
     expect(await pathExists(join(projectPath, 'tsconfig.template.json'))).toBe(true);
-    expect(await readJson(join(projectPath, 'tsconfig.json'))).toEqual({ target: true });
+    expect(await pathExists(join(projectPath, 'tsconfig.json'))).toBe(false);
+    expect(await pathExists(join(nestedPath, 'tsconfig.node.template.json'))).toBe(true);
+    expect(await readJson(join(nestedPath, 'tsconfig.node.json'))).toEqual({ target: true });
   });
 
   test('generates the existing default for a TypeScript starter without a template config', async () => {
@@ -98,10 +114,12 @@ describe('starter TypeScript config materialization', () => {
 
   test('keeps source configs editor-inert and restores every config in copied output', async () => {
     const sourceConfigs = await findConfigFiles(STARTER_PROJECTS_SOURCE_PATH);
-    expect(sourceConfigs.some((filePath) => filePath.endsWith('tsconfig.json'))).toBe(false);
-
-    const templateConfigs = sourceConfigs.filter((filePath) => filePath.endsWith('tsconfig.template.json'));
+    const templateConfigs = sourceConfigs.filter(isTemplateTsConfig);
+    expect(templateConfigs).toHaveLength(sourceConfigs.length);
     expect(templateConfigs.length).toBeGreaterThan(0);
+    expect(
+      templateConfigs.some((filePath) => filePath.endsWith(join('react-spa-vitejs', 'tsconfig.node.template.json')))
+    ).toBe(true);
 
     const projectPath = await createTemporaryDirectory();
     await Promise.all(
@@ -116,10 +134,21 @@ describe('starter TypeScript config materialization', () => {
     await restoreStarterTsConfigNames({ absoluteProjectPath: projectPath });
 
     const outputConfigs = await findConfigFiles(projectPath);
-    expect(outputConfigs.some((filePath) => filePath.endsWith('tsconfig.template.json'))).toBe(false);
-    expect(outputConfigs.filter((filePath) => filePath.endsWith('tsconfig.json'))).toHaveLength(templateConfigs.length);
+    expect(outputConfigs.some(isTemplateTsConfig)).toBe(false);
+    expect(outputConfigs).toHaveLength(templateConfigs.length);
+    expect(await pathExists(join(projectPath, 'react-spa-vitejs', 'tsconfig.node.json'))).toBe(true);
+    expect(await readJson(join(projectPath, 'react-spa-vitejs', 'tsconfig.json'))).toEqual(
+      expect.objectContaining({
+        references: [{ path: './tsconfig.node.json' }]
+      })
+    );
   });
 });
+
+const isTemplateTsConfig = (filePath: string): boolean => {
+  const fileName = basename(filePath);
+  return fileName.startsWith('tsconfig') && fileName.endsWith('.template.json');
+};
 
 const findConfigFiles = async (directoryPath: string): Promise<string[]> => {
   const glob = new Bun.Glob('**/tsconfig*.json');

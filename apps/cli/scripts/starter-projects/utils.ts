@@ -1,5 +1,5 @@
 import { rename } from 'node:fs/promises';
-import { basename, dirname, join, sep } from 'node:path';
+import { basename, join, sep } from 'node:path';
 import { STARTER_PROJECTS_SOURCE_PATH } from '@shared/naming/project-fs-paths';
 import { exec } from '@shared/utils/exec';
 import { copy, pathExists, readdir, readFile, writeFile, writeJson } from 'fs-extra';
@@ -29,38 +29,34 @@ const IGNORED_FILES = [
 
 type StarterTsConfigMetadata = Parameters<typeof addDefaultTsConfigIfNeeded>[0]['metadata'];
 
-const findFilesNamed = async ({
-  directoryPath,
-  fileName
-}: {
-  directoryPath: string;
-  fileName: string;
-}): Promise<string[]> => {
+const TS_CONFIG_TEMPLATE_SUFFIX = '.template.json';
+
+const findStarterTsConfigTemplates = async (directoryPath: string): Promise<string[]> => {
   const entries = await readdir(directoryPath, { withFileTypes: true });
   const matches = await Promise.all(
     entries.map(async (entry) => {
       const entryPath = join(directoryPath, entry.name);
       if (entry.isDirectory()) {
-        return findFilesNamed({ directoryPath: entryPath, fileName });
+        return findStarterTsConfigTemplates(entryPath);
       }
-      return entry.name === fileName ? [entryPath] : [];
+      return entry.name.startsWith('tsconfig') && entry.name.endsWith(TS_CONFIG_TEMPLATE_SUFFIX) ? [entryPath] : [];
     })
   );
   return matches.flat();
 };
+
+const getRestoredTsConfigPath = (templatePath: string): string =>
+  `${templatePath.slice(0, -TS_CONFIG_TEMPLATE_SUFFIX.length)}.json`;
 
 export const restoreStarterTsConfigNames = async ({
   absoluteProjectPath
 }: {
   absoluteProjectPath: string;
 }): Promise<void> => {
-  const templatePaths = await findFilesNamed({
-    directoryPath: absoluteProjectPath,
-    fileName: 'tsconfig.template.json'
-  });
+  const templatePaths = await findStarterTsConfigTemplates(absoluteProjectPath);
 
   for (const templatePath of templatePaths) {
-    const targetPath = join(dirname(templatePath), 'tsconfig.json');
+    const targetPath = getRestoredTsConfigPath(templatePath);
     if (await pathExists(targetPath)) {
       throw new Error(
         `Cannot restore starter TypeScript config "${templatePath}" because target "${targetPath}" already exists.`
@@ -68,14 +64,9 @@ export const restoreStarterTsConfigNames = async ({
     }
   }
 
-  await Promise.all(
-    templatePaths.map((templatePath) => rename(templatePath, join(dirname(templatePath), 'tsconfig.json')))
-  );
+  await Promise.all(templatePaths.map((templatePath) => rename(templatePath, getRestoredTsConfigPath(templatePath))));
 
-  const leakedTemplatePaths = await findFilesNamed({
-    directoryPath: absoluteProjectPath,
-    fileName: 'tsconfig.template.json'
-  });
+  const leakedTemplatePaths = await findStarterTsConfigTemplates(absoluteProjectPath);
   if (leakedTemplatePaths.length > 0) {
     throw new Error(`Starter output contains unrestored TypeScript configs: ${leakedTemplatePaths.join(', ')}`);
   }
