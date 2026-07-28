@@ -1,3 +1,4 @@
+import { getStpNameForResource } from '@shared/naming/utils';
 import type { ResourceOverrides, StacktapeResourceDefinition } from '@stacktape/config/shared';
 
 /**
@@ -69,3 +70,32 @@ export type NormalizedResource<
  */
 export const getAuthoredOverrides = (definition: StacktapeResourceDefinition): ResourceOverrides | undefined =>
   'overrides' in definition ? definition.overrides : undefined;
+
+/**
+ * How one resource a composite resource brings with it is addressed: the chain it is synthesized under, the dotted
+ * name a configuration references it by, and the Stacktape resource name its physical and logical names derive from.
+ */
+export type NestedResourceIdentity = {
+  nameChain: string[];
+  stpReferenceableName: string;
+  stpResourceName: string;
+};
+
+/**
+ * Builds the identity of one nested resource from its parent and the identifier the parent files it under.
+ *
+ * The Stacktape name depends on the *authored parent's* type rather than the child's: `getStpNameForResource` keeps
+ * several parent families on their original naming so that a nested resource is not renamed — and therefore not
+ * replaced — by a change here.
+ */
+export const getNestedResourceIdentity = (
+  parent: { nameChain: string[]; type: StacktapeResourceType },
+  nestedResourceIdentifier: string
+): NestedResourceIdentity => {
+  const nameChain = [...parent.nameChain, nestedResourceIdentifier];
+  return {
+    nameChain,
+    stpReferenceableName: nameChain.join('.'),
+    stpResourceName: getStpNameForResource({ nameChain, parentResourceType: parent.type })
+  };
+};

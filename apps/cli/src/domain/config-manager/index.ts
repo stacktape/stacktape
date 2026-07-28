@@ -28,7 +28,7 @@ import { getApexDomain } from '@utils/domains';
 import { getConfigPath } from '@utils/file-loaders';
 import { builtInDirectives } from './built-in-directives';
 import { ConfigResolver } from './config-resolver';
-import { getAuthoredOverrides } from './normalized-resource';
+import { getAuthoredOverrides, getNestedResourceIdentity } from './normalized-resource';
 import { TransformsResolver } from './transforms-resolver';
 import { getAlarmsToBeAppliedToResource, isGlobalAlarmEligibleForStack } from './utils/alarms';
 import { DEFAULT_TEST_LISTENER_PORT } from './utils/application-load-balancers';
@@ -983,34 +983,19 @@ export class ConfigManager {
 
   get nextjsWebs() {
     return this.getResourcesFromConfig('nextjs-web').map((nextjsWeb) => {
-      const nestedResourcesIdentifiers: (keyof StpNextjsWeb['_nestedResources'])[] = [
-        'bucket',
-        'imageFunction',
-        'revalidationFunction',
-        'revalidationQueue',
-        'revalidationTable',
-        'revalidationInsertFunction',
-        'serverEdgeFunction',
-        'serverFunction',
-        'warmerFunction'
-      ];
-      const nestedResourceInfo: {
-        [_nestedResource in keyof StpNextjsWeb['_nestedResources']]?: {
-          stpResourceName: string;
-          stpReferenceableName: string;
-          nameChain: string[];
-        };
-      } = {};
-      nestedResourcesIdentifiers.forEach((identifier) => {
-        nestedResourceInfo[identifier] = {
-          nameChain: [...nextjsWeb.nameChain, identifier],
-          stpReferenceableName: [...nextjsWeb.nameChain, identifier].join('.'),
-          stpResourceName: getStpNameForResource({
-            nameChain: [...nextjsWeb.nameChain, identifier],
-            parentResourceType: nextjsWeb.type
-          })
-        };
-      });
+      // Every child gets an identity whether or not this configuration ends up synthesizing it: whether the server
+      // runs at the edge, or a warmer is wanted, decides which resources are created, not how they are named.
+      const nestedResourceInfo = {
+        bucket: getNestedResourceIdentity(nextjsWeb, 'bucket'),
+        imageFunction: getNestedResourceIdentity(nextjsWeb, 'imageFunction'),
+        revalidationFunction: getNestedResourceIdentity(nextjsWeb, 'revalidationFunction'),
+        revalidationQueue: getNestedResourceIdentity(nextjsWeb, 'revalidationQueue'),
+        revalidationTable: getNestedResourceIdentity(nextjsWeb, 'revalidationTable'),
+        revalidationInsertFunction: getNestedResourceIdentity(nextjsWeb, 'revalidationInsertFunction'),
+        serverEdgeFunction: getNestedResourceIdentity(nextjsWeb, 'serverEdgeFunction'),
+        serverFunction: getNestedResourceIdentity(nextjsWeb, 'serverFunction'),
+        warmerFunction: getNestedResourceIdentity(nextjsWeb, 'warmerFunction')
+      };
 
       const {
         name,
@@ -1554,24 +1539,10 @@ export class ConfigManager {
 
   get astroWebs() {
     return this.getResourcesFromConfig('astro-web').map((astroWeb) => {
-      const nestedResourcesIdentifiers: (keyof StpAstroWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
-      const nestedResourceInfo: {
-        [_nestedResource in keyof StpAstroWeb['_nestedResources']]?: {
-          stpResourceName: string;
-          stpReferenceableName: string;
-          nameChain: string[];
-        };
-      } = {};
-      nestedResourcesIdentifiers.forEach((identifier) => {
-        nestedResourceInfo[identifier] = {
-          nameChain: [...astroWeb.nameChain, identifier],
-          stpReferenceableName: [...astroWeb.nameChain, identifier].join('.'),
-          stpResourceName: getStpNameForResource({
-            nameChain: [...astroWeb.nameChain, identifier],
-            parentResourceType: astroWeb.type
-          })
-        };
-      });
+      const nestedResourceInfo = {
+        bucket: getNestedResourceIdentity(astroWeb, 'bucket'),
+        serverFunction: getNestedResourceIdentity(astroWeb, 'serverFunction')
+      };
 
       const {
         name,
@@ -1734,24 +1705,10 @@ export class ConfigManager {
 
   get nuxtWebs() {
     return this.getResourcesFromConfig('nuxt-web').map((nuxtWeb) => {
-      const nestedResourcesIdentifiers: (keyof StpNuxtWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
-      const nestedResourceInfo: {
-        [_nestedResource in keyof StpNuxtWeb['_nestedResources']]?: {
-          stpResourceName: string;
-          stpReferenceableName: string;
-          nameChain: string[];
-        };
-      } = {};
-      nestedResourcesIdentifiers.forEach((identifier) => {
-        nestedResourceInfo[identifier] = {
-          nameChain: [...nuxtWeb.nameChain, identifier],
-          stpReferenceableName: [...nuxtWeb.nameChain, identifier].join('.'),
-          stpResourceName: getStpNameForResource({
-            nameChain: [...nuxtWeb.nameChain, identifier],
-            parentResourceType: nuxtWeb.type
-          })
-        };
-      });
+      const nestedResourceInfo = {
+        bucket: getNestedResourceIdentity(nuxtWeb, 'bucket'),
+        serverFunction: getNestedResourceIdentity(nuxtWeb, 'serverFunction')
+      };
 
       const {
         name,
@@ -1914,24 +1871,10 @@ export class ConfigManager {
 
   get sveltekitWebs() {
     return this.getResourcesFromConfig('sveltekit-web').map((sveltekitWeb) => {
-      const nestedResourcesIdentifiers: (keyof StpSvelteKitWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
-      const nestedResourceInfo: {
-        [_nestedResource in keyof StpSvelteKitWeb['_nestedResources']]?: {
-          stpResourceName: string;
-          stpReferenceableName: string;
-          nameChain: string[];
-        };
-      } = {};
-      nestedResourcesIdentifiers.forEach((identifier) => {
-        nestedResourceInfo[identifier] = {
-          nameChain: [...sveltekitWeb.nameChain, identifier],
-          stpReferenceableName: [...sveltekitWeb.nameChain, identifier].join('.'),
-          stpResourceName: getStpNameForResource({
-            nameChain: [...sveltekitWeb.nameChain, identifier],
-            parentResourceType: sveltekitWeb.type
-          })
-        };
-      });
+      const nestedResourceInfo = {
+        bucket: getNestedResourceIdentity(sveltekitWeb, 'bucket'),
+        serverFunction: getNestedResourceIdentity(sveltekitWeb, 'serverFunction')
+      };
 
       const {
         name,
@@ -2094,24 +2037,10 @@ export class ConfigManager {
 
   get solidstartWebs() {
     return this.getResourcesFromConfig('solidstart-web').map((solidstartWeb) => {
-      const nestedResourcesIdentifiers: (keyof StpSolidStartWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
-      const nestedResourceInfo: {
-        [_nestedResource in keyof StpSolidStartWeb['_nestedResources']]?: {
-          stpResourceName: string;
-          stpReferenceableName: string;
-          nameChain: string[];
-        };
-      } = {};
-      nestedResourcesIdentifiers.forEach((identifier) => {
-        nestedResourceInfo[identifier] = {
-          nameChain: [...solidstartWeb.nameChain, identifier],
-          stpReferenceableName: [...solidstartWeb.nameChain, identifier].join('.'),
-          stpResourceName: getStpNameForResource({
-            nameChain: [...solidstartWeb.nameChain, identifier],
-            parentResourceType: solidstartWeb.type
-          })
-        };
-      });
+      const nestedResourceInfo = {
+        bucket: getNestedResourceIdentity(solidstartWeb, 'bucket'),
+        serverFunction: getNestedResourceIdentity(solidstartWeb, 'serverFunction')
+      };
 
       const {
         name,
@@ -2274,24 +2203,10 @@ export class ConfigManager {
 
   get tanstackWebs() {
     return this.getResourcesFromConfig('tanstack-web').map((tanstackWeb) => {
-      const nestedResourcesIdentifiers: (keyof StpTanStackWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
-      const nestedResourceInfo: {
-        [_nestedResource in keyof StpTanStackWeb['_nestedResources']]?: {
-          stpResourceName: string;
-          stpReferenceableName: string;
-          nameChain: string[];
-        };
-      } = {};
-      nestedResourcesIdentifiers.forEach((identifier) => {
-        nestedResourceInfo[identifier] = {
-          nameChain: [...tanstackWeb.nameChain, identifier],
-          stpReferenceableName: [...tanstackWeb.nameChain, identifier].join('.'),
-          stpResourceName: getStpNameForResource({
-            nameChain: [...tanstackWeb.nameChain, identifier],
-            parentResourceType: tanstackWeb.type
-          })
-        };
-      });
+      const nestedResourceInfo = {
+        bucket: getNestedResourceIdentity(tanstackWeb, 'bucket'),
+        serverFunction: getNestedResourceIdentity(tanstackWeb, 'serverFunction')
+      };
 
       const {
         name,
@@ -2454,24 +2369,10 @@ export class ConfigManager {
 
   get remixWebs() {
     return this.getResourcesFromConfig('remix-web').map((remixWeb) => {
-      const nestedResourcesIdentifiers: (keyof StpRemixWeb['_nestedResources'])[] = ['bucket', 'serverFunction'];
-      const nestedResourceInfo: {
-        [_nestedResource in keyof StpRemixWeb['_nestedResources']]?: {
-          stpResourceName: string;
-          stpReferenceableName: string;
-          nameChain: string[];
-        };
-      } = {};
-      nestedResourcesIdentifiers.forEach((identifier) => {
-        nestedResourceInfo[identifier] = {
-          nameChain: [...remixWeb.nameChain, identifier],
-          stpReferenceableName: [...remixWeb.nameChain, identifier].join('.'),
-          stpResourceName: getStpNameForResource({
-            nameChain: [...remixWeb.nameChain, identifier],
-            parentResourceType: remixWeb.type
-          })
-        };
-      });
+      const nestedResourceInfo = {
+        bucket: getNestedResourceIdentity(remixWeb, 'bucket'),
+        serverFunction: getNestedResourceIdentity(remixWeb, 'serverFunction')
+      };
 
       const {
         name,

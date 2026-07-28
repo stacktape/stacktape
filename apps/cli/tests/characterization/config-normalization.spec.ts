@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { ConfigManager, configManager } from '@domain-services/config-manager';
-import type { NormalizedResource } from '@domain-services/config-manager/normalized-resource';
+import {
+  getNestedResourceIdentity,
+  type NormalizedResource
+} from '@domain-services/config-manager/normalized-resource';
 import {
   DEFAULT_TEST_LISTENER_PORT,
   transformLoadBalancerToListenerForm
@@ -25,6 +28,7 @@ const managerFor = (resources: StacktapeConfig['resources']) => {
 
 const originalTargetStack = globalStateManager.targetStack;
 const originalSingletonConfig = configManager.config;
+let installedRegionShadow = false;
 
 beforeAll(() => {
   globalStateManager.targetStack = {
@@ -34,11 +38,26 @@ beforeAll(() => {
     projectName: 'normalization',
     projectId: 'normalization-project'
   };
+  // The composite web getters below read `region`, and `GlobalStateManager` is decorated with `memoizeGetters`: the
+  // first read caches both `args` and `region` as non-configurable own properties that nothing can remove. Shadowing
+  // `region` with a configurable own value stops that getter from ever running here. If something has already
+  // memoized it the shadow is neither needed nor permitted, so it is only installed when no own property exists —
+  // these tests depend on not causing that first read themselves, never on the region's value. Inspecting and
+  // defining are synchronous, so nothing can memoize between the two.
+  if (!Object.getOwnPropertyDescriptor(globalStateManager, 'region')) {
+    Object.defineProperty(globalStateManager, 'region', { value: 'eu-west-1', configurable: true });
+    installedRegionShadow = true;
+  }
 });
 
 afterAll(() => {
   globalStateManager.targetStack = originalTargetStack;
   configManager.config = originalSingletonConfig;
+  // Only ever remove this suite's own shadow; a descriptor another suite left behind is not this suite's to touch.
+  if (installedRegionShadow) {
+    Reflect.deleteProperty(globalStateManager, 'region');
+    installedRegionShadow = false;
+  }
 });
 
 describe('authored-to-runtime normalization', () => {
@@ -502,5 +521,147 @@ describe('normalized resource types', () => {
     expect(firewallWithItsBag.scope).toBe('regional');
     expect(firewallWithAnUnknownScope.name).toBe('firewall');
     expect(authoredMemberSurvivesTheAlias).toHaveLength(1);
+  });
+});
+
+describe('nested resource identity', () => {
+  // Composite web resources synthesize children of their own, and each child needs an identity before anything can
+  // reference it: the chain it sits under, the dotted name a configuration references it by, and the Stacktape name
+  // its physical and logical names derive from.
+
+  test('extends the parent chain and derives the dotted and Stacktape names from it', () => {
+    expect(getNestedResourceIdentity({ nameChain: ['site'], type: 'astro-web' }, 'serverFunction')).toEqual({
+      nameChain: ['site', 'serverFunction'],
+      stpReferenceableName: 'site.serverFunction',
+      stpResourceName: 'siteServerFunction'
+    });
+  });
+
+  test('keeps capitalising every segment for a chain that is already nested', () => {
+    expect(getNestedResourceIdentity({ nameChain: ['site', 'inner'], type: 'astro-web' }, 'serverFunction')).toEqual({
+      nameChain: ['site', 'inner', 'serverFunction'],
+      stpReferenceableName: 'site.inner.serverFunction',
+      stpResourceName: 'siteInnerServerFunction'
+    });
+  });
+
+  test('drops the child segment only for the parent families held on their original names', () => {
+    // `web-service` and its siblings name endpoint-like children after the parent alone. That is a compatibility
+    // rule, not a formatting one: renaming these would replace deployed load balancers and gateways.
+    expect(getNestedResourceIdentity({ nameChain: ['api'], type: 'web-service' }, 'loadBalancer')).toEqual({
+      nameChain: ['api', 'loadBalancer'],
+      stpReferenceableName: 'api.loadBalancer',
+      stpResourceName: 'api'
+    });
+    expect(getNestedResourceIdentity({ nameChain: ['api'], type: 'nextjs-web' }, 'bucket').stpResourceName).toBe(
+      'apiBucket'
+    );
+  });
+
+  /**
+   * Throws rather than narrowing: a child declared optional on the parent is genuinely absent for some
+   * configurations, so a test that expects one has to say which configuration it expected it from.
+   */
+  const nestedResource = <TResource>(resource: TResource | undefined, description: string): TResource => {
+    if (!resource) {
+      throw new Error(`Expected this configuration to synthesize ${description}, but it was absent.`);
+    }
+    return resource;
+  };
+
+  const expectSsrFamilyIdentities = (nestedResources: {
+    bucket: { name: string; nameChain: string[] };
+    serverFunction: { name: string; nameChain: string[] };
+  }) => {
+    expect(Object.keys(nestedResources).sort()).toEqual(['bucket', 'serverFunction']);
+    expect(nestedResources.bucket.name).toBe('siteBucket');
+    expect(nestedResources.bucket.nameChain).toEqual(['site', 'bucket']);
+    expect(nestedResources.serverFunction.name).toBe('siteServerFunction');
+    expect(nestedResources.serverFunction.nameChain).toEqual(['site', 'serverFunction']);
+  };
+
+  test('gives every SSR family exactly a bucket and a server function, identically named', () => {
+    const appDirectory = './';
+
+    expectSsrFamilyIdentities(
+      managerFor({ site: { type: 'astro-web', properties: { appDirectory } } }).astroWebs[0]._nestedResources
+    );
+    expectSsrFamilyIdentities(
+      managerFor({ site: { type: 'nuxt-web', properties: { appDirectory } } }).nuxtWebs[0]._nestedResources
+    );
+    expectSsrFamilyIdentities(
+      managerFor({ site: { type: 'sveltekit-web', properties: { appDirectory } } }).sveltekitWebs[0]._nestedResources
+    );
+    expectSsrFamilyIdentities(
+      managerFor({ site: { type: 'solidstart-web', properties: { appDirectory } } }).solidstartWebs[0]._nestedResources
+    );
+    expectSsrFamilyIdentities(
+      managerFor({ site: { type: 'tanstack-web', properties: { appDirectory } } }).tanstackWebs[0]._nestedResources
+    );
+    expectSsrFamilyIdentities(
+      managerFor({ site: { type: 'remix-web', properties: { appDirectory } } }).remixWebs[0]._nestedResources
+    );
+  });
+
+  const nextjsNestedResources = (properties: {
+    appDirectory: string;
+    useEdgeLambda?: boolean;
+    warmServerInstances?: number;
+  }) => managerFor({ site: { type: 'nextjs-web', properties } }).nextjsWebs[0]._nestedResources;
+
+  test('builds every one of the nine children a Next.js web brings with it', () => {
+    expect(Object.keys(nextjsNestedResources({ appDirectory: './' })).sort()).toEqual([
+      'bucket',
+      'imageFunction',
+      'revalidationFunction',
+      'revalidationInsertFunction',
+      'revalidationQueue',
+      'revalidationTable',
+      'serverEdgeFunction',
+      'serverFunction',
+      'warmerFunction'
+    ]);
+  });
+
+  test('names each unconditional child after the parent and the identifier it is filed under', () => {
+    const nested = nextjsNestedResources({ appDirectory: './' });
+
+    expect(nested.bucket.name).toBe('siteBucket');
+    expect(nested.bucket.nameChain).toEqual(['site', 'bucket']);
+    expect(nested.imageFunction.name).toBe('siteImageFunction');
+    expect(nested.imageFunction.nameChain).toEqual(['site', 'imageFunction']);
+    expect(nested.revalidationFunction.name).toBe('siteRevalidationFunction');
+    expect(nested.revalidationFunction.nameChain).toEqual(['site', 'revalidationFunction']);
+    expect(nested.revalidationQueue.name).toBe('siteRevalidationQueue');
+    expect(nested.revalidationQueue.nameChain).toEqual(['site', 'revalidationQueue']);
+    expect(nested.revalidationTable.name).toBe('siteRevalidationTable');
+    expect(nested.revalidationTable.nameChain).toEqual(['site', 'revalidationTable']);
+    expect(nested.revalidationInsertFunction.name).toBe('siteRevalidationInsertFunction');
+    expect(nested.revalidationInsertFunction.nameChain).toEqual(['site', 'revalidationInsertFunction']);
+  });
+
+  test('runs the server in a Lambda by default, named from the same identity', () => {
+    const nested = nextjsNestedResources({ appDirectory: './' });
+    const serverFunction = nestedResource(nested.serverFunction, 'a server function');
+
+    expect(serverFunction.name).toBe('siteServerFunction');
+    expect(serverFunction.nameChain).toEqual(['site', 'serverFunction']);
+    expect(serverFunction.connectTo).toEqual(['site.bucket', 'site.revalidationQueue', 'site.revalidationTable']);
+  });
+
+  test('moves the server to an edge function when the configuration asks for one', () => {
+    const nested = nextjsNestedResources({ appDirectory: './', useEdgeLambda: true });
+    const serverEdgeFunction = nestedResource(nested.serverEdgeFunction, 'a server edge function');
+
+    expect(serverEdgeFunction.name).toBe('siteServerEdgeFunction');
+    expect(serverEdgeFunction.nameChain).toEqual(['site', 'serverEdgeFunction']);
+  });
+
+  test('adds a warmer when the configuration asks for warm server instances', () => {
+    const nested = nextjsNestedResources({ appDirectory: './', warmServerInstances: 2 });
+    const warmerFunction = nestedResource(nested.warmerFunction, 'a warmer function');
+
+    expect(warmerFunction.name).toBe('siteWarmerFunction');
+    expect(warmerFunction.nameChain).toEqual(['site', 'warmerFunction']);
   });
 });
