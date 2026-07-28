@@ -16,6 +16,9 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
   `types/` declarations; see that directory's `AGENTS.md` for the measurement and the compatibility contract.
 - `scripts/` — build, code generation, release and publishing tooling, plus the committed platform binaries under
   `scripts/assets/` that release archives ship.
+- `starter-projects/` — canonical starter templates, not installed workspace projects. Their TypeScript configs are
+  named `tsconfig.template.json` so editors do not treat framework templates as live projects; starter
+  materialization restores every one to `tsconfig.json` before publishing or use.
 - `types/` — hand-authored config type definitions. Their JSDoc is the source of the published config schema and of
   the documentation examples, so comment layout is content: `types/` is excluded from formatters.
 - `@generated/` — committed generated data (CloudFormation types, config schema, LLM docs, price tables). Never
@@ -54,6 +57,7 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 pnpm --filter @stacktape/cli run typecheck       # CLI, packaging smoke fixture and committed generated CloudFormation TypeScript
 pnpm --filter @stacktape/cli run test            # characterization, generators, command/Docker secret safety, release security, MCP docs, helper Lambdas, CLI smoke
 pnpm --filter @stacktape/cli run test:generators      # generator unit tests: JSDoc escaping, cloudform naming/generics
+pnpm --filter @stacktape/cli run test:starter-projects # config-name restoration and source-template invariants
 pnpm --filter @stacktape/cli run test:generated-types # type-checks the committed CloudFormation trees
 pnpm --filter @stacktape/cli run test:docker-secrets # proves registry password, build-arg and container-env values never reach Docker's argv
 pnpm --filter @stacktape/cli run test:cli-smoke # compiles the binary and runs `--version` and `--help`
@@ -77,6 +81,10 @@ Two known constraints:
   `scripts/generate-llm-docs.ts` returns together with `apps/docs`.
 - `@generated/schemas` does not currently reproduce byte-for-byte from `types/`, with either TypeScript 5.9 or 6.
   That drift predates the move; a freshness gate is only worth adding once the inputs and generator agree again.
+- Framework-level starter validation belongs in a separate CI lane that materializes each starter into a temporary
+  directory, installs with that starter's package manager, and runs its own typecheck with bounded concurrency,
+  per-starter timeouts, and unconditional cleanup. It must not add every framework dependency to this workspace or
+  run network installs as part of the normal CLI test command.
 - The v3 release workflow, its `scripts/release-workflow.spec.ts` gate, and the MCP evaluation lanes are migrated
   with the release pipeline. The `release` and `build:bin` scripts that dispatched those workflows were removed
   rather than left pointing at workflows this repository does not have; they return with the pipeline.

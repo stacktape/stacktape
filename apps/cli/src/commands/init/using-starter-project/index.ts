@@ -24,7 +24,12 @@ import {
   stat,
   statSync
 } from 'fs-extra';
-import { addTsConfig, adjustPackageJson, getAvailableStartersMetadata, promptTargetDirectory } from './utils';
+import {
+  addDefaultTsConfigIfNeeded,
+  adjustPackageJson,
+  getAvailableStartersMetadata,
+  promptTargetDirectory
+} from './utils';
 
 export const initUsingStarterProject = async () => {
   const availableStarters = await getAvailableStartersMetadata({
@@ -94,9 +99,7 @@ export const initUsingStarterProject = async () => {
 
   if (projectToUse.projectType === 'es') {
     await adjustPackageJson({ absoluteProjectPath, metadata: projectToUse });
-    if (!projectToUse.hasOwnTsConfig) {
-      await addTsConfig({ absoluteProjectPath, metadata: projectToUse });
-    }
+    await addDefaultTsConfigIfNeeded({ absoluteProjectPath, metadata: projectToUse });
   }
 
   displayResult({ targetDirectory, absoluteProjectPath, projectToUse, costEstimation, configFormat });

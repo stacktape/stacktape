@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
 import { DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY } from '@config';
 import { sortObjectKeys } from '@shared/utils/misc';
-import { copy, readJson, readJSON, writeJson } from 'fs-extra';
+import { copy, pathExists, readJson, readJSON, writeJson } from 'fs-extra';
 import sortBy from 'lodash/sortBy';
 
 export const getAvailableStartersMetadata = async ({
@@ -78,7 +78,7 @@ export const addTsConfig = async ({
   metadata,
   absoluteProjectPath
 }: {
-  metadata: StarterProjectMetadata;
+  metadata: Pick<StarterProjectMetadata, 'hasNextJs' | 'hasReact' | 'hasTypescript' | 'isWebsite' | 'tags'>;
   absoluteProjectPath: string;
 }) => {
   const { hasTypescript, isWebsite, hasReact, hasNextJs } = metadata;
@@ -117,5 +117,21 @@ export const addTsConfig = async ({
       exclude: ['node_modules', 'dist', 'build']
     };
     await writeJson(join(absoluteProjectPath, 'tsconfig.json'), tsConfig, { spaces: 2 });
+  }
+};
+
+export const addDefaultTsConfigIfNeeded = async ({
+  absoluteProjectPath,
+  metadata
+}: {
+  absoluteProjectPath: string;
+  metadata: Pick<
+    StarterProjectMetadata,
+    'hasNextJs' | 'hasOwnTsConfig' | 'hasReact' | 'hasTypescript' | 'isWebsite' | 'projectType' | 'tags'
+  >;
+}) => {
+  const hasTsConfig = await pathExists(join(absoluteProjectPath, 'tsconfig.json'));
+  if (metadata.projectType === 'es' && !hasTsConfig && !metadata.hasOwnTsConfig) {
+    await addTsConfig({ absoluteProjectPath, metadata });
   }
 };

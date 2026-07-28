@@ -1,11 +1,12 @@
-import { basename, join, sep } from 'node:path';
+import { rename } from 'node:fs/promises';
+import { basename, dirname, join, sep } from 'node:path';
 import { STARTER_PROJECTS_SOURCE_PATH } from '@shared/naming/project-fs-paths';
 import { exec } from '@shared/utils/exec';
-import { copy, pathExists, pathExistsSync, readFile, writeFile, writeJson } from 'fs-extra';
+import { copy, pathExists, readdir, readFile, writeFile, writeJson } from 'fs-extra';
 import sortBy from 'lodash/sortBy';
 import removeMarkdown from 'markdown-to-text';
 import { parse as parseYaml } from 'yaml';
-import { addTsConfig, adjustPackageJson } from '../../src/commands/init/using-starter-project/utils';
+import { addDefaultTsConfigIfNeeded, adjustPackageJson } from '../../src/commands/init/using-starter-project/utils';
 import { addReadme, getProjectMdx } from './starters-mdx';
 
 const IGNORED_FILES = [
@@ -24,6 +25,71 @@ const IGNORED_FILES = [
   '.venv',
   'venv'
 ];
+
+type StarterTsConfigMetadata = Parameters<typeof addDefaultTsConfigIfNeeded>[0]['metadata'];
+
+const findFilesNamed = async ({
+  directoryPath,
+  fileName
+}: {
+  directoryPath: string;
+  fileName: string;
+}): Promise<string[]> => {
+  const entries = await readdir(directoryPath, { withFileTypes: true });
+  const matches = await Promise.all(
+    entries.map(async (entry) => {
+      const entryPath = join(directoryPath, entry.name);
+      if (entry.isDirectory()) {
+        return findFilesNamed({ directoryPath: entryPath, fileName });
+      }
+      return entry.name === fileName ? [entryPath] : [];
+    })
+  );
+  return matches.flat();
+};
+
+export const restoreStarterTsConfigNames = async ({
+  absoluteProjectPath
+}: {
+  absoluteProjectPath: string;
+}): Promise<void> => {
+  const templatePaths = await findFilesNamed({
+    directoryPath: absoluteProjectPath,
+    fileName: 'tsconfig.template.json'
+  });
+
+  for (const templatePath of templatePaths) {
+    const targetPath = join(dirname(templatePath), 'tsconfig.json');
+    if (await pathExists(targetPath)) {
+      throw new Error(
+        `Cannot restore starter TypeScript config "${templatePath}" because target "${targetPath}" already exists.`
+      );
+    }
+  }
+
+  await Promise.all(
+    templatePaths.map((templatePath) => rename(templatePath, join(dirname(templatePath), 'tsconfig.json')))
+  );
+
+  const leakedTemplatePaths = await findFilesNamed({
+    directoryPath: absoluteProjectPath,
+    fileName: 'tsconfig.template.json'
+  });
+  if (leakedTemplatePaths.length > 0) {
+    throw new Error(`Starter output contains unrestored TypeScript configs: ${leakedTemplatePaths.join(', ')}`);
+  }
+};
+
+export const ensureStarterProjectTsConfig = async ({
+  absoluteProjectPath,
+  metadata
+}: {
+  absoluteProjectPath: string;
+  metadata: StarterTsConfigMetadata;
+}): Promise<void> => {
+  await restoreStarterTsConfigNames({ absoluteProjectPath });
+  await addDefaultTsConfigIfNeeded({ absoluteProjectPath, metadata });
+};
 
 export const prettierFix = ({ paths }: { paths: string[] }) => {
   return exec(
@@ -56,16 +122,13 @@ export const prepareStarterProject = async ({
       return !IGNORED_FILES.includes(fileName) && !/\.timestamp_\d+\.[cm]?[jt]s$/.test(fileName);
     }
   });
+  await ensureStarterProjectTsConfig({ absoluteProjectPath: distFolderPath, metadata });
+
   const mdxDescription = await getProjectMdx(metadata, absoluteProjectPath);
   await Promise.all([
     mode === 'app' && writeJson(join(outputDirPath, metadata.starterProjectId, '.metadata.json'), metadata),
     addReadme({ distPath: join(outputDirPath, metadata.starterProjectId, 'README.md'), metadata, mode, mdxDescription })
   ]);
-
-  const hasTsConfig = pathExistsSync(join(absoluteProjectPath, 'tsconfig.json'));
-  if (metadata.projectType === 'es' && !hasTsConfig && !metadata.hasOwnTsConfig) {
-    await addTsConfig({ absoluteProjectPath: distFolderPath, metadata });
-  }
 
   if (metadata.projectType === 'es') {
     await adjustPackageJson({ absoluteProjectPath: distFolderPath, metadata });
