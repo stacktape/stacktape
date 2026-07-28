@@ -1,3 +1,6 @@
+import type { WebService } from '@stacktape/config/web-services';
+
+declare global {
 type StpWebService = WebService['properties'] & {
   name: string;
   type: WebService['type'];
@@ -11,3 +14,4 @@ type StpWebService = WebService['properties'] & {
   };
 };
 type WebServiceReferencableParam = HttpApiGatewayReferencableParam | ContainerWorkloadReferencableParam;
+}

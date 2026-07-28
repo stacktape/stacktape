@@ -1,3 +1,10 @@
+import type { ContainerWorkloadNetworkLoadBalancerIntegrationProps } from '@stacktape/config/events';
+import type { NetworkLoadBalancer } from '@stacktape/config/network-load-balancer';
+import type { PrivateService } from '@stacktape/config/private-services';
+import type { DomainConfiguration } from '@stacktape/config/shared';
+import type { WebService } from '@stacktape/config/web-services';
+
+declare global {
 type StpNetworkLoadBalancer = Omit<NetworkLoadBalancer['properties'], 'customDomains'> & {
   customDomains?: DomainConfiguration[];
   name: string;
@@ -13,4 +20,5 @@ interface StpResolvedNetworkLoadBalancerReference extends Omit<
   loadBalancer: StpNetworkLoadBalancer;
   listenerPort: number;
   listenerHasCustomCerts?: boolean;
+}
 }

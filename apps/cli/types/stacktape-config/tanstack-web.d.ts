@@ -1,3 +1,6 @@
+import type { TanStackWeb, TanStackWebProps } from '@stacktape/config/tanstack-web';
+
+declare global {
 type StpTanStackWeb = TanStackWebProps & {
   name: string;
   type: TanStackWeb['type'];
@@ -8,3 +11,4 @@ type StpTanStackWeb = TanStackWebProps & {
     serverFunction: StpLambdaFunction;
   };
 };
+}

@@ -41,12 +41,11 @@ export const CLOUDFORM_ROOT_HELPER_FOLDER_PATH = join(process.cwd(), 'scripts', 
 
 /**
  * `@stacktape/config` owns the authored configuration model. The CLI reads its source directly — for schema
- * generation, for documentation extraction and to generate the temporary ambient bridge — so the location is
- * named once here rather than spelled out in each generator.
+ * generation and documentation extraction, so the location is named once here rather than spelled out in each
+ * generator.
  */
 export const CONFIG_PACKAGE_SRC_PATH = join(process.cwd(), '..', '..', 'packages', 'config', 'src');
-export const CONFIG_BRIDGE_PATH = join(process.cwd(), 'types', 'config-package-bridge.generated.d.ts');
-/** Resolved/internal configuration declarations still awaiting an owner. Shrinks to nothing. */
+/** CLI-owned resolved/internal declarations that schema and npm generation still read. */
 export const RETAINED_AMBIENT_CONFIG_PATH = join(process.cwd(), 'types', 'stacktape-config');
 
 export const CONFIG_SCHEMA_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'config-schema.json');

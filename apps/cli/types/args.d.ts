@@ -1,3 +1,6 @@
+import type { Hooks } from '@stacktape/config/shared';
+
+declare global {
 // Command types derived from the Zod-based CLI definition
 type StacktapeCommand = (typeof import('../src/config/cli/commands'))['cliCommands'][number];
 
@@ -29,3 +32,4 @@ type HookableCommand =
   | 'rollback';
 
 type HookableEvent = keyof Hooks;
+}

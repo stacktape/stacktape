@@ -1,3 +1,6 @@
+import type { SnsTopic } from '@stacktape/config/sns-topic';
+
+declare global {
 type StpSnsTopic = SnsTopic['properties'] & {
   name: string;
   type: SnsTopic['type'];
@@ -5,3 +8,4 @@ type StpSnsTopic = SnsTopic['properties'] & {
   nameChain: string[];
 };
 type SnsTopicReferencableParam = 'arn' | 'name';
+}

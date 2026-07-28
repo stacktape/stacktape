@@ -1,3 +1,6 @@
+import type { MongoDbAtlasCluster, MongoDbAtlasClusterProps } from '@stacktape/config/mongo-db-atlas-clusters';
+
+declare global {
 type StpMongoDbAtlasCluster = MongoDbAtlasCluster['properties'] & {
   name: string;
   type: MongoDbAtlasCluster['type'];
@@ -34,3 +37,4 @@ type StpAtlasMongoGeneralTierClusterInstanceSize = Subtype<
   | 'M700 Low-CPU (R700)'
 >;
 type MongoDbAtlasClusterReferencableParam = 'connectionString';
+}

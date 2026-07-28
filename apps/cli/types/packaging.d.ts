@@ -1,3 +1,40 @@
+import type { BatchJobContainer, BatchJobResources } from '@stacktape/config/batch-jobs';
+import type {
+  BatchJobContainerPackaging,
+  ContainerWorkloadContainerPackaging,
+  CustomDockerfileBjImagePackaging,
+  CustomDockerfileCwImagePackaging,
+  DotnetLanguageSpecificConfig,
+  EsLanguageSpecificConfig,
+  ExternalBuildpackBjImagePackaging,
+  ExternalBuildpackCwImagePackaging,
+  JavaLanguageSpecificConfig,
+  LambdaPackaging,
+  NixpacksBjImagePackaging,
+  NixpacksCwImagePackaging,
+  PhpLanguageSpecificConfig,
+  PrebuiltBjImagePackaging,
+  PrebuiltCwImagePackaging,
+  PyLanguageSpecificConfig,
+  StpBuildpackBjImagePackaging,
+  StpBuildpackBjImagePackagingProps,
+  StpBuildpackCwImagePackaging,
+  StpBuildpackCwImagePackagingProps,
+  StpBuildpackLambdaPackaging,
+  StpBuildpackLambdaPackagingProps,
+  SupportedDotnetVersion,
+  SupportedJavaVersion,
+  SupportedPhpVersion,
+  SupportedPythonPackageManager,
+  SupportedPythonVersion,
+  SupportedRubyVersion
+} from '@stacktape/config/deployment-artifacts';
+import type {
+  ContainerWorkloadContainer,
+  ContainerWorkloadResourcesConfig
+} from '@stacktape/config/multi-container-workloads';
+
+declare global {
 type StpBuildpackInput = StpBuildpackLambdaPackagingProps &
   StpBuildpackCwImagePackagingProps &
   StpBuildpackBjImagePackagingProps & {
@@ -142,22 +179,6 @@ type HelperLambdaPackaging = {
   properties: HelperLambdaData;
 };
 
-type ContainerWorkloadContainerPackaging =
-  | StpBuildpackCwImagePackaging
-  | ExternalBuildpackCwImagePackaging
-  | NixpacksCwImagePackaging
-  | CustomDockerfileCwImagePackaging
-  | PrebuiltCwImagePackaging;
-
-type BatchJobContainerPackaging =
-  | StpBuildpackBjImagePackaging
-  | ExternalBuildpackBjImagePackaging
-  | NixpacksBjImagePackaging
-  | CustomDockerfileBjImagePackaging
-  | PrebuiltBjImagePackaging;
-
-type LambdaPackaging = StpBuildpackLambdaPackaging | CustomArtifactLambdaPackaging;
-
 type AllSupportedPackagingConfig = ContainerWorkloadContainerPackaging | BatchJobContainerPackaging | LambdaPackaging;
 
 type EnrichedCwContainerProps = ContainerWorkloadContainer & {
@@ -177,3 +198,4 @@ type EnrichedBjContainerProps = BatchJobContainer & {
 };
 
 type DockerBuildOutputArchitecture = 'linux/amd64' | 'linux/arm64'; // default for linux
+}

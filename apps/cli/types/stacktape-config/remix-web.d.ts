@@ -1,3 +1,6 @@
+import type { RemixWeb, RemixWebProps } from '@stacktape/config/remix-web';
+
+declare global {
 type StpRemixWeb = RemixWebProps & {
   name: string;
   type: RemixWeb['type'];
@@ -8,3 +11,4 @@ type StpRemixWeb = RemixWebProps & {
     serverFunction: StpLambdaFunction;
   };
 };
+}

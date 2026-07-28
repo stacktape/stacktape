@@ -58,22 +58,20 @@ documentation site's YAML and TypeScript examples, and the `stacktape` npm `.d.t
 
 ## How the CLI reaches these types
 
-Ordinary CLI sources import them explicitly. Every file in `src`, `shared`, `helper-lambdas` and `scripts` that
-used a configuration type now carries a direct `import type { … } from '@stacktape/config[/subpath]'`, and
-`check:config-bridge` fails if a new one appears without it.
+Ordinary CLI sources import them explicitly. The CLI's retained resolved/internal declarations do the same, then
+publish their existing global API from `declare global` blocks. Making those `.d.ts` files external modules keeps
+their package dependencies explicit without changing the global names the CLI implementation consumes. There is no
+generated ambient bridge or parallel alias surface.
 
-`apps/cli/types/config-package-bridge.generated.d.ts` still exists, but only for the ambient declarations in
-`apps/cli/types/**` that have not been given owners yet. Those files cannot be migrated the same way: they are
-global declaration files, so adding an import would turn them into modules, and an inline `import(…)` type is not
-legal everywhere they need one — heritage clauses in particular. They move in the slice that finds each of those
-declarations a real owner, and the bridge, its generator, its check and its Turbo tasks are deleted with them.
+The configuration-ownership characterization test prevents a retained CLI declaration from redefining a name owned
+by this package. Direct imports and that no-redeclaration invariant are the complete boundary.
 
 ## Checks
 
 ```sh
 pnpm --filter @stacktape/config run typecheck          # strict, skipLibCheck false, includes the acceptance fixture
 pnpm --filter @stacktape/cli run test:characterization # schema probes: 449 definitions, 44-resource union, examples
-pnpm --filter @stacktape/cli run check:config-bridge   # must stay declaration-only; fails on any source consumer
+pnpm --filter @stacktape/cli run typecheck             # direct imports plus retained global declaration compatibility
 ```
 
 `exactOptionalPropertyTypes` is off. Every optional property models a key a user may omit from YAML, not a key whose

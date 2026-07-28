@@ -1,3 +1,6 @@
+import type { NuxtWeb, NuxtWebProps } from '@stacktape/config/nuxt-web';
+
+declare global {
 type StpNuxtWeb = NuxtWebProps & {
   name: string;
   type: NuxtWeb['type'];
@@ -8,3 +11,4 @@ type StpNuxtWeb = NuxtWebProps & {
     serverFunction: StpLambdaFunction;
   };
 };
+}

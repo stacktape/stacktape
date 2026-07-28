@@ -1,3 +1,6 @@
+import type { EmailIntegration, MsTeamsIntegration, SlackIntegration } from '@stacktape/config/user-integrations';
+
+declare global {
 type DeploymentNotificationUserIntegration = MsTeamsIntegration | SlackIntegration | EmailIntegration;
 interface DeploymentNotificationDefinition {
   integration: DeploymentNotificationUserIntegration;
@@ -9,4 +12,5 @@ interface DeploymentNotificationDefinition {
    * #### Only send notifications for these services. If omitted, notifications are sent for all services.
    */
   forServices: string[];
+}
 }

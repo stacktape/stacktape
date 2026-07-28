@@ -1,3 +1,9 @@
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { S3IntegrationProps } from '@stacktape/config/events';
+import type { OpenSearchDomainProps } from '@stacktape/config/open-search';
+import type { WebAppFirewallProps } from '@stacktape/config/web-app-firewall';
+
+declare global {
 type ServiceLambdaResolver<T> = (
   currentProps: T,
   previousProps: T,
@@ -193,3 +199,4 @@ type StacktapeRecordedCommand = Subtype<
   StacktapeCommand,
   'deploy' | 'delete' | 'dev' | 'deployment-script:run' | 'bucket:sync' | 'script:run' | 'rollback' | 'codebuild:deploy'
 >;
+}

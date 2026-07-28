@@ -17,3 +17,8 @@ declare module '*.html' {
   const value: string;
   export = value;
 }
+
+declare module '*.proto' {
+  const content: any;
+  export default content;
+}

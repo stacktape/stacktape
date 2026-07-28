@@ -1,3 +1,12 @@
+import type {
+  AgentCoreBrowser,
+  AgentCoreCodeInterpreter,
+  AgentCoreGateway,
+  AgentCoreMemory,
+  AgentCoreRuntime
+} from '@stacktape/config/agentcore';
+
+declare global {
 type StpAgentCoreRuntime = AgentCoreRuntime['properties'] & {
   name: string;
   type: AgentCoreRuntime['type'];
@@ -34,3 +43,4 @@ type StpAgentCoreCodeInterpreter = AgentCoreCodeInterpreter['properties'] & {
   configParentResourceType: AgentCoreCodeInterpreter['type'];
 };
 type AgentCoreCodeInterpreterReferencableParam = 'id' | 'arn';
+}

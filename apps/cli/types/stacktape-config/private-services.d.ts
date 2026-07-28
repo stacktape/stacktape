@@ -1,3 +1,6 @@
+import type { PrivateService } from '@stacktape/config/private-services';
+
+declare global {
 type StpPrivateService = PrivateService['properties'] & {
   name: string;
   type: PrivateService['type'];
@@ -9,3 +12,4 @@ type StpPrivateService = PrivateService['properties'] & {
   };
 };
 type PrivateServiceReferencableParams = ContainerWorkloadReferencableParam | 'address';
+}

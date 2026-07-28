@@ -1,3 +1,6 @@
+import type { UpstashRedis } from '@stacktape/config/upstash-redis';
+
+declare global {
 type StpUpstashRedis = UpstashRedis['properties'] & {
   name: string;
   type: UpstashRedis['type'];
@@ -12,3 +15,4 @@ type UpstashRedisReferencableParam =
   | 'readOnlyRestToken'
   | 'restUrl'
   | 'redisUrl';
+}

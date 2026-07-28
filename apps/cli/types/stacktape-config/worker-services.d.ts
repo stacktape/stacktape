@@ -1,3 +1,6 @@
+import type { WorkerService } from '@stacktape/config/worker-services';
+
+declare global {
 type StpWorkerService = WorkerService['properties'] & {
   name: string;
   type: WorkerService['type'];
@@ -8,3 +11,4 @@ type StpWorkerService = WorkerService['properties'] & {
   };
 };
 type WorkerServiceReferencableParams = ContainerWorkloadReferencableParam;
+}

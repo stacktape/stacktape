@@ -1,3 +1,17 @@
+import type { Convex } from '@stacktape/config/convex';
+import type {
+  ContainerWorkloadHttpApiIntegration,
+  ContainerWorkloadInternalIntegration,
+  ContainerWorkloadLoadBalancerIntegration,
+  ContainerWorkloadNetworkLoadBalancerIntegration,
+  ContainerWorkloadServiceConnectIntegration
+} from '@stacktape/config/events';
+import type { ContainerWorkload } from '@stacktape/config/multi-container-workloads';
+import type { PrivateService } from '@stacktape/config/private-services';
+import type { WebService } from '@stacktape/config/web-services';
+import type { WorkerService } from '@stacktape/config/worker-services';
+
+declare global {
 type StpContainerWorkload = ContainerWorkload['properties'] & {
   name: string;
   type: ContainerWorkload['type'];
@@ -34,3 +48,4 @@ type ContainerWorkloadEvent =
   | ContainerWorkloadInternalIntegration
   | ContainerWorkloadServiceConnectIntegration
   | ContainerWorkloadNetworkLoadBalancerIntegration;
+}

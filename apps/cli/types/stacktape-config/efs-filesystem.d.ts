@@ -1,3 +1,6 @@
+import type { EfsFilesystem } from '@stacktape/config/efs-filesystem';
+
+declare global {
 type StpEfsFilesystem = EfsFilesystem['properties'] & {
   name: string;
   type: EfsFilesystem['type'];
@@ -5,3 +8,4 @@ type StpEfsFilesystem = EfsFilesystem['properties'] & {
   nameChain: string[];
 };
 type EfsFilesystemReferencableParam = 'arn';
+}

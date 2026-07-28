@@ -1,3 +1,6 @@
+import type { NextjsWeb } from '@stacktape/config/nextjs-web';
+
+declare global {
 type StpNextjsWeb = NextjsWeb['properties'] & {
   name: string;
   type: NextjsWeb['type'];
@@ -15,3 +18,4 @@ type StpNextjsWeb = NextjsWeb['properties'] & {
     revalidationInsertFunction: StpLambdaFunction;
   };
 };
+}

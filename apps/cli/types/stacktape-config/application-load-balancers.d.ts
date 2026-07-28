@@ -1,3 +1,17 @@
+import type { ApplicationLoadBalancer } from '@stacktape/config/application-load-balancers';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { Convex } from '@stacktape/config/convex';
+import type {
+  ContainerWorkloadLoadBalancerIntegrationProps,
+  LbHeaderCondition,
+  LbQueryParamCondition
+} from '@stacktape/config/events';
+import type { LoadBalancerHealthCheck } from '@stacktape/config/multi-container-workloads';
+import type { PrivateService } from '@stacktape/config/private-services';
+import type { DomainConfiguration } from '@stacktape/config/shared';
+import type { WebService } from '@stacktape/config/web-services';
+
+declare global {
 type StpApplicationLoadBalancer = Omit<ApplicationLoadBalancer['properties'], 'customDomains'> & {
   customDomains?: DomainConfiguration[];
   name: string;
@@ -49,3 +63,4 @@ type ApplicationLoadBalancerOutputs = {
     listenerPort: number;
   }[];
 };
+}

@@ -29,11 +29,10 @@ describe('the npm declaration program is the CLI project', () => {
     expect(options.noEmit).toBe(false);
   });
 
-  test('includes the ambient declaration roots the npm sources are typed against', () => {
+  test('includes the real ambient declaration roots the npm sources are typed against', () => {
     const roots = declarationProgram.program.getRootFileNames().map((file) => file.split(/[/\\]/).slice(-2).join('/'));
 
     expect(roots.some((file) => file.endsWith('types/random.d.ts'))).toBe(true);
-    expect(roots.some((file) => file.endsWith('config-package-bridge.generated.d.ts'))).toBe(true);
   });
 
   test('compiles with no repository-owned source diagnostics and emits one declaration per npm source', () => {

@@ -1,3 +1,6 @@
+import type { DeploymentScript } from '@stacktape/config/deployment-script';
+
+declare global {
 type StpDeploymentScript = DeploymentScript['properties'] & {
   name: string;
   type: DeploymentScript['type'];
@@ -7,3 +10,4 @@ type StpDeploymentScript = DeploymentScript['properties'] & {
     scriptFunction: StpLambdaFunction;
   };
 };
+}

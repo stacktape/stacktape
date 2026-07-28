@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { CONFIG_BRIDGE_PATH, CONFIG_PACKAGE_SRC_PATH } from '../../shared/naming/project-fs-paths';
+import { join, relative, resolve } from 'node:path';
+import { CONFIG_PACKAGE_SRC_PATH } from '../../shared/naming/project-fs-paths';
 import { listConfigSourceFiles, resolveConfigSourceFile } from '../../scripts/code-generation/config-sources';
 import { getJsonSchemaGenerator } from '../../scripts/code-generation/utils';
-import { readPackageDeclarations } from '../../scripts/generate-config-bridge';
+import * as ts from 'typescript';
 
 /**
  * The published config schema is generated from `@stacktape/config`. These are semantic probes, not a snapshot:
@@ -17,6 +17,92 @@ const configSchema = () => {
   // side effect, and running the tests must not modify a generated artifact.
   cachedSchema ??= getJsonSchemaGenerator().then((generator) => generator.getSchemaForSymbol('StacktapeConfig'));
   return cachedSchema;
+};
+
+const countDescriptions = (value: unknown): number => {
+  if (!value || typeof value !== 'object') return 0;
+  const record = value as Record<string, unknown>;
+  return (
+    (typeof record.description === 'string' ? 1 : 0) +
+    Object.values(record).reduce<number>((count, child) => count + countDescriptions(child), 0)
+  );
+};
+
+const readPackageExportNames = (): Set<string> => {
+  const packageFiles = listConfigSourceFiles().filter((file) =>
+    resolve(file).startsWith(resolve(CONFIG_PACKAGE_SRC_PATH))
+  );
+  if (packageFiles.length === 0) throw new Error(`No configuration modules found in ${CONFIG_PACKAGE_SRC_PATH}.`);
+  const program = ts.createProgram(packageFiles, {
+    noEmit: true,
+    target: ts.ScriptTarget.ES2022,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    types: []
+  });
+  const checker = program.getTypeChecker();
+  const names = new Set<string>();
+
+  for (const file of packageFiles) {
+    const sourceFile = program.getSourceFile(file);
+    const moduleSymbol = sourceFile && checker.getSymbolAtLocation(sourceFile);
+    if (!moduleSymbol) throw new Error(`${file} is not an importable configuration module.`);
+    for (const exported of checker.getExportsOfModule(moduleSymbol)) names.add(exported.getName());
+  }
+  return names;
+};
+
+const readGlobalDeclarationNames = (sourceFile: ts.SourceFile): string[] => {
+  const names: string[] = [];
+  const visitStatements = (statements: ts.NodeArray<ts.Statement>) => {
+    for (const statement of statements) {
+      const named =
+        ts.isTypeAliasDeclaration(statement) ||
+        ts.isInterfaceDeclaration(statement) ||
+        ts.isClassDeclaration(statement) ||
+        ts.isEnumDeclaration(statement);
+      if (named && statement.name) names.push(statement.name.text);
+      if (
+        ts.isModuleDeclaration(statement) &&
+        statement.flags & ts.NodeFlags.GlobalAugmentation &&
+        statement.body &&
+        ts.isModuleBlock(statement.body)
+      ) {
+        visitStatements(statement.body.statements);
+      }
+    }
+  };
+
+  if (ts.isExternalModule(sourceFile)) {
+    for (const statement of sourceFile.statements) {
+      if (
+        ts.isModuleDeclaration(statement) &&
+        statement.flags & ts.NodeFlags.GlobalAugmentation &&
+        statement.body &&
+        ts.isModuleBlock(statement.body)
+      ) {
+        visitStatements(statement.body.statements);
+      }
+    }
+  } else {
+    visitStatements(sourceFile.statements);
+  }
+
+  return names;
+};
+
+const readCliGlobalDeclarationNames = (typesPath = join(process.cwd(), 'types')): Map<string, string[]> => {
+  const declarations = new Map<string, string[]>();
+  const files = ts.sys.readDirectory(typesPath, ['.d.ts']);
+  if (files.length === 0) throw new Error(`No .d.ts files found in ${typesPath}.`);
+
+  for (const file of files) {
+    const sourceFile = ts.createSourceFile(file, readFileSync(file, 'utf-8'), ts.ScriptTarget.Latest, true);
+    for (const name of readGlobalDeclarationNames(sourceFile)) {
+      declarations.set(name, [...(declarations.get(name) ?? []), relative(typesPath, file)]);
+    }
+  }
+
+  return declarations;
 };
 
 describe('the configuration model is owned by @stacktape/config', () => {
@@ -67,29 +153,38 @@ describe('the configuration model is owned by @stacktape/config', () => {
 
     expect(schema.properties.serviceName.description).toContain('#### The name of this service.');
     expect(schema.definitions.LambdaFunction.description).toContain('serverless compute resource');
+    expect(countDescriptions(schema)).toBe(1407);
     // Examples are the documented product content the schema, docs and editor hovers all render.
     const descriptions = JSON.stringify(schema);
     expect(descriptions.split('**Example (YAML):**').length - 1).toBeGreaterThan(900);
     expect(descriptions.split('**Example (TypeScript):**').length - 1).toBeGreaterThan(900);
   });
-});
+  test('retained internal declarations do not redefine package-owned names', () => {
+    const packageNames = readPackageExportNames();
+    const cliGlobals = readCliGlobalDeclarationNames();
+    const redefined = [...cliGlobals]
+      .filter(([name]) => packageNames.has(name))
+      .map(([name, files]) => `${files.join(', ')}: ${name}`)
+      .sort();
 
-describe('the ambient bridge is temporary and countable', () => {
-  test('it aliases exactly what the package exports, and nothing is hand-authored', () => {
-    const declarations = readPackageDeclarations(CONFIG_PACKAGE_SRC_PATH);
-    const bridge = readFileSync(CONFIG_BRIDGE_PATH, 'utf-8');
+    // A top-level file and a nested file pin both declaration shapes and recursive discovery.
+    expect(cliGlobals.get('StacktapeArgs')).toContain('args.d.ts');
+    expect(cliGlobals.get('StpBucket')).toContain(join('stacktape-config', 'buckets.d.ts'));
+    expect(() => readCliGlobalDeclarationNames(join(process.cwd(), 'types', 'does-not-exist'))).toThrow(
+      'No .d.ts files found'
+    );
+    expect(redefined).toEqual([]);
+  });
 
-    expect(declarations.length).toBeGreaterThan(400);
-    for (const { name, specifier } of declarations) {
-      expect(bridge).toContain(`type ${name} = import('${specifier}').${name};`);
-    }
-    // Aliases go through the specifiers the export map publishes, not through internal module paths.
-    expect(bridge).toContain("type StacktapeConfig = import('@stacktape/config').StacktapeConfig;");
-    expect(bridge).not.toContain('@stacktape/config/_root');
-    expect(bridge).not.toContain('@stacktape/config/__helpers');
-    // Every line is a generated alias: no hand-written declaration can hide here.
-    const aliasLines = bridge.split('\n').filter((line) => line.startsWith('type '));
-    expect(aliasLines).toHaveLength(declarations.length);
+  test('the declaration scan ignores module-local helpers', () => {
+    const sourceFile = ts.createSourceFile(
+      'module.d.ts',
+      'export {}; type ModuleLocal = string; declare global { type PublishedGlobal = string; }',
+      ts.ScriptTarget.Latest,
+      true
+    );
+
+    expect(readGlobalDeclarationNames(sourceFile)).toEqual(['PublishedGlobal']);
   });
 
   test('the configuration model no longer reads the CLI resolver back through a type query', () => {

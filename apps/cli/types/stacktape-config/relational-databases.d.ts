@@ -1,3 +1,7 @@
+import type { Convex } from '@stacktape/config/convex';
+import type { RelationalDatabase } from '@stacktape/config/relational-databases';
+
+declare global {
 type StpRelationalDatabase = RelationalDatabase['properties'] & {
   name: string;
   type: RelationalDatabase['type'];
@@ -26,3 +30,4 @@ type NormalizedSQLEngine = Exclude<
   | 'aurora-postgresql-serverless-v2'
   | 'aurora-mysql-serverless-v2'
 >;
+}

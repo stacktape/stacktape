@@ -19,8 +19,10 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 - `starter-projects/` — canonical starter templates, not installed workspace projects. Their TypeScript configs are
   named `tsconfig.template.json` so editors do not treat framework templates as live projects; starter
   materialization restores every one to `tsconfig.json` before publishing or use.
-- `types/` — hand-authored config type definitions. Their JSDoc is the source of the published config schema and of
-  the documentation examples, so comment layout is content: `types/` is excluded from formatters.
+- `types/` — the CLI's resolved/internal global declaration API. Declarations that depend on the authored
+  configuration model import their types explicitly from `@stacktape/config` and publish the existing globals
+  through `declare global`; there is no ambient alias bridge. The retained JSDoc still feeds generated schema/npm
+  content, so `types/` remains excluded from formatters.
 - `@generated/` — committed generated data (CloudFormation types, config schema, LLM docs, price tables). Never
   hand-edit; regenerate with the matching `gen:*` script. `tsconfig.json` excludes the directory, so the two
   CloudFormation TypeScript trees are type-checked by their own `tsconfig.generated.json` project

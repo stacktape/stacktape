@@ -1,3 +1,24 @@
+import type { ApplicationLoadBalancerCustomTrigger } from '@stacktape/config/alarm-metrics';
+import type {
+  AlarmDefinitionBase,
+  ApplicationLoadBalancerErrorRateTrigger,
+  ApplicationLoadBalancerUnhealthyTargetsTrigger,
+  ComparisonOperator,
+  HttpApiGatewayErrorRateTrigger,
+  HttpApiGatewayLatencyTrigger,
+  LambdaDurationTrigger,
+  LambdaErrorRateTrigger,
+  RelationalDatabaseCPUUtilizationTrigger,
+  RelationalDatabaseConnectionCountTrigger,
+  RelationalDatabaseFreeMemoryTrigger,
+  RelationalDatabaseFreeStorageTrigger,
+  RelationalDatabaseReadLatencyTrigger,
+  RelationalDatabaseWriteLatencyTrigger,
+  SqsQueueNotEmptyTrigger,
+  SqsQueueReceivedMessagesCountTrigger
+} from '@stacktape/config/alarms';
+
+declare global {
 interface AlarmDefinition extends AlarmDefinitionBase {
   /**
    * #### A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`).
@@ -65,3 +86,4 @@ type StpAlarmEnabledResource =
   | StpHttpApiGateway
   | StpApplicationLoadBalancer
   | StpSqsQueue;
+}

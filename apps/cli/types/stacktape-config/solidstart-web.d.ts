@@ -1,3 +1,6 @@
+import type { SolidStartWeb, SolidStartWebProps } from '@stacktape/config/solidstart-web';
+
+declare global {
 type StpSolidStartWeb = SolidStartWebProps & {
   name: string;
   type: SolidStartWeb['type'];
@@ -8,3 +11,4 @@ type StpSolidStartWeb = SolidStartWebProps & {
     serverFunction: StpLambdaFunction;
   };
 };
+}

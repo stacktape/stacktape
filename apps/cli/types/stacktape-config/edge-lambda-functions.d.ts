@@ -1,3 +1,7 @@
+import type { EdgeLambdaFunction, EdgeLambdaFunctionProps } from '@stacktape/config/edge-lambda-functions';
+import type { NextjsWeb } from '@stacktape/config/nextjs-web';
+
+declare global {
 type StpEdgeLambdaFunction = EdgeLambdaFunctionProps & {
   name: string;
   type: EdgeLambdaFunction['type'];
@@ -23,3 +27,4 @@ type StpHelperEdgeLambdaFunction = Omit<StpEdgeLambdaFunction, 'packaging'> & {
   | 'python3.8';
 };
 type EdgeLambdaFunctionReferencableParam = 'arn';
+}

@@ -1,3 +1,6 @@
+import type { AstroWeb, AstroWebProps } from '@stacktape/config/astro-web';
+
+declare global {
 type StpAstroWeb = AstroWebProps & {
   name: string;
   type: AstroWeb['type'];
@@ -8,3 +11,4 @@ type StpAstroWeb = AstroWebProps & {
     serverFunction: StpLambdaFunction;
   };
 };
+}

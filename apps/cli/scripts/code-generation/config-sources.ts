@@ -1,7 +1,9 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_PACKAGE_SRC_PATH, RETAINED_AMBIENT_CONFIG_PATH } from '@shared/naming/project-fs-paths';
-import { isConfigModelModule } from '../generate-config-bridge';
+
+/** Package tests and acceptance fixtures are not authored configuration model modules. */
+const isConfigModelModule = (file: string) => file.endsWith('.ts') && !file.endsWith('.acceptance.ts');
 
 /**
  * Where the authored configuration model is read from, now that `@stacktape/config` owns it.
@@ -35,9 +37,8 @@ export const resolveConfigSourceFile = (logicalSourceName: string): string => {
 };
 
 /**
- * Every source that carries configuration declarations, for the callers that process the whole model: the
- * package modules, plus the resolved declarations still living in `types/stacktape-config` while their
- * consumers migrate. The second group shrinks to nothing and this reduces to the package.
+ * Every source that carries configuration declarations, for callers that process the whole model: the package
+ * modules plus the CLI's retained resolved/internal declarations in `types/stacktape-config`.
  *
  * Never returns an empty list.
  */

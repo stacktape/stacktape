@@ -1,3 +1,6 @@
+import type { UserAuthPool } from '@stacktape/config/user-pools';
+
+declare global {
 type StpUserAuthPool = UserAuthPool['properties'] & {
   name: string;
   type: UserAuthPool['type'];
@@ -5,3 +8,4 @@ type StpUserAuthPool = UserAuthPool['properties'] & {
   nameChain: string[];
 };
 type UserPoolReferencableParam = 'id' | 'clientId' | 'arn' | 'domain' | 'clientSecret' | 'providerUrl';
+}

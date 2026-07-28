@@ -1,3 +1,6 @@
+import type { BatchJob } from '@stacktape/config/batch-jobs';
+
+declare global {
 type StpBatchJob = BatchJob['properties'] & {
   name: string;
   type: BatchJob['type'];
@@ -8,3 +11,4 @@ type StpBatchJob = BatchJob['properties'] & {
   };
 };
 type BatchJobReferencableParam = 'jobDefinitionArn' | 'stateMachineArn' | 'logGroupArn';
+}

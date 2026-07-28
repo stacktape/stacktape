@@ -1,3 +1,11 @@
+import type { StacktapeConfig } from '@stacktape/config';
+import type { AgentCoreRuntime } from '@stacktape/config/agentcore';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { Convex } from '@stacktape/config/convex';
+import type { StacktapeWorkloadDefinition } from '@stacktape/config/shared';
+import type { StpStateMachine } from '@stacktape/config/state-machines';
+
+declare global {
 type StpResource = (
   | StpWorkloadDefinition
   | StpRelationalDatabase
@@ -188,3 +196,4 @@ type StacktapeResourceReferenceableParam =
   | AgentCoreGatewayReferencableParam
   | AgentCoreBrowserReferencableParam
   | AgentCoreCodeInterpreterReferencableParam;
+}

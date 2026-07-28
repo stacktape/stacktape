@@ -1,3 +1,6 @@
+import type { KinesisStream } from '@stacktape/config/kinesis-streams';
+
+declare global {
 type StpKinesisStream = KinesisStream['properties'] & {
   name: string;
   type: KinesisStream['type'];
@@ -5,3 +8,4 @@ type StpKinesisStream = KinesisStream['properties'] & {
   nameChain: string[];
 };
 type KinesisStreamReferencableParam = 'arn' | 'name';
+}

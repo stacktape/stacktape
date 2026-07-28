@@ -1,6 +1,6 @@
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import { dirname, join, resolve } from 'node:path';
-import { CONFIG_BRIDGE_PATH, CONFIG_PACKAGE_SRC_PATH, CONFIG_SCHEMA_PATH } from '@shared/naming/project-fs-paths';
+import { CONFIG_PACKAGE_SRC_PATH, CONFIG_SCHEMA_PATH } from '@shared/naming/project-fs-paths';
 import { logInfo } from '@shared/utils/logging';
 import fastGlob from 'fast-glob';
 import { readJson, writeJSON } from 'fs-extra';
@@ -31,10 +31,7 @@ export const findConfigSchemaSourceFiles = async (rootDir = process.cwd()) => {
     groups.map(async ({ name, cwd, pattern }) => {
       const files = (await fastGlob(pattern, { cwd, dot: true }))
         .filter((file) => file.endsWith('.ts') && !file.endsWith('.acceptance.ts'))
-        .map((file) => resolve(cwd, file))
-        // The ambient bridge aliases every package export back into the global scope for CLI files that have
-        // not migrated their imports yet. Reading it here would declare the whole model a second time.
-        .filter((file) => file !== resolve(CONFIG_BRIDGE_PATH));
+        .map((file) => resolve(cwd, file));
       if (files.length === 0) {
         throw new Error(`No TypeScript files found for ${name} (${pattern} in ${cwd}).`);
       }

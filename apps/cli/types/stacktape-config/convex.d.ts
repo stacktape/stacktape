@@ -1,3 +1,6 @@
+import type { Convex } from '@stacktape/config/convex';
+
+declare global {
 type StpConvex = Convex['properties'] & {
   name: string;
   type: Convex['type'];
@@ -90,3 +93,4 @@ type StpConvex = Convex['properties'] & {
  * ```
  */
 type ConvexReferencableParam = 'url' | 'siteUrl' | 'dashboardUrl' | 'adminKey' | 'instanceSecret';
+}

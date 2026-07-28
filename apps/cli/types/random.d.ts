@@ -1,3 +1,13 @@
+import type { StacktapeConfig } from '@stacktape/config';
+import type { BatchJobContainer } from '@stacktape/config/batch-jobs';
+import type { CloudformationResource, IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
+import type { LambdaFunctionProps } from '@stacktape/config/functions';
+import type { ContainerWorkloadContainer } from '@stacktape/config/multi-container-workloads';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import type { StpStateMachine } from '@stacktape/config/state-machines';
+
+declare global {
 type ExpectedError = import('../src/utils/errors').ExpectedError;
 type UnexpectedError = import('../src/utils/errors').UnexpectedError;
 type WorkerName = 'es-lambda' | 'es-container' | 'custom-dockerfile';
@@ -75,7 +85,6 @@ type WorkloadJob = PackageWorkloadInput & {
   isMultiContainerWorkload?: boolean;
 };
 
-type CloudformationResource = import('../@generated/cloudform/resource').default;
 // { type: import('@cloudform/resource-types').CloudformationResourceType }
 
 type CfOutput = {
@@ -86,28 +95,6 @@ type CfOutput = {
 type CloudformationTemplate = import('../@generated/cloudform/template').default & {
   Resources: { [resourceName: string]: CloudformationResource };
 };
-
-type LambdaRuntime =
-  | 'nodejs24.x'
-  | 'nodejs22.x'
-  | 'nodejs20.x'
-  | 'nodejs18.x'
-  | 'python3.13'
-  | 'python3.12'
-  | 'python3.11'
-  | 'python3.10'
-  | 'python3.9'
-  | 'python3.8'
-  | 'ruby3.3'
-  | 'java17'
-  | 'java11'
-  | 'java8.al2'
-  | 'java8'
-  | 'provided.al2'
-  | 'provided.al2023'
-  | 'dotnet8'
-  | 'dotnet7'
-  | 'dotnet6';
 
 // this is a cloudformation specification.
 // I.e this is is how it MUST look like when we are inserting the statement into Cloudformation config.
@@ -120,15 +107,8 @@ interface CloudformationIamRoleStatement {
   Condition?: Record<string, any>;
 }
 
-// this is stacktape specification.
-// it is extension of StpIamRoleStatement that should be used for resource-based policies (i.e bucketPolicy)
-interface BucketPolicyIamRoleStatement extends StpIamRoleStatement {
-  Principal: any;
-}
-
 // type EnvironmentVars = { [varName: string]: string | number | boolean };
 
-type Arn = string; // string | { Ref: string } | { 'Fn::GetAtt': string[] };
 // @todo https://trello.com/c/qCTVeZ8o/196-improve-iam-role-statement-type
 type IamRoleStatement = {
   Action: string | string[];
@@ -290,11 +270,6 @@ type HelperLambdaDetails = {
   [name in HelperLambdaName]: HelperLambdaData;
 };
 
-declare module '*.proto' {
-  const content: any;
-  export default content;
-}
-
 type DriftDetail = {
   resourceLogicalName: string;
   resourceType: string;
@@ -395,8 +370,6 @@ type StackInfoMap = {
     [cfOutputName: string]: OutputValue;
   };
 };
-
-type IntrinsicFunction = import('@cloudform/dataTypes').IntrinsicFunction;
 
 type OutputValue = string | number | boolean | IntrinsicFunction; // number | boolean |
 
@@ -566,3 +539,4 @@ type StarterProjectDeploymentType = 'local-machine' | 'github' | 'gitlab';
 type StarterProjectInstallDepsType = SupportedEsPackageManager | 'bundler' | 'poetry' | 'none';
 
 type Printer = import('@application-services/tui-manager').TuiManager;
+}

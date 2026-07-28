@@ -1,3 +1,6 @@
+import type { HostingBucket } from '@stacktape/config/hosting-buckets';
+
+declare global {
 type WriteEnvFilesFormat = 'dotenv';
 type StpHostingBucket = HostingBucket['properties'] & {
   name: string;
@@ -8,3 +11,4 @@ type StpHostingBucket = HostingBucket['properties'] & {
     bucket: StpBucket;
   };
 };
+}

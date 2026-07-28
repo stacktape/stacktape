@@ -1,3 +1,6 @@
+import type { CustomResourceDefinition, CustomResourceInstance } from '@stacktape/config/custom-resources';
+
+declare global {
 type StpCustomResourceDefinition = CustomResourceDefinition['properties'] & {
   name: string;
   type: CustomResourceDefinition['type'];
@@ -13,3 +16,4 @@ type StpCustomResource = CustomResourceInstance['properties'] & {
   configParentResourceType: CustomResourceInstance['type'];
   nameChain: string[];
 };
+}

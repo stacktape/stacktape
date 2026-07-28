@@ -1,3 +1,6 @@
+import type { SvelteKitWeb, SvelteKitWebProps } from '@stacktape/config/sveltekit-web';
+
+declare global {
 type StpSvelteKitWeb = SvelteKitWebProps & {
   name: string;
   type: SvelteKitWeb['type'];
@@ -8,3 +11,4 @@ type StpSvelteKitWeb = SvelteKitWebProps & {
     serverFunction: StpLambdaFunction;
   };
 };
+}

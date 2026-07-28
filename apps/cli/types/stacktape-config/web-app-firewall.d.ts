@@ -1,3 +1,6 @@
+import type { WebAppFirewall } from '@stacktape/config/web-app-firewall';
+
+declare global {
 type StpWebAppFirewall = WebAppFirewall['properties'] & {
   name: string;
   type: WebAppFirewall['type'];
@@ -5,3 +8,4 @@ type StpWebAppFirewall = WebAppFirewall['properties'] & {
   nameChain: string[];
 };
 type WebAppFirewallReferencableParams = 'arn' | 'scope';
+}

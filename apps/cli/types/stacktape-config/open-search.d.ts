@@ -1,3 +1,6 @@
+import type { OpenSearchDomain } from '@stacktape/config/open-search';
+
+declare global {
 type StpOpenSearchDomain = OpenSearchDomain['properties'] & {
   name: string;
   type: OpenSearchDomain['type'];
@@ -5,3 +8,4 @@ type StpOpenSearchDomain = OpenSearchDomain['properties'] & {
   nameChain: string[];
 };
 type OpenSearchDomainReferencableParams = 'arn' | 'domainEndpoint';
+}
