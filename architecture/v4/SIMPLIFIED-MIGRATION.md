@@ -4,6 +4,7 @@ This document supersedes the earlier runtime-extraction plan for all ongoing and
 previous implementation remains recoverable at `v4/complex-archive`; do not copy its architecture into the simplified
 line. `TARGET-ARCHITECTURE.md`, `ORCHESTRATION-PLAN.md`, and `MIGRATION-RUNBOOK.md` describe that rejected plan and are
 retained only as history. Where this document disagrees with any other document in `architecture/v4`, this one wins.
+Issues intentionally deferred from the active refactor are tracked in `DEFERRED-ISSUES.md`.
 
 ## Goal
 
