@@ -85,11 +85,6 @@ const PROPS_TO_PLAIN_TYPE_MAP: Record<string, string> = {
 };
 
 /**
- * Props types that don't exist at all and need placeholder definitions (any)
- */
-const MISSING_PROPS_TYPES = ['IotIntegrationProps'];
-
-/**
  * Generate type/properties class declarations
  */
 export function generateTypePropertiesClassDeclarations(): string {
@@ -112,9 +107,6 @@ ${constructorJsDoc}
     if (AUGMENTED_SCRIPT_PROPS.includes(propsType)) {
       // Script props have local augmented versions that accept class instances for connectTo
       propsTypeRef = propsType;
-    } else if (MISSING_PROPS_TYPES.includes(propsType)) {
-      // Types that don't exist use any
-      propsTypeRef = 'Record<string, unknown>';
     } else if (propsType in PROPS_TO_PLAIN_PROPERTIES_MAP) {
       // Types that need to extract the 'properties' field from discriminated union
       propsTypeRef = `import('./plain').${PROPS_TO_PLAIN_PROPERTIES_MAP[propsType]}`;

@@ -200,6 +200,9 @@ importers:
       '@smithy/protocol-http':
         specifier: 5.3.8
         version: 5.3.8
+      '@stacktape/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@stacktape/console-api':
         specifier: workspace:*
         version: link:../../packages/console-api

@@ -1,5 +1,4 @@
 type DeploymentNotificationUserIntegration = MsTeamsIntegration | SlackIntegration | EmailIntegration;
-
 interface DeploymentNotificationDefinition {
   integration: DeploymentNotificationUserIntegration;
   /**

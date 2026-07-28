@@ -1,5 +1,6 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
+import { CONNECT_TO_AWS_SERVICE_MACROS } from '@stacktape/config/aws-service-macros';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
 import {
@@ -124,8 +125,6 @@ export const getConnectToReferencesForResource = ({
   });
   return result;
 };
-export const ConnectToAwsServiceMacros = ['aws:ses'] as const;
-
 export const resolveConnectToList = ({
   stpResourceNameOfReferencer,
   connectTo,
@@ -152,7 +151,7 @@ export const resolveConnectToList = ({
     accessToAtlasMongoClusterResources: []
   };
   (connectTo || []).forEach((referencedName) => {
-    if (ConnectToAwsServiceMacros.includes(referencedName as ConnectToAwsServicesMacro)) {
+    if (CONNECT_TO_AWS_SERVICE_MACROS.includes(referencedName as ConnectToAwsServicesMacro)) {
       result.accessToAwsServices.push(referencedName as ConnectToAwsServicesMacro);
       return;
     }

@@ -45,6 +45,9 @@
     },
     "packages/*": {
       "entry": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"]
+    },
+    "packages/config": {
+      "entry": ["src/**/*.{ts,tsx}", "tests/*.acceptance.ts"]
     }
   }
 }

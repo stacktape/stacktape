@@ -27,6 +27,7 @@ import {
   getTypePropertiesImports
 } from './code-generation/generate-type-properties';
 import { getJsonSchemaGenerator, getTsTypeDef } from './code-generation/utils';
+import { verifyNpmDeclarations } from './verify-npm-declarations';
 
 const PATHS = {
   source: join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', 'index.ts'),
@@ -39,7 +40,7 @@ const PATHS = {
   resourceMetadata: join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', 'resource-metadata.ts')
 } as const;
 
-const SOURCE_FILES = [
+export const NPM_SOURCE_FILES = [
   'config.ts',
   'resources.ts',
   'type-properties.ts',
@@ -89,9 +90,9 @@ const PROPS_TYPE_ALIASES: Record<string, string> = {
  * Types that don't exist at all and need placeholder definitions
  * These are typically types that aren't referenced from StacktapeConfig root
  */
-const MISSING_TYPES_PLACEHOLDERS = [
-  'IotIntegrationProps' // IoT integration exists in source but not generated from schema
-];
+// Types with no declaration at all. `IotIntegrationProps` used to be here; it is generated from its own
+// symbol now, so the published alias carries the authored shape instead of a placeholder.
+const MISSING_TYPES_PLACEHOLDERS: string[] = [];
 
 /**
  * Generates type aliases for Props types that don't exist in plain.d.ts
@@ -470,38 +471,110 @@ function removeDuplicateDeclarations(content: string): string {
     .trim();
 }
 
-function compileDeclarations(): Map<string, string> {
-  const compilerOptions: ts.CompilerOptions = {
+/**
+ * The npm entry sources compiled as the CLI project actually compiles them.
+ *
+ * The npm sources are ordinary CLI files: they use `String.replaceAll`, which needs the CLI's `ES2023` lib, and
+ * they are typed against ambient declarations (`StacktapeConfig`, `StpResourceType`, `HttpMethod`, …) that only
+ * exist because `types/**` is part of the CLI project. A hand-written approximation of that project drops both,
+ * so this reuses the parsed `tsconfig.json`: its resolved options, and its declaration files as extra roots.
+ *
+ * Only `declaration`/`emit` are overridden; nothing else is second-guessed, so this cannot drift from the
+ * project the same files are type-checked under.
+ */
+export function createDeclarationProgram(): { program: ts.Program; sourceFiles: ts.SourceFile[] } {
+  const configPath = join(process.cwd(), 'tsconfig.json');
+  const cliConfig = ts.readConfigFile(configPath, ts.sys.readFile);
+  if (cliConfig.error) {
+    throw new Error(`Cannot read ${configPath}: ${ts.flattenDiagnosticMessageText(cliConfig.error.messageText, ' ')}`);
+  }
+  const parsed = ts.parseJsonConfigFileContent(cliConfig.config, ts.sys, process.cwd());
+  if (parsed.errors.length > 0) {
+    throw new Error(
+      `Cannot parse ${configPath}: ${parsed.errors.map((e) => ts.flattenDiagnosticMessageText(e.messageText, ' ')).join('; ')}`
+    );
+  }
+
+  // Ambient declarations only. Adding them as roots makes the names the npm sources are written against
+  // resolvable; because they are declaration files they contribute nothing to the emit.
+  const declarationRoots = parsed.fileNames.filter((fileName) => fileName.endsWith('.d.ts'));
+  if (declarationRoots.length === 0) {
+    throw new Error(`${configPath} resolves to no declaration files; the npm sources would not compile.`);
+  }
+
+  const program = ts.createProgram([...NPM_SOURCE_FILES, ...declarationRoots], {
+    ...parsed.options,
     declaration: true,
     emitDeclarationOnly: true,
-    skipLibCheck: true,
-    moduleResolution: ts.ModuleResolutionKind.NodeJs,
-    module: ts.ModuleKind.CommonJS,
-    target: ts.ScriptTarget.ES2020,
-    esModuleInterop: true,
-    allowSyntheticDefaultImports: true,
-    strict: false,
-    types: ['node'],
-    baseUrl: process.cwd()
-  };
+    noEmit: false
+  });
 
-  const program = ts.createProgram(SOURCE_FILES, compilerOptions);
+  const sourceFiles = NPM_SOURCE_FILES.map((fileName) => {
+    const sourceFile = program.getSourceFile(fileName);
+    if (!sourceFile) {
+      throw new Error(`${fileName} is not part of the declaration program.`);
+    }
+    return sourceFile;
+  });
+
+  return { program, sourceFiles };
+}
+
+/**
+ * Compiles the npm entry sources to declarations.
+ *
+ * The emit is inspected: a declaration build that reported errors or skipped emit used to be indistinguishable
+ * from a good one, which is how invalid published declarations reached the packed artifact. Emit is requested
+ * per npm source file so the output stays scoped to the published entry points rather than to everything the
+ * program had to load to type-check them.
+ */
+export function compileDeclarations(): Map<string, string> {
+  const { program, sourceFiles } = createDeclarationProgram();
   const declarations = new Map<string, string>();
+  const emitDiagnostics: ts.Diagnostic[] = [];
+  let emitSkipped = false;
 
-  program.emit(
-    undefined,
-    (fileName, data) => {
-      if (fileName.endsWith('.d.ts')) {
-        const baseName = fileName.split(/[/\\]/).pop()!.replace('.d.ts', '');
-        declarations.set(baseName, data);
-      }
-    },
-    undefined,
-    true
+  for (const sourceFile of sourceFiles) {
+    const emitResult = program.emit(
+      sourceFile,
+      (fileName, data) => {
+        if (fileName.endsWith('.d.ts')) {
+          const baseName = fileName.split(/[/\\]/).pop()!.replace('.d.ts', '');
+          declarations.set(baseName, data);
+        }
+      },
+      undefined,
+      true
+    );
+    emitDiagnostics.push(...emitResult.diagnostics);
+    emitSkipped ||= emitResult.emitSkipped;
+  }
+
+  // Every repository-owned `.ts` diagnostic fails this build; third-party files are excluded by path.
+  //
+  // Declaration files are not checked here: the project inherits the CLI's `skipLibCheck: true`, which is what
+  // `pnpm typecheck` also uses, so an error inside `types/**` is invisible to both. Turning it off is a separate
+  // strict migration, not part of this build. The published artifact is covered independently — the consumer
+  // check in `verifyNpmDeclarations` compiles the emitted declarations with `skipLibCheck` off.
+  const diagnostics = [...ts.getPreEmitDiagnostics(program), ...emitDiagnostics].filter(
+    (diagnostic) => !diagnostic.file || !diagnostic.file.fileName.includes('node_modules')
   );
-
-  if (declarations.size === 0) {
-    throw new Error('Failed to generate TypeScript declarations');
+  if (diagnostics.length > 0) {
+    const rendered = diagnostics
+      .slice(0, 20)
+      .map(
+        (d) => `${d.file?.fileName ?? '<program>'}: TS${d.code} ${ts.flattenDiagnosticMessageText(d.messageText, ' ')}`
+      )
+      .join('\n');
+    throw new Error(`The published declarations do not compile:\n${rendered}`);
+  }
+  if (emitSkipped) {
+    throw new Error('Declaration emit was skipped; the published declarations would be stale or missing.');
+  }
+  if (declarations.size !== NPM_SOURCE_FILES.length) {
+    throw new Error(
+      `Expected a declaration for each of the ${NPM_SOURCE_FILES.length} npm sources, got ${declarations.size}.`
+    );
   }
 
   return declarations;
@@ -548,6 +621,16 @@ function stripFocusMarkersFromDts(content: string): string {
  * Generates plain.d.ts - plain types (YAML-equivalent) without class augmentation
  * Uses StacktapeConfig as the root type to generate all types once without duplication
  */
+/**
+ * Authored types the package publishes that are not reachable from `StacktapeConfig`.
+ *
+ * `plain.d.ts` is generated from the configuration root, so an unreferenced type never appears in it, and the
+ * `stacktape/types` aliases that point at it (`StacktapeBudgetControl`, `IotIntegrationProps`) resolve to
+ * nothing. They are generated from their own symbol instead of being declared as placeholders, so the published
+ * names keep their real authored shape and documentation.
+ */
+const UNREACHABLE_PUBLISHED_TYPES = ['BudgetControl', 'IotIntegrationProps'];
+
 async function generatePlainTypes(jsonSchemaGenerator: JsonSchemaGenerator): Promise<string> {
   logInfo('Generating plain types...');
 
@@ -558,6 +641,16 @@ async function generatePlainTypes(jsonSchemaGenerator: JsonSchemaGenerator): Pro
     jsonSchemaGenerator
   });
 
+  const auxiliaryTypeDefs = await Promise.all(
+    UNREACHABLE_PUBLISHED_TYPES.map(async (typeName) => {
+      const definition = await getTsTypeDef({ typeName, newTypeName: typeName, jsonSchemaGenerator });
+      if (!definition.includes(typeName)) {
+        throw new Error(`Published type ${typeName} generated no declaration; stacktape/types would export nothing.`);
+      }
+      return definition;
+    })
+  );
+
   logSuccess('Plain types generated successfully');
 
   const rawContent = `/* eslint-disable */
@@ -566,6 +659,8 @@ async function generatePlainTypes(jsonSchemaGenerator: JsonSchemaGenerator): Pro
 // For class-based types, use: import { X } from 'stacktape'
 
 ${typeDef}
+
+${auxiliaryTypeDefs.join('\n\n')}
 `;
 
   return postProcessPlainTypes(rawContent);
@@ -982,6 +1077,9 @@ ${generateAugmentedSectionTypes(resourceClassNames)}
 
 export async function buildNpmMainExport(): Promise<void> {
   await Promise.all([compileTsConfigHelpersSource(), generateTypeDeclarations()]);
+  // The declarations that were just assembled have to compile for a consumer before this reports success.
+  // Source-level checks cannot see the assembled `types.d.ts`, which is where dangling published aliases live.
+  verifyNpmDeclarations({ packageDir: NPM_RELEASE_FOLDER_PATH });
   logSuccess('NPM main export build completed successfully');
 }
 

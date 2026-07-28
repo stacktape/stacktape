@@ -1,54 +1,18 @@
-import type { List, Value } from './dataTypes';
+// `CreationPolicy`, `DeletionPolicy`, `UpdatePolicy` and the raw resource shape are the authored
+// CloudFormation escape hatch and are owned by @stacktape/config. They are re-exported here because the
+// generated resource modules import them from this path; `ResourceBase` and `ResourceTag` are emission
+// machinery and stay.
+export { DeletionPolicy, type CreationPolicy, type UpdatePolicy } from '@stacktape/config/cloudformation';
+import type {
+  CloudformationResource,
+  CreationPolicy,
+  List,
+  UpdatePolicy,
+  Value
+} from '@stacktape/config/cloudformation';
+import { DeletionPolicy } from '@stacktape/config/cloudformation';
 
-export type CreationPolicy = {
-  AutoScalingCreationPolicy?: {
-    MinSuccessfulInstancesPercent?: Value<number>;
-  };
-  ResourceSignal?: {
-    Count?: Value<number>;
-    Timeout?: Value<string>;
-  };
-};
-
-export enum DeletionPolicy {
-  Delete = 'Delete',
-  Retain = 'Retain',
-  Snapshot = 'Snapshot'
-}
-
-export type UpdatePolicy = {
-  AutoScalingReplacingUpdate?: {
-    WillReplace?: Value<boolean>;
-  };
-  AutoScalingRollingUpdate?: {
-    MaxBatchSize?: Value<number>;
-    MinInstancesInService?: Value<number>;
-    MinSuccessfulInstancesPercent?: Value<number>;
-    PauseTime?: Value<string>;
-    SuspendProcesses?: List<string>;
-    WaitOnResourceSignals?: Value<boolean>;
-  };
-  AutoScalingScheduledAction?: {
-    IgnoreUnmodifiedGroupSizeProperties?: Value<boolean>;
-  };
-  CodeDeployLambdaAliasUpdate?: {
-    AfterAllowTrafficHook: Value<string>;
-    ApplicationName: Value<string>;
-    BeforeAllowTrafficHook: Value<string>;
-    DeploymentGroupName: Value<string>;
-  };
-};
-
-type Resource = {
-  Type: string;
-  DependsOn?: Value<string> | List<string>;
-  Properties?: { [key: string]: any };
-  Metadata?: { [key: string]: any };
-  CreationPolicy?: CreationPolicy;
-  DeletionPolicy?: DeletionPolicy;
-  UpdatePolicy?: UpdatePolicy;
-  Condition?: Value<string>;
-};
+type Resource = CloudformationResource;
 export default Resource;
 
 export abstract class ResourceBase<TProperties extends object = { [key: string]: any }> implements Resource {

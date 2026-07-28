@@ -203,7 +203,11 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     propsType: 'ConvexProps',
     interfaceName: 'Convex',
     sourceFile: 'convex.d.ts',
-    canConnectTo: []
+    canConnectTo: [],
+    // Convex's CloudFormation children are not modelled yet (see the TODO in child-resources.ts), so there is
+    // nothing to override or transform. Claiming otherwise emitted `ConvexPropsWithOverrides`, `ConvexOverrides`
+    // and `ConvexTransforms` into the published declarations with no definition anywhere.
+    supportsOverrides: false
   },
   {
     className: 'Bucket',
@@ -1261,6 +1265,13 @@ export function getResourcesWithAugmentedProps(): ResourceDefinition[] {
   return RESOURCES_CONVERTIBLE_TO_CLASSES.filter((r) => r.hasAugmentedProps);
 }
 
+/**
+ * Resources whose generated props carry `overrides` and `transforms`.
+ *
+ * This metadata is the single source of truth: the props type, the override and transform types, and the
+ * generated constructor signature all read it, so a resource whose CloudFormation children are not modelled
+ * says so here rather than being filtered out in one generator and not another.
+ */
 export function getResourcesWithOverrides(): ResourceDefinition[] {
   return RESOURCES_CONVERTIBLE_TO_CLASSES.filter((r) => r.supportsOverrides !== false);
 }

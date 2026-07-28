@@ -1,4 +1,7 @@
-interface StacktapeConfig {
+import type { BastionScript, DeploymentConfig, DirectiveDefinition, Hooks, LocalScript, LocalScriptWithBastionTunneling, StackConfig, StacktapeResourceDefinition } from './shared';
+import type { CloudformationResource } from './cloudformation';
+import type { MongoDbAtlasProvider, UpstashProvider } from './providers';
+export interface StacktapeConfig {
   /**
    * #### The name of this service.
    *

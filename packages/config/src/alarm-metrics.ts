@@ -1,4 +1,5 @@
-type ApplicationLoadBalancerMetric =
+import type { TriggerWithCustomComparison, TriggerWithCustomStatFunction } from './alarms';
+export type ApplicationLoadBalancerMetric =
   | 'ActiveConnectionCount'
   | 'AnomalousHostCount'
   | 'ClientTLSNegotiationErrorCount'
@@ -51,12 +52,14 @@ type ApplicationLoadBalancerMetric =
   | 'ELBAuthSuccess'
   | 'ELBAuthUserClaimsSizeExceeded';
 
-interface ApplicationLoadBalancerCustomTrigger {
+
+export interface ApplicationLoadBalancerCustomTrigger {
   type: 'application-load-balancer-custom';
   properties: ApplicationLoadBalancerCustomTriggerProps;
 }
 
-interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCustomStatFunction, TriggerWithCustomComparison {
+
+export interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCustomStatFunction, TriggerWithCustomComparison {
   /**
    * #### The metric to monitor on the Load Balancer.
    *

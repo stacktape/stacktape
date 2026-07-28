@@ -1,3 +1,4 @@
+import type { StpAuthorizer } from './user-pools';
 /**
  * #### Triggers a container when a request matches the specified conditions on an Application Load Balancer.
  *
@@ -5,12 +6,13 @@
  *
  * You can route requests based on HTTP method, path, headers, query parameters, and source IP address.
  */
-interface ContainerWorkloadLoadBalancerIntegration {
+export interface ContainerWorkloadLoadBalancerIntegration {
   type: 'application-load-balancer';
   properties: ContainerWorkloadLoadBalancerIntegrationProps;
 }
 
-interface ContainerWorkloadLoadBalancerIntegrationProps extends ApplicationLoadBalancerIntegrationProps {
+
+export interface ContainerWorkloadLoadBalancerIntegrationProps extends ApplicationLoadBalancerIntegrationProps {
   /**
    * #### The container port that will receive traffic from the load balancer.
    *
@@ -82,6 +84,7 @@ interface ContainerWorkloadLoadBalancerIntegrationProps extends ApplicationLoadB
   containerPort: number;
 }
 
+
 /**
  * #### Triggers a function when an Application Load Balancer receives a matching HTTP request.
  *
@@ -89,7 +92,7 @@ interface ContainerWorkloadLoadBalancerIntegrationProps extends ApplicationLoadB
  *
  * You can route requests based on HTTP method, path, headers, query parameters, and source IP address.
  */
-interface ApplicationLoadBalancerIntegration {
+export interface ApplicationLoadBalancerIntegration {
   /**
    * #### Triggers a function when an Application Load Balancer receives a matching HTTP request.
    *
@@ -101,7 +104,8 @@ interface ApplicationLoadBalancerIntegration {
   properties: ApplicationLoadBalancerIntegrationProps;
 }
 
-interface ApplicationLoadBalancerIntegrationProps {
+
+export interface ApplicationLoadBalancerIntegrationProps {
   /**
    * #### The name of the Application Load Balancer.
    *
@@ -683,7 +687,8 @@ interface ApplicationLoadBalancerIntegrationProps {
   sourceIps?: string[];
 }
 
-interface LbHeaderCondition {
+
+export interface LbHeaderCondition {
   /**
    * #### The name of the HTTP header.
    *
@@ -820,7 +825,8 @@ interface LbHeaderCondition {
    */
   values: string[];
 }
-interface LbQueryParamCondition {
+
+export interface LbQueryParamCondition {
   /**
    * #### The name of the query parameter.
    *
@@ -956,7 +962,8 @@ interface LbQueryParamCondition {
    */
   values: string[];
 }
-interface ContainerWorkloadHttpApiIntegrationProps extends HttpApiIntegrationProps {
+
+export interface ContainerWorkloadHttpApiIntegrationProps extends HttpApiIntegrationProps {
   /**
    * #### The container port that will receive traffic from the API Gateway.
    *
@@ -1027,6 +1034,7 @@ interface ContainerWorkloadHttpApiIntegrationProps extends HttpApiIntegrationPro
   containerPort: number;
 }
 
+
 /**
  * #### Triggers a container when an HTTP API Gateway receives a matching request.
  *
@@ -1034,20 +1042,22 @@ interface ContainerWorkloadHttpApiIntegrationProps extends HttpApiIntegrationPro
  *
  * You can route requests based on HTTP method and path.
  */
-interface ContainerWorkloadHttpApiIntegration {
+export interface ContainerWorkloadHttpApiIntegration {
   type: 'http-api-gateway';
   properties: ContainerWorkloadHttpApiIntegrationProps;
 }
 
+
 /**
  * #### Opens a container port for connections from other containers within the same workload.
  */
-interface ContainerWorkloadInternalIntegration {
+export interface ContainerWorkloadInternalIntegration {
   type: 'workload-internal';
   properties: ContainerWorkloadInternalIntegrationProps;
 }
 
-interface ContainerWorkloadInternalIntegrationProps {
+
+export interface ContainerWorkloadInternalIntegrationProps {
   /**
    * #### The container port to open for internal traffic.
    *
@@ -1119,15 +1129,17 @@ interface ContainerWorkloadInternalIntegrationProps {
   containerPort: number;
 }
 
+
 /**
  * #### Opens a container port for connections from other compute resources in the same stack.
  */
-interface ContainerWorkloadServiceConnectIntegration {
+export interface ContainerWorkloadServiceConnectIntegration {
   type: 'service-connect';
   properties: ContainerWorkloadServiceConnectIntegrationProps;
 }
 
-interface ContainerWorkloadServiceConnectIntegrationProps {
+
+export interface ContainerWorkloadServiceConnectIntegrationProps {
   /**
    * #### The container port to open for service-to-service communication.
    *
@@ -1321,15 +1333,17 @@ interface ContainerWorkloadServiceConnectIntegrationProps {
   protocol?: 'http' | 'http2' | 'grpc';
 }
 
+
 /**
  * #### Triggers a function when new messages are available in a Kafka topic.
  */
-interface KafkaTopicIntegration {
+export interface KafkaTopicIntegration {
   type: 'kafka-topic';
   properties: KafkaTopicIntegrationProps;
 }
 
-interface KafkaTopicIntegrationProps {
+
+export interface KafkaTopicIntegrationProps {
   /**
    * #### The details of your Kafka cluster.
    *
@@ -1361,7 +1375,8 @@ interface KafkaTopicIntegrationProps {
   maxBatchWindowSeconds?: number;
 }
 
-interface CustomKafkaEventSource {
+
+export interface CustomKafkaEventSource {
   /**
    * #### A list of `host:port` addresses for your Kafka brokers.
    */
@@ -1381,7 +1396,8 @@ interface CustomKafkaEventSource {
   authentication: KafkaSASLAuth | KafkaMTLSAuth;
 }
 
-interface KafkaSASLAuth {
+
+export interface KafkaSASLAuth {
   /**
    * #### The SASL authentication protocol.
    *
@@ -1398,7 +1414,8 @@ interface KafkaSASLAuth {
   properties: KafkaSASLAuthProps;
 }
 
-interface KafkaSASLAuthProps {
+
+export interface KafkaSASLAuthProps {
   /**
    * #### The ARN of a secret containing the Kafka credentials.
    *
@@ -1410,7 +1427,8 @@ interface KafkaSASLAuthProps {
   authenticationSecretArn: string;
 }
 
-interface KafkaMTLSAuth {
+
+export interface KafkaMTLSAuth {
   /**
    * #### The authentication protocol.
    *
@@ -1424,7 +1442,8 @@ interface KafkaMTLSAuth {
    */
   properties: KafkaMTLSAuthProps;
 }
-interface KafkaMTLSAuthProps {
+
+export interface KafkaMTLSAuthProps {
   /**
    * #### The ARN of a secret containing the client certificate.
    *
@@ -1444,6 +1463,7 @@ interface KafkaMTLSAuthProps {
   serverRootCaCertificate?: string;
 }
 
+
 /**
  * #### Triggers a function when a new message is published to an SNS topic.
  *
@@ -1451,12 +1471,13 @@ interface KafkaMTLSAuthProps {
  *
  * SNS is a pub/sub messaging service. Reference a topic from your stack's `snsTopics` or use an external ARN.
  */
-interface SnsIntegration {
+export interface SnsIntegration {
   type: 'sns';
   properties: SnsIntegrationProps;
 }
 
-interface SnsIntegrationProps {
+
+export interface SnsIntegrationProps {
   /**
    * #### The name of an SNS topic defined in your stack's resources.
    *
@@ -1493,7 +1514,8 @@ interface SnsIntegrationProps {
   onDeliveryFailure?: SnsOnDeliveryFailure;
 }
 
-interface SnsOnDeliveryFailure {
+
+export interface SnsOnDeliveryFailure {
   /**
    * #### The ARN of the SQS queue for failed messages.
    */
@@ -1503,6 +1525,7 @@ interface SnsOnDeliveryFailure {
    */
   sqsQueueName?: string;
 }
+
 
 /**
  * #### Triggers a function when new messages are available in an SQS queue.
@@ -1515,12 +1538,13 @@ interface SnsOnDeliveryFailure {
  * **Important:** A single SQS queue should only have one consumer function. For fan-out (multiple
  * consumers for the same message), use an SNS topic or EventBridge event bus instead.
  */
-interface SqsIntegration {
+export interface SqsIntegration {
   type: 'sqs';
   properties: SqsIntegrationProps;
 }
 
-interface SqsIntegrationProps {
+
+export interface SqsIntegrationProps {
   /**
    * #### The name of an SQS queue defined in your stack's resources.
    *
@@ -1558,6 +1582,7 @@ interface SqsIntegrationProps {
   maxBatchWindowSeconds?: number;
 }
 
+
 /**
  * #### Triggers a function when new records are available in a Kinesis Data Stream.
  *
@@ -1567,12 +1592,13 @@ interface SqsIntegrationProps {
  * - **Direct**: Polls each shard ~1/sec, throughput shared with other consumers.
  * - **Stream Consumer** (`autoCreateConsumer`): Dedicated connection per shard — higher throughput, lower latency.
  */
-interface KinesisIntegration {
+export interface KinesisIntegration {
   type: 'kinesis-stream';
   properties: KinesisIntegrationProps;
 }
 
-interface KinesisIntegrationProps {
+
+export interface KinesisIntegrationProps {
   /**
    * #### The name of a Kinesis stream defined in your stack's resources.
    *
@@ -1663,7 +1689,8 @@ interface KinesisIntegrationProps {
   bisectBatchOnFunctionError?: boolean;
 }
 
-interface DestinationOnFailure {
+
+export interface DestinationOnFailure {
   /**
    * #### The ARN of the SNS topic or SQS queue for failed batches.
    */
@@ -1674,6 +1701,7 @@ interface DestinationOnFailure {
   type: 'sns' | 'sqs';
 }
 
+
 /**
  * #### Triggers a function when items are created, updated, or deleted in a DynamoDB table.
  *
@@ -1682,12 +1710,13 @@ interface DestinationOnFailure {
  * Records are processed in batches. You must enable streams on the DynamoDB table first
  * (set `streaming` in your `dynamoDbTables` config).
  */
-interface DynamoDbIntegration {
+export interface DynamoDbIntegration {
   type: 'dynamo-db-stream';
   properties: DynamoDbIntegrationProps;
 }
 
-interface DynamoDbIntegrationProps {
+
+export interface DynamoDbIntegrationProps {
   /**
    * #### The ARN of the DynamoDB table stream.
    */
@@ -1746,15 +1775,17 @@ interface DynamoDbIntegrationProps {
    */
   bisectBatchOnFunctionError?: boolean;
 }
+
 /**
  * #### Triggers a function when files are created, deleted, or restored in an S3 bucket.
  */
-interface S3Integration {
+export interface S3Integration {
   type: 's3';
   properties: S3IntegrationProps;
 }
 
-interface S3IntegrationProps {
+
+export interface S3IntegrationProps {
   /**
    * #### The ARN of the S3 bucket to monitor for events.
    */
@@ -1786,7 +1817,8 @@ interface S3IntegrationProps {
   filterRule?: S3FilterRule;
 }
 
-interface S3FilterRule {
+
+export interface S3FilterRule {
   /**
    * #### The prefix that an object's key must have to trigger the function.
    */
@@ -1797,6 +1829,7 @@ interface S3FilterRule {
   suffix?: string;
 }
 
+
 /**
  * #### Triggers a function on a recurring schedule (cron jobs, periodic tasks).
  *
@@ -1806,12 +1839,13 @@ interface S3FilterRule {
  * - **Rate**: `rate(5 minutes)`, `rate(1 hour)`, `rate(7 days)`
  * - **Cron**: `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, all times UTC)
  */
-interface ScheduleIntegration {
+export interface ScheduleIntegration {
   type: 'schedule';
   properties: ScheduleIntegrationProps;
 }
 
-interface ScheduleIntegrationProps {
+
+export interface ScheduleIntegrationProps {
   /**
    * #### The schedule rate or cron expression.
    *
@@ -1989,12 +2023,14 @@ interface ScheduleIntegrationProps {
   inputTransformer?: EventInputTransformer;
 }
 
-interface AlarmIntegration {
+
+export interface AlarmIntegration {
   type: 'cloudwatch-alarm';
   properties: AlarmIntegrationProps;
 }
 
-interface AlarmIntegrationProps {
+
+export interface AlarmIntegrationProps {
   /**
    * #### The name of the alarm (defined in the `alarms` section) that will trigger the function.
    */
@@ -2004,6 +2040,7 @@ interface AlarmIntegrationProps {
   // inputTransformer?: EventInputTransformer;
 }
 
+
 /**
  * #### Triggers a function when new log records appear in a CloudWatch log group.
  *
@@ -2011,12 +2048,13 @@ interface AlarmIntegrationProps {
  *
  * **Note:** The event payload is base64-encoded and gzipped — you must decode and decompress it in your handler.
  */
-interface CloudwatchLogIntegration {
+export interface CloudwatchLogIntegration {
   type: 'cloudwatch-log';
   properties: CloudwatchLogIntegrationProps;
 }
 
-interface CloudwatchLogIntegrationProps {
+
+export interface CloudwatchLogIntegrationProps {
   /**
    * #### The ARN of the log group to watch for new records.
    */
@@ -2032,7 +2070,8 @@ interface CloudwatchLogIntegrationProps {
   filter?: string;
 }
 
-interface EventBusIntegrationPattern {
+
+export interface EventBusIntegrationPattern {
   /**
    * #### Filter by event version.
    */
@@ -2067,7 +2106,8 @@ interface EventBusIntegrationPattern {
   'replay-name'?: any;
 }
 
-interface EventInputTransformer {
+
+export interface EventInputTransformer {
   /**
    * #### A map of key-value pairs to extract from the event payload.
    *
@@ -2086,21 +2126,6 @@ interface EventInputTransformer {
   inputTemplate: any;
 }
 
-interface IotIntegration {
-  type: 'iot';
-  properties: IotIntegrationProps;
-}
-
-interface IotIntegrationProps {
-  /**
-   * #### The SQL statement for the IoT topic rule.
-   */
-  sql: string;
-  /**
-   * #### The version of the IoT SQL rules engine to use.
-   */
-  sqlVersion?: string;
-}
 
 /**
  * #### Triggers a function when an HTTP API Gateway receives a matching request.
@@ -2109,12 +2134,13 @@ interface IotIntegrationProps {
  *
  * Routes are matched by specificity — exact paths take priority over wildcard paths.
  */
-interface HttpApiIntegration {
+export interface HttpApiIntegration {
   type: 'http-api-gateway';
   properties: HttpApiIntegrationProps;
 }
 
-interface HttpApiIntegrationProps {
+
+export interface HttpApiIntegrationProps {
   /**
    * #### The name of the HTTP API Gateway.
    */
@@ -2157,6 +2183,7 @@ interface HttpApiIntegrationProps {
   payloadFormat?: '1.0' | '2.0';
 }
 
+
 /**
  * #### Triggers a batch job when an event matching a specified pattern is received by an event bus.
  *
@@ -2164,12 +2191,13 @@ interface HttpApiIntegrationProps {
  *
  * You can use a custom event bus or the default AWS event bus.
  */
-interface EventBusIntegration {
+export interface EventBusIntegration {
   type: 'event-bus';
   properties: EventBusIntegrationProps;
 }
 
-interface EventBusIntegrationProps {
+
+export interface EventBusIntegrationProps {
   /**
    * #### The ARN of an existing event bus.
    *
@@ -2406,7 +2434,8 @@ interface EventBusIntegrationProps {
   inputTransformer?: EventInputTransformer;
 }
 
-interface EventBusOnDeliveryFailure {
+
+export interface EventBusOnDeliveryFailure {
   /**
    * #### The ARN of the SQS queue for failed events.
    */
@@ -2417,6 +2446,7 @@ interface EventBusOnDeliveryFailure {
   sqsQueueName?: string;
 }
 
+
 /**
  * #### Triggers a container when a request is made to a Network Load Balancer.
  *
@@ -2424,12 +2454,13 @@ interface EventBusOnDeliveryFailure {
  *
  * A Network Load Balancer operates at the transport layer (Layer 4) and can handle TCP and TLS traffic.
  */
-interface ContainerWorkloadNetworkLoadBalancerIntegration {
+export interface ContainerWorkloadNetworkLoadBalancerIntegration {
   type: 'network-load-balancer';
   properties: ContainerWorkloadNetworkLoadBalancerIntegrationProps;
 }
 
-interface ContainerWorkloadNetworkLoadBalancerIntegrationProps extends NetworkLoadBalancerIntegrationProps {
+
+export interface ContainerWorkloadNetworkLoadBalancerIntegrationProps extends NetworkLoadBalancerIntegrationProps {
   /**
    * #### The container port that will receive traffic from the load balancer.
    *
@@ -2501,7 +2532,8 @@ interface ContainerWorkloadNetworkLoadBalancerIntegrationProps extends NetworkLo
   containerPort: number;
 }
 
-interface NetworkLoadBalancerIntegrationProps {
+
+export interface NetworkLoadBalancerIntegrationProps {
   /**
    * #### The name of the Network Load Balancer.
    *
@@ -2642,4 +2674,23 @@ interface NetworkLoadBalancerIntegrationProps {
    * ```
    */
   listenerPort: number;
+}
+
+// The IoT lambda event integration. `stacktape` publishes `IotIntegration`/`IotIntegrationProps`, but no
+// resource references it from `StacktapeConfig` yet, so the npm build used to emit a
+// `Record<string, unknown>` placeholder for it. Owning the authored declaration here replaces that with the
+// real shape; it lives with the other event integrations so `events.d.ts` stays its documentation source.
+export interface IotIntegration {
+  type: 'iot';
+  properties: IotIntegrationProps;
+}
+export interface IotIntegrationProps {
+  /**
+   * #### The SQL statement for the IoT topic rule.
+   */
+  sql: string;
+  /**
+   * #### The version of the IoT SQL rules engine to use.
+   */
+  sqlVersion?: string;
 }

@@ -1,0 +1,15 @@
+{
+  "//": [
+    "Only the Bun runtime test compiles here. It needs `bun-types` for `bun:test`, and bun-types and @types/node",
+    "disagree about a handful of web-stream globals, so third-party declaration files are skipped. Measured: with",
+    "skipLibCheck off, all 6 errors are in node_modules and none are repository-owned.",
+    "The compile-acceptance fixture is deliberately not checked here - it belongs to the package's own project,",
+    "which has no ambient globals and does not skip library checks."
+  ],
+  "extends": "../tsconfig.json",
+  "include": ["config-import.test.ts"],
+  "compilerOptions": {
+    "types": ["bun-types"],
+    "skipLibCheck": true
+  }
+}

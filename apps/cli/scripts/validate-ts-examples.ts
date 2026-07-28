@@ -7,7 +7,7 @@
  *
  * Usage:
  *   bun scripts/validate-ts-examples.ts <file.d.ts> [...]      # specific files
- *   bun scripts/validate-ts-examples.ts                        # all types/stacktape-config/*.d.ts
+ *   bun scripts/validate-ts-examples.ts                        # all @stacktape/config modules
  *   bun scripts/validate-ts-examples.ts --json ...
  *
  * Exit code 0 if every example typechecks, 1 otherwise.
@@ -16,8 +16,11 @@ import { extractFencedExamples } from './code-generation/extract-examples';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, resolve } from 'node:path';
-import fastGlob from 'fast-glob';
 import { emptyDir, readFile, remove, writeFile } from 'fs-extra';
+import { listConfigSourceFiles } from './code-generation/config-sources';
+
+/** The workspace TypeScript 6 compiler, the same one `pnpm typecheck` runs. */
+const WORKSPACE_TSC = join(process.cwd(), '..', '..', 'node_modules', 'typescript', 'bin', 'tsc');
 
 const execFileAsync = promisify(execFile);
 // Unique per process so concurrent invocations (e.g. one per file across a fan-out) don't clobber each other.
@@ -28,7 +31,7 @@ const main = async () => {
   const argv = process.argv.slice(2);
   const jsonMode = argv.includes('--json');
   let files = argv.filter((a) => a !== '--json');
-  if (files.length === 0) files = await fastGlob('types/stacktape-config/*.d.ts');
+  if (files.length === 0) files = listConfigSourceFiles();
 
   const examples = [];
   for (const file of files) {
@@ -62,7 +65,8 @@ const main = async () => {
     JSON.stringify({
       compilerOptions: {
         noEmit: true,
-        skipLibCheck: true,
+        // The published declarations are exactly what this validates, so they are not skipped.
+        skipLibCheck: false,
         strict: true,
         moduleResolution: 'bundler',
         module: 'esnext',
@@ -76,7 +80,9 @@ const main = async () => {
   let stdout = '';
   let ok = true;
   try {
-    await execFileAsync('bunx', ['tsc', '-p', 'tsconfig.json'], { cwd: TMP_DIR, shell: true });
+    // The workspace-pinned TypeScript, not whatever `bunx` resolves: the examples are checked with the
+    // compiler the repository is validated with.
+    await execFileAsync(process.execPath, [WORKSPACE_TSC, '-p', 'tsconfig.json'], { cwd: TMP_DIR });
   } catch (err: any) {
     ok = false;
     stdout = `${err.stdout ?? ''}${err.stderr ?? ''}`;

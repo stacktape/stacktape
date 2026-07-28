@@ -4,21 +4,21 @@
  *
  * Usage:
  *   bun scripts/validate-examples-in-types.ts <file.d.ts> [...]      # specific files
- *   bun scripts/validate-examples-in-types.ts                        # all types/stacktape-config/*.d.ts
+ *   bun scripts/validate-examples-in-types.ts                        # all @stacktape/config modules
  *   bun scripts/validate-examples-in-types.ts --json ...
  *
  * Exit code 0 if every example is valid, 1 otherwise.
  */
 import { extractFencedExamples } from './code-generation/extract-examples';
 import { validateConfigYaml } from './code-generation/validate-config-string';
-import fastGlob from 'fast-glob';
 import { readFile } from 'fs-extra';
+import { listConfigSourceFiles } from './code-generation/config-sources';
 
 const main = async () => {
   const argv = process.argv.slice(2);
   const jsonMode = argv.includes('--json');
   let files = argv.filter((a) => a !== '--json');
-  if (files.length === 0) files = await fastGlob('types/stacktape-config/*.d.ts');
+  if (files.length === 0) files = listConfigSourceFiles();
 
   const examples = [];
   for (const file of files) {

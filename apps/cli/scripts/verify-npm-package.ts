@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, normalize } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NPM_RELEASE_FOLDER_PATH } from '../shared/naming/project-fs-paths';
+import { verifyNpmDeclarations } from './verify-npm-declarations';
 
 type PackageManifest = {
   name: string;
@@ -71,6 +72,11 @@ export const verifyNpmPackage = async ({
   }
   await assertContains(join(packageDir, 'index.d.ts'), ['defineConfig', 'LambdaFunction', 'DynamoDbTable']);
   await assertContains(join(packageDir, 'types.d.ts'), ['StacktapeConfig', 'LambdaFunction']);
+  // These are published aliases into ./plain that used to point at types the generator never emitted.
+  await assertContains(join(packageDir, 'plain.d.ts'), ['BudgetControl', 'IotIntegrationProps']);
+  // Whatever this artifact is, a strict consumer has to be able to compile against it. Bound to `packageDir`
+  // so the installed tarball is what gets verified, never a leftover __release-npm directory.
+  verifyNpmDeclarations({ packageDir });
   await assertContains(join(packageDir, 'cloudformation.d.ts'), ['AWS::Lambda::Function', 'AWS::DynamoDB::Table']);
 
   const runtimeExports = await import(`${pathToFileURL(join(packageDir, manifest.main)).href}?baseline=${Date.now()}`);
@@ -93,6 +99,8 @@ export const verifyNpmPackage = async ({
     'index.d.ts',
     'types.d.ts',
     'cloudformation.d.ts',
+    // index.d.ts and types.d.ts both alias into ./plain; without it every published alias dangles.
+    'plain.d.ts',
     'bin/stacktape.js'
   ];
   if (requireChecksums) {

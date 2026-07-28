@@ -17,18 +17,13 @@ import { join } from 'node:path';
 import { emptyDir, ensureDir, readFile, writeFile } from 'fs-extra';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { commandDefinitions } from '../src/config/cli/commands';
+import { resolveConfigSourceFile } from './code-generation/config-sources';
 
 const SKILL_OUTPUT_DIR = '.claude/skills/stacktape';
-const TYPES_DIR = 'types/stacktape-config';
-
-// Read a type definition file
+// Read a configuration module. Missing sources are an error: this generator used to swallow them and emit a
+// skill describing nothing.
 const readTypeFile = async (fileName: string): Promise<string> => {
-  const filePath = join(TYPES_DIR, fileName);
-  try {
-    return await readFile(filePath, 'utf-8');
-  } catch {
-    return '';
-  }
+  return readFile(resolveConfigSourceFile(fileName), 'utf-8');
 };
 
 // Generate the main SKILL.md - the entry point

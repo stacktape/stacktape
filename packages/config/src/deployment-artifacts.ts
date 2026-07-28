@@ -1,4 +1,4 @@
-interface DockerBuildArg {
+export interface DockerBuildArg {
   /**
    * #### Argument name
   *
@@ -121,7 +121,8 @@ interface DockerBuildArg {
   value: string;
 }
 
-interface EsLanguageSpecificConfig {
+
+export interface EsLanguageSpecificConfig {
   /**
    * #### The path to the `tsconfig.json` file.
    *
@@ -534,7 +535,8 @@ interface EsLanguageSpecificConfig {
   dependenciesToExcludeFromDeploymentPackage?: string[];
 }
 
-interface PyLanguageSpecificConfig {
+
+export interface PyLanguageSpecificConfig {
   /**
    * #### The path to your project's dependency file.
    *
@@ -1015,13 +1017,17 @@ interface PyLanguageSpecificConfig {
   minify?: boolean;
 }
 
-type SupportedPythonVersion = 2.7 | 3.6 | 3.7 | 3.8 | 3.9 | 3.11 | 3.12 | 3.13 | 3.14;
 
-type SupportedPythonPackageManager = 'uv';
+export type SupportedPythonVersion = 2.7 | 3.6 | 3.7 | 3.8 | 3.9 | 3.11 | 3.12 | 3.13 | 3.14;
 
-type SupportedPythonRunAppAs = 'WSGI' | 'ASGI';
 
-interface JavaLanguageSpecificConfig {
+export type SupportedPythonPackageManager = 'uv';
+
+
+export type SupportedPythonRunAppAs = 'WSGI' | 'ASGI';
+
+
+export interface JavaLanguageSpecificConfig {
   /**
    * #### Specifies whether to use Maven instead of Gradle.
    *
@@ -1175,11 +1181,14 @@ interface JavaLanguageSpecificConfig {
   javaVersion?: SupportedJavaVersion;
 }
 
-type SupportedJavaVersion = 8 | 11 | 17 | 19;
 
-interface GoLanguageSpecificConfig {}
+export type SupportedJavaVersion = 8 | 11 | 17 | 19;
 
-interface RubyLanguageSpecificConfig {
+
+export interface GoLanguageSpecificConfig {}
+
+
+export interface RubyLanguageSpecificConfig {
   /**
    * #### The version of Ruby to use.
    *
@@ -1238,9 +1247,11 @@ interface RubyLanguageSpecificConfig {
   rubyVersion?: SupportedRubyVersion;
 }
 
-type SupportedRubyVersion = 3.2 | 3.3;
 
-interface PhpLanguageSpecificConfig {
+export type SupportedRubyVersion = 3.2 | 3.3;
+
+
+export interface PhpLanguageSpecificConfig {
   /**
    * #### The version of PHP to use.
    *
@@ -1299,9 +1310,11 @@ interface PhpLanguageSpecificConfig {
   phpVersion?: SupportedPhpVersion;
 }
 
-type SupportedPhpVersion = 8.2 | 8.3;
 
-interface DotnetLanguageSpecificConfig {
+export type SupportedPhpVersion = 8.2 | 8.3;
+
+
+export interface DotnetLanguageSpecificConfig {
   /**
    * #### The path to your .NET project file (.csproj).
   *
@@ -1405,9 +1418,11 @@ interface DotnetLanguageSpecificConfig {
   dotnetVersion?: SupportedDotnetVersion;
 }
 
-type SupportedDotnetVersion = 6 | 8;
 
-interface StpBuildpackSharedProps {
+export type SupportedDotnetVersion = 6 | 8;
+
+
+export interface StpBuildpackSharedProps {
   /**
    * #### Path to your app's entry point, relative to the Stacktape config file.
    *
@@ -1658,7 +1673,8 @@ interface StpBuildpackSharedProps {
     | RubyLanguageSpecificConfig;
 }
 
-interface StpBuildpackLambdaPackagingProps extends StpBuildpackSharedProps {
+
+export interface StpBuildpackLambdaPackagingProps extends StpBuildpackSharedProps {
   /**
    * #### The name of the handler function to be executed when the Lambda is invoked.
   *
@@ -1706,6 +1722,7 @@ interface StpBuildpackLambdaPackagingProps extends StpBuildpackSharedProps {
   handlerFunction?: string;
 }
 
+
 /**
  * #### A zero-config buildpack that packages your code for AWS Lambda.
  *
@@ -1718,12 +1735,13 @@ interface StpBuildpackLambdaPackagingProps extends StpBuildpackSharedProps {
  * For JS/TS, your code is bundled into a single file. Source maps are automatically generated.
  * Packages are cached based on a checksum, so unchanged code is not re-packaged.
  */
-interface StpBuildpackLambdaPackaging {
+export interface StpBuildpackLambdaPackaging {
   type: 'stacktape-lambda-buildpack';
   properties: StpBuildpackLambdaPackagingProps;
 }
 
-interface CustomArtifactLambdaPackagingProps {
+
+export interface CustomArtifactLambdaPackagingProps {
   /**
    * #### The path to a pre-built deployment package.
    *
@@ -1822,6 +1840,7 @@ interface CustomArtifactLambdaPackagingProps {
   handler?: string;
 }
 
+
 /**
  * #### Uses a pre-built artifact for Lambda deployment.
  *
@@ -1832,15 +1851,16 @@ interface CustomArtifactLambdaPackagingProps {
  *
  * This is useful when you have custom build processes or need full control over the packaging.
  */
-interface CustomArtifactLambdaPackaging {
+export interface CustomArtifactLambdaPackaging {
   type: 'custom-artifact';
   properties: CustomArtifactLambdaPackagingProps;
 }
 
+
 /**
  * #### Configures a pre-built container image.
  */
-interface PrebuiltImageBjPackagingProps {
+export interface PrebuiltImageBjPackagingProps {
   /**
    * #### The name or URL of the container image.
   *
@@ -1954,10 +1974,11 @@ interface PrebuiltImageBjPackagingProps {
   command?: string[];
 }
 
+
 /**
  * #### Configures a pre-built container image.
  */
-interface PrebuiltImageCwPackagingProps extends PrebuiltImageBjPackagingProps {
+export interface PrebuiltImageCwPackagingProps extends PrebuiltImageBjPackagingProps {
   /**
    * #### The ARN of a secret containing credentials for a private container registry.
    *
@@ -2068,10 +2089,12 @@ interface PrebuiltImageCwPackagingProps extends PrebuiltImageBjPackagingProps {
   entryPoint?: string[];
 }
 
-interface PrebuiltBjImagePackaging {
+
+export interface PrebuiltBjImagePackaging {
   type: 'prebuilt-image';
   properties: PrebuiltImageBjPackagingProps;
 }
+
 
 /**
  * #### Uses a pre-built container image.
@@ -2083,15 +2106,16 @@ interface PrebuiltBjImagePackaging {
  *
  * For private registries, configure `repositoryCredentialsSecretArn` with credentials stored in AWS Secrets Manager.
  */
-interface PrebuiltCwImagePackaging {
+export interface PrebuiltCwImagePackaging {
   type: 'prebuilt-image';
   properties: PrebuiltImageCwPackagingProps;
 }
 
+
 /**
  * #### Configures an image to be built by Stacktape from a specified Dockerfile.
  */
-interface CustomDockerfileBjImagePackagingProps {
+export interface CustomDockerfileBjImagePackagingProps {
   /**
    * #### The path to the Dockerfile, relative to `buildContextPath`.
   *
@@ -2317,10 +2341,11 @@ interface CustomDockerfileBjImagePackagingProps {
   command?: string[];
 }
 
+
 /**
  * #### Configures an image to be built by Stacktape from a specified Dockerfile.
  */
-interface CustomDockerfileCwImagePackagingProps extends CustomDockerfileBjImagePackagingProps {
+export interface CustomDockerfileCwImagePackagingProps extends CustomDockerfileBjImagePackagingProps {
   /**
    * #### A script to be executed when the container starts.
    *
@@ -2376,10 +2401,12 @@ interface CustomDockerfileCwImagePackagingProps extends CustomDockerfileBjImageP
   entryPoint?: string[];
 }
 
-interface CustomDockerfileBjImagePackaging {
+
+export interface CustomDockerfileBjImagePackaging {
   type: 'custom-dockerfile';
   properties: CustomDockerfileBjImagePackagingProps;
 }
+
 
 /**
  * #### Builds a container image from your own Dockerfile.
@@ -2391,12 +2418,13 @@ interface CustomDockerfileBjImagePackaging {
  *
  * This gives you full control over the container environment and is ideal for complex setups.
  */
-interface CustomDockerfileCwImagePackaging {
+export interface CustomDockerfileCwImagePackaging {
   type: 'custom-dockerfile';
   properties: CustomDockerfileCwImagePackagingProps;
 }
 
-interface ExternalBuildpackBjImagePackagingProps {
+
+export interface ExternalBuildpackBjImagePackagingProps {
   /**
    * #### The Buildpack Builder to use.
    *
@@ -2620,12 +2648,15 @@ interface ExternalBuildpackBjImagePackagingProps {
   command?: string[];
 }
 
-interface ExternalBuildpackCwImagePackagingProps extends ExternalBuildpackBjImagePackagingProps {}
 
-interface ExternalBuildpackBjImagePackaging {
+export interface ExternalBuildpackCwImagePackagingProps extends ExternalBuildpackBjImagePackagingProps {}
+
+
+export interface ExternalBuildpackBjImagePackaging {
   type: 'external-buildpack';
   properties: ExternalBuildpackBjImagePackagingProps;
 }
+
 
 /**
  * #### Builds a container image using an external buildpack.
@@ -2638,12 +2669,13 @@ interface ExternalBuildpackBjImagePackaging {
  * The default builder is `paketobuildpacks/builder-jammy-base`.
  * You can find buildpacks for almost any language or framework.
  */
-interface ExternalBuildpackCwImagePackaging {
+export interface ExternalBuildpackCwImagePackaging {
   type: 'external-buildpack';
   properties: ExternalBuildpackCwImagePackagingProps;
 }
 
-interface NixpacksPhase {
+
+export interface NixpacksPhase {
   /**
    * #### The name of the build phase.
   *
@@ -3182,7 +3214,8 @@ interface NixpacksPhase {
   onlyIncludeFiles?: string[];
 }
 
-interface NixpacksBjImagePackagingProps {
+
+export interface NixpacksBjImagePackagingProps {
   /**
    * #### The path to the source code directory.
   *
@@ -3549,12 +3582,15 @@ interface NixpacksBjImagePackagingProps {
   phases?: NixpacksPhase[];
 }
 
-interface NixpacksCwImagePackagingProps extends NixpacksBjImagePackagingProps {}
 
-interface NixpacksBjImagePackaging {
+export interface NixpacksCwImagePackagingProps extends NixpacksBjImagePackagingProps {}
+
+
+export interface NixpacksBjImagePackaging {
   type: 'nixpacks';
   properties: NixpacksBjImagePackagingProps;
 }
+
 
 /**
  * #### Builds a container image using Nixpacks.
@@ -3566,15 +3602,16 @@ interface NixpacksBjImagePackaging {
  *
  * It supports a wide range of languages and frameworks out of the box.
  */
-interface NixpacksCwImagePackaging {
+export interface NixpacksCwImagePackaging {
   type: 'nixpacks';
   properties: NixpacksCwImagePackagingProps;
 }
 
+
 /**
  * #### Configures an image to be built automatically by Stacktape from your source code.
  */
-interface StpBuildpackBjImagePackagingProps extends StpBuildpackSharedProps {
+export interface StpBuildpackBjImagePackagingProps extends StpBuildpackSharedProps {
   /**
    * #### Language-specific packaging configuration.
   *
@@ -3749,15 +3786,18 @@ interface StpBuildpackBjImagePackagingProps extends StpBuildpackSharedProps {
   customDockerBuildCommands?: string[];
 }
 
+
 /**
  * #### Configures an image to be built automatically by Stacktape from your source code.
  */
-interface StpBuildpackCwImagePackagingProps extends StpBuildpackBjImagePackagingProps {}
+export interface StpBuildpackCwImagePackagingProps extends StpBuildpackBjImagePackagingProps {}
 
-interface StpBuildpackBjImagePackaging {
+
+export interface StpBuildpackBjImagePackaging {
   type: 'stacktape-image-buildpack';
   properties: StpBuildpackBjImagePackagingProps;
 }
+
 
 /**
  * #### A zero-config buildpack that creates a container image from your source code.
@@ -3771,7 +3811,26 @@ interface StpBuildpackBjImagePackaging {
  * For JS/TS, your code is bundled into a single file with source maps.
  * The resulting image is uploaded to a managed ECR repository.
  */
-interface StpBuildpackCwImagePackaging {
+export interface StpBuildpackCwImagePackaging {
   type: 'stacktape-image-buildpack';
   properties: StpBuildpackCwImagePackagingProps;
 }
+
+
+export type BatchJobContainerPackaging =
+  | StpBuildpackBjImagePackaging
+  | ExternalBuildpackBjImagePackaging
+  | NixpacksBjImagePackaging
+  | CustomDockerfileBjImagePackaging
+  | PrebuiltBjImagePackaging;
+
+
+export type ContainerWorkloadContainerPackaging =
+  | StpBuildpackCwImagePackaging
+  | ExternalBuildpackCwImagePackaging
+  | NixpacksCwImagePackaging
+  | CustomDockerfileCwImagePackaging
+  | PrebuiltCwImagePackaging;
+
+
+export type LambdaPackaging = StpBuildpackLambdaPackaging | CustomArtifactLambdaPackaging;

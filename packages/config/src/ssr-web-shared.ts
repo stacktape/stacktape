@@ -1,3 +1,5 @@
+import type { CdnCachingOptions } from './cdn';
+import type { LambdaFunctionLogging } from './functions';
 /**
  * Shared types for SSR web resources (Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix)
  */
@@ -5,7 +7,7 @@
 /**
  * Server Lambda configuration shared by all SSR web resources
  */
-interface SsrWebServerLambdaConfig {
+export interface SsrWebServerLambdaConfig {
   /**
    * #### Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU.
    *
@@ -214,10 +216,11 @@ interface SsrWebServerLambdaConfig {
   logging?: LambdaFunctionLogging;
 }
 
+
 /**
  * Dev server configuration shared by all SSR web resources
  */
-interface SsrWebDevConfig {
+export interface SsrWebDevConfig {
   /**
    * #### Override the default dev server command (e.g., `npm run dev`).
    *
@@ -300,10 +303,11 @@ interface SsrWebDevConfig {
   workingDirectory?: string;
 }
 
+
 /**
  * CDN configuration shared by all SSR web resources
  */
-interface SsrWebCdnConfig {
+export interface SsrWebCdnConfig {
   /**
    * #### Skip clearing the CDN cache after each deploy.
    *
@@ -471,7 +475,8 @@ interface SsrWebCdnConfig {
   pathCachingOverrides?: SsrWebPathCachingOverride[];
 }
 
-interface SsrWebPathCachingOverride {
+
+export interface SsrWebPathCachingOverride {
   /**
    * #### URL path pattern to match (e.g., `/api/*`, `/_server-islands/*`).
    *

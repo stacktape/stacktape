@@ -3,6 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as ts from 'typescript';
+import { CONFIG_PACKAGE_SRC_PATH } from '@shared/naming/project-fs-paths';
 import { buildIndexNamespaceModule, buildResourceModule, resourceModuleName } from './generate-cloudform';
 
 const ROOT_HELPERS = ['resource.ts', 'dataTypes.ts'];
@@ -35,7 +36,11 @@ const compileWithRootHelpers = (modules: Record<string, string>): string[] => {
     module: ts.ModuleKind.Preserve,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
     skipLibCheck: false,
-    types: []
+    types: [],
+    // The root helpers import the authored CloudFormation vocabulary from @stacktape/config. The temp
+    // directory has no node_modules, so the package is mapped straight to its source.
+    baseUrl: root,
+    paths: { '@stacktape/config/*': [join(CONFIG_PACKAGE_SRC_PATH, '*')] }
   });
 
   return ts

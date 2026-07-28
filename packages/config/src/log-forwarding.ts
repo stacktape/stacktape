@@ -1,4 +1,4 @@
-interface LogForwardingBase {
+export interface LogForwardingBase {
   /**
    * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).
    *
@@ -56,12 +56,14 @@ interface LogForwardingBase {
   logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;
 }
 
-interface HttpEndpointLogForwarding {
+
+export interface HttpEndpointLogForwarding {
   type: 'http-endpoint';
   properties: HttpEndpointLogForwardingProps;
 }
 
-interface HttpEndpointLogForwardingProps {
+
+export interface HttpEndpointLogForwardingProps {
   /**
    * #### HTTPS endpoint URL where logs are sent.
    *
@@ -336,12 +338,14 @@ interface HttpEndpointLogForwardingProps {
   accessKey?: string;
 }
 
-interface HighlightLogForwarding {
+
+export interface HighlightLogForwarding {
   type: 'highlight';
   properties: HighlightLogForwardingProps;
 }
 
-interface HighlightLogForwardingProps {
+
+export interface HighlightLogForwardingProps {
   /**
    * #### Your Highlight.io project ID (from the Highlight console).
    *
@@ -450,12 +454,14 @@ interface HighlightLogForwardingProps {
   endpointUrl?: string;
 }
 
-interface DatadogLogForwarding {
+
+export interface DatadogLogForwarding {
   type: 'datadog';
   properties: DatadogLogForwardingProps;
 }
 
-interface DatadogLogForwardingProps {
+
+export interface DatadogLogForwardingProps {
   /**
    * #### Your Datadog API key. Store as `$Secret()` for security.
    *

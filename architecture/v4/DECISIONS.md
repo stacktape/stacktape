@@ -158,6 +158,23 @@ Even for v4, the following default to `must-preserve` unless explicitly approved
 - cleanup of temporary credentials and deployment artifacts;
 - the npm binary/exports/config-authoring surface unless a v4 replacement is documented.
 
+### Classified published-declaration corrections
+
+Extracting `@stacktape/config` added a strict consumer check over the built `stacktape` declarations, which
+surfaced three declarations that never compiled for a customer. All three are `known-v3-bug` in behavior and
+`intentional-v4-break` at the compile-time surface; each has a regression test.
+
+| Correction                                                                                                                                                                                                                                                                                                                                                     | Classification                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `Convex` no longer declares `overrides`/`transforms`. Its CloudFormation children are not modelled, so `ConvexPropsWithOverrides`, `ConvexOverrides` and `ConvexTransforms` were referenced but never defined; `supportsOverrides: false` in the resource metadata now says so once, for every generator. Restore the property when the children are modelled. | `known-v3-bug`, compile-time `intentional-v4-break` |
+| `IotIntegrationProps` is generated from its authored declaration instead of a `Record<string, unknown>` placeholder, so `sql` and `sqlVersion` are typed. A config that passed only because the placeholder accepted anything now fails to compile.                                                                                                            | `known-v3-bug`, compile-time `intentional-v4-break` |
+| `StacktapeBudgetControl`/`StacktapeBudgetControlPlain` resolve. They aliased `./plain.BudgetControl`, which the schema-driven `plain.d.ts` never contained because `BudgetControl` is not reachable from `StacktapeConfig`.                                                                                                                                    | `known-v3-bug`                                      |
+
+`BudgetControl`, `BudgetNotification`, `IotIntegration` and `IotIntegrationProps` are authored configuration that
+the npm package publishes without being reachable from the configuration root. `@stacktape/config` owns them for
+that reason: the package's rule is "authored configuration", not "reachable from `StacktapeConfig`", which is
+only the test used to classify the bulk of the model.
+
 ## Explicit non-goals for the preflight
 
 - Do not deploy the security work or v4 infrastructure.

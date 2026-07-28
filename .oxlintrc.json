@@ -163,6 +163,12 @@
         "unicorn/prefer-set-has": "off",
         "unicorn/prefer-string-starts-ends-with": "off"
       }
+    },
+    {
+      "files": ["packages/config/src/**"],
+      "rules": {
+        "typescript/no-explicit-any": "off"
+      }
     }
   ],
   "ignorePatterns": [

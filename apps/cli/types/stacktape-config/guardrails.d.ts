@@ -14,7 +14,6 @@ type GuardrailType =
   | 'require-waf'
   | 'require-custom-domain'
   | 'resource-count-limit';
-
 type StageRestrictionGuardrail = {
   type: 'stage-restriction';
   properties: {
@@ -24,7 +23,6 @@ type StageRestrictionGuardrail = {
     allowedStages?: string[];
   };
 };
-
 type RegionRestrictionGuardrail = {
   type: 'region-restriction';
   properties: {
@@ -34,7 +32,6 @@ type RegionRestrictionGuardrail = {
     allowedRegions?: AWSRegion[];
   };
 };
-
 type CommandRestrictionGuardrail = {
   type: 'command-restriction';
   properties: {
@@ -44,7 +41,6 @@ type CommandRestrictionGuardrail = {
     blockedCommands?: string[];
   };
 };
-
 type ResourceTypeRestrictionGuardrail = {
   type: 'resource-type-restriction';
   properties: {
@@ -54,7 +50,6 @@ type ResourceTypeRestrictionGuardrail = {
     blockedResourceTypes?: StpResourceType[];
   };
 };
-
 type RequireVpcDatabasesGuardrail = {
   type: 'require-vpc-databases';
   properties: {
@@ -64,7 +59,6 @@ type RequireVpcDatabasesGuardrail = {
     enabled?: boolean;
   };
 };
-
 type RequireDeletionProtectionGuardrail = {
   type: 'require-deletion-protection';
   properties: {
@@ -74,7 +68,6 @@ type RequireDeletionProtectionGuardrail = {
     enabled?: boolean;
   };
 };
-
 type RequireDeadLetterQueueGuardrail = {
   type: 'require-dead-letter-queue';
   properties: {
@@ -84,7 +77,6 @@ type RequireDeadLetterQueueGuardrail = {
     enabled?: boolean;
   };
 };
-
 type FunctionMemoryLimitGuardrail = {
   type: 'function-memory-limit';
   properties: {
@@ -94,7 +86,6 @@ type FunctionMemoryLimitGuardrail = {
     maxMemoryMB?: number;
   };
 };
-
 type FunctionTimeoutLimitGuardrail = {
   type: 'function-timeout-limit';
   properties: {
@@ -104,7 +95,6 @@ type FunctionTimeoutLimitGuardrail = {
     maxTimeoutSeconds?: number;
   };
 };
-
 type ContainerResourceLimitGuardrail = {
   type: 'container-resource-limit';
   properties: {
@@ -118,7 +108,6 @@ type ContainerResourceLimitGuardrail = {
     maxMemoryMB?: number;
   };
 };
-
 type DatabaseEngineRestrictionGuardrail = {
   type: 'database-engine-restriction';
   properties: {
@@ -128,7 +117,6 @@ type DatabaseEngineRestrictionGuardrail = {
     allowedEngines?: string[];
   };
 };
-
 type DatabaseInstanceRestrictionGuardrail = {
   type: 'database-instance-restriction';
   properties: {
@@ -138,7 +126,6 @@ type DatabaseInstanceRestrictionGuardrail = {
     blockedInstanceSizes?: string[];
   };
 };
-
 type RequireWafGuardrail = {
   type: 'require-waf';
   properties: {
@@ -148,7 +135,6 @@ type RequireWafGuardrail = {
     enabled?: boolean;
   };
 };
-
 type RequireCustomDomainGuardrail = {
   type: 'require-custom-domain';
   properties: {
@@ -158,7 +144,6 @@ type RequireCustomDomainGuardrail = {
     enabled?: boolean;
   };
 };
-
 type ResourceCountLimitGuardrail = {
   type: 'resource-count-limit';
   properties: {
@@ -168,7 +153,6 @@ type ResourceCountLimitGuardrail = {
     maxResources?: number;
   };
 };
-
 type GuardrailDefinition =
   | StageRestrictionGuardrail
   | RegionRestrictionGuardrail
