@@ -617,7 +617,9 @@ Examples:
   'aws:call': {
     description: `Execute read-only AWS SDK commands against deployed resources.
 
-Provides direct access to AWS SDK v3 for inspecting deployed resources. Only read-only operations (List*, Get*, Describe*, Head*) are allowed.
+Provides direct access to AWS SDK v3 for inspecting deployed resources. Each supported service has an explicit list of operations reviewed as read-only for that service, and everything outside it is rejected — including operations that only look like reads, such as Step Functions \`GetActivityTask\` (it claims a task and starts its timeout) and SQS \`ReceiveMessage\` (it hides messages from the real consumer). A rejection names the operations the service does accept. Coverage is deliberately partial: a genuinely read-only operation that is missing has not been reviewed yet.
+
+This name check is the only guard: the call uses the deployed stack's debug role when one is available and falls back to your own AWS credentials when it is not, so an accepted operation runs with whatever those credentials allow.
 
 Examples:
   stacktape aws:call --stage prod --service lambda --command ListFunctions

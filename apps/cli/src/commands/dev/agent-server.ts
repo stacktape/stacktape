@@ -3,7 +3,8 @@ import { createServer } from 'node:http';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { formatCommandHeaderLine } from '@application-services/tui-manager/command-header';
-import { executeAwsSdkCommand, getSupportedServices } from '@domain-services/debug-services/aws-sdk-executor';
+import { AWS_READ_ONLY_OPERATIONS } from '@domain-services/debug-services/aws-read-only-operations';
+import { executeAwsSdkCommand } from '@domain-services/debug-services/aws-sdk-executor';
 import { getDevAgentCredentials } from './dev-agent-credentials';
 import {
   postgresQuery,
@@ -981,7 +982,7 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
 });
 
 addRoute('GET', '/aws/sdk/services', async () => {
-  return { ok: true, data: getSupportedServices() };
+  return { ok: true, data: AWS_READ_ONLY_OPERATIONS };
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1319,7 +1320,7 @@ export const buildStartupMessage = (params: {
   // AWS SDK
   lines.push('AWS SDK (direct SDK access):');
   lines.push('  POST /aws/sdk                {"service": "...", "command": "...", "input": {...}}');
-  lines.push('  GET  /aws/sdk/services       List supported services and example commands');
+  lines.push('  GET  /aws/sdk/services       List services and the read-only operations aws:call accepts');
   lines.push('');
   lines.push('  Services: lambda, dynamodb, s3, logs, cloudformation, cloudwatch, sqs, sns, sfn,');
   lines.push('            eventbridge, secretsmanager, ssm, sts, iam, ec2, ecs, ecr, rds, ses,');

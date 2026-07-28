@@ -1,16 +1,16 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { executeAwsSdkCommand, getSupportedServices } from '@domain-services/debug-services/aws-sdk-executor';
+import {
+  AWS_READ_ONLY_OPERATIONS,
+  getReadOnlyAwsOperations,
+  isReadOnlyAwsCommand,
+  resolveAwsServiceName
+} from '@domain-services/debug-services/aws-read-only-operations';
+import { executeAwsSdkCommand } from '@domain-services/debug-services/aws-sdk-executor';
 import { ExpectedError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { getDebugAgentCredentials, initDebugAgentCredentials } from '../_utils/debug-agent-credentials';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
-
-const READ_ONLY_PREFIXES = ['List', 'Get', 'Describe', 'Head', 'Batch'];
-
-const isReadOnlyCommand = (command: string): boolean => {
-  return READ_ONLY_PREFIXES.some((prefix) => command.startsWith(prefix));
-};
 
 export const commandAwsCall = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
@@ -28,33 +28,40 @@ export const commandAwsCall = async () => {
 
   const { service, command, input, region } = args;
 
+  const supportedServices = Object.keys(AWS_READ_ONLY_OPERATIONS).join(', ');
+
   if (!service) {
-    const supported = getSupportedServices();
+    throw new ExpectedError('CLI', 'Missing required flag: --service', `Supported services: ${supportedServices}`);
+  }
+
+  // A service with no reviewed operations is rejected here rather than at the first command, so the message names the
+  // real problem.
+  if (!resolveAwsServiceName(service)) {
     throw new ExpectedError(
       'CLI',
-      'Missing required flag: --service',
-      `Supported services: ${Object.keys(supported).join(', ')}`
+      `Service "${service}" has no operations aws:call is allowed to send`,
+      `Supported services: ${supportedServices}`
     );
   }
 
+  const acceptedOperations = getReadOnlyAwsOperations(service);
+
   if (!command) {
-    const supported = getSupportedServices();
-    const serviceCommands = supported[service.toLowerCase()];
     throw new ExpectedError(
       'CLI',
       'Missing required flag: --command',
-      serviceCommands
-        ? `Example commands for ${service}: ${serviceCommands.join(', ')}`
-        : 'Provide a valid SDK command name'
+      `Accepted commands for ${service}: ${acceptedOperations.join(', ')}`
     );
   }
 
-  // Validate read-only
-  if (!isReadOnlyCommand(command)) {
+  // The call may run with your own AWS credentials, so this allowlist is the only thing keeping it read-only.
+  if (!isReadOnlyAwsCommand(service, command)) {
     throw new ExpectedError(
       'CLI',
-      `Command "${command}" is not a read-only operation`,
-      `aws:call only supports read-only operations (${READ_ONLY_PREFIXES.join('*, ')}*)`
+      `Command "${command}" is not an accepted read-only operation for service "${service}"`,
+      `aws:call sends only operations reviewed as read-only for the service they are called on. Accepted for ${service}: ${acceptedOperations.join(
+        ', '
+      )}`
     );
   }
 

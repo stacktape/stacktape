@@ -10,6 +10,11 @@ node_modules/
 .stacktape-agent.json
 .stacktape-dossier.md
 
+# Local credentials and deployed-stack output (see DEVELOPMENT.md)
+.env
+.env.local
+.stacktape-stack-info/
+
 # CLI build, release and scratch output (see apps/cli/AGENTS.md)
 .stacktape/
 __binary-dist/

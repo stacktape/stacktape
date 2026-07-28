@@ -21,7 +21,9 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 - `@generated/` — committed generated data (CloudFormation types, config schema, LLM docs, price tables). Never
   hand-edit; regenerate with the matching `gen:*` script.
 - `tests/characterization/` — behavioral baselines for the CLI contract, config runtime, packaging and synthesis.
-- `_test-stacks/config-loading-smoke/` — the only imported test stack; the characterization suite loads it.
+- `_test-stacks/` — small Stacktape projects used as test input. `config-loading-smoke/` is the imported one the
+  characterization suite loads; `packaging-smoke/` is a disposable stack deployed to real AWS by hand to check split
+  bundling and Lambda layers, described in its own `README.md` and in the root `DEVELOPMENT.md`.
 
 ## Toolchain
 

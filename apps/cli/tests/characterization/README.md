@@ -14,6 +14,10 @@ bun run test:characterization:helper-lambdas
 
 The npm and helper-Lambda gates build into ignored release directories before inspecting the real artifacts.
 
+`packaging-smoke-fixture.spec.ts` is the one exception to the coverage matrix below: it asserts nothing about the
+product, only that `_test-stacks/packaging-smoke` is still able to prove what it claims when somebody deploys it to
+real AWS by hand. See that fixture's `README.md`.
+
 ## Coverage matrix
 
 | Surface                | Current deterministic baseline                                                                                                                                                                                                                                                                                                                                                                                                     | Long-term role                                                                                | Remaining coverage                                                                                                                          |

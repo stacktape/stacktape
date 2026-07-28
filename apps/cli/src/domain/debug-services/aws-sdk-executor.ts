@@ -5,6 +5,8 @@
  */
 
 import type { AwsCredentialIdentity } from '@aws-sdk/types';
+import type { AwsReadOnlyService } from './aws-read-only-operations';
+import { AWS_READ_ONLY_OPERATIONS, resolveAwsServiceName } from './aws-read-only-operations';
 import * as lambda from '@aws-sdk/client-lambda';
 import * as dynamodb from '@aws-sdk/client-dynamodb';
 import * as s3 from '@aws-sdk/client-s3';
@@ -57,8 +59,13 @@ type ClientConfig = {
   clientClass: string;
 };
 
-// Map service names to their modules and client class names
-const SERVICE_MAP: Record<string, ClientConfig> = {
+/**
+ * The client wiring for every service `aws:call` supports. Keyed by the canonical names in
+ * `AWS_READ_ONLY_OPERATIONS`, so the type checker keeps the two in step: a service with reviewed operations always
+ * has a client here, and a client here is never one the allowlist has never heard of. Alternate spellings
+ * (`stepfunctions`, `events`, `elb`) resolve through that module too, rather than being repeated here.
+ */
+const SERVICE_MAP: Record<AwsReadOnlyService, ClientConfig> = {
   lambda: { module: lambda, clientClass: 'LambdaClient' },
   dynamodb: { module: dynamodb, clientClass: 'DynamoDBClient' },
   s3: { module: s3, clientClass: 'S3Client' },
@@ -68,9 +75,7 @@ const SERVICE_MAP: Record<string, ClientConfig> = {
   sqs: { module: sqs, clientClass: 'SQSClient' },
   sns: { module: sns, clientClass: 'SNSClient' },
   sfn: { module: sfn, clientClass: 'SFNClient' },
-  stepfunctions: { module: sfn, clientClass: 'SFNClient' },
   eventbridge: { module: eventbridge, clientClass: 'EventBridgeClient' },
-  events: { module: eventbridge, clientClass: 'EventBridgeClient' },
   secretsmanager: { module: secretsmanager, clientClass: 'SecretsManagerClient' },
   ssm: { module: ssm, clientClass: 'SSMClient' },
   sts: { module: sts, clientClass: 'STSClient' },
@@ -87,7 +92,6 @@ const SERVICE_MAP: Record<string, ClientConfig> = {
   cognito: { module: cognito, clientClass: 'CognitoIdentityProviderClient' },
   opensearch: { module: opensearch, clientClass: 'OpenSearchClient' },
   wafv2: { module: wafv2, clientClass: 'WAFV2Client' },
-  elb: { module: elbv2, clientClass: 'ElasticLoadBalancingV2Client' },
   elbv2: { module: elbv2, clientClass: 'ElasticLoadBalancingV2Client' },
   autoscaling: { module: autoscaling, clientClass: 'AutoScalingClient' },
   budgets: { module: budgets, clientClass: 'BudgetsClient' },
@@ -116,8 +120,8 @@ export const executeAwsSdkCommand = async (
   context: AwsSdkContext
 ): Promise<AwsSdkResult> => {
   try {
-    const config = SERVICE_MAP[service.toLowerCase()];
-    if (!config) {
+    const canonicalService = resolveAwsServiceName(service);
+    if (!canonicalService) {
       return {
         ok: false,
         error: `Unknown service: ${service}`,
@@ -125,7 +129,7 @@ export const executeAwsSdkCommand = async (
       };
     }
 
-    const { module, clientClass } = config;
+    const { module, clientClass } = SERVICE_MAP[canonicalService];
 
     // Get client class
     const ClientClass = module[clientClass] as new (cfg: { region: string; credentials: AwsCredentialIdentity }) => {
@@ -141,15 +145,12 @@ export const executeAwsSdkCommand = async (
     const CommandClass = module[commandName] as new (input: Record<string, unknown>) => unknown;
 
     if (!CommandClass) {
-      const availableCommands = Object.keys(module)
-        .filter((k) => k.endsWith('Command') && k !== 'Command')
-        .map((k) => k.replace('Command', ''))
-        .slice(0, 20);
-
+      // Suggest from the allowlist rather than from the module's exports, which are mostly commands nothing here
+      // will send anyway.
       return {
         ok: false,
         error: `Unknown command: ${command} for service ${service}`,
-        hint: `Some available commands: ${availableCommands.join(', ')}...`
+        hint: `Accepted commands for ${canonicalService}: ${AWS_READ_ONLY_OPERATIONS[canonicalService].join(', ')}`
       };
     }
 
@@ -203,48 +204,4 @@ const handleAwsError = (err: unknown): AwsSdkResult => {
 
   const message = err instanceof Error ? err.message : 'Unknown error';
   return { ok: false, error: message };
-};
-
-/**
- * Get list of supported services and example commands
- */
-export const getSupportedServices = (): Record<string, string[]> => {
-  const exampleCommands: Record<string, string[]> = {
-    lambda: ['ListFunctions', 'GetFunction', 'Invoke', 'GetFunctionConfiguration', 'ListEventSourceMappings'],
-    dynamodb: ['ListTables', 'DescribeTable', 'Scan', 'Query', 'GetItem', 'PutItem', 'DeleteItem'],
-    s3: ['ListBuckets', 'ListObjectsV2', 'GetObject', 'PutObject', 'DeleteObject', 'HeadObject'],
-    logs: ['DescribeLogGroups', 'DescribeLogStreams', 'FilterLogEvents', 'GetLogEvents'],
-    cloudformation: ['DescribeStacks', 'DescribeStackResources', 'ListStacks', 'DescribeStackEvents'],
-    cloudwatch: ['GetMetricData', 'ListMetrics', 'DescribeAlarms', 'GetMetricStatistics'],
-    sqs: ['ListQueues', 'GetQueueAttributes', 'SendMessage', 'ReceiveMessage', 'DeleteMessage'],
-    sns: ['ListTopics', 'ListSubscriptions', 'Publish', 'GetTopicAttributes'],
-    sfn: ['ListStateMachines', 'DescribeStateMachine', 'ListExecutions', 'DescribeExecution', 'StartExecution'],
-    eventbridge: ['ListRules', 'DescribeRule', 'ListTargetsByRule', 'PutEvents'],
-    secretsmanager: ['ListSecrets', 'GetSecretValue', 'DescribeSecret'],
-    ssm: ['GetParameter', 'GetParameters', 'GetParametersByPath'],
-    sts: ['GetCallerIdentity'],
-    iam: ['ListRoles', 'ListPolicies', 'GetRole', 'GetPolicy'],
-    ec2: ['DescribeInstances', 'DescribeSecurityGroups', 'DescribeVpcs', 'DescribeSubnets'],
-    ecs: ['ListClusters', 'ListServices', 'ListTasks', 'DescribeServices', 'DescribeTasks'],
-    ecr: ['DescribeRepositories', 'ListImages', 'DescribeImages'],
-    rds: ['DescribeDBInstances', 'DescribeDBClusters'],
-    cognito: ['ListUserPools', 'ListUsers', 'DescribeUserPool'],
-    apigatewayv2: ['GetApis', 'GetRoutes', 'GetStages'],
-    xray: ['GetTraceSummaries', 'BatchGetTraces', 'GetServiceGraph'],
-    kinesis: ['ListStreams', 'DescribeStream', 'GetRecords'],
-    firehose: ['ListDeliveryStreams', 'DescribeDeliveryStream']
-  };
-
-  const result: Record<string, string[]> = {};
-  const seen = new Set<string>();
-
-  for (const service of Object.keys(SERVICE_MAP)) {
-    // Skip aliases
-    if (seen.has(service)) continue;
-    seen.add(service);
-
-    result[service] = exampleCommands[service] || [];
-  }
-
-  return result;
 };

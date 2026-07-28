@@ -42,6 +42,9 @@ pnpm test
 Use package/Turbo filters for focused work. Run the narrowest relevant checks during implementation and the documented
 gate before handoff. Do not replace a failing check with a broad exclusion.
 
+`DEVELOPMENT.md` is the practical companion to this guide: credentials, the development-built CLI, semi-local `dev`
+mode, and the guarded real-AWS validation lane including the reusable packaging smoke stack.
+
 ## Architecture rules
 
 - Applications may import packages; packages never import applications.
