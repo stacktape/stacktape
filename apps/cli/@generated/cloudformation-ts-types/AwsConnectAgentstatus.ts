@@ -10,7 +10,7 @@ export type AwsConnectAgentstatus = {
   InstanceArn: string;
   /**
    * The Amazon Resource Name (ARN) of the agent status.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/agent-state/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/agent-state/[-a-zA-Z0-9]*$
    */
   AgentStatusArn?: string;
   /**

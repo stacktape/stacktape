@@ -37,7 +37,7 @@ export type AwsConnectQuickconnect = {
   };
   /**
    * The Amazon Resource Name (ARN) for the quick connect.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/transfer-destination/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/transfer-destination/[-a-zA-Z0-9]*$
    */
   QuickConnectArn?: string;
   /**

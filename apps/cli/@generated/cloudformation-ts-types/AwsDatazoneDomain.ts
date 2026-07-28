@@ -22,12 +22,12 @@ export type AwsDatazoneDomain = {
   /**
    * The domain execution role that is created when an Amazon DataZone domain is created. The domain
    * execution role is created in the AWS account that houses the Amazon DataZone domain.
-   * @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*/[a-zA-Z0-9+=,.@_-]+$
+   * @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*\/[a-zA-Z0-9+=,.@_-]+$
    */
   DomainExecutionRole: string;
   /**
    * The service role of the domain that is created.
-   * @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*/[a-zA-Z0-9+=,.@_-]+$
+   * @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*\/[a-zA-Z0-9+=,.@_-]+$
    */
   ServiceRole?: string;
   /**

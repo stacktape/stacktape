@@ -19,7 +19,11 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 - `types/` — hand-authored config type definitions. Their JSDoc is the source of the published config schema and of
   the documentation examples, so comment layout is content: `types/` is excluded from formatters.
 - `@generated/` — committed generated data (CloudFormation types, config schema, LLM docs, price tables). Never
-  hand-edit; regenerate with the matching `gen:*` script.
+  hand-edit; regenerate with the matching `gen:*` script. `tsconfig.json` excludes the directory, so the two
+  CloudFormation TypeScript trees are type-checked by their own `tsconfig.generated.json` project
+  (`test:generated-types`, ~2s, no dependencies outside the trees). Both `gen:cloudform` and `gen:cf:types` read
+  live AWS endpoints and have no pinned input, so any regeneration also imports upstream schema drift; regenerate
+  deliberately rather than as a side effect of an unrelated change.
 - `tests/characterization/` — behavioral baselines for the CLI contract, config runtime, packaging and synthesis.
 - `_test-stacks/` — small Stacktape projects used as test input. `config-loading-smoke/` is the imported one the
   characterization suite loads; `packaging-smoke/` is a disposable stack deployed to real AWS by hand to check split
@@ -47,8 +51,10 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 ## Checks
 
 ```sh
-pnpm --filter @stacktape/cli run typecheck
-pnpm --filter @stacktape/cli run test            # characterization, command/Docker secret safety, release security, MCP docs, helper Lambdas, CLI smoke
+pnpm --filter @stacktape/cli run typecheck       # CLI, packaging smoke fixture and committed generated CloudFormation TypeScript
+pnpm --filter @stacktape/cli run test            # characterization, generators, command/Docker secret safety, release security, MCP docs, helper Lambdas, CLI smoke
+pnpm --filter @stacktape/cli run test:generators      # generator unit tests: JSDoc escaping, cloudform naming/generics
+pnpm --filter @stacktape/cli run test:generated-types # type-checks the committed CloudFormation trees
 pnpm --filter @stacktape/cli run test:docker-secrets # proves registry password, build-arg and container-env values never reach Docker's argv
 pnpm --filter @stacktape/cli run test:cli-smoke # compiles the binary and runs `--version` and `--help`
 pnpm --filter @stacktape/cli run test:release-artifact

@@ -1,4 +1,4 @@
-import { ResourceBase, ResourceTag } from '../resource';
+import { ResourceBase, ResourceTag as CfnResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class ResourceTag {
   ResourceTagValue!: Value<string>;
@@ -31,7 +31,7 @@ export interface RuleProperties {
   ExcludeResourceTags?: List<ResourceTag>;
   ResourceType: Value<string>;
   RetentionPeriod: RetentionPeriod;
-  Tags?: List<ResourceTag>;
+  Tags?: List<CfnResourceTag>;
 }
 export default class Rule extends ResourceBase<RuleProperties> {
   static ResourceTag = ResourceTag;

@@ -66,7 +66,7 @@ export type AwsConnectHoursofoperation = {
   })[];
   /**
    * The Amazon Resource Name (ARN) for the hours of operation.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/operating-hours/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/operating-hours/[-a-zA-Z0-9]*$
    */
   HoursOfOperationArn?: string;
   /**

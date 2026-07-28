@@ -75,7 +75,7 @@ export type AwsDeadlineQueue = {
    * @uniqueItems true
    */
   RequiredFileSystemLocationNames?: string[];
-  /** @pattern ^arn:(aws[a-zA-Z-]*):iam::\d{12}:role(/[!-.0-~]+)*/[\w+=,.@-]+$ */
+  /** @pattern ^arn:(aws[a-zA-Z-]*):iam::\d{12}:role(/[!-.0-~]+)*\/[\w+=,.@-]+$ */
   RoleArn?: string;
   /** @pattern ^arn:* */
   Arn?: string;

@@ -8,7 +8,7 @@ export type AwsConnectRule = {
    * @pattern ^[a-zA-Z0-9._-]{1,200}$
    */
   Name: string;
-  /** @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/rule/[-a-zA-Z0-9]*$ */
+  /** @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/rule/[-a-zA-Z0-9]*$ */
   RuleArn?: string;
   /**
    * The Amazon Resource Name (ARN) of the instance.
@@ -26,7 +26,7 @@ export type AwsConnectRule = {
      * The Amazon Resource Name (ARN) of the integration association. ``IntegrationAssociationArn`` is
      * required if ``TriggerEventSource`` is one of the following values: ``OnZendeskTicketCreate`` |
      * ``OnZendeskTicketStatusUpdate`` | ``OnSalesforceCaseCreate``
-     * @pattern ^$|arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/integration-association/[-a-zA-Z0-9]*$
+     * @pattern ^$|arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/integration-association/[-a-zA-Z0-9]*$
      */
     IntegrationAssociationArn?: string;
   };
@@ -68,7 +68,7 @@ export type AwsConnectRule = {
       Description?: string;
       /**
        * The Amazon Resource Name (ARN) of the flow.
-       * @pattern ^$|arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/contact-flow/[-a-zA-Z0-9]*$
+       * @pattern ^$|arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/contact-flow/[-a-zA-Z0-9]*$
        */
       ContactFlowArn: string;
       /**
@@ -161,7 +161,7 @@ export type AwsConnectRule = {
     }[];
     EndAssociatedTasksActions?: Record<string, unknown>[];
     SubmitAutoEvaluationActions?: {
-      /** @pattern ^$|arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/evaluation-form/[-a-zA-Z0-9]*$ */
+      /** @pattern ^$|arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/evaluation-form/[-a-zA-Z0-9]*$ */
       EvaluationFormArn: string;
     }[];
   };

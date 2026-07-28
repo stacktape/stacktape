@@ -30,12 +30,12 @@ export type AwsConnectRoutingprofile = {
   })[];
   /**
    * The identifier of the default outbound queue for this routing profile.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/queue/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/queue/[-a-zA-Z0-9]*$
    */
   DefaultOutboundQueueArn: string;
   /**
    * The Amazon Resource Name (ARN) of the routing profile.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/routing-profile/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/routing-profile/[-a-zA-Z0-9]*$
    */
   RoutingProfileArn?: string;
   /**

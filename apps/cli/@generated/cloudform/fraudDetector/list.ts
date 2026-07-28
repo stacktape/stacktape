@@ -1,11 +1,11 @@
 import { ResourceBase, ResourceTag } from '../resource';
-import { Value, List } from '../dataTypes';
+import { Value, List as CfnList } from '../dataTypes';
 
 export interface ListProperties {
   Description?: Value<string>;
   VariableType?: Value<string>;
-  Elements?: List<Value<string>>;
-  Tags?: List<ResourceTag>;
+  Elements?: CfnList<Value<string>>;
+  Tags?: CfnList<ResourceTag>;
   Name: Value<string>;
 }
 export default class List extends ResourceBase<ListProperties> {

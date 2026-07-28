@@ -29,7 +29,7 @@ export type AwsConnectPrompt = {
   S3Uri?: string;
   /**
    * The Amazon Resource Name (ARN) for the prompt.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/prompt/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/prompt/[-a-zA-Z0-9]*$
    */
   PromptArn?: string;
   /**

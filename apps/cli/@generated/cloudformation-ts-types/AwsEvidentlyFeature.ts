@@ -6,7 +6,7 @@ export type AwsEvidentlyFeature = {
   /**
    * @minLength 0
    * @maxLength 2048
-   * @pattern arn:[^:]*:[^:]*:[^:]*:[^:]*:project/[-a-zA-Z0-9._]*/feature/[-a-zA-Z0-9._]*
+   * @pattern arn:[^:]*:[^:]*:[^:]*:[^:]*:project/[-a-zA-Z0-9._]*\/feature/[-a-zA-Z0-9._]*
    */
   Arn?: string;
   /**

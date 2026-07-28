@@ -3,7 +3,7 @@
 
 /** Resource Type definition for AWS::Evidently::Launch. */
 export type AwsEvidentlyLaunch = {
-  /** @pattern arn:[^:]*:[^:]*:[^:]*:[^:]*:project/[-a-zA-Z0-9._]*/launch/[-a-zA-Z0-9._]* */
+  /** @pattern arn:[^:]*:[^:]*:[^:]*:[^:]*:project/[-a-zA-Z0-9._]*\/launch/[-a-zA-Z0-9._]* */
   Arn?: string;
   /**
    * @minLength 1

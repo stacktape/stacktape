@@ -41,7 +41,7 @@ export type AwsEcrRepository = {
    * a new name.
    * @minLength 2
    * @maxLength 256
-   * @pattern ^(?=.{2,256}$)((?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*)$
+   * @pattern ^(?=.{2,256}$)((?:[a-z0-9]+(?:[._-][a-z0-9]+)*\/)*[a-z0-9]+(?:[._-][a-z0-9]+)*)$
    */
   RepositoryName?: string;
   /**

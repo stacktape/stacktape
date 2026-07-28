@@ -14,7 +14,7 @@ export type AwsConnectContactflowmodule = {
    * The identifier of the contact flow module (ARN).
    * @minLength 1
    * @maxLength 256
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/flow-module/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/flow-module/[-a-zA-Z0-9]*$
    */
   ContactFlowModuleArn?: string;
   /**

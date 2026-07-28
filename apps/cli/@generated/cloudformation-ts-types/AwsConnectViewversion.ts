@@ -7,14 +7,14 @@ export type AwsConnectViewversion = {
    * The Amazon Resource Name (ARN) of the view for which a version is being created.
    * @minLength 1
    * @maxLength 255
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/view/[-:a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/view/[-:a-zA-Z0-9]*$
    */
   ViewArn: string;
   /**
    * The Amazon Resource Name (ARN) of the created view version.
    * @minLength 1
    * @maxLength 255
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/view/[-:a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/view/[-:a-zA-Z0-9]*$
    */
   ViewVersionArn?: string;
   /**

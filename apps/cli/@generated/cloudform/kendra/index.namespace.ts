@@ -1,6 +1,6 @@
 import DataSource_ from './dataSource';
 import Faq_ from './faq';
-import Index_ from './index';
+import Index_ from './indexResource';
 export namespace Kendra {
   export const DataSource = DataSource_;
   export const Faq = Faq_;

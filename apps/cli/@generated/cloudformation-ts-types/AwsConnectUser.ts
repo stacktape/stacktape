@@ -12,7 +12,7 @@ export type AwsConnectUser = {
   DirectoryUserId?: string;
   /**
    * The identifier of the hierarchy group for the user.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/agent-group/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/agent-group/[-a-zA-Z0-9]*$
    */
   HierarchyGroupArn?: string;
   /**
@@ -30,7 +30,7 @@ export type AwsConnectUser = {
   Password?: string;
   /**
    * The identifier of the routing profile for the user.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/routing-profile/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/routing-profile/[-a-zA-Z0-9]*$
    */
   RoutingProfileArn: string;
   /** The information about the identity of the user. */
@@ -58,7 +58,7 @@ export type AwsConnectUser = {
   SecurityProfileArns: string[];
   /**
    * The Amazon Resource Name (ARN) for the user.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/agent/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/agent/[-a-zA-Z0-9]*$
    */
   UserArn?: string;
   /**

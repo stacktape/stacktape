@@ -3,7 +3,7 @@
 
 /** Resource Type definition for AWS::Evidently::Experiment. */
 export type AwsEvidentlyExperiment = {
-  /** @pattern arn:[^:]*:[^:]*:[^:]*:[^:]*:project/[-a-zA-Z0-9._]*/experiment/[-a-zA-Z0-9._]* */
+  /** @pattern arn:[^:]*:[^:]*:[^:]*:[^:]*:project/[-a-zA-Z0-9._]*\/experiment/[-a-zA-Z0-9._]* */
   Arn?: string;
   /**
    * @minLength 1

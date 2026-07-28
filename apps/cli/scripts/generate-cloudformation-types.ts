@@ -45,6 +45,19 @@ function convertTypeName(typeName: string): string {
     .join('');
 }
 
+/**
+ * CloudFormation schema text is upstream documentation, and it routinely ends a comment block by accident.
+ * The `AWS::SageMaker::Domain` image-version pattern contains `...([-.]?[a-z0-9])` followed by a quantifier
+ * and a path separator, and those two characters are a block-comment terminator. Emitted verbatim they close
+ * the JSDoc early and turn the remainder of the file into code; one schema alone produced 249 parse errors.
+ *
+ * Escaping the separator keeps the block open; documentation consumers see the escaped separator instead of
+ * executable tokens. Line breaks are folded because the single-line JSDoc form cannot contain them.
+ */
+function toJsDocSafeText(schemaText: string): string {
+  return schemaText.replace(/\r?\n|\r/g, ' ').replaceAll('*/', '*\\/');
+}
+
 function generateJsDoc(prop: JsonSchemaProperty, indent: string = ''): string {
   const lines: string[] = [];
 
@@ -105,11 +118,13 @@ function generateJsDoc(prop: JsonSchemaProperty, indent: string = ''): string {
     return '';
   }
 
-  if (lines.length === 1) {
-    return `${indent}/** ${lines[0]} */\n`;
+  const safeLines = lines.map(toJsDocSafeText);
+
+  if (safeLines.length === 1) {
+    return `${indent}/** ${safeLines[0]} */\n`;
   }
 
-  return `${indent}/**\n${lines.map((line) => `${indent} * ${line}`).join('\n')}\n${indent} */\n`;
+  return `${indent}/**\n${safeLines.map((line) => `${indent} * ${line}`).join('\n')}\n${indent} */\n`;
 }
 
 function resolveRefName(ref: string): string | null {

@@ -13,7 +13,7 @@ export type AwsDeadlineMonitor = {
   IdentityCenterInstanceArn: string;
   /** @pattern ^monitor-[0-9a-f]{32}$ */
   MonitorId?: string;
-  /** @pattern ^arn:(aws[a-zA-Z-]*):iam::\d{12}:role(/[!-.0-~]+)*/[\w+=,.@-]+$ */
+  /** @pattern ^arn:(aws[a-zA-Z-]*):iam::\d{12}:role(/[!-.0-~]+)*\/[\w+=,.@-]+$ */
   RoleArn: string;
   /** @pattern ^[a-z0-9-]{1,100}$ */
   Subdomain: string;

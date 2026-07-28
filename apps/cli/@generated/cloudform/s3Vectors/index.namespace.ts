@@ -1,4 +1,4 @@
-import Index_ from './index';
+import Index_ from './indexResource';
 import VectorBucket_ from './vectorBucket';
 import VectorBucketPolicy_ from './vectorBucketPolicy';
 export namespace S3Vectors {

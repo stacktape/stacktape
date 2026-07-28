@@ -14,7 +14,7 @@ export type AwsConnectView = {
    * The Amazon Resource Name (ARN) of the view.
    * @minLength 1
    * @maxLength 255
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/view/[-:$a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/view/[-:$a-zA-Z0-9]*$
    */
   ViewArn?: string;
   /**

@@ -44,6 +44,84 @@ const SchemaUrls: { [key: string]: string } = {
 
 type BasicTypeSuffix = 'Type' | 'ItemType';
 
+/**
+ * The names this generator imports from the cloudform root helpers and emits into property types.
+ * A resource or one of its property types can be called `List`, `Value` or `ResourceTag`
+ * (`AWS::FraudDetector::List`, `AWS::Connect::DataTableRecord.Value`, `AWS::Budgets::Budget.ResourceTag`),
+ * and those class names are customer facing. The helper import is aliased instead, and only in the files
+ * where the collision actually occurs.
+ */
+type HelperTypeNames = { resourceBase: string; resourceTag: string; value: string; list: string };
+
+const UNALIASED_HELPER_TYPE_NAMES: HelperTypeNames = {
+  resourceBase: 'ResourceBase',
+  resourceTag: 'ResourceTag',
+  value: 'Value',
+  list: 'List'
+};
+
+/** Prefix used for generated helper aliases. */
+const HELPER_ALIAS_PREFIX = 'Cfn';
+
+function resolveHelperTypeNames(localTypeNames: ReadonlySet<string>): HelperTypeNames {
+  const occupiedNames = new Set(localTypeNames);
+  const aliasWhenShadowed = (helperName: string) => {
+    if (!occupiedNames.has(helperName)) {
+      occupiedNames.add(helperName);
+      return helperName;
+    }
+
+    const aliasBase = `${HELPER_ALIAS_PREFIX}${helperName}`;
+    let alias = aliasBase;
+    let suffix = 2;
+    while (occupiedNames.has(alias)) {
+      alias = `${aliasBase}${suffix}`;
+      suffix += 1;
+    }
+    occupiedNames.add(alias);
+    return alias;
+  };
+
+  return {
+    resourceBase: aliasWhenShadowed(UNALIASED_HELPER_TYPE_NAMES.resourceBase),
+    resourceTag: aliasWhenShadowed(UNALIASED_HELPER_TYPE_NAMES.resourceTag),
+    value: aliasWhenShadowed(UNALIASED_HELPER_TYPE_NAMES.value),
+    list: aliasWhenShadowed(UNALIASED_HELPER_TYPE_NAMES.list)
+  };
+}
+
+function importSpecifier(exportedName: string, localName: string): string {
+  return exportedName === localName ? exportedName : `${exportedName} as ${localName}`;
+}
+
+/** Module names this generator owns in every namespace directory. A resource may not take them. */
+const GENERATOR_OWNED_MODULE_NAMES = ['index', 'index.namespace'];
+
+/**
+ * `AWS::Kendra::Index` and four sibling `Index` resources camel-case to `index`, which is also the name of
+ * the namespace re-export module. The resource file used to be written first and then overwritten by the
+ * re-export, so those resources disappeared from the generated tree while `resource-types.ts` still listed
+ * them and `index.namespace.ts` imported a namespace where it expected a class.
+ */
+export function resourceModuleName(resourceName: string): string {
+  const moduleName = camelCase(resourceName);
+  return GENERATOR_OWNED_MODULE_NAMES.includes(moduleName) ? `${moduleName}Resource` : moduleName;
+}
+
+function assertUniqueResourceModuleNames(resourceTypeNames: string[]): void {
+  const ownersByModuleName = new Map<string, string>();
+  for (const resourceTypeName of resourceTypeNames) {
+    const moduleName = resourceModuleName(resourceTypeName);
+    const existingOwner = ownersByModuleName.get(moduleName);
+    if (existingOwner) {
+      throw new Error(
+        `CloudFormation resources ${existingOwner} and ${resourceTypeName} both map to module ${moduleName}.`
+      );
+    }
+    ownersByModuleName.set(moduleName, resourceTypeName);
+  }
+}
+
 type TypeProperties = {
   Type?: string;
   ItemType?: string;
@@ -76,17 +154,23 @@ function adjustedCamelCase(input: string): string {
   return input === 'IoT' ? 'iot' : camelCase(input);
 }
 
-function determineTypeScriptType(property: TypeProperties, propertyName: string, typeSuffix: BasicTypeSuffix): string {
+function determineTypeScriptType(
+  property: TypeProperties,
+  propertyName: string,
+  typeSuffix: BasicTypeSuffix,
+  helpers: HelperTypeNames = UNALIASED_HELPER_TYPE_NAMES
+): string {
   if (property[typeSuffix] === 'List') {
     // avoid infinite recursion (list of list)
-    const itemType = property.ItemType === 'List' ? 'any' : determineTypeScriptType(property, propertyName, 'ItemType');
-    return `List<${itemType}>`;
+    const itemType =
+      property.ItemType === 'List' ? 'any' : determineTypeScriptType(property, propertyName, 'ItemType', helpers);
+    return `${helpers.list}<${itemType}>`;
   }
   if (property[typeSuffix] === 'Map') {
-    return `{[key: string]: ${determineTypeScriptType(property, propertyName, 'ItemType')}}`;
+    return `{[key: string]: ${determineTypeScriptType(property, propertyName, 'ItemType', helpers)}}`;
   }
   if (property[typeSuffix] === 'Tag') {
-    return 'ResourceTag';
+    return helpers.resourceTag;
   }
   if (property[typeSuffix]) {
     return innerTypeName(`.${property[typeSuffix]}`);
@@ -116,16 +200,21 @@ function determineTypeScriptType(property: TypeProperties, propertyName: string,
   if (primitiveType === 'timestamp') {
     primitiveType = 'string';
   }
-  return `Value<${primitiveType}>`;
+  return `${helpers.value}<${primitiveType}>`;
 }
 
-function propertiesEntries(properties: TypePropertiesMap, useNonNullAssertion = false): string[] {
+function propertiesEntries(
+  properties: TypePropertiesMap,
+  helpers: HelperTypeNames,
+  useNonNullAssertion = false
+): string[] {
   const nonOptionalPostfix = useNonNullAssertion ? '!' : '';
   return map(properties, (property: TypeProperties, propertyName: string) => {
     return `${propertyName}${property.Required ? nonOptionalPostfix : '?'}: ${determineTypeScriptType(
       property,
       propertyName,
-      'Type'
+      'Type',
+      helpers
     )}`;
   });
 }
@@ -145,9 +234,9 @@ function innerTypeName(innerTypeFullName: string): string {
   return innerTypeName;
 }
 
-function generateInnerClass(name: string, properties: TypePropertiesMap): string {
+function generateInnerClass(name: string, properties: TypePropertiesMap, helpers: HelperTypeNames): string {
   return `export class ${name} {
-${propertiesEntries(properties, true)
+${propertiesEntries(properties, helpers, true)
   .map((e) => `    ${e}`)
   .join('\n')}
     constructor(properties: ${name}) {
@@ -156,24 +245,25 @@ ${propertiesEntries(properties, true)
 }`;
 }
 
-function generateInnerType(name: string, type: TypeProperties) {
-  return `export type ${name} = ${determineTypeScriptType(type, '_t', 'Type')}`;
+function generateInnerType(name: string, type: TypeProperties, helpers: HelperTypeNames) {
+  return `export type ${name} = ${determineTypeScriptType(type, '_t', 'Type', helpers)}`;
 }
 
 function generateTopLevelClass(
   namespace: string,
   typeName: string,
   properties: TypePropertiesMap,
-  innerTypes: ResourceTypeMap
+  innerTypes: ResourceTypeMap,
+  helpers: HelperTypeNames
 ) {
   const canOmitProperties = Object.keys(properties).every((prop) => !properties[prop].Required);
 
   return `export interface ${typeName}Properties {
-${propertiesEntries(properties)
+${propertiesEntries(properties, helpers)
   .map((e) => `    ${e}`)
   .join('\n')}
 }
-export default class ${typeName} extends ResourceBase<${typeName}Properties> {
+export default class ${typeName} extends ${helpers.resourceBase}<${typeName}Properties> {
 ${Object.keys(innerTypes)
   .filter((innerType) => !!innerTypes[innerType].Properties)
   .map((innerTypeFullName) => {
@@ -188,57 +278,80 @@ ${Object.keys(innerTypes)
 }`;
 }
 
+export function buildResourceModule(
+  namespace: string,
+  resourceName: string,
+  properties: TypePropertiesMap,
+  innerTypes: ResourceTypeMap
+): string {
+  const declaredTypeNames = new Set([resourceName, ...map(innerTypes, (_, fullName) => innerTypeName(fullName))]);
+  const helpers = resolveHelperTypeNames(declaredTypeNames);
+
+  let innerHasTags = false;
+  const innerTypesTemplates = map(innerTypes, (innerType: ResourceType, innerTypeFullName: string) => {
+    const resolvedInnerTypeName = innerTypeName(innerTypeFullName);
+    if (innerType.Properties) {
+      innerHasTags = innerHasTags || hasTags(innerType.Properties);
+      return generateInnerClass(resolvedInnerTypeName, innerType.Properties, helpers);
+    }
+    return generateInnerType(resolvedInnerTypeName, innerType as any, helpers);
+  });
+
+  const resourceImports = [importSpecifier(UNALIASED_HELPER_TYPE_NAMES.resourceBase, helpers.resourceBase)];
+  if (innerHasTags || hasTags(properties)) {
+    resourceImports.push(importSpecifier(UNALIASED_HELPER_TYPE_NAMES.resourceTag, helpers.resourceTag));
+  }
+  const dataTypeImports = [
+    importSpecifier(UNALIASED_HELPER_TYPE_NAMES.value, helpers.value),
+    importSpecifier(UNALIASED_HELPER_TYPE_NAMES.list, helpers.list)
+  ];
+
+  const generatedClass = generateTopLevelClass(namespace, resourceName, properties, innerTypes, helpers);
+
+  return `import {${resourceImports.join(', ')}} from '../resource'
+import { ${dataTypeImports.join(', ')} } from '../dataTypes'
+${innerTypesTemplates.join('\n\n')}
+${generatedClass}
+`;
+}
+
 function generateFile(
   namespace: string,
   resourceName: string,
   properties: TypePropertiesMap,
   innerTypes: ResourceTypeMap
 ): void {
-  let innerHasTags = false;
-  const innerTypesTemplates = map(innerTypes, (innerType: ResourceType, innerTypeFullName: string) => {
-    const resolvedInnerTypeName = innerTypeName(innerTypeFullName);
-    if (innerType.Properties) {
-      innerHasTags = innerHasTags || hasTags(innerType.Properties);
-      return generateInnerClass(resolvedInnerTypeName, innerType.Properties);
-    }
-    return generateInnerType(resolvedInnerTypeName, innerType as any);
-  });
-
-  const resourceImports = ['ResourceBase'];
-  if (innerHasTags || hasTags(properties)) {
-    resourceImports.push('ResourceTag');
-  }
-
-  const generatedClass = generateTopLevelClass(namespace, resourceName, properties, innerTypes);
-
-  const template = `import {${resourceImports.join(', ')}} from '../resource'
-import { Value, List } from '../dataTypes'
-${innerTypesTemplates.join('\n\n')}
-${generatedClass}
-`;
+  const template = buildResourceModule(namespace, resourceName, properties, innerTypes);
 
   if (!fs.existsSync(`${CLOUDFORM_FOLDER_PATH}/${adjustedCamelCase(namespace)}`)) {
     fs.mkdirSync(`${CLOUDFORM_FOLDER_PATH}/${adjustedCamelCase(namespace)}`);
   }
 
-  fs.writeFileSync(`${CLOUDFORM_FOLDER_PATH}/${adjustedCamelCase(namespace)}/${camelCase(resourceName)}.ts`, template, {
-    encoding: 'utf8'
-  });
+  fs.writeFileSync(
+    `${CLOUDFORM_FOLDER_PATH}/${adjustedCamelCase(namespace)}/${resourceModuleName(resourceName)}.ts`,
+    template,
+    { encoding: 'utf8' }
+  );
 }
 
-function generateIndexNamespaceFile(namespace: string, resourceTypeNames: string[]): void {
-  const imports = resourceTypeNames.map((typeName) => `import ${typeName}_ from './${camelCase(typeName)}'`);
+export function buildIndexNamespaceModule(namespace: string, resourceTypeNames: string[]): string {
+  assertUniqueResourceModuleNames(resourceTypeNames);
+  const imports = resourceTypeNames.map((typeName) => `import ${typeName}_ from './${resourceModuleName(typeName)}'`);
 
-  const template = `${imports.join('\n')}
+  return `${imports.join('\n')}
 export namespace ${namespace} {
 ${resourceTypeNames.map((typeName) => `  export const ${typeName} = ${typeName}_`).join('\n')}
 ${resourceTypeNames.map((typeName) => `  export type ${typeName} = ${typeName}_`).join('\n')}
 }
 `;
+}
 
-  fs.writeFileSync(`${CLOUDFORM_FOLDER_PATH}/${adjustedCamelCase(namespace)}/index.namespace.ts`, template, {
-    encoding: 'utf8'
-  });
+function generateIndexNamespaceFile(namespace: string, resourceTypeNames: string[]): void {
+  fs.writeFileSync(
+    `${CLOUDFORM_FOLDER_PATH}/${adjustedCamelCase(namespace)}/index.namespace.ts`,
+    buildIndexNamespaceModule(namespace, resourceTypeNames),
+    { encoding: 'utf8' }
+  );
 }
 
 function generateIndexReexportFile(namespace: string): void {

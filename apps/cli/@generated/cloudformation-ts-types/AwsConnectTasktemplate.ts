@@ -5,7 +5,7 @@
 export type AwsConnectTasktemplate = {
   /**
    * The identifier (arn) of the task template.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/task-template/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/task-template/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$
    */
   Arn?: string;
   /**
@@ -27,12 +27,12 @@ export type AwsConnectTasktemplate = {
   Description?: string;
   /**
    * The identifier of the contact flow.
-   * @pattern ^$|arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/contact-flow/[-a-zA-Z0-9]*$
+   * @pattern ^$|arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/contact-flow/[-a-zA-Z0-9]*$
    */
   ContactFlowArn?: string;
   /**
    * The identifier of the contact flow.
-   * @pattern ^$|arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/contact-flow/[-a-zA-Z0-9]*$
+   * @pattern ^$|arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/contact-flow/[-a-zA-Z0-9]*$
    */
   SelfAssignContactFlowArn?: string;
   /** The constraints for the task template */

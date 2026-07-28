@@ -10,7 +10,7 @@ export type AwsConnectUserhierarchystructure = {
   InstanceArn: string;
   /**
    * The identifier of the User Hierarchy Structure.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/user-hierarchy-structure
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/user-hierarchy-structure
    */
   UserHierarchyStructureArn?: string;
   /** Information about the hierarchy structure. */

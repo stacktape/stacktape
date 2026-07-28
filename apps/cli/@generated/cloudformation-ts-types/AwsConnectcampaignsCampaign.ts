@@ -28,7 +28,7 @@ export type AwsConnectcampaignsCampaign = {
     /**
      * The identifier of the contact flow for the outbound call.
      * @maxLength 500
-     * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/contact-flow/[-a-zA-Z0-9]*$
+     * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/contact-flow/[-a-zA-Z0-9]*$
      */
     ConnectContactFlowArn: string;
     /**
@@ -42,7 +42,7 @@ export type AwsConnectcampaignsCampaign = {
      * number specified in the queue. If you do not specify a queue, the queue defined in the contact flow
      * is used. If you do not specify a queue, you must specify a source phone number.
      * @maxLength 500
-     * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/queue/[-a-zA-Z0-9]*$
+     * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/queue/[-a-zA-Z0-9]*$
      */
     ConnectQueueArn?: string;
     AnswerMachineDetectionConfig?: {

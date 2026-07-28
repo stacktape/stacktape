@@ -20,7 +20,7 @@ export type AwsIotanalyticsDatastore = {
       /**
        * @minLength 1
        * @maxLength 255
-       * @pattern [a-zA-Z0-9!_.*'()/{}:-]*/
+       * @pattern [a-zA-Z0-9!_.*'()/{}:-]*\/
        */
       KeyPrefix?: string;
     };
@@ -35,7 +35,7 @@ export type AwsIotanalyticsDatastore = {
         /**
          * @minLength 1
          * @maxLength 255
-         * @pattern [a-zA-Z0-9!_.*'()/{}:-]*/
+         * @pattern [a-zA-Z0-9!_.*'()/{}:-]*\/
          */
         KeyPrefix?: string;
       };

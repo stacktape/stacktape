@@ -287,7 +287,7 @@ export type AwsDeadlineFleet = {
    * @maximum 2147483647
    */
   MinWorkerCount?: number;
-  /** @pattern ^arn:(aws[a-zA-Z-]*):iam::\d{12}:role(/[!-.0-~]+)*/[\w+=,.@-]+$ */
+  /** @pattern ^arn:(aws[a-zA-Z-]*):iam::\d{12}:role(/[!-.0-~]+)*\/[\w+=,.@-]+$ */
   RoleArn: string;
   Status?: "ACTIVE" | "CREATE_IN_PROGRESS" | "UPDATE_IN_PROGRESS" | "CREATE_FAILED" | "UPDATE_FAILED" | "SUSPENDED";
   StatusMessage?: string;

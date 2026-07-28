@@ -1,5 +1,5 @@
 import DefaultViewAssociation_ from './defaultViewAssociation';
-import Index_ from './index';
+import Index_ from './indexResource';
 import View_ from './view';
 export namespace ResourceExplorer2 {
   export const DefaultViewAssociation = DefaultViewAssociation_;

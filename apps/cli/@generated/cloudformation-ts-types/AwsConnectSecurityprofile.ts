@@ -46,7 +46,7 @@ export type AwsConnectSecurityprofile = {
   Permissions?: string[];
   /**
    * The Amazon Resource Name (ARN) for the security profile.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/security-profile/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/security-profile/[-a-zA-Z0-9]*$
    */
   SecurityProfileArn?: string;
   /**

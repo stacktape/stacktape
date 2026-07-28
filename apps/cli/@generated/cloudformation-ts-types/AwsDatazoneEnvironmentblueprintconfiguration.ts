@@ -17,7 +17,7 @@ export type AwsDatazoneEnvironmentblueprintconfiguration = {
     /** @pattern ^[a-z]{2}-?(iso|gov)?-{1}[a-z]*-{1}[0-9]$ */
     Region?: string;
   }[];
-  /** @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*/[a-zA-Z0-9+=,.@_-]+$ */
+  /** @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*\/[a-zA-Z0-9+=,.@_-]+$ */
   ProvisioningRoleArn?: string;
   /** @pattern ^dzd[-_][a-zA-Z0-9_-]{1,36}$ */
   DomainId?: string;
@@ -28,7 +28,7 @@ export type AwsDatazoneEnvironmentblueprintconfiguration = {
        * @maxItems 20
        */
       LocationRegistrationExcludeS3Locations?: string[];
-      /** @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*/[a-zA-Z0-9+=,.@_-]+$ */
+      /** @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*\/[a-zA-Z0-9+=,.@_-]+$ */
       LocationRegistrationRole?: string;
     };
   }[];
@@ -36,6 +36,6 @@ export type AwsDatazoneEnvironmentblueprintconfiguration = {
   DomainIdentifier: string;
   /** @pattern ^arn:aws[^:]*:iam::(aws|\d{12}):policy/[\w+=,.@-]*$ */
   EnvironmentRolePermissionBoundary?: string;
-  /** @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*/[a-zA-Z0-9+=,.@_-]+$ */
+  /** @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*\/[a-zA-Z0-9+=,.@_-]+$ */
   ManageAccessRoleArn?: string;
 };

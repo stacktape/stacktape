@@ -9,7 +9,7 @@ export type AwsDatazoneConnection = {
   AwsLocation?: {
     /**
      * @maxLength 2048
-     * @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*/[a-zA-Z0-9+=,.@_-]+$
+     * @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*\/[a-zA-Z0-9+=,.@_-]+$
      */
     AccessRole?: string;
     /** @pattern ^\d{12}$ */
@@ -293,7 +293,7 @@ export type AwsDatazoneConnection = {
       ComputeArn?: string;
       /**
        * @maxLength 2048
-       * @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*/[a-zA-Z0-9+=,.@_-]+$
+       * @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*\/[a-zA-Z0-9+=,.@_-]+$
        */
       InstanceProfileArn?: string;
       /**
@@ -313,7 +313,7 @@ export type AwsDatazoneConnection = {
       PythonVirtualEnv?: string;
       /**
        * @maxLength 2048
-       * @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*/[a-zA-Z0-9+=,.@_-]+$
+       * @pattern ^arn:aws[^:]*:iam::\d{12}:role(/[a-zA-Z0-9+=,.@_-]+)*\/[a-zA-Z0-9+=,.@_-]+$
        */
       RuntimeRole?: string;
       /**

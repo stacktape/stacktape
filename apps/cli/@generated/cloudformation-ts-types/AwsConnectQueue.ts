@@ -16,7 +16,7 @@ export type AwsConnectQueue = {
   Description?: string;
   /**
    * The identifier for the hours of operation.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/operating-hours/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/operating-hours/[-a-zA-Z0-9]*$
    */
   HoursOfOperationArn: string;
   /**
@@ -42,7 +42,7 @@ export type AwsConnectQueue = {
   };
   /**
    * The Amazon Resource Name (ARN) for the queue.
-   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/queue/[-a-zA-Z0-9]*$
+   * @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/queue/[-a-zA-Z0-9]*$
    */
   QueueArn?: string;
   /**

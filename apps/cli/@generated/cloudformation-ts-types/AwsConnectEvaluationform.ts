@@ -356,7 +356,7 @@ export type AwsConnectEvaluationform = {
       Weight?: number;
     };
   })[];
-  /** @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*/evaluation-form/[-a-zA-Z0-9]*$ */
+  /** @pattern ^arn:aws[-a-z0-9]*:connect:[-a-z0-9]*:[0-9]{12}:instance/[-a-zA-Z0-9]*\/evaluation-form/[-a-zA-Z0-9]*$ */
   EvaluationFormArn?: string;
   /**
    * The tags used to organize, track, or control access for this resource. For example, { "tags":

@@ -1,5 +1,5 @@
 import { ResourceBase } from '../resource';
-import { Value, List } from '../dataTypes';
+import { Value as CfnValue, List } from '../dataTypes';
 export class DataTableRecordInner {
   PrimaryValues?: List<Value>;
   Values!: List<Value>;
@@ -9,16 +9,16 @@ export class DataTableRecordInner {
 }
 
 export class Value {
-  AttributeValue?: Value<string>;
-  AttributeId?: Value<string>;
+  AttributeValue?: CfnValue<string>;
+  AttributeId?: CfnValue<string>;
   constructor(properties: Value) {
     Object.assign(this, properties);
   }
 }
 export interface DataTableRecordProperties {
   DataTableRecord?: DataTableRecord;
-  InstanceArn?: Value<string>;
-  DataTableArn?: Value<string>;
+  InstanceArn?: CfnValue<string>;
+  DataTableArn?: CfnValue<string>;
 }
 export default class DataTableRecord extends ResourceBase<DataTableRecordProperties> {
   static DataTableRecord = DataTableRecordInner;

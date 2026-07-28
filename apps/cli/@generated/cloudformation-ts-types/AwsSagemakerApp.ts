@@ -49,7 +49,7 @@ export type AwsSagemakerApp = {
      * The ARN of the image version created on the instance.
      * @minLength 1
      * @maxLength 256
-     * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*/[0-9]+$
+     * @pattern ^arn:aws(-[\w]+)*:sagemaker:.+:[0-9]{12}:image-version/[a-z0-9]([-.]?[a-z0-9])*\/[0-9]+$
      */
     SageMakerImageVersionArn?: string;
     /**

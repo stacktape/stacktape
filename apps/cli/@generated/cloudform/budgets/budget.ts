@@ -1,4 +1,4 @@
-import { ResourceBase, ResourceTag } from '../resource';
+import { ResourceBase, ResourceTag as CfnResourceTag } from '../resource';
 import { Value, List } from '../dataTypes';
 export class AutoAdjustData {
   AutoAdjustType!: Value<string>;
