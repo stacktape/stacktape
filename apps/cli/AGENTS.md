@@ -48,7 +48,8 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 
 ```sh
 pnpm --filter @stacktape/cli run typecheck
-pnpm --filter @stacktape/cli run test           # characterization, release security, MCP docs, helper Lambdas, CLI smoke
+pnpm --filter @stacktape/cli run test            # characterization, command/Docker secret safety, release security, MCP docs, helper Lambdas, CLI smoke
+pnpm --filter @stacktape/cli run test:docker-secrets # proves registry password, build-arg and container-env values never reach Docker's argv
 pnpm --filter @stacktape/cli run test:cli-smoke # compiles the binary and runs `--version` and `--help`
 pnpm --filter @stacktape/cli run test:release-artifact
 pnpm --filter @stacktape/cli run test:helper-lambdas # helper-Lambda runtime tests; no bundling, runs everywhere

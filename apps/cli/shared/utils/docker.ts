@@ -4,7 +4,7 @@ import { exec } from '@shared/utils/exec';
 import { transformToUnixPath } from '@shared/utils/fs-utils';
 import { getByteSize, getError } from '@shared/utils/misc';
 import { validateEnvVariableValue } from '@shared/utils/validation';
-import { getPlatform } from './bin-executable';
+import { checkExecutableInPath, getPlatform } from './bin-executable';
 
 const STACKTAPE_BUILDER_NAME = 'stacktape-builder';
 
@@ -22,6 +22,12 @@ const toDockerMountPath = (hostPath: string): string => {
 type ExecDockerOptions = {
   cwd?: string;
   skipHandleError?: boolean;
+  /** Handed to Docker on standard input. The only safe way to pass a secret, see `dockerLogin`. */
+  stdinInput?: string;
+  /** Extra variables for the Docker CLI process itself. See `toDockerEnvPassthrough`. */
+  env?: Record<string, string>;
+  /** Redacted from the rejection this call throws. See the `exec` option of the same name. */
+  redactedValues?: string[];
 };
 
 type DockerImageReference = {
@@ -91,6 +97,35 @@ const formatDuration = (ms: number) => {
   return `${days}d`;
 };
 
+const dockerNotInstalledError = (stack?: string) =>
+  getError({
+    type: 'DOCKER',
+    message: 'Docker is not installed or not found in PATH.',
+    hint: 'Install Docker Desktop from https://www.docker.com/products/docker-desktop/',
+    stack
+  });
+
+/**
+ * Asked before spawning rather than recognised afterwards, because no rejection is a stable signal: Node words it
+ * `spawn docker ENOENT`, Bun `Executable not found in $PATH: "docker"`, and on Windows cross-spawn falls back to
+ * cmd.exe, which exits 1 with "is not recognized as an internal or external command" — a sentence cmd prints in the
+ * console's own language, so matching it only ever worked on English installations. A PATH lookup asks the same
+ * question structurally and gives the same answer everywhere.
+ */
+const assertDockerIsInstalled = () => {
+  if (!checkExecutableInPath('docker')) {
+    throw dockerNotInstalledError();
+  }
+};
+
+/**
+ * The race the preflight cannot close: Docker present when `assertDockerIsInstalled` looked and gone by the time the
+ * child was spawned. Both runtimes report that as an `ENOENT` spawn error; Bun's wording is kept as well because it
+ * is Bun's own constant string rather than anything the operating system localizes.
+ */
+const isDockerNotInstalledError = (err: any) =>
+  err?.code === 'ENOENT' || includesErrorMessage(err, ['Executable not found in $PATH: "docker"']);
+
 const isDockerNotRunningError = (err: Error) => {
   const message = err.message?.toLowerCase() || '';
   const patterns = [
@@ -113,6 +148,9 @@ const isDockerNotRunningError = (err: Error) => {
 };
 
 const handleDockerError = (err: Error, message?: string) => {
+  if (isDockerNotInstalledError(err)) {
+    throw dockerNotInstalledError(err.stack);
+  }
   if (isDockerNotRunningError(err)) {
     throw getError({
       type: 'DOCKER',
@@ -126,14 +164,6 @@ const handleDockerError = (err: Error, message?: string) => {
             : '      If you have docker installed, run "sudo systemctl start docker".',
         '      To install docker, see: https://www.docker.com/products/docker-desktop/'
       ].join('\n'),
-      stack: err.stack
-    });
-  }
-  if (err.message.includes('docker ENOENT')) {
-    throw getError({
-      type: 'DOCKER',
-      message: 'Docker is not installed or not found in PATH.',
-      hint: 'Install Docker Desktop from https://www.docker.com/products/docker-desktop/',
       stack: err.stack
     });
   }
@@ -165,21 +195,100 @@ const getDockerArgsFromCli = (args: StacktapeArgs) => {
     .flat();
 };
 
-const buildDockerBuildArgs = (buildArgs: Record<string, string>) => {
-  return Object.entries(buildArgs || {})
-    .map(([argName, value]) => {
-      return ['--build-arg', `${argName}=${value}`];
-    })
-    .flat();
+/**
+ * Names Stacktape or the operating system needs for the Docker CLI process itself. A configured build argument or
+ * container environment variable with one of these names cannot be handed to Docker through its environment without
+ * changing how Docker itself runs — `DOCKER_BUILDKIT` selects the builder, `PATH` decides what the CLI can launch —
+ * so the name is rejected rather than silently honored in one place and lost in the other.
+ */
+const reservedDockerCliEnvNames = () =>
+  process.platform === 'win32'
+    ? ['DOCKER_BUILDKIT', 'FORCE_COLOR', 'PATH', 'PATHEXT', 'SYSTEMROOT', 'WINDIR', 'COMSPEC']
+    : ['DOCKER_BUILDKIT', 'FORCE_COLOR', 'PATH'];
+
+/** Windows resolves environment variable names case-insensitively; every other platform does not. */
+const isReservedDockerCliEnvName = (name: string) =>
+  reservedDockerCliEnvNames().includes(process.platform === 'win32' ? name.toUpperCase() : name);
+
+/**
+ * Docker reads a `--build-arg NAME` or `-e NAME` written without a value out of its own environment, and supplies
+ * exactly the value it finds there to the Dockerfile `ARG` or to the container. Passing configured values that way
+ * keeps them out of the Docker command line, which `/proc/<pid>/cmdline` on Linux and Process Explorer on Windows
+ * show to every account on the machine, whereas the environment of the Docker CLI process is readable only by this
+ * user and by root/Administrator.
+ *
+ * That is the whole of the guarantee: Stacktape does not put a configured build argument or container environment
+ * value into an argument list, nor into any command, error, log or debug string it produces itself. A Dockerfile that
+ * echoes its `ARG`s and an application that prints its own environment remain free to do so, and Stacktape passes
+ * that output through unchanged.
+ *
+ * A value set here wins over a variable of the same name inherited from the Stacktape process, so what Docker reads
+ * is always the configured value.
+ */
+const toDockerEnvPassthrough = (
+  values: Record<string, any>,
+  { flag, description }: { flag: '--build-arg' | '-e'; description: string }
+) => {
+  const env: Record<string, string> = {};
+  const flags: string[] = [];
+  for (const [name, value] of Object.entries(values || {})) {
+    if (!name || name.includes('=')) {
+      throw getError({
+        type: 'CONFIG',
+        message: `${description} name "${name}" cannot be used: it is empty or contains "=".`
+      });
+    }
+    if (isReservedDockerCliEnvName(name)) {
+      throw getError({
+        type: 'CONFIG',
+        message: `${description} "${name}" uses a name reserved for the Docker CLI process itself.`,
+        hint: 'Stacktape hands these values to Docker through its environment so that they never appear in a command line, and this name would change how Docker itself runs. Rename it.'
+      });
+    }
+    env[name] = `${value}`;
+    flags.push(flag, name);
+  }
+  return { env, flags };
+};
+
+const toBuildArgsPassthrough = (buildArgs: Record<string, string>) =>
+  toDockerEnvPassthrough(buildArgs || {}, { flag: '--build-arg', description: 'Build argument' });
+
+const toContainerEnvironmentPassthrough = (environment: Record<string, any>) => {
+  Object.entries(environment || {}).forEach(([name, value]) => validateEnvVariableValue(name, value));
+  return toDockerEnvPassthrough(environment || {}, { flag: '-e', description: 'Environment variable' });
+};
+
+/**
+ * Names the Docker command without repeating its arguments, so that neither Stacktape's own logs nor the errors Execa
+ * builds out of the argument list echo an image reference, a path, a `--cache-to` target or a `--docker-args` value
+ * back to the user. Configured secrets no longer reach the argument list at all; this keeps the rest of it quiet too.
+ */
+const describeDockerCommand = (commands: string[]) => {
+  const subcommand: string[] = [];
+  for (const token of commands) {
+    if (token.startsWith('-') || subcommand.length === 2) {
+      break;
+    }
+    subcommand.push(token);
+  }
+  const omitted = commands.length > subcommand.length ? '[arguments omitted]' : '';
+  return ['docker', ...subcommand, omitted].filter(Boolean).join(' ');
 };
 
 export const execDocker = (commands: string[], args?: ExecDockerOptions) => {
-  const { cwd, skipHandleError } = args || {};
+  const { cwd, skipHandleError, stdinInput, env, redactedValues } = args || {};
+  assertDockerIsInstalled();
   const promise = exec('docker', commands, {
     disableStdout: true,
     disableStderr: true,
-    env: { DOCKER_BUILDKIT: 1 },
-    cwd: cwd || process.cwd()
+    // Stacktape's own variable is applied last: a configured name that would shadow it is rejected by
+    // `toDockerEnvPassthrough`, and this makes sure no other caller can turn BuildKit off by accident either.
+    env: { ...env, DOCKER_BUILDKIT: 1 },
+    cwd: cwd || process.cwd(),
+    stdinInput,
+    redactedValues,
+    safeCommandDescription: describeDockerCommand(commands)
   });
   return skipHandleError ? promise : promise.catch(handleDockerError);
 };
@@ -396,13 +505,26 @@ export const dockerLogin = async ({
   password: string;
   proxyEndpoint: string;
 }) => {
-  const result = await execDocker(['login', '-u', user, '-p', password, proxyEndpoint]);
-  if (result.stderr && !result.stderr.includes('Using --password via the CLI is insecure')) {
-    throw getError({
-      type: 'DOCKER',
-      message: `Failed to login to AWS container registry. Error message: \n${result.stderr}`
-    });
-  }
+  // Security boundary. `password` is a live ECR authorization token, and `-p/--password` would make it a command-line
+  // argument: visible in `ps`, and — because Execa builds its error message, `command` and stack from the argument
+  // list — repeated in every error the CLI throws, prints and writes to its JSONL result when Docker is missing or
+  // the login fails. `--password-stdin` is therefore mandatory: the token goes to Docker on the child's standard
+  // input and never becomes part of any string that describes the command. `redactedValues` is the second line of
+  // defence, for a `docker` on PATH that echoes back what it was given on standard input: `execDocker` never pipes
+  // the child's output to the console or the JSONL log, but Execa still folds it into the rejection it builds.
+  //
+  // Success is decided by Docker's exit status alone. A successful `--password-stdin` login routinely writes to
+  // stderr — "WARNING! Your password will be stored unencrypted in ..." on a machine with no credential helper — and
+  // treating that as a failure would break login on exactly those machines.
+  await execDocker(['login', '--username', user, '--password-stdin', proxyEndpoint], {
+    stdinInput: password,
+    redactedValues: [password],
+    skipHandleError: true
+  }).catch((err) =>
+    // Classifies a missing or stopped Docker first; anything else fails with the registry context and Docker's own
+    // stderr, never with the arguments the command was given.
+    handleDockerError(err, `Failed to login to AWS container registry. Error message:\n${err.stderr || err.message}`)
+  );
 };
 
 export const tagDockerImage = async (sourceImage: string, newTag: string) => {
@@ -431,16 +553,6 @@ const getPortsArgs = (ports: PortMapping[]): string[] => {
   return (ports || [])
     .map(({ protocol, containerPort, hostPort }) => ['-p', `${hostPort}:${containerPort}/${protocol || 'tcp'}`])
     .flat();
-};
-
-const getEnvironmentArgsForDocker = (jobEnvironment: Record<string, any>): string[] => {
-  const res = [];
-  for (const varName in jobEnvironment) {
-    const value = jobEnvironment[varName];
-    validateEnvVariableValue(varName, value);
-    res.push('-e', `${varName}=${value}`);
-  }
-  return res;
 };
 
 export const dockerRun = async ({
@@ -480,6 +592,8 @@ export const dockerRun = async ({
       message: 'Only one of command and entryPoint can be specified when running Docker container.'
     });
   }
+  assertDockerIsInstalled();
+  const containerEnvironment = toContainerEnvironmentPassthrough(environment);
   const dockerArgs = ['--rm', '--name', name];
   let commandToExecute = command;
   if (volumeMapping) {
@@ -499,9 +613,7 @@ export const dockerRun = async ({
   if (isLinux) {
     dockerArgs.push('--network', 'host');
   }
-  if (Object.keys(environment).length) {
-    dockerArgs.push(...getEnvironmentArgsForDocker(environment));
-  }
+  dockerArgs.push(...containerEnvironment.flags);
   if (portMappings && !isLinux) {
     dockerArgs.push(...getPortsArgs(portMappings));
   }
@@ -525,7 +637,10 @@ export const dockerRun = async ({
     transformStdoutLine,
     transformStderrPut,
     transformStdoutPut,
-    env: { DOCKER_BUILDKIT: 1 }
+    // The container's environment — connection strings, resolved secrets — travels here rather than as `-e VAR=value`
+    // arguments; `dockerArgs` only names the variables. See `toDockerEnvPassthrough`.
+    env: { ...containerEnvironment.env, DOCKER_BUILDKIT: 1 },
+    safeCommandDescription: describeDockerCommand(['run', ...dockerArgs])
   });
 };
 
@@ -557,6 +672,10 @@ export const buildDockerImage = async ({
 
   const useRemoteCache = cacheFromRef || cacheToRef;
 
+  // Only the names go on the command line; Docker reads the values out of its own environment. See
+  // `toDockerEnvPassthrough`.
+  const buildArgsPassthrough = toBuildArgsPassthrough(buildArgs);
+
   const command = [
     // Use buildx with docker-container builder when remote cache is enabled (required for cache export)
     ...(useRemoteCache ? ['buildx', 'build', '--builder', STACKTAPE_BUILDER_NAME, '--load'] : ['build']),
@@ -566,13 +685,13 @@ export const buildDockerImage = async ({
     ...(cacheFromRef ? ['--cache-from', `type=registry,ref=${cacheFromRef}`] : []),
     ...(cacheToRef ? ['--cache-to', `type=registry,ref=${cacheToRef},image-manifest=true,mode=max`] : []),
     ...(dockerfilePath ? ['-f', join(buildContextPath, dockerfilePath)] : []),
-    ...buildDockerBuildArgs(buildArgs),
+    ...buildArgsPassthrough.flags,
     contextPath
   ];
 
   let stderr;
   try {
-    ({ stderr } = await execDocker(command));
+    ({ stderr } = await execDocker(command, { env: buildArgsPassthrough.env }));
   } catch (err) {
     handleDockerError(err, `Error building docker image ${imageTag}:\n${err.message}`);
   }

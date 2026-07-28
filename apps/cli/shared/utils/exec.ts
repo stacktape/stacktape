@@ -41,6 +41,24 @@ type ExecProps = {
   inheritEnvVarsExcept?: string[];
   /** Callback to receive output lines instead of piping to stdout/stderr. When set, output goes to callback only. */
   onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
+  /**
+   * Written to the child's standard input, which is then closed. Secrets belong here rather than in `args`: standard
+   * input is not part of the command line, so it cannot reach `ps` output, Execa's error strings or any log.
+   */
+  stdinInput?: string;
+  /**
+   * Stand-in for the command line, used everywhere this runner would otherwise echo `args`: the inaccessible-working-
+   * directory error, the `logDetails` line, and the command Execa embeds in the errors it creates. Set it whenever an
+   * argument names something the CLI should not repeat back.
+   */
+  safeCommandDescription?: string;
+  /**
+   * Replaced with `[redacted]` in every string of a rejection this runner throws, the child's own captured output
+   * included. This is a second line of defence for a value handed to the child on `stdinInput`: the value is not in
+   * `args`, so nothing here constructs it, but a child that echoed its standard input back would have that echo
+   * folded into Execa's `message` and from there into the CLI's error and its JSONL result.
+   */
+  redactedValues?: string[];
 };
 
 const getChildProcess = (
@@ -59,7 +77,8 @@ const getChildProcess = (
     disableExtendEnv,
     inheritEnvVarsExcept = [],
     rawOptions = {},
-    onOutputLine
+    onOutputLine,
+    stdinInput
   }: ExecProps,
   useNodeExec?: boolean
 ) => {
@@ -72,7 +91,8 @@ const getChildProcess = (
     cwd,
     extendEnv: !disableExtendEnv && !inheritEnvVarsExcept?.length,
     windowsHide: true,
-    ...(pipeStdio && { stdin: 'inherit' as const, stdout: 'pipe' as const, stderr: 'pipe' as const })
+    ...(pipeStdio && { stdin: 'inherit' as const, stdout: 'pipe' as const, stderr: 'pipe' as const }),
+    ...(stdinInput === undefined ? {} : { input: stdinInput })
   };
   const childProcess = useNodeExec ? execa.node(command, args, cpOpts) : execa(command, args, cpOpts);
 
@@ -138,11 +158,56 @@ const setupLineCallback = (stream: NodeJS.ReadableStream, callback: (line: strin
   });
 };
 
+/**
+ * Execa builds `command`, `escapedCommand`, `shortMessage`, `message` and the stack of the error it throws out of the
+ * full argument list, so a secret passed as an argument is reproduced by every consumer of that error: the message
+ * the CLI prints, the stack it attaches, the JSONL result it writes. Replacing those echoes with the caller's
+ * description is what keeps the secret out of all of them at once. The child's own stdout and stderr are left
+ * untouched, so the reason the command failed is still there.
+ */
+const redactCommandEcho = (err: any, safeCommandDescription: string) => {
+  if (!err || typeof err !== 'object') {
+    return err;
+  }
+  const echoedCommands = [err.command, err.escapedCommand].filter((echo) => typeof echo === 'string' && echo !== '');
+  if (echoedCommands.length === 0) {
+    return err;
+  }
+  const redact = (value: string) =>
+    echoedCommands.reduce((redacted, echo) => redacted.split(echo).join(safeCommandDescription), value);
+  for (const property of ['message', 'shortMessage', 'stack']) {
+    if (typeof err[property] === 'string') {
+      err[property] = redact(err[property]);
+    }
+  }
+  err.command = safeCommandDescription;
+  err.escapedCommand = safeCommandDescription;
+  return err;
+};
+
+/** Strings a rejection can carry, in the order a consumer is likely to read them. */
+const ERROR_TEXT_PROPERTIES = ['message', 'shortMessage', 'stack', 'stdout', 'stderr', 'all'];
+
+const redactValuesInError = (err: any, values: string[]) => {
+  const secrets = values.filter((value) => typeof value === 'string' && value !== '');
+  if (!err || typeof err !== 'object' || !secrets.length) {
+    return err;
+  }
+  for (const property of ERROR_TEXT_PROPERTIES) {
+    if (typeof err[property] === 'string') {
+      err[property] = secrets.reduce((text, secret) => text.split(secret).join('[redacted]'), err[property]);
+    }
+  }
+  return err;
+};
+
 export const exec = async (command: string, args: string[], params: ExecProps) => {
+  const commandDescription = params.safeCommandDescription || [command, ...args].join(' ');
+
   if (params.cwd && !isDirAccessible(params.cwd)) {
     throw getError({
       type: 'CLI',
-      message: `Cannot run command "${[command, ...args].join(' ')}" because working directory "${params.cwd}" does not exist or is not accessible.`,
+      message: `Cannot run command "${commandDescription}" because working directory "${params.cwd}" does not exist or is not accessible.`,
       hint: 'Check configured working directories such as appDirectory and build.workingDirectory. Relative paths are resolved from the directory containing your Stacktape config file.'
     });
   }
@@ -153,7 +218,7 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
 
   const logDetailsFn = () => {
     if (params.logDetails) {
-      console.info(`[STP_DEBUG] Command '${command}' with args ${args.join(' ')} took ${Date.now() - start}ms.`);
+      console.info(`[STP_DEBUG] Command '${commandDescription}' took ${Date.now() - start}ms.`);
     }
   };
 
@@ -164,6 +229,12 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
     })
     .catch((err) => {
       logDetailsFn();
+      if (params.safeCommandDescription) {
+        redactCommandEcho(err, params.safeCommandDescription);
+      }
+      if (params.redactedValues?.length) {
+        redactValuesInError(err, params.redactedValues);
+      }
       throw err;
     });
 };
