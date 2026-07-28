@@ -3,6 +3,7 @@ import { getFolder } from '@shared/utils/fs-utils';
 import { DEFAULT_RUBY_VERSION } from './bundlers/constants';
 import { buildRubyArtifact } from './bundlers/ruby';
 import { createLambdaZipArtifact } from './lambda-artifact';
+import type { RubyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapeRbLambdaBuildpack = async ({
   progressLogger,

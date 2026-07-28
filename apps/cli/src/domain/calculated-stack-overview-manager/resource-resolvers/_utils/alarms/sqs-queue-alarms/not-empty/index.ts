@@ -4,6 +4,7 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { getAlarmDescription } from '@shared/naming/utils';
 import { getComparisonOperator, getStatFunction } from '../../utils';
 import { getDimensionsForSqsQueue } from '../utils';
+import type { SqsQueueNotEmptyTrigger } from '@stacktape/config/alarms';
 
 export const getSqsQueueNotEmptyAlarm = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpSqsQueue }) => {
   const trigger = alarm.trigger as SqsQueueNotEmptyTrigger;

@@ -12,6 +12,7 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { transformToCidr } from '@shared/utils/misc';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import type { CloudformationResource } from '@stacktape/config/cloudformation';
 
 export const getNetworkLoadBalancer = (loadBalancerName: string, loadBalancerConfig: StpNetworkLoadBalancer) =>
   new ElasticLoadBalancer({

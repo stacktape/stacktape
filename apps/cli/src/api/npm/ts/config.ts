@@ -1,4 +1,5 @@
 import { CHILD_RESOURCES } from './child-resources';
+import type { StacktapeConfig } from '@stacktape/config';
 
 // Private symbols for internal methods - not accessible from outside
 // Use Symbol.for() so it can be accessed across modules (crucial for npm package interop)

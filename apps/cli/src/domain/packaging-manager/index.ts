@@ -56,6 +56,21 @@ import { rename } from 'fs-extra';
 import objectHash from 'object-hash';
 import { resolveEnvironmentDirectives } from 'src/commands/dev/utils';
 import { isDevCommand } from '../../commands/dev/dev-resource-filter';
+import type { BatchJobResources } from '@stacktape/config/batch-jobs';
+import type {
+  BatchJobContainerPackaging,
+  ContainerWorkloadContainerPackaging,
+  DotnetLanguageSpecificConfig,
+  EsLanguageSpecificConfig,
+  JavaLanguageSpecificConfig,
+  LambdaPackaging,
+  PhpLanguageSpecificConfig,
+  PyLanguageSpecificConfig,
+  RubyLanguageSpecificConfig
+} from '@stacktape/config/deployment-artifacts';
+import type { ContainerWorkloadResourcesConfig } from '@stacktape/config/multi-container-workloads';
+import type { LambdaRuntime } from '@stacktape/config/primitives';
+import type { EnvironmentVar } from '@stacktape/config/shared';
 
 const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }) => {
   if (Number.isNaN(sizeMB) || Number.isNaN(sizeKB)) {

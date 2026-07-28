@@ -4,6 +4,7 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { getCustomAlarmDescription } from '@shared/naming/utils';
 import { getComparisonOperator, getMetricStatDataQuery, getStatFunction } from '../../utils';
 import { getDimensionsForAlb } from '../utils';
+import type { ApplicationLoadBalancerCustomTrigger } from '@stacktape/config/alarm-metrics';
 
 export const getApplicationLoadBalancerCustomAlarm = ({
   alarm,

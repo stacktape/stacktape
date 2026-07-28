@@ -1,4 +1,5 @@
 import { normalizeDomainName } from '@utils/domains';
+import type { DomainConfiguration } from '@stacktape/config/shared';
 
 export const normalizeCustomDomains = ({
   customDomains

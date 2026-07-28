@@ -5,6 +5,7 @@ import { transformToUnixPath } from '@shared/utils/fs-utils';
 import { outputFile, remove } from 'fs-extra';
 import objectHash from 'object-hash';
 import { getBundleDigest, getSourceFiles } from './utils';
+import type { JavaLanguageSpecificConfig, SupportedJavaVersion } from '@stacktape/config/deployment-artifacts';
 
 export const buildJavaArtifact = async ({
   sourcePath,

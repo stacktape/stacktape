@@ -1,3 +1,4 @@
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 export const resolveS3Events = ({
   lambdaFunction: _
 }: {

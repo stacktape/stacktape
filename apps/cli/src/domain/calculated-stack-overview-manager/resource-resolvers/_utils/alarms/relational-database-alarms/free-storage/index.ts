@@ -6,6 +6,7 @@ import { getAlarmDescription } from '@shared/naming/utils';
 import { isAuroraCluster } from '../../../../databases/utils';
 import { getComparisonOperator, getMetricStatDataQuery, getStatFunction } from '../../utils';
 import { getDimensionsForInstance } from '../utils';
+import type { RelationalDatabaseFreeStorageTrigger } from '@stacktape/config/alarms';
 
 export const getDatabaseFreeStorageAlarm = ({
   alarm,

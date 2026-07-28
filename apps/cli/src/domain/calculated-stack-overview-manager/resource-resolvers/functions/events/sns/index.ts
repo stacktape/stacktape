@@ -6,6 +6,8 @@ import { resolveReferenceToSnsTopic } from '@domain-services/config-manager/util
 import { resolveReferenceToSqsQueue } from '@domain-services/config-manager/utils/sqs-queues';
 import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@shared/naming/logical-names';
+import type { SnsIntegration } from '@stacktape/config/events';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const resolveSnsEvents = ({
   lambdaFunction

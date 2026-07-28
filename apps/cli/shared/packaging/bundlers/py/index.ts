@@ -13,6 +13,7 @@ import {
   getSourceFiles,
   resolvePythonDependencyFile
 } from './utils';
+import type { PyLanguageSpecificConfig, SupportedPythonVersion } from '@stacktape/config/deployment-artifacts';
 
 export const buildPythonArtifact = async ({
   sourcePath,

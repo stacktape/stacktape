@@ -26,6 +26,15 @@ import { getAugmentedEnvironment } from '@utils/environment';
 import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';
 import { getPoliciesForRoles } from '../_utils/role-helpers';
 import { getLambdaFunctionSecurityGroup } from '../functions/utils';
+import type {
+  AgentCoreBrowserProps,
+  AgentCoreGatewayTool,
+  AgentCoreJwtAuthorizerConfig,
+  AgentCoreRuntimeEndpointConfig
+} from '@stacktape/config/agentcore';
+import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
+import type { EsLanguageSpecificConfig, PrebuiltImageCwPackagingProps } from '@stacktape/config/deployment-artifacts';
+import type { CloudformationTag, EnvironmentVar, StpIamRoleStatement } from '@stacktape/config/shared';
 
 const BEDROCK_AGENTCORE_PRINCIPAL = 'bedrock-agentcore.amazonaws.com';
 const PENDING_IMAGE_URI = '000000000000.dkr.ecr.us-east-1.amazonaws.com/pending:pending';

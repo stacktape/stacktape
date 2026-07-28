@@ -6,6 +6,9 @@ import { chunkArray, serialize } from '@shared/utils/misc';
 import { camelCase } from 'change-case';
 import { createReadStream, remove } from 'fs-extra';
 import { normalizeEngineType } from './rds';
+import type { StacktapeConfig } from '@stacktape/config';
+import type { RdsEngine } from '@stacktape/config/relational-databases';
+import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
 
 type CsvRow = {
   sku: string;

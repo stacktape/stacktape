@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { Lambda, ResourceNotFoundException } from '@aws-sdk/client-lambda';
 import { NoSuchBucket, S3 } from '@aws-sdk/client-s3';
 import { WRONG_BUCKET_ARN_FORMAT_MESSAGE_PREFIX } from '../constants';
+import type { S3IntegrationProps } from '@stacktape/config/events';
 
 export const s3Events: ServiceLambdaResolver<StpServiceCustomResourceProperties['s3Events']> = async (
   currentProps,

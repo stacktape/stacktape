@@ -4,6 +4,9 @@ import LambdaPermission from '@cloudform/lambda/permission';
 import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cfLogicalNames } from '@shared/naming/logical-names';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { CloudwatchLogIntegration, CloudwatchLogIntegrationProps } from '@stacktape/config/events';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 // @todo - somehow figure out how to check that there are maximum 2 subscriptions per log-group. Keep in mind possible problems with directives.
 export const resolveCloudWatchLogEvents = ({

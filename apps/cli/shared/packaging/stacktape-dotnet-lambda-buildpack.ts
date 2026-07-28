@@ -3,6 +3,7 @@ import { getFolder } from '@shared/utils/fs-utils';
 import { DEFAULT_DOTNET_VERSION } from './bundlers/constants';
 import { buildDotnetArtifact } from './bundlers/dotnet';
 import { createLambdaZipArtifact } from './lambda-artifact';
+import type { DotnetLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapeDotnetLambdaBuildpack = async ({
   progressLogger,

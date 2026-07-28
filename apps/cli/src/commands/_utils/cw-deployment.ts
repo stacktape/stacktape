@@ -24,6 +24,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { replaceCloudformationRefFunctionsWithCfPhysicalIds } from '@utils/cloudformation';
 import { getAwsSynchronizedTime } from '@utils/time';
 import set from 'lodash/set';
+import type { ResourceOverrides } from '@stacktape/config/shared';
 
 const normalizeAndValidateCapacityProviderStrategyForEcsApi = (input: UpdateServiceCommandInput) => {
   const strategy = (input as any).capacityProviderStrategy;

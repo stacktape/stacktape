@@ -5,6 +5,7 @@ import { getFolder } from '@shared/utils/fs-utils';
 import { outputFile } from 'fs-extra';
 import { DEFAULT_DOTNET_VERSION } from './bundlers/constants';
 import { buildDotnetArtifact } from './bundlers/dotnet';
+import type { DotnetLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapeDotnetImageBuildpack = async ({
   progressLogger,

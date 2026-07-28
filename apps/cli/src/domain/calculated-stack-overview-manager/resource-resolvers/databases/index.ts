@@ -31,6 +31,8 @@ import {
   resolveDatabasePort,
   validateEngineVersion
 } from './utils';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { RdsEngine } from '@stacktape/config/relational-databases';
 
 export const resolveDatabases = async () => {
   const databases = filterResourcesForDevMode(configManager.databases);

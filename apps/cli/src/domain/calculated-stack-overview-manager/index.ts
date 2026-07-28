@@ -76,6 +76,7 @@ import { resolveUserPools } from './resource-resolvers/user-pools';
 import { resolveWebAppFirewalls } from './resource-resolvers/web-app-firewalls';
 import { resolveWebServices } from './resource-resolvers/web-services';
 import { resolveWorkerServices } from './resource-resolvers/worker-services';
+import type { CloudformationResource, IntrinsicFunction } from '@stacktape/config/cloudformation';
 
 export class CalculatedStackOverviewManager {
   stackInfoMap: StackInfoMap = { metadata: {}, resources: {}, customOutputs: {} };

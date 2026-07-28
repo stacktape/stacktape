@@ -15,6 +15,7 @@ import {
   getHttpApiLambdaPermission,
   getHttpApiRoute
 } from '../../../_utils/http-api-events';
+import type { ContainerWorkloadHttpApiIntegration } from '@stacktape/config/events';
 
 export const resolveHttpApiEvents = (definition: StpContainerWorkload) => {
   let explicitIntegrationPayloadFormat: StpHttpApiGateway['payloadFormat'];

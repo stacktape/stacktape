@@ -1,4 +1,5 @@
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../_shared';
+import type { GoLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 const FILE_GLOBS = ['./**/*.go'];
 const EXTRA_FILES = ['go.mod', 'go.sum', 'go.work', 'go.work.sum'];

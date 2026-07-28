@@ -8,6 +8,9 @@ import { resolveReferenceToHttpApiGateway } from '@domain-services/config-manage
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { resourceURIs } from '@shared/naming/resource-uris';
 import { ExpectedError } from '@utils/errors';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { ContainerWorkloadHttpApiIntegrationProps, HttpApiIntegrationProps } from '@stacktape/config/events';
+import type { StpAuthorizer } from '@stacktape/config/user-pools';
 
 export const getHttpApiLambdaPermission = ({
   lambdaEndpointArn,

@@ -6,6 +6,7 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getAlarmDescription } from '@shared/naming/utils';
 import { getComparisonOperator, getMetricStatDataQuery, getStatFunction } from '../../utils';
+import type { HttpApiGatewayLatencyTrigger } from '@stacktape/config/alarms';
 
 export const getHttpApiGatewayLatencyAlarm = ({
   alarm,

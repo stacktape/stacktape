@@ -1,5 +1,6 @@
 import LambdaPermission from '@cloudform/lambda/permission';
 import cronValidate from 'aws-cron-validate';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 
 export const getEventBusRuleLambdaPermission = ({
   lambdaEndpointArn,

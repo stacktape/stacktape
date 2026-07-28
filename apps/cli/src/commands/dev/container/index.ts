@@ -29,6 +29,11 @@ import {
   resolveRunningContainersWithSamePort,
   SourceCodeWatcher
 } from '../utils';
+import type {
+  EsLanguageSpecificConfig,
+  ExternalBuildpackCwImagePackaging,
+  PrebuiltCwImagePackaging
+} from '@stacktape/config/deployment-artifacts';
 
 export const runDevContainer = async () => {
   const { resourceName, container, stage, region, disableEmulation, watch } = globalStateManager.args;

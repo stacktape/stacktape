@@ -6,6 +6,7 @@ import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getSimpleServiceDefaultContainerName } from '@shared/naming/utils';
 import { resolveApplicationLoadBalancer } from '../application-load-balancers';
 import { resolveContainerWorkload } from '../multi-container-workloads';
+import type { ContainerWorkloadServiceConnectIntegration } from '@stacktape/config/events';
 
 export const resolvePrivateServices = async () => {
   const privateServices = filterResourcesForDevMode(configManager.privateServices);

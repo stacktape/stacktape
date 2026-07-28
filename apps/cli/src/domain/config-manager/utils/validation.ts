@@ -28,6 +28,16 @@ import { validateSnsTopicConfig } from './sns-topics';
 import { validateSqsQueueConfig } from './sqs-queues';
 import { validateWebServiceConfig } from './web-services';
 import { validateConfigWithZod } from './zod-validator';
+import type { StacktapeConfig } from '@stacktape/config';
+import type {
+  PyLanguageSpecificConfig,
+  StpBuildpackBjImagePackaging,
+  StpBuildpackCwImagePackaging,
+  StpBuildpackLambdaPackaging
+} from '@stacktape/config/deployment-artifacts';
+import type { LambdaRuntime } from '@stacktape/config/primitives';
+import type { AuroraEngine, RdsEngine } from '@stacktape/config/relational-databases';
+import type { BastionScript, LocalScriptWithBastionTunneling } from '@stacktape/config/shared';
 
 export const validatePackagingProps = ({
   packaging,

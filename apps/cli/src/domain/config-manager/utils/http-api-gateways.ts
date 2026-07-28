@@ -1,6 +1,7 @@
 import { stpErrors } from '@errors';
 import { configManager } from '../index.js';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import type { HttpApiIntegration } from '@stacktape/config/events';
 
 export const resolveReferenceToHttpApiGateway = ({
   referencedFrom,

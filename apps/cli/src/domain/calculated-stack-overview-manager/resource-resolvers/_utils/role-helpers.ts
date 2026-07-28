@@ -7,6 +7,10 @@ import { thirdPartyProviderManager } from '@domain-services/third-party-provider
 import { arns } from '@shared/naming/arns';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
+import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
+import type { BucketPolicyIamRoleStatement } from '@stacktape/config/buckets';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const getAtlasMongoRoleAssociatedUserResource = ({
   roleCfLogicalName,

@@ -11,6 +11,9 @@ import { cfLogicalNames } from '@shared/naming/logical-names';
 import { isValidJson } from '@shared/utils/misc';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { ExpectedError } from '@utils/errors';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import type { SqsQueueEventBusIntegration, SqsQueueEventBusIntegrationProps } from '@stacktape/config/sqs-queues';
 
 export const resolveSqsQueueEventBusEvents = ({ sqsQueue }: { sqsQueue: StpSqsQueue }): StpIamRoleStatement[] => {
   const { name, events, configParentResourceType, nameChain } = sqsQueue;

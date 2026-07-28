@@ -22,6 +22,7 @@ import { printInitPreflight, promptConfigFormat } from '../utils/ui';
 import color from 'picocolors';
 import { detectGitInfo, type GitInfo } from '../utils/git-detection';
 import { detectConfigFormat, type ConfigFormat } from '../utils/config-format-detection';
+import type { StacktapeConfig } from '@stacktape/config';
 
 export type WizardState = {
   cwd: string;

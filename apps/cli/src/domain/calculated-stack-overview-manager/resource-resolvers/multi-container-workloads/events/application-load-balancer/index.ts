@@ -7,6 +7,7 @@ import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getListenerRule } from '../../../_utils/lb-listener-rule-helpers';
 import { getContainerWorkloadTargetGroup, getTargetsForContainerWorkload } from '../../utils';
+import type { ContainerWorkloadLoadBalancerIntegration } from '@stacktape/config/events';
 
 export const resolveApplicationLoadBalancerEvents = ({ definition }: { definition: StpContainerWorkload }) => {
   const blueGreen = !!definition.deployment;

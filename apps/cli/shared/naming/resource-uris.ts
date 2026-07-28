@@ -1,4 +1,5 @@
 import { Sub } from '@cloudform/functions';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 
 export const resourceURIs = {
   lambdaAuthorizer({

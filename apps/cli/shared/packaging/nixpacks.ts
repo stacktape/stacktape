@@ -9,6 +9,7 @@ import { loadFromIni, loadFromJson } from '@utils/file-loaders';
 import { readdir, remove, writeJson } from 'fs-extra';
 import objectHash from 'object-hash';
 import { EXCLUDE_FROM_CHECKSUM_GLOBS } from './_shared';
+import type { NixpacksBjImagePackagingProps } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingNixpacks = async ({
   name,

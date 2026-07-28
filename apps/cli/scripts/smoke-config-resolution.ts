@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { dirname, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
+import type { StacktapeConfig } from '@stacktape/config';
 
 const smokeConfigPath = join(process.cwd(), '_test-stacks', 'config-loading-smoke', 'stacktape.ts');
 

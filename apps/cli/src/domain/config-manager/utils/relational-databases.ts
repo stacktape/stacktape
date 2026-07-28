@@ -3,6 +3,7 @@ import { stpErrors } from '@errors';
 import { normalizeEngineType } from '@shared/aws/rds';
 import { ExpectedError } from '@utils/errors';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import type { MysqlLoggingOptions, PostgresLoggingOptions } from '@stacktape/config/relational-databases';
 
 export const resolveReferenceToRelationalDatabase = ({
   referencedFrom,

@@ -3,6 +3,7 @@ import { getFolder } from '@shared/utils/fs-utils';
 import { DEFAULT_PHP_VERSION } from './bundlers/constants';
 import { buildPhpArtifact } from './bundlers/php';
 import { createLambdaZipArtifact } from './lambda-artifact';
+import type { PhpLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapePhpLambdaBuildpack = async ({
   progressLogger,

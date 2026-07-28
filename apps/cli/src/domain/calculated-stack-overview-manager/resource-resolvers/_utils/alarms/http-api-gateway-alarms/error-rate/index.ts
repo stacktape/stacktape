@@ -6,6 +6,7 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getAlarmDescription } from '@shared/naming/utils';
 import { getComparisonOperator } from '../../utils';
+import type { HttpApiGatewayErrorRateTrigger } from '@stacktape/config/alarms';
 
 export const getHttpApiGatewayErrorRateAlarm = ({
   alarm,

@@ -7,6 +7,13 @@ import Bucket from '@cloudform/s3/bucket';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { SubWithoutMapping } from '@utils/cloudformation';
+import type { CloudformationResource } from '@stacktape/config/cloudformation';
+import type {
+  DatadogLogForwarding,
+  HighlightLogForwarding,
+  HttpEndpointLogForwarding,
+  LogForwardingBase
+} from '@stacktape/config/log-forwarding';
 
 export const getResourcesNeededForLogForwarding = ({
   resource,

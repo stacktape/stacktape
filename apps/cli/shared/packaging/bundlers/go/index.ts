@@ -5,6 +5,7 @@ import { transformToUnixPath } from '@shared/utils/fs-utils';
 import { outputFile } from 'fs-extra';
 import objectHash from 'object-hash';
 import { getBundleDigest, getSourceFiles } from './utils';
+import type { GoLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildGoArtifact = async ({
   sourcePath,

@@ -22,6 +22,7 @@ import { getUserCodeAsFn, parseUserCodeFilepath } from '@utils/user-code-process
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
 import { remove, writeFile } from 'fs-extra';
 import { builtInDirectives } from './built-in-directives';
+import type { StacktapeConfig } from '@stacktape/config';
 
 type BuildError = {
   message: string;

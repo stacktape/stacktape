@@ -15,6 +15,12 @@ import {
 } from '@utils/ssm-session';
 import { validateScript } from '@utils/validator';
 import { getLocalInvokeAwsCredentials } from '../_utils/assume-role';
+import type {
+  BastionScript,
+  EnvironmentVar,
+  LocalScript,
+  LocalScriptWithBastionTunneling
+} from '@stacktape/config/shared';
 
 export const getExecutableScriptFunction = (props: { scriptDefinition: Script; hookTrigger?: string }) => {
   const { scriptDefinition } = props;

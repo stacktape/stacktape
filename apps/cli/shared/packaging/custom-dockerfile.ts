@@ -5,6 +5,10 @@ import { getAllFilesInDir } from '@shared/utils/fs-utils';
 import { getDirectoryChecksum, mergeHashes } from '@shared/utils/hashing';
 import objectHash from 'object-hash';
 import { EXCLUDE_FROM_CHECKSUM_GLOBS } from './_shared';
+import type {
+  CustomDockerfileBjImagePackagingProps,
+  CustomDockerfileCwImagePackagingProps
+} from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingCustomDockerfile = async ({
   name,

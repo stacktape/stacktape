@@ -5,6 +5,7 @@ import { getFolder } from '@shared/utils/fs-utils';
 import { outputFile } from 'fs-extra';
 import { DEFAULT_PHP_VERSION } from './bundlers/constants';
 import { buildPhpArtifact } from './bundlers/php';
+import type { PhpLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapePhpImageBuildpack = async ({
   progressLogger,

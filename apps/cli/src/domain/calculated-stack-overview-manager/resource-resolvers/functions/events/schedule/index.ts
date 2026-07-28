@@ -9,6 +9,9 @@ import { isValidJson } from '@shared/utils/misc';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { ExpectedError } from '@utils/errors';
 import { getEventBusRuleLambdaPermission, validateScheduleSyntax } from '../utils';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { ScheduleIntegration, ScheduleIntegrationProps } from '@stacktape/config/events';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const resolveScheduledEvents = ({
   lambdaFunction

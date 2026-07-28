@@ -3,6 +3,10 @@ import { stpErrors } from '@errors';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@shared/aws/fargate';
 import { ExpectedError } from '@utils/errors';
 import { configManager } from '../index';
+import type {
+  ContainerWorkloadLoadBalancerIntegration,
+  ContainerWorkloadLoadBalancerIntegrationProps
+} from '@stacktape/config/events';
 
 const validateContainerNamesConsistency = (workload: StpContainerWorkload) => {
   const containerNames: string[] = [];

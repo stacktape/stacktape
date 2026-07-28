@@ -4,6 +4,7 @@ import type {
   CliConfigGenRequiredResource,
   ProductionReadiness
 } from '@shared/trpc/public';
+import type { StacktapeConfig } from '@stacktape/config';
 
 export type ConfigGenPhaseInfo = {
   phase: CliConfigGenPhase;

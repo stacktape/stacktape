@@ -15,6 +15,7 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { tagNames } from '@shared/naming/tag-names';
 import { SubWithoutMapping } from '@utils/cloudformation';
+import type { BastionLoggingConfig } from '@stacktape/config/bastion';
 
 export const getEc2AutoscalingGroup = ({ definition }: { definition: StpBastion }) => {
   const resource = new AutoScalingGroup({

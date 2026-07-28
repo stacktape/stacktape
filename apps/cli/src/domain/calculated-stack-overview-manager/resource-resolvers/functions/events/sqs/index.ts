@@ -4,6 +4,9 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { resolveReferenceToSqsQueue } from '@domain-services/config-manager/utils/sqs-queues';
 import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@shared/naming/logical-names';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { SqsIntegration, SqsIntegrationProps } from '@stacktape/config/events';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const resolveSqsEvents = ({
   lambdaFunction

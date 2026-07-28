@@ -8,6 +8,7 @@ import removeMarkdown from 'markdown-to-text';
 import { parse as parseYaml } from 'yaml';
 import { addDefaultTsConfigIfNeeded, adjustPackageJson } from '../../src/commands/init/using-starter-project/utils';
 import { addReadme, getProjectMdx } from './starters-mdx';
+import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
 
 const IGNORED_FILES = [
   'yarn.lock',

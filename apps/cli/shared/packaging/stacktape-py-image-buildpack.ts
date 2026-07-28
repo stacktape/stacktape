@@ -5,6 +5,7 @@ import { getFolder } from '@shared/utils/fs-utils';
 import { outputFile } from 'fs-extra';
 import { DEFAULT_PYTHON_VERSION } from './bundlers/constants';
 import { buildPythonArtifact } from './bundlers/py';
+import type { PyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapePyImageBuildpack = async ({
   progressLogger,

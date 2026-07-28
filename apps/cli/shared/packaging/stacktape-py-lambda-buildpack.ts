@@ -3,6 +3,7 @@ import { getFolder } from '@shared/utils/fs-utils';
 import { DEFAULT_PYTHON_VERSION } from './bundlers/constants';
 import { buildPythonArtifact } from './bundlers/py';
 import { createLambdaZipArtifact } from './lambda-artifact';
+import type { PyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapePyLambdaBuildpack = async ({
   progressLogger,

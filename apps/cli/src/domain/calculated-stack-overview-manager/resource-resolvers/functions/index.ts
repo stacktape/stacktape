@@ -75,6 +75,8 @@ import {
   getLambdaUrl,
   getLambdaVersionPublisherCustomResource
 } from './utils';
+import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import type { LambdaEfsMount, LambdaS3FilesMount } from '@stacktape/config/functions';
 
 export const resolveFunctions = async () => {
   // Create shared chunk layer resources (from split bundling) before resolving individual functions

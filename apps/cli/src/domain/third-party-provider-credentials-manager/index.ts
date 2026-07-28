@@ -13,6 +13,7 @@ import {
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
+import type { MongoDbAtlasProvider, UpstashProvider } from '@stacktape/config/providers';
 
 export class ThirdPartyProviderManager {
   init = async ({

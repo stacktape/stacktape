@@ -7,6 +7,7 @@ import { exec } from '@shared/utils/exec';
 import { getFileExtension } from '@shared/utils/fs-utils';
 import { ExpectedError } from './errors';
 import { getPythonExecutable } from './file-loaders';
+import type { EnvironmentVar } from '@stacktape/config/shared';
 
 export const getScriptEnv = ({
   userDefinedEnv = [],

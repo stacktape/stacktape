@@ -17,6 +17,7 @@ import { getUserPoolDomainPrefix } from '@shared/naming/utils';
 import { hasProperties } from '@shared/utils/misc';
 import { ExpectedError } from '@utils/errors';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import type { AttributeSchema } from '@stacktape/config/user-pools';
 
 export const getUserPoolResource = ({
   name,

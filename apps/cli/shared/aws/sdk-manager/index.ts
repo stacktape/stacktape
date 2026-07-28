@@ -261,6 +261,7 @@ import {
   retryPlugin,
   transformToCliArgs
 } from './utils';
+import type { DirectoryUpload } from '@stacktape/config/buckets';
 
 type S3SyncInfo = {
   progressPercent: number | string;

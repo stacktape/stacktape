@@ -10,6 +10,8 @@ import {
   getStatFunction
 } from '../../utils';
 import { getDimensionsForAuroraCluster, getDimensionsForAuroraInstance, getDimensionsForInstance } from '../utils';
+import type { RelationalDatabaseConnectionCountTrigger } from '@stacktape/config/alarms';
+import type { AuroraEngine } from '@stacktape/config/relational-databases';
 
 export const getDatabaseConnectionCountAlarm = ({
   alarm,

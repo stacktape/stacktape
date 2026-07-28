@@ -35,6 +35,7 @@ import dayjs from 'dayjs';
 import { normalizeCurrentUserAndOrgData } from './user-data-mapper';
 import { loadPersistedState, savePersistedState } from './utils';
 import { runAuthFlow } from '../../commands/_utils/auth';
+import type { StacktapeConfig } from '@stacktape/config';
 
 @memoizeGetters
 export class GlobalStateManager {

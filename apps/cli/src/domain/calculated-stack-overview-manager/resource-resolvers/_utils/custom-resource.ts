@@ -1,6 +1,7 @@
 import CustomResource from '@cloudform/cloudFormation/customResource';
 import { GetAtt } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 
 export const getCustomResource = <T>({
   serviceToken,

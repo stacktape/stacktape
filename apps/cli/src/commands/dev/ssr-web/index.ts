@@ -10,6 +10,7 @@ import {
   SSR_WEB_FRAMEWORK_CONFIGS,
   type SsrWebResourceType
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
+import type { EnvironmentVar } from '@stacktape/config/shared';
 
 type SsrWebResource = StpAstroWeb | StpNuxtWeb | StpSvelteKitWeb | StpSolidStartWeb | StpTanStackWeb | StpRemixWeb;
 

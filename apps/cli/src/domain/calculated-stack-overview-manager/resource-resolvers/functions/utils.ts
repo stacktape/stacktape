@@ -21,6 +21,10 @@ import {
   getLogGroupPolicyDocumentStatements,
   getPoliciesForRoles
 } from '../_utils/role-helpers';
+import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { ApplicationLoadBalancerIntegration } from '@stacktape/config/events';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const getLambdaFunctionSecurityGroup = ({
   stackName,

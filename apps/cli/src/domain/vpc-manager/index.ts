@@ -7,6 +7,7 @@ import { getStackName } from '@shared/naming/utils';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
+import type { VpcReuseConfig } from '@stacktape/config/shared';
 
 type SubnetDetails = {
   subnet: Subnet;

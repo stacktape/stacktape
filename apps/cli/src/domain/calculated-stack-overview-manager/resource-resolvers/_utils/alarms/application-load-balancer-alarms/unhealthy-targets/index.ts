@@ -10,6 +10,7 @@ import { getAlarmDescription } from '@shared/naming/utils';
 import { getTargetsForContainerWorkload } from '../../../../multi-container-workloads/utils';
 import { getComparisonOperator } from '../../utils';
 import { getDimensionsForAlb } from '../utils';
+import type { ApplicationLoadBalancerUnhealthyTargetsTrigger } from '@stacktape/config/alarms';
 
 export const getApplicationLoadBalancerUnhealthyTargetsAlarm = ({
   alarm,

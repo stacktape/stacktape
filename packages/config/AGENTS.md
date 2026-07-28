@@ -56,12 +56,24 @@ documentation site's YAML and TypeScript examples, and the `stacktape` npm `.d.t
   the content from `apps/cli`. The `any`s are open user-supplied JSON — CDK construct properties, state-machine
   definitions, EventBridge `inputTemplate`, Cognito `providerDetails` — which the schema renders as `{}`.
 
+## How the CLI reaches these types
+
+Ordinary CLI sources import them explicitly. Every file in `src`, `shared`, `helper-lambdas` and `scripts` that
+used a configuration type now carries a direct `import type { … } from '@stacktape/config[/subpath]'`, and
+`check:config-bridge` fails if a new one appears without it.
+
+`apps/cli/types/config-package-bridge.generated.d.ts` still exists, but only for the ambient declarations in
+`apps/cli/types/**` that have not been given owners yet. Those files cannot be migrated the same way: they are
+global declaration files, so adding an import would turn them into modules, and an inline `import(…)` type is not
+legal everywhere they need one — heritage clauses in particular. They move in the slice that finds each of those
+declarations a real owner, and the bridge, its generator, its check and its Turbo tasks are deleted with them.
+
 ## Checks
 
 ```sh
 pnpm --filter @stacktape/config run typecheck          # strict, skipLibCheck false, includes the acceptance fixture
 pnpm --filter @stacktape/cli run test:characterization # schema probes: 449 definitions, 44-resource union, examples
-pnpm --filter @stacktape/cli run check:config-bridge   # how many CLI files still resolve config types globally
+pnpm --filter @stacktape/cli run check:config-bridge   # must stay declaration-only; fails on any source consumer
 ```
 
 `exactOptionalPropertyTypes` is off. Every optional property models a key a user may omit from YAML, not a key whose

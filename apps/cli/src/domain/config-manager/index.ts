@@ -47,6 +47,33 @@ import {
 import { cleanConfigForMinimalTemplateCompilerMode, mergeStacktapeDefaults } from './utils/misc';
 import { runInitialValidations, validateConfigStructure } from './utils/validation';
 import { isDevCommand, isResourceTypeExcludedInDevMode } from '../../commands/dev/dev-mode-utils';
+import type { StacktapeConfig } from '@stacktape/config';
+import type { ApplicationLoadBalancerAlarm, HttpApiGatewayAlarm } from '@stacktape/config/alarms';
+import type { ApplicationLoadBalancerListener } from '@stacktape/config/application-load-balancers';
+import type {
+  CdnBucketRoute,
+  CdnCachingOptions,
+  CdnConfiguration,
+  CdnForwardingOptions,
+  CdnHttpApiGatewayRoute,
+  CdnLambdaFunctionRoute,
+  CdnLoadBalancerRoute,
+  CdnRouteRewrite,
+  EdgeFunctionsConfig
+} from '@stacktape/config/cdn';
+import type { CloudformationResource } from '@stacktape/config/cloudformation';
+import type {
+  ContainerWorkloadHttpApiIntegration,
+  ContainerWorkloadHttpApiIntegrationProps,
+  ContainerWorkloadServiceConnectIntegration,
+  ContainerWorkloadServiceConnectIntegrationProps,
+  S3Integration
+} from '@stacktape/config/events';
+import type { MongoDbAtlasProvider, UpstashProvider } from '@stacktape/config/providers';
+import type { DomainConfiguration, StackConfig, StackOutput } from '@stacktape/config/shared';
+import type { SsrWebPathCachingOverride } from '@stacktape/config/ssr-web-shared';
+import type { StpStateMachine } from '@stacktape/config/state-machines';
+import type { WebServiceAlbLoadBalancing, WebServiceNlbLoadBalancing } from '@stacktape/config/web-services';
 
 const normalizeCdnPath = ({ path }: { path: string }) => path.replace(/^\//, '');
 

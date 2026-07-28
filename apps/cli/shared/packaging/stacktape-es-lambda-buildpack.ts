@@ -3,6 +3,7 @@ import { getError } from '@shared/utils/misc';
 import { archiveItem } from '@shared/utils/zip';
 import { emptyDir, rename } from 'fs-extra';
 import { createEsBundle } from './bundlers/es';
+import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 const FILE_SIZE_UNIT = 'MB';
 

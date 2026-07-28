@@ -1,4 +1,8 @@
 import { NOT_YET_KNOWN_IDENTIFIER } from '@shared/utils/constants';
+import type {
+  BatchJobContainerPackaging,
+  ContainerWorkloadContainerPackaging
+} from '@stacktape/config/deployment-artifacts';
 
 const getImageFromContainerDefinition = (
   packaging: BatchJobContainerPackaging | ContainerWorkloadContainerPackaging

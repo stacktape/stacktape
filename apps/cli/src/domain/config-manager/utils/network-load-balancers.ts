@@ -2,6 +2,7 @@ import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
 import { ExpectedError } from '@utils/errors';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import type { ContainerWorkloadNetworkLoadBalancerIntegrationProps } from '@stacktape/config/events';
 
 const validateListenerPortOverlap = ({ loadBalancer }: { loadBalancer: StpNetworkLoadBalancer }) => {
   const encounteredPorts = new Set<number>();

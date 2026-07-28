@@ -9,6 +9,7 @@ import { cfLogicalNames } from '@shared/naming/logical-names';
 import { NOT_YET_KNOWN_IDENTIFIER } from '@shared/utils/constants';
 import { getStpServiceCustomResource } from './custom-resource';
 import { getPoliciesForRoles } from './role-helpers';
+import type { LambdaRuntime } from '@stacktape/config/primitives';
 
 export const getEdgeLambdaBucketCustomResource = () => {
   return getStpServiceCustomResource<'edgeLambdaBucket'>({

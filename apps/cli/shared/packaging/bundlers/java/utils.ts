@@ -1,4 +1,5 @@
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../_shared';
+import type { JavaLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 const FILE_GLOBS = ['./**/*.java'];
 const EXTRA_FILES = [

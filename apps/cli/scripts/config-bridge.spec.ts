@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as ts from 'typescript';
-import { measureBridgeUsage, readRetainedAmbientNames } from './check-config-bridge';
+import { assertBridgeIsDeclarationOnly, measureBridgeUsage, readRetainedAmbientNames } from './check-config-bridge';
 import {
   buildConfigBridge,
   publicSpecifierFor,
@@ -249,5 +249,52 @@ describe('retained ambient declarations are read as syntax', () => {
       'StacktapeConfig'
     ]);
     expect(declared.get('RetainedInterface')).toEqual(['retained.d.ts']);
+  });
+});
+
+describe('the phase gate allows only declaration consumers', () => {
+  const bridge = 'type Bucket = { name: string };';
+
+  test('only declaration files in the types cluster are allowed', () => {
+    const sourceConsumer = new Map([['types', [join('types', 'foo.ts')]]]);
+    const declarationConsumer = new Map([['types', [join('types', 'foo.d.ts')]]]);
+
+    expect(() => assertBridgeIsDeclarationOnly(sourceConsumer)).toThrow('ordinary source file(s)');
+    expect(() => assertBridgeIsDeclarationOnly(declarationConsumer)).not.toThrow();
+  });
+
+  test('an ordinary source consumer fails the gate', () => {
+    const usage = measureAgainstBridge(bridge, { 'uses.ts': 'export const b: Bucket = { name: "x" };' });
+
+    expect(() => assertBridgeIsDeclarationOnly(usage.filesByCluster)).toThrow(
+      '1 ordinary source file(s) resolve a configuration type from the ambient bridge'
+    );
+    // The message has to say what to do instead, because that is the whole migration.
+    expect(() => assertBridgeIsDeclarationOnly(usage.filesByCluster)).toThrow("from '@stacktape/config/functions'");
+  });
+
+  test('a declaration consumer is allowed and still counted', () => {
+    // `types/**` keeps global semantics in this phase: an import would turn those files into modules.
+    const usage = measureAgainstBridge(bridge, {
+      'resolved.d.ts': 'declare type StpBucket = Bucket & { cfLogicalName: string };'
+    });
+
+    expect(() => assertBridgeIsDeclarationOnly(usage.filesByCluster)).not.toThrow();
+    expect(usage.filesByCluster.get('types')).toHaveLength(1);
+  });
+
+  test('a declaration consumer does not excuse a source consumer alongside it', () => {
+    const usage = measureAgainstBridge(bridge, {
+      'resolved.d.ts': 'declare type StpBucket = Bucket & { cfLogicalName: string };',
+      'uses.ts': 'export const b: Bucket = { name: "x" };'
+    });
+
+    expect(() => assertBridgeIsDeclarationOnly(usage.filesByCluster)).toThrow('ordinary source file(s)');
+  });
+
+  test('no consumers at all passes, leaving the deletion branch to the check itself', () => {
+    const usage = measureAgainstBridge(bridge, { 'unrelated.ts': 'export const n = 1;' });
+
+    expect(() => assertBridgeIsDeclarationOnly(usage.filesByCluster)).not.toThrow();
   });
 });

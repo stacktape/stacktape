@@ -3,6 +3,7 @@ import { getFolder } from '@shared/utils/fs-utils';
 import { DEFAULT_JAVA_VERSION } from './bundlers/constants';
 import { buildJavaArtifact } from './bundlers/java';
 import { createLambdaZipArtifact } from './lambda-artifact';
+import type { JavaLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapeJavaLambdaBuildpack = async ({
   progressLogger,

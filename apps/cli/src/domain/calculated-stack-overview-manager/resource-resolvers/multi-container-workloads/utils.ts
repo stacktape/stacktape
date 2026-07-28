@@ -49,6 +49,21 @@ import uniqWith from 'lodash/uniqWith';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import { getImageUrlForMultiTask } from '../_utils/image-urls';
 import { getPoliciesForRoles } from '../_utils/role-helpers';
+import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
+import type {
+  CustomDockerfileCwImagePackagingProps,
+  EsLanguageSpecificConfig,
+  PrebuiltImageCwPackagingProps
+} from '@stacktape/config/deployment-artifacts';
+import type {
+  ContainerWorkloadHttpApiIntegration,
+  ContainerWorkloadLoadBalancerIntegration,
+  ContainerWorkloadLoadBalancerIntegrationProps,
+  ContainerWorkloadNetworkLoadBalancerIntegrationProps,
+  ContainerWorkloadServiceConnectIntegration
+} from '@stacktape/config/events';
+import type { ContainerEfsMount, ContainerWorkloadContainer } from '@stacktape/config/multi-container-workloads';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 const BLUE_GREEN_SERVICE_RESOURCE_TYPE: SupportedEcsBlueGreenV1ResourceType = 'Stacktape::ECSBlueGreenV1::Service';
 

@@ -20,6 +20,7 @@ import {
   getLocalInvokeAwsCredentials,
   SESSION_DURATION_SECONDS
 } from '../_utils/assume-role';
+import type { EnvironmentVar } from '@stacktape/config/shared';
 
 type OnChangeFn = (props: { stats: Stats; changedFile: string }) => any;
 

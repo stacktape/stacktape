@@ -17,6 +17,9 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { normalizePathForLink } from '@utils/formatting';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { HttpApiIntegration } from '@stacktape/config/events';
+import type { DomainConfiguration } from '@stacktape/config/shared';
 
 export const getHttpApi = (httpApiConfig: StpHttpApiGateway) => {
   const tagObject = {};

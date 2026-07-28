@@ -7,6 +7,8 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getListenerRule } from '../../../_utils/lb-listener-rule-helpers';
 import { getTargetsForLambdaWorkloadEvents } from '../../utils';
+import type { ApplicationLoadBalancerIntegration } from '@stacktape/config/events';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const resolveApplicationLoadBalancerEvents = ({
   lambdaFunction

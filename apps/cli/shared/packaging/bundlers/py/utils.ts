@@ -2,6 +2,7 @@ import { basename, dirname, isAbsolute, join } from 'node:path';
 import { raiseError } from '@shared/utils/misc';
 import { exists } from 'fs-extra';
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../_shared';
+import type { PyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 const FILE_GLOBS = ['./**/*.py'];
 const EXTRA_FILES = [

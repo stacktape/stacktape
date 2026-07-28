@@ -13,6 +13,7 @@ import { archiveItem } from '@shared/utils/zip';
 import { copy } from 'fs-extra';
 import objectHash from 'object-hash';
 import { EXCLUDE_FROM_CHECKSUM_GLOBS } from './_shared';
+import type { CustomArtifactLambdaPackagingProps } from '@stacktape/config/deployment-artifacts';
 
 const SIZE_LIMIT = 250;
 const ZIPPED_SIZE_LIMIT = 50;

@@ -1,6 +1,7 @@
 import { RESOURCE_DEFAULTS } from '@config';
 import { removePropertiesFromObject, serialize } from '@shared/utils/misc';
 import { UnexpectedError } from '@utils/errors';
+import type { StacktapeConfig } from '@stacktape/config';
 
 const specialMergeBehaviorProperties = {
   container: (from, to) => {

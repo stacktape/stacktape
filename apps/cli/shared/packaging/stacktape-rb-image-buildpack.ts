@@ -5,6 +5,7 @@ import { getFolder } from '@shared/utils/fs-utils';
 import { outputFile } from 'fs-extra';
 import { DEFAULT_RUBY_VERSION } from './bundlers/constants';
 import { buildRubyArtifact } from './bundlers/ruby';
+import type { RubyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapeRbImageBuildpack = async ({
   progressLogger,

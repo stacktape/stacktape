@@ -6,6 +6,7 @@ import { configManager } from '@domain-services/config-manager';
 import { writeFile } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { formatDevServerStatus, startDevServer, stopDevServer } from '../dev-server';
+import type { EnvironmentVar } from '@stacktape/config/shared';
 
 const DEFAULT_NEXTJS_DEV_COMMAND = 'next dev';
 

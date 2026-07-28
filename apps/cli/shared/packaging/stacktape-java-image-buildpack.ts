@@ -5,6 +5,7 @@ import { getFolder } from '@shared/utils/fs-utils';
 import { outputFile } from 'fs-extra';
 import { DEFAULT_JAVA_VERSION } from './bundlers/constants';
 import { buildJavaArtifact } from './bundlers/java';
+import type { JavaLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapeJavaImageBuildpack = async ({
   progressLogger,

@@ -39,6 +39,18 @@ import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import { ExpectedError, UnexpectedError } from '@utils/errors';
 import objectHash from 'object-hash';
 import { getStpServiceCustomResource } from './custom-resource';
+import type {
+  CdnBucketRoute,
+  CdnCachingOptions,
+  CdnConfiguration,
+  CdnCustomOrigin,
+  CdnForwardingOptions,
+  CdnHttpApiGatewayRoute,
+  CdnLambdaFunctionRoute,
+  CdnLoadBalancerRoute,
+  EdgeFunctionsConfig
+} from '@stacktape/config/cdn';
+import type { ApplicationLoadBalancerIntegrationProps } from '@stacktape/config/events';
 
 export const getCloudfrontDefaultStaticCachePolicyResource = (stackName: string) =>
   new CloudfrontCachePolicy({ CachePolicyConfig: getCloudfrontDefaultStaticCachePolicyConfig(stackName) });

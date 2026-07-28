@@ -16,6 +16,7 @@ import { parse as dotenvParse } from 'dotenv';
 import dotenvStringify from 'dotenv-stringify';
 import { existsSync, outputFile, readFile, writeFile } from 'fs-extra';
 import { merge } from 'lodash';
+import type { EnvironmentVar } from '@stacktape/config/shared';
 
 // export const getStackNameForCommandConditionallyRequiringConfig = async () => {
 //   if (globalStateManager.args.stage && globalStateManager.args.stackName) {

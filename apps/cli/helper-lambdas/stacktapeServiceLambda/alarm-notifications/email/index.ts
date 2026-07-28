@@ -1,5 +1,6 @@
 import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
 import { getCauseString } from '../utils';
+import type { EmailIntegration } from '@stacktape/config/user-integrations';
 
 const sesClient = new SESv2Client({});
 

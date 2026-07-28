@@ -35,6 +35,8 @@ import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorator
 import { ExpectedError } from '@utils/errors';
 import { getHotSwapDeployVersionString } from '@utils/versioning';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
+import type { DirectoryUpload } from '@stacktape/config/buckets';
+import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 
 export class DeploymentArtifactManager {
   successfullyUploadedImages: { tag: string; name: string }[] = [];

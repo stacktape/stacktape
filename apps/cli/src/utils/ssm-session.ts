@@ -17,6 +17,7 @@ import { chmod } from 'fs-extra';
 import pRetry from 'p-retry';
 import { awsSdkManager } from './aws-sdk-manager';
 import { SsmExecuteScriptCloudwatchLogPrinter } from './cloudwatch-logs';
+import type { EnvironmentVar } from '@stacktape/config/shared';
 
 let sessionManagerPluginPrepared = false;
 

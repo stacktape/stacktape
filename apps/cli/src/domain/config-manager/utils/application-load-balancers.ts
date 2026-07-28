@@ -2,6 +2,11 @@ import { stpErrors } from '@errors';
 import { ExpectedError } from '@utils/errors';
 import { configManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import type { ApplicationLoadBalancerListener } from '@stacktape/config/application-load-balancers';
+import type {
+  ApplicationLoadBalancerIntegrationProps,
+  ContainerWorkloadLoadBalancerIntegrationProps
+} from '@stacktape/config/events';
 
 export const DEFAULT_TEST_LISTENER_PORT = 8080;
 

@@ -7,6 +7,12 @@ import { consoleLinks } from '@shared/naming/console-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { snakeCase } from 'change-case';
 import { isAuroraCluster } from '../../databases/utils';
+import type {
+  ComparisonOperator,
+  StatisticFunction,
+  TriggerWithCustomComparison,
+  TriggerWithCustomStatFunction
+} from '@stacktape/config/alarms';
 
 export const getComparisonOperator = ({ alarm }: { alarm: AlarmDefinition }) => {
   if (alarm.trigger.type === 'sqs-queue-not-empty') {

@@ -21,6 +21,9 @@ import { SubWithoutMapping } from '@utils/cloudformation';
 import { kebabCase } from 'change-case';
 import { configManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
+import type { LambdaRuntime } from '@stacktape/config/primitives';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const getBatchJobTriggerLambdaEnvironment = ({
   batchJobName,

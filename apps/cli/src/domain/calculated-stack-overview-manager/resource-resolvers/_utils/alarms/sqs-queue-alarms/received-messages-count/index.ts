@@ -4,6 +4,7 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { getAlarmDescription } from '@shared/naming/utils';
 import { getComparisonOperator, getMetricStatDataQuery, getStatFunction } from '../../utils';
 import { getDimensionsForSqsQueue } from '../utils';
+import type { SqsQueueReceivedMessagesCountTrigger } from '@stacktape/config/alarms';
 
 export const getSqsQueueReceivedMessagesCountAlarm = ({
   alarm,

@@ -21,6 +21,8 @@ import { validateStackOutput, validateUniqueness } from '@utils/validator';
 import { merge } from 'lodash';
 import set from 'lodash/set';
 import { getInitialCfTemplate } from './utils';
+import type { CloudformationResource } from '@stacktape/config/cloudformation';
+import type { ResourceOverrides } from '@stacktape/config/shared';
 
 export class TemplateManager {
   template: CloudformationTemplate = getInitialCfTemplate();

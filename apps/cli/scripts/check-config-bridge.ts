@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
+import { join, normalize, relative, resolve, sep } from 'node:path';
 import {
   CONFIG_BRIDGE_PATH,
   CONFIG_PACKAGE_SRC_PATH,
@@ -103,6 +103,32 @@ export const readRetainedAmbientNames = (directoryPath: string): Map<string, str
   return declared;
 };
 
+/** The only cluster that contains declarations still allowed to reach configuration types through the global scope. */
+export const DECLARATION_CLUSTER = 'types';
+
+/**
+ * The invariant for this phase: ordinary sources import `@stacktape/config` directly, and only the ambient
+ * declarations in `types/**` still resolve through the bridge.
+ *
+ * Those declaration files have global semantics — adding an import would turn them into modules, and an inline
+ * `import(...)` type is not legal everywhere they need one (heritage clauses in particular) — so they migrate
+ * in the slice that gives their declarations real owners. Until then this stops the source clusters from
+ * silently growing a new global dependency.
+ */
+export const assertBridgeIsDeclarationOnly = (filesByCluster: Map<string, string[]>) => {
+  const sourceConsumers = [...filesByCluster].flatMap(([cluster, files]) =>
+    files.filter((file) => cluster !== DECLARATION_CLUSTER || !normalize(file).endsWith('.d.ts'))
+  );
+
+  if (sourceConsumers.length > 0) {
+    throw new Error(
+      `${sourceConsumers.length} ordinary source file(s) resolve a configuration type from the ambient bridge. ` +
+        `Import it directly instead, for example \`import type { LambdaFunction } from '@stacktape/config/functions'\`:\n  ` +
+        sourceConsumers.sort().slice(0, 20).join('\n  ')
+    );
+  }
+};
+
 const checkConfigBridge = () => {
   const declarations = readPackageDeclarations(CONFIG_PACKAGE_SRC_PATH);
   const owned = new Set(declarations.map(({ name }) => name));
@@ -143,7 +169,11 @@ const checkConfigBridge = () => {
     );
     return;
   }
-  logSuccess(`Bridge still required by ${dependentFiles} files.`);
+
+  assertBridgeIsDeclarationOnly(filesByCluster);
+  logSuccess(
+    `The bridge is declaration-only: ${dependentFiles} ambient declaration files in \`${DECLARATION_CLUSTER}\` still resolve configuration types from it.`
+  );
 };
 
 if (import.meta.main) {

@@ -12,6 +12,9 @@ import { isValidJson } from '@shared/utils/misc';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { ExpectedError } from '@utils/errors';
 import { getEventBusRuleLambdaPermission } from '../utils';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { EventBusIntegration, EventBusIntegrationProps } from '@stacktape/config/events';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const resolveEventBusEvents = ({
   lambdaFunction

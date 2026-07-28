@@ -2,6 +2,7 @@ import { basename, dirname, isAbsolute, join } from 'node:path';
 import { exists } from 'fs-extra';
 import { getMatchingFilesByGlob } from '@shared/utils/fs-utils';
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../_shared';
+import type { DotnetLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 const FILE_GLOBS = ['./**/*.cs', './**/*.csproj', './**/*.sln', './**/*.props', './**/*.targets'];
 const EXTRA_FILES = [

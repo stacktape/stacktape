@@ -6,6 +6,7 @@ import { outputFile } from 'fs-extra';
 import objectHash from 'object-hash';
 import { DEFAULT_PHP_VERSION } from '../constants';
 import { getBundleDigest, getSourceFiles } from './utils';
+import type { PhpLanguageSpecificConfig, SupportedPhpVersion } from '@stacktape/config/deployment-artifacts';
 
 export const buildPhpArtifact = async ({
   sourcePath,

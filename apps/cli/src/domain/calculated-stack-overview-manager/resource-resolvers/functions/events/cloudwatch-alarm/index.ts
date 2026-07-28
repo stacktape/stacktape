@@ -5,6 +5,9 @@ import { resolveReferenceToAlarm } from '@domain-services/config-manager/utils/a
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getEventBusRuleLambdaPermission } from '../utils';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { AlarmIntegration, AlarmIntegrationProps } from '@stacktape/config/events';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const resolveCloudwatchAlarmEvents = ({
   lambdaFunction

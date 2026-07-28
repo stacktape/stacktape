@@ -42,6 +42,7 @@ import {
   SourceCodeWatcher
 } from '../utils';
 import { updateAgentWorkloadStatus } from '../agent-server';
+import type { HttpApiIntegration } from '@stacktape/config/events';
 
 type WorkloadType = 'container' | 'function' | 'hosting-bucket' | 'nextjs-web' | 'ssr-web';
 

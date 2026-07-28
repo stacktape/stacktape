@@ -6,6 +6,7 @@ import { getFolder, getFolderSize } from '@shared/utils/fs-utils';
 import { outputFile } from 'fs-extra';
 import objectHash from 'object-hash';
 import { createEsBundle } from './bundlers/es';
+import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingStacktapeEsImageBuildpack = async ({
   progressLogger,

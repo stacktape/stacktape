@@ -14,6 +14,8 @@ import {
   getHttpApiLambdaPermission,
   getHttpApiRoute
 } from '../../../_utils/http-api-events';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const resolveHttpApiEvents = ({
   lambdaFunction

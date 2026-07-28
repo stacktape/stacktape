@@ -9,6 +9,7 @@ import {
   isResourceTypeLocallyEmulatable
 } from '../../../commands/dev/dev-mode-utils';
 import { configManager } from '../index';
+import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
 
 export const getReferencableParamsError = ({
   resourceName,

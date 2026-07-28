@@ -3,6 +3,9 @@ import { GetAtt, Ref } from '@cloudform/functions';
 import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cfLogicalNames } from '@shared/naming/logical-names';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { KafkaTopicIntegration, KafkaTopicIntegrationProps } from '@stacktape/config/events';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const resolveKafkaTopicEvents = ({
   lambdaFunction

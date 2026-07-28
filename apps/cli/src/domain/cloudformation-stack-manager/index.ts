@@ -44,6 +44,7 @@ import { getNextVersionString } from '@utils/versioning';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
+import type { CloudformationTag } from '@stacktape/config/shared';
 
 /** Convert CloudFormation stack status to human-readable form */
 const getHumanReadableStackStatus = (status?: string): string => {

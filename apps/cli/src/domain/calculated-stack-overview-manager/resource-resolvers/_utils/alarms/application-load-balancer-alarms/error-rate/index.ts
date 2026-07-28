@@ -5,6 +5,7 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { getAlarmDescription } from '@shared/naming/utils';
 import { getComparisonOperator } from '../../utils';
 import { getDimensionsForAlb } from '../utils';
+import type { ApplicationLoadBalancerErrorRateTrigger } from '@stacktape/config/alarms';
 
 export const getApplicationLoadBalancerErrorRateAlarm = ({
   alarm,

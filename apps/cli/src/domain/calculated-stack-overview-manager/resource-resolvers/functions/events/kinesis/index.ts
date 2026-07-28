@@ -7,6 +7,9 @@ import { resolveReferenceToKinesisStream } from '@domain-services/config-manager
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { KinesisIntegration, KinesisIntegrationProps } from '@stacktape/config/events';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const resolveKinesisEvents = ({
   lambdaFunction

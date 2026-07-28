@@ -1,5 +1,6 @@
 import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { pascalCase } from 'change-case';
+import type { HttpMethod } from '@stacktape/config/http-api-gateways';
 
 export const cfLogicalNames = {
   bucket(stpResourceName: string) {

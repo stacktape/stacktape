@@ -11,6 +11,8 @@ import {
   getStatFunction
 } from '../../utils';
 import { getDimensionsForAuroraInstance, getDimensionsForInstance } from '../utils';
+import type { RelationalDatabaseFreeMemoryTrigger } from '@stacktape/config/alarms';
+import type { AuroraEngine } from '@stacktape/config/relational-databases';
 
 export const getDatabaseFreeMemoryAlarm = ({
   alarm,

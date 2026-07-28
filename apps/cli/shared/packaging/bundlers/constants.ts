@@ -1,3 +1,10 @@
+import type {
+  SupportedDotnetVersion,
+  SupportedJavaVersion,
+  SupportedPhpVersion,
+  SupportedPythonVersion,
+  SupportedRubyVersion
+} from '@stacktape/config/deployment-artifacts';
 export const DEFAULT_PYTHON_VERSION: SupportedPythonVersion = 3.12;
 export const DEFAULT_RUBY_VERSION: SupportedRubyVersion = 3.3;
 export const DEFAULT_PHP_VERSION: SupportedPhpVersion = 8.3;

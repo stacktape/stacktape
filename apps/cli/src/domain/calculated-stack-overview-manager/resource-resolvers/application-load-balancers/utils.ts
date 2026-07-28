@@ -12,6 +12,9 @@ import { cfLogicalNames } from '@shared/naming/logical-names';
 import { transformToCidr } from '@shared/utils/misc';
 import { normalizePathForLink } from '@utils/formatting';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import type { ApplicationLoadBalancerListener } from '@stacktape/config/application-load-balancers';
+import type { CloudformationResource } from '@stacktape/config/cloudformation';
+import type { ApplicationLoadBalancerIntegrationProps } from '@stacktape/config/events';
 
 export const getLoadBalancer = (loadBalancerName: string, loadBalancerConfig: StpApplicationLoadBalancer) =>
   new ElasticLoadBalancer({

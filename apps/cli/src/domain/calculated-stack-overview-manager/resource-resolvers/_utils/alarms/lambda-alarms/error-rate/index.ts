@@ -5,6 +5,7 @@ import { Join, Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { getAlarmDescription } from '@shared/naming/utils';
 import { getComparisonOperator } from '../../utils';
+import type { LambdaErrorRateTrigger } from '@stacktape/config/alarms';
 
 export const getLambdaErrorRateAlarm = ({
   alarm,

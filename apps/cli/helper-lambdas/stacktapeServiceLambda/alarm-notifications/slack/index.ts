@@ -1,5 +1,6 @@
 import { WebClient } from '@slack/web-api';
 import { getCauseString } from '../utils';
+import type { SlackIntegration } from '@stacktape/config/user-integrations';
 
 export const sendAlarmSlackMessage = ({
   notificationDetail,

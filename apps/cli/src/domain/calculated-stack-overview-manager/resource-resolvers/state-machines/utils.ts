@@ -4,6 +4,7 @@ import IAMRole from '@cloudform/iam/role';
 import StateMachine from '@cloudform/stepFunctions/stateMachine';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
+import type { StpStateMachine } from '@stacktape/config/state-machines';
 
 export const getStateMachineResource = async (stateMachine: StpStateMachine) => {
   return new StateMachine({

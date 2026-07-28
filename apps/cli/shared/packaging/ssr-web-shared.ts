@@ -5,6 +5,7 @@ import { exec } from '@shared/utils/exec';
 import { raiseError, serialize } from '@shared/utils/misc';
 import { copy, ensureDir, outputFile, pathExists, remove, writeFile } from 'fs-extra';
 import { buildUsingCustomArtifact } from './custom-artifact';
+import type { EnvironmentVar } from '@stacktape/config/shared';
 
 /**
  * Framework-specific build configuration

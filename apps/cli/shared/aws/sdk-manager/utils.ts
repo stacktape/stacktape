@@ -2,6 +2,7 @@ import { HttpRequest } from '@aws-sdk/protocol-http';
 import { getRandomNumberFromInterval, wait } from '@shared/utils/misc';
 import { pascalCase } from 'change-case';
 import pRetry from 'p-retry';
+import type { DirectoryUpload, DirectoryUploadFilter } from '@stacktape/config/buckets';
 
 export const retryPlugin = {
   applyToStack: (stack) => {

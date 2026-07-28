@@ -7,6 +7,7 @@ import { configManager } from '@domain-services/config-manager';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getFormattedRuleStatements } from '../_utils/role-helpers';
+import type { BucketCorsConfig } from '@stacktape/config/buckets';
 
 export const getBucketPolicy = (stpBucketName: string, bucketConfig: StpBucket) => {
   const bucketName = awsResourceNames.bucket(

@@ -1,4 +1,5 @@
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../_shared';
+import type { PhpLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 const FILE_GLOBS = ['./**/*.php'];
 const EXTRA_FILES = ['composer.json', 'composer.lock', 'symfony.lock'];

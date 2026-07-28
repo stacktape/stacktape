@@ -1,4 +1,5 @@
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../_shared';
+import type { RubyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 const FILE_GLOBS = ['./**/*.rb'];
 const EXTRA_FILES = [

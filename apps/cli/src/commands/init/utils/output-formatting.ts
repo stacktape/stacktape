@@ -1,5 +1,6 @@
 import color from 'picocolors';
 import stripAnsi from 'strip-ansi';
+import type { StacktapeConfig } from '@stacktape/config';
 
 export const TODO_ENV_VAR_PLACEHOLDER = 'TODO_SET_VALUE';
 

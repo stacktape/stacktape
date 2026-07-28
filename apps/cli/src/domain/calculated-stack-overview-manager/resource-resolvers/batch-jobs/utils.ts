@@ -19,6 +19,14 @@ import { getCfEnvironment } from '@utils/cloudformation';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { getImageUrlForSingleTask } from '../_utils/image-urls';
 import { getPoliciesForRoles } from '../_utils/role-helpers';
+import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
+import type {
+  CustomDockerfileBjImagePackaging,
+  EsLanguageSpecificConfig,
+  PrebuiltBjImagePackaging
+} from '@stacktape/config/deployment-artifacts';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import type { StpStateMachine } from '@stacktape/config/state-machines';
 
 type BatchJobInstanceKind = 'spot' | 'onDemand';
 

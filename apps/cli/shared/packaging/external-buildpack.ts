@@ -5,6 +5,10 @@ import { getDirectoryChecksum, mergeHashes } from '@shared/utils/hashing';
 import { execPack } from '@shared/utils/pack-exec';
 import objectHash from 'object-hash';
 import { EXCLUDE_FROM_CHECKSUM_GLOBS } from './_shared';
+import type {
+  ExternalBuildpackBjImagePackagingProps,
+  ExternalBuildpackCwImagePackagingProps
+} from '@stacktape/config/deployment-artifacts';
 
 export const buildUsingExternalBuildpack = async ({
   builder = 'paketobuildpacks/builder-jammy-base',

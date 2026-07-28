@@ -7,6 +7,7 @@ import { outputFile } from 'fs-extra';
 import objectHash from 'object-hash';
 import { DEFAULT_DOTNET_VERSION } from '../constants';
 import { getBundleDigest, getDotnetAssemblyName, getSourceFiles, resolveDotnetProjectFile } from './utils';
+import type { DotnetLanguageSpecificConfig, SupportedDotnetVersion } from '@stacktape/config/deployment-artifacts';
 
 export const buildDotnetArtifact = async ({
   sourcePath,

@@ -39,6 +39,7 @@ import {
   resolveDifferentSourceMapLocation,
   resolvePrisma
 } from './utils';
+import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
 // Extract module name from import path (handles scoped packages)
 const getModuleNameFromPath = (importPath: string): string => {

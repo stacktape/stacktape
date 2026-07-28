@@ -12,6 +12,7 @@ import {
   tryGetContentTruncated,
   DEFAULT_IGNORE_PATTERNS
 } from './file-scanner';
+import type { StacktapeConfig } from '@stacktape/config';
 
 export { DEFAULT_IGNORE_PATTERNS, getPrettyPrintedFiles, listAllFilesInDirectory, tryGetContentTruncated };
 export * from './types';

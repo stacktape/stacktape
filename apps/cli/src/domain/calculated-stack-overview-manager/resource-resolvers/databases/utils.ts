@@ -26,6 +26,13 @@ import { transformToCidr } from '@shared/utils/misc';
 import { isAuroraEngine } from '@shared/utils/rds-engines';
 import { ExpectedError } from '@utils/errors';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type {
+  AuroraEngine,
+  MysqlLoggingOptions,
+  PostgresLoggingOptions,
+  RdsEngine
+} from '@stacktape/config/relational-databases';
 
 const defaultEnginePorts: {
   [_engineType in StpRelationalDatabase['engine']['type']]: number;

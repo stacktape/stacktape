@@ -10,6 +10,7 @@ import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
 import { copy, move, outputFile, readdir, remove, writeFile } from 'fs-extra';
 import kleur from 'kleur';
 import { buildUsingCustomArtifact } from './custom-artifact';
+import type { EnvironmentVar } from '@stacktape/config/shared';
 
 type NextjsWebBundlingProps = {
   resource: StpNextjsWeb;

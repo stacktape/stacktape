@@ -7,6 +7,7 @@ import { camelCase } from 'change-case';
 import ci from 'ci-info';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import { EventLog } from './event-log';
+import type { Hooks, NamedScriptLifecycleHook } from '@stacktape/config/shared';
 
 type HookMap = { [lifecycleEvent: string]: ((args: ScriptFn) => any)[] };
 type HookFailure = { hookEvent: HookableEvent; error: unknown };

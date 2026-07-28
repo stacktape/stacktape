@@ -5,6 +5,8 @@ import { getAlarmDescription } from '@shared/naming/utils';
 import { isAuroraCluster, isAuroraServerlessCluster } from '../../../../databases/utils';
 import { getComparisonOperator, getMetricStatDataQuery, getStatFunction } from '../../utils';
 import { getDimensionsForAuroraCluster, getDimensionsForAuroraRole, getDimensionsForInstance } from '../utils';
+import type { RelationalDatabaseReadLatencyTrigger } from '@stacktape/config/alarms';
+import type { AuroraEngine } from '@stacktape/config/relational-databases';
 
 export const getDatabaseLatencyAlarm = ({
   alarm,

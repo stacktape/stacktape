@@ -1,6 +1,7 @@
 import type { GetConfigParams } from '@api/npm/ts/config';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { getTypescriptExport } from '@utils/file-loaders';
+import type { StacktapeConfig } from '@stacktape/config';
 
 export type CfResourceTransform = (props: Record<string, any>) => Partial<Record<string, any>>;
 export type FinalTransform = (template: CloudformationTemplate) => CloudformationTemplate;
