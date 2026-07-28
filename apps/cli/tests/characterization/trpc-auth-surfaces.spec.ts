@@ -20,13 +20,16 @@ const trpcResponse = (data: unknown) =>
 
 beforeEach(() => {
   requests = [];
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    requests.push({
-      url: String(input),
-      headers: new Headers(init?.headers)
-    });
-    return trpcResponse(true);
-  }) as typeof fetch;
+  globalThis.fetch = Object.assign(
+    async (...[input, init]: Parameters<typeof fetch>) => {
+      requests.push({
+        url: String(input),
+        headers: new Headers(init?.headers)
+      });
+      return trpcResponse(true);
+    },
+    { preconnect: originalFetch.preconnect }
+  );
 });
 
 afterEach(() => {
@@ -38,7 +41,7 @@ describe('Console tRPC authentication surfaces', () => {
     const client = new PublicApiClient();
     await client.stackPriceEstimation({
       region: 'eu-west-1',
-      stack: {} as any
+      stackConfig: '{}'
     });
 
     expect(requests).toHaveLength(1);

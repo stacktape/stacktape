@@ -246,10 +246,17 @@ export const withCredentiallessSynthesisBoundary = async <Result>(operation: () 
   process.env.AWS_SHARED_CREDENTIALS_FILE = '__stacktape_characterization_missing_credentials__';
   process.env.AWS_CONFIG_FILE = '__stacktape_characterization_missing_config__';
   process.env.AWS_EC2_METADATA_DISABLED = 'true';
-  globalThis.fetch = (async (input) => {
-    const destination = input instanceof Request ? input.url : String(input);
-    throw new Error(`Unclassified network request during credential-free synthesis: ${destination}`);
-  }) as typeof fetch;
+  globalThis.fetch = Object.assign(
+    async (input: Parameters<typeof fetch>[0]) => {
+      const destination = input instanceof Request ? input.url : String(input);
+      throw new Error(`Unclassified network request during credential-free synthesis: ${destination}`);
+    },
+    {
+      preconnect: (input: Parameters<typeof fetch.preconnect>[0]) => {
+        throw new Error(`Unclassified network preconnect during credential-free synthesis: ${String(input)}`);
+      }
+    }
+  );
   const rejectNodeRequest = ((input: unknown) => {
     const destination = input instanceof URL ? input.href : typeof input === 'string' ? input : JSON.stringify(input);
     throw new Error(`Unclassified Node HTTP request during credential-free synthesis: ${destination}`);
@@ -379,6 +386,10 @@ export const createSynthesisIdentityManifest = (template: CloudformationTemplate
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([logicalId, resource]) => {
           const physicalNames = getPhysicalNames({ properties: resource.Properties });
+          const updateReplacePolicy =
+            'UpdateReplacePolicy' in resource && typeof resource.UpdateReplacePolicy === 'string'
+              ? resource.UpdateReplacePolicy
+              : undefined;
           const explicitDependencies = Array.isArray(resource.DependsOn)
             ? [...resource.DependsOn].sort()
             : resource.DependsOn
@@ -389,7 +400,7 @@ export const createSynthesisIdentityManifest = (template: CloudformationTemplate
             {
               type: resource.Type,
               ...(resource.DeletionPolicy && { deletionPolicy: resource.DeletionPolicy }),
-              ...(resource.UpdateReplacePolicy && { updateReplacePolicy: resource.UpdateReplacePolicy }),
+              ...(updateReplacePolicy && { updateReplacePolicy }),
               ...(Object.keys(physicalNames).length && { physicalNames }),
               dependencies: [...new Set([...explicitDependencies, ...findReferencedLogicalIds(resource, logicalIds)])]
                 .filter((dependency) => dependency !== logicalId)

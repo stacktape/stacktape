@@ -25,12 +25,13 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
   through `declare global`; there is no ambient alias bridge. The retained JSDoc still feeds generated schema/npm
   content, so `types/` remains excluded from formatters.
 - `@generated/` — committed generated data (CloudFormation types, config schema, LLM docs, price tables). Never
-  hand-edit; regenerate with the matching `gen:*` script. `tsconfig.json` excludes the directory, so the two
-  CloudFormation TypeScript trees are type-checked by their own `tsconfig.generated.json` project
-  (`test:generated-types`, ~2s, no dependencies outside the trees). Both `gen:cloudform` and `gen:cf:types` read
-  live AWS endpoints and have no pinned input, so any regeneration also imports upstream schema drift; regenerate
-  deliberately rather than as a side effect of an unrelated change.
+  hand-edit; regenerate with the matching `gen:*` script. The main CLI project excludes this directory, so
+  `@generated/tsconfig.json` owns both CloudFormation trees and the generated Zod validator
+  (`test:generated-types`). The config lives above the generator-owned subdirectories so regeneration cannot delete
+  it. Both `gen:cloudform` and `gen:cf:types` read live AWS endpoints and have no pinned input, so any regeneration
+  also imports upstream schema drift; regenerate deliberately rather than as a side effect of an unrelated change.
 - `tests/characterization/` — behavioral baselines for the CLI contract, config runtime, packaging and synthesis.
+  `tests/tsconfig.json` is their editor project and is part of the normal CLI typecheck.
 - `_test-stacks/` — small Stacktape projects used as test input. `config-loading-smoke/` is the imported one the
   characterization suite loads; `packaging-smoke/` is a disposable stack deployed to real AWS by hand to check split
   bundling and Lambda layers, described in its own `README.md` and in the root `DEVELOPMENT.md`.
@@ -57,11 +58,11 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 ## Checks
 
 ```sh
-pnpm --filter @stacktape/cli run typecheck       # CLI, packaging smoke fixture and committed generated CloudFormation TypeScript
+pnpm --filter @stacktape/cli run typecheck       # CLI, build/test projects, smoke fixtures and committed generated TypeScript
 pnpm --filter @stacktape/cli run test            # characterization, generators, command/Docker secret safety, release security, MCP docs, helper Lambdas, CLI smoke
 pnpm --filter @stacktape/cli run test:generators      # generator unit tests: JSDoc escaping, cloudform naming/generics
 pnpm --filter @stacktape/cli run test:starter-projects # config-name restoration and source-template invariants
-pnpm --filter @stacktape/cli run test:generated-types # type-checks the committed CloudFormation trees
+pnpm --filter @stacktape/cli run test:generated-types # type-checks committed CloudFormation and schema TypeScript
 pnpm --filter @stacktape/cli run test:docker-secrets # proves registry password, build-arg and container-env values never reach Docker's argv
 pnpm --filter @stacktape/cli run test:cli-smoke # compiles the binary and runs `--version` and `--help`
 pnpm --filter @stacktape/cli run test:release-artifact

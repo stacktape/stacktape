@@ -44,8 +44,8 @@
     "test:cli-smoke": "bun scripts/verify-cli-smoke.ts",
     "test:command-safety": "bun test src/domain/debug-services/aws-read-only-operations.spec.ts",
     "test:docker-secrets": "bun test shared/utils/__tests__/docker-secret-handling.test.ts",
-    "test:generated-types": "node ../../node_modules/typescript/bin/tsc -p tsconfig.generated.json",
-    "test:generators": "bun test scripts/generate-cloudform.spec.ts scripts/generate-cloudformation-types.spec.ts scripts/cloudform-root-helpers.spec.ts scripts/code-generation/jsdoc-extractor.spec.ts scripts/code-generation/resource-overrides.spec.ts scripts/code-generation/type-properties.spec.ts scripts/build-npm-declarations.spec.ts scripts/verify-npm-declarations.spec.ts",
+    "test:generated-types": "node ../../node_modules/typescript/bin/tsc -p @generated/tsconfig.json",
+    "test:generators": "bun test scripts/generate-cloudform.spec.ts scripts/generate-cloudformation-types.spec.ts scripts/cloudform-root-helpers.spec.ts scripts/code-generation/jsdoc-extractor.spec.ts scripts/code-generation/resource-overrides.spec.ts scripts/code-generation/type-properties.spec.ts scripts/build-npm-declarations.spec.ts scripts/verify-npm-declarations.spec.ts scripts/tsconfig-projects.spec.ts",
     "test:helper-lambdas": "bun test helper-lambdas/ src/utils/helper-lambdas.spec.ts",
     "test:mcp-docs": "bun test src/commands/mcp",
     "test:mcp-production": "bun scripts/test-mcp-production-eval.ts",
@@ -54,7 +54,7 @@
     "test:release-artifact": "bun scripts/verify-release-artifact.ts",
     "test:release-security": "bun test scripts/release/checksums.spec.ts src/api/npm/bin/stacktape.spec.ts scripts/install-scripts/checksums.spec.ts",
     "test:starter-projects": "bun test scripts/starter-projects src/commands/init/using-starter-project/utils.spec.ts",
-    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tsconfig.build.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/config-loading-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/packaging-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tsconfig.generated.json"
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tsconfig.build.json && node ../../node_modules/typescript/bin/tsc -p tests/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/config-loading-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/packaging-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p @generated/tsconfig.json"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.68.0",

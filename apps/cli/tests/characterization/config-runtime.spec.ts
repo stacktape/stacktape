@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
 import { validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
+import type { StacktapeConfig } from '@stacktape/config';
 import {
   $ResourceParam,
   $Stage,
@@ -175,7 +176,7 @@ describe('configuration runtime contract', () => {
     });
 
     expect(result.valid).toBe(false);
-    if (!result.valid) {
+    if (result.valid === false) {
       expect(result.errorMessage).toContain('Invalid resource type');
       expect(result.errorMessage).toContain('function');
     }
