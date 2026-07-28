@@ -37,6 +37,20 @@ import { loadPersistedState, savePersistedState } from './utils';
 import { runAuthFlow } from '../../commands/_utils/auth';
 import type { StacktapeConfig } from '@stacktape/config';
 
+export type DomainServiceName =
+  | 'ConfigManager'
+  | 'DeploymentArtifactManager'
+  | 'DomainManager'
+  | 'PackagingManager'
+  | 'StackManager'
+  | 'TemplateManager'
+  | 'DeployedStackOverviewManager'
+  | 'CalculatedStackOverviewManager'
+  | 'BudgetManager'
+  | 'CloudformationRegistryManager'
+  | 'SesManager'
+  | 'ThirdPartyProviderManager';
+
 @memoizeGetters
 export class GlobalStateManager {
   isInitialized = false;

@@ -10,7 +10,7 @@ import { configManager } from '@domain-services/config-manager';
 import { resolveReferencesToMountedEfsFilesystems } from '@domain-services/config-manager/utils/efs-filesystems';
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
-import { templateManager } from '@domain-services/template-manager';
+import { templateManager, type TemplateManager } from '@domain-services/template-manager';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';

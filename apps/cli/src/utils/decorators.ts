@@ -1,5 +1,5 @@
 import { applicationManager } from '@application-services/application-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { globalStateManager, type DomainServiceName } from '@application-services/global-state-manager';
 import { isPromise } from '@shared/utils/misc';
 import { generateUuid } from './uuid';
 

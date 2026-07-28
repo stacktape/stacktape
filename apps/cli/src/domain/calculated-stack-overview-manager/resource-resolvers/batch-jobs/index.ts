@@ -6,7 +6,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
-import { templateManager } from '@domain-services/template-manager';
+import { templateManager, type TemplateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
