@@ -1,5 +1,7 @@
 import type { BunPlugin } from 'bun';
-import { basename, dirname, extname, join, resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import {
   dirExists,
   getBaseName,
@@ -553,83 +555,115 @@ export const resolveDifferentSourceMapLocation = async ({
 /**
  * Module resolver that mimics esbuild's loose resolution behavior.
  * This handles transitive dependencies that aren't hoisted to root node_modules.
+ *
+ * A bare import is resolved the way Node resolves it: from the **real** location of the file that
+ * imports it, and only from the project when there is no importer (or the importer cannot see the
+ * package). Both parts matter in pnpm's isolated layout:
+ *
+ * - a dependent reaches its dependency through a symlink in its own private `node_modules`, so
+ *   walking up from the symlinked (logical) path skips the dependency's own `node_modules` and can
+ *   land in pnpm's hoisted `.pnpm/node_modules` fallback, which may hold a completely different
+ *   major version of the same package;
+ * - resolving from the project first would collapse every version of a multi-version transitive
+ *   dependency onto whichever one the project itself installed.
+ *
+ * All returned paths are real paths, so two importers that reach the same physical package through
+ * different symlinks share one bundled copy, and `getInfoFromPackageJson` sees the package's own
+ * siblings rather than its dependent's.
  */
 export const createModuleResolver = ({ cwd, monorepoRoot }: { cwd: string; monorepoRoot: string | null }) => {
-  // Cache for module resolution to avoid repeated filesystem checks
+  // Caches for module resolution to avoid repeated filesystem checks
   const modulePathCache = new Map<string, string | null>();
+  const projectModulePathCache = new Map<string, string | null>();
+  const realPathCache = new Map<string, string>();
+  const requireCache = new Map<string, ReturnType<typeof createRequire>>();
 
-  // Fast path: find module in standard locations (cwd/node_modules, monorepo root/node_modules)
-  const findModulePathFast = (moduleName: string): string | null => {
-    if (modulePathCache.has(moduleName)) {
-      return modulePathCache.get(moduleName)!;
+  const toRealPath = (path: string): string => {
+    const cached = realPathCache.get(path);
+    if (cached !== undefined) return cached;
+    let realPath: string;
+    try {
+      realPath = realpathSync(path);
+    } catch {
+      // Virtual entrypoints and not-yet-written files have no real path; resolve from them as given.
+      realPath = path;
     }
-
-    // 1. Check cwd/node_modules (most common case)
-    const cwdModulePath = join(cwd, 'node_modules', moduleName);
-    if (isFileAccessible(join(cwdModulePath, 'package.json'))) {
-      modulePathCache.set(moduleName, cwdModulePath);
-      return cwdModulePath;
-    }
-
-    // 2. Check monorepo root/node_modules
-    if (monorepoRoot && monorepoRoot !== cwd) {
-      const rootModulePath = join(monorepoRoot, 'node_modules', moduleName);
-      if (isFileAccessible(join(rootModulePath, 'package.json'))) {
-        modulePathCache.set(moduleName, rootModulePath);
-        return rootModulePath;
-      }
-    }
-
-    return null;
+    realPathCache.set(path, realPath);
+    return realPath;
   };
 
-  // Walk up from importer directory checking nested node_modules
-  // This mimics Node.js resolution algorithm for transitive dependencies
+  const requireFrom = (fromFile: string): ReturnType<typeof createRequire> => {
+    let fromFileRequire = requireCache.get(fromFile);
+    if (!fromFileRequire) {
+      fromFileRequire = createRequire(fromFile);
+      requireCache.set(fromFile, fromFileRequire);
+    }
+    return fromFileRequire;
+  };
+
+  // Node's `node_modules` walk, used for packages whose "exports" map hides ./package.json from
+  // require.resolve. Unlike Node it only needs the package directory, not an entry file.
+  const walkNodeModules = (moduleName: string, fromDir: string): string | null => {
+    let currentDir = fromDir;
+    while (true) {
+      if (basename(currentDir) !== 'node_modules') {
+        const candidate = join(currentDir, 'node_modules', moduleName);
+        if (isFileAccessible(join(candidate, 'package.json'))) return candidate;
+      }
+      const parentDir = dirname(currentDir);
+      if (parentDir === currentDir) return null;
+      currentDir = parentDir;
+    }
+  };
+
   const findModulePathFromImporter = (moduleName: string, importer: string): string | null => {
-    const cacheKey = `${moduleName}:importer:${importer}`;
+    const realImporter = toRealPath(importer);
+    try {
+      const manifestPath = requireFrom(realImporter).resolve(`${moduleName}/package.json`);
+      // Node returns the bare name for builtins; every real package resolves to an absolute path.
+      if (isAbsolute(manifestPath)) return dirname(manifestPath);
+    } catch {
+      // The package hides ./package.json behind an "exports" map, or is not reachable from here.
+    }
+    return walkNodeModules(moduleName, dirname(realImporter));
+  };
+
+  // What a direct import from the project itself resolves to (cwd/node_modules, monorepo root)
+  const findModulePathFromProject = (moduleName: string): string | null => {
+    if (projectModulePathCache.has(moduleName)) {
+      return projectModulePathCache.get(moduleName)!;
+    }
+
+    const candidates = [join(cwd, 'node_modules', moduleName)];
+    if (monorepoRoot && monorepoRoot !== cwd) {
+      candidates.push(join(monorepoRoot, 'node_modules', moduleName));
+    }
+    const found = candidates.find((candidate) => isFileAccessible(join(candidate, 'package.json'))) || null;
+
+    const result = found && toRealPath(found);
+    projectModulePathCache.set(moduleName, result);
+    return result;
+  };
+
+  // Combined resolution: importer-relative first, then the project
+  const findModulePath = (moduleName: string, importer?: string): string | null => {
+    const usableImporter = importer && isAbsolute(importer) ? importer : null;
+    const cacheKey = usableImporter ? `${moduleName} ${usableImporter}` : moduleName;
     if (modulePathCache.has(cacheKey)) {
       return modulePathCache.get(cacheKey)!;
     }
 
-    let currentDir = dirname(importer);
-    const rootDir = monorepoRoot || cwd;
+    const fromImporter = usableImporter ? findModulePathFromImporter(moduleName, usableImporter) : null;
+    const result = (fromImporter && toRealPath(fromImporter)) || findModulePathFromProject(moduleName);
 
-    // Walk up directory tree, checking node_modules at each level
-    while (currentDir.length >= rootDir.length) {
-      const nestedPath = join(currentDir, 'node_modules', moduleName);
-      if (isFileAccessible(join(nestedPath, 'package.json'))) {
-        modulePathCache.set(cacheKey, nestedPath);
-        return nestedPath;
-      }
-      const parentDir = dirname(currentDir);
-      if (parentDir === currentDir) break;
-      currentDir = parentDir;
-    }
-
-    modulePathCache.set(cacheKey, null);
-    return null;
+    modulePathCache.set(cacheKey, result);
+    return result;
   };
 
-  // Combined resolution: fast path first, then walk-up from importer
-  const findModulePath = (moduleName: string, importer?: string): string | null => {
-    // Try fast path first (covers 99% of cases)
-    const fastResult = findModulePathFast(moduleName);
-    if (fastResult) return fastResult;
-
-    // If we have an importer, try walking up from there
-    if (importer) {
-      const importerResult = findModulePathFromImporter(moduleName, importer);
-      if (importerResult) return importerResult;
-    }
-
-    return null;
-  };
-
-  // Check if module is in a non-standard location (nested node_modules)
+  // Check if module is in a non-standard location (nested node_modules). Standard locations are the
+  // ones Bun resolves natively, so only the rest needs the loose-resolve plugin to intervene.
   const isNestedLocation = (modulePath: string, moduleName: string): boolean => {
-    const standardCwdPath = join(cwd, 'node_modules', moduleName);
-    const standardRootPath = monorepoRoot ? join(monorepoRoot, 'node_modules', moduleName) : null;
-    return modulePath !== standardCwdPath && (!standardRootPath || modulePath !== standardRootPath);
+    return modulePath !== findModulePathFromProject(moduleName);
   };
 
   return {

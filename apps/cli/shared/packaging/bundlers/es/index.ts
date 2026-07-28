@@ -15,7 +15,7 @@ import {
 } from '@shared/utils/fs-utils';
 import { builtinModules, filterDuplicates, getError, getTsconfigAliases, raiseError } from '@shared/utils/misc';
 import { findProjectRoot } from '@shared/utils/monorepo';
-import { copy, lstatSync, outputJSON, readFile, readFileSync, realpathSync, writeJson } from 'fs-extra';
+import { copy, outputJSON, readFile, readFileSync, realpathSync, writeJson } from 'fs-extra';
 import uniqWith from 'lodash/uniqWith';
 import objectHash from 'object-hash';
 import {
@@ -127,14 +127,13 @@ export const buildEsCode = async ({
   const moduleResolver = createModuleResolver({ cwd, monorepoRoot });
   const { findModulePath } = moduleResolver;
 
-  // Helper to check if a module path is a workspace package (symlink pointing within monorepo)
+  // Helper to check if a module path is a workspace package (a package living inside the monorepo).
+  // findModulePath returns real paths, so the symlink that node_modules uses to reach a workspace
+  // package is already resolved here and only the location of the real directory is meaningful.
   const isWorkspacePackage = (modulePath: string): boolean => {
     if (!unixMonorepoRoot) return false;
     try {
-      const isSymlink = lstatSync(modulePath).isSymbolicLink();
-      if (!isSymlink) return false;
       const realPath = transformToUnixPath(realpathSync(modulePath));
-      // Workspace packages are symlinks pointing to paths within the monorepo but not in node_modules
       return realPath.startsWith(unixMonorepoRoot) && !realPath.includes('node_modules');
     } catch {
       return false;
